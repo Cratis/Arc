@@ -173,18 +173,23 @@ export class ObservableQueryConnection<TDataType> implements IObservableQueryCon
                 // For new-style messages (type === 'Data') the query result is wrapped in message.data.
                 // For legacy/backward-compatible messages (no type) the entire message IS the query result.
                 const data = message.type === WebSocketMessageType.Data ? message.data : message;
-                const result = data as QueryResult<TDataType>;
-
-                if (result?.isAuthorized === false) {
-                    this.handleUnauthorized(result, dataReceived);
-                    return;
-                }
-
-                dataReceived(result);
+                this.handleResult(data as QueryResult<TDataType>, dataReceived);
             }
         } catch (error) {
             console.error('Error parsing WebSocket message:', error);
         }
+    }
+
+    private handleResult(result: QueryResult<TDataType>, dataReceived: DataReceived<TDataType>) {
+        if (result?.isAuthorized === false) {
+            this.handleUnauthorized(result, dataReceived);
+            return;
+        }
+
+        if (result?.isValid === false) {
+            this.disconnect();
+        }
+        dataReceived(result);
     }
 
     /**

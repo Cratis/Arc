@@ -6,15 +6,16 @@ name: .NET Build
 # request that lost was left with a cancelled run and no failing job, which reads as though it is still going
 # rather than as though anything is wrong. So the group is the pull request when there is one, and the ref only
 # for the manual runs that have no pull request to name.
+# Runs on main (push and manual) are never cancelled: a burst of merges queues, GitHub keeps only the newest
+# pending run, and that run verifies the latest main. Cancelling would leave main unverified while merges keep coming.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
 env:
   DOTNET8_VERSION: "8.0.407"
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
-  DOTNET_OBJ_CACHE: "dotnet-obj-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
 on:
   workflow_dispatch:
@@ -28,6 +29,25 @@ on:
         - info
         - warning
         - debug
+  # Pull request runs build the pull request head, not its merge with main, so two pull requests that are each
+  # green can still break main together. The push run builds and specs main itself after every merge, and the
+  # report-main job opens (or updates) one main-broken issue when it fails and closes it when main is green again.
+  push:
+    branches:
+      - main
+    paths:
+      - "Source/DotNET/**"
+      - "Specifications/**"
+      - "Samples/**"
+      - "Directory.Build.props"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - "stylecop.json"
+      - "Arc.slnx"
+      - ".github/workflows/dotnet-build.yml"
+      - ".github/test-shards.json"
+      - "scripts/ci-test-shards.py"
+      - "scripts/viewer-bundle.test.mjs"
   pull_request_target:
     branches:
       - "**"
@@ -45,6 +65,8 @@ on:
       - "stylecop.json"
       - "Arc.slnx"
       - ".github/workflows/dotnet-build.yml"
+      - ".github/test-shards.json"
+      - "scripts/ci-test-shards.py"
       - "scripts/viewer-bundle.test.mjs"
 
 jobs:
@@ -52,8 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      proxy-namespaces: ${{ steps.discover-namespaces.outputs.namespaces }}
-      spec-projects: ${{ steps.discover-specs.outputs.projects }}
+      proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
+      spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
 
     steps:
       - name: Checkout code
@@ -61,34 +83,18 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
-      - name: Discover ProxyGenerator spec namespaces
-        id: discover-namespaces
+      # The specs run in a few shards rather than one job per ProxyGenerator.Specs 'for_' namespace and per spec
+      # project; the per-job setup and artifact download cost several times what the tests did. The assignment lives
+      # in .github/test-shards.json, balanced by measured test time (the runs it came from are recorded there).
+      # This fails before the build when a namespace or spec project is in no shard, in two, or no longer exists, so
+      # a new one cannot silently drop out of the run.
+      - name: Verify the test shard assignment
+        id: test-shards
         run: |
-          namespaces=$(grep -rh "^namespace " Source/DotNET/Tools/ProxyGenerator.Specs --include="*.cs" \
-            | sed 's/^namespace //; s/;//' \
-            | awk -F. '{
-                for (i=1; i<=NF; i++) {
-                  if ($i ~ /^for_/) {
-                    r=$1; for (j=2; j<=i; j++) r=r"."$j
-                    print r
-                    break
-                  }
-                }
-              }' \
-            | sort -u \
-            | jq -Rc '.' \
-            | jq -sc '.')
-          echo "namespaces=$namespaces" >> "$GITHUB_OUTPUT"
-
-      - name: Discover spec projects
-        id: discover-specs
-        run: |
-          projects=$(find Source/DotNET -name "*.Specs.csproj" ! -name "ProxyGenerator.Specs.csproj" \
-            | sed 's|/[^/]*\.csproj$||' \
-            | sort \
-            | jq -Rc '.' \
-            | jq -sc '.')
-          echo "projects=$projects" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          python3 scripts/ci-test-shards.py --self-test
+          python3 scripts/ci-test-shards.py check
+          python3 scripts/ci-test-shards.py matrix >> "$GITHUB_OUTPUT"
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -98,21 +104,13 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
+      # This workflow only restores the shared caches, also when it runs on main: warm-caches.yml is the one place
+      # that saves them, so pull request code never writes a cache.
+      # It runs before anything adds .props or .targets files (obj, node_modules) that its key hashes.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
         with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-
-      - name: Restore obj cache
-        uses: actions/cache@v6
-        with:
-          path: ./**/obj
-          key: ${{ env.DOTNET_OBJ_CACHE }}
-          restore-keys: |
-            dotnet-obj-
+          mode: restore
 
       - name: Setup node
         uses: actions/setup-node@v4
@@ -120,17 +118,14 @@ jobs:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v6
-        id: yarn-cache
+      - name: Enable corepack
+        run: corepack enable
+
+      # Restore only, like the NuGet cache above.
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
         with:
-          path: |
-            .yarn/cache
-            node_modules
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+          mode: restore
 
       - name: Yarn install
         run: yarn install --immutable
@@ -144,8 +139,10 @@ jobs:
           npm run build
           node --test ../../../scripts/viewer-bundle.test.mjs
 
+      # Every spec job below runs net10.0 only, so the spec projects and their fixtures are compiled for net10.0 only
+      # (Directory.Build.props). The libraries still build for net8.0, net9.0 and net10.0.
       - name: Build
-        run: dotnet build --configuration Release
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0
 
       # Hand off the compiled binaries AND the JavaScript dist output to the spec jobs
       # via an artifact rather than actions/cache. This is an intra-run handoff, not
@@ -156,29 +153,35 @@ jobs:
       # proxies against Source/JavaScript/**/dist (e.g. Arc/dist/cjs/index.js), so that
       # output must ride along in the same artifact. Artifacts are the correct primitive
       # for passing build output between jobs in the same run.
+      # zstd on every core packs the ~1.3 GB tree in a fraction of the time gzip took, and the archive is
+      # already compressed, so the upload stores it as is (compression-level 0) instead of compressing it again.
       - name: Archive build output
         run: |
+          set -euo pipefail
           {
             find . -type d -name bin -not -path '*/node_modules/*' -not -path './.git/*' -print0
             find Source/JavaScript -type d -name dist -not -path '*/node_modules/*' -print0
-          } | tar --null -czf build-output.tar.gz -T -
+          } | tar --null -I 'zstd -T0' -cf build-output.tar.zst -T -
+          ls -l build-output.tar.zst
 
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: build-output
-          path: build-output.tar.gz
+          path: build-output.tar.zst
+          compression-level: 0
           retention-days: 1
           if-no-files-found: error
 
   specs:
+    name: ${{ matrix.shard }}
     needs: [dotnet-build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        project: ${{ fromJson(needs.dotnet-build.outputs.spec-projects) }}
+        shard: ${{ fromJson(needs.dotnet-build.outputs.spec-shards) }}
 
     steps:
       - name: Checkout code
@@ -186,13 +189,11 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
+      # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
 
       - name: Download build output
         uses: actions/download-artifact@v4
@@ -200,10 +201,41 @@ jobs:
           name: build-output
 
       - name: Extract build output
-        run: tar -xzf build-output.tar.gz
+        run: tar -I zstd -xf build-output.tar.zst
 
-      - name: Test (${{ matrix.project }})
-        run: dotnet test ${{ matrix.project }} --no-build --configuration Release --framework net10.0
+      # One dotnet test per project, as before; a failing project does not stop the rest of the shard.
+      - name: Test (${{ matrix.shard }})
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          projects=$(python3 scripts/ci-test-shards.py projects --shard "$SHARD")
+          failed=0
+          for project in $projects; do
+            echo "::group::$project"
+            dotnet test "$project" --no-build --configuration Release --framework net10.0 \
+              --logger "trx;LogFileName=$(basename "$project").trx" \
+              --results-directory "$RUNNER_TEMP/test-results" \
+              || { echo "::error title=Specs failed::$project"; failed=1; }
+            echo "::endgroup::"
+          done
+          exit "$failed"
+
+      # A project that runs no tests passes dotnet test; this fails the shard instead and prints each project's count.
+      - name: Verify every project ran tests
+        if: ${{ !cancelled() }}
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python3 scripts/ci-test-shards.py verify-trx --shard "$SHARD" --results "$RUNNER_TEMP/test-results"
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: ${{ runner.temp }}/test-results/*.trx
+          retention-days: 7
+          if-no-files-found: warn
 
   # Every Screenplay specification builds its compilation from source strings, which is what makes them hermetic -
   # and what puts a whole class of defect out of their reach by construction. A compilation built that way has no
@@ -233,13 +265,11 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
+      # This job restores only the samples, so it never saves the shared cache, even when run by hand on main.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
         with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+          mode: restore
 
       - name: Download build output
         uses: actions/download-artifact@v4
@@ -247,7 +277,7 @@ jobs:
           name: build-output
 
       - name: Extract build output
-        run: tar -xzf build-output.tar.gz
+        run: tar -I zstd -xf build-output.tar.zst
 
       # The build output artifact carries bin folders only, and reading a project through MSBuild needs the assets
       # file that restore writes to obj.
@@ -308,13 +338,14 @@ jobs:
             --authoring-only-constructs
 
   proxy-specs:
+    name: ${{ matrix.shard }}
     needs: [dotnet-build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        namespace: ${{ fromJson(needs.dotnet-build.outputs.proxy-namespaces) }}
+        shard: ${{ fromJson(needs.dotnet-build.outputs.proxy-shards) }}
 
     steps:
       - name: Checkout code
@@ -322,13 +353,11 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
+      # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
 
       # The template contract specs lint generated output with the real ESLint toolchain.
       - name: Setup node
@@ -336,17 +365,13 @@ jobs:
         with:
           node-version: 23.x
 
-      - name: Restore node modules
-        uses: actions/cache@v6
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
         with:
-          path: |
-            .yarn/cache
-            node_modules
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+          mode: restore
 
       - name: Yarn install
         run: yarn install --immutable
@@ -357,13 +382,91 @@ jobs:
           name: build-output
 
       - name: Extract build output
-        run: tar -xzf build-output.tar.gz
+        run: tar -I zstd -xf build-output.tar.zst
 
-      - name: Test (${{ matrix.namespace }})
+      # The shard's filter ORs together the FullyQualifiedName~<namespace> filters of the jobs it replaces.
+      - name: Test (${{ matrix.shard }})
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
+          set -euo pipefail
+          filter=$(python3 scripts/ci-test-shards.py filter --shard "$SHARD")
           dotnet test Source/DotNET/Tools/ProxyGenerator.Specs \
             --no-build \
             --configuration Release \
             --framework net10.0 \
-            --filter "FullyQualifiedName~${{ matrix.namespace }}" \
-            --logger "console;verbosity=normal"
+            --filter "$filter" \
+            --logger "console;verbosity=normal" \
+            --logger "trx;LogFileName=$SHARD.trx" \
+            --results-directory "$RUNNER_TEMP/test-results"
+
+      # A filter that matches nothing passes dotnet test; this fails the shard when any of its namespaces ran no
+      # tests and prints each namespace's count.
+      - name: Verify every namespace ran tests
+        if: ${{ !cancelled() }}
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: python3 scripts/ci-test-shards.py verify-trx --shard "$SHARD" --results "$RUNNER_TEMP/test-results"
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: ${{ runner.temp }}/test-results/*.trx
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
+  # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
+  report-main:
+    needs: [dotnet-build, specs, screenplay-end-to-end, proxy-specs]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+
+    steps:
+      - name: Open, update or close the main-broken issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          open_issue=$(gh issue list --label main-broken --state open --limit 1 --json number --jq '.[0].number // empty')
+          failed=0
+          for result in $RESULTS; do
+            [ "$result" = success ] || failed=1
+          done
+          if [ "$failed" = 0 ]; then
+            echo "main is green at $SHA (results: $RESULTS)"
+            if [ -n "$open_issue" ]; then
+              gh issue close "$open_issue" --reason completed --comment "main builds and passes its specs again at $SHA: $RUN_URL"
+            fi
+            exit 0
+          fi
+          last_green=$(gh run list --workflow dotnet-build.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          if [ -n "$last_green" ]; then
+            range="Commits since the last green run on main: ${GITHUB_SERVER_URL}/${GH_REPO}/compare/${last_green}...${SHA}"
+          else
+            range="No earlier green run on main was found."
+          fi
+          body=$(printf '%s\n\n%s\n%s\n%s\n' \
+            "The .NET Build on main failed at $SHA (job results: $RESULTS)." \
+            "Run: $RUN_URL" \
+            "$range" \
+            "Two pull requests that were each green can break main together; check the merges in that range.")
+          if [ -n "$open_issue" ]; then
+            gh issue comment "$open_issue" --body "$body"
+          else
+            gh label create main-broken --color B60205 --description "main fails its build or specs after a merge" --force
+            gh issue create --title "main is broken: .NET Build fails after merge" --label main-broken --body "$body"
+          fi
+          echo "::error title=main is broken::.NET Build failed on main at $SHA"
+          exit 1

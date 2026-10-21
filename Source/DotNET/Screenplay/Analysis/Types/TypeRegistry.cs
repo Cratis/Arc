@@ -30,6 +30,7 @@ public class TypeRegistry
     readonly PersonalDataMarkings _personalData = new();
     readonly FlagsEnumUses _flags = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
+    readonly HashSet<string> _generatedConcepts = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type that had to be referred to by a name that does not say what it is.
@@ -56,7 +57,8 @@ public class TypeRegistry
     /// </summary>
     public IEnumerable<ConceptModel> Concepts => _concepts.Concepts.Select(concept => concept with
     {
-        UnmarkedPiiUses = _personalData.UnmarkedUses(concept.Name)
+        UnmarkedPiiUses = _personalData.UnmarkedUses(concept.Name),
+        HasGeneratedUses = _generatedConcepts.Contains(concept.Name)
     });
 
     /// <summary>
@@ -140,7 +142,10 @@ public class TypeRegistry
             _shapes.Register(carried, ResolveCarried);
         }
 
-        return new(NameOf(carried), collection, optional);
+        return new(NameOf(carried), collection, optional)
+        {
+            UnnameableType = CannotNameCarried(carried) ? type.ToDisplayString() : null
+        };
     }
 
     /// <summary>
@@ -164,6 +169,42 @@ public class TypeRegistry
     /// <param name="rules">The rules to record.</param>
     public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules) =>
         _concepts.AddValidations(conceptName, rules);
+
+    /// <summary>
+    /// Determines whether a carried value has neither a primitive nor a declaration in Screenplay.
+    /// </summary>
+    /// <param name="type">The unwrapped carried type.</param>
+    /// <returns>True when the property must be omitted rather than named.</returns>
+    internal static bool CannotNameCarried(ITypeSymbol type) =>
+        !(type is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out _)) &&
+        type.TypeKind != TypeKind.Enum && type.FindBase(WellKnownTypeNames.ConceptAs) is null &&
+        !CarriedTypes.IsRecord(type);
+
+    /// <summary>
+    /// Resolves a command-generated type while preserving its generation use through admission failure.
+    /// </summary>
+    /// <param name="type">The generated type.</param>
+    /// <returns>The resolved type reference.</returns>
+    internal TypeReferenceModel ResolveGenerated(ITypeSymbol type)
+    {
+        var resolved = Resolve(type);
+        _generatedConcepts.Add(resolved.Name);
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// Records that a concept's executable validation was not fully recovered.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    internal void MarkValidationIncomplete(string name) => _concepts.MarkValidationIncomplete(name);
+
+    /// <summary>
+    /// Preserves references to validators outside the declarative UUID validation algebra.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    /// <param name="sources">The complete validator source attachments.</param>
+    internal void AddValidatorSources(string name, IEnumerable<ValidationRuleModel> sources) => _concepts.AddValidatorSources(name, sources);
 
     /// <summary>
     /// Records an analyzed property's personal-data marking and any unmarked concept use.

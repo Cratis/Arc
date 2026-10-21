@@ -1,6 +1,6 @@
 ---
 title: Generating a Screenplay
-description: How Arc reads the source of your application and writes the event model it already describes — what a .play file is, what it buys you, and exactly what it does and does not say.
+description: "Arc reads your application's source and writes the event model it already describes as a .play file; this page says what the file contains and what it omits."
 ---
 
 An [event model](/event-modeling/) is the picture of your system: which commands change state, which events they produce, which read models those events build, and which reactors turn one thing into another. Teams draw it on a whiteboard at the start, and then the code moves on without it. Six months later the picture is fiction and nobody trusts it enough to open.
@@ -149,7 +149,11 @@ An event used by exactly one production site can appear as `produces event <Name
 
 Both forms preserve descriptions, documentation, rename pins, and the persisted payload shape. Inlining changes where the declaration appears, not its executable meaning. Scoped embedded documents still import an inline event declared outside their scope, and the board keeps its schema and flow links.
 
-The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A directly returned `(TEvent, TResponse)` tuple preserves that destination when the response cannot be an event source identifier, including returns through `Task` or `ValueTask`. Arc handles the event through command context and returns the separate response to the caller; an ordinary response does not replace the event source. A response typed as an event source identifier, `object`, or an interface does not prove this routing. A routed wrapper, an unproven tuple destination, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination once per command, even when the command has no identifier, rather than retargeting it. In both default and authoring modes, the command's whole source and stream route is also withheld with `SP0054`, regardless of identifier type, because it would claim the production lands on the command's source and stream.
+The generator retains `identifier` and explicit `for` destinations when every production uses proven command context or has an admitted explicit destination and effective route. A directly returned `(TEvent, TResponse)` tuple keeps command context when its response cannot be an event source identifier, including returns through `Task` or `ValueTask`. A returned Chronicle identity tuple can instead select a proven required input. An arbitrary `Guid` or string response is not treated as an identity; `object`, interfaces and unknown union branches cannot prove the destination.
+
+Returned `EventForEventSourceId` wrappers can supply per-production `for` and `stream` overrides, including arrays, literal lists and mixed plain-event/wrapper tuples or collections. Each occurrence keeps its own destination and route, even when the same event type appears several times. Plain siblings retain command defaults and state their own `for`. See [Event sources and streams](#event-sources-and-streams) for admission limits.
+
+Unproven destinations, explicit appends and aggregates fetched for another identity keep the conservative standalone-event fallback. Information diagnostic `SP0051` reports the omitted destination once per command rather than redirecting it. An unproven override also withholds the command route with `SP0054` in both output modes: keeping it would claim routing the generator could not establish.
 
 ## Read models
 
@@ -189,10 +193,18 @@ A read model is left undeclared, with Information diagnostic `SP0057`, when no d
 
 - two read models come out under the same declaration name (`Order_Summary` and `OrderSummary` both become `OrderSummary`), or a query or a command reads a different type under that name;
 - the name is already used by a concept or a type;
-- a value it holds, at any depth, has a type the document cannot declare, is a collection whose elements may be null (`optional` on a collection says only that the collection may be absent), or shares its declaration name with a different type the document already declares, with another type the read model holds, or with a read model;
+- a value it holds, at any depth, is a collection whose elements may be null (`optional` on a collection says only that the collection may be absent), or a carried record or concept shares its declaration name with a different type the document already declares, with another type the read model holds, or with a read model;
 - no slice refers to it.
 
 Queries and projections referring to an omitted read model are withheld too, as are dependent screen data, tables and scenarios, with Information diagnostic `SP0030`. Authoring reads and their dependent requirements, mappings and operations are withheld with `SP0055` or `SP0053`. If these omissions empty a slice, Information diagnostic `SP0002` reports why the slice was left out. None of the concepts or types it holds are declared on its behalf.
+
+### Properties without a Screenplay type
+
+Dictionaries, constructed generic values such as `KeyValuePair<TKey, TValue>`, interfaces, abstract classes and other carried types without a Screenplay declaration are omitted with Warning `SP0030`, naming the property and its original type. This also applies to collections of those values and to properties inside carried records. Representable sibling properties remain. A carried record that loses every property cannot be declared; references to that emptied shape are omitted too. Abstract records with declarable properties remain supported.
+
+ESM v28 has no map, JSON, object or open-shape property type. The generator does not substitute `String`, invent a placeholder, or write a bare type name that nothing declares. The resulting declarations are partial descriptions, not equivalent replacements for the original C# contracts.
+
+Behavior requiring a complete affected schema is withheld with Information `SP0030`: declarative commands, projections and reactions are not restated over fewer fields, and dependent screen data, tables and actions are left out. Queries remain when their parameters are representable; a query with an unnameable parameter is withheld rather than broadened. A scenario using an affected schema or withheld behavior is omitted in full with `SP0039`; fixtures and assertions are never silently trimmed. Review these diagnostics before using the generated document as a behavioral model.
 
 ## Query descriptions and implementations
 
@@ -245,13 +257,13 @@ Computed getters, transformations, nullable claim targets, conditional assertion
 
 A `[GeneratedValue]` Handle parameter becomes a `generated` property when its concept's `IGeneratable<T>.New()` or `IGeneratableInContext<T>.New(context)` proves a supported generation strategy. The property name is the attribute's explicit name, or the C# parameter name. A directly returned event-source identity, alone or beside an event in a tuple, becomes `generated identifier` and `returns <name>`. A direct `EventForEventSourceId(parameter, event)` target becomes `generated identifier` without inventing a response. Aggregate-backed handlers do not infer a generated destination.
 
-A generated value must be a required scalar concept backed by `Uuid` or `String`, with a recovered strategy and no concept validator, validation rules or compliance markers. UUID-backed concepts retain implicit UUID v4 generation; non-default strategies require ESM v15. Generated identifiers also require at least 64 random bits. The parameter must not be reassigned or passed by reference, and its emitted name must not collide with another command property. Successful scenarios can now pin these parameters; a missing or unreadable pin withholds that scenario with `SP0039`, not the command's generation contract. Existing `Guid.NewGuid()` and proven `New()` local and response heuristics remain supported, but their successful scenarios still cause the legacy fallback with `SP0052`: values created inside `Handle()` have no pinning seam.
+A generated value must be a required scalar concept backed by `Uuid`, `String`, signed `long` or `int`, with a recovered strategy, completely recovered default validation, and no compliance markers. Integral concepts support only random generation, not generated identifiers. An empty concept validator does not block generation. UUID-backed concepts retain implicit UUID v4 generation; non-default rule-free strategies require ESM v15, and admitted String-backed strategies with concept rules require ESM v20. Generated identifiers also require at least 64 random bits. The parameter must not be reassigned or passed by reference, and its emitted name must not collide with another command property. Successful scenarios can now pin these parameters; a missing or unreadable pin withholds that scenario with `SP0039`, not the command's generation contract. Existing `Guid.NewGuid()` and proven `New()` local and response heuristics remain supported, but their successful scenarios still cause the legacy fallback with `SP0052`: values created inside `Handle()` have no pinning seam.
 
 Response-record fields must be compiler-synthesized positional properties, not explicit properties that transform their inputs. Scalar responses use `returns <property>` only for a direct value of the same declared type without a value-changing conversion; fully readable response records use a `returns` block whose fields refer directly to command inputs or admitted generated values. Scenarios asserting a response must state it as `then returns` (see [the scenarios a slice is specified by](#the-scenarios-a-slice-is-specified-by)). An unrecovered response assertion beside events preserves the command's legacy form with `SP0052`. Generated values and responses select at least ESM v7; a non-default concept generation declaration selects ESM v15. Documents without those declarations retain their existing ESM version.
 
 Generated values do not exist during authorization or validation. Property rules and requirements cannot reference them (`PLAY0273`); when recovered protection reads a generated value, the command falls back to its legacy representation without `generated` or `returns`, and `SP0052` explains that the protection remains in code. The generator's recovered authorization policies describe the caller, not generated command properties.
 
-Unadmitted generated shapes and dependent responses are omitted with `SP0052`. A required event payload mapping that needs an unavailable generated value or read causes the entire production to be withheld with Information diagnostic `SP0012`; an incomplete event payload is never emitted by pruning. Successful scenarios of that command are withheld with `SP0039`. If no event production remains, its route is withheld with `SP0054` and the command keeps its handler pointer. For an optional payload member, only the blocked mapping is omitted; the production can still bind. A production whose condition depends on an unadmitted value is omitted with an explicit diagnostic; when no production remains, the command keeps a handler reference. An unproven tuple destination reports `SP0013`.
+Unadmitted generated shapes and dependent responses are omitted with `SP0052`. A required event payload mapping that needs an unavailable generated value or read causes the entire production to be withheld with Information diagnostic `SP0012`; an incomplete event payload is never emitted by pruning. Successful scenarios of that command are withheld with `SP0039`. If no event production remains, its route is withheld with `SP0054` and the command keeps its handler pointer. For an optional payload member, only the blocked mapping is omitted with Warning diagnostic `SP0012`; independent mappings and the production are retained. A production whose condition depends on an unadmitted value is omitted with an explicit diagnostic; when no production remains, the command keeps a handler reference. An unproven tuple destination reports `SP0013`.
 
 A generated identifier supplies an inline event's destination. Standalone productions using that identity carry explicit `for <identifier>`; a plain production without `for` still needs its separate allocation channel. Empty and provably response-only commands need no handler. Commands whose behavior lives in code keep a `handler` file reference by default, as before, rather than disappearing from the embedded board or being described as recording no facts. A command never carries both `produces` and `handler`.
 
@@ -259,7 +271,9 @@ The generator preserves the legacy authoring document and adds generated values 
 
 ## Recovering generation strategies
 
-Recovery reads the concept's generation contract, including explicit interface implementations. A recognized body is one expression, or a block containing only its return: `new(<call>)`, `new Concept(<call>)`, or `<call>` through a proven implicit conversion. Constructors and conversions must forward the primitive unchanged to the concept base. Arguments must be literals, encoding enum members, or a passed-through `GenerationContext` parameter; computed arguments and reads of `context.Now` or `context.Tenant` are not recovered.
+In the shop from [Generated values](commands/generated-values.md), `OrderId` (`GenerateValue.TypeId("order", context)`) and `ApiKey` (`GenerateValue.Bytes(32, ValueEncoding.Base64Url)`) match the forms in the table below and recover as `generate typeid "order"` and `generate bytes 32 base64url`. `CustomerId` calls `GenerateValue.Ulid()` inside string interpolation, which reads the ambient clock. That custom body stays in code; a context-dependent factory must pass its captured context to the time-based call. Even a recovered opaque body cannot supply a generated identifier because its entropy is unknown. `InviteCode` reads its alphabet from a field, so it stays in code and is reported with `SP0073`. The `[NotAudited]` marking is not part of the model. For how Screenplay and Stage treat these strategies, see [Generated values](/screenplay/generated-values/) and [Generated values rendering](https://github.com/Cratis/Stage/blob/main/Documentation/reference/generated-values-rendering.md).
+
+Recovery reads the concept's generation contract, including explicit interface implementations. A recognized body is one expression, or a block containing only its return: `new(<call>)`, `new Concept(<call>)`, or `<call>` through a proven implicit conversion. Constructors and conversions must forward the primitive unchanged to the concept base. Built-in strategy arguments must be literals, encoding or checksum enum members, or a passed-through `GenerationContext` parameter. Self-contained String bodies using `context.Now` and `context.Tenant` can instead recover as inline rules, as described below.
 
 The concept owns the strategy. Its declaration gets the `generate` line; each command property says only `generated` or `generated identifier`.
 
@@ -276,12 +290,61 @@ The concept owns the strategy. Its declaration gets the `generate` line; each co
 | `GenerateValue.Bytes(16, ValueEncoding.Base32)` | `generate bytes 16 base32`, uppercase RFC 4648, without padding. |
 | `RandomNumberGenerator.GetHexString(64, lowercase: true)` | `generate bytes 32 hex`; the character count must be even. |
 | `RandomNumberGenerator.GetHexString(32)` or the overload with `lowercase: false` | `generate bytes 16 hex case upper`. |
+| `GenerateValue.Pattern("[A-Z]{16}")` | `generate pattern "[A-Z]{16}"` (ESM v21). |
+| `GenerateValue.Pattern("[0-9]{20}", checksum: Checksum.Luhn)` | `generate pattern "[0-9]{20}" checksum luhn`; also `Mod11` and `Mod97`. |
+| `GenerateValue.Integer(-9, 9)` on `ConceptAs<long>` | `generate random -9..9`, inclusive (ESM v21). |
+| `(int)GenerateValue.Integer(-9, 9)` on `ConceptAs<int>` | The same random range; exactly one cast and both bounds within Int32 are required. |
 
 `GenerateValue.UuidV7(context)`, `Ulid(context)` and `TypeId("user", context)` map to the same strategies when `context` is the factory's `GenerationContext` parameter. NanoID sizes must be 1–256 and alphabets 2–256 distinct printable ASCII characters. Byte counts must be 1–512. TypeID prefixes must be empty or 1–63 lowercase letters and underscores, starting and ending with a letter. Invalid literal arguments are withheld with `SP0073`, not emitted as invalid Screenplay.
 
-`SP0073` (`GenerationNotRecoverable`) points to `[GeneratedValue]` and names the parameter, concept and unrecovered body or arguments. Helper calls, multi-statement bodies and context-member use remain in code: Screenplay cannot execute `generate rule` bodies, context-dependent rules, `pattern` or `random` yet ([remaining strategy work](https://github.com/Cratis/Screenplay/issues/616)). No rule body or file reference is invented. Strategies with concept validation rules or compliance markers also remain in code, while a concept validator still withholds its generated command values.
+`SP0073` (`GenerationNotRecoverable`) points to `[GeneratedValue]` and names the parameter, concept and unrecovered body or arguments. The parameter stays server-owned: the generator never substitutes a caller parameter, an implicit UUID strategy, a null or a default value. Each generated parameter is read independently, so an opaque factory does not prevent recovery of another parameter's supported strategy.
 
-Pin a concrete UUID or text value with [Pin generated values in command specs](testing/generated-values.md). A pin for the issued command's generated identifier becomes indented `for "<value>"` beneath `when`; other pins become `generated <name> = "<value>"`. UUIDs are normalized to lowercase `D` format; text is preserved exactly and must match the strategy's encoding, length, case and unused trailing bits. Direct concept constructions and one-hop stable held fields are readable. Given and then occurrences on the pinned identifier stay implicit. Generic pins are accepted only when their command type is the issued command. Nested-command pins, `New()` pins, `AllowGeneration()`, conditional or repeated pins, mismatched shapes and missing successful-scenario fixtures withhold only the scenario with a located `SP0039` explaining the fix. Models below v15 retain legacy fixture reuse. In an ESM v15 model, Screenplay rejects an append to a generated identifier whose whole event source already has facts.
+Dependencies on an unrecovered parameter are tracked through local aliases, member access and returned constructions in both default and authoring output, including version-capped documents. A required payload dependency withholds the whole production (`SP0012`, Information); an optional dependency withholds only its mapping (`SP0012`, Warning). An unavailable condition withholds the guarded production (`SP0052`), rather than making it unconditional. Dependent scalar responses and whole response-record blocks are withheld with `SP0052`, operations with `SP0053`, and explicitly generated destinations with `SP0013`, without redirecting them to command context. Independent behavior remains stated. If no event production survives, its route is withheld with `SP0054` and the command retains `handler file <source>` instead of claiming no-fact behavior.
+
+This is a partial authoring model, not a lossless executable replacement for the original handler. The handler file reference compiles and round-trips but still receives the exact existing `PLAY0268` refusal that a handler requires a constrained implementation attachment. Missing required event mappings (`PLAY0273`) and unexpected binding failures (`SP0056`) are not accepted as limitations of opaque generation.
+
+Date-bearing patterns require the `GenerateValue.Pattern(pattern, context, checksum)` overload; the context-free overload cannot supply their time. Escaped literal braces and character-class contents do not count as date references. Pattern validity, checksum compatibility, rule consistency and identifier entropy are decided by Screenplay's binder, not by sampling or by a second pattern evaluator in Arc. Invalid contracts are withheld with `SP0073`. Signed random ranges retain exact Int64 bounds; unsigned backings, out-of-range Int32 casts and multiple casts are refused. Compliance-marked generation remains in code. Concept rules can accompany a supported strategy when their complete default validation contract is recoverable; see [Validated generation](#validated-generation-and-esm-v20).
+
+### Inline generation rules and the Cratis C# context
+
+A self-contained String factory becomes `generate rule <Concept>New` with a `csharp` fence. Arc copies the body and removes only constructors or conversions proven to forward the primitive unchanged. For example, a factory returning `new($"{context.Tenant}:{GenerateValue.Ulid(context)}")` yields a rule body containing `return $"{context.Tenant}:{GenerateValue.Ulid(context)}";`.
+
+The accepted dependencies are literals, primitive locals, `context.Now`, `context.Tenant`, and the allowlisted types `string`, `Math`, `Convert`, `Guid`, `RandomNumberGenerator` and `GenerateValue`. Instance formatting of the captured time and tenant is supported. Compound bodies must pass their factory context to time-based `GenerateValue.Ulid`, `UuidV7` and `TypeId` calls; the context-free overloads read an ambient clock. Fields, private helpers, DI, other types, aliases, static imports, ambient clock reads, a raw `"Default"` tenant comparison and non-self-contained bodies remain in code with `SP0073`. No generation-rule `file` fallback is invented. Opaque rule entropy is unknown, so rules never supply generated identifiers.
+
+The version-1 ValueGeneration context is a language-neutral descriptor. **The Cratis C# target binds it to Fundamentals' `Cratis.Concepts.GenerationContext`**, not to `Cratis.Screenplay.Contexts.GenerationContext`. Passing `context` to `GenerateValue.*` is therefore valid in these recovered bodies and makes them target-bound. A `csharp` fence alone does not select that binding; another provider must admit the body against its own native context. Recovery preserves the body, but does not execute it or promise that another target can compile it. See [Screenplay's context binding](/screenplay/context/).
+
+Pin a concrete UUID, text or integral value with [Pin generated values in command specs](testing/generated-values.md). A pin for the issued command's generated identifier becomes indented `for "<value>"` beneath `when`; other pins become `generated <name> = "<value>"`. UUIDs are normalized to lowercase `D` format; text is preserved exactly and must match the strategy's encoding, length, case and unused trailing bits. Direct concept constructions and one-hop stable held fields are readable. Given and then occurrences on the pinned identifier stay implicit. Generic pins are accepted only when their command type is the issued command. Nested-command pins, `New()` pins, `AllowGeneration()`, conditional or repeated pins, mismatched shapes and missing successful-scenario fixtures withhold only the scenario with a located `SP0039` explaining the fix. Models below v15 retain legacy fixture reuse. In an ESM v15 model, Screenplay rejects an append to a generated identifier whose whole event source already has facts.
+
+## Validated generation and ESM v20
+
+A readable String-backed factory and its `ConceptValidator<T>` can now be recovered together. The generator retains the concept's rules, including when scenarios exercise it, and uses Screenplay's rule-consistency checks rather than sampling generated values. For example, `GenerateValue.NanoId()` with a matching validator produces:
+
+```screenplay
+concept InviteCode : String
+  generate nanoid
+  validate
+    matches "^[A-Za-z0-9_-]{21}$"
+```
+
+Proven rules admit generation silently. Non-opaque Unproven rules remain stated: Information diagnostic `SP0078` carries `PLAY0689` and its reason, not a claim of proof. A Refuted rule withholds generation and dependent claims; `SP0073` carries `PLAY0688` and the witness. The validation contract remains intact. Conditional registrations, unreadable inherited validation and opaque predicates also withhold generation rather than treating partially recovered rules as the whole validator. Deliberately excluded non-default rule sets are not part of default validation.
+
+UUID concepts have no admissible non-opaque rule in Screenplay 4.164's declarative algebra. A UUID validator such as Guid `NotEmpty` therefore does not produce executable generation. Its original rules remain in the analyzed model and its validator is retained through an opaque source-file attachment, not restated as an invalid text rule. Dependent productions and pins follow the same fail-closed pruning as an unrecoverable factory. An empty UUID validator still permits the previous ESM v7 generation contract.
+
+A valid literal pin must satisfy both the generated shape and the concept's rules. An incompatible successful scenario is omitted with located `SP0039`; its rule is never deleted or its pin rewritten to make the scenario pass. Screenplay classifies invalid generated fixtures as `Rejected(Contract)`, a server defect rather than client validation. Reference execution cannot evaluate opaque validation; those scenarios are withheld while the validator is preserved.
+
+### Keep validated generation below ESM v20
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V19` or earlier when a consumer does not admit V20. The generator keeps the validation contract but withholds the strategy, generated values and dependent mappings, responses, destinations and scenarios, with diagnostics naming ESM v20 and the cap. This applies in both generation modes. Raising the cap to `SemanticVersion.V20`, or leaving it unset, permits admitted validated strategies; it does not make opaque or refuted rules executable.
+
+Rule-free output retains its prior version and bytes. A serialized generation strategy retains Screenplay's Guarded freshness semantics; validator presence alone does not add a freshness guarantee.
+
+## Pattern, random, rule and checksum recovery in ESM v21
+
+An unconditional String concept rule `RuleFor(value => value.Value).Must(v => GenerateValue.HasValidChecksum(v, Checksum.Luhn))` becomes `validate checksum luhn`. `Mod11` and `Mod97` map likewise; `None`, conditional predicates and arbitrary helper predicates are not declared as checksum rules. Screenplay checks the complete generation-and-validation contract, including pattern checksums, without redrawing invalid generated values.
+
+Pattern, random and inline rule generation, and checksum validation, select ESM v21. Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V20` or earlier for a consumer that has not admitted v21. In both default and authoring output, Arc withholds generation and its dependent values, mappings, responses, destinations and scenarios. It preserves other declarative rules and retains the original checksum validator as a source attachment, reporting `SP0073` with the required version and cap; it never silently drops a checksum to downgrade generation. A V21 cap or no cap admits supported contracts. Existing v15/v20 contracts retain their previous version and output.
+
+Concrete pattern and random fixtures are checked by Screenplay's reference runner, including checksum-conditioned support and signed integral bounds. An invalid fixture withholds its scenario with `SP0039`, not its valid generation strategy. A rule body's fixture supplies its result without executing the opaque C# body.
 
 ## Keeping documents below ESM v15
 
@@ -317,13 +380,23 @@ Screenplay admits only unique int32 numbers. For aliases, the generator keeps th
 
 A `[Flags]` enum still declares one member at a time. Named combinations such as `All = 7` are ordinary members, not set semantics. Warning `SP0067` names the enum and its analyzed property uses when combinations exist that no member names. It is absent when every combination of positive members is named. The warning looks at properties of the types the document declares; an enum used only as a query or method parameter, and negative members such as `All = -1`, are not considered. Unnamed combinations in scenarios remain unsupported by [Screenplay's flags work](https://github.com/Cratis/Screenplay/issues/319).
 
+## ESM v22 atomic reaction batches
+
+When an emitted reaction trigger or refusal branch has two or more `produces` entries, the generator declares `reaction batches atomic` at the application root. Screenplay 4.181.0 admits this as ESM v22, with `reactionProductionMode: "atomic"` in the executable model. Each trigger's direct productions append all-or-none, including batches with uniqueness constraints and explicit `for` destinations. A single-production reaction does not add the declaration.
+
+Invoked commands and selected refusal branches are separate batches. A later failure does not roll back previously accepted batches or commands; the declaration does not promise atomic observer updates or recovery from infrastructure failures.
+
+For a consumer that has not admitted v22, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V21`. Embedded generation uses the same cap on `EmbeddedDocumentOptions`; MSBuild projects set `CratisEmbeddedScreenplayMaximumExecutableModelVersion` to `21.0`. This keeps legacy output: no atomic declaration, and constrained batches that cannot match per-fact appends remain file-backed with `SP0070`. The cap applies in authoring mode too.
+
+An early stream closure, unreadable constraint coverage, or a rejecting constraint not represented in the document still keeps a batch in code with `SP0070`, even at v22. This includes class-level `[Unique]`, which the generator does not emit, and fluent uniqueness rules it cannot recover faithfully. Closing reaction batches await [Screenplay's closure admission](https://github.com/Cratis/Screenplay/issues/770); atomic mode does not admit direct stream routes either.
+
 ## Keeping documents below ESM v12
 
 If your renderer does not admit ESM v12, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V11`. Embedded generation exposes the same cap on `EmbeddedDocumentOptions`; MSBuild projects set `CratisEmbeddedScreenplayMaximumExecutableModelVersion` to `11.0`. A cap below v12 keeps bare names for non-positional enums and reports `SP0068` (Warning), listing their numbers and explaining that positional output does not preserve stored identity. Positional enums still get explicit pins because those pins do not raise the executable version. The cap applies in authoring mode too; it does not make other authoring-only constructs executable.
 
 ## Keeping documents below ESM v7
 
-If your renderer does not yet admit ESM v7, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V6`. The default is `null` (no cap), so existing output is unchanged. A cap below v7 withholds generated identifiers, other generated values, and scalar or record `returns` blocks, including `[GeneratedValue]` recovery. Scenarios with generation pins are omitted with `SP0039` rather than emitting `for` or `generated` fixtures against a legacy command. Commands keep the same legacy productions or handler references used when generation cannot be represented, and Information diagnostic `SP0052` names the cap.
+If your renderer does not yet admit ESM v7, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V6`. The default is `null` (no cap), admitting the latest supported constructs. A cap below v7 withholds generated identifiers, other generated values, and scalar or record `returns` blocks, including `[GeneratedValue]` recovery. Scenarios with generation pins are omitted with `SP0039` rather than emitting `for` or `generated` fixtures against a legacy command. Commands keep the same legacy productions or handler references used when generation cannot be represented, and Information diagnostic `SP0052` names the cap.
 
 Embedded generation exposes the same nullable version on `EmbeddedDocumentOptions`. For MSBuild generation, set `CratisEmbeddedScreenplayMaximumExecutableModelVersion` to the canonical version `6.0`; leave it empty for no cap. For example, this lets you generate a document for `cratis render` versions that refuse ESM v7 with `CLI-RENDER-004` until their Stage renderer admits it. The separately shipped CLI must expose the generation option before it can be selected there.
 
@@ -335,11 +408,110 @@ A route tells you where a command's facts land, not just which event type it pro
 
 Command stream ids can come from a direct required scalar command property or a portable literal attribute. A template containing exactly one property placeholder and no surrounding text, such as `[EventStreamId("{Name}")]`, maps that direct required portable property. Explicitly typed composite parts in an application model are emitted together, in declaration order. Other C# formatting templates are not assumed to have Screenplay's escaped composite encoding: an unproven template remains in code with `SP0054`, rather than becoming a different stream id.
 
-A command keeps its route only when every production demonstrably uses command context. An explicitly routed or unproven production withholds the whole route with `SP0054` in both modes, including for `Uuid`, UUID-backed concepts, and routes without an identifier type.
+### Per-production destinations and routes
+
+A returned `EventForEventSourceId` can override the command's destination and classification independently. For example, this command records an audit fact on its own source and a registration on a different source:
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.Keys;
+
+[EventType] public record AuthorAudited(string Name);
+[EventType] public record AuthorRegistered(string Name);
+
+[Command, EventSourceType("Account"), EventStreamType("Main")]
+public record RegisterAuthor([Key] string Id, string OtherId, string Month, string Name)
+{
+    public object[] Handle() =>
+    [
+        new AuthorAudited(Name),
+        new EventForEventSourceId(OtherId, new AuthorRegistered(Name))
+        {
+            EventSourceType = "Ledger",
+            EventStreamType = "Postings",
+            EventStreamId = Month
+        }
+    ];
+}
+```
+
+Its generated command body includes these productions; the document also declares `Account.Main` and the scalar-keyed `Ledger.Postings` stream:
+
+```screenplay
+produces event AuthorAudited
+  for id
+  name String = name
+produces event AuthorRegistered
+  for otherId
+  stream Ledger.Postings
+    streamId = month
+  name String = name
+```
+
+The destination must be a proven required scalar command property or admitted generated identifier. Types remain nominal: a UUID-backed identity concept is not silently converted to bare `Uuid` to satisfy another source's identifier. Key-only fan-out without an admitted stream or generated command identifier stays withheld because the pinned binder cannot admit it. A complete override can be recovered even when the command declares no default route. Constructor argument names are bound by parameter, not written order.
+
+Legacy source, stream and key sentinels inherit the corresponding command values. Definition routing is coupled instead: `EventSource = typeof(TSource)` selects that definition and its own `EventStream`; a stream-only definition override uses the command's definition. Legacy source/stream type strings clear definition routing. Definition and constant-backed stored names retain their model names and `id` pins; unknown ownership or incompatible declarations are refused. The emitted override states the complete effective route, including an inherited stream id, rather than assuming that changing streams clears its key.
+
+Stream keys admit direct required portable inputs and nonempty NFC literals. Proven scalar conversions preserve nominal types, including UUID `ToString()`/`ToString("D")` and integer-backed concepts formatted with `CultureInfo.InvariantCulture`; other formatters are not assumed equivalent. A single-placeholder **attribute** template can map an input, but wrapper text such as `EventStreamId = "{Month}"` is literal text, not an inferred template. Computed ids, multipart formatting, nested or optional inputs, generated stream keys, unreturned constructions, collection spreads and unsupported metadata such as subject, occurrence time, tags or causation stay in code. An unavailable generated dependency in a destination or route withholds the whole production, never retargets it; dependent successful scenarios are withheld too.
+
+Property-backed stream-key recovery assumes nonempty, non-sentinel inputs. Arc can replace a default/unset wrapper key with the command's key at runtime; the generated scalar mapping always reads the property and does not express that value-dependent fallback. If an input can take the sentinel path, keep that routing case in source rather than treating the recovered mapping as an equivalent contract.
+
+Overrides require ESM v10. A `MaximumExecutableModelVersion` cap of v7, v8 or v9 withholds overrides in **both** modes, with located `SP0054` naming v10 and the cap. `SP0051` preserves the unknown-destination fallback; command defaults are not substituted for an omitted override. Unchanged default-only routes still need only v8. A generated-identity wrapper that retains command context inherits that route without a production override; it keeps v7 without routing, or v8 with a default route. When an explicit destination needs a production stream identical to the default stream, Screenplay can report the redundant-route advisory `PLAY0664`; removing that stream would make non-identifier fan-out unbindable.
+
+Recovery does not establish renderer support. In particular, Stage must refuse unkeyed overrides under keyed defaults until its Arc adapter prevents sentinel key inheritance. The generator describes Arc's actual effective key; it does not promise render-and-recover equivalence.
 
 Property-path mappings and routes on handler commands remain authoring-only (`PLAY0268`). Generated-property mappings, incompatible source or stream declarations, and the reserved source name `Default` cannot be emitted faithfully (`PLAY0273`); `SP0054` identifies the reason and the complete route is withheld. No partial stream-id mapping or orphan source declaration is emitted.
 
 Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V7` or earlier to retain the previous default routing behavior: command routes and their declarations are withheld with `SP0044`, and routed scenarios are withheld whole with `SP0060`. Authoring mode still permits syntax-only routes regardless of this cap.
+
+## Protected command reads and ESM v25
+
+A command that decides from a read model should decide from a state that is still true when it commits. Arc gives you that with [read protection](chronicle/consistency/reads.md): with `ReadProtection(ReadProtectionMode.On)` a read-model parameter of `Handle()` or `Provide()` is a protected decision read, and Chronicle rejects the command when a relevant event arrives after the read. The generator states those reads in the document, so the decision and its guarantee travel with the model.
+
+A document states them under one root line, `command reads protected`, which selects ESM v25 (Screenplay decision 0085). Under that line every `reads` claims protection, and the Screenplay compiler refuses a read it cannot protect instead of treating it as advisory. The generator emits the line only when at least one command keeps a protected read, in the default output and with `AuthoringOnlyConstructs`.
+
+### What becomes a protected read
+
+A read is a candidate when all of these hold:
+
+- The effective read protection of the command is `On`: declared on the command, inherited, set on the assembly, or set by the `CratisReadProtection` MSBuild property. `[Unprotected]` on the command turns it off.
+- Neither the parameter nor the read-model type carries `[Unprotected]`. `Off`, `Measure` and `[Unprotected]` reads are advisory and are never promoted. `Measure` only observes; it does not protect.
+- The key is known. `[LookUpBy(nameof(Property))]` names the command property in every mode. Under `On` without it, the generator uses the one command property of the read model's key type, falls back to the command's event-source key, and treats several matching properties as ambiguous, which leaves the read in code. Name one with `LookUpBy`.
+- The read model is not stream-scoped. A read model with `[EventStream<T>]` is read per stream, the runtime rejects a look-up by key for it, and Screenplay cannot state it until [Cratis/Screenplay#805](https://github.com/Cratis/Screenplay/issues/805). It stays in code with `SP0079`.
+- Absence is rejected. A non-nullable parameter counts, since Arc rejects the command when the instance is missing. A nullable parameter counts only when `Handle()` opens with a guard such as `if (room is null) return ValidationResult.Error("...");`. A nullable parameter without that guard means absence is a valid state, and it is not stated as a protected read.
+
+| In C# | In the `.play` document |
+| --- | --- |
+| `ReadProtection(On)` and a `RoomOccupancy` parameter keyed by `RoomId` | `command reads protected`, then `reads RoomOccupancy as occupancy by roomId` |
+| a leading `if (room is null) return ValidationResult.Error(...)` | nothing: the model rejects an absent read itself, and the generator reports that its message is not carried as `SP0079` |
+| `if (room.FreeBeds < Guests) return ValidationResult.Error("...")` as a leading guard, or in `Provide()` | `require occupancy.freeBeds >= guests` with the message |
+| `new RoomBooked(Guests, room.FreeBeds)` | `freeBeds = occupancy.freeBeds` in `produces` |
+
+Screenplay names a read by its alias, or by its view when it states none. The generator writes `as <alias>`, the parameter name, and paths through the alias. When the parameter is named as the view (`Current? current`), it drops the alias: the read is `reads Current by sourceId` and its paths are `Current.value`. The guards Stage renders around the same command, such as `if (current is null) return OneOf<...>.FromT1(ValidationResult.Error(...))` and `if (!(!Object.Equals(current.Value, ""))) return ...`, are read the same way: `OneOf` and `Result` wrappers are looked through, an absence guard may use any message because the model's own message applies, and `!`, `==`, `!=` and `Object.Equals` over a read become the requirement. A requirement guard keeps its message only when it is a constant. Otherwise the guard stays in code.
+
+### When Screenplay refuses a read
+
+Whether Screenplay admits a read is Screenplay's decision, so the generator asks the compiler instead of restating its rules. It emits the candidate reads with the preamble, binds the document, and maps every `PLAY0780` to `PLAY0785` diagnostic to the read it concerns. That read, and the requirements and mappings that depend on it, stay in code, and each is reported as Information `SP0079` with the PLAY code and its message. A refusal that cannot be attributed to a read, or a bad read path (`PLAY0784`, `PLAY0785`) with no other refusal behind it, is the generator being wrong rather than your source, and is reported as Error `SP0056`. The document is emitted again, and without the preamble when no read is left. A refusal of one read never affects another. For `PLAY0781` to `PLAY0785`, the compiler identifies the command and read through named, typed diagnostic arguments rather than message wording or source lines. Two refused reads in one command each receive their own report.
+
+Typical reasons are a view that never becomes absent (no `RemovedWith`), a view with joins, children or a payload key, a view without a keyed query, a command that also declares concurrency or routes, and a key that is not a string, concept over a string, or GUID. A candidate whose key the compiler cannot accept (for example an optional property) is refused the same way. A read that is refused is never emitted as an unguarded `reads`.
+
+### What stays authoring-only
+
+`provide`, `derive` and file forms, optional and advisory reads, reducer reads, stream-scoped reads (`[EventStream<T>]`, `SP0079`), reaction reads, and validators over read-backed rules are not admitted by ESM v25. They stay in code. With the preamble present, advisory reads are left out of authoring documents as well, with `SP0055`, because every `reads` under the preamble claims protection.
+
+### Keeping documents below ESM v25
+
+With `MaximumExecutableModelVersion` below v25, protected reads are not stated as protected reads and the document is what it was before: executable output leaves the reads in code and authoring output keeps its legacy `reads`. Warning `SP0079` names ESM v25. Every other `SP0079` is Information.
+
+### What the document states
+
+The document states the declared protection. The runtime option `ReadProtection:MaximumMode` can lower `On` at run time, for example to `Measure` while you roll protection out, and the document does not follow it. A read the document calls protected is protected only while the effective mode at run time is still `On`.
+
+### Testing it
+
+The generator's own round trip proves the result: the document compiles, binds at v25 and prints back unchanged. Check a command of yours the same way: generate with the options you use, assert that the source contains `command reads protected` and `reads <View> by <key>` (with `as <alias>` when the parameter is not named as the view), and that no `SP0079` names a read you expect to be protected.
 
 ## Including authoring-only constructs
 
@@ -347,9 +519,9 @@ Set `ScreenplayOptions.AuthoringOnlyConstructs` to `true` when you want a fuller
 
 The option retains handler references even for response-only commands, and adds returned command operations with their external system and execute/compensate implementation files, plus syntax-only route mappings outside ESM v8's executable subset. It also retains generated authoring shapes outside the executable subset. An operation must use exactly one external system in the current grammar. Authoring mode retains existing, value-bearing concurrency dimensions; observer filters and dynamic concurrency flags without a value are still reported rather than invented.
 
-It also describes keyed read-model dependencies of `Provide()` and `Handle()`, simple provisioning rejection comparisons as acceptance requirements, and event mappings from read-model members. Reads use the command's proven event-source key, matching Arc's dependency resolution. Arbitrary provisioning stays in code and is reported; no `provide` block is generated.
+It also describes keyed read-model dependencies of `Provide()` and `Handle()`, simple provisioning rejection comparisons as acceptance requirements, and event mappings from read-model members. Reads use the key Arc resolves for them, honoring `LookUpBy` and otherwise the command's proven event-source key. Advisory reads (`Off`, `Measure` or `[Unprotected]`) are described this way; [protected reads](#protected-command-reads-and-esm-v25) are executable. Arbitrary provisioning stays in code and is reported; no `provide` block is generated.
 
-These documents still compile and round-trip, but **there is no executable model while `PLAY0268` constructs are present**. Binding legacy reads also reports `PLAY0271` because they cannot imply decision consistency. Enabling the option does not execute operations, generate implementation code, or weaken those admission checks. Unsupported types, ambiguous names and unreadable behavior retain diagnostics instead of guessed output.
+These documents still compile and round-trip, but **there is no executable model while `PLAY0268` constructs are present**. Binding legacy (advisory) reads also reports `PLAY0271` because they cannot imply decision consistency. Enabling the option does not execute operations, generate implementation code, or weaken those admission checks. Unsupported types, ambiguous names and unreadable behavior retain diagnostics instead of guessed output.
 
 ## The generator checks its own output
 
@@ -367,11 +539,12 @@ and the document is returned as it stands so the line can be read (Library)
 A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` alone does **not** mean an expected limitation: Screenplay also uses it for malformed bindings, including incompatible condition operands. The generator accepts only the pinned binder's known admission messages:
 
 - In both modes: legacy handler attachments; read models without an unambiguous keyed query or conventional `*Id` property; queries with unsupported scope, implementation, caller-argument, or return shapes; concept compliance attributes whose execution needs portable data-subject semantics. Admitted collection and observable queries receive no exemption for unresolved references.
-- In both modes, temporarily: same-named queries in different slices reach a [known binder limit](https://github.com/Cratis/Screenplay/issues/624). Their names are preserved; only that exact ambiguity message is accepted until the binder fix ships.
 - With authoring-only constructs enabled: the explicit refusal of operations and systems, or property-path stream-id mappings.
 - Legacy concurrency messages (`PLAY0271`) remain accepted for unrouted commands. Routed commands carrying legacy concurrency fail default verification. Legacy read messages remain accepted only in authoring mode. Informational diagnostics do not produce `SP0056`.
 
 Before accepting a known limitation, the generator checks the loaded Screenplay compiler's contract catalog: the code must be neither retired nor reserved, and its supported severities must include Error. A compiler upgrade that removes that status stops the exemption. Message matching stays exact because the contract lists codes, titles and severities, not the individual reasons that distinguish an admission limit from malformed output.
+
+Queries with the same name in different slices keep their names and bind by slice. An ambiguous query reference receives no exemption.
 
 The classifier matches the complete reason after a declaration name, or the complete authoring-feature refusal message. Unknown or changed messages fail closed. Operand/type mismatches, undeclared operands, ambiguous references across slices, and invalid parent keys produce `SP0056` even when Screenplay reports them as `PLAY0268`.
 
@@ -430,11 +603,49 @@ A throw caught before registration does not count as an exit when a covering cat
 
 Screenplay has no `when` clause on validation rules, and the generator does not invent an implication for an arbitrary C# predicate or constructor condition.
 
+Match rules must belong to Screenplay's portable pattern dialect. Refused constructs such as regex lookaround are withheld with `SP0016`, naming the property or concept and the language's reason. A generated concept with such a rule also loses its generation contract and dependent claims rather than silently becoming a less constrained generator.
+
 An unconditional top-level property rule written as `.Must(IsKnownName)` can become a named `rule IsKnownName` with a repository-relative `file` referencing the predicate's source. Its method name is preserved. Conditional named predicates remain omitted with `SP0016` rather than stated as unconditional constraints.
 
-Named rules are opaque to reference execution. The generator withholds them when any scenario exercises the affected command, preserving the scenario's legacy declarative behavior instead of changing it to `SemanticUnsupported`. For a concept rule, this includes every command carrying that concept, directly or through nested composite properties and collections. `SP0016` names the command or concept and the scenario commands that caused the omission. This safeguard applies to both success and rejection scenarios, in both default and authoring-only mode.
+Named rules are opaque to reference execution. The generator withholds them when any scenario exercises the affected command, preserving the scenario's legacy declarative behavior instead of changing it to `SemanticUnsupported`. For a concept rule, this includes every command carrying that concept, directly or through nested composite properties and collections. `SP0016` names the command or concept and the scenario commands that caused the omission. This safeguard applies to both success and rejection scenarios, in both default and authoring-only mode. Generated concepts are the exception: their rules are never removed to preserve a scenario. Opaque generated-concept validation instead withholds generation and any scenario that reference execution cannot evaluate.
 
 Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
+
+### Date comparisons and ESM v26
+
+The generator reads chronological `==`, `!=`, `<`, `<=`, `>` and `>=` comparisons on `DateOnly` (`Date`) and `DateTime`/`DateTimeOffset` (`DateTime`) command properties, including concepts wrapping those types. Concept properties retain their concept names; comparisons use their backing primitives, which must match on both sides (`Date` with `Date`, `DateTime` with `DateTime`). A `produces when` guard can compare two required command properties or a required property and a literal. Readable authoring-only `Provide()` guards can use the same comparisons in `require`.
+
+Command property validators support `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanOrEqualTo`, `LessThan` and `LessThanOrEqualTo` against **literals only**. Nullable validation subjects are supported: an absent value passes these rules unless a separate `NotEmpty` rule rejects it. Optional operands in command conditions remain unsupported.
+
+Literal recovery accepts `DateOnly.Parse`, `DateTime.Parse` and `DateTimeOffset.Parse` with constant text and `CultureInfo.InvariantCulture`, and `new DateOnly(year, month, day)` with constant arguments. A concept literal can wrap one of these forms with `new ReservationDate(...)`, where the constructor forwards the primitive unchanged, or receive the primitive through an implicit conversion. Dates print as `yyyy-MM-dd`. Instants must include an explicit offset or `Z`; they print in UTC with seven fractional digits, for example `2026-01-01T00:00:00.1234567Z`. Comparisons retain tick precision rather than truncating to milliseconds. Compared `DateTime` command inputs must also be bound with an explicit offset or `Z`, before deserialization can supply a local offset.
+
+The generator reports unsupported comparisons with the property and reason instead of emitting a condition or rule the compiler cannot bind:
+
+- Mixed `Date` and `DateTime` operands, invalid dates, and instant literals without an offset.
+- Clock expressions such as `DateTime.Now`, `DateTimeOffset.UtcNow` and `DateOnly.FromDateTime(DateTime.Today)`.
+- Date rules in `ConceptValidator<T>`, which would also affect query inputs and client validation. A command validator may compare a concept-typed property against a literal; this does not admit concept-level rules.
+- Dotted concept paths such as `End.Value`; compare the concept property itself.
+- Property-to-property date validation rules, protected read paths, context operands, and date ordering in reaction `where`.
+
+These boundaries follow [Screenplay decision 0087](https://github.com/Cratis/Screenplay/blob/main/decisions/0087-admit-chronological-date-and-datetime-ordering-in-command-conditions.md). Client validators never carry date ordering; it is a server-side contract.
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V26` to withhold date comparisons in both default and authoring output. A located diagnostic names ESM v26 and the cap. As with other caps, the document then describes less behavior, not an equivalent implementation of the original command. Without date comparisons, a document keeps its existing executable version.
+
+### Uuid equality and ESM v28
+
+The generator reads `==` and `!=` between Uuid operands: a `Guid`, or a concept or `EventSourceId<Guid>` identity backed by one. A `produces when` guard can compare a required command property with another command property or a literal. Readable authoring-only `Provide()` guards can also compare a protected read path, such as `grant.Instance!.MemberId == RequestedBy`, in `require`. A literal on either side is moved to the right.
+
+Literals are printed in the canonical form, lowercase and hyphenated. The generator reads `Guid.Parse("...")`, `new Guid("...")`, `Guid.Empty` and a concept constructed from one of those, and rewrites any other spelling of the same value (uppercase, braces) to the canonical one. Both sides must be the same concept; a bare `Guid` can be compared with any Uuid concept.
+
+These are refused and left in code, with a located diagnostic naming the property and the reason:
+
+- Different concepts or identities on each side, such as a `MemberId` against a `PlantId`.
+- Ordering (`<`, `<=`, `>`, `>=`).
+- Optional operands, including an optional read-model property behind a read path.
+- Generated or computed values such as `Guid.NewGuid()`, and literals that are not a constant valid Guid string.
+- Comparing a Uuid with a value of another type.
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V28` to withhold Uuid comparisons in both default and authoring output. A located diagnostic names ESM v28 and the cap. Without Uuid comparisons, a document keeps its existing executable version. The rules follow [Screenplay decision 0090](https://github.com/Cratis/Screenplay/blob/main/decisions/0090-admit-uuid-equality-in-command-conditions.md).
 
 ## Constraints
 
@@ -446,7 +657,7 @@ If any target, property selector, release, or retention mode cannot be recovered
 
 The generator recovers registration only from unconditional direct builder calls. Builder aliases, helper escapes, conditional assignments and deferred callbacks withhold the declaration with `SP0017` rather than implying that no release exists. Each property callback is read independently of the outer builder chain: chaining `Unique(...)` declarations never merges their targets or releases.
 
-Reaction batch admission remains separate from constraint emission. A constraint omitted from the document still affects whether Chronicle's atomic batch can be represented as sequential reaction appends.
+Reaction batch admission remains separate from constraint emission. A constraint omitted from the document still affects whether a batch can be stated: unreadable coverage keeps it in code even with atomic mode; below v22, a possible later rejection also prevents equivalence to sequential appends.
 
 ## Reactors
 
@@ -471,25 +682,74 @@ reaction Welcomer
 
 The generator only writes this form when it is exactly what Chronicle and Arc do with the returned value:
 
-- **`produces`** comes from an event returned by a synchronous handler declared to return that event, or from a literal collection of events returned as a sequence of events or of `object`. Chronicle appends the events to the event source of the triggering event, which is what `produces` says when it names no `for`. A returned batch of two or more events stays code with `SP0070` unless its append constraints are provably equivalent to sequential appends.
+- **`produces`** comes from an event returned by a synchronous handler declared to return that event, or from a literal collection of events returned as a sequence of events or of `object`. Chronicle appends the events to the event source of the triggering event, which is what `produces` says when it names no `for`. A retained batch of two or more events selects [atomic reaction batches](#esm-v22-atomic-reaction-batches), so represented uniqueness constraints no longer force it to stay code. Early stream closure or unreadable constraint coverage still reports `SP0070`; below a v22 cap, legacy per-fact equivalence is required.
 - **`invokes`** comes from a command returned through `Task<TCommand>` (`Task.FromResult(...)`, or an `async` handler that only returns it), or from a literal collection of commands returned as a sequence of `object`. Arc's command side effect handlers run each command through the pipeline in order and stop at the first that fails. Without `[ExecuteCommandsAsSystem]`, they run with no caller; with it, the reaction declares the system identity. Chronicle rejects a synchronous handler declared to return a command type, so that shape stays code.
-- The handler takes only the event and, optionally, its `EventContext`. Its body is a single unconditional return of one construction or one literal collection of them, and every value it sets is a property of the triggering event, `context.Occurred` (`$context.occurred`), or a constant. A text constant must be written into the document unchanged, so text with surrounding or repeated whitespace, line breaks, double quotes or backslashes stays code, as do numbers a double cannot hold exactly.
+- A two-argument `EventForEventSourceId(target, event)` preserves its explicit destination as `for`, whether returned alone, through `Task`, or in a collection. The target must be a required scalar property of the triggering event or unchanged literal text. Computed targets, context destinations, additional constructor arguments, and wrapper initializers keep the handler as code.
+- The handler takes only the event and, optionally, its `EventContext`. Its body is a single unconditional return of one construction or one literal collection of them. An empty `List<T>` local followed only by `local.Add(expression)` statements and `return local` is recovered too; branches, loops, reassignment, aliases, and other list uses stay code. Every payload value is a property of the triggering event, `context.Occurred` (`$context.occurred`), or a constant. A text constant must be written into the document unchanged, so text with surrounding or repeated whitespace, line breaks, double quotes or backslashes stays code, as do numbers a double cannot hold exactly.
 - The construction gives every property the event or command carries a value, directly: a positional record property through its constructor argument, or an automatic property with no initializer through the object initializer. A computed property, a property with an initializer or accessor body, a redeclared positional property, an explicit field, or a type deriving from another type keeps the handler as code.
 - Every event and command it names is declared once in the document, with the properties the mapping fills in. An invoked command receives every one of its properties, and none of them is generated.
+
+### Command refusal branches
+
+A returned `Invoke.Command(...)` chain becomes an `invokes` declaration with ordered `on refused` branches. These excerpts assume the event and command types above, and imports for `System.Threading.Tasks` and `Cratis.Arc.Chronicle.Reactors`:
+
+```csharp
+public class Welcomer : IReactor
+{
+    public Task<CommandInvocation> Welcome(AuthorRegistered @event) => Task.FromResult(
+        Invoke.Command(new SendWelcome(@event.Name, @event.Country))
+            .OnRefused(Refused.ByValidation, refusal => new AuthorWelcomed(@event.Name, refusal.Message))
+            .Acknowledge(Refused.ByAuthorization));
+}
+```
+
+```screenplay
+reaction Welcomer
+  when AuthorRegistered
+    invokes SendWelcome
+      name = name
+      country = country
+      on refused by validation
+        produces AuthorWelcomed
+          name = name
+          greeting = $refusal.message
+      on refused by authorization
+        acknowledge
+```
+
+The first matching branch wins, and a handled refusal stops the trigger's remaining invocations. The generator preserves declaration order; it never sorts or drops branches. Synchronous `CommandInvocation`, `Task<CommandInvocation>` and homogeneous literal invocation collections are supported.
+
+| Arc selector | Generated selector |
+| --- | --- |
+| `Refused.ByValidation` | `on refused by validation` |
+| `Refused.ByAuthorization` | `on refused by authorization` |
+| `Refused.ByAnyConstraint` | `on refused by constraint` |
+| `Refused.ByConstraint("Name")` | `on refused by constraint Name` |
+| `Refused.Any` | `on refused` — validation and constraints, never authorization |
+
+Named constraints require a constant name that prints unchanged, resolves uniquely to a declared constraint, and targets an event the invoked command produces. Unresolved, renamed, duplicate or shadowed selectors keep the whole trigger as code rather than emitting an invalid branch.
+
+A callback must be a pure expression or single-return lambda, anonymous method, or static method group with an available, non-async body. It may return `null` to acknowledge, an event construction, a nonempty literal event array, or a provable two-argument `EventForEventSourceId`. `.Acknowledge(selector)` emits the same acknowledgment. Payloads use the ordinary trigger, occurrence-time and constant mappings; `refusal.Message` additionally maps to `$refusal.message`. `refusal.ConstraintName` (also with `!`) maps to `$refusal.constraint` only under a constraint selector. Both retain the runtime's verbatim message and first-violated-name semantics. `CommandRefusal.Kind` is an enum, not Screenplay's lowercase String `$refusal.reason`, so it and its `ToString()` remain code; the generator does not invent a conversion.
+
+Branches and refusal values require **ESM v19**, available from Screenplay 4.160.0. A `MaximumExecutableModelVersion` cap below v19 keeps the **whole trigger** file-backed with Information diagnostic `SP0071`, in both authoring modes. An opaque helper, instance method group, conditional callback, side effect, unprovable mapping or route, or invalid production does the same. A branch withheld for batch semantics instead reports `SP0070`, including below v22 when it needs atomic appends. The generator never substitutes an invocation without its refusal handling. Ordinary command scenarios that do not run reactors are omitted only when the reaction actually remains declarative under that cap.
+
+See [handling a command refusal](chronicle/reactors/command-side-effects.md#handle-a-command-refusal) for runtime classification, append failures and recovery limits.
+
+### Identity and observation
 
 Identity and observation metadata survive even when the body stays code:
 
 - `[ExecuteCommandsAsSystem]` becomes `runs as system`. No attribute means no declared identity; an attribute with zero roles means an authenticated system identity with no roles. The nearest declaration replaces inherited roles. Role text is preserved exactly, including quotes, backslashes, whitespace inside a non-blank role, and Unicode. Null, blank, or duplicate roles retain the source implementation with `SP0064`; none are silently removed.
 - A direct `[FromEventSource<TSource>(stream)]` wins over raw source and stream filters and is not inherited. Otherwise, the nearest `[EventSourceType]` and `[EventStreamType]` declarations are resolved separately. Recoverable filters become `from Source` or `from Source.Stream`. An empty raw source and stream `All` mean unrestricted observation; `*` is not a wildcard. A fixed stream without a fixed source cannot be stated.
-- Observer-only `eventsource` and `stream` declarations come from actual source definitions. No identifier or stream-key type is invented. Unknown, unsafe, reserved, or colliding stored names retain the source implementation with `SP0047`; an undeclared typed stream also reports `SP0048`. Names are not sanitized into different stored classifications.
+- Observer-only `eventsource` and `stream` declarations come from actual source definitions. No identifier or stream-key type is invented. For const-backed definitions such as Stage renders, `AccountEventSource` supplies model name `Account`, and a direct reference to `AccountEventSource.Notes` supplies stream name `Notes`. The const must be declared on that class. When stored names differ, the declarations retain them with `id "stored-account"` and `id "stored-notes"`. Each name must print and parse unchanged; no alias is guessed from a stored stream value, another owner's const, or a computed expression. Existing literal identity names retain their spelling. Commands and reducer analysis use the same name recovery; reducer filters remain unstated on their projection counterpart. Unknown, unsafe, reserved, or colliding names retain the reactor implementation with `SP0047`; an undeclared typed stream also reports `SP0048`.
 
-Observation is not append routing. `[EventStreamId]` and `ICanProvideEventStreamId` choose where returned events append, not which events reach the reactor. Typed observation alone does not select that append route. Raw source/stream attributes and identity providers affect append routing independently. A handler returning events with non-default append routing or an identity provider stays a whole `file` trigger with `SP0065`: the released reaction evaluator appends unrouted facts, even though stream syntax exists. Reactors whose handlers return only commands, `void`, or non-generic `Task` do not report `SP0065`.
+Observation is not append routing. `[EventStreamId]` and `ICanProvideEventStreamId` choose where returned events append, not which events reach the reactor. Typed observation alone does not select that append route. Raw source/stream attributes and identity providers affect append routing when returned bare events use the reactor context. If every handler returns only explicit `EventForEventSourceId` destinations, commands, or no results, `[EventSourceType]` and `[FromEventSource<TSource>(stream)]` remain observation filters (`from Source` or `from Source.Stream`), without an `SP0065` append-route refusal. A provable two-argument explicit destination becomes a production with `for`; an unprovable destination keeps its `file` reference even when the filter is recovered. A bare event or event collection, including one handler in an otherwise explicitly routed reactor, keeps the existing append-route classification. Unproven results keep that conservative classification too. A handler returning bare events with non-default append routing or an identity provider stays a whole `file` trigger with `SP0065`: the released reaction evaluator appends unrouted facts, even though stream syntax exists.
 
 Chronicle appends a returned event collection atomically; a Screenplay reaction appends each fact separately. If a later event can be rejected, Screenplay could keep earlier facts that Chronicle would not append. A batch is stated only when no event after the first is targeted by a readable uniqueness constraint, no event before the last closes the stream, and every constraint's coverage is readable. Coverage includes all generic `On<T>` targets, class-level and property-level `[Unique]`, `[ClosesStream]`, and `ClosesStreamOn<T>`. Constraint configuration such as `PerEventStreamId()` does not make coverage unreadable, and `ReopenedBy<T>` does not add rejection targets. An unreadable constraint, including a visible implementation in a referenced binary, withholds batches but not single-event reactions. Referenced binaries use Roslyn's public metadata view: internal `IConstraint` implementations are not visible to this scan. Supply that project's source as an analyzed compilation for complete coverage rather than relying on internal declarations in a referenced package. Reactor scenarios reaching a withheld batch are omitted with `SP0039`.
 
 Both metadata directives require ESM v10. A `MaximumExecutableModelVersion` cap below v10 withholds those directives and reports `SP0066` in both default and authoring mode. An otherwise recoverable handler returning only events keeps its `produces` body when only `runs as` is withheld: system identity applies to returned commands, not event appends. Effects that depend on a withheld identity or observation filter retain their source reference. The cap never substitutes an unfiltered or unauthorized executable effect.
 
-Anything else keeps the trigger's `file` reference: a branch, a computed value, a call to a collaborator, any other parameter, an `object` return, a mixed event/command result or routing envelope, a `[Replay]` handler, several handlers for one event, tag filtering, or observation outside the event log. Manual `ICommandPipeline.Execute` outcome inspection or discarded results keep the trigger as code with Information diagnostic `SP0071`, including forwarding the execution task from a non-generic `Task` or `ValueTask` handler; `ReactorDelivery` receipts or `DeliveryId` use report `SP0072`. Executable `on refused` and `when redelivered` extraction remain blocked by Arc#3058 and Screenplay#433 (PLAY0268). Conditions are not translated into `where`. `runs as` describes the identity of **returned commands**, not an identity wrapped around imperative pipeline calls inside a handler. A reaction with a `file` body returns `SemanticUnsupported` when a specification reaches it; preserving its metadata does not make that body executable.
+Anything outside the supported shapes keeps the trigger's `file` reference: arbitrary control flow, a computed value, a call to a collaborator, any other parameter, an `object` return, a mixed event/command result or routing envelope, a `[Replay]` handler, several handlers for one event, tag filtering, or observation outside the event log. Manual `ICommandPipeline.Execute` outcome inspection or discarded results keep the trigger as code with Information diagnostic `SP0071`, including forwarding the execution task from a non-generic `Task` or `ValueTask` handler; `ReactorDelivery` receipts or `DeliveryId` use report `SP0072`. Recognition uses Arc's method symbols, not method-name lookalikes. `when redelivered` is a specification action: receipt use cannot prove that a scenario delivers the same recorded delivery again, so it remains opaque rather than becoming a redelivery specification. Conditions are not translated into `where`. `runs as` describes the identity of **returned commands**, not an identity wrapped around imperative pipeline calls inside a handler. A reaction with a `file` body returns `SemanticUnsupported` when a specification reaches it; preserving its metadata does not make that body executable.
 
 ## The scenarios a slice is specified by
 
@@ -522,9 +782,63 @@ slice StateChange Registration
 
 - **`given`** is what the specification started from — the events it seeded, and the read model it pinned.
 - **`when`** is its action: a command it executed, or `when append <EventType>` for an event scenario's append.
-- **`then`** is each event it asserted was appended, and **`then error`** a rejection it asserted.
+- **`then`** is each event it asserted was appended, **`then error`** a validation or constraint rejection, and **`then denied`** an authorization denial.
 
-Parameterized `[Theory]` scenarios are not stated; Information `SP0076` names each omitted theory because case tables are not generated yet.
+A fixture's implicit conversion to a concept must preserve the value you wrote. The generator states a scalar constant or collection element only when it can prove that the conversion operator and its constructor forward the backing value unchanged. An operator that uppercases text, a constructor that changes it, or a conversion whose implementation cannot be proven leaves the whole scenario out with `SP0039`. Expected event values follow the same rule; the generator never removes an element or substitutes the original constant for a transformed value.
+
+### Literal-case tables
+
+When body-less concrete classes pass literal values to the primary constructor of one abstract scenario, the generator can state the shared steps once. It reads the base symbolically, reads every row with its constants, and folds only when substituting those values reproduces every row's complete model: the same steps, outcomes and caller. Textual similarity is not enough.
+
+This excerpt assumes `RegisterAuthor` takes a string key and an `AuthorName` concept, and produces `AuthorRegistered` with that same `Name` property:
+
+```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Chronicle.Testing.EventSequences;
+using Cratis.Specifications;
+using Xunit;
+
+namespace Library.Authors.Registration.given;
+
+public abstract class Registering(string name) : Specification
+{
+    readonly CommandScenario<RegisterAuthor> _scenario = new();
+    async Task Because() => await _scenario.Execute(new RegisterAuthor("author", name));
+    [Fact] Task should_append() => _scenario.EventSequence
+        .ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == name);
+    void Destroy() => _scenario.Dispose();
+}
+
+public class Jane() : Registering("Jane");
+public class John() : Registering("John");
+public class Empty() : Registering("");
+```
+
+Inside the slice, the generated table is:
+
+```screenplay
+specification Registering
+  parameter name AuthorName
+  case Empty
+    name = ""
+  case Jane
+    name = "Jane"
+  case John
+    name = "John"
+  when RegisterAuthor
+    id = "author"
+    name = case.name
+  then AuthorRegistered
+    name = case.name
+```
+
+The parameter uses the single target type it feeds, not necessarily the constructor's primitive type. Cases keep their class names and are ordered deterministically. Screenplay expands them into independent specifications such as `Registering_Jane` under ordinary executable admission; tables do not require a new ESM version. An optional read-model target can receive a literal `null` row value; null command and event fixtures remain inadmissible.
+
+Rows with added steps or assertions, nonliteral constructor arguments, inconsistent target types, or references outside supported whole value positions stay individual, with Information `SP0076` explaining why they were not folded. Direct parameters are currently recovered in constructed command/event/read-model property values and expected-event equalities. Parameterized callers, clocks, redelivery locators and examples cannot be folded. Existing unreadable-scenario diagnostics still apply; an invalid fixture is not made valid by leaving it outside a table.
+
+Parameterized `[Theory]`/`[InlineData]` scenarios are still not stated. Information `SP0076` names each omitted theory: reading an action and its assertions inside a theory method needs a separate reader from the `Establish`/`Because`/`[Fact]` shape.
 
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
@@ -557,7 +871,13 @@ A direct event-sequence append supplying concrete source and stream names become
 
 Routes must fit the source and stream types the document declares. Computed routing, unproven composite stream-id construction, nonportable literals, or incompatible types retain `SP0039` rather than a guessed route. ESM v8 admits routes on `given`, `when append`, and `then`; the generator withholds a routed scenario with `SP0060` only when default output is capped below v8, or its source has the reserved name `Default`.
 
-A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()`, `IsSuccess.ShouldBeFalse()`, and `ShouldNotBeSuccessful()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
+An unconditional `result.ShouldNotBeAuthorized()` on the stable result of the scenario's `Execute` becomes `then denied`. The command must have an emitted `authorize` gate, every referenced role or named policy must be recovered exactly, and the scenario must supply an exactly recovered `given caller`. The standard authentication-only gate is also supported. A partial or synthesized named policy is not proof of denial. Before emitting denial, the generator runs an authorization-only probe through the pinned Screenplay reference runner with the emitted policies and caller. The probe must produce the typed `Unauthorized` outcome, not a validation error. If the caller would pass, `SP0039` reports "stated caller satisfies the stated authorization". A policy needing a subject, artifact value, or unrecovered predicate cannot prove failure from the caller alone; `SP0039` reports "denial cannot be decided from the stated caller".
+
+A denial cannot accompany event, read-model, response or error assertions. An unconditional `ShouldNotBeSuccessful()` on the same command result adds nothing to denial and may accompany it. No separate `then no events` is emitted: Screenplay does not allow that form beside `then denied`. Other assertions that cannot be proven redundant withhold the scenario. `SP0039` names the reason: caller not recovered, policy not recovered exactly, denial combined with another outcome, or "denial not explained by any stated policy" for a command without an emitted gate. Conditional denial assertions, unrelated helpers with the same name, and assertions on another or reassigned result also retain `SP0039`. A command whose visible code can return `AuthorizationResult`, `CommandResult`, a wrapper carrying either, or an untyped result is also withheld: code-level denial from `Provide()`, `Handle()`, or a visible helper is not explained by the stated gate alone.
+
+`ShouldHaveExceptions()` remains unsupported. `ShouldNotBeSuccessful()` and `IsSuccess.ShouldBeFalse()` alone do not identify a validation, constraint or authorization category and retain `SP0039`; beside a separate validation assertion they add no reason.
+
+A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()` and `ShouldHaveValidationErrors()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
 A scenario that compares the command response with concrete values becomes `then returns`:
 
@@ -671,17 +991,17 @@ What is recovered about a screen comes from something that can be checked.
 
 **The `file` reference** says which file realizes the screen. It is what a reader opens, and no directive replaces it, so it stays on the screen even when directives sit beside it.
 
-**The `data` directives** say which of the slice's queries the screen reads through. Arc generates a TypeScript proxy per query and a component imports that proxy by name, so the component's `import` statements name candidates — and a candidate is kept only when it matches a query the slice really declares. Nothing about the binding comes from the component beyond that name: the read model, whether there is one or many of it, and the parameter it is keyed by all come from the C# query. An import naming anything else — a package, a command, a sibling component, a type-only import — leaves nothing behind.
+**The `data` directives** say which queries the screen reads through — the slice's own, or another slice's under a qualified name. Arc generates a TypeScript proxy per query and a component imports that proxy by name, so the component's `import` statements name candidates — and a candidate is kept only when the slice its import points at really declares that query. Nothing about the binding comes from the component beyond that name: the read model, whether there is one or many of it, and the parameter it is keyed by all come from the C# query. An import naming anything else — a package, a command, a sibling component, a type-only import — leaves nothing behind.
 
 **`title`, `table` and `action`** come from the [Cratis Components](/components/) the screen uses, because their properties mean the same thing in every application. Only components imported from `@cratis/components` are read:
 
 | Component | Becomes |
 | --- | --- |
 | `DataPage` `title="…"` | `title "…"` |
-| `DataPage`, `DataTableForQuery` or `DataTableForObservableQuery` with `query={…}` naming a query of the slice | `table <ReadModel>`, named after the read model the query returns |
+| `DataPage`, `DataTableForQuery` or `DataTableForObservableQuery` with `query={…}` naming a query of the slice or, qualified, of another slice | `table <ReadModel>`, named after the read model the query returns |
 | `Column` `field="…"` inside such a table | `column <field>`, with `label "…"` when `header="…"` is text |
-| `CommandDialog` with `command={…}` naming a command of the slice | `action <Command>`, unless a toolbar item already exposes that dialog |
-| `DataPage.MenuItems` / `DataPage.MenuItem`, or imported `MenuItems` / `MenuItem`, opening a command dialog of the slice | `toolbar actions` with `item <name> action <Command>` and a literal `label`, when the opener can be proven |
+| `CommandDialog` with `command={…}` naming a command of the slice or, qualified, of another slice | `action <Command>`, unless a toolbar item already exposes that dialog |
+| `DataPage.MenuItems` / `DataPage.MenuItem`, or imported `MenuItems` / `MenuItem`, opening a command dialog of the slice or, qualified, of another slice | `toolbar actions` with `item <name> action <Command>` and a literal `label`, when the opener can be proven |
 
 Take a listing screen written with a data page:
 
@@ -714,18 +1034,88 @@ screen AuthorList
     column name label "Name"
 ```
 
-A property is read only when it is written as text, or as the name of a query or command the slice declares. Anything else is left out rather than guessed, and `SP0028` reports each omission on its own: a computed title or header, a column without a `field`, an unread menu callback, a table or dialog bound to a query or command of another slice, and a component whose properties are spread in from an object. Above, the `Initials` column and the `Retire` menu item are each reported. Comment markers inside quoted strings, template text, JSX attributes and JSX text stay literal: `//` in a URL does not cut off the rest of a component. The reader scans lexical boundaries, not all of TypeScript; ambiguous type-position JSX or a regex after a closing parenthesis or brace can fall outside its supported shapes. If a file importing recognized components cannot be scanned, no structure is inferred and one `SP0028` names the line and construct.
+A property is read only when it is written as text, or as an imported query or command declared by a slice. Anything else is left out rather than guessed, and `SP0028` reports each omission on its own: a computed title or header, a column without a `field`, an unread menu callback, a table or dialog whose imported query or command cannot be resolved, and a component whose properties are spread in from an object. Above, the `Initials` column and the `Retire` menu item are each reported. Comment markers inside quoted strings, template text, JSX attributes and JSX text stay literal: `//` in a URL does not cut off the rest of a component. The reader scans lexical boundaries, not all of TypeScript; ambiguous type-position JSX or a regex after a closing parenthesis or brace can fall outside its supported shapes. If a file importing recognized components cannot be scanned, no structure is inferred and one `SP0028` names the line and construct.
 
-A menu item becomes a toolbar action only when its `command` is exactly `() => show(true)` or `() => { show(true); }`, with exactly one React `useState` tuple for that setter connecting it to the `visible` property of one readable `CommandDialog`. Other setters may have their own tuples and dialog openers. The tuple, setter reference and visibility reference must be in the same enclosing component function, in directly returned JSX without intervening parameter or local shadowing. The reader supports block-bodied named functions and parenthesized arrow functions; scopes it cannot prove get `SP0028` rather than an item. Named `useState` imports must be unaliased and come from `react`; `React.useState` requires a React default or namespace import. Within that component body, the hook or namespace name must occur only in recognized tuple calls, so local hook rebinding or other uses that the reader cannot prove also withhold the item. The dialog's command must belong to the same slice. The `MenuItems` container must itself be an unconditional direct child of `DataPage` and contain only unconditional direct item markers; spreads, conditional or mixed children, wrappers, and disabled items are reported rather than emitted. An orphan `MenuItem` outside a `MenuItems` container renders nothing and gets its own `SP0028`. A computed item label is reported with `SP0028` and the proven item is emitted without a label. Icons are omitted. The toolbar is named `actions` for a single page; multiple pages use read-model-based names or positional suffixes, and repeated item names get numeric suffixes. A claimed dialog does not also create a screen-level action, but another unclaimed dialog for the same command still does.
+A menu item becomes a toolbar action only when its `command` is exactly `() => show(true)` or `() => { show(true); }`, with exactly one React `useState` tuple for that setter connecting it to the `visible` property of one readable `CommandDialog`. Other setters may have their own tuples and dialog openers. The tuple, setter reference and visibility reference must be in the same enclosing component function, in directly returned JSX without intervening parameter or local shadowing. The reader supports block-bodied named functions and parenthesized arrow functions; scopes it cannot prove get `SP0028` rather than an item. Named `useState` imports must be unaliased and come from `react`; `React.useState` requires a React default or namespace import. Within that component body, the hook or namespace name must occur only in recognized tuple calls, so local hook rebinding or other uses that the reader cannot prove also withhold the item. The dialog's command may belong to another slice. The `MenuItems` container must itself be an unconditional direct child of `DataPage` and contain only unconditional direct item markers; spreads, conditional or mixed children, wrappers, and disabled items are reported rather than emitted. An orphan `MenuItem` outside a `MenuItems` container renders nothing and gets its own `SP0028`. A computed item label is reported with `SP0028` and the proven item is emitted without a label. Icons are omitted. The toolbar is named `actions` for a single page; multiple pages use read-model-based names or positional suffixes, and repeated item names get numeric suffixes. A claimed dialog does not also create a screen-level action, but another unclaimed dialog for the same command still does.
 
-Input opening is not post-success navigation. An unread `CommandDialog onSuccess` callback gets its own `SP0028`; it never becomes a navigation attached to the input-opening item. A recognized `useNavigate` callback reports its literal route, but route-to-screen resolution and parameter bindings are not inferred. `detailsComponent` is a selected-row pane on the same screen, not navigation. It reports Information diagnostic `SP0077`, as do a screen opened through `useDialog` from `@cratis/arc.react/dialogs`, computed `disabled`, and a recovered item's `disableOnUnselected`: Screenplay has no corresponding composition or toolbar enablement. The MVVM `useDialog` takes a request type and a component, so it is not treated as the single-component hook. Computed `disabled` withholds the toolbar item and leaves a readable dialog command as a screen action; `disableOnUnselected` on a recovered item only reports that its enablement is not stated. A details file beside the slice still appears as its own screen. Cross-slice command references and reading the router's route table are outside this mapping.
+Input opening is not post-success navigation. A resolved `CommandDialog onSuccess` navigation becomes the command action's after-success destination, never navigation attached to the input-opening item. An unread success callback gets its own `SP0028`. See [Navigation](#navigation) for the route-table shapes that prove a destination. `detailsComponent` is a selected-row pane on the same screen, not navigation. It reports Information diagnostic `SP0077`, as do a screen opened through `useDialog` from `@cratis/arc.react/dialogs`, computed `disabled`, and a recovered item's `disableOnUnselected`: Screenplay has no corresponding composition or toolbar enablement. The MVVM `useDialog` takes a request type and a component, so it is not treated as the single-component hook. Computed `disabled` withholds the toolbar item and leaves a readable dialog command as a screen action; `disableOnUnselected` on a recovered item only reports that its enablement is not stated. A details file beside the slice still appears as its own screen. The router's route table supplies navigation destinations; same-screen composition does not.
 
-Everything else is **never inferred**: `section`, `summary`, `navigate to`, `layout`, and any structure written in JSX that is not one of the components above. Nothing in the Cratis Components states navigation — a details component is a pane on the same screen — so no `navigate to` is written. A screen that uses none of the components reports `SP0028` once. In a mixed screen, markup outside recognized component spans is also reported: once per distinct component tag, then one report listing distinct HTML tags. This check covers the whole file, including helper components. Content inside a recognized component stays covered by that component's own reports, so dialog inputs do not create extra reports. Fragments without direct content and intrinsic wrappers around recognized components with no direct text or expression children are exempt. A guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Write those directives by hand if you want them, and expect a regeneration to leave them out.
+Cross-slice screen actions, toolbar actions, navigation destinations and `data … via query` bindings use qualified references. The generator resolves the proxy import's relative module path to the source directory of the slice declaring that command or query; a matching name in another directory is not enough. It writes the shortest trailing scope of the emitted module/feature/slice path that uniquely identifies a declaration of that name and kind. For example, a listing screen importing `../Registration/RegisterAuthor` writes `action Registration.RegisterAuthor`. If two features each declare that command in a `Registration` slice, it writes `action Authors.Registration.RegisterAuthor`. Own-slice references stay bare. A component binding with an unresolvable module path, an import outside any slice directory, or a name not declared by the imported slice still gets `SP0028`. A reference whose declaration is withheld during emission, or whose emitted scope is ambiguous even when fully qualified, is also omitted with `SP0028`. Unmatched imports alone do not establish query bindings; `SP0036` is reserved and no longer reported.
+
+Everything else is **never inferred**: `section`, `summary`, `layout`, and structure outside the recognized component and navigation shapes. A details component is a pane on the same screen, so it does not establish navigation. A screen that uses none of the components reports `SP0028` once. In a mixed screen, markup outside recognized component spans is also reported: once per distinct component tag, then one report listing distinct HTML tags. This check covers the whole file, including helper components. Content inside a recognized component stays covered by that component's own reports, so dialog inputs do not create extra reports. Fragments without direct content and intrinsic wrappers around recognized components with no direct text or expression children are exempt. A guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Write those directives by hand if you want them, and expect a regeneration to leave them out.
 
 Two more rules keep the result honest:
 
 - **Components only, no descending.** A file carrying a second extension — `AddAuthor.stories.tsx`, `AddAuthor.spec.tsx` — is a companion of a component, not a screen. A folder _inside_ a slice folder is a slice of its own under the same convention, so its files belong to it.
 - **Anything uncertain is reported.** The relationship between a file and a slice comes entirely from where the file sits, so `SP0025` is reported whenever sitting there says less than usual: a slice whose source is spread over several folders, one folder holding the source of several slices, or two files claiming a single screen name.
+
+### Navigation
+
+A literal router gesture can identify a destination without guessing from a URL's spelling. The generator reads TSX files importing named `Route`, `Routes`, `createBrowserRouter`, `createHashRouter`, or `createMemoryRouter` bindings from `react-router` or `react-router-dom` under the common root of each compilation's source paths. Discovery is recursive, including nested `.frontend` folders. It skips `node_modules`, `bin`, `obj`, `dist`, `wwwroot`, other hidden directories, and file or directory symlinks, including when an excluded directory is a search root. The normal slice-directory rule still determines which files are screens; finding a route table does not turn it into a screen.
+
+Supported tables use nested `<Route path="…" element={<Screen />}>` declarations inside `<Routes>`, or direct `createBrowserRouter([...])`, `createHashRouter([...])`, or `createMemoryRouter([...])` calls with literal route objects. Relative child paths join their parent; absolute paths retain their prefix; path-less layout routes pass through the parent path; an `index` route uses that parent path. Router imports may be aliased. The element must be a sole JSX component imported by a named relative import. Its resolved module file, not its component name or the route's spelling, must match exactly one retained screen file.
+
+Two gestures use that table:
+
+- A menu item's `command={() => navigate('/literal')}` becomes `item <name> navigate to <Screen>`, preserving a literal label.
+- A `CommandDialog onSuccess={() => navigate('/literal')}` becomes `navigate to <Screen>` under its command action. If a toolbar already opens that dialog's input, the separate action carries success navigation. Dialogs exposing the same command must agree on the destination screen, route pattern, and every parameter key and value; conflicting success behavior is reported rather than combined.
+
+The callback must use a `const navigate = useNavigate()` binding imported from either router package in the same directly returned component body, without hook or parameter shadowing. Only absolute, quoted literal destinations are matched. Required whole-segment route parameters such as `:id` become `parameter id from literal "42"` when the gesture supplies `/authors/42`. A destination in another slice uses the same shortest unique emitted scope as other cross-slice screen references.
+
+For example, an application's `App.tsx` can declare:
+
+```tsx
+import { Route, Routes } from 'react-router-dom';
+import { AuthorDetails } from './Authors/Details/AuthorDetails';
+
+export const App = () => (
+    <Routes>
+        <Route path="authors">
+            <Route path=":id" element={<AuthorDetails />} />
+        </Route>
+    </Routes>
+);
+```
+
+This screen excerpt assumes the `RetireAuthor` command proxy and the destination screen already exist in their respective slices:
+
+```tsx
+import { DataPage, CommandDialog } from '@cratis/components';
+import { useNavigate } from 'react-router-dom';
+import { RetireAuthor } from './RetireAuthor';
+
+export const AuthorRetirement = () => {
+    const navigate = useNavigate();
+    return <DataPage title="Authors">
+        <DataPage.MenuItems>
+            <DataPage.MenuItem label="Details" command={() => navigate('/authors/42')} />
+        </DataPage.MenuItems>
+        <CommandDialog command={RetireAuthor} onSuccess={() => navigate('/authors/42')} />
+    </DataPage>;
+};
+```
+
+With the screen in `Authors.Retirement` and its destination in `Authors.Details`, the generated directives are:
+
+```text
+screen AuthorRetirement
+  file Authors/Retirement/AuthorRetirement.tsx
+  title "Authors"
+  toolbar actions
+    item authorDetails navigate to Details.AuthorDetails
+      label "Details"
+      parameter id from literal "42"
+  action RetireAuthor
+    navigate to Details.AuthorDetails
+      route "/authors/:id"
+      parameter id from literal "42"
+```
+
+An action's navigation retains the matched literal route-table pattern as `route "…"`, including its parameter names; the gesture supplies the parameter values. The pinned Screenplay toolbar-item grammar accepts parameters but not a `route` option, so toolbar items omit that option.
+
+Duplicate literal paths, wildcard or optional paths, computed paths or elements, lazy components, `<Navigate>` redirects, non-default `caseSensitive`, a `Routes location` override, spreads, and route children written outside the literal table shapes do not establish destinations. Unread declarations remain competing route claims: a destination maps only when every declaration that could match it is known and exactly one readable route matches. An unread subtree blocks its parent prefix and descendants; an unread path with no known scope blocks all destinations. A table is a root only when it is lexically inside a rendered `BrowserRouter`, `HashRouter`, `MemoryRouter`, or `RouterProvider`, is passed directly to one of the supported router factories, or is the only route-declaring file in the entire scan. An entry point that only wraps an imported `<App />` in `BrowserRouter` does not count as another route-declaring file. Every other table has an unknown mount prefix: its route claims block any root path whose trailing segments could match under any prefix, including parameterized paths. Unread unknown-mount subtrees block conservatively. Root detection never follows application imports, so aliases, barrels, comments, and dynamic imports cannot make a nested table look like an absolute root. Multiple `<Routes>` containers in one file also have unproven mount prefixes. One `SP0028` per route-table file lists what was not read; an unresolved gesture still gets its own `SP0028`. Matching more than one route pattern also withholds navigation rather than choosing a destination. A missing table leaves the previous omission reports unchanged.
+
+`<Link to>`, inline JSX `onClick` navigation outside menu items, row-click navigation, relative destinations such as `navigate('..')`, template literals, variables, and navigation with state or options remain reported, not inferred. Encoded destination segments, query strings, and fragments also remain unmatched. These require gesture or URL readers beyond literal route-to-screen resolution.
 
 ## What is not expressed
 
@@ -740,7 +1130,7 @@ These are part of the language, but nothing in C# says them, so a generated docu
 | `capture`                                                                                                      | Describes ingesting an external system. Nothing in an Arc application declares one.                                                                     |
 | `persona`                                                                                                      | Who uses the system is a product decision, not a code artifact.                                                                                         |
 | `seed`                                                                                                         | Sample data is a modeling concern, not something the source states.                                                                                     |
-| The rest of the body of a `screen` — `section`, `summary`, `navigate to`, `layout`, and structure outside known Cratis Components | What a screen _shows and does_ is JSX. Its `file`, its `data` bindings and what known Cratis Components state are generated; the rest would be a guess — see [Screens](#screens). |
+| The rest of the body of a `screen` — `section`, `summary`, `layout`, and structure outside recognized components and navigation gestures | What a screen _shows and does_ is JSX. Its `file`, its `data` bindings and what known Cratis Components state are generated; the rest would be a guess — see [Screens](#screens). |
 | Compliance reasons and personal-data qualifiers | Bare `pii` and `secret` are recovered from `[PII]` and concept-level `[Encrypted]` plus `[NotAudited]`. The generator does not infer reasons, special categories, or criminal-data classification. Non-default secret scope is emitted only in authoring mode; otherwise `SP0061` reports its omission. |
 
 ### Detail Screenplay cannot represent
@@ -751,16 +1141,16 @@ These details can remain outside the document because the language has no counte
 | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Event generations, `[Tombstone]`, `[CompensationFor]`                                                 | Screenplay describes the current shape of an event. It has no notion of versioning, of a deletion marker, or of one event compensating another. `SP0014`.                                                                                                                                                                                                                                                                                           |
 | Same-screen `detailsComponent`, screens opened through `useDialog`, toolbar selection or computed enablement | Information diagnostic `SP0077` distinguishes missing Screenplay composition or enablement from unread callbacks. No navigation, dialog template, or component identity is invented. |
-| Menu callbacks, route destinations and dialog `onSuccess` | `SP0028` reports unread behavior separately from input-opening gestures. A route string is not a proven screen destination or parameter binding. |
+| Unread menu callbacks, proxy imports, route tables and dialog `onSuccess` | `SP0028` reports unsupported behavior separately from input-opening gestures. Literal menu and success navigation maps only through unambiguous route-table screen imports; parameters come from matching literal path segments. Duplicate, lazy or computed declarations are listed once per table. Missing tables, unresolved bindings, Link targets, inline clicks, row-clicks, relative or computed destinations, and navigation options remain reported. |
 | Screen markup outside recognized Cratis Components | `SP0028` per distinct component tag, plus one list of HTML tags. Fragments and pure wrappers are exempt; unscannable TSX reports once and yields no inferred structure. |
 | Reducer folds (`IReducerFor<T>`)                                                                      | The fold is code. The read model and the events it observes are recovered; the logic that combines them is not. `SP0020`.                                                                                                                                                                                                                                                                                                                           |
 | Unrecoverable reactor observation filters | Recoverable filters are emitted as `from`, including on file-backed triggers. Missing, ambiguous, unsafe, or unexpressible definitions keep executable effects in source rather than broadening observation. `SP0047` explains the refusal; `SP0048` reports an undeclared typed stream. Reducer filters remain unstated on the projection counterpart. |
 | Invalid returned-command system identity | Null, blank, or duplicate roles retain the source implementation with Warning diagnostic `SP0064`; roles are never sanitized. |
-| Routed reactor event results | Explicit append routes and identity providers cannot become routed reaction productions. The whole trigger keeps its source reference with Warning diagnostic `SP0065`, independently of recoverable observation metadata. |
-| Manual reactor command outcome handling | Inspecting, pattern-matching, or discarding `CommandResult` after pipeline execution retains `file` with Information diagnostic `SP0071`. Executable refusal handling needs Arc#3058 and Screenplay#433. |
-| Receipt-based reactor redelivery | `ReactorDelivery` or `DeliveryId` use retains `file` with Information diagnostic `SP0072`. Executable redelivery handling needs Screenplay#433. |
+| Routed reactor event results | Provable two-argument `EventForEventSourceId` destinations become `for`. Extra wrapper metadata stays code. Context append routes and identity providers retain the whole trigger with Warning diagnostic `SP0065`, independently of recoverable observation metadata. |
+| Unrecoverable reactor command refusal handling | Pure Arc `OnRefused` and `Acknowledge` chains emit ordered branches at ESM v19. Opaque callbacks, unproven selectors or mappings, a cap below v19, and manual inspection or discarding of `CommandResult` after pipeline execution retain the whole trigger as `file` with Information diagnostic `SP0071`. |
+| Receipt-based reactor redelivery | `ReactorDelivery` or `DeliveryId` use retains `file` with Information diagnostic `SP0072`. Receipt use alone cannot recover a same-delivery `when redelivered` specification action from code. |
 | Unreadable fluent uniqueness targets, lifetimes or registration | The whole constraint is withheld with Warning diagnostic `SP0017`, rather than stating a subset. Non-generic event-type arguments, computed or nested selectors, value-specific releases, non-default or unknown retention, builder aliases and unproven control flow cannot be stated faithfully. |
-| Returned event batches with append constraints | Chronicle appends atomically while a reaction appends each fact separately. Later rejection, early stream closure, or unreadable constraint coverage keeps the whole trigger as `file` with Warning diagnostic `SP0070`. |
+| Returned event batches whose semantics are not admitted | A rejecting constraint absent from the document (including class-level `[Unique]`), early stream closure (pending [Screenplay#770](https://github.com/Cratis/Screenplay/issues/770)) or unreadable constraint coverage keeps the whole trigger as `file` with Warning diagnostic `SP0070`. Below v22, a possible later rejection does too. At v22, recoverable multi-production batches use `reaction batches atomic`, including refusal branches. |
 | Reaction metadata below an ESM v10 cap | Warning diagnostic `SP0066` reports withheld metadata in both default and authoring mode. Effects depending on that metadata retain their source; event-only productions remain declarative when only `runs as` is withheld. |
 | Aggregate roots no command reaches                                                                    | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. `SP0018`.                                                                                                                                                                                                                |
 | A behavior deciding on the state an aggregate root holds                                              | A `produces when` condition compares the input of the command, which is all a document knows at the moment the command is issued. A behavior refusing to act on what it has already seen is a real decision with nowhere to go, so the event is stated unconditionally and `SP0027` reports the decision. A behavior deciding on one of its own _parameters_ is recovered, because the call site says which command input that parameter was given. |
@@ -772,14 +1162,14 @@ These details can remain outside the document because the language has no counte
 | Query paging and sorting, custom routes                                                               | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template — `[Path]`, `[Route]`, or a template on an HTTP verb — has no counterpart. `SP0041`.                                                                                                                                                                                                                                    |
 | Several command identity candidates | The generator cannot choose between key properties or event source identities. No `identifier` is emitted. Information diagnostic `SP0049`. |
 | An unreadable command identity | A self-provided identity must directly return a required scalar command property; an optional or collection key cannot be an identifier. Information diagnostic `SP0050`. |
-| An explicit or unprovable production destination | A production cannot be proven to use the command's event source. Its `for` destination and the command's identifier modifier are omitted rather than guessed. Information diagnostic `SP0051`. |
-| Generated values and responses outside supported shapes | Admitted values and responses are emitted by default. A generated value needs a required scalar generatable concept with no validator, rules or compliance markers; non-default strategies require ESM v15; a response must be a direct property or fully readable record. Unsupported shapes and pre-generation references remain in code. Information diagnostic `SP0052`. |
-| Unrecovered `[GeneratedValue]` strategies | Supported UUID, ULID, TypeID, NanoID and byte strategies are recovered. Rule bodies, context-member use, pattern/random and invalid literal arguments keep the legacy command with located Information diagnostic `SP0073`. A cap below v15 withholds non-default concept generation with the same diagnostic. |
+| An unprovable production destination | Proven returned wrappers and identity tuples can emit per-production destinations and effective routes. Unproven routing, key-only fan-out without an admitted stream/generated identifier, and overrides below an ESM v10 cap retain the conservative fallback instead. Information diagnostic `SP0051`. |
+| Generated values and responses outside supported shapes | Admitted values and responses are emitted by default. A generated value needs a required scalar generatable concept with completely recovered, non-opaque validation and no compliance markers; rule-free non-default strategies require ESM v15 and validated strategies require ESM v20; a response must be a direct property or fully readable record. Unsupported shapes and pre-generation references remain in code. Information diagnostic `SP0052`. |
+| Unrecovered `[GeneratedValue]` strategies | Supported UUID, ULID, TypeID, NanoID and byte strategies are recovered. Rule bodies, context-member use, pattern/random and invalid literal arguments keep the legacy command with located Information diagnostic `SP0073`. A cap below v15 withholds non-default concept generation; a cap below v20 withholds validated generation without deleting its rules. Refuted rules report `PLAY0688` with a witness in `SP0073`. Non-opaque unproven rules remain stated with Information `SP0078` carrying `PLAY0689`. |
 | Unrecoverable generation pins | Successful `[GeneratedValue]` scenarios need literal UUID or strategy-shaped text pins for every generated parameter. Missing, mismatched, computed, conditional, repeated or nested-command pins and `AllowGeneration()` omit the scenario with Warning `SP0039`; the command keeps its admitted generation contract. |
 | Unreadable returned operations | Operations are authoring-only. Unsupported construction, input mappings, batch spreads, or ambiguous external systems remain in code; readable literal batch members can still be described. Information diagnostic `SP0053`. |
 | Event-source definition routes | Readable source and stream routes are emitted by default at ESM v8. `SP0044` describes an unavailable route or preserved legacy concurrency; a cap below v8 retains the previous default output. |
-| Unreadable source or stream routes | Computed stream ids, unproven formatting templates, generated mappings, conflicting declarations, and the reserved source name `Default` cannot be stated without guessing. An explicitly routed or unproven production also withholds the entire command route, regardless of identifier type: the route would claim the event lands on the command's source and stream. Information diagnostic `SP0054` reports the omission in both modes. Property-path mappings and handler-command routes remain authoring-only. |
-| Unreadable reads or provisioning | Reads and requirements are authoring-only. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`. |
+| Unreadable source or stream routes | Computed stream ids, unproven formatting, generated keys, conflicting declarations, reserved classifications and unsupported wrapper metadata stay in code. An unproven or capped production override also withholds the command route rather than claiming the command's defaults for that event. Information diagnostic `SP0054` reports the omission in both modes. Admitted production overrides require ESM v10; default routes require v8. Property-path mappings and handler-command routes remain authoring-only. |
+| Unreadable reads or provisioning | Advisory reads and their requirements are authoring-only; [protected reads](#protected-command-reads-and-esm-v25) are executable. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`; a protected read left in code is reported as `SP0079`. |
 | Same-named concepts with different meanings | Primitive type, generation strategy, enumeration names and numbers, `pii`, `secret`, and encryption scope must agree. The first declaration is kept; warning diagnostic `SP0031` names each conflicting type rather than silently merging its compliance claims. |
 | Protected concepts in emitted identity positions | The identifier, route or event-production destination remains stated, but its concept's `pii`/`secret` annotations are omitted globally. Information diagnostic `SP0059` names each retained use. An analyzed identity that is not emitted does not cause this omission. |
 | Namespace or Global encryption scope in default output | Bare `secret` implies Subject scope. Information diagnostic `SP0061` names the concept and omitted scope. Enable `ScreenplayOptions.AuthoringOnlyConstructs` to state it. |
@@ -788,8 +1178,9 @@ These details can remain outside the document because the language has no counte
 | Unnamed `[Flags]` combinations | Members remain declared individually. Warning `SP0067` names the enum and property uses; named combinations are ordinary members. No warning is reported when every positive-member combination is named. |
 | Enum numbers outside int32 or above the ESM cap | Numbers are withheld together and members fall back to positional numbering. Warning `SP0068` lists the numbers and the range or cap limitation; stored identity is not preserved. Emitted-name collisions also report `SP0068` for dropped member identities. |
 | Enum aliases sharing one number | The ordinal-first member is kept so scenario constants still name a declaration. Warning `SP0069` names the kept and dropped aliases. |
-| Parameterized `[Theory]` scenario | Information `SP0076` names the omitted theory; case tables are not generated yet. Ordinary `[Fact]` scenarios in the same class remain eligible. |
+| Parameterized `[Theory]` scenario | Information `SP0076` names the omitted theory, including theories that construct a local command, event, read-model, or reactor scenario; case tables are not generated yet. Ordinary `[Fact]` scenarios in the same class remain eligible. |
 | Unsupported command scenario caller | An authorized scenario is withheld with Warning `SP0039` when its caller or any referenced policy cannot be recovered exactly. An open command scenario is retained without a caller, with Information `SP0075` naming the unsupported setup. |
+| Unrepresentable command denial or failure | `ShouldNotBeAuthorized()` becomes `then denied` only with an emitted authorization gate, exact policies and caller, and no other outcome. Otherwise Warning `SP0039` names the missing caller, inexact policy, combined outcome, or denial not explained by any stated policy. Exception assertions and uncategorized failures remain unsupported. |
 | Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.

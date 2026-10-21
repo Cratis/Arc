@@ -36,6 +36,8 @@ public static class ReactionMappings
     /// <param name="target">The type being constructed.</param>
     /// <param name="trigger">The parameter carrying the triggering event.</param>
     /// <param name="context">The parameter carrying the event context, if the handler takes it.</param>
+    /// <param name="refusal">The classified refusal parameter within a branch, if any.</param>
+    /// <param name="constraint">Whether the branch selects constraint refusals.</param>
     /// <returns>The mappings in the order the type declares its properties, or <see langword="null"/> when any value is code.</returns>
     /// <remarks>
     /// Every property the type carries has to be given a value, and given it directly: a positional record property
@@ -48,7 +50,9 @@ public static class ReactionMappings
         SemanticModel semanticModel,
         INamedTypeSymbol target,
         IParameterSymbol trigger,
-        IParameterSymbol? context)
+        IParameterSymbol? context,
+        IParameterSymbol? refusal = null,
+        bool constraint = false)
     {
         if (!IsPlain(target) || semanticModel.GetSymbolInfo(creation).Symbol is not IMethodSymbol constructor)
         {
@@ -65,7 +69,7 @@ public static class ReactionMappings
             var name = argument.NameColon?.Name.Identifier.ValueText ??
                 (index < constructor.Parameters.Length ? constructor.Parameters[index].Name : null);
             var property = properties.Find(_ => string.Equals(_.Name, name, StringComparison.Ordinal));
-            if (property is null || !IsPositional(property) || !Add(mapped, property, argument.Expression, semanticModel, trigger, context))
+            if (property is null || !IsPositional(property) || !Add(mapped, property, argument.Expression, semanticModel, trigger, context, refusal, constraint))
             {
                 return null;
             }
@@ -77,7 +81,7 @@ public static class ReactionMappings
                 semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol assigned ||
                 properties.Find(_ => string.Equals(_.Name, assigned.Name, StringComparison.Ordinal)) is not { } property ||
                 !IsAutomatic(property) ||
-                !Add(mapped, property, assignment.Right, semanticModel, trigger, context))
+                !Add(mapped, property, assignment.Right, semanticModel, trigger, context, refusal, constraint))
             {
                 return null;
             }
@@ -85,6 +89,38 @@ public static class ReactionMappings
 
         return properties.TrueForAll(_ => mapped.ContainsKey(_.Name)) ? [.. properties.Select(_ => mapped[_.Name])] : null;
     }
+
+    /// <summary>
+    /// Reads an explicit destination from the same values supported by payload mappings.
+    /// </summary>
+    /// <param name="expression">The destination expression.</param>
+    /// <param name="model">The semantic model resolving the value.</param>
+    /// <param name="handler">The handler supplying the trigger and context.</param>
+    /// <returns>The exact source, or null when it is code.</returns>
+    internal static MappingSourceModel? Destination(ExpressionSyntax expression, SemanticModel model, IMethodSymbol handler)
+    {
+        var type = model.GetTypeInfo(expression).Type;
+        if (type is null)
+        {
+            return null;
+        }
+        if (!RequiredScalar(type))
+        {
+            return null;
+        }
+        var source = SourceOf(expression, model, type, handler.Parameters[0], handler.Parameters.Length > 1 ? handler.Parameters[1] : null);
+
+        return SupportedDestination(source);
+    }
+
+    static bool RequiredScalar(ITypeSymbol type) => type.NullableAnnotation != NullableAnnotation.Annotated && Types.CollectionElements.ElementOf(type) is null;
+
+    static MappingSourceModel? SupportedDestination(MappingSourceModel? source) => source switch
+    {
+        PropertyPathSource => source,
+        LiteralSource { Value: string text } when !string.IsNullOrWhiteSpace(text) => source,
+        _ => null
+    };
 
     /// <summary>
     /// Determines whether constructing a type does nothing but put the values it is given into its properties.
@@ -138,6 +174,8 @@ public static class ReactionMappings
     /// <param name="semanticModel">The model the expression is read through.</param>
     /// <param name="trigger">The parameter carrying the triggering event.</param>
     /// <param name="context">The parameter carrying the event context.</param>
+    /// <param name="refusal">The branch refusal parameter.</param>
+    /// <param name="constraint">Whether the selector admits constraint values.</param>
     /// <returns>True when the value could be stated.</returns>
     static bool Add(
         Dictionary<string, PropertyMappingModel> mapped,
@@ -145,9 +183,11 @@ public static class ReactionMappings
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         IParameterSymbol trigger,
-        IParameterSymbol? context)
+        IParameterSymbol? context,
+        IParameterSymbol? refusal,
+        bool constraint)
     {
-        if (mapped.ContainsKey(property.Name) || SourceOf(expression, semanticModel, property.Type, trigger, context) is not { } source)
+        if (mapped.ContainsKey(property.Name) || SourceOf(expression, semanticModel, property.Type, trigger, context, refusal, constraint) is not { } source)
         {
             return false;
         }
@@ -165,17 +205,26 @@ public static class ReactionMappings
     /// <param name="target">The type of the property the value is given to.</param>
     /// <param name="trigger">The parameter carrying the triggering event.</param>
     /// <param name="context">The parameter carrying the event context.</param>
+    /// <param name="refusal">The branch refusal parameter.</param>
+    /// <param name="constraint">Whether the selector admits constraint values.</param>
     /// <returns>The source, or <see langword="null"/> when the value is code.</returns>
     static MappingSourceModel? SourceOf(
         ExpressionSyntax expression,
         SemanticModel semanticModel,
         ITypeSymbol target,
         IParameterSymbol trigger,
-        IParameterSymbol? context)
+        IParameterSymbol? context,
+        IParameterSymbol? refusal = null,
+        bool constraint = false)
     {
         while (expression is ParenthesizedExpressionSyntax parenthesized)
         {
             expression = parenthesized.Expression;
+        }
+
+        if (refusal is not null && RefusalMappings.Read(expression, semanticModel, target, refusal, constraint) is { } refusalSource)
+        {
+            return refusalSource;
         }
 
         var constant = semanticModel.GetConstantValue(expression);

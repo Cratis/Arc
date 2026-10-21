@@ -12,8 +12,18 @@
   href: causation.md
 - name: Transactional commands
   href: transactional-commands.md
+- name: Commands for occurrences
+  href: occurrence-commands.md
 - name: Concurrency
   href: concurrency.md
+- name: Fresh identifiers
+  href: fresh-identifiers.md
+- name: Event source definitions
+  href: event-source-definitions.md
+- name: Event source definition scenarios
+  href: event-source-definition-scenarios.md
+- name: How definition routing works
+  href: event-source-definition-routing.md
 - name: Stream decisions
   href: stream-decisions.md
 - name: Completing streams

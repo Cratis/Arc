@@ -11,5 +11,5 @@ public class when_checking_if_internal_type_is_query : Specification
 
     void Because() => _result = typeof(Scenarios.for_Queries.ModelBound.InternalReadModel).IsQuery();
 
-    [Fact] void should_recognize_internal_query() => _result.ShouldBeTrue();
+    [Fact] void should_recognize_a_public_query_on_an_internal_type() => _result.ShouldBeTrue();
 }

@@ -34,4 +34,27 @@ public class TypeReferenceConverter(IScreenplayNaming naming)
 
         return new(name.Length <= 1 ? UnknownTypeName : name, type.IsCollection, type.IsOptional, SourceLocation.Start);
     }
+
+    /// <summary>
+    /// Keeps only properties whose carried types can be declared, reporting each omitted property.
+    /// </summary>
+    /// <param name="properties">The original properties.</param>
+    /// <param name="owner">The declaration owning them.</param>
+    /// <param name="diagnostics">Where omissions are reported.</param>
+    /// <returns>The representable properties, in declaration order.</returns>
+    internal static IReadOnlyList<PropertyModel> Properties(IEnumerable<PropertyModel> properties, string owner, ScreenplayDiagnostics diagnostics) =>
+        properties.Where(property =>
+        {
+            if (property.Type.UnnameableType is not { } original)
+            {
+                return true;
+            }
+
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableTypeReference,
+                $"Property '{owner}.{property.Name}' of type '{original}' was left out because Screenplay has no type that represents it",
+                owner);
+
+            return false;
+        }).ToList();
 }

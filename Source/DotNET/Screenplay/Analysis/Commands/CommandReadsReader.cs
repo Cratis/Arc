@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
@@ -17,6 +17,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="enabled">Whether authoring reads are enabled.</param>
 public class CommandReadsReader(SemanticModels models, TypeRegistry types, ScreenplayDiagnostics diagnostics, bool enabled)
 {
+    readonly ReadConditions _conditions = new(diagnostics);
+    readonly ScreenplayNaming _naming = new();
+
+    /// <summary>
+    /// Gets whether every Provide method of the last command read only passes protected reads through its guards.
+    /// </summary>
+    public bool ProvisionStatesReadsOnly { get; private set; }
+
     /// <summary>Reads the dependencies Arc resolves by the command event source id.</summary>
     /// <param name="command">The command.</param>
     /// <param name="identifier">The proven command input key.</param>
@@ -26,130 +34,62 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
     public (IReadOnlyList<CommandReadModel> Reads, IReadOnlyList<CommandRequirementModel> Requirements) Read(
         INamedTypeSymbol command, string? identifier, AuthoringSources sources, string location)
     {
+        var scope = new ReadScope(command, identifier, CommandAttributeSymbols.ResolveCommand(command).ReadProtection, sources, location);
         var methods = command.GetMembers().OfType<IMethodSymbol>().Where(method => !method.IsStatic && (method.Name == "Provide" || method.Name == "Handle")).ToArray();
         var providers = methods.Where(method => method.Name == "Provide").ToArray();
-        var parameters = methods.SelectMany(method => method.Parameters).Where(parameter => ReadType(parameter.Type) is not null &&
-            (parameter.ContainingSymbol.Name != "Handle" || !providers.Any(provider => Provides(provider.ReturnType, parameter.Type)))).ToArray();
-        if (!enabled)
+        var parameters = Parameters(methods, providers, scope);
+        if (parameters.Length == 0 && !enabled)
         {
-            if (parameters.Length > 0 || methods.Any(method => method.Name == "Provide"))
-            {
-                Report("Reads and provisioning requirements are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable dependencies and guards", location);
-            }
-
             return ([], []);
         }
 
-        var reads = new List<CommandReadModel>();
-        foreach (var parameter in parameters)
-        {
-            if (identifier is null || parameter.Type.NullableAnnotation == NullableAnnotation.Annotated)
-            {
-                Report("The read dependency has no proven command input key or is optional; it was left in code", location);
-                continue;
-            }
-
-            var type = ReadType(parameter.Type)!;
-            var alias = parameter.Name;
-            if (command.DeclaredProperties().Any(property => string.Equals(property.Name, alias, StringComparison.OrdinalIgnoreCase)) || alias == "reads" || alias == "as" || alias == "by")
-            {
-                Report($"The read alias '{alias}' conflicts with command input or a grammar keyword; the dependency was left in code", location);
-                continue;
-            }
-
-            // Provide and Handle can share a dependency. A returned parameter is carried to Handle, not read twice.
-            var existing = reads.Find(read => read.Alias == alias && read.Name == type.Name);
-            if (existing is null && reads.Exists(read => read.Alias == alias))
-            {
-                Report($"The read alias '{alias}' names different models; the dependency was left in code", location);
-                continue;
-            }
-
-            if (existing is null)
-            {
-                reads.Add(new(type.Name, alias, identifier)
-                {
-                    Namespace = type.ContainingNamespace.ToDisplayString(),
-                    FullName = type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString(),
-                    Properties = new PropertyReader(types).Read(type).ToList()
-                });
-            }
-
-            if (IsUnchanged(parameter, location))
-            {
-                sources.Add(parameter, alias, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
-            }
-        }
-
+        var guards = methods.SelectMany(method => ProtectedReadGuards.Leading(method, models)).ToArray();
+        var accepted = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var reads = ReadDependencies(scope, parameters, guards, accepted);
         var requirements = new List<CommandRequirementModel>();
-        foreach (var provide in methods.Where(method => method.Name == "Provide"))
+        var provisioned = providers.Select(provide => new ReadProvisions(models, _conditions, diagnostics).Read(provide, scope)).ToArray();
+        foreach (var provision in provisioned.OfType<ProvisionRead>())
         {
-            var bodies = HandlerBodies.Of(provide).ToArray();
-            if (bodies is not [var body] || models.For(body.SyntaxTree) is not { } model)
-            {
-                Report("Provide() lives in code whose body is unavailable", location);
-                continue;
-            }
-
-            var recognized = false;
-            ExpressionSyntax? provided = null;
-            var recovered = new List<CommandRequirementModel>();
-            if (body is ConditionalExpressionSyntax conditional)
-            {
-                var errorOnTrue = ErrorMessage(conditional.WhenTrue, model);
-                var errorOnFalse = ErrorMessage(conditional.WhenFalse, model);
-                var success = errorOnTrue is not null ? conditional.WhenFalse : conditional.WhenTrue;
-                if ((errorOnTrue ?? errorOnFalse) is { } message && sources.ReadPath(success, model) is not null &&
-                    Condition(conditional.Condition, model, command, sources, errorOnTrue is not null, location) is { } condition)
-                {
-                    recovered.Add(new(condition, message));
-                    provided = success;
-                    recognized = true;
-                }
-            }
-            else if (body is BlockSyntax block && block.Statements.LastOrDefault() is ReturnStatementSyntax { Expression: { } success } &&
-                sources.ReadPath(success, model) is not null)
-            {
-                recognized = true;
-                provided = success;
-                foreach (var statement in block.Statements.Take(block.Statements.Count - 1))
-                {
-                    var guard = statement as IfStatementSyntax;
-                    var returned = guard?.Statement is BlockSyntax { Statements: [ReturnStatementSyntax error] } ? error : guard?.Statement as ReturnStatementSyntax;
-                    if (guard is { Else: null } && returned?.Expression is { } expression && ErrorMessage(expression, model) is { } message &&
-                        Condition(guard.Condition, model, command, sources, true, location) is { } condition)
-                    {
-                        recovered.Add(new(condition, message));
-                    }
-                    else
-                    {
-                        recognized = false;
-                    }
-                }
-            }
-
-            if (!recognized)
-            {
-                Report("Provide() contains provisioning behavior that lives in code; only proven reads are described", location);
-                continue;
-            }
-
-            requirements.AddRange(recovered);
-            if (provided is not null && sources.ReadPath(provided, model) is { } providedPath && !providedPath.Contains('.', StringComparison.Ordinal))
-            {
-                foreach (var parameter in methods.Where(method => method.Name == "Handle").SelectMany(method => method.Parameters)
-                    .Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, model.GetTypeInfo(provided).Type)))
-                {
-                    if (IsUnchanged(parameter, location))
-                    {
-                        sources.Add(parameter, providedPath);
-                    }
-                }
-            }
+            requirements.AddRange(provision.Requirements);
+            CarryProvided(provision, methods, scope);
         }
+
+        requirements.AddRange(HandleRequirements(methods, accepted, scope));
+        ProvisionStatesReadsOnly = providers.Length > 0 && provisioned.All(provision => provision is not null) && reads.Exists(read => read.Protected);
 
         return (reads, requirements);
     }
+
+    static bool IsProtected(IParameterSymbol parameter, ReadScope scope) => scope.Protection == CommandReadKeys.ProtectionOn &&
+        !CommandAttributeSymbols.ResolveRead(ReadType(parameter.Type)!, (IMethodSymbol)parameter.ContainingSymbol, parameter).Advisory;
+
+    static string? Conflict(ReadScope scope, IParameterSymbol parameter, string? key, List<CommandReadModel> reads)
+    {
+        var alias = parameter.Name;
+        var type = ReadType(parameter.Type)!;
+        if (scope.Command.DeclaredProperties().Any(property => string.Equals(property.Name, alias, StringComparison.OrdinalIgnoreCase)) || IsGrammarKeyword(alias))
+        {
+            return $"the read alias '{alias}' conflicts with command input or a grammar keyword";
+        }
+
+        return reads.Exists(read => read.Alias == alias && (read.Name != type.Name || read.Key != key))
+            ? $"the read alias '{alias}' names different models or keys"
+            : null;
+    }
+
+    static string? StreamScoped(INamedTypeSymbol type) => type.HasAttribute(WellKnownTypeNames.ReadModelEventStreamAttribute)
+        ? "the read model is stream-scoped ([EventStream<T>]): the runtime reads it per stream and rejects a look-up by key, and Screenplay cannot state a stream-scoped read until Cratis/Screenplay#805"
+        : null;
+
+    static bool IsGrammarKeyword(string alias) => alias == "reads" || alias == "as" || alias == "by";
+
+    static (string? Key, string? Failure) Key(ReadScope scope, IParameterSymbol parameter, INamedTypeSymbol type, bool absenceRejected) =>
+        parameter.Type.NullableAnnotation == NullableAnnotation.Annotated && !absenceRejected
+            ? (null, "the read is optional and no leading guard rejects its absence")
+            : CommandReadKeys.Resolve(scope, parameter, type);
+
+    static (string? Key, string? Failure) ResolveKey(ReadScope scope, IParameterSymbol parameter, INamedTypeSymbol type, bool absenceRejected) =>
+        IsProtected(parameter, scope) && StreamScoped(type) is { } scoped ? (null, scoped) : Key(scope, parameter, type, absenceRejected);
 
     static bool Provides(ITypeSymbol result, ITypeSymbol dependency) => SymbolEqualityComparer.Default.Equals(result, dependency) ||
         (result is INamedTypeSymbol named && named.TypeArguments.Any(argument => Provides(argument, dependency)));
@@ -161,68 +101,149 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         _ => null
     };
 
-    static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => expression is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
-        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
-        model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+    IParameterSymbol[] Parameters(IMethodSymbol[] methods, IMethodSymbol[] providers, ReadScope scope)
+    {
+        var parameters = methods.SelectMany(method => method.Parameters).Where(parameter => ReadType(parameter.Type) is not null &&
+            (parameter.ContainingSymbol.Name != "Handle" || !providers.Any(provider => Provides(provider.ReturnType, parameter.Type)))).ToArray();
+        if (enabled)
+        {
+            return parameters;
+        }
 
-    bool IsUnchanged(IParameterSymbol parameter, string location)
+        var protectedParameters = parameters.Where(parameter => IsProtected(parameter, scope)).ToArray();
+        if (protectedParameters.Length < parameters.Length || (protectedParameters.Length == 0 && providers.Length > 0))
+        {
+            Report("Reads and provisioning requirements are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable dependencies and guards", scope);
+        }
+
+        return protectedParameters;
+    }
+
+    List<CommandReadModel> ReadDependencies(ReadScope scope, IParameterSymbol[] parameters, ReadGuard[] guards, HashSet<ISymbol> accepted)
+    {
+        var reads = new List<CommandReadModel>();
+        foreach (var parameter in parameters)
+        {
+            var type = ReadType(parameter.Type)!;
+            var isProtected = IsProtected(parameter, scope);
+            var absence = isProtected ? guards.Where(guard => SymbolEqualityComparer.Default.Equals(ProtectedReadGuards.AbsenceOf(guard.Statement.Condition, guard.Model), parameter)).ToArray() : [];
+            var (key, failure) = ResolveKey(scope, parameter, type, absence.Length > 0);
+            failure ??= Conflict(scope, parameter, key, reads);
+            if (failure is not null)
+            {
+                Refuse(isProtected, failure, scope);
+                continue;
+            }
+
+            // Provide and Handle can share a dependency. A returned parameter is carried to Handle, not read twice.
+            if (!reads.Exists(read => read.Alias == parameter.Name && read.Name == type.Name))
+            {
+                reads.Add(Describe(parameter, type, key!, isProtected));
+            }
+
+            if (isProtected)
+            {
+                accepted.Add(parameter);
+                StateAbsence(parameter, absence, scope);
+            }
+
+            CarryUnchanged(parameter, scope);
+        }
+
+        return reads;
+    }
+
+    void CarryUnchanged(IParameterSymbol parameter, ReadScope scope)
+    {
+        if (IsUnchanged(parameter, scope))
+        {
+            scope.Sources.Add(parameter, parameter.Name, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
+        }
+    }
+
+    CommandReadModel Describe(IParameterSymbol parameter, INamedTypeSymbol type, string key, bool isProtected) => new(type.Name, parameter.Name, key)
+    {
+        Namespace = type.ContainingNamespace.ToDisplayString(),
+        FullName = type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString(),
+        Properties = new PropertyReader(types).Read(type).ToList(),
+        Protected = isProtected,
+        NamedByView = _naming.ToPropertyName(parameter.Name) == _naming.ToPropertyName(type.Name)
+    };
+
+    void CarryProvided(ProvisionRead provision, IMethodSymbol[] methods, ReadScope scope)
+    {
+        if (scope.Sources.ReadPath(provision.Provided, provision.Model) is not { } providedPath || providedPath.Contains('.', StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var carried = methods.Where(method => method.Name == "Handle").SelectMany(method => method.Parameters)
+            .Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, provision.Model.GetTypeInfo(provision.Provided).Type));
+        foreach (var parameter in carried.Where(parameter => IsUnchanged(parameter, scope)))
+        {
+            scope.Sources.Add(parameter, providedPath);
+        }
+    }
+
+    void StateAbsence(IParameterSymbol parameter, IReadOnlyList<ReadGuard> absence, ReadScope scope)
+    {
+        foreach (var guard in absence)
+        {
+            scope.Sources.ConsumeGuard(guard.Statement);
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnprotectableCommandRead,
+                $"Read '{parameter.Name}': the model rejects a missing instance itself, so the guard's message{(guard.Message is null ? string.Empty : $" '{guard.Message}'")} is not carried and the evaluator's absence message applies",
+                scope.Location);
+        }
+    }
+
+    IEnumerable<CommandRequirementModel> HandleRequirements(IMethodSymbol[] methods, HashSet<ISymbol> reads, ReadScope scope)
+    {
+        var guards = methods.Where(method => method.Name == "Handle").SelectMany(method => ProtectedReadGuards.Leading(method, models))
+            .Where(guard => !scope.Sources.ConsumedGuards.Contains(guard.Statement) &&
+                guard.Statement.Condition.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>().Any(identifier => reads.Contains(guard.Model.GetSymbolInfo(identifier).Symbol!)));
+        foreach (var guard in guards)
+        {
+            if (guard.Message is not null && _conditions.Condition(guard.Statement.Condition, guard.Model, scope, true) is { } condition)
+            {
+                scope.Sources.ConsumeGuard(guard.Statement);
+
+                yield return new(condition, guard.Message);
+            }
+            else
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnprotectableCommandRead, $"A guard over a protected read ({(guard.Message is null ? "its message is computed" : $"'{guard.Message}'")}) is not a requirement the model states; it was left in code", scope.Location);
+            }
+        }
+    }
+
+    void Refuse(bool isProtected, string failure, ReadScope scope)
+    {
+        if (isProtected)
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.UnprotectableCommandRead, $"A protected read was left in code, never emitted as an unguarded read: {failure}", scope.Location);
+            return;
+        }
+
+        Report($"The read dependency was left in code: {failure}", scope);
+    }
+
+    bool IsUnchanged(IParameterSymbol parameter, ReadScope scope)
     {
         if (HandlerBodies.Of((IMethodSymbol)parameter.ContainingSymbol).ToArray() is not [var body] || models.For(body.SyntaxTree) is not { } model)
         {
-            Report($"The body using read parameter '{parameter.Name}' is unavailable; dependent mappings and requirements were left in code", location);
+            Report($"The body using read parameter '{parameter.Name}' is unavailable; dependent mappings and requirements were left in code", scope);
             return false;
         }
 
         if (!CommandAuthoringReader.IsUnchanged(parameter, body, model))
         {
-            Report($"Read parameter '{parameter.Name}' is reassigned or passed by reference; dependent mappings and requirements were left in code", location);
+            Report($"Read parameter '{parameter.Name}' is reassigned or passed by reference; dependent mappings and requirements were left in code", scope);
             return false;
         }
 
         return true;
     }
 
-    ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
-    {
-        if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax comparison ||
-            model.GetOperation(comparison) is not IBinaryOperation { OperatorMethod: null } operation ||
-            operation.LeftOperand is IConversionOperation || operation.RightOperand is IConversionOperation ||
-            !SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(comparison.Left).Type, model.GetTypeInfo(comparison.Right).Type))
-        {
-            return null;
-        }
-
-        var left = MappingSourceReader.ReadPath(comparison.Left, model, command) ?? sources.ReadPath(comparison.Left, model);
-        var right = MappingSourceReader.ReadPath(comparison.Right, model, command) ?? sources.ReadPath(comparison.Right, model);
-        if ((left?.Contains('.', StringComparison.Ordinal) == false && MappingSourceReader.ReadPath(comparison.Left, model, command) is null) ||
-            (right?.Contains('.', StringComparison.Ordinal) == false && MappingSourceReader.ReadPath(comparison.Right, model, command) is null))
-        {
-            return null;
-        }
-
-        var constant = model.GetConstantValue(comparison.Right);
-        if (EnumConstants.EnumerationOf(comparison.Right, model) is { } enumeration &&
-            (!constant.HasValue || !EnumConstants.TryResolve(enumeration, constant.Value, out _)))
-        {
-            return null;
-        }
-
-        var operand = right is not null ? new PropertyPathSource(right) : new MappingSourceReader(diagnostics).Read(comparison.Right, model, command, location);
-        var kind = comparison.Kind() switch
-        {
-            SyntaxKind.EqualsExpression => invert ? ComparisonKind.NotEqual : ComparisonKind.Equal,
-            SyntaxKind.NotEqualsExpression => invert ? ComparisonKind.Equal : ComparisonKind.NotEqual,
-            SyntaxKind.LessThanExpression => invert ? ComparisonKind.GreaterThanOrEqual : ComparisonKind.LessThan,
-            SyntaxKind.LessThanOrEqualExpression => invert ? ComparisonKind.GreaterThan : ComparisonKind.LessThanOrEqual,
-            SyntaxKind.GreaterThanExpression => invert ? ComparisonKind.LessThanOrEqual : ComparisonKind.GreaterThan,
-            SyntaxKind.GreaterThanOrEqualExpression => invert ? ComparisonKind.LessThan : ComparisonKind.GreaterThanOrEqual,
-            _ => (ComparisonKind?)null
-        };
-
-        return left is not null && kind is { } op && operand is not null
-            ? new(left, op, operand)
-            : null;
-    }
-
-    void Report(string message, string location) => diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandProvisioning, message, location);
+    void Report(string message, ReadScope scope) => diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandProvisioning, message, scope.Location);
 }

@@ -7,7 +7,17 @@ Chronicle's [concurrency control](/chronicle/events/concurrency/) rejects an app
 
 On model-bound commands, you declare concurrency intent directly on the command record using attributes and interfaces. Chronicle then builds the `ConcurrencyScope` automatically when appending the events returned by `Handle()`. No manual scope construction is required.
 
-That automatic path is the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
+:::caution[`concurrency: true` does not guard a decision]
+The attributes on this page choose which dimensions bound the check Arc builds for the returned events. That check reads the tail after `Handle()` returns, so it cannot bind your decision to the state `Handle()` read. To make a stateful rule hold, use a constraint, a read model parameter under [read protection](../consistency/getting-started.md) `On`, a [stream decision](./stream-decisions.md), an aggregate, or an explicit scope. [Choosing how a command's rule holds](../consistency/index.md) compares them.
+:::
+
+A [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) is the guarantee that an append fails if an event matching the decision's query arrived after the position it read; [choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) compares the ways to get it. The attributes on this page are the string form of the boundary. An [event source definition](./event-source-definitions.md) declares the same dimensions once, with a named stream, and is the typed alternative.
+
+A [guarded generated append target](fresh-identifiers.md) is an exception to automatic tail capture:
+Arc uses an immutable whole-source `BeforeFirst` scope. Existing events produce `ConcurrencyViolation`
+with `ReasonDetail = "GeneratedIdentifierCollision"`, regardless of routing metadata.
+
+That automatic path is otherwise the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
 
 ## Concurrency Metadata Attributes
 
@@ -224,6 +234,8 @@ This is opt-in. Returning ordinary events or `EventForEventSourceId` values keep
 
 ## Exact scopes replace automatic capture
 
-When `Handle()` returns `EventsWithConcurrencyScopes`, its supplied scopes replace automatic capture. Remove `concurrency: true` from `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` on that command, but keep their routing values. A later automatically captured tail would defeat the purpose of guarding the revision used by the decision.
+When `Handle()` returns `EventsWithConcurrencyScopes`, its supplied scopes replace automatic capture.
+For a guarded generated target, an equal whole-source `BeforeFirst` intent merges with the freshness guard;
+a differing explicit intent fails with `ConflictingConcurrencyScopes`. Remove `concurrency: true` from `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` on that command, but keep their routing values. A later automatically captured tail would defeat the purpose of guarding the revision used by the decision.
 
 For `[EventSource<TSource>(stream)]`, keep the concurrency dimensions on the shared definition. The exact returned scope intentionally takes precedence for this command without changing the policy for other commands using the same definition. Chronicle carries one scope per event source id per command, so two stream decisions for the same source cannot supply independent guards.

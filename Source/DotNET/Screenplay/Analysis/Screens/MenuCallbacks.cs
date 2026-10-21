@@ -79,6 +79,34 @@ internal sealed partial class MenuCallbacks(TsxSource source, KnownComponents co
     }
 
     /// <summary>
+    /// Reads a literal route only when the callback's navigation hook is lexically proven.
+    /// </summary>
+    /// <param name="callback">The callback as written.</param>
+    /// <param name="position">The containing JSX element's position.</param>
+    /// <returns>The proven literal route, or null.</returns>
+    internal string? Route(string callback, int position)
+    {
+        var call = Patterns.RouteCallbackRegex().Match(callback);
+        var declarations = CodeMatches(Patterns.NavigateBindingRegex())
+            .Where(_ => _.Groups["name"].Value == call.Groups["name"].Value && IsNavigateHook(_) && _scope.BindsNavigation(_, position)).ToList();
+        return call.Success && declarations.Count == 1 ? JsxValue.Expression(call.Groups["route"].Value).Literal : null;
+    }
+
+    /// <summary>
+    /// Recognizes router calls in gestures the generator does not yet map, including computed arguments and options.
+    /// </summary>
+    /// <param name="callback">The callback expression.</param>
+    /// <returns>Whether it mentions a navigation variable backed by an imported router hook.</returns>
+    internal bool HasNavigationCall(string callback)
+    {
+        var names = CodeMatches(Patterns.NavigateBindingRegex()).Where(IsNavigateHook)
+            .Select(_ => _.Groups["name"].Value).ToHashSet(StringComparer.Ordinal);
+        var expression = TsxSource.Scan(callback);
+        return Patterns.NavigationCallRegex().Matches(expression.Code).Cast<Match>()
+            .Any(_ => expression.IsCode(_.Index) && names.Contains(_.Groups["name"].Value));
+    }
+
+    /// <summary>
     /// Resolves a sole setter declaration and proves its lexical relationship to the item.
     /// </summary>
     /// <param name="item">The item containing the setter reference.</param>
@@ -191,6 +219,13 @@ internal sealed partial class MenuCallbacks(TsxSource source, KnownComponents co
         /// <returns>The pattern.</returns>
         [GeneratedRegex("""^\(\s*\)\s*=>\s*(?<name>[A-Za-z_$][\w$]*)\(\s*(?<route>['"][^'"\\]*['"])\s*\)$""", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
         internal static partial Regex RouteCallbackRegex();
+
+        /// <summary>
+        /// Gets a direct call name without assuming what arguments it takes.
+        /// </summary>
+        /// <returns>The pattern.</returns>
+        [GeneratedRegex(@"\b(?<name>[A-Za-z_$][\w$]*)\s*\(", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+        internal static partial Regex NavigationCallRegex();
 
         /// <summary>
         /// Gets the pattern for a router hook declaration.

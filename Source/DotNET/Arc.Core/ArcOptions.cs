@@ -4,6 +4,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Cratis.Arc.Connections;
 using Cratis.Arc.Execution;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
@@ -41,6 +42,15 @@ public class ArcOptions
     /// Gets or sets the options for the tenancy.
     /// </summary>
     public TenancyOptions Tenancy { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets how storage connections are resolved, for every storage integration that has no resolution of its own.
+    /// </summary>
+    /// <remarks>
+    /// Configure it once here and both MongoDB and Entity Framework Core resolve through it. An integration's own
+    /// connection resolution takes precedence when it is configured.
+    /// </remarks>
+    public ConnectionResolutionOptions ConnectionResolution { get; set; } = new();
 
     /// <summary>
     /// Gets or sets what type of identity details provider to use. If none is specified it will use type discovery to try to find one.
@@ -86,6 +96,11 @@ public class ArcOptions
     /// Gets or sets the options for observable queries.
     /// </summary>
     public QueryOptions Query { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the access options for the query health diagnostic feed.
+    /// </summary>
+    public QueryHealthOptions QueryHealth { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the hosting options for Arc, only used by Arc.Core.

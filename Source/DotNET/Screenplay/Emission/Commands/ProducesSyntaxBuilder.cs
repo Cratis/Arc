@@ -63,7 +63,8 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier, string? commandName)
     {
         var productions = produces.ToList();
-        if (productions.Exists(_ => !_.UsesCommandContext))
+        var unknown = productions.Exists(_ => !_.UsesCommandContext && _.Destination is null);
+        if (unknown)
         {
             Diagnostics?.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
@@ -73,8 +74,20 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
             identifier = null;
         }
 
-        return [.. productions.Select(_ => Build(_, location, identifier))];
+        return [.. productions.Select(production => Build(unknown ? production with { Destination = null, Route = null } : production, location, identifier))];
     }
+
+    /// <summary>
+    /// Creates a builder that is the same except for how it names paths.
+    /// </summary>
+    /// <param name="pathNaming">The naming to build with.</param>
+    /// <returns>The builder.</returns>
+    internal ProducesSyntaxBuilder WithNaming(IScreenplayNaming pathNaming) => new(pathNaming, names)
+    {
+        InlineEvents = InlineEvents,
+        Events = Events,
+        Diagnostics = Diagnostics
+    };
 
     /// <summary>
     /// Builds a single produces block.
@@ -89,7 +102,8 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     /// </remarks>
     ProducesSyntax Build(ProducesModel produces, string location, string? identifier)
     {
-        var inline = identifier is not null && InlineEvents?.For(produces) is { } declaration ? Events?.Build(declaration, location) : null;
+        var destination = produces.Destination ?? (identifier is null ? null : new PropertyPathSource(identifier));
+        var inline = destination is not null && InlineEvents?.For(produces) is { } declaration ? Events?.Build(declaration, location) : null;
         var mappings = produces.Mappings
             .Where(_ => names.Allows(_.Property, ReservedWords.InProduces, produces.EventName, location))
             .Select(ToMapping).ToList();
@@ -106,9 +120,16 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
             _conditions.Convert(produces.When),
             inline is null ? mappings : [.. inline.Properties.Select(property => mappings.Single(mapping => mapping.Property == property.Name))],
             SourceLocation.Start,
-            For: identifier is null ? null : new PathExpressionSyntax(naming.ToPropertyPath(identifier), SourceLocation.Start))
+            For: destination is null ? null : _sources.Convert(destination))
         {
-            InlineEvent = inline
+            InlineEvent = inline,
+            Stream = produces.Route is { Stream: not null } route ? new CommandStreamSyntax(route.Source, route.Stream, SourceLocation.Start)
+            {
+                StreamId = route.StreamIdLiteral is { } literal ? new("streamId", _sources.Convert(literal), SourceLocation.Start) :
+                    route.StreamId is { } key ? new("streamId", new PathExpressionSyntax(naming.ToPropertyPath(key), SourceLocation.Start), SourceLocation.Start) : null,
+                StreamIdParts = route.StreamIdParts.Select(part => new PropertyMappingSyntax(naming.ToPropertyName(part.Name), _sources.Convert(part.Value), SourceLocation.Start)).ToList()
+            }
+            : null
         };
     }
 

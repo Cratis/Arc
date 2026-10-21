@@ -5,6 +5,7 @@ using Cratis.Arc.Chronicle.Streams;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing.Events;
+using Cratis.Chronicle.Transactions;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
@@ -14,6 +15,7 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// </summary>
 internal sealed class DecisionCommandScenario
 {
+    readonly IEventLog _eventLog;
     readonly Queue<(EventSourceId Source, object[] Events, EventRoute? Route)> _competitors = new();
     readonly List<AppendedEventWithResult> _commandEvents;
     readonly HashSet<EventSequenceNumber> _excludedSequenceNumbers = [];
@@ -26,23 +28,38 @@ internal sealed class DecisionCommandScenario
     /// <param name="store">The shared store.</param>
     /// <param name="commandEvents">The command-only append capture.</param>
     public DecisionCommandScenario(EventStoreForTesting store, List<AppendedEventWithResult> commandEvents)
+        : this(store.EventLog, store.UnitOfWorkManager, commandEvents, captureCommands: true)
     {
-        Store = store;
-        EventLog = new EventLogForScenario(store.EventLog, store.UnitOfWorkManager);
-        _commandEvents = commandEvents;
-        Store.EventLog.AppendOperations.Subscribe(events =>
-        {
-            if (_executionDepth > 0 && !_setupOrCompeting)
-            {
-                _commandEvents.AddRange(events.Where(_ => _.Result.IsSuccess && !_excludedSequenceNumbers.Contains(_.Result.SequenceNumber)));
-            }
-        });
     }
 
     /// <summary>
-    /// Gets the store used for seeding, decision reads and command commits.
+    /// Shares an existing log and transaction manager without changing the scenario's read mode or seeds.
     /// </summary>
-    public EventStoreForTesting Store { get; }
+    /// <param name="eventLog">The scenario's existing log.</param>
+    /// <param name="unitOfWorkManager">The scenario's transaction manager.</param>
+    /// <param name="commandEvents">The command append capture.</param>
+    /// <param name="captureCommands">Whether to capture commands here rather than through the legacy subscription.</param>
+    public DecisionCommandScenario(IEventLog eventLog, IUnitOfWorkManager unitOfWorkManager, List<AppendedEventWithResult> commandEvents, bool captureCommands)
+    {
+        _eventLog = eventLog;
+        EventLog = new EventLogForScenario(eventLog, unitOfWorkManager);
+        _commandEvents = commandEvents;
+        if (captureCommands)
+        {
+            eventLog.AppendOperations.Subscribe(events =>
+            {
+                if (_executionDepth > 0 && !_setupOrCompeting)
+                {
+                    _commandEvents.AddRange(events.Where(_ => _.Result.IsSuccess && !_excludedSequenceNumbers.Contains(_.Result.SequenceNumber)));
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Gets the raw sequence shared by seeded facts, competing appends and command commits.
+    /// </summary>
+    public IEventSequence EventSequence => _eventLog;
 
     /// <summary>
     /// Gets the log with the store's real unit-of-work manager for transactional appends.
@@ -98,8 +115,8 @@ internal sealed class DecisionCommandScenario
             foreach (var @event in events)
             {
                 var result = route?.EventSource is { } definition
-                    ? await Store.EventLog.Append(definition, source, @event, route.EventStream, route.EventStreamId)
-                    : await Store.EventLog.Append(source, @event, eventStreamType: route?.EventStreamType, eventStreamId: route?.EventStreamId, eventSourceType: route?.EventSourceType);
+                    ? await _eventLog.Append(definition, source, @event, route.EventStream, route.EventStreamId)
+                    : await _eventLog.Append(source, @event, eventStreamType: route?.EventStreamType, eventStreamId: route?.EventStreamId, eventSourceType: route?.EventSourceType);
                 Exclude(result.SequenceNumber);
                 if (!result.IsSuccess)
                 {
@@ -118,14 +135,33 @@ internal sealed class DecisionCommandScenario
     /// </summary>
     /// <returns>The append operation.</returns>
     /// <exception cref="CompetingEventCouldNotBeAppended">A competing append failed.</exception>
-    public async Task AppendCompetingEvents()
+    public Task AppendCompetingEvents()
     {
         // A nested command shares this scenario but must not drain the outer command's competitor queue.
-        if (_executionDepth != 1)
+        if (_executionDepth != 1 || _competitors.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        // A competing writer must not inherit the owner's read-protection frame or unit of work.
+        // A distinct correlation alone does not isolate Chronicle's ambient append refusals under On.
+        if (ExecutionContext.IsFlowSuppressed())
+        {
+            return Task.Run(AppendCompetingEventsOutsideCommand);
+        }
+
+        // Flow must be restored on this thread right after scheduling, so the task is started inside and returned after.
+        Task competing;
+        using (ExecutionContext.SuppressFlow())
+        {
+            competing = Task.Run(AppendCompetingEventsOutsideCommand);
+        }
+
+        return competing;
+    }
+
+    async Task AppendCompetingEventsOutsideCommand()
+    {
         _setupOrCompeting = true;
         try
         {
@@ -136,8 +172,8 @@ internal sealed class DecisionCommandScenario
                     // A competitor is not an immediate append by the owner command. Its distinct correlation
                     // keeps the owner's commit observation eligible for operation compensation on conflict.
                     var result = batch.Route?.EventSource is { } definition
-                        ? await Store.EventLog.Append(definition, batch.Source, @event, batch.Route.EventStream, batch.Route.EventStreamId, correlationId: CorrelationId.New())
-                        : await Store.EventLog.Append(batch.Source, @event, eventStreamType: batch.Route?.EventStreamType, eventStreamId: batch.Route?.EventStreamId, eventSourceType: batch.Route?.EventSourceType, correlationId: CorrelationId.New());
+                        ? await _eventLog.Append(definition, batch.Source, @event, batch.Route.EventStream, batch.Route.EventStreamId, correlationId: CorrelationId.New())
+                        : await _eventLog.Append(batch.Source, @event, eventStreamType: batch.Route?.EventStreamType, eventStreamId: batch.Route?.EventStreamId, eventSourceType: batch.Route?.EventSourceType, correlationId: CorrelationId.New());
                     Exclude(result.SequenceNumber);
                     if (!result.IsSuccess)
                     {

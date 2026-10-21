@@ -65,7 +65,9 @@ public class a_stream_decision : Specification
     public record OwnerId(string Value) : ConceptAs<string>(Value);
 
     [Cratis.Chronicle.EventSources.EventSource("reports", Concurrency = ConcurrencyDimensions.EventSourceId | ConcurrencyDimensions.EventStreamType)]
+#pragma warning disable CHR0062 // The approval stream id carries the owner and month, so the stream itself is the deliberate boundary.
     [EventStream("approval", Concurrency = ConcurrencyDimensions.EventStreamType | ConcurrencyDimensions.EventStreamId)]
+#pragma warning restore CHR0062
     public class ReportSource : IEventSource;
 
     [EventType("1e64c963-b3b7-4eea-a9b5-dac14e6bca21")]

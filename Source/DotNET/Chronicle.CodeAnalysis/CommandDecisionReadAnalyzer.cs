@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Commands;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -16,12 +17,11 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 {
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
-    const string UnprotectedAttribute = "Cratis.Arc.Chronicle.ReadModels.UnprotectedAttribute";
     const string ChronicleReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
     const string DecisionReads = "Cratis.Chronicle.ReadModels.IDecisionReads";
     const string EventLog = "Cratis.Chronicle.EventSequences.IEventLog";
-    const string HandlerAdvice = "Mark the command [ProtectedDecision] and use DecisionRead<T> or IDecisionReads in Provide or Handle, or mark the command or the intentional legacy read [Unprotected]";
-    const string ValidatorAdvice = "Protected commands refuse validators with constructor dependencies, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
+    const string HandlerAdvice = "Enable ReadProtection(On) and take the read model as a parameter, or mark the intentional advisory read [Unprotected(\"why\")]";
+    const string ValidatorAdvice = "Enable ReadProtection(On) and take the read model in the CommandValidator constructor for state-dependent rules; under Off this read is only a hint";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -61,7 +61,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         // A validator's reads are injected through its constructor; other validator methods are not resolved from DI.
         var inValidator = !SymbolEqualityComparer.Default.Equals(command, method.ContainingType);
         if ((inValidator && method.MethodKind != MethodKind.Constructor) ||
-            HasUnprotected(command) || HasUnprotected(method) || HasUnprotected(parameter) ||
+            ReadProtectionSymbols.Mode(command) != 0 || HasUnprotected(command) || HasUnprotected(method) || HasUnprotected(parameter) || HasUnprotected(parameter.Type) ||
             IsDecision(parameter.Type) || !IsChronicleBacked(parameter.Type, backedTypes))
         {
             return;
@@ -90,7 +90,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (called.Name == "GetInstanceById" && Implements(ReceiverOf(called), ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
+        if (ReadProtectionSymbols.Mode(command) == 0 && called.Name == "GetInstanceById" && Implements(ReceiverOf(called), ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
@@ -111,11 +111,15 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
              enclosingSyntax.DescendantNodes().OfType<InvocationExpressionSyntax>().Any(_ =>
                  context.SemanticModel.GetSymbolInfo(_, context.CancellationToken).Symbol is IMethodSymbol invoked &&
                  Implements(invoked.ContainingType, DecisionReads)));
-        if (usesDecision)
+        var mode = ReadProtectionSymbols.Mode(command);
+        if (mode == 2 || usesDecision || CommandAttributeSymbols.ResolveCommand(command).Mode == 1)
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARCCHR0012_ImmediateAppendAfterDecisionRead,
                 syntax.GetLocation(),
+                mode == 2 ? DiagnosticSeverity.Warning : DiagnosticSeverity.Info,
+                null,
+                null,
                 command.Name));
         }
     }
@@ -157,7 +161,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     static bool IsCommand(INamedTypeSymbol type) => HasCommandAttribute(type) &&
         type.GetMembers("Handle").OfType<IMethodSymbol>().Any(_ => ProducesEvents(_.ReturnType) || _.Parameters.Any(p => IsAggregate(p.Type)));
 
-    static bool HasUnprotected(ISymbol symbol) => symbol.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == UnprotectedAttribute);
+    static bool HasUnprotected(ISymbol symbol) => CommandAttributeSymbols.HasUnprotected(symbol);
 
     static bool IsDecision(ITypeSymbol type) =>
         type.OriginalDefinition.ToDisplayString() == "Cratis.Chronicle.ReadModels.DecisionRead<T>" || Implements(type, DecisionReads);

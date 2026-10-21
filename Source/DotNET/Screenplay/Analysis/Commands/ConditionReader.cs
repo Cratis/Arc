@@ -146,6 +146,16 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
         string location,
         ParameterBindings? bindings)
     {
+        if (DateConditions.Applies(binary, semanticModel))
+        {
+            return DateConditions.Read(binary, comparison, new(semanticModel, owner, location, bindings, diagnostics));
+        }
+
+        if (UuidConditions.Applies(binary, semanticModel, bindings))
+        {
+            return UuidConditions.Read(binary, comparison, new(semanticModel, location, diagnostics, (expression, model) => MappingSourceReader.ReadPath(expression, model, owner), null, bindings));
+        }
+
         var left = MappingSourceReader.ReadPath(binary.Left, semanticModel, owner, bindings);
         if (left is not null)
         {

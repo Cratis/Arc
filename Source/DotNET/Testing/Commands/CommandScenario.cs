@@ -85,7 +85,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
                              $"Failed to create an instance of command scenario extender '{extenderType.FullName}'. " +
                              "Ensure it has a public parameterless constructor.")))
         {
-            extender.Extend(Services, Context);
+            extender.Extend(typeof(TCommand), Services, Context);
         }
     }
 
@@ -144,8 +144,13 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     public async Task<CommandResult> Execute(TCommand command, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var fixture = CommandScenarioGeneratedValueExtensions.FixtureFor(this);
+        foreach (var check in Context.Values.OfType<ICommandScenarioExecutionCheck>())
+        {
+            check.Verify(typeof(TCommand), fixture);
+        }
         EnsureInitialized();
-        using var tenant = CommandScenarioGeneratedValueExtensions.FixtureFor(this).BeginTenant(_serviceProvider!);
+        using var tenant = fixture.BeginTenant(_serviceProvider!);
         LastResult = await _pipeline!.Execute(command!, _serviceProvider!, allowedSeverity: null, cancellationToken);
 
         return LastResult;

@@ -53,7 +53,11 @@ public static class SpecificationEventRoutes
             return null;
         }
 
-        return new(sourceName, streamName, streamId is null ? null : new(streamId));
+        return new(sourceName, streamName, streamId is null ? null : new(streamId))
+        {
+            StoredSource = sourceName,
+            StoredStream = streamName
+        };
 
         ExpressionSyntax? Argument(string parameter) => CallArguments.For(invocation, method, parameter).SingleOrDefault();
 

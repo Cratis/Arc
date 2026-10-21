@@ -27,5 +27,5 @@ public class when_initializing_with_internal_read_model : Specification
 
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
-    [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
+    [Fact] void should_select_a_public_static_query_on_an_internal_type() => _provider.Performers.Count().ShouldEqual(1);
 }

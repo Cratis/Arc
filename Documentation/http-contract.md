@@ -1,6 +1,6 @@
 ---
 title: HTTP contract
-description: The language-neutral Arc wire contract - routes, headers, envelopes, statuses, identity, and validation values - plus where the C# and JVM implementations differ.
+description: "The language-neutral Arc wire contract: routes, headers, envelopes, statuses, identity and validation values, and where the C# and JVM implementations differ."
 ---
 
 This page describes the shared wire contract verified for [C# on ASP.NET Core](/arc/backend/csharp/)
@@ -314,9 +314,15 @@ failure (400), then not-ready (202), then exception (500). A failed result never
 a response value.
 
 A malformed or wrong-typed request body is a client error, not a server fault: it becomes
-a validation failure carrying the `malformedRequest` reason and returns 400 without
-echoing the underlying parser message. The same applies to a value that cannot be bound
-to the member it was sent for.
+a validation failure carrying the `malformedRequest` reason without echoing arbitrary parser messages.
+On C# model-bound execute and `/validate` routes, authentication, roles, scheme selection,
+and explicitly resource-free policies run before that failure is reported: denied callers
+receive 403, while admitted callers receive 400 with the normalized JSON member path when
+available. If any named policy needs a resource, the policy set is skipped for the
+unbindable body; no authorization command filters run. Arc-owned explicit-offset refusals
+have a showable message. See [C# command input binding](backend/csharp/commands/input-binding.md)
+for the exact policy classification, member normalization, and MVC differences. This
+C# precedence and member behavior is not a guarantee about the JVM implementation.
 
 ## Identity contract
 
@@ -377,6 +383,7 @@ are:
 | `validatorFailed` | A validator threw, and the framework substituted a result. Nothing of the authored rules survives. |
 | `dependencyUnavailable` | Something the command needed was not available, so no rule was ever evaluated. |
 | `malformedRequest` | The request itself could not be read or bound. No rule was reached. |
+| `frameworkFailure` | The framework could not fulfill a command contract or complete its effects. Framework-composed; the message is not meant for end users. |
 
 `reason` is the machine-readable counterpart to `message`, and `reasonDetail` says which
 specific thing within that category produced the result - which constraint, for example -

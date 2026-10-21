@@ -49,7 +49,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             .. screen.Titles.Select(_ => new ScreenTitleSyntax(_, SourceLocation.Start)),
             .. screen.Toolbars.Select(Toolbar),
             .. screen.Tables.Select(Table),
-            .. screen.Actions.Select(_ => new ScreenActionSyntax(naming.ToDeclarationName(_), null, null, SourceLocation.Start))
+            .. screen.Actions.Select(_ => new ScreenActionSyntax(Reference(_), null, screen.AfterSuccess.TryGetValue(_, out var destination) ? Navigate(destination) : null, SourceLocation.Start))
         ];
 
         return new(name, new FileReferenceSyntax(path, SourceLocation.Start), directives, SourceLocation.Start);
@@ -82,18 +82,18 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
     /// <returns>The <see cref="ScreenDataSyntax"/>.</returns>
     /// <remarks>
     /// A <c>data</c> directive has no room for an optional marker - the parser rejects one, so writing it would
-    /// produce a document that does not compile - and it needs none, since the query declaration in the same slice
+    /// produce a document that does not compile - and it needs none, since the referenced query declaration
     /// already states what it returns and whether it may return nothing.
     /// </remarks>
     ScreenDataSyntax Binding(ScreenDataModel data) =>
         new(
             types.Convert(data.Type) with { IsOptional = false },
-            naming.ToDeclarationName(data.Query),
+            Reference(data.Query),
             data.By is null ? null : naming.ToPropertyName(data.By),
             SourceLocation.Start);
 
     /// <summary>
-    /// Builds a toolbar of command input openers without inventing icons or bindings.
+    /// Builds a toolbar of command input openers and proven route navigation without inventing icons or bindings.
     /// </summary>
     /// <param name="toolbar">The recovered toolbar.</param>
     /// <returns>The toolbar syntax.</returns>
@@ -101,12 +101,28 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
         new(naming.ToPropertyName(toolbar.Name), toolbar.Items.Select(ToolbarItem), SourceLocation.Start);
 
     /// <summary>
-    /// Builds one command-opening toolbar item.
+    /// Builds one command-opening or screen-navigation toolbar item.
     /// </summary>
     /// <param name="item">The recovered item.</param>
     /// <returns>The toolbar item syntax.</returns>
     ToolbarItemSyntax ToolbarItem(ScreenToolbarItemModel item) =>
-        new(naming.ToPropertyName(item.Name), ToolbarItemKind.Action, naming.ToDeclarationName(item.Command), SourceLocation.Start) { Label = item.Label };
+        new(
+            naming.ToPropertyName(item.Name),
+            item.Navigation is null ? ToolbarItemKind.Action : ToolbarItemKind.Navigate,
+            Reference(item.Navigation?.Screen ?? item.Command),
+            SourceLocation.Start)
+        {
+            Label = item.Label,
+            Parameters = item.Navigation is { } destination ? ScreenNavigationSyntax.Parameters(destination) : []
+        };
+
+    ScreenNavigateSyntax Navigate(ScreenNavigationModel navigation) => new(Reference(navigation.Screen), null, SourceLocation.Start)
+    {
+        Route = navigation.Route,
+        Parameters = ScreenNavigationSyntax.Parameters(navigation)
+    };
+
+    string Reference(string name) => string.Join('.', name.Split('.').Select(naming.ToDeclarationName));
 
     /// <summary>
     /// Builds one <c>table</c> directive.

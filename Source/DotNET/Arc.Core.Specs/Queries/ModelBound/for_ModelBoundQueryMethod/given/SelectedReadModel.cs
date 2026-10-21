@@ -15,5 +15,5 @@ public partial record SelectedReadModel
     public static SelectedReadModel? ById(string id) => new(id);
 
     [Query]
-    internal static ISubject<IEnumerable<SelectedReadModel>> Observe() => new BehaviorSubject<IEnumerable<SelectedReadModel>>([new("initial")]);
+    public static ISubject<IEnumerable<SelectedReadModel>> Observe() => new BehaviorSubject<IEnumerable<SelectedReadModel>>([new("initial")]);
 }

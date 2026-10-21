@@ -93,8 +93,8 @@ public class MongoCollectionInterceptor(
         }
         catch (Exception ex)
         {
-            // The callback completes the caller's task for every failure it handles. Anything that still escapes,
-            // after the pipeline's retries, would otherwise leave the caller waiting forever.
+            // The callback completes the caller's task for every failure it handles. Anything that still escapes the
+            // pipeline would otherwise leave the caller waiting forever.
             tcs.TrySetException(ex);
         }
     }

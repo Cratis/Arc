@@ -106,15 +106,10 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="typeSymbol">The read model to inspect.</param>
     /// <returns>The generic methods carrying a query-shaped return type.</returns>
-    /// <remarks>
-    /// Deliberately wider than <see cref="FindPotentialQueryMethods"/>, which only looks at public methods: query
-    /// discovery registers internal methods too, so an internal generic helper is just as routable — and just as
-    /// broken — as a public one.
-    /// </remarks>
     static IEnumerable<IMethodSymbol> FindGenericQueryShapedMethods(INamedTypeSymbol typeSymbol)
     {
         return SelectedStaticMethods(typeSymbol)
-            .Where(m => m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+            .Where(m => m.DeclaredAccessibility == Accessibility.Public &&
                        m.TypeParameters.Length > 0 && IsValidQueryMethodSignature(m, typeSymbol));
     }
 

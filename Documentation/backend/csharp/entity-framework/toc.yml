@@ -10,6 +10,10 @@
   href: read-only.md
 - name: Automatic Database hookup
   href: automatic-database-hookup.md
+- name: Connection Resolution
+  href: connection-resolution.md
+- name: Upserts
+  href: upserts.md
 - name: Observing DbSet
   href: observing.md
 - name: Common Column Types

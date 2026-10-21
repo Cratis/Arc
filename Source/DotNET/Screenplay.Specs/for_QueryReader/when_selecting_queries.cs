@@ -9,11 +9,15 @@ public class when_selecting_queries
 {
     [Theory]
     [InlineData(false, "public static Order Create(object value) => new();", true)]
-    [InlineData(false, "private static Order Helper() => new();", true)]
+    [InlineData(false, "public static Order Helper(Order current, object e) => current;", false)]
+    [InlineData(false, "public static Order? Reduce(object e, Order? current) => current;", false)]
+    [InlineData(false, "public static Task<Order?> Helper(object e, object context, Order? current) => Task.FromResult(current);", false)]
+    [InlineData(false, "public static Order Helper(System.Collections.Generic.IEnumerable<Order> models) => new();", true)]
+    [InlineData(false, "private static Order Helper() => new();", false)]
     [InlineData(true, "public static Order Helper() => new();", false)]
     [InlineData(true, "private static Order Helper() => new();", false)]
     [InlineData(true, "public static Task BeginReplay(object service) => Task.CompletedTask;", false)]
-    [InlineData(true, "[Query] internal static Task<Order> Helper() => Task.FromResult(new Order());", true)]
+    [InlineData(true, "[Query] public static Task<Order> Helper() => Task.FromResult(new Order());", true)]
     [InlineData(true, "[Query] public static Order? Helper() => null;", true)]
     [InlineData(false, "public static ValueTask<Order> Helper() => new(new Order());", true)]
     [InlineData(true, "[Query] public static ValueTask<Order> Helper() => new(new Order());", true)]
@@ -28,8 +32,19 @@ public class when_selecting_queries
     [Fact]
     public void should_select_before_resolving_overloads() => QueryReader.MethodsOf(TypeOf("public static Order ById(int id) => new();", true)).Single().Parameters[0].Type.SpecialType.ShouldEqual(Microsoft.CodeAnalysis.SpecialType.System_String);
 
+    [Theory]
+    [InlineData("private")]
+    [InlineData("internal")]
+    [InlineData("protected")]
+    [InlineData("protected internal")]
+    [InlineData("private protected")]
+    public void should_reject_nonpublic_markers(string visibility) => Catch.Exception(() => _ = QueryReader.MethodsOf(TypeOf($"[Query] {visibility} static Order Helper() => new();", false))).ShouldNotBeNull();
+
     [Fact]
     public void should_reject_invalid_marked_task_helpers() => Catch.Exception(() => _ = QueryReader.MethodsOf(TypeOf("[Query] public static Task BeginReplay(object service) => Task.CompletedTask;", true))).ShouldNotBeNull();
+
+    [Fact]
+    public void should_reject_marked_self_parameters() => Catch.Exception(() => _ = QueryReader.MethodsOf(TypeOf("[Query] public static Order? Reduce(object e, Order? current) => current;", false))).ShouldNotBeNull();
 
     static Microsoft.CodeAnalysis.INamedTypeSymbol TypeOf(string method, bool explicitMode)
     {

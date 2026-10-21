@@ -11,7 +11,10 @@ public class from_batch_constraints_in_a_source_and_metadata_project : a_returne
 {
     [Theory]
     [InlineData("{ builder.Unique<AuthorFiled>(); }", false)]
+    [InlineData("{ builder.Unique<AuthorFiled>(); }", true)]
+    [InlineData("{ builder.Unique<AuthorRegistered>(); builder.ClosesStreamOn<AuthorWelcomed>(); }", false)]
     [InlineData("{ builder.Unique<AuthorRegistered>(); builder.ClosesStreamOn<AuthorWelcomed>(); }", true)]
+    [InlineData("{ builder.Unique<AuthorFiled>(); builder.ClosesStreamOn<AuthorWelcomed>(); }", true)]
     public void should_match_coverage_across_source_and_binary_event_symbols(string definition, bool authoring)
     {
         var files = new (string Path, string Text)[]
@@ -40,10 +43,20 @@ public class from_batch_constraints_in_a_source_and_metadata_project : a_returne
 
         Result = new ScreenplayGenerator().Generate([contracts, application], new ScreenplayOptions { Domain = "Library", Module = "Library", AuthoringOnlyConstructs = authoring });
 
-        Assert.Matches(@"when AuthorRegistered\s+file \S*Welcomer\.cs", Result.Source);
-        Result.Source.ShouldNotContain($"specification {ScenarioName}");
-        Result.Diagnostics.Single(_ => _.Code == "SP0070").Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
-        ScenarioReports.Single().Code.ShouldEqual(ScreenplayDiagnosticCodes.UnreadableSpecification);
+        if (definition.Contains("ClosesStreamOn", StringComparison.Ordinal))
+        {
+            Assert.Matches(@"when AuthorRegistered\s+file \S*Welcomer\.cs", Result.Source);
+            Result.Source.ShouldNotContain($"specification {ScenarioName}");
+            Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("Cratis/Screenplay#770");
+            ScenarioReports.Single().Code.ShouldEqual(ScreenplayDiagnosticCodes.UnreadableSpecification);
+        }
+        else
+        {
+            Result.Source.ShouldContain("reaction batches atomic");
+            Result.Source.ShouldContain("produces AuthorFiled");
+            Result.Source.ShouldContain($"specification {ScenarioName}");
+            Result.Diagnostics.Where(_ => _.Code == "SP0070").ShouldBeEmpty();
+        }
         var verified = new ScreenplayVerifier().Verify(Result.Source);
         verified.Compiles.ShouldBeTrue();
         verified.BindingDiagnostics.Where(_ => _.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).ShouldBeEmpty();

@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -20,6 +22,17 @@ public static class CommandDecisionPolicy
     public static CommandDecisionMode Mode => Active()?.Mode ?? CommandDecisionMode.Legacy;
 
     /// <summary>
+    /// Gets the resolved read-protection declaration, or Off outside the command pipeline.
+    /// Resolution alone does not enable reads or append guards.
+    /// </summary>
+    public static ReadProtectionMode ReadProtection => Active()?.ReadProtection ?? ReadProtectionMode.Off;
+
+    /// <summary>
+    /// Gets the compile-time declaration before the operational runtime cap is applied.
+    /// </summary>
+    public static ReadProtectionMode DeclaredReadProtection => Active()?.DeclaredReadProtection ?? ReadProtectionMode.Off;
+
+    /// <summary>
     /// Gets whether a command invocation is active.
     /// </summary>
     public static bool IsActive => Active() is not null;
@@ -32,7 +45,7 @@ public static class CommandDecisionPolicy
     /// <summary>
     /// Gets whether this invocation is explicitly protected.
     /// </summary>
-    public static bool IsProtected => Mode == CommandDecisionMode.Protected;
+    public static bool IsProtected => Mode == CommandDecisionMode.Protected || ReadProtection == ReadProtectionMode.On;
 
     /// <summary>
     /// Gets whether discoverable validators are held to the protected-mode boundary, so only those Arc can certify run:
@@ -45,28 +58,32 @@ public static class CommandDecisionPolicy
     /// Begins an invocation before filters, validators, and dependency construction.
     /// </summary>
     /// <param name="commandType">The command type.</param>
+    /// <param name="serviceProvider">The invocation's services, when available, for its operational runtime cap.</param>
     /// <returns>A lease restoring the enclosing invocation.</returns>
     /// <remarks>
     /// A command declaring conflicting profiles runs as protected, so every protected refusal applies, and
     /// <see cref="ThrowIfConflicting"/> reports the conflict as the command's result.
     /// </remarks>
-    internal static IDisposable Begin(Type commandType)
+    internal static IDisposable Begin(Type commandType, IServiceProvider? serviceProvider = null)
     {
         var profile = _profiles.GetOrAdd(commandType, ResolveProfile);
-        var frame = new Frame(profile.Mode, profile.Conflicting ? commandType : null, Active());
+        var maximum = ReadProtectionConfiguration.MaximumMode(serviceProvider?.GetService<IConfiguration>());
+        var effective = profile.ReadProtection > maximum ? maximum : profile.ReadProtection;
+        var frame = new Frame(profile.Mode, effective, profile.ReadProtection, profile.Conflict, commandType, Active());
         _current.Value = frame;
         return new Lease(frame);
     }
 
     /// <summary>
-    /// Refuses a command that declares both a protected and an unprotected profile.
+    /// Refuses conflicting protection declarations through the command result boundary.
     /// </summary>
     /// <exception cref="CommandCannotBeBothProtectedAndUnprotected">Conflicting protection profiles were declared.</exception>
+    /// <exception cref="ConflictingReadProtection">An unprotected command explicitly enables read protection.</exception>
     internal static void ThrowIfConflicting()
     {
-        if (Active()?.ConflictingCommand is { } commandType)
+        if (Active() is { } frame)
         {
-            throw new CommandCannotBeBothProtectedAndUnprotected(commandType);
+            CommandAttributePolicy.ThrowIfConflicting(frame.CommandType, frame.Conflict);
         }
     }
 
@@ -89,12 +106,8 @@ public static class CommandDecisionPolicy
 
     static Profile ResolveProfile(Type commandType)
     {
-        var attributes = commandType.GetCustomAttributes(true);
-        var isProtected = attributes.Any(_ => _ is IProtectedDecisionAttribute);
-        var isUnprotected = attributes.Any(_ => _ is IUnprotectedDecisionAttribute);
-        return new Profile(
-            isProtected ? CommandDecisionMode.Protected : isUnprotected ? CommandDecisionMode.Unprotected : CommandDecisionMode.Legacy,
-            isProtected && isUnprotected);
+        var profile = CommandAttributePolicy.ResolveCommand(commandType);
+        return new Profile((CommandDecisionMode)profile.Mode, (ReadProtectionMode)profile.ReadProtection, profile.Conflict);
     }
 
     static Frame? Active()
@@ -108,12 +121,15 @@ public static class CommandDecisionPolicy
         return frame;
     }
 
-    sealed record Profile(CommandDecisionMode Mode, bool Conflicting);
+    sealed record Profile(CommandDecisionMode Mode, ReadProtectionMode ReadProtection, string? Conflict);
 
-    sealed class Frame(CommandDecisionMode mode, Type? conflictingCommand, Frame? previous)
+    sealed class Frame(CommandDecisionMode mode, ReadProtectionMode readProtection, ReadProtectionMode declaredReadProtection, string? conflict, Type commandType, Frame? previous)
     {
         public CommandDecisionMode Mode { get; } = mode;
-        public Type? ConflictingCommand { get; } = conflictingCommand;
+        public ReadProtectionMode ReadProtection { get; } = readProtection;
+        public ReadProtectionMode DeclaredReadProtection { get; } = declaredReadProtection;
+        public string? Conflict { get; } = conflict;
+        public Type CommandType { get; } = commandType;
         public Frame? Previous { get; } = previous;
         public bool Completed { get; set; }
     }

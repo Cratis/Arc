@@ -75,7 +75,7 @@ public class ConceptSyntaxBuilder(
                 [.. Attributes(concept)],
                 values.ConvertAll(value => value.Name),
                 SourceLocation.Start,
-                [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)])
+                [.. validations.Build(ValidationContract(concept), concept.Name, impliedSubject: true)])
             {
                 ValueNumbers = NumbersOf(concept, values),
                 Generation = ConceptGenerationSyntax.Build(concept, MaximumExecutableModelVersion, diagnostics)
@@ -83,6 +83,17 @@ public class ConceptSyntaxBuilder(
         }
 
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
+    }
+
+    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept)
+    {
+        var contract = ConceptValidationContract.For(concept, MaximumExecutableModelVersion);
+        if (contract.VersionFailure is { } reason)
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}", concept.Name);
+        }
+
+        return contract.Rules;
     }
 
     /// <summary>

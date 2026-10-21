@@ -23,12 +23,12 @@ public class when_selecting_queries
     [InlineData("public static Task BeginReplayPartition(string partition, object service) => Task.CompletedTask;")]
     [InlineData("public static Task EndReplayPartition(string partition, object service) => Task.CompletedTask;")]
     [InlineData("[Query] public static Order? Helper() => null;")]
-    [InlineData("[Query] internal static Task<Order> Helper() => Task.FromResult(new Order());")]
     [InlineData("[Query] public static ISubject<IEnumerable<Order>> Helper() => null!;")]
     public async Task should_ignore_unmarked_helpers_without_query_diagnostics(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method));
 
     [Theory]
     [InlineData("[Query] private static Order {|#0:Helper|}() => new();")]
+    [InlineData("[Query] internal static Order {|#0:Helper|}() => new();")]
     [InlineData("[Query] public Order {|#0:Helper|}() => new();")]
     [InlineData("[Query] public static Order {|#0:Helper|}<T>(T value) => new();")]
     [InlineData("[Query] public static Task {|#0:Helper|}() => Task.CompletedTask;")]
@@ -39,6 +39,19 @@ public class when_selecting_queries
     [InlineData("[Query] public static Task<ISubject<IEnumerable<Order>>> {|#0:Helper|}() => null!;")]
     [InlineData("[Query] public static Task<Task<Order>> {|#0:Helper|}() => null!;")]
     public async Task should_reject_invalid_marked_methods(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method), Invalid("Helper"));
+
+    [Theory]
+    [InlineData("[Query] public static Order {|#0:Helper|}(Order current) => current;")]
+    [InlineData("[Query] public static Order? {|#0:Helper|}(object e, Order? current) => current;")]
+    public async Task should_reject_marked_self_parameter_methods(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method),
+        VerifyCS.Diagnostic("ARC0026").WithLocation(0).WithArguments("Helper", "methods with a self parameter cannot be queries; remove [Query]"));
+
+    [Theory]
+    [InlineData("public static string Helper(Order model) => string.Empty;")]
+    [InlineData("public static Order Helper(Order current, object service) => current;")]
+    [InlineData("public static Order? Reduce(object e, Order? current) => current;")]
+    [InlineData("internal static Task<Order?> Fold<T>(T e, Order? current) => Task.FromResult(current);")]
+    public async Task should_not_diagnose_self_parameter_helpers_as_queries(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method, "[ReadModel]"));
 
     [Fact]
     public async Task should_reject_a_marker_without_a_read_model_owner() => await VerifyCS.VerifyAnalyzerAsync(Source("[Query] public static Order {|#0:Helper|}() => new();", "").Replace("[Query] public static Order ById", "public static Order ById", StringComparison.Ordinal), Invalid("Helper"));
@@ -86,5 +99,5 @@ public class when_selecting_queries
         """;
 
     static Cratis.Arc.CodeAnalysis.Specs.Testing.ExpectedDiagnostic Invalid(string name) => VerifyCS.Diagnostic("ARC0026").WithLocation(0).WithArguments(name,
-        "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]");
+        "[Query] requires a public static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]");
 }

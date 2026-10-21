@@ -83,13 +83,28 @@ internal sealed class SpecificationTheories(SemanticModels models, ScreenplayDia
         SpecificationMembers.ReadModelOf(type) is not null || SpecificationMembers.ReactorOf(type) is not null;
 
     /// <summary>
-    /// Determines whether a theory directly executes a recognized scenario action.
+    /// Determines whether a theory constructs or directly executes a recognized scenario.
     /// </summary>
     /// <param name="method">The theory method.</param>
     /// <returns>Whether its body drives a scenario.</returns>
     bool DrivesScenario(IMethodSymbol method) => HandlerBodies.Of(method)
-        .SelectMany(body => body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
-        .Any(IsScenarioCall);
+        .SelectMany(body => body.DescendantNodesAndSelf())
+        .Any(node => node switch
+        {
+            InvocationExpressionSyntax invocation => IsScenarioCall(invocation),
+            BaseObjectCreationExpressionSyntax construction => IsScenarioConstruction(construction),
+            _ => false
+        });
+
+    /// <summary>
+    /// Recognizes a constructed scenario by its resolved type, including target-typed constructions.
+    /// </summary>
+    /// <param name="construction">The source construction.</param>
+    /// <returns>Whether the constructed type is a recognized scenario.</returns>
+    bool IsScenarioConstruction(BaseObjectCreationExpressionSyntax construction) =>
+        models.For(construction.SyntaxTree)?.GetTypeInfo(construction).Type is { } type &&
+        (type.Is(WellKnownTypeNames.CommandScenario) || type.Is(WellKnownTypeNames.EventScenario) ||
+        type.Is(WellKnownTypeNames.ReadModelScenario) || type.Is(WellKnownTypeNames.ReactorScenario));
 
     /// <summary>
     /// Recognizes a resolved scenario execution call.
@@ -124,6 +139,6 @@ internal sealed class SpecificationTheories(SemanticModels models, ScreenplayDia
     /// <param name="location">The scenario or theory symbol's display name.</param>
     void Report(string location) => diagnostics.Information(
         ScreenplayDiagnosticCodes.SpecificationCasesNotFolded,
-        $"The scenario '{location}' is a parameterised [Theory] and is not stated; case tables are not generated yet",
+        $"The scenario '{location}' is a parameterized [Theory] and is not stated; reading its action and assertions with InlineData bindings requires a separate theory-method reader",
         location);
 }

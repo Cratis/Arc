@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Cratis.Arc.EntityFrameworkCore.Connections;
 using Cratis.Arc.EntityFrameworkCore.Mapping;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Reflection;
@@ -49,6 +50,11 @@ public static class DbContextServiceCollectionExtensions
             if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
             {
                 options.AddObservation(serviceProvider);
+            }
+
+            if (serviceProvider.GetService<EntityFrameworkCoreConnectionResolution>()?.Interceptor is { } connectionResolution)
+            {
+                options.AddInterceptors(connectionResolution);
             }
         });
 

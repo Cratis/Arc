@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSources;
@@ -45,21 +46,34 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
             .Select(@event => eventLog.WithCommandMetadata(@event, commandContext, eventSources))
             .ToArray();
 
+        var freshness = FreshIdentifierScopes.For(commandContext);
+        var scopes = freshness.ResolveBatch(eventLog.Id, events, response.ConcurrencyScopes);
+        if (ReadProtectionMeasurement.Current is { } measurement)
+        {
+            measurement.Try(() =>
+            {
+                foreach (var scope in scopes) measurement.Scope(scope.Key, scope.Value, "Explicit scope");
+            });
+        }
         if (CommandTransaction.TryGetActive(out var unitOfWork))
         {
-            unitOfWork.AddEvents(eventLog.Id, events, response.ConcurrencyScopes);
+            unitOfWork.AddEvents(eventLog.Id, events, scopes);
+            foreach (var target in events.Select(@event => @event.EventSourceId).Distinct())
+            {
+                freshness.Enrolled(unitOfWork, eventLog.Id, target);
+            }
         }
         else
         {
             CommandTransaction.RefuseImmediateAppend();
-            var concurrencyScopes = response.ConcurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value);
+            var concurrencyScopes = scopes.ToDictionary(_ => _.Key, _ => _.Value);
             var result = events.Any(_ => _.NamedTags.Any())
                 ? await eventLog.AppendManyWithNamedTags(events, [], concurrencyScopes: concurrencyScopes)
                 : await eventLog.AppendMany(events, concurrencyScopes: concurrencyScopes);
 
             if (!result.IsSuccess)
             {
-                return result.ToCommandResult();
+                return result.ToCommandResult(commandContext, eventLog.Id);
             }
         }
 

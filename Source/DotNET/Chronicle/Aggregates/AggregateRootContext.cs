@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
@@ -65,4 +66,14 @@ public class AggregateRootContext(
 
     /// <inheritdoc/>
     public bool HasEvents { get; set; } = nextSequenceNumber != EventSequenceNumber.First;
+
+    /// <summary>
+    /// Gets the registered event types used to validate aggregate mutations.
+    /// </summary>
+    internal IEventTypes? EventTypes { get; init; }
+
+    /// <summary>
+    /// Gets the invocation registry retained by the aggregate's mutation.
+    /// </summary>
+    internal FreshIdentifierScopes? FreshIdentifiers { get; init; }
 }

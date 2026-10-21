@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Observability;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
@@ -34,6 +35,8 @@ public class ClientEnumerableObservable<T>(
         var tsc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
+        using var telemetry = new ObservableQueryTelemetry(context.RequestServices, queryContext.Name.Value, WellKnownTelemetryNames.WebSocketTransport);
+        telemetry.Start();
 
         _ = Task.Run(async () =>
         {
@@ -88,9 +91,11 @@ public class ClientEnumerableObservable<T>(
                         }
                     }
 
+                    using var push = telemetry.BeginPush();
                     var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                     if (error is null)
                     {
+                        push.Delivered();
                         hasDeliveredEmission = true;
                         continue;
                     }
@@ -100,7 +105,6 @@ public class ClientEnumerableObservable<T>(
                     }
                     logger.EnumerableObservableSkip();
                 }
-                tsc.SetResult();
                 await cts.CancelAsync();
             }
             catch (Exception ex)
@@ -109,8 +113,13 @@ public class ClientEnumerableObservable<T>(
                 {
                     logger.EnumerableObservableError(ex);
                     await cts.CancelAsync();
-                    tsc.SetResult();
                 }
+            }
+            finally
+            {
+                // Complete on every path, including cancellation after the client disconnected. Otherwise
+                // HandleConnection never returns and the subscription it holds is never released.
+                tsc.TrySetResult();
             }
         });
 

@@ -15,8 +15,8 @@ public class and_an_operation_without_a_document_is_delivered : given.a_server_b
     async Task Because()
     {
         await StartObserving();
-        PushChange(OperationOf("drop"));
-        PushChange(OperationOf("invalidate"));
+        PushChange(OperationOf("createIndexes"));
+        PushChange(OperationOf("modify"));
         _documents.Add(_inserted);
         PushChange(InsertOf(_inserted));
         _afterChanges = await NextEmission();

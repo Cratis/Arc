@@ -7,16 +7,47 @@ concurrency:
 on:
   workflow_dispatch:
   pull_request:
+    # Draft PRs wait until they are marked ready for review.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - "**"
     paths:
       - "Documentation/**"
+      - "Source/DotNET/**"
+      - ".github/workflows/markdown-verification.yml"
 
 permissions:
   contents: read
 
 jobs:
+  client-snippets:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.407
+            9.0.x
+            10.0.x
+
+      # Restore only: the snippets restore a fraction of the packages, and a pull request must not save a cache.
+      # warm-caches.yml saves the shared cache on main.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
+
+      - name: Compile client snippets
+        run: python3 Documentation/validate-client-snippets.py
+
   markdown-lint:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -29,6 +60,7 @@ jobs:
           globs: 'Documentation/**/*.{md,mdx}'
 
   link-verification:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

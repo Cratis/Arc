@@ -121,7 +121,7 @@ internal sealed class QueryFilterReader(TypeRegistry types, SemanticModels? mode
             return null;
         }
 
-        return new(property.Name, types.Resolve(property.Type) with { IsOptional = proofs[0].Optional });
+        return new(property.Name, types.ResolveCarried(property.Type) with { IsOptional = proofs[0].Optional });
     }
 
     sealed record Evidence(MethodDeclarationSyntax Declaration, SemanticModel Model, IReadOnlyList<LambdaExpressionSyntax> Predicates);

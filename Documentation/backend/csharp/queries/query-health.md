@@ -1,6 +1,6 @@
 ---
 title: Query health endpoint
-description: Inspect tracked hub subscriptions and restrict the anonymous diagnostic feed before deployment.
+description: Inspect tracked hub subscriptions and configure authentication and roles for the diagnostic feed.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
@@ -8,8 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 Arc provides a live health feed at `/.cratis/queries/health`. The feed is itself a model-bound observable query, publishing the subscription state recorded by the hub health tracker.
 
-> [!WARNING]
-> The built-in query explicitly allows anonymous access and exposes cross-user connection IDs, query names, remote IP addresses, user agents, and user identities when available. It is diagnostic telemetry, not a safe public liveness endpoint. Restrict access before exposing an Arc host to untrusted callers; blocking only the direct health URL does not block a named health subscription through the hub.
+The feed exposes cross-user connection IDs, query names, remote IP addresses, user agents, and user identities when available. It allows anonymous access in Development and requires an authenticated caller everywhere else, including Production and Staging. These defaults apply to the direct endpoint and named subscriptions over both WebSocket and SSE hubs. This is diagnostic telemetry, not a public liveness endpoint.
 
 ## Why this endpoint exists
 
@@ -28,39 +27,31 @@ curl --no-buffer --max-time 30 --header 'Accept: text/event-stream' \
 
 For hub subscriptions, use the fully qualified name `Cratis.Arc.Queries.QueryHealth.ObserveHealth` and the [hub subscription lifecycle](observable-query-demultiplexer.md). Do not infer a generated TypeScript import path from the HTTP route; use the proxy actually generated into your application's configured output directory.
 
-## Restrict exposure
+## Configure access
 
-This complete application filter denies the named health query unless the current caller is authenticated with the `QueryDiagnostics` role. It is discovered as a model-bound authorization query filter and therefore applies to both the generated health endpoint and named hub subscriptions, despite the built-in query's `[AllowAnonymous]` attribute:
+Configure `ArcOptions.QueryHealth` in code or bind its settings from `Cratis:Arc:QueryHealth`. For example, this `appsettings.json` excerpt requires the `QueryDiagnostics` role, including in Development:
 
-```csharp
-using System.Threading.Tasks;
-using Cratis.Arc.Authorization;
-using Cratis.Arc.Queries;
-
-namespace Application.Security;
-
-public class RestrictQueryHealth(ICurrentPrincipalAccessor principalAccessor) : IAuthorizationQueryFilter
+```json
 {
-    public Task<QueryResult> OnPerform(QueryContext context)
-    {
-        if (context.Name.Value != "Cratis.Arc.Queries.QueryHealth.ObserveHealth")
-        {
-            return Task.FromResult(QueryResult.Success(context.CorrelationId));
+    "Cratis": {
+        "Arc": {
+            "QueryHealth": {
+                "RequireAuthentication": true,
+                "Roles": "QueryDiagnostics"
+            }
         }
-
-        var principal = principalAccessor.Current;
-        var permitted = principal?.Identity?.IsAuthenticated == true &&
-            principal.IsInRole("QueryDiagnostics");
-        return Task.FromResult(permitted
-            ? QueryResult.Success(context.CorrelationId)
-            : QueryResult.Unauthorized(context.CorrelationId));
     }
 }
 ```
 
-Deploy this only with real authentication/role mapping and verify the filter is discovered. Test anonymous, authenticated non-role, and role-authorized callers against direct GET/QUERY, direct SSE/WebSocket, and both hub transports. This filter does not protect arbitrary MVC actions and does not re-check a previously authorized live stream; use [emission guards](observable-query-emission-guards.md) for ongoing revocation.
+| Option | Behavior |
+| --- | --- |
+| `RequireAuthentication` | When unset, anonymous in Development and authenticated elsewhere. Explicit `true` requires authentication in every environment. Explicit `false` allows anonymous access when no roles are configured. |
+| `Roles` | Optional comma-separated roles; any one grants access. Entries are trimmed and empty entries ignored. Setting roles requires authentication in every environment, even with `RequireAuthentication=false`. |
 
-As an immediate deployment boundary, keep the entire Arc host private behind a trusted network or authenticated gateway. If restricting routes instead, include the direct health route **and** all hub/control routes or enforce the named-query filter above; exposing the hub while hiding only `/health` is insufficient. The current built-in anonymous attribute is not changed by an invented health-role option.
+Configure real authentication and role mapping on the host. Outside Development, a host without authentication cannot admit callers to the feed. To deliberately restore anonymous access, set `Cratis:Arc:QueryHealth:RequireAuthentication=false` and leave `Roles` unset. This exposes cross-user diagnostic data, so use it only on a trusted host or network.
+
+These settings apply only to `QueryHealth.ObserveHealth`; they do not relax host fallback authorization for other queries. They govern admission, not revocation of an already authorized live stream; use [emission guards](observable-query-emission-guards.md) for ongoing revocation.
 
 ## Response shape
 

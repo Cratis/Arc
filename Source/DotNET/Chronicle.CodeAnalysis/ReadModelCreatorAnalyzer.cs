@@ -62,6 +62,7 @@ public class ReadModelCreatorAnalyzer : DiagnosticAnalyzer
         method.Parameters[2].Type.ToDisplayString().TrimEnd('?') == "Cratis.Chronicle.Events.EventContext";
 
     static bool RequiresWarning(IMethodSymbol method) => ModelBoundQueryMethodSymbols.ReadModel(method.ContainingType) is not null &&
+        ModelBoundQueryMethodSymbols.IsSelected(method) &&
         !ModelBoundQueryMethodSymbols.RequiresQueryAttribute(method.ContainingType) && IsPossibleFold(method);
 
     static void AnalyzeMethod(SymbolAnalysisContext context)

@@ -31,10 +31,15 @@ internal static class ArcOptionsConfiguration
     internal static void Bind(ArcOptions options, IConfiguration configuration)
     {
         var authenticationOverride = options.Introspection.AuthenticationOverride;
+        var queryHealthAuthenticationOverride = options.QueryHealth.AuthenticationOverride;
         configuration.Bind(options);
         if (configuration["Introspection:RequireAuthentication"] is null)
         {
             options.Introspection.AuthenticationOverride = authenticationOverride;
+        }
+        if (configuration["QueryHealth:RequireAuthentication"] is null)
+        {
+            options.QueryHealth.AuthenticationOverride = queryHealthAuthenticationOverride;
         }
     }
 }

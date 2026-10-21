@@ -58,6 +58,17 @@ An injected instance is resolved once per command scope and rehydrated on resolu
 
 This lifetime does not give aggregate `Failed(...)` calls automatic propagation, undo an earlier manual commit, or make external service calls transactional. See [Transactional commands](../commands/transactional-commands.md).
 
+## What an aggregate guards
+
+Arc reads the event source's tail when the aggregate is resolved, before `Handle()` runs, and every event the aggregate applies carries that expectation. A new aggregate expects an empty history, so two commands that both create it cannot both succeed. An aggregate guards its own event source and the event types it handles:
+
+- It does not guard a rule across aggregates. Two aggregates for two keys each guard only their own source.
+- It has no snapshots: every command reads the key's handled events again, so a key with a long history gets slower.
+- Under read protection `On`, it cannot be combined with a plain read of the **same** event source in one command (`ReadAndAggregateOnSameSource`); a read of a different source is fine. Outside `On`, it cannot be combined with `[ProtectedDecision]` reads.
+- A handler that ignores the result of `Commit()` reports success when the aggregate rejected the command. Return it, as above.
+
+[Choosing how a command's rule holds](../consistency/index.md) compares aggregates with constraints, read protection and stream decisions. See [Rich aggregate](../consistency/scenarios/aggregate.md) for how an aggregate behaves under `On`. Its [pitfalls](../consistency/pitfalls.md#an-aggregate-commit-whose-result-is-ignored) show the silent failures.
+
 ## Verify the boundary
 
 A useful aggregate spec reconstructs history, applies another event, and checks the resulting state and exact append count. Add cases for `Apply` followed by `Failed`, failure before and after explicit commit, and competing commands. A build proves signatures, not those behaviors.

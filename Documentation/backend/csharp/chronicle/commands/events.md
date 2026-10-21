@@ -144,6 +144,8 @@ These metadata attributes categorize and identify the appended events. Because t
 
 ### Event source definitions
 
+The [event source definition guide](./event-source-definitions.md) covers choosing the stream, stream ids, what the definition guards and migrating from strings; [scenarios](./event-source-definition-scenarios.md) and [how routing works](./event-source-definition-routing.md) go further. Chronicle's [event sources](/chronicle/event-sources/) page describes the definition itself, and its [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) pages explain the boundary the append is checked against.
+
 Use `[EventSource<TSource>]` when a command always appends through a registered Chronicle event source definition. The definition supplies the event source type, validates the optional stream name, records the definition in `EventContext.EventSource`, and supplies its concurrency dimensions unless a legacy `concurrency: true` attribute explicitly selects dimensions.
 
 ```csharp
@@ -178,7 +180,7 @@ Do not combine a definition declaration with contradictory `[EventSourceType]` o
 
 Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.
 
-`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context. Because the command is a [transactional scope](./transactional-commands.md), the appends across all the event sources are atomic — if any of them is rejected, none of them land.
+`EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context. Within an active [command transaction](./transactional-commands.md), the appends across all the event sources are atomic — if any of them is rejected, none of them land. Without an active transaction, a returned collection still appends as one batch: a refusal appends nothing. That includes a collection that sends events for the same event source id to several routes: the batch carries a guard for each route, and a violation of any of them refuses the whole batch. Sending several guards for one event source id needs a Chronicle kernel 19.84 or later; against an older kernel the Chronicle client refuses the batch with `IncompatibleConcurrencyScopesForEventSource` before sending anything, so nothing is appended.
 
 Return a single `EventForEventSourceId` when only one cross-source event is needed:
 
@@ -224,7 +226,7 @@ public record FundsDebited(decimal Amount);
 public record FundsCredited(decimal Amount);
 ```
 
-Arc enumerates and enrolls these wrappers in order, but that is not a guarantee of cross-source batch order. Chronicle's ordinary unit-of-work staging groups events by source: `A1, B1, A2` can commit as `A1, A2, B1`. Use [`EventsWithConcurrencyScopes`](#events-with-exact-concurrency-scopes) when global batch order matters. The events still commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
+Arc enumerates and enrolls these wrappers in order, but that is not a guarantee of cross-source batch order. Chronicle's ordinary unit-of-work staging groups events by source: `A1, B1, A2` can commit as `A1, A2, B1`. Use [`EventsWithConcurrencyScopes`](#events-with-exact-concurrency-scopes) when global batch order matters. Within the active transaction, the events still commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
 
 A wrapper can also carry when the fact happened and how to tag it. Set `Occurred` to record a historical occurrence time, for example when importing or backfilling, and `Tags` to add tags to that one event. Chronicle merges them with any static `[Tag]` on the event type:
 
@@ -276,7 +278,7 @@ public record CustomerOrderAccepted(EventSourceId OrderId);
 
 > `EventForEventSourceId` does not share one concurrency scope across targets — a scope carries a single stream's expected tail, so it cannot be reused for another stream. The command's concurrency declaration still applies: one scope is built per target event source, with that target's own expected tail. Each append also uses the stream metadata from the command (stream id, stream type, event source type) while targeting the event source id you supply explicitly.
 >
-> When several wrappers target the same event source id, a guard that only follows from the event source definition is derived per event, from that event's own stream and definition, and is never reused for another event. Events written through a definition reach the event sequence without a scope, which derives and validates the guards itself. Wrappers that override the definition with legacy routing and would need different guards for one id are rejected with `IncompatibleConcurrencyScopesForEventSource` before anything is enrolled or appended. A guard you chose with `concurrency: true` keeps its existing behavior. Split the events into separate commands or return `EventsWithConcurrencyScopes` with an explicit scope when one id needs a different guard per event.
+> When several wrappers target the same event source id, a guard that only follows from the event source definition is derived per event, from that event's own stream and definition, and is never reused for another event. Events written through a definition reach the event sequence without a scope, which derives and validates the guards itself. Wrappers that override the definition with legacy routing and need different guards for one id keep every distinct guard. The unit of work, or the batch when no transaction is active, requires all of them, so a violation of any guard refuses everything. Several guards for one id need a Chronicle kernel 19.84 or later; an older kernel throws `IncompatibleConcurrencyScopesForEventSource` before anything is appended. Guards for the same stream and event types collapse to one. A mix of such legacy guards and a guard that follows from a definition for the same id is rejected with `IncompatibleConcurrencyScopesForEventSource` before anything is enrolled or appended, because Chronicle stops deriving a definition guard once it is handed a scope for the id. A guard you chose with `concurrency: true` keeps its existing behavior. Split the events into separate commands or return `EventsWithConcurrencyScopes` with an explicit scope when you need a different combination.
 
 ## Events with exact concurrency scopes
 
@@ -394,7 +396,7 @@ This is a concurrency-routing example, not a complete first-administrator busine
 
 When the matching history is empty, `BeforeFirst` expresses “no matching event may exist”; `Unavailable` is not a protected empty revision. Arc enrolls the ordered events and exact scopes together. If a matching activation event appears after the read, commit rejects the returned batch. A concurrent invitation without an activation is outside this scope.
 
-`ICanProvideEventSourceId` deliberately selects `MemberId` as the input-time command identity, including for any identity-bound dependencies. The returned wrappers still target their explicit member and invitation ids. This removes the two-property ambiguity reported by [ARCCHR0002](../code-analysis/index.md#arcchr0002-ambiguous-command-identity); `EventsWithConcurrencyScopes` is not a recognized exemption in the current analyzer.
+`ICanProvideEventSourceId` deliberately selects `MemberId` as the input-time command identity, including for any identity-bound dependencies. The returned wrappers still target their explicit member and invitation ids. This removes the two-property ambiguity reported by [ARCCHR0002](../code-analysis/ARCCHR0002.md); `EventsWithConcurrencyScopes` is not a recognized exemption in the current analyzer.
 
 The narrow ARCCHR0007 suppression documents an intentional read-only `IEventLog` dependency; the analyzer matches the parameter type, not whether a method writes.
 

@@ -14,7 +14,7 @@ Some rules need acknowledgment rather than unconditional rejection. Model-bound 
 | `Warning` | 2 | Acknowledgment-worthy feedback |
 | `Error` | 3 | Validation error |
 
-For commands without a declared policy, omitting the threshold keeps only `Error` results. With a caller threshold, only results whose severity is **greater than** the threshold remain. Thus:
+For commands without an explicit blocking policy and without declared read protection `On`, omitting the threshold keeps only `Error` results. With a caller threshold, only results whose severity is **greater than** the threshold remain. Thus:
 
 - `Information` blocks warnings and errors.
 - `Warning` allows warnings and blocks errors.
@@ -41,7 +41,15 @@ public record SubmitApplication(string Name)
 
 The attribute names the **lowest severity that blocks**: `Information` blocks information, warnings, and errors; `Warning` blocks warnings and errors. `Unknown` results also block any command with the attribute, because an unclassified failure must not become a successful command. The rejected result retains its original message and severity. The declared policy is inherited by derived command types and applies to command filters, `Provide()`, `Validate`, and in-process execution as well as HTTP, when commands run through Arc's built-in `CommandPipeline`. It does not apply to controller-action DTOs, which use the MVC validation path, or to custom `ICommandPipeline` implementations unless they implement the policy themselves. Generated TypeScript proxies carry the threshold for local validation and treat warnings as errors when the declared severity is `Warning` or stricter, but the server remains authoritative.
 
-The effective threshold is the stricter of the declared policy and the caller's `allowedSeverity` or `X-Allowed-Severity`. A caller can demand *more* blocking, never less: passing `Error` or a larger integer does not permit a declared warning or information failure. This deliberately differs from the caller opt-out for controller actions in #21. Commands without the attribute retain the existing errors-only default and caller-controlled filtering.
+The effective threshold is the stricter of the declared policy and the caller's `allowedSeverity` or `X-Allowed-Severity`. A caller can demand *more* blocking, never less: passing `Error` or a larger integer does not permit a declared warning or information failure. This deliberately differs from the caller opt-out for controller actions in #21. Commands without the attribute retain caller-controlled filtering unless they declare read protection `On`.
+
+## Read protection On supplies an Error floor
+
+A command declaring read protection `On` gets an `Error` blocking floor unless it declares `[BlockOnValidationSeverity(...)]`. `Error` and `Unknown` always block; callers can still allow `Warning` and `Information`, or demand a stricter threshold. The floor applies to filters, validators, `Provide()` control results, and `Validate` through the built-in pipeline. A validation error returned by `Handle()`, including `Result<TEvent, ValidationResult>`, remains a rejection.
+
+Arc resolves the command's inherited read-protection attribute before the attribute on the command's own assembly. A command-level `[Unprotected]` opts out. The floor follows the **declared** mode: lowering `ReadProtection:MaximumMode` does not remove it. An explicit, possibly inherited, `[BlockOnValidationSeverity(...)]` takes precedence over the implicit floor.
+
+`Off` and `Measure` keep caller-controlled filtering. Without an explicit blocking policy, `X-Allowed-Severity: 3` can skip validator errors and let `Handle()` run. If you rely on validators under `Off`, declare `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]`; this prevents severity filtering from dropping errors, but does not guard stale reads.
 
 ## Create a warning
 
@@ -108,7 +116,7 @@ Authorization filters run first; ordinary filters continue after non-blocking va
 ## Security considerations
 
 > [!WARNING]
-> The model-bound HTTP endpoint currently accepts any parsable integer in `X-Allowed-Severity`, including `3` and larger. For commands without a declared blocking policy, a caller can therefore remove Error-severity results from the filtered stages. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
+> The model-bound HTTP endpoint currently accepts any parsable integer in `X-Allowed-Severity`, including `3` and larger. For commands under `Off` or `Measure` without an explicit blocking policy, a caller can therefore remove Error-severity results from the filtered stages. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
 
 Return an actual authorization verdict from an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace). `CommandResult.Unauthorized` is independent of severity filtering. Check permissions before performing work, and enforce atomic state invariants in the service or storage operation that owns the change.
 

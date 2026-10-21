@@ -1,9 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
@@ -33,9 +36,26 @@ public class ChronicleReadModelForCommandResolver(IEnumerable<Type> readModelTyp
     public ReadModelForCommandOwnership Ownership => ReadModelForCommandOwnership.Declared;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Under read protection <c>On</c>, Arc binds the read models of <c>Handle()</c> and of validator constructors itself
+    /// and guards them. A read model that reaches this resolver instead was injected somewhere else in the command, for
+    /// example into a command filter or a service, where no guard is enrolled for it. Such a read is refused unless the
+    /// model type is marked <see cref="UnprotectedAttribute"/>, in which case it is an advisory read that guards nothing.
+    /// </remarks>
+    /// <exception cref="ReadModelInjectedOutsideDecision">The read model was injected outside the decision under read protection <c>On</c>.</exception>
     public Task<object?> Resolve(Type readModelType, CommandContext commandContext)
     {
         var readModels = commandContext.ServiceProvider!.GetRequiredService<IReadModels>();
+        if (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On || PerStreamReadModelBinding.IsDeclared(readModelType))
+        {
+            return Task.FromResult(ReadModelServiceCollectionExtensions.ResolveReadModel(readModelType, commandContext, readModels));
+        }
+
+        var advisory = readModelType.GetCustomAttribute<UnprotectedAttribute>() ??
+            throw new ReadModelInjectedOutsideDecision(commandContext.Type, readModelType);
+        var reason = advisory.Reason ?? "Declared advisory";
+        ReadProtectionTelemetry.Record(commandContext.Type, "advisory_read", readModelType, reason);
+        using var allowance = TransactionalCommandScope.CurrentProtectedUnit?.AllowReads(ReadAllowance.Advisory, reason);
         return Task.FromResult(ReadModelServiceCollectionExtensions.ResolveReadModel(readModelType, commandContext, readModels));
     }
 }

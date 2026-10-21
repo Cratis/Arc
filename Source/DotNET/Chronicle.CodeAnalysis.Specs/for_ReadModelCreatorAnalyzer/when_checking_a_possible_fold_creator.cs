@@ -14,18 +14,19 @@ public class when_checking_a_possible_fold_creator
     [Theory]
     [InlineData("public static Order {|#0:Create|}(Unmarked e) => new();", "Create")]
     [InlineData("public static Order {|#0:Create|}(Placed e) => new();", "Create")]
-    [InlineData("internal static Task<Order> {|#0:Create|}(Placed e) => Task.FromResult(new Order());", "Create")]
-    [InlineData("public static Order? {|#0:Reduce|}(Placed e, Order? current) => current;", "Reduce")]
-    [InlineData("public static Task<Order?> {|#0:Reduce|}(Placed e, Order? current, EventContext context) => Task.FromResult(current);", "Reduce")]
     public async Task should_warn_without_changing_selection(string method, string name) => await VerifyCS.VerifyAnalyzerAsync(Source(method), Warning(name));
 
     [Theory]
     [InlineData("public static Order Create(string id) => new();")]
     [InlineData("public static Order Create(OrderId id) => new();")]
     [InlineData("public static Order Reduce(Placed e, Order current) => current;")]
+    [InlineData("public static Order? Reduce(Placed e, Order? current) => current;")]
+    [InlineData("public static Task<Order?> Reduce(Placed e, Order? current, EventContext context) => Task.FromResult(current);")]
+    [InlineData("public static Order Create(Placed e, Order current) => current;")]
     [InlineData("public static Task BeginReplay(object service) => Task.CompletedTask;")]
     [InlineData("public static Order From(Placed e) => new();")]
     [InlineData("private static Order Create(Unmarked e) => new();")]
+    [InlineData("internal static Task<Order> Create(Placed e) => Task.FromResult(new Order());")]
     public async Task should_ignore_other_shapes(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method));
 
     [Fact]

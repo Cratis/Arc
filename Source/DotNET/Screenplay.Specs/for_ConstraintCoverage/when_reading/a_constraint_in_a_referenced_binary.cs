@@ -31,6 +31,6 @@ public class a_constraint_in_a_referenced_binary : Specification
 
     void Because() => _coverage = ConstraintCoverage.Read([_event], new SemanticModels([_compilation]));
 
-    [Fact] void should_fail_closed_for_batches() => _coverage.UnprovenBatch([_event, _event]).ShouldContain("constraint 'Rule' cannot be read");
+    [Fact] void should_fail_closed_for_batches() => _coverage.UnprovenBatch([_event, _event])!.Message.ShouldContain("constraint 'Rule' cannot be read");
     [Fact] void should_not_withhold_single_events() => _coverage.UnprovenBatch([_event]).ShouldBeNull();
 }

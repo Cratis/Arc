@@ -16,7 +16,7 @@ Use attributes from `Cratis.Arc.Authorization`:
 | `[Roles("Admin", "Manager")]` | The same OR-role check; derives from Arc's `AuthorizeAttribute`. |
 | `[Authorize(Policy = "ActiveSubscription")]` | Requires authentication by default and the named policy to succeed asynchronously. An explicitly opted-in policy may evaluate guests. |
 | `[AllowAnonymous]` | Explicitly allows anonymous access. |
-| No authorization attribute | No authentication or role requirement unless a fallback evaluator supplies one. |
+| No authorization attribute | No pipeline authentication or role requirement unless a fallback evaluator supplies one. HTTP endpoints and hub subscriptions also apply the host's default authorization. |
 
 Every authorization attribute on a declaration applies: stacked roles and policies are combined with AND. Register each policy before starting the host; an unknown or duplicate policy fails startup, and an unresolved policy at runtime never grants access. The standalone Arc host cannot authenticate named schemes: `AuthenticationSchemes` fails startup (and [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) flags it). Use [ASP.NET Core integration](../asp-net-core/authorization.md) for actual scheme authentication.
 
@@ -95,6 +95,14 @@ For policy- or scheme-protected declarations, Arc checks policy-input and ambien
 
 Identity continuity compares captured standard identity content: claims (including claim properties), authentication type, name and role claim types, label, and the captured actor chain. It checks references for custom principal/identity types and opaque bootstrap contexts but cannot fingerprint mutable state hidden behind custom behavior or inside opaque objects. These checks do not sandbox trusted application code: a policy can mutate and restore identity within one callback (including ASP.NET Core handlers inside one `AuthorizeAsync` call). They do not detect changes in an external permission store after admission, prevent arbitrary work or side effects inside callbacks, bind separately writable ASP.NET Core and Arc principal views or pre-verdict tenant/service bindings, control raw contexts or services retained outside Arc's supported execution scope, or cover identity-bound services constructed outside Arc before pipeline entry. Identity continuity is not ongoing permission revocation: observable emissions need their own guards, and deferred query enumeration and observable emissions are not rechecked by this policy verdict. See [decision 0006](https://github.com/Cratis/Arc/blob/main/decisions/0006-opt-in-anonymous-authorization-policy-evaluation.md) for the trust boundary.
 
+## Authorization when a command body cannot bind
+
+Model-bound execute and `/validate` endpoints report binding errors only after authentication, role, scheme and fallback checks. A denied caller receives 403 instead of a malformed-request result. No command context providers, execution scopes or authorization command filters run without an instance.
+
+The ASP.NET host can evaluate a named policy with a null resource only when every requirement in the complete policy set is resource-free. The built-in authentication, role, claim and name requirements qualify; `AssertionRequirement` does not. A custom ASP.NET requirement can implement `Cratis.Arc.Authorization.IResourceFreeRequirement` (from `Cratis.Arc`) to promise that all its handlers read only the user, not the resource. Do not mark requirements that compare claims with command properties or otherwise depend on the command context.
+
+If any policy has a resource-dependent requirement, none of the policy set is evaluated for that unbindable body. The binding failure remains Validation after authentication and roles pass, even for a caller whose bound command would be denied by policy. Native Core `IAuthorizationPolicy` implementations have no requirement-level opt-in and remain skipped on this path. They continue to receive a bound resource on normal executions. See [command input binding](../commands/input-binding.md) for the exact error contract.
+
 ## Protect a query
 
 This complete type fragment requires either role for every query unless a method specifies a different requirement:
@@ -138,6 +146,12 @@ public class MembersByDefault : IFallbackAuthorizationEvaluator
 An unannotated command type and an unannotated query now require the `Member` role. Commands and queries whose authorization target is a type consult only `GetAuthorizationRequirements(Type)`; `GetAuthorizationRequirements(MethodInfo)` applies only to query methods. Put a baseline intended for all commands in the `Type` overload. For query methods, Arc first checks the method and its declaring type for explicit declarations; only if neither has one does it consult the fallback evaluators. The type and method fallback requirements then **all** apply, including requirements supplied by different evaluators. `[AllowAnonymous]` on a method permits anonymous access even when its type has a baseline; a method-level `[Authorize]` or type-level `[Authorize]` replaces the baseline. Controller-based queries reached through Arc's observable hub path use the query pipeline and can receive this baseline. Direct HTTP GET and WebSocket requests to controller-based queries are MVC actions, not covered by `IFallbackAuthorizationEvaluator`; configure ASP.NET Core's [`FallbackPolicy`](../asp-net-core/authorization.md#protecting-all-endpoints-by-default) to protect those actions without authorization metadata, including controller-based commands. An unauthenticated or wrong-role caller is denied before an Arc command or query runs.
 
 Use `IAuthorizationAttributeEvaluator` only to report **explicit** declarations from another attribute family. Its requirements still conflict with `[AllowAnonymous]` on the same member and raise `AmbiguousAuthorizationLevel`; they do not turn into a baseline automatically. Baseline evaluators return requirements, not authorization verdicts or cached principal-specific results. For resource-dependent checks, use a named policy or a pipeline filter instead.
+
+## Host defaults on query hub subscriptions
+
+The hub keeps its transport routes anonymous, but checks the host's default authorization before each query runs. On the standalone Arc Core host, registering authentication handlers requires an authenticated caller for queries that are not anonymous. On ASP.NET Core, the hub evaluates the host's `FallbackPolicy`. Arc's `[AllowAnonymous]` and fully opted-in guest declarations bypass this host check, just as they do on direct mapped endpoints; the query pipeline still evaluates guest policies and its other filters. A denied or failed host check never runs query logic and sends `Unauthorized`; SSE subscribe also returns 401.
+
+This host check is separate from `IFallbackAuthorizationEvaluator`: it protects hub admission, not server-side pipeline invocations. Non-streaming query results sent through the hub also pass [emission guards](../queries/observable-query-emission-guards.md) before delivery. Direct HTTP non-observable queries retain their existing authorization and do not invoke those guards.
 
 ## The pipeline boundary
 

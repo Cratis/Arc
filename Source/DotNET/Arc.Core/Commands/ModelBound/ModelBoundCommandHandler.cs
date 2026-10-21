@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands.ModelBound;
 
@@ -38,6 +39,7 @@ public class ModelBoundCommandHandler(Type commandType, MethodInfo handleMethod)
             : commandContext.Dependencies.ToArray();
         try
         {
+            using var body = commandContext.ServiceProvider?.GetService<ICommandProtectedDecisionSupport>()?.BeginMethodBody(handleMethod);
             var invocationResult = handleMethod.Invoke(commandContext.Command, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
             return result;

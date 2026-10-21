@@ -372,6 +372,7 @@ export class WebSocketHubConnection {
                             message.queryId,
                             message.payload,
                         );
+                        this.handleError(message);
                     }
                     break;
             }
@@ -402,7 +403,30 @@ export class WebSocketHubConnection {
         if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
         const result = message.payload as QueryResult<any>;
+        if (result?.isValid === false) {
+            this._subscriptions.delete(message.queryId);
+        }
         sub.callback(result);
+    }
+
+    private handleError(message: HubMessage): void {
+        const result = new QueryResult(
+            {
+                data: undefined,
+                isSuccess: false,
+                isReady: true,
+                isAuthorized: true,
+                isValid: true,
+                hasExceptions: true,
+                validationResults: [],
+                exceptionMessages: [message.payload as string],
+                exceptionStackTrace: '',
+                paging: { totalItems: 0, totalPages: 0, page: 0, size: 0 },
+            },
+            Object,
+            false,
+        );
+        this.handleQueryResult({ ...message, payload: result });
     }
 
     private handleUnauthorized(message: HubMessage): void {

@@ -16,6 +16,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Validation;
 public class ValidatorCatalog
 {
     readonly Dictionary<string, List<ValidationRuleModel>> _rules = new(StringComparer.Ordinal);
+    readonly HashSet<string> _incomplete = new(StringComparer.Ordinal);
+    readonly Dictionary<string, List<ValidationRuleModel>> _sources = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Collects every validator a catalogue of types declares.
@@ -35,6 +37,19 @@ public class ValidatorCatalog
             }
 
             validators.Add(validated, reader.Read(type, type.Namespace()));
+            if (reader.SourceReference(type) is { } reference)
+            {
+                var key = KeyFor(validated);
+                if (!validators._sources.TryGetValue(key, out var sources))
+                {
+                    validators._sources[key] = sources = [];
+                }
+                sources.Add(reference);
+            }
+            if (!reader.IsComplete(type))
+            {
+                validators._incomplete.Add(KeyFor(validated));
+            }
         }
 
         return validators;
@@ -47,6 +62,20 @@ public class ValidatorCatalog
     /// <returns>The rules, empty when nothing validates the type.</returns>
     public IEnumerable<ValidationRuleModel> For(ITypeSymbol type) =>
         _rules.TryGetValue(KeyFor(type), out var rules) ? rules : [];
+
+    /// <summary>
+    /// Checks whether all default validation rules for a type were recovered.
+    /// </summary>
+    /// <param name="type">The validated type.</param>
+    /// <returns>Whether its validation contract is complete.</returns>
+    internal bool IsComplete(ITypeSymbol type) => !_incomplete.Contains(KeyFor(type));
+
+    /// <summary>
+    /// Gets opaque references preserving the original validator implementations.
+    /// </summary>
+    /// <param name="type">The validated type.</param>
+    /// <returns>The source attachments.</returns>
+    internal IEnumerable<ValidationRuleModel> SourcesFor(ITypeSymbol type) => _sources.GetValueOrDefault(KeyFor(type)) ?? [];
 
     /// <summary>
     /// Gets the key a type is looked up by.

@@ -4,13 +4,14 @@
     <PropertyGroup>
         <Version>1.0.0</Version>
         <Copyright>Copyright Cratis</Copyright>
-        <Authors>all contributors</Authors>
+        <Authors>Cratis</Authors>
+        <Company>Cratis</Company>
         <DebugType>portable</DebugType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryType>git</RepositoryType>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <RepositoryUrl>https://github.com/cratis/arc</RepositoryUrl>
-        <PackageProjectUrl>https://github.com/cratis/arc</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Cratis/Arc</RepositoryUrl>
+        <PackageProjectUrl>https://www.cratis.io/arc/</PackageProjectUrl>
         <PackageIcon>logo.png</PackageIcon>
 
         <GenerateAssemblyTitleAttribute>true</GenerateAssemblyTitleAttribute>
@@ -21,7 +22,9 @@
         <IsTestProject>false</IsTestProject>
 
         <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-        <IsPackable>true</IsPackable>
+        <!-- Projects under a .Specs directory (spec projects and their fixture projects) are never published. -->
+        <IsPackable Condition="!$(MSBuildProjectDirectory.Contains('.Specs'))">true</IsPackable>
+        <IsPackable Condition="$(MSBuildProjectDirectory.Contains('.Specs'))">false</IsPackable>
         <PackageTags Condition="'$(PackageTags)' == ''">cratis;arc;cqrs;commands;queries;aspnetcore;typescript;proxy-generation;event-sourcing</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>

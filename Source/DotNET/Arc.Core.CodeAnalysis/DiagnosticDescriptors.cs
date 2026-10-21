@@ -298,5 +298,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A generated parameter keeps generation outside the command's decision and allows scenario pinning. The concept must own its generation strategy.");
 
+    /// <summary>
+    /// ARC0029: Non-public static method is not exposed as a query.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0029_NonPublicQuery = new(
+        id: "ARC0029",
+        title: "Non-public static method is not exposed as a query",
+        messageFormat: "Non-public static method '{0}' on ReadModel '{1}' is not exposed as a query; make it public to expose it",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Only public static methods can become query endpoints. Non-public query-shaped methods and non-public methods marked [Query] are never exposed, regardless of the read-model type's visibility.");
+
     const string Category = "Arc";
 }

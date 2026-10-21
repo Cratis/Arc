@@ -107,7 +107,7 @@ An aggregate without a declaration therefore picks up handled events appended fo
 
 ## Event handler signatures
 
-Method names are conventional, not the dispatch key. The first parameter identifies a registered event type. These are signature fragments, not method implementations:
+Method names are conventional, not the dispatch key. The first parameter identifies a registered event type. Explicitly registered event types work for both handlers and `Apply`, even without an `[EventType]` attribute. These are signature fragments, not method implementations:
 
 ```csharp
 void On(TEvent @event)

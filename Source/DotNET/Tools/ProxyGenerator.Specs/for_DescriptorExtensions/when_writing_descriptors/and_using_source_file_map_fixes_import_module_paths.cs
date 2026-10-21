@@ -28,12 +28,13 @@ public class and_using_source_file_map_fixes_import_module_paths : Specification
         var descriptorType = typeof(ImportingType);
         var importedType = typeof(ImportedTypeWithDifferentSourceFile);
 
-        // The import module path uses the type name (as GetImportStatement would generate).
-        // With sourceFileMap, the imported type lives in a file named "SharedSlice" not "ImportedTypeWithDifferentSourceFile".
-        var imports = new List<ImportStatement>
+        _sourceFileMap = new Dictionary<string, string>
         {
-            new(importedType, "ImportedTypeWithDifferentSourceFile", $"./{importedType.Name}")
+            [descriptorType.FullName!] = "ImportingType",
+            [importedType.FullName!] = "SharedSlice"
         };
+        TypeExtensions.SetSourceFileMap(_sourceFileMap);
+        var imports = new[] { importedType.GetImportStatement(_tempDir, descriptorType.ResolveTargetPath(0), 0) };
 
         _descriptor = new TypeDescriptor(
             descriptorType,
@@ -41,12 +42,6 @@ public class and_using_source_file_map_fixes_import_module_paths : Specification
             [new PropertyDescriptor(importedType, "myProp", "ImportedTypeWithDifferentSourceFile", string.Empty, string.Empty, false, false, false, null)],
             imports.OrderBy(_ => _.Module),
             [importedType]);
-
-        _sourceFileMap = new Dictionary<string, string>
-        {
-            [descriptorType.FullName] = "ImportingType",
-            [importedType.FullName] = "SharedSlice"
-        };
 
         var path = descriptorType.ResolveTargetPath(0);
         _expectedFilePath = Path.GetFullPath(Path.Join(_tempDir, path, "ImportingType.ts"));
@@ -76,6 +71,7 @@ public class and_using_source_file_map_fixes_import_module_paths : Specification
 
     public void Dispose()
     {
+        TypeExtensions.SetSourceFileMap(null);
         if (Directory.Exists(_tempDir))
         {
             Directory.Delete(_tempDir, true);

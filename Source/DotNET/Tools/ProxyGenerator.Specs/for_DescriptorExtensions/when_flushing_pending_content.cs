@@ -34,7 +34,7 @@ public class when_flushing_pending_content : Specification
         await DescriptorExtensions.FlushPendingContent(pending, _files, _ => { });
     }
 
-    [Fact] void should_migrate_the_legacy_marker_to_after_the_license() => File.ReadAllLines(_path)[3].ShouldEqual(_firstMetadata.ToCommentLine());
+    [Fact] void should_migrate_the_legacy_marker_to_after_the_generated_notice() => File.ReadAllLines(_path)[1].ShouldEqual(_firstMetadata.ToCommentLine());
     [Fact] void should_preserve_the_payload_hash() => _files[_path].ContentHash.ShouldEqual(GeneratedFileMetadata.ComputeHash(_content));
     [Fact] void should_not_rewrite_identical_new_output() => File.ReadAllText(_path).ShouldEqual(_firstOutput);
     [Fact] void should_preserve_the_filesystem_timestamp() => File.GetLastWriteTimeUtc(_path).ShouldEqual(_firstTimestamp);

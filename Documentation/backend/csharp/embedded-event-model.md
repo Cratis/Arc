@@ -94,7 +94,27 @@ To generate documents only in Debug, add this to your application project:
 </PropertyGroup>
 ```
 
-A direct reference to `Cratis.Arc.Screenplay.Embedded` enables generation by default; the `Cratis` metapackage disables it in Release unless you explicitly set `CratisEmbeddedScreenplayEnabled` to `true`. Generation does not run during design-time builds. A real build regenerates the resources from the current source; disabling generation prevents previously generated files from being included.
+A direct reference to `Cratis.Arc.Screenplay.Embedded` enables generation by default; the `Cratis` metapackage disables it in Release unless you explicitly set `CratisEmbeddedScreenplayEnabled` to `true`. Generation does not run during design-time builds. A real build regenerates the resources from the current source. When none of the sources, references, analyzers or settings they are generated from changed since the last build, the previous output is reused and the application is not analyzed again; a build that reported a warning always runs again so the warning is shown again. Disabling generation prevents previously generated files from being included.
+
+## Cap validated generation for an older consumer
+
+The embedded generator uses the same validated-generation admission as standalone Screenplay generation.
+String-backed strategies with fully recoverable concept rules need ESM v20. To keep documents below
+that boundary for an older consumer, set:
+
+```xml
+<PropertyGroup>
+    <CratisEmbeddedScreenplayMaximumExecutableModelVersion>19.0</CratisEmbeddedScreenplayMaximumExecutableModelVersion>
+</PropertyGroup>
+```
+
+This preserves the validator but withholds validated generation and dependent mappings, responses and
+pins. Diagnostics name the required version and the configured cap. Use `20.0`, or leave the property
+unset, to admit supported V20 contracts. Authoring-only output respects the same boundary; it does not
+make opaque or refuted validation executable. A custom host sets
+`EmbeddedDocumentOptions.MaximumExecutableModelVersion` to `SemanticVersion.V19` or `SemanticVersion.V20`
+for the corresponding behavior. See [Validated generation](generating-a-screenplay.md#validated-generation-and-esm-v20)
+for proof diagnostics, UUID validation limits and fixture handling.
 
 ## Compiler features and generated source
 

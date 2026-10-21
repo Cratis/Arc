@@ -3,7 +3,7 @@ title: Command validation
 description: Validate model-bound command input with property annotations or FluentValidation.
 ---
 
-When input is incomplete, return useful feedback before performing work. Arc's model-bound pipeline runs validation filters before `Provide()` and `Handle()`. Blocking results stop execution and appear in `CommandResult.ValidationResults`.
+When input is incomplete, return useful feedback before performing work. Arc's model-bound pipeline runs validation filters before `Provide()` and `Handle()`. Blocking results stop execution and appear in `CommandResult.ValidationResults`; their members are reported as camelCase field paths, including results returned from `Provide()` or `Handle()` (`Name` becomes `name`, and `Items[0].Name` becomes `items[0].name`).
 
 Validation is not authorization, and a pre-flight check cannot guarantee that state remains unchanged. Read [severity filtering](./validation-severity-filtering.md) before relying on a rule as a non-overridable guard.
 
@@ -28,6 +28,10 @@ public record AllocateLabeledIdentifier(
 ```
 
 An empty `Label` or an out-of-range `Copies` produces validation errors before `Handle()`, at the default severity threshold. Constructor annotations such as `[Required] string Label` do not provide the property metadata this filter reads. MVC record binding has different metadata rules; do not apply this advice mechanically to [controller-based commands](./controller-based.md).
+
+For command types with generated validation metadata, annotations on `ConceptAs<T>` properties validate the underlying `.Value`. This includes `[Required]`, `[Range]`, `[StringLength]`, `[MinLength]`, `[MaxLength]`, and `[RegularExpression]`. A nullable concept passes absence-tolerant rules unless you add `[Required]`. Annotated model-bound query parameters use the same generated value readers.
+
+Types from other assemblies without generated metadata, and types skipped by the generator, keep the existing object-validation behavior: annotations receive the concept object rather than its value. In that fallback path, `[StringLength]` on a non-null concept throws instead of producing a validation result. Use a FluentValidation validator for those types.
 
 ## FluentValidation
 

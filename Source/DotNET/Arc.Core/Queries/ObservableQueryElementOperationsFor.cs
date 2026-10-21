@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
-using Cratis.Arc.Http;
-using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
@@ -43,59 +41,15 @@ internal sealed class ObservableQueryElementOperationsFor<TElement> : Observable
     /// <inheritdoc/>
     public override IDisposable SubscribeToSubject(
         ObservableQueryDemultiplexer demultiplexer,
-        IHttpRequestContext context,
-        object subject,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        Action onCompleted,
-        QueryContext? authorizedQueryContext,
-        CancellationToken token) =>
-        demultiplexer.SubscribeToTypedSubject(
-            context,
-            (ISubject<TElement>)subject,
-            _enumerableItemType,
-            queryId,
-            paging,
-            transferMode,
-            correlationId,
-            identity,
-            onNext,
-            onError,
-            onUnauthorized,
-            onCompleted,
-            authorizedQueryContext,
-            token);
+        ObservableQuerySubscriptionContext subscription,
+        object subject) =>
+        demultiplexer.SubscribeToTypedSubject(subscription, (ISubject<TElement>)subject, _enumerableItemType);
 
     /// <inheritdoc/>
     public override Task StreamAsyncEnumerable(
         ObservableQueryDemultiplexer demultiplexer,
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionContext subscription,
         object enumerable,
-        string queryId,
-        PagingInfo paging,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        IServiceProvider? guardServiceProvider,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        CancellationToken token) =>
-        demultiplexer.StreamTypedAsyncEnumerable(
-            context,
-            (IAsyncEnumerable<TElement>)enumerable,
-            queryId,
-            paging,
-            correlationId,
-            identity,
-            guardServiceProvider,
-            onNext,
-            onError,
-            onUnauthorized,
-            token);
+        IServiceProvider? guardServiceProvider) =>
+        demultiplexer.StreamTypedAsyncEnumerable(subscription, (IAsyncEnumerable<TElement>)enumerable, guardServiceProvider);
 }

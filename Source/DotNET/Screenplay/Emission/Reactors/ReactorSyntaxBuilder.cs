@@ -40,6 +40,16 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     public bool MetadataEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v19 refusal branches can be emitted.
+    /// </summary>
+    public bool RefusalsEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Gets whether ESM v22 atomic reaction batches can be emitted.
+    /// </summary>
+    internal bool AtomicBatchesEnabled { get; init; } = true;
+
+    /// <summary>
     /// Builds the reactor declaration.
     /// </summary>
     /// <param name="reactor">The reactor to build for.</param>
@@ -53,7 +63,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
         var name = naming.ToDeclarationName(reactor.Name);
         var path = naming.ToFilePath(reactor.SourceFilePath) ?? SourceFilePaths.Conventional(@namespace, name);
         var file = new FileReferenceSyntax(path, SourceLocation.Start);
-        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled };
+        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled, RefusalsEnabled = RefusalsEnabled, AtomicBatchesEnabled = AtomicBatchesEnabled };
 
         var triggers = reactor.ObservedEvents
             .Select(_ => (Event: _, Name: naming.ToDeclarationName(_)))
@@ -83,32 +93,42 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     ReactionTriggerSyntax BuildTrigger(ReactorModel reactor, string @event, string name, DeclarativeReactions? declarative, FileReferenceSyntax file, string location)
     {
         var reaction = declarative?.For(reactor, @event);
-        if (reactor.Reactions.FirstOrDefault(_ => _.EventName == @event && _.UnprovenBatch is not null) is { } batch)
+        var gap = reactor.Reactions.Where(_ => _.EventName == @event).Select(model => declarative?.UnprovenBatch(model)).OfType<ReactionBatchGap>().FirstOrDefault();
+        if (gap is not null)
         {
+            var reason = gap.Kind == ReactionBatchGapKind.Closing
+                ? "closing reaction batches are not yet admitted (Cratis/Screenplay#770)"
+                : gap.Kind == ReactionBatchGapKind.Unreadable ? "its constraint behavior cannot be proven"
+                : gap.Kind == ReactionBatchGapKind.Unrepresented ? "a rejecting constraint is not represented in the document"
+                : "atomic reaction batches require ESM v22 and exceed ScreenplayOptions.MaximumExecutableModelVersion";
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnprovenReactionBatchConstraints,
-                $"The reaction of '{reactor.Name}' to '{@event}' keeps its file reference: Chronicle appends its {batch.Produces.Count()} returned events as one batch, but a Screenplay reaction appends each fact separately, and {batch.UnprovenBatch}",
+                $"The reaction of '{reactor.Name}' to '{@event}' keeps its file reference: {reason}; {gap.Message}",
                 reactor.MetadataLocation ?? location);
         }
 
         if (reaction is null)
         {
-            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location);
+            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location, gap is not null);
         }
 
         return Trigger(name, reaction, file);
     }
 
-    void ReportCodeHandling(ReactorModel reactor, string @event, string location)
+    void ReportCodeHandling(ReactorModel reactor, string @event, string location, bool batchGap)
     {
-        var handles = reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
+        var branches = reactor.Reactions.Where(reaction => reaction.EventName == @event).SelectMany(reaction => reaction.Invokes).Any(invocation => invocation.OnRefused.Count > 0);
+        var handles = (!batchGap || !branches) && (branches || reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal));
         var discards = reactor.DiscardedCommandResultHandlers.Contains(@event, StringComparer.Ordinal);
         if (handles || discards)
         {
             var behavior = handles ? "handles the outcome of" : "discards the outcome of and acknowledges refusals from";
+            var reason = branches && !RefusalsEnabled
+                ? "refusal branches require ESM v19 and exceed ScreenplayOptions.MaximumExecutableModelVersion"
+                : "the complete invocation, selectors, callback effects or their mappings cannot be proved equivalent to declarative 'on refused' branches";
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableReactionRefusalHandling,
-                $"'{reactor.Name}' {behavior} a command it executes for '{@event}' in code; 'on refused' is not admitted by any executable model (Screenplay#433, PLAY0268) and Arc cannot classify refusals in reactors yet (Arc#3058), so the trigger keeps its file reference",
+                $"'{reactor.Name}' {behavior} a command it executes for '{@event}'; {reason}, so the whole trigger keeps its file reference",
                 location);
         }
 
@@ -116,7 +136,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableReactionRedelivery,
-                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is not admitted by any executable model (Screenplay#433, PLAY0268), so the trigger keeps its file reference",
+                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is a specification action, and receipt use alone does not prove a same-delivery redelivery specification, so the trigger keeps its file reference",
                 location);
         }
     }
@@ -144,7 +164,10 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// <param name="produces">The production.</param>
     /// <returns>The <see cref="ProducesSyntax"/>.</returns>
     ProducesSyntax Produces(ProducesModel produces) =>
-        new(naming.ToDeclarationName(produces.EventName), null, [.. produces.Mappings.Select(Mapping)], SourceLocation.Start);
+        new(naming.ToDeclarationName(produces.EventName), null, [.. produces.Mappings.Select(Mapping)], SourceLocation.Start)
+        {
+            For = produces.Destination is { } destination ? _sources.Convert(destination) : null
+        };
 
     /// <summary>
     /// Builds a command a reaction executes.
@@ -152,7 +175,11 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// <param name="invocation">The invocation.</param>
     /// <returns>The <see cref="InvokesSyntax"/>.</returns>
     InvokesSyntax Invokes(InvocationModel invocation) =>
-        new(naming.ToDeclarationName(invocation.CommandName), [.. invocation.Mappings.Select(Mapping)], SourceLocation.Start);
+        new(naming.ToDeclarationName(invocation.CommandName), [.. invocation.Mappings.Select(Mapping)], SourceLocation.Start)
+        {
+            OnRefused = invocation.OnRefused.Select(branch => new InvocationRefusalSyntax(
+                branch.Selector, branch.Constraint, branch.Produces.Count == 0, branch.Produces.Select(Produces), SourceLocation.Start)).ToList()
+        };
 
     /// <summary>
     /// Builds one mapping.

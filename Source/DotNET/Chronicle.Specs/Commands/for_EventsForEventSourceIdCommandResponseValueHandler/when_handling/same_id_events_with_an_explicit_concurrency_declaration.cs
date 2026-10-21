@@ -20,7 +20,7 @@ public class same_id_events_with_an_explicit_concurrency_declaration : given.an_
     {
         _eventTypes.HasFor(Arg.Any<Type>()).Returns(true);
         _eventLog.Id.Returns(EventSequenceId.Log);
-        _unitOfWork = Substitute.For<IUnitOfWork>();
+        _unitOfWork = Substitute.For<UnitOfWorkWithNamedTags>();
         _commandContext = new(_correlationId, typeof(DeclaringCommand), new DeclaringCommand(), [], new CommandContextValues(), null);
         _commandContext.Values[WellKnownCommandContextKeys.EventStreamId] = new EventStreamId("command-stream");
     }

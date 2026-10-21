@@ -109,23 +109,31 @@ Chronicle's `EventSequenceShouldExtensions` extend `IEventSequence`. Call them o
 
 Content overloads also accept `Action<TEvent>` assertions. An action validates the first matching event; a predicate searches for a satisfying event. For all overloads, see the [Chronicle event assertions reference](/chronicle/testing/events/assertions/).
 
+## Competing appends
+
+`AppendConcurrently(source, events)` works with or without decision mode. Queue competitors before the first `Execute` or `Validate`; the harness appends them after a successful handler and response processing, before the command transaction commits. The overload taking an `EventRoute` preserves the competitor's routing. Nested commands do not drain the outer command's queue.
+
+For `Off` commands without protected dependencies, the scenario keeps its existing `EventScenario`, read-model seeds and pins. Competing appends do not add a guard: use an explicit concurrency scope or a stream decision to test that kind of conflict. Legacy read-model seeds remain separate from the command log; seed `EventScenario.Given` for an explicit log-boundary test. Competitors are excluded from `AppendedEvents`; ordinary cumulative capture still includes attempted command appends, including failures. Inspect successful results or the log to prove that an owner event committed. Custom execution scope registrations are refused when enabling competing appends because the harness cannot safely order them around the transaction owner.
+
 ## Protected decision scenarios
 
-The ordinary `EventScenario`, `Given.ForEventSource(...).Events(...)` legacy read-model seed, and pinned `.ReadModel(...)` state above serve existing scenarios unchanged. **They do not provide protected decision reads:** in the ordinary scenario, read-model seed state and the event log are separate. To exercise `DecisionRead<T>` or `IDecisionReads`, mark the command `[ProtectedDecision]` and opt the scenario in **before seeding or calling `Execute`/`Validate`**. Scenario decision mode applies the host's [protected-mode validator boundary](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands): parameterless validators run, validators with constructor dependencies are refused. `UseDecisionReads()` alone never implicitly protects an unmarked command. See [Arc #2831](https://github.com/Cratis/Arc/issues/2831) for validators that read decision state; Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on it:
+Create a plain `new CommandScenario<T>()`. Commands declaring read protection `On` or `Measure`, `[ProtectedDecision]`, decision or stream dependencies, per-stream read models, or guarded generated parameters automatically get one in-process event log **before seeding**. The scenario uses the command's runtime-resolved assembly/type declarations, including `<CratisReadProtection>`. The pipeline still applies the host's runtime cap on each execution; selecting the log does not itself add a guard to an `Off` or `Measure` command.
+
+Scenario decision mode applies the host's validator boundary: under `On`, validators with read-model parameters run as in production, including when only the validator reads state. Outside `On`, a `[ProtectedDecision]` command runs only [parameterless validators](../chronicle/consistency/validators.md#commands-marked-protecteddecision). `Off` commands without protected dependencies keep the ordinary `EventScenario`, separate read-model seeds and pinned `.ReadModel(...)` state shown above. See [Test the race](../chronicle/consistency/scenarios/testing.md) for a complete example:
 
 ```csharp
-var scenario = new CommandScenario<RegisterAuthor>().UseDecisionReads();
+await using var scenario = new CommandScenario<RegisterAuthor>();
 scenario.Given.ForEventSource(authorId).Events(new AuthorRegistered("Jane Austen"));
 scenario.AppendConcurrently(authorId, new AuthorRegistered("Another writer"));
 var result = await scenario.Execute(new RegisterAuthor(authorId, "New name"));
 result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
 ```
 
-This is an illustrative fragment: `RegisterAuthor` is marked `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`); a direct event-source-keyed admitted projection, event type registration and a handler using `DecisionRead<T>` must exist. Opt-in uses Chronicle's `EventStoreForTesting`: seeded events, decision folds, competing events and owner commits share **one real in-process event log**. `AppendConcurrently` queues an append outside the command's transaction. After handler decision reads and response processing, the competitor is appended before the command owner commits. A matching event conflicts even if the command appends to a different source, and a successful command returning no events still validates its decision. Assert the result's `concurrencyViolation` and that no **command** event committed; a competitor event is expected to remain in the log. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in this opt-in mode, not seeded or competing events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see *all* stored events.
+This is an illustrative fragment: `RegisterAuthor` is marked `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`); a direct event-source-keyed admitted projection, event type registration and a handler using `DecisionRead<T>` must exist. Decision mode uses Chronicle's `EventStoreForTesting`: seeded events, decision folds, competing events and owner commits share **one real in-process event log**. `AppendConcurrently` queues an append outside the command's transaction. After handler decision reads and response processing, the competitor is appended before the command owner commits. A matching event conflicts even if the command appends to a different source, and a successful command returning no events still validates its decision. Assert the result's `concurrencyViolation` and that no **command** event committed; a competitor event is expected to remain in the log. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in decision mode, not seeded or competing events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see *all* stored events.
 
-There is no `EventScenario` facade over that store. In decision mode `scenario.EventScenario` throws rather than returning a misleading second log; use `Given.ForEventSource(...).Events(...)` to seed. Trying to opt in after a legacy seed or scenario initialization throws instead of silently discarding that state. A scenario with custom execution scopes registered before opt-in is also refused: this harness cannot safely order those scopes around the owner; test that combination through a host integration test. `AppendConcurrently` requires the opt-in. Ordinary scenarios keep their existing `EventScenario` and cumulative append behavior. No public API accepts invented sequence numbers or handcrafted decision tokens.
+There is no `EventScenario` facade over that store. In decision mode `scenario.EventScenario` throws rather than returning a misleading second log; use `Given.ForEventSource(...).Events(...)` to seed. The scenario selects the store during construction, so there is no late switch that could discard seeds. Ordinary scenarios keep their existing `EventScenario` and cumulative append behavior. No public API accepts invented sequence numbers or handcrafted decision tokens.
 
-This in-process harness does not stand in for a server, storage backend, authorization middleware or Chronicle's consistency exclusions. Revise/redact, generation migration, projection-definition changes, external state, and a foreign writer are outside the guard. A direct SDK `Rollback()` or `Commit()` of a protected command's unit of work, including from an aggregate, is refused with `ProtectedUnitOfWorkRequiresOwner`; Arc completes the unit as its owner. For production admission, opt-out and advisory validation behavior see [decision reads in commands](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands).
+This in-process harness does not stand in for a server, storage backend, authorization middleware or Chronicle's consistency exclusions. Revise/redact, generation migration, projection-definition changes, external state, and writes that bypass the kernel's serialized append path are outside the guard. A guard detects every matching event appended through the kernel, whoever wrote it; an unguarded writer's own decision (a plain read, `[Unprotected]` or a direct append) is not protected. A direct SDK `Rollback()` or `Commit()` of a protected command's unit of work, including from an aggregate, is refused with `ProtectedUnitOfWorkRequiresOwner`; Arc completes the unit as its owner. For production admission, opt-out and advisory validation behavior see [decision reads in commands](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands).
 
 ### Reads that do not guard the decision
 
@@ -141,7 +149,7 @@ A protected decision read always folds the log and never sees a pinned instance.
 
 ### Check that Chronicle admits the decision reads
 
-Chronicle guards only flat, event-source-keyed projections. A `DecisionRead<T>` whose read model has children or nested objects, a join, a reducer, more than one projection, or routing by an event property compiles, but the command fails each time it executes. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
+Chronicle admits flat, event-source-keyed projections and unfiltered reducers with no constructor dependencies except `ILogger<T>`; self-reducing models are exempt from that constructor restriction. A protected read whose model has children or nested objects, a join, unsupported reducer dependencies or filters, more than one projection, or routing by an event property compiles, but the command fails each time it executes. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
 
 ```csharp
 public class when_checking_decision_read_admission
@@ -152,13 +160,13 @@ public class when_checking_decision_read_admission
 }
 ```
 
-`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. Only `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of the `Handle` and `Provide` methods of `[ProtectedDecision]` commands are checked, including methods inherited from a base type; abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
+`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. The helper checks `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of `Handle` and `Provide` on `[ProtectedDecision]` commands and commands whose declared read protection is `On`. For `On`, it also checks plain Chronicle-backed model parameters and discoverable validator constructor parameters, except reads marked advisory on the parameter or model. Command and assembly declarations are honored; the runtime cap is ignored. Inherited methods are included, and abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked: give those models their own `Admit<T>()` check or a scenario that runs the command. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
 
 ### Assert stream completion
 
 For a command returning `CompleteStream`, `scenario.ShouldHaveCompletedStream(type, id)` accepts a successful completion with or without an event source scope. To assert the exact owner, pass a `ClosedStreamScope` instead; see [completion assertions](../chronicle/commands/completing-streams.md#assert-completion-in-a-command-scenario). Other sources using the same stream type and id remain open after a scoped close. A command without an event source id still closes that pair for every source.
 
-Explicit stream-scoped `IDecisionReads.Get<T>` calls also work in decision mode. Seed events with `OnRoute(...)` and queue competitors on that same route to check the stream guard. The static admission helper checks only injected, key-based `DecisionRead<T>` parameters; use `AdmitForStream<T>()` for an explicit stream fold.
+Explicit stream-scoped `IDecisionReads.Get<T>` calls also work in decision mode. Seed events with `OnRoute(...)` and queue competitors on that same route to check the stream guard. The static admission helper uses stream admission for plain per-stream model parameters under `On`. Use `AdmitForStream<T>()` for explicit stream folds inside method bodies; the helper cannot inspect those calls.
 
 ## Transactional commands in tests
 
@@ -199,6 +207,10 @@ Two things to be aware of:
 
 - **When events show up in `AppendedEvents` depends on the style.** Immediate appends surface as they happen; the command's enrolled events — returned events and `Transactional` appends — surface as one batch when the command's transaction commits.
 - **Immediate appends are final.** A handler that appends through the plain `IEventLog.Append` (or `IEventStore.EventLog`) writes immediately — a successful append remains in the log even when the command fails afterwards, and a spec can assert exactly that.
+
+## Commands for occurrences
+
+`IOccurrenceCommandExecutor` needs a kernel that advertises `effect-receipts`. The in-process kernel from `Cratis.Chronicle.Testing` has a capability switch (`KernelCapabilitiesForTesting.Current()`, `Old()`, `Unknown()`) and stores receipts, so a spec can assert that a redelivered effect key returns `AlreadyRecorded`, that a business refusal is recorded as `Refused`, that a handler exception leaves no receipt, and that the executor throws `EffectReceiptsNotSupported` against an old or unknown kernel. See [Commands for occurrences](../chronicle/commands/occurrence-commands.md) for the classification and for the commit styles the executor refuses.
 
 ## Testing commands that use EventForEventSourceId
 
@@ -318,7 +330,7 @@ public class when_withdrawing_with_sufficient_funds : Specification
 
 Events are the facts; read models are derived from them. One `Events(...)` call feeds *every* read model built from those events: if the command injects both an `AccountBalance` and an `AccountStatement`, both are materialized from the same events — no read model type appears in the test.
 
-This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters.
+This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters. [Observable read-model queries](./query-scenario.md#observe-chronicle-read-models) use a private log that combines read-model seeds and successful appends from the command log, without changing the command log.
 
 ### Pinning a read model instance
 
@@ -333,7 +345,7 @@ void Establish() =>
 
 Pinned instances take precedence over seeded events for the same read model type and source. A model seeded for one source is not visible to another: resolving an unseeded source returns `null`. A registered nullable dependency can receive that null; a required dependency instead rejects the command as unavailable. See [the dependency-unavailable assertion distinction](./command-scenario.md#dependency-unavailable-is-not-a-business-rule-rejection).
 
-**Current boundary:** this builder controls injected read model resolution. It is not a live projection subscription: appending through `EventLog` or executing a command does not automatically add those new events to this separate seed collection. If a test needs both prior log facts and injected state, arrange both explicitly. Use Chronicle's read-model scenarios to test projection behavior, rather than assuming this command harness updates every downstream view.
+**Current boundary:** this builder controls injected read model resolution. Appending through `EventLog` or executing a command does not automatically add those new events to this separate seed collection. If a test needs both prior log facts and injected state, arrange both explicitly. Observable queries combine both histories in a private log, so seeding the same facts in both places processes them twice for observation. Pins require a readable key. [Observable queries support children, joins, and reducers in default mode](./query-scenario.md#children-joins-and-shared-command-scenarios). Use Chronicle's read-model scenarios or hosted integration specs for projection behavior beyond the supported scenario boundaries.
 
 ## Multiple events
 

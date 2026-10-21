@@ -32,8 +32,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 /// the time it occurred, or a constant. Anything else is code, and the reaction keeps pointing at its file.
 /// <para>
 /// Observation and returned-command identity are recovered separately from the body. Tag and non-event-log
-/// observation still prevent declarative recovery. A handler returning events with an explicit append route or an
-/// identity provider remains code: released reaction productions have no routed binding.
+/// observation still prevent declarative recovery. A two-argument <c>EventForEventSourceId</c> wrapper preserves its
+/// explicit destination; extra routing metadata and identity providers remain code.
 /// </para>
 /// </remarks>
 public class ReactionReader(SemanticModels models)
@@ -62,14 +62,98 @@ public class ReactionReader(SemanticModels models)
     /// <param name="reactor">The type declaring the reactor.</param>
     /// <param name="handlers">The handlers of the reactor.</param>
     /// <returns>The reactions, one per observed event whose handler can be stated.</returns>
-    public IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers)
+    public IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers) =>
+        Read(reactor, handlers, ReactorMetadataReader.RoutesAppends(reactor, handlers, models));
+
+    /// <summary>
+    /// Gets the single expression a body returns.
+    /// </summary>
+    /// <param name="body">The body of the handler.</param>
+    /// <param name="model">The semantic model proving local accumulator uses.</param>
+    /// <returns>The expression, or <see langword="null"/> when the body does anything else.</returns>
+    internal static ExpressionSyntax? ReturnedBy(SyntaxNode body, SemanticModel model) => body switch
+    {
+        ExpressionSyntax expression => expression,
+        BlockSyntax { Statements: [ReturnStatementSyntax { Expression: { } expression }] } => expression,
+        BlockSyntax block when block.Statements.LastOrDefault() is ReturnStatementSyntax { Expression: { } expression } && ReturnedAccumulator.Read(expression, model) is not null => expression,
+        _ => null
+    };
+
+    /// <summary>
+    /// Gets the items of a literal collection.
+    /// </summary>
+    /// <param name="expression">The expression to read.</param>
+    /// <returns>The items, or <see langword="null"/> when the expression is not a literal collection.</returns>
+    internal static IReadOnlyList<ExpressionSyntax>? ItemsOf(ExpressionSyntax expression) => Unparenthesize(expression) switch
+    {
+        CollectionExpressionSyntax collection when collection.Elements.All(_ => _ is ExpressionElementSyntax) =>
+            [.. collection.Elements.OfType<ExpressionElementSyntax>().Select(_ => _.Expression)],
+        ArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
+        ImplicitArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
+        _ => null
+    };
+
+    /// <summary>
+    /// Gets literal collection items or the proven additions to a returned local list.
+    /// </summary>
+    /// <param name="expression">The returned collection.</param>
+    /// <param name="model">The semantic model resolving list uses.</param>
+    /// <returns>The original item expressions, or null when they cannot be proved.</returns>
+    internal static IReadOnlyList<ExpressionSyntax>? ItemsOf(ExpressionSyntax expression, SemanticModel model) =>
+        ItemsOf(expression) ?? ReturnedAccumulator.Read(expression, model);
+
+    /// <summary>
+    /// Gets the value a handler hands back, looking through a completed task.
+    /// </summary>
+    /// <param name="handler">The handler.</param>
+    /// <param name="returned">The expression the body returns.</param>
+    /// <param name="semanticModel">The model the body is read through.</param>
+    /// <param name="result">The type of the value handed back.</param>
+    /// <param name="asynchronous">Whether the value is handed back through a task.</param>
+    /// <returns>The expression of the value, or <see langword="null"/> when it is not handed back directly.</returns>
+    internal static ExpressionSyntax? ValueOf(
+        IMethodSymbol handler,
+        ExpressionSyntax returned,
+        SemanticModel semanticModel,
+        out ITypeSymbol? result,
+        out bool asynchronous)
+    {
+        result = handler.ReturnType;
+        asynchronous = false;
+        if (handler.ReturnType is not INamedTypeSymbol { TypeArguments: [var awaited] } task ||
+            task.OriginalDefinition.FullMetadataName() != TaskType)
+        {
+            return returned;
+        }
+
+        result = awaited;
+        asynchronous = true;
+        if (handler.IsAsync)
+        {
+            return returned;
+        }
+
+        return Unparenthesize(returned) is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
+            semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true } method &&
+            string.Equals(method.Name, FromResultMethod, StringComparison.Ordinal) &&
+            method.ContainingType.FullMetadataName() == "System.Threading.Tasks.Task"
+                ? argument.Expression
+                : null;
+    }
+
+    /// <summary>
+    /// Reads the declarative reactions with the reactor's append routing already classified.
+    /// </summary>
+    /// <param name="reactor">The type declaring the reactor.</param>
+    /// <param name="handlers">The handlers of the reactor.</param>
+    /// <param name="routesAppends">Whether returned events use an unsupported context append route.</param>
+    /// <returns>The declarative reactions.</returns>
+    internal IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers, bool routesAppends)
     {
         if (IsNarrowed(reactor, handlers))
         {
             return [];
         }
-
-        var routesAppends = ReactorMetadataReader.RoutesAppends(reactor);
 
         return handlers
             .GroupBy(_ => _.Parameters[0].Type, SymbolEqualityComparer.Default)
@@ -162,76 +246,11 @@ public class ReactionReader(SemanticModels models)
         expression is ParenthesizedExpressionSyntax parenthesized ? Unparenthesize(parenthesized.Expression) : expression;
 
     /// <summary>
-    /// Gets the single expression a body returns.
-    /// </summary>
-    /// <param name="body">The body of the handler.</param>
-    /// <returns>The expression, or <see langword="null"/> when the body does anything else.</returns>
-    static ExpressionSyntax? ReturnedBy(SyntaxNode body) => body switch
-    {
-        ExpressionSyntax expression => expression,
-        BlockSyntax { Statements: [ReturnStatementSyntax { Expression: { } expression }] } => expression,
-        _ => null
-    };
-
-    /// <summary>
     /// Gets the element type of a sequence, ignoring text.
     /// </summary>
     /// <param name="type">The type to inspect.</param>
     /// <returns>The element type, or <see langword="null"/> when the type is not a sequence.</returns>
     static ITypeSymbol? ElementOf(ITypeSymbol type) => EventReader.IsEvent(type) ? null : CollectionElements.ElementOf(type);
-
-    /// <summary>
-    /// Gets the items of a literal collection.
-    /// </summary>
-    /// <param name="expression">The expression to read.</param>
-    /// <returns>The items, or <see langword="null"/> when the expression is not a literal collection.</returns>
-    static IReadOnlyList<ExpressionSyntax>? ItemsOf(ExpressionSyntax expression) => Unparenthesize(expression) switch
-    {
-        CollectionExpressionSyntax collection when collection.Elements.All(_ => _ is ExpressionElementSyntax) =>
-            [.. collection.Elements.OfType<ExpressionElementSyntax>().Select(_ => _.Expression)],
-        ArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
-        ImplicitArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
-        _ => null
-    };
-
-    /// <summary>
-    /// Gets the value a handler hands back, looking through a completed task.
-    /// </summary>
-    /// <param name="handler">The handler.</param>
-    /// <param name="returned">The expression the body returns.</param>
-    /// <param name="semanticModel">The model the body is read through.</param>
-    /// <param name="result">The type of the value handed back.</param>
-    /// <param name="asynchronous">Whether the value is handed back through a task.</param>
-    /// <returns>The expression of the value, or <see langword="null"/> when it is not handed back directly.</returns>
-    static ExpressionSyntax? ValueOf(
-        IMethodSymbol handler,
-        ExpressionSyntax returned,
-        SemanticModel semanticModel,
-        out ITypeSymbol? result,
-        out bool asynchronous)
-    {
-        result = handler.ReturnType;
-        asynchronous = false;
-        if (handler.ReturnType is not INamedTypeSymbol { TypeArguments: [var awaited] } task ||
-            task.OriginalDefinition.FullMetadataName() != TaskType)
-        {
-            return returned;
-        }
-
-        result = awaited;
-        asynchronous = true;
-        if (handler.IsAsync)
-        {
-            return returned;
-        }
-
-        return Unparenthesize(returned) is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
-            semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true } method &&
-            string.Equals(method.Name, FromResultMethod, StringComparison.Ordinal) &&
-            method.ContainingType.FullMetadataName() == "System.Threading.Tasks.Task"
-                ? argument.Expression
-                : null;
-    }
 
     /// <summary>
     /// Determines whether a returned value is one Chronicle hands to a side effect handler as it is.
@@ -249,7 +268,7 @@ public class ReactionReader(SemanticModels models)
     /// </remarks>
     static bool IsHandedOver(ITypeSymbol result, bool asynchronous, IReadOnlyList<INamedTypeSymbol> created, bool sequence)
     {
-        var events = created.All(EventReader.IsEvent);
+        var events = created.All(IsEventEffect);
         var commands = created.All(CommandReader.IsCommand);
         if (!events && !commands)
         {
@@ -266,10 +285,49 @@ public class ReactionReader(SemanticModels models)
             return events && SymbolEqualityComparer.Default.Equals(result, created[0]);
         }
 
+        return IsHandedOverSequence(result, events);
+    }
+
+    static bool IsEventEffect(ITypeSymbol type) => EventReader.IsEvent(type) || type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId");
+
+    static bool IsHandedOverSequence(ITypeSymbol result, bool events)
+    {
         var element = ElementOf(result);
 
-        return element?.SpecialType == SpecialType.System_Object || (events && element is not null && EventReader.IsEvent(element));
+        return element?.SpecialType == SpecialType.System_Object || (events && element is not null && IsEventEffect(element));
     }
+
+    static bool IsSupportedHandler(IMethodSymbol handler) => !handler.IsGenericMethod && !handler.ReturnsVoid &&
+        !handler.HasAttribute(WellKnownTypeNames.ReplayAttribute) && handler.Parameters.Length <= 2 &&
+        handler.Parameters.Skip(1).All(parameter => parameter.Type.Is(WellKnownTypeNames.EventContext));
+
+    static List<ReactionEffect>? ReadEffects(ExpressionSyntax value, SemanticModel model, IMethodSymbol handler, bool sequence)
+    {
+        var items = sequence ? ItemsOf(value, model) : [value];
+        if (items is null || items.Count == 0)
+        {
+            return null;
+        }
+        var effects = items.Select(item => ReactionEffects.Read(item, model, handler)).ToList();
+
+        return effects.Exists(effect => effect is null) ? null : effects.OfType<ReactionEffect>().ToList();
+    }
+
+    static (ExpressionSyntax Value, ITypeSymbol Type, bool Asynchronous)? ReadValue(IMethodSymbol handler, SyntaxNode body, SemanticModel model)
+    {
+        if (ReturnedBy(body, model) is not { } returned)
+        {
+            return null;
+        }
+        if (ValueOf(handler, returned, model, out var result, out var asynchronous) is not { } value)
+        {
+            return null;
+        }
+
+        return result is null ? null : (value, result, asynchronous);
+    }
+
+    static bool InheritsContextRoute(ReactionEffect effect) => EventReader.IsEvent(effect.Type) && effect.Destination is null;
 
     /// <summary>
     /// Reads one handler.
@@ -279,52 +337,53 @@ public class ReactionReader(SemanticModels models)
     /// <returns>The <see cref="ReactionModel"/>, or <see langword="null"/> when the handler is code.</returns>
     ReactionModel? Read(IMethodSymbol handler, bool routesAppends)
     {
-        if (handler.IsGenericMethod ||
-            handler.ReturnsVoid ||
-            handler.HasAttribute(WellKnownTypeNames.ReplayAttribute) ||
-            handler.Parameters.Skip(1).Any(_ => !_.Type.Is(WellKnownTypeNames.EventContext)) ||
-            handler.Parameters.Length > 2 ||
-            HandlerBodies.Of(handler).ToList() is not [var body] ||
-            models.For(body.SyntaxTree) is not { } semanticModel ||
-            ReturnedBy(body) is not { } returned ||
-            ValueOf(handler, returned, semanticModel, out var result, out var asynchronous) is not { } value ||
-            result is null)
+        if (!IsSupportedHandler(handler))
         {
             return null;
         }
 
-        var sequence = ElementOf(result) is not null;
-        var items = sequence ? ItemsOf(value) : [value];
-        if (items is null || items.Count == 0)
+        return HandlerBodies.Of(handler).ToList() is [var body] && models.For(body.SyntaxTree) is { } semanticModel
+            ? ReadBody(handler, body, semanticModel, routesAppends) : null;
+    }
+
+    ReactionModel? ReadBody(IMethodSymbol handler, SyntaxNode body, SemanticModel semanticModel, bool routesAppends)
+    {
+        if (ReadValue(handler, body, semanticModel) is not { } returned)
+        {
+            return null;
+        }
+        var sequence = ElementOf(returned.Type) is not null;
+        if ((returned.Type.Is("Cratis.Arc.Chronicle.Reactors.CommandInvocation") || sequence || returned.Asynchronous) &&
+            new ReactionInvocations(models, Constraints).Read(returned.Value, semanticModel, handler, routesAppends) is { } invocation)
+        {
+            return invocation;
+        }
+        if (ReadEffects(returned.Value, semanticModel, handler, sequence) is not { } effects)
+        {
+            return null;
+        }
+        if (!IsHandedOver(returned.Type, returned.Asynchronous, [.. effects.Select(effect => effect.ReturnedType)], sequence))
+        {
+            return null;
+        }
+        if (routesAppends && effects.Exists(InheritsContextRoute))
         {
             return null;
         }
 
-        var creations = new List<(BaseObjectCreationExpressionSyntax Creation, INamedTypeSymbol Type)>();
-        foreach (var item in items)
-        {
-            if (Unparenthesize(item) is not BaseObjectCreationExpressionSyntax creation ||
-                semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol type ||
-                !InlineProductionShape.IsSupported(creation, semanticModel))
-            {
-                return null;
-            }
+        return BuildReaction(handler, effects, semanticModel);
+    }
 
-            creations.Add((creation, type));
-        }
-
-        if (!IsHandedOver(result, asynchronous, [.. creations.Select(_ => _.Type)], sequence) ||
-            (routesAppends && creations.Exists(item => EventReader.IsEvent(item.Type))))
-        {
-            return null;
-        }
-
+    ReactionModel? BuildReaction(IMethodSymbol handler, List<ReactionEffect> effects, SemanticModel semanticModel)
+    {
         var trigger = handler.Parameters[0];
         var context = handler.Parameters.Length > 1 ? handler.Parameters[1] : null;
         var produces = new List<ProducesModel>();
         var invokes = new List<InvocationModel>();
-        foreach (var (creation, type) in creations)
+        foreach (var effect in effects)
         {
+            var creation = effect.Creation;
+            var type = effect.Type;
             if (ReactionMappings.Read(creation, semanticModel, type, trigger, context) is not { } mappings)
             {
                 return null;
@@ -332,7 +391,7 @@ public class ReactionReader(SemanticModels models)
 
             if (EventReader.IsEvent(type))
             {
-                produces.Add(new(type.Name, null, mappings) { EventTypeIdentity = EventProducers.IdentityOf(type) });
+                produces.Add(new(type.Name, null, mappings) { EventTypeIdentity = EventProducers.IdentityOf(type), Destination = effect.Destination });
             }
             else
             {
@@ -342,7 +401,7 @@ public class ReactionReader(SemanticModels models)
 
         return new(trigger.Type.Name, produces, invokes)
         {
-            UnprovenBatch = Constraints?.UnprovenBatch([.. creations.Where(_ => EventReader.IsEvent(_.Type)).Select(_ => _.Type)])
+            UnprovenBatch = Constraints?.UnprovenBatch([.. effects.Where(_ => EventReader.IsEvent(_.Type)).Select(_ => _.Type)])
         };
     }
 }

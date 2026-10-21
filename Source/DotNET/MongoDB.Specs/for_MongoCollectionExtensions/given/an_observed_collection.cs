@@ -250,6 +250,14 @@ public class an_observed_collection : Specification
             BsonSerializer.LookupSerializer<BsonDocument>());
 
     /// <summary>
+    /// Builds the notification the shared stream publishes after it was reopened, when changes may have been missed.
+    /// It names no collection.
+    /// </summary>
+    /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the resynchronization.</returns>
+    protected static ChangeStreamDocument<BsonDocument> ResynchronizationNotice() =>
+        new(new BsonDocument("operationType", "invalidate"), BsonSerializer.LookupSerializer<BsonDocument>());
+
+    /// <summary>
     /// Waits until the given number of observations have attached to the shared database change stream.
     /// </summary>
     /// <param name="subscribers">The number of subscribers to wait for.</param>

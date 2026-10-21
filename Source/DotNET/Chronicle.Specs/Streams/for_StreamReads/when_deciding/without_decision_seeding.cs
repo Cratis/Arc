@@ -8,7 +8,7 @@ namespace Cratis.Arc.Chronicle.Streams.for_StreamReads.when_deciding;
 
 public class without_decision_seeding : given.a_stream_decision
 {
-    CommandScenario<DecideStream> _legacy;
+    CommandScenario<Cratis.Arc.Chronicle.Commands.for_CommandScenario.when_automatically_enabling_decision_reads.Ordinary> _legacy;
     Exception? _error;
     void Establish() => _legacy = new();
     void Because() => _error = Catch.Exception(() => _legacy.Given.ForEventSource(_id).OnRoute(_route).Events(new PriorFact("prior")));

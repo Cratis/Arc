@@ -18,6 +18,10 @@ public class when_selecting_metadata_loaded_queries : Specification
     Type _abstract;
     Type _conventionalAbstract;
     QueryDescriptor[] _descriptors;
+    QueryDescriptor[] _selfDescriptors;
+    Type _value;
+    QueryDescriptor[] _publicDescriptors;
+    MethodInfo[] _publicMethods;
 
     void Establish()
     {
@@ -45,10 +49,21 @@ public class when_selecting_metadata_loaded_queries : Specification
         _conventionalAbstract = assembly.GetType(typeof(ConventionalAbstractReadModel).FullName!)!;
         var selectedType = assembly.GetType(typeof(SelectedReadModel).FullName!)!.GetTypeInfo();
         _descriptors = selectedType.ToQueryDescriptors("output", 0, false, "api", [selectedType]).ToArray();
+        var selfType = assembly.GetType(typeof(SelfParameterModel).FullName!)!.GetTypeInfo();
+        _selfDescriptors = selfType.ToQueryDescriptors("output", 0, false, "api", [selfType]).ToArray();
+        _value = assembly.GetType(typeof(SelfParameterValue).FullName!)!;
+        var visibility = assembly.GetType(typeof(QueryVisibilityReadModel).FullName!)!.GetTypeInfo();
+        _publicMethods = visibility.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            .Where(method => method.IsValidQueryFor(visibility)).ToArray();
+        _publicDescriptors = visibility.ToQueryDescriptors("output", 0, false, "api", [visibility]).ToArray();
     }
 
     void Destroy() => _context.Dispose();
 
+    [Fact] void should_emit_no_proxy_for_any_nonpublic_visibility() => _publicDescriptors.Select(descriptor => descriptor.Method.Name).ShouldContainOnly("Public");
+    [Fact] void should_reject_nonpublic_methods_in_the_proxy_predicate() => _publicMethods.Select(method => method.Name).ShouldContainOnly("Public");
+    [Fact] void should_emit_only_queries_not_self_parameter_helpers() => _selfDescriptors.Select(_ => _.Method.Name).ShouldContainOnly("Collection", "Other", "Service", "All");
+    [Fact] void should_normalize_nullable_value_self_parameters_in_metadata() => _value.GetQueryMethods().Select(_ => _.Name).ShouldContainOnly("All");
     [Fact] void should_select_only_marked_queries() => _selected.Select(_ => _.Name).ShouldContainOnly("ById", "Observe");
     [Fact] void should_select_the_marked_overload() => _selected.Single(_ => _.Name == "ById").GetParameters()[0].ParameterType.FullName.ShouldEqual(typeof(string).FullName);
     [Fact] void should_not_emit_task_lifecycle_helpers() => _selected.Any(_ => _.Name.Contains("Replay", StringComparison.Ordinal)).ShouldBeFalse();

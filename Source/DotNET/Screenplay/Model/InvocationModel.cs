@@ -8,4 +8,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// </summary>
 /// <param name="CommandName">The name of the command invoked.</param>
 /// <param name="Mappings">The mappings from the triggering occurrence onto the properties of the command.</param>
-public record InvocationModel(string CommandName, IEnumerable<PropertyMappingModel> Mappings);
+public record InvocationModel(string CommandName, IEnumerable<PropertyMappingModel> Mappings)
+{
+    /// <summary>
+    /// Gets the refusal branches in first-match declaration order.
+    /// </summary>
+    public IReadOnlyList<InvocationRefusalModel> OnRefused { get; init; } = [];
+}

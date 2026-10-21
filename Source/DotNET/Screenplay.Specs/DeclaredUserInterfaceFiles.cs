@@ -48,6 +48,10 @@ public class DeclaredUserInterfaceFiles : IUserInterfaceFiles
                 string.Equals(ScreenFiles.DirectoryOf(_), directory, StringComparison.Ordinal));
 
     /// <inheritdoc/>
+    public IEnumerable<string> Under(string directory) => _files.Select(_ => _.Path)
+        .Where(_ => ScreenFiles.IsUserInterfaceFile(_) && _.StartsWith($"{directory.TrimEnd('/')}/", StringComparison.Ordinal));
+
+    /// <inheritdoc/>
     public string? Contents(string path) =>
         _files.Find(_ => string.Equals(_.Path, path, StringComparison.Ordinal)).Text;
 }

@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using Cratis.Arc.Authorization;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -40,6 +41,7 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     protected ClaimsPrincipal _principal;
     protected IServiceProvider _guardedServiceProvider;
     protected object _streamingData;
+    protected IServiceProvider _admissionServices;
     protected string[] _queryIds = [FirstQueryId];
     protected int _unregisteredCount;
     protected IObservableQueryEmissionGuards _configuredGuards;
@@ -66,10 +68,13 @@ public class a_guarded_connection : an_observable_query_demultiplexer
         _principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "the-caller")], "test"));
 
         var services = new ServiceCollection();
+        services.AddSingleton(_fallbackAuthorization);
+        services.AddSingleton(_performers);
         services.AddSingleton(new TestEmissionGuard(Evaluate));
         var guardTypes = new List<Type> { typeof(TestEmissionGuard) };
         ConfigureGuards(services, guardTypes);
         _guardedServiceProvider = services.BuildServiceProvider();
+        _admissionServices = _guardedServiceProvider;
 
         var types = Substitute.For<ITypes>();
         types.FindMultiple<IGuardObservableQueryEmission>().Returns(guardTypes.ToArray());
@@ -130,6 +135,34 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     /// <param name="guardTypes">The guard types discovery yields, in order.</param>
     protected virtual void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
     {
+    }
+
+    /// <summary>
+    /// Supplies a real guest policy declaration for host-admission specs over a stubbed query pipeline.
+    /// </summary>
+    /// <param name="services">The host services inspected at admission.</param>
+    protected void ConfigureGuestQuery(IServiceCollection services)
+    {
+        var anonymous = Substitute.For<IInstancesOf<IAnonymousEvaluator>>();
+        anonymous.GetEnumerator().Returns(_ => new IAnonymousEvaluator[] { new AnonymousEvaluator() }.AsEnumerable().GetEnumerator());
+        var attributes = Substitute.For<IInstancesOf<IAuthorizationAttributeEvaluator>>();
+        attributes.GetEnumerator().Returns(_ => new IAuthorizationAttributeEvaluator[] { new AuthorizationAttributeEvaluator() }.AsEnumerable().GetEnumerator());
+        services.AddSingleton(new AuthorizationDeclarations(anonymous, attributes));
+        services.AddSingleton<IAuthorizationPolicyRuntime>(new ArcAuthorizationPolicyRuntime(
+            [new AuthorizationPolicyRegistration("Guest", typeof(GuestPolicy)) { EvaluatesAnonymous = true }]));
+        _performer.Type.Returns(typeof(GuestReadModel));
+        _performer.Name.Returns(new QueryName(nameof(GuestReadModel.Read)));
+    }
+
+    public record GuestReadModel
+    {
+        [Authorize(Policy = "Guest")]
+        public static string Read() => "public";
+    }
+
+    public class GuestPolicy : IAuthorizationPolicy
+    {
+        public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken) => ValueTask.FromResult(true);
     }
 
     /// <summary>

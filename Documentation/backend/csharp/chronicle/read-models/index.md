@@ -14,6 +14,7 @@ A read model can be injected into command-scoped code because it is **resolvable
 - a fluent [`IProjectionFor<T>`](/chronicle/projections/) projection
 - a standalone model-bound projection (`[FromEvent<T>]`, `[SetFrom<T>]`, `[SetValue<T>]`)
 - an [`IReducerFor<T>`](/chronicle/reducers/) reducer
+- a [self-reducing read model](/chronicle/reducers/self-reducing-read-models/) discovered by Chronicle **19.58.0 or later**
 
 You declare the dependency identically in every case. The backing still matters for freshness, serialization, and compliance release; it is not always a materialized document.
 
@@ -30,6 +31,45 @@ This restriction concerns Chronicle ownership only. Arc leaves registrations fro
 The `[ReadModel]` attribute does **not** make a type injectable into commands. `[ReadModel]` is an Arc concept used for queries, and it can be backed by stores other than Chronicle — Entity Framework Core, for example. Injection into command scope only makes sense for a type that is resolvable by key, and key resolution is owned by the backing provider. Chronicle registers the read models it can resolve; a read model backed by another provider is registered by that provider, not by Chronicle.
 
 The practical consequence: adding `[ReadModel]` to a record with no projection or reducer behind it will not make it appear in a validator. Add the backing artifact.
+
+## Self-reducing read models
+
+When a projection cannot express a state transition, you can put the reduction on the model itself instead of creating a separate `IReducerFor<T>`. Use Chronicle **19.58.0 or later** in your application. Arc remains compatible with older Chronicle clients, but those clients do not automatically discover this backing kind.
+
+This complete model declaration assumes an Arc host with [Chronicle configured](../add-event-sourcing.mdx); it is not a complete host:
+
+```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Queries.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.ReadModels;
+
+namespace Banking.Ledgers;
+
+[ReadModel]
+public record LedgerBalance(EventSourceId Id, decimal Balance)
+{
+    public static LedgerBalance Reduce(FundsAdded @event, LedgerBalance? current, EventContext context) =>
+        new(context.EventSourceId, (current?.Balance ?? 0) + @event.Amount);
+
+    public static LedgerBalance? Reduce(LedgerClosed @event, LedgerBalance? current) => null;
+
+    public static async Task<LedgerBalance?> ById(IReadModels readModels, EventSourceId id) =>
+        await readModels.GetInstanceById<LedgerBalance>(id);
+}
+
+[EventType]
+public record FundsAdded(decimal Amount);
+
+[EventType]
+public record LedgerClosed;
+```
+
+`Reduce` receives the event and nullable current state; a null result removes the state. `ById` is an ordinary query. You do **not** need `RequireQueryAttribute`: Arc excludes any method accepting its own read-model type, regardless of name, parameter position, or nullability. Only `ById` becomes an endpoint and TypeScript query proxy. Apply [query authorization](../../queries/model-bound/authorization.md) before exposing private data.
+
+For command injection, Arc claims a concrete, non-generic type listed in Chronicle's reducer artifacts only when it has at least one eligible **public static nongeneric** `Reduce(event, current[, EventContext])`. The first parameter may be any class other than `object`, or an interface; it does not need `[EventType]`. Chronicle's event registry determines which registered concrete events match it, including explicitly registered events without an attribute. `current` is the exact nullable model type (nullable-oblivious declarations are also accepted). Return the model, nullable model, or `Task` of either. By-reference, optional, and `params` parameters are not eligible. A classic `IReducer`/`IReducerFor<T>` implementation is not a self model, and explicitly nominating a plain reducer class does not make that class injectable as its own read model.
+
+Self models use the same command-key lookup and `Release(instance)` as other Chronicle backings, not MongoDB fallback. Their materialized/passive freshness and absence follow [Chronicle's self-reducer contract](/chronicle/reducers/self-reducing-read-models/). Injecting them is still an advisory snapshot, **not concurrency protection**. Screenplay recognizes the same reducer shape, lists observed event types it can prove from `[EventType]` (including inherited markers), and reports the imperative fold as lost. When a parameter is an interface or unmarked class and its registered concrete events cannot be determined from source, it reports incomplete observed-event coverage rather than inventing a complete list. It does not translate reduction code into projection mappings.
 
 ## How an instance is resolved
 
@@ -57,7 +97,7 @@ Step by step:
 3. **Guard** — if no usable identity is available, resolution fails with [`UnableToResolveReadModelFromCommandContext`](./failures.md#unabletoresolvereadmodelfromcommandcontext).
 4. **Store query** — Chronicle's read model store is queried by the resolved identity.
 5. **Subject release** — if the instance exists, Arc additionally calls `Release(instance)`, whether or not the command declares a compliance `Subject`. It does not pass the command subject. Chronicle resolves the release subject from the instance; materialized state may already have been released server-side. See [Subject](../compliance/subject.md).
-6. **Result** — the instance is returned, or `null` when the projection instance does not exist.
+6. **Result** — the instance is returned, or `null` when a materialized or reducer-backed instance does not exist. A never-created passive projection can instead return a default-valued instance; see [absence and passive projections](./injecting-into-commands.md).
 
 Resolution happens exactly once per command. The same instance is handed to the validator, `Provide()`, and `Handle()`.
 

@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Http;
+using Cratis.Arc.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -40,6 +41,8 @@ public class ClientEnumerableObservableSSE<T>(
         var hasDeliveredEmission = false;
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, context.RequestAborted);
+        using var telemetry = new ObservableQueryTelemetry(context.RequestServices, queryContext.Name.Value, WellKnownTelemetryNames.ServerSentEventsTransport);
+        telemetry.Start();
 
         try
         {
@@ -96,9 +99,11 @@ public class ClientEnumerableObservableSSE<T>(
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
                 var sseMessage = $"data: {json}\n\n";
 
+                using var push = telemetry.BeginPush();
                 try
                 {
                     await context.Write(sseMessage, linkedCts.Token);
+                    push.Delivered();
                     hasDeliveredEmission = true;
                 }
                 catch (Exception ex)

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using Cratis.Arc.DependencyInjection;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -36,6 +37,7 @@ internal static class ArcServiceBindings
             else
             {
                 bindings.Add(services[index]);
+                ProtectedDecisionRegistrationOrigins.For(services).Record(services[index], new(IsConvention: true));
             }
         }
 

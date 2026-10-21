@@ -46,4 +46,23 @@ public class SemanticModels(IReadOnlyList<Compilation> compilations)
 
         return _models[tree] = null;
     }
+
+    /// <summary>
+    /// Finds a method's source declaration across the analyzed projects, including metadata project references.
+    /// </summary>
+    /// <param name="method">The method as seen by the consuming compilation.</param>
+    /// <returns>The source method from its owning assembly, or null when that source was not analyzed.</returns>
+    internal IMethodSymbol? SourceOf(IMethodSymbol method)
+    {
+        if (method.OriginalDefinition.GetDocumentationCommentId() is not { } identity)
+        {
+            return null;
+        }
+
+        return compilations.Where(compilation => compilation.Assembly.Identity.Equals(method.ContainingAssembly.Identity))
+            .SelectMany(compilation => DocumentationCommentId.GetSymbolsForDeclarationId(identity, compilation))
+            .OfType<IMethodSymbol>().FirstOrDefault(candidate =>
+                candidate.DeclaringSyntaxReferences.Length > 0 &&
+                candidate.ContainingAssembly.Identity.Equals(method.ContainingAssembly.Identity));
+    }
 }

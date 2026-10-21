@@ -19,5 +19,5 @@ public record ReactionModel(string EventName, IEnumerable<ProducesModel> Produce
     /// <summary>
     /// Gets why the returned batch cannot be proven equivalent to per-fact reaction appends.
     /// </summary>
-    internal string? UnprovenBatch { get; init; }
+    internal ReactionBatchGap? UnprovenBatch { get; init; }
 }

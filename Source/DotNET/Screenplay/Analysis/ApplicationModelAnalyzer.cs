@@ -53,6 +53,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         {
             Files = userInterfaceFiles,
             AuthoringOnlyConstructs = options.AuthoringOnlyConstructs,
+            MaximumExecutableModelVersion = options.MaximumExecutableModelVersion,
             ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8)
         };
         var diagnostics = whole.Diagnostics;
@@ -69,8 +70,9 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         }
 
         whole.AggregateRoots.Report(diagnostics);
-        whole.Elsewhere.Report(diagnostics);
-        var joined = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
+        var retained = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
+        whole.Elsewhere.ReadRoutes(userInterfaceFiles, ordered.Select((compilation, index) => SourcePaths.RootOf(compilation, catalogs[index])), retained, diagnostics);
+        var joined = whole.Elsewhere.Apply(retained);
         var slices = ReadModelPlacement.Place(
             Specified(projects, joined, diagnostics, new HeldValues(whole.Models)),
             whole.ReadModels,
@@ -104,19 +106,19 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 domain);
         }
 
-        return new(
-            new ApplicationModel(
-                domain,
-                options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
-                whole.Types.Concepts,
-                new PolicyCatalog(ordered, domain, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
-                slices,
-                whole.Types.Types)
-            {
-                Imports = imports,
-                EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
-            },
-            diagnostics.All);
+        var model = new ApplicationModel(
+            domain,
+            options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
+            whole.Types.Concepts,
+            new PolicyCatalog(ordered, domain, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
+            slices,
+            whole.Types.Types)
+        {
+            Imports = imports,
+            EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
+        };
+
+        return new(UuidComparisonVersionAdmission.Apply(DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics), options.MaximumExecutableModelVersion, diagnostics), diagnostics.All);
     }
 
     /// <summary>

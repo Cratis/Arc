@@ -127,7 +127,7 @@ public partial class ObservableQueryDemultiplexer
             Protocol = "SSE",
             Send = (message, operationToken) => SendSseMessage(state, message, operationToken)
         };
-        var wasUnauthorized = await EstablishSubscription(session, context.RequestServices);
+        var wasUnauthorized = await EstablishSubscription(session, context);
 
         context.SetStatusCode(wasUnauthorized ? 401 : 200);
     }

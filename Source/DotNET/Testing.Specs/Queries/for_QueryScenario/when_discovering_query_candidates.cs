@@ -23,10 +23,10 @@ public class when_discovering_query_candidates : Specification
         _privateStreamResult = await _scenario.Perform("PrivateStream");
     }
 
-    [Fact] void should_register_only_two_queries() => _providers.Performers.Count().ShouldEqual(2);
+    [Fact] void should_register_only_one_query() => _providers.Performers.Count().ShouldEqual(1);
     [Fact] void should_register_the_public_query() => _providers.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(ScenarioQueryCandidates).FullName}.PublicQuery").ShouldBeTrue();
-    [Fact] void should_register_the_internal_query() => _providers.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(ScenarioQueryCandidates).FullName}.InternalQuery").ShouldBeTrue();
-    [Fact] void should_perform_the_internal_query() => ((ScenarioQueryCandidates)_internalResult.Data).Name.ShouldEqual("Internal");
+    [Fact] void should_not_register_the_internal_query() => _providers.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(ScenarioQueryCandidates).FullName}.InternalQuery").ShouldBeFalse();
+    [Fact] void should_not_perform_the_internal_query() => _internalResult.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_treat_a_private_stream_as_a_query() => _privateStreamResult.IsSuccess.ShouldBeFalse();
 
     void Destroy()

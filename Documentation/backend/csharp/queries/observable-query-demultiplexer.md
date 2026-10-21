@@ -140,9 +140,13 @@ Tombstones are bounded: the current implementation retains them for two minutes 
 
 For subject-backed collections, omitted `transferMode` uses legacy snapshot-plus-delta behavior; `full` sends snapshots only; `delta` sends an initial snapshot then changes without full data. See [change streams](change-stream.md) for the first/subsequent emission matrix. Arbitrary subjects do not automatically implement paging just because subscription metadata requests it.
 
+Paging metadata belongs to collection results. Single-result subjects, including strings and value types, report `PagingInfo.NotPaged` rather than copying `TotalItems` from an inner observation. Collection delta emissions keep their paging metadata even when they omit the full data snapshot. This only controls the result envelope; it does not normalize incoming paging arguments or change how an application reads its sources. For MongoDB queries that compose observations, see [auxiliary sources](../mongodb/observing-collections.md#compose-a-primary-observation-with-auxiliary-sources).
+
 ## Authorization and exposure
 
-The hub transport endpoints themselves allow anonymous access; each subscription goes through the query pipeline's authorization filters. The same [model-bound authorization](model-bound/authorization.md) rules apply to a subscription as to a one-shot request. WebSocket identity is captured at upgrade. SSE subscription identity is captured from its subscribe POST; consistently send the application's normal credentials on connection/control requests.
+The hub transport endpoints themselves allow anonymous access so one connection can carry both public and protected queries. Before running each query, the hub applies the host's default authorization: ASP.NET Core's `FallbackPolicy`, or the Arc Core host's requirement for an authenticated caller when authentication handlers are registered. A query marked with Arc's `[AllowAnonymous]`, or whose effective declaration consists entirely of opted-in guest policies, bypasses that host fallback just as its direct endpoint does. The query pipeline still evaluates its own authorization filters and guest policies. A fallback denial or failure sends `Unauthorized` without running the query; SSE subscribe also returns 401. The SSE GET and unsubscribe routes do not execute queries.
+
+The same [model-bound authorization](model-bound/authorization.md) rules apply to a subscription as to a one-shot request. WebSocket credentials come from the live upgrade request; SSE credentials come from the live subscribe POST. Consistently send the application's normal credentials on connection/control requests.
 
 The SSE control handlers verify that the POST caller is the caller that opened the GET stream. The identity is captured once when the stream opens - while that request is still in flight, so the retained context is never read again - and each subscribe and unsubscribe is compared against it on the identity identifier claim and authentication state. A mismatch returns 404, exactly as an unknown connection ID does, so the endpoints never confirm that another caller's connection exists.
 
@@ -150,7 +154,7 @@ The display name is not part of that comparison, because it is mutable and a str
 
 A connection opened by an unauthenticated caller carries no identity to bind to, so ownership is not distinguishable between anonymous callers. Treat the SSE connection ID as sensitive connection-control data rather than as an authorization policy, and do not publish or unnecessarily log connection IDs. Query authorization still checks the subscribe POST's right to read the query, which is a separate question from ownership of the destination stream. The anonymous [health feed](query-health.md) includes connection/subscriber metadata and needs explicit protection too.
 
-The initial verdict does not automatically revoke a long-lived stream. Use [emission guards](observable-query-emission-guards.md) to check current permission/session state during delivery.
+The initial verdict does not automatically revoke a long-lived stream. Use [emission guards](observable-query-emission-guards.md) to check current permission/session state during delivery. Guards also run before the hub sends a non-streaming query's one-shot result, with `IsFirstEmission=true` and `IsSnapshot=true`. A denied snapshot sends `Unauthorized`; a suppressed snapshot sends no result, error, or denial frame and ends without a continuing subscription. An SSE subscribe POST still returns 200 for suppression.
 
 ## Keep-alive
 

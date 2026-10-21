@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
+using System.Security.Claims;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -20,6 +21,9 @@ public class an_observable_query_demultiplexer : Specification
     protected IServiceProvider _serviceProvider;
     protected IOptions<ArcOptions> _arcOptions;
     protected IObservableQueryEmissionGuards _emissionGuards;
+    protected IEndpointFallbackAuthorization _fallbackAuthorization;
+    protected IQueryPerformerProviders _performers;
+    protected IQueryPerformer _performer;
     protected ILogger<ObservableQueryDemultiplexer> _logger;
     protected ObservableQueryDemultiplexer _hub;
     protected readonly condition_pulse _signals = new();
@@ -40,7 +44,19 @@ public class an_observable_query_demultiplexer : Specification
 
         // A real container — the hub creates a per-subscription IServiceScope from this, which a bare
         // NSubstitute mock cannot satisfy (it has no working IServiceScopeFactory to resolve).
-        _serviceProvider = new ServiceCollection().BuildServiceProvider();
+        _fallbackAuthorization = Substitute.For<IEndpointFallbackAuthorization>();
+        _fallbackAuthorization.IsAuthorized(Arg.Any<IHttpRequestContext>(), Arg.Any<ClaimsPrincipal>(), Arg.Any<CancellationToken>()).Returns(true);
+        _performers = Substitute.For<IQueryPerformerProviders>();
+        _performer = Substitute.For<IQueryPerformer>();
+        _performers.TryGetPerformersFor(Arg.Any<FullyQualifiedQueryName>(), out Arg.Any<IQueryPerformer?>()).Returns(call =>
+        {
+            call[1] = _performer;
+            return true;
+        });
+        _serviceProvider = new ServiceCollection()
+            .AddSingleton(_fallbackAuthorization)
+            .AddSingleton(_performers)
+            .BuildServiceProvider();
 
         _arcOptions = Options.Create(new ArcOptions());
 
@@ -56,6 +72,12 @@ public class an_observable_query_demultiplexer : Specification
     protected void UseRealQueryContextManager()
     {
         _queryContextManager = new QueryContextManager();
+        CreateDemultiplexer();
+    }
+
+    protected void UseServiceProvider(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
         CreateDemultiplexer();
     }
 

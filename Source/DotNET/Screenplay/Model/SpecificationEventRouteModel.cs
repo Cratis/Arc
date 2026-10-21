@@ -17,6 +17,21 @@ public record SpecificationEventRouteModel(string? Source, string? Stream, Liter
     public static readonly SpecificationEventRouteModel NoStream = new(null, null, null);
 
     /// <summary>
+    /// Gets the model and effective stored names, or null for an unrouted occurrence.
+    /// </summary>
+    public RouteIdentity? Identity => Source is null ? null : new(Source, Stream, StoredSource ?? Source, StoredStream ?? Stream);
+
+    /// <summary>
+    /// Gets the stored source name, including names inherited from a command declaration.
+    /// </summary>
+    public string? StoredSource { get; init; }
+
+    /// <summary>
+    /// Gets the stored stream name, including names inherited from a command declaration.
+    /// </summary>
+    public string? StoredStream { get; init; }
+
+    /// <summary>
     /// Gets the concrete composite stream-id parts, in declaration order.
     /// </summary>
     public IReadOnlyList<PropertyMappingModel> StreamIdParts { get; init; } = [];

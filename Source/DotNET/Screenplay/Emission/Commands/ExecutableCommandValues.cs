@@ -50,6 +50,8 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         _ => false
     };
 
+    static bool ReadsProtected(ConditionModel condition, CommandAuthoringModel authoring) => authoring.Reads.Any(read => read.Protected && Reads(condition, read.Alias));
+
     static bool NeedsLegacyFixtures(CommandAuthoringModel authoring, List<SpecificationModel> scenarios)
     {
         if (authoring.GeneratedParameters)
@@ -80,12 +82,18 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         return !ResponseOnlyScenarios.IsResponseOnly(specification) && SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true };
     }
 
+    CommandModel WithoutAdvisoryReads(CommandModel command, ApplicationModel model, string location) => AuthoringDeclarations.WithoutReads(
+        command,
+        model,
+        command.Authoring?.Reads.Where(read => !read.Protected).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal) ?? [],
+        diagnostics,
+        location,
+        $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code");
+
     CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
-        if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent)
-        {
-            command = AuthoringDeclarations.WithoutReadModels(command, model, readIntent.Reads.Select(read => read.Name).ToHashSet(StringComparer.Ordinal), diagnostics, location);
-        }
+        command = new UnavailableCommandValues(diagnostics).Apply(command, model, $"{location}.{command.Name}");
+        command = authoringOnlyConstructs ? command : WithoutAdvisoryReads(command, model, location);
         if (command.Authoring is not { } authoring)
         {
             return command;
@@ -159,8 +167,8 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
             Operations = authoringOnlyConstructs ? authoring.Operations : [],
             Route = authoringOnlyConstructs || maximumVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8) ? authoring.Route : null,
-            Reads = authoringOnlyConstructs ? authoring.Reads : [],
-            Requirements = authoringOnlyConstructs ? authoring.Requirements : []
+            Reads = authoringOnlyConstructs ? authoring.Reads : authoring.Reads.Where(read => read.Protected).ToList(),
+            Requirements = authoringOnlyConstructs ? authoring.Requirements : authoring.Requirements.Where(requirement => ReadsProtected(requirement.Condition, authoring)).ToList()
         };
         if (!capped && authoring.Identifier is not null && retained.Identifier is null)
         {
@@ -173,6 +181,14 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var productions = new List<ProducesModel>();
         foreach (var production in command.Produces)
         {
+            var destinationPaths = production.DestinationDependencies
+                .Concat(production.Destination is PropertyPathSource destination ? [destination.Path] : [])
+                .Concat(production.Route?.StreamId is { } streamId ? [streamId] : []);
+            if (destinationPaths.Any(path => blocked.Any(name => Reads(path, name))))
+            {
+                Report(command, location, $"Production '{production.EventName}' was omitted because its explicit destination or route reads an unadmitted generated value; it was not redirected to command context");
+                continue;
+            }
             if (production.When is not null && blocked.Any(name => Reads(production.When, name)))
             {
                 Report(command, location, $"Production '{production.EventName}' was omitted because its when condition reads an unadmitted generated value");

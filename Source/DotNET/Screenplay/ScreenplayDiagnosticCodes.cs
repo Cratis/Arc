@@ -314,15 +314,11 @@ public static class ScreenplayDiagnosticCodes
     public const string UndeclarableShape = "SP0035";
 
     /// <summary>
-    /// A screen reads through a query a different slice of the application declares.
+    /// Reserved diagnostic for cross-slice query bindings; no longer reported.
     /// </summary>
     /// <remarks>
-    /// A screen aggregating several read models is what an Event Modeling screen routinely is, and an import naming a
-    /// query the model really holds is a binding rather than the noise every other unmatched import is. A <c>data</c>
-    /// directive names a query by the bare name its slice declares it under, though, and an application declares
-    /// <c>All</c> once per read model, so writing one down would say which query only by accident
-    /// (Cratis/Screenplay#28). Naming the screen, the query and the slice declaring it is what a reader needs to see
-    /// the binding the document is missing, and what turns it into one the moment a reference can carry the slice.
+    /// Resolved cross-slice queries now use qualified references. Unread component bindings continue to report
+    /// <see cref="ScreenStructureNotInferred"/>; unmatched imports alone do not establish a query binding.
     /// </remarks>
     public const string CrossSliceQueryBinding = "SP0036";
 
@@ -379,6 +375,10 @@ public static class ScreenplayDiagnosticCodes
     /// Reported as a warning during both analysis and emission, at the declaring specification type (or its slice
     /// when no source declaration is available). Emission can also withhold a scenario whose command or concrete
     /// event sources cannot be represented, or whose generated fixtures or response expectations were not recovered.
+    /// A denial also requires an emitted authorization gate, exactly recovered policies and caller, and no other
+    /// outcome. The pinned reference runner must prove that the stated gate denies that caller, and visible
+    /// command code must not supply another authorization denial. An absent gate, inexact policy or caller,
+    /// allowed or undecidable caller, code-level denial, or combined outcome is reported here.
     /// </para>
     /// </remarks>
     public const string UnreadableSpecification = "SP0039";
@@ -591,7 +591,8 @@ public static class ScreenplayDiagnosticCodes
     public const string EnumAliasNotRepresentable = "SP0069";
 
     /// <summary>
-    /// Returned event batch constraints cannot be proven equivalent to per-fact reaction appends.
+    /// A returned direct or refusal batch has unrepresented or unreadable constraints, early stream closure, or requires atomic
+    /// reaction appends above the executable version cap.
     /// </summary>
     public const string UnprovenReactionBatchConstraints = "SP0070";
 
@@ -616,7 +617,7 @@ public static class ScreenplayDiagnosticCodes
     public const string SpecificationCallerNotRepresentable = "SP0075";
 
     /// <summary>
-    /// A parameterized theory scenario cannot yet be stated as a case table.
+    /// A parameterized scenario stays per row or a theory is omitted because a faithful case table could not be proved.
     /// </summary>
     public const string SpecificationCasesNotFolded = "SP0076";
 
@@ -628,4 +629,21 @@ public static class ScreenplayDiagnosticCodes
     /// Unread callbacks, routes and post-success behavior remain <see cref="ScreenStructureNotInferred"/>.
     /// </remarks>
     public const string ScreenCompositionNotRepresentable = "SP0077";
+
+    /// <summary>
+    /// A recovered generated-concept rule is executable but its consistency is unproven.
+    /// </summary>
+    public const string UnprovenGeneratedConceptRule = "SP0078";
+
+    /// <summary>
+    /// A command read protected by Arc cannot be stated as a protected command read.
+    /// </summary>
+    /// <remarks>
+    /// Information carrying the reason: the read, its key or its use is outside what the executable model protects
+    /// (a stream-scoped read model, for instance), or the model states a different absence message than the code does.
+    /// The dependency stays in code and is never emitted as an unguarded read. It is a warning when
+    /// <c>MaximumExecutableModelVersion</c> is capped below ESM v25, because every protected read of the document is then
+    /// not stated as protected. A refusal the generator itself caused is not this diagnostic but an error.
+    /// </remarks>
+    public const string UnprotectableCommandRead = "SP0079";
 }

@@ -58,7 +58,7 @@ public static class MongoCollectionExtensions
         Expression<Func<TDocument, bool>>? filter,
         FindOptions? options = null) => collection.Observe(filter, false, options);
 
-    /// <summary>Observe a single matching document using the current query context.</summary>
+    /// <summary>Observe a single matching document without query-context paging, sorting, or counting.</summary>
     /// <param name="collection">The collection to observe.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional find options.</param>
@@ -80,7 +80,7 @@ public static class MongoCollectionExtensions
         FilterDefinition<TDocument>? filter = null,
         FindOptions? options = null) => collection.Observe(filter, false, options);
 
-    /// <summary>Observe a single matching document using the current query context.</summary>
+    /// <summary>Observe a single matching document without query-context paging, sorting, or counting.</summary>
     /// <param name="collection">The collection to observe.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional find options.</param>
@@ -91,7 +91,7 @@ public static class MongoCollectionExtensions
         FilterDefinition<TDocument>? filter = null,
         FindOptions? options = null) => collection.ObserveSingle(filter, false, options);
 
-    /// <summary>Observe a document by id using the current query context.</summary>
+    /// <summary>Observe a document by id without query-context paging, sorting, or counting.</summary>
     /// <param name="collection">The collection to observe.</param>
     /// <param name="id">The document id.</param>
     /// <typeparam name="TDocument">The document type.</typeparam>
@@ -132,7 +132,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="filter">Optional filter.</param>
-    /// <param name="ignoreQueryContext">Whether to read the full filtered source without client paging, sorting, or total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>
@@ -146,8 +146,10 @@ public static class MongoCollectionExtensions
         bool ignoreQueryContext,
         FindOptions? options = null)
     {
+        // Single-result observations never apply query paging.
+        _ = ignoreQueryContext;
         filter ??= _ => true;
-        return collection.ObserveSingle(() => collection.Find(filter, options), filter, ignoreQueryContext);
+        return collection.ObserveSingle(() => collection.Find(filter, options), filter);
     }
 
     /// <summary>
@@ -194,7 +196,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="filterDefinition">The MongoDB filter.</param>
-    /// <param name="ignoreQueryContext">Whether to read the full filtered source without client paging, sorting, or total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>
@@ -209,15 +211,17 @@ public static class MongoCollectionExtensions
         bool ignoreQueryContext,
         FindOptions? options = null)
     {
+        // Single-result observations never apply query paging.
+        _ = ignoreQueryContext;
         filterDefinition ??= FilterDefinition<TDocument>.Empty;
-        return collection.ObserveSingle(() => collection.Find(filterDefinition, options), filterDefinition, ignoreQueryContext);
+        return collection.ObserveSingle(() => collection.Find(filterDefinition, options), filterDefinition);
     }
 
     /// <summary>
-    /// Observe a single matching document with the query-context option before the MongoDB filter.
+    /// Observe a single matching document with the compatibility query-context option before the MongoDB filter.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
-    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
@@ -237,7 +241,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="id">The identifier of the document to observe.</param>
-    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
     /// <returns>
@@ -246,8 +250,10 @@ public static class MongoCollectionExtensions
     /// </returns>
     public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id, bool ignoreQueryContext)
     {
+        // Single-result observations never apply query paging.
+        _ = ignoreQueryContext;
         var filter = Builders<TDocument>.Filter.Eq(new StringFieldDefinition<TDocument, TId>("_id"), id);
-        return collection.ObserveSingle(() => collection.Find(filter), filter, ignoreQueryContext);
+        return collection.ObserveSingle(() => collection.Find(filter), filter);
     }
 
     /// <summary>
@@ -255,9 +261,8 @@ public static class MongoCollectionExtensions
     /// explicit initial query and filter.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
-    /// <param name="findCall">Produces the initial, sorted and paged query for the observed document.</param>
+    /// <param name="findCall">Produces the initial query for the observed document.</param>
     /// <param name="filter">The filter identifying the observed document.</param>
-    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>An <see cref="ISubject{T}"/> with a single instance of the type.</returns>
     /// <remarks>
@@ -271,13 +276,12 @@ public static class MongoCollectionExtensions
     static ISubject<TDocument> ObserveSingle<TDocument>(
          this IMongoCollection<TDocument> collection,
          Func<IFindFluent<TDocument, TDocument>> findCall,
-         FilterDefinition<TDocument> filter,
-         bool ignoreQueryContext)
+         FilterDefinition<TDocument> filter)
     {
         return collection.Observe<TDocument, TDocument>(
             findCall,
             filter,
-            ignoreQueryContext,
+            ignoreQueryContext: true,
             (documents, _, observable) => observable.OnNext(documents.FirstOrDefault()!));
     }
 
@@ -303,8 +307,7 @@ public static class MongoCollectionExtensions
         var filterRendered = filter.Render(new(collection.DocumentSerializer, collection.Settings.SerializerRegistry));
         var matchesEverything = filterRendered.ElementCount == 0;
         var watcher = Internals.ServiceProvider.GetRequiredService<IMongoDBWatcher>();
-        var databaseChanges = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName);
-        var collectionName = collection.CollectionNamespace.CollectionName;
+        var collectionNamespace = collection.CollectionNamespace;
 
     #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
@@ -337,10 +340,10 @@ public static class MongoCollectionExtensions
                 // Subscribe before the initial query so a change made while it runs is buffered, not missed, and
                 // handle changes one at a time, in order, on this task.
                 var changes = Channel.CreateUnbounded<ChangeStreamDocument<BsonDocument>>(new() { SingleReader = true });
-                using var subscription = databaseChanges.Subscribe(
+                using var subscription = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName).Subscribe(
                     change =>
                     {
-                        if (IsRelevantChange(change, collectionName))
+                        if (IsRelevantChange(change, collectionNamespace))
                         {
                             changes.Writer.TryWrite(change);
                         }
@@ -359,39 +362,7 @@ public static class MongoCollectionExtensions
                 onNext(documents, null, subject);
                 await foreach (var changeDocument in changes.Reader.ReadAllAsync(cancellationToken))
                 {
-                    try
-                    {
-                        if (observationContext.Paging.IsPaged)
-                        {
-                            await HandlePagedChange(
-                                collection,
-                                findCall,
-                                observationContext,
-                                ignoreQueryContext,
-                                onNext,
-                                query,
-                                documents,
-                                subject,
-                                cancellationToken);
-                            continue;
-                        }
-
-                        await HandleChange(
-                            collection,
-                            filter,
-                            matchesEverything,
-                            observationContext,
-                            onNext,
-                            changeDocument,
-                            documents,
-                            subject,
-                            idProperty,
-                            cancellationToken);
-                    }
-                    catch (Exception e)
-                    {
-                        logger.UnexpectedError(e);
-                    }
+                    await DispatchChange(changeDocument, query);
                 }
 
                 logger.IteratingChangeStreamCursorCompleted();
@@ -406,12 +377,48 @@ public static class MongoCollectionExtensions
             }
             catch (Exception ex)
             {
-                logger.UnexpectedError(ex);
+                logger.UnexpectedError(collection.CollectionNamespace.FullName, typeof(TDocument).FullName, ex);
+                subject.OnError(ex);
             }
             finally
             {
                 Cleanup();
             }
+        }
+
+        async Task DispatchChange(ChangeStreamDocument<BsonDocument> changeDocument, IFindFluent<TDocument, TDocument> query)
+        {
+            // A failure here propagates out of the cursor loop and faults the observable in Watch(): a change
+            // that could not be applied would otherwise be lost silently and leave the client on stale data.
+            // A paged observation re-reads its page after any change. Any observation re-reads after a resynchronization,
+            // since the shared stream was reopened, or a collection was dropped or renamed, and changes may be missing.
+            if (observationContext.Paging.IsPaged || RequiresResynchronization(changeDocument, collectionNamespace))
+            {
+                await HandlePagedChange(
+                    collection,
+                    findCall,
+                    observationContext,
+                    ignoreQueryContext,
+                    onNext,
+                    query,
+                    documents,
+                    subject,
+                    cancellationToken);
+                return;
+            }
+
+            await HandleChange(
+                collection,
+                filter,
+                matchesEverything,
+                observationContext,
+                onNext,
+                changeDocument,
+                documents,
+                subject,
+                idProperty,
+                classMap.IdMemberMap,
+                cancellationToken);
         }
 
         void CancelWatch()
@@ -485,13 +492,14 @@ public static class MongoCollectionExtensions
         QueryContextAwareSet<TDocument> documents,
         ISubject<TResult> subject,
         PropertyInfo idProperty,
+        BsonMemberMap? idMemberMap,
         CancellationToken cancellationToken)
     {
         var hasChanges = false;
         var changes = new List<CollectionChange>();
         if (changeDocument.DocumentKey is not null && changeDocument.DocumentKey.TryGetValue("_id", out var idValue))
         {
-            var id = GetId(idProperty, idValue);
+            var id = GetId(idProperty, idMemberMap, idValue);
             var fullDocument = changeDocument.FullDocument is null ? default : Deserialize(collection, changeDocument.FullDocument);
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
@@ -613,8 +621,19 @@ public static class MongoCollectionExtensions
         return removed;
     }
 
-    static object GetId(PropertyInfo idProperty, BsonValue idValue)
+    static object GetId(PropertyInfo idProperty, BsonMemberMap? idMemberMap, BsonValue idValue)
     {
+        if (idMemberMap is not null)
+        {
+            using var reader = new BsonDocumentReader(new BsonDocument("_id", idValue));
+            reader.ReadStartDocument();
+            reader.ReadName(Utf8NameDecoder.Instance);
+            var context = BsonDeserializationContext.CreateRoot(reader);
+            var result = idMemberMap.GetSerializer().Deserialize(context, new BsonDeserializationArgs { NominalType = idMemberMap.MemberType });
+            reader.ReadEndDocument();
+            return result;
+        }
+
         var id = BsonTypeMapper.MapToDotNetValue(idValue);
         if (idProperty.PropertyType.IsConcept())
         {
@@ -661,13 +680,19 @@ public static class MongoCollectionExtensions
         return queryContext.Paging.IsPaged ? response.Sort(byId) : response;
     }
 
-    static bool IsRelevantChange(ChangeStreamDocument<BsonDocument> change, string collectionName) =>
-        change.CollectionNamespace?.CollectionName == collectionName &&
+    static bool IsRelevantChange(ChangeStreamDocument<BsonDocument> change, CollectionNamespace collectionNamespace) =>
+        RequiresResynchronization(change, collectionNamespace) ||
+        (collectionNamespace.Equals(change.CollectionNamespace) &&
         change.OperationType is
             ChangeStreamOperationType.Insert or
             ChangeStreamOperationType.Update or
             ChangeStreamOperationType.Replace or
-            ChangeStreamOperationType.Delete;
+            ChangeStreamOperationType.Delete);
+
+    static bool RequiresResynchronization(ChangeStreamDocument<BsonDocument> change, CollectionNamespace collectionNamespace) =>
+        change.OperationType is ChangeStreamOperationType.Invalidate or ChangeStreamOperationType.DropDatabase ||
+        (change.OperationType is ChangeStreamOperationType.Drop or ChangeStreamOperationType.Rename && collectionNamespace.Equals(change.CollectionNamespace)) ||
+        (change.OperationType == ChangeStreamOperationType.Rename && collectionNamespace.Equals(change.RenameTo));
 
     static TDocument Deserialize<TDocument>(IMongoCollection<TDocument> collection, BsonDocument document)
     {

@@ -21,9 +21,6 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static readonly string[] DefaultSectionPaths = ["Cratis", "MongoDB"];
 
-    static IMongoDBClientFactory? _clientFactory;
-    static IMongoServerResolver? _serverResolver;
-
     /// <summary>
     /// Add MongoDB to the solution. Configures default settings for the MongoDB Driver.
     /// </summary>
@@ -85,19 +82,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(typeof(IMongoDatabaseNameResolver), mongoDBBuilder.DatabaseNameResolverType);
         services.AddSingleton<IMongoDBClientFactory, MongoDBClientFactory>();
         services.AddSingleton<IMongoDBWatcher, MongoDBWatcher>();
-        services.AddScoped(sp =>
-        {
-            // TODO: This will not work when multi tenant.
-            _clientFactory ??= sp.GetRequiredService<IMongoDBClientFactory>();
-            _serverResolver ??= sp.GetRequiredService<IMongoServerResolver>();
-            return _clientFactory.Create();
-        });
+        services.AddConnectionResolution();
+        services.AddSingleton<IMongoDBConnections, MongoDBConnections>();
 
+        // Resolved once per scope, so the client and the database of a scope always come from the same resolution.
+        services.AddScoped(sp => sp.GetRequiredService<IMongoDBConnections>().Resolve());
+        services.AddScoped(sp => sp.GetRequiredService<MongoDBConnection>().Client);
         services.AddScoped(sp =>
         {
-            var client = sp.GetRequiredService<IMongoClient>();
-            var databaseNameResolver = sp.GetRequiredService<IMongoDatabaseNameResolver>();
-            return client.GetDatabase(databaseNameResolver.Resolve());
+            var connection = sp.GetRequiredService<MongoDBConnection>();
+            return connection.Client.GetDatabase(connection.DatabaseName);
         });
 
         services.AddScoped(typeof(IMongoCollection<>), typeof(MongoCollectionAdapter<>));

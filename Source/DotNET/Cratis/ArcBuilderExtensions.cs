@@ -2,12 +2,16 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Chronicle.Identities;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle;
 using Cratis.Chronicle.AspNetCore;
 using Cratis.Chronicle.Transactions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+
+using HttpIdentityProvider = Cratis.Chronicle.AspNetCore.Identities.IdentityProvider;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -56,7 +60,9 @@ public static class ArcBuilderExtensions
     {
         builder.Services.AddAggregateRoots(builder.Types);
 
-        // AddCratisChronicle adds the event store's manager unconditionally, which would replace an explicit
+        builder.Services.RemoveArcServiceBindingsFor(typeof(IUnitOfWorkManager));
+
+        // AddCratisChronicle adds its deferred manager unconditionally, which would replace an explicit
         // registration made before this call. Remember what is registered so that only Chronicle's addition is undone.
         var existing = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
 
@@ -64,6 +70,7 @@ public static class ArcBuilderExtensions
         // starts is what Chronicle added. Anything the callback registers afterwards belongs to the caller.
         HashSet<object>? atCallback = default;
 
+        IChronicleBuilder chronicle = null!;
         ((WebApplicationBuilder)builder.AppBuilder).AddCratisChronicle(
             configureOptions: options =>
             {
@@ -72,21 +79,27 @@ public static class ArcBuilderExtensions
             },
             configure: chronicleBuilder =>
             {
+                chronicle = chronicleBuilder;
                 atCallback = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
 
-        // The event store owns the manager, including its lifecycle policy and namespace. Drop Chronicle's addition
-        // and Arc's convention binding, then register the event store's manager unless the caller registered one.
+        builder.Services.AddArcIdentityProvider(
+            chronicle,
+            services => new HttpIdentityProvider(
+                services.GetRequiredService<IHttpContextAccessor>(),
+                services.GetRequiredService<ILogger<HttpIdentityProvider>>()),
+            services => services.GetRequiredService<IHttpContextAccessor>().HttpContext is not null);
+
+        // Keep Chronicle's deferred request manager unless the caller supplied one before or during configuration.
+        // Resolving the event store here would bind the namespace before authentication.
         var chronicleAdded = atCallback ?? builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
-        foreach (var descriptor in builder.Services.Where(_ => chronicleAdded.Contains(_) && !existing.Contains(_)).ToArray())
+        var hasExplicitManager = existing.Count != 0 || builder.Services.Any(_ => _.ServiceType == typeof(IUnitOfWorkManager) && !chronicleAdded.Contains(_));
+        foreach (var descriptor in builder.Services.Where(_ => hasExplicitManager && chronicleAdded.Contains(_) && !existing.Contains(_)).ToArray())
         {
             builder.Services.Remove(descriptor);
         }
-
-        builder.Services.RemoveArcServiceBindingsFor(typeof(IUnitOfWorkManager));
-        builder.Services.TryAddScoped(services => services.GetRequiredService<IEventStore>().UnitOfWorkManager);
 
         builder.Services.AddCommandAwareDecisionReads();
         return builder;

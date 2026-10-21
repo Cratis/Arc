@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Serialization;
+using Cratis.Arc.Connections;
 
 namespace Cratis.Arc.EntityFrameworkCore;
 
@@ -28,4 +29,14 @@ public class EntityFrameworkCoreOptions
     /// the built-in Arc defaults (ConceptAs, Enum, DateOnly, TimeOnly, Type, Uri, …).
     /// </summary>
     public IList<JsonConverter> JsonConverters { get; } = [];
+
+    /// <summary>
+    /// Gets or sets how connections are resolved per tenant, overriding the application-wide
+    /// <see cref="ArcOptions.ConnectionResolution"/> for Entity Framework Core.
+    /// </summary>
+    /// <remarks>
+    /// When neither is configured, <see cref="ConnectionString"/> is used as it is. Otherwise every connection is resolved
+    /// for the current tenant when it opens, and the result is applied over the configured connection string.
+    /// </remarks>
+    public ConnectionResolutionOptions ConnectionResolution { get; set; } = new();
 }

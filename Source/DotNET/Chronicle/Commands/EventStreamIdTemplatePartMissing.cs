@@ -9,4 +9,10 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="template">The stream id template.</param>
 /// <param name="property">The missing part.</param>
 public class EventStreamIdTemplatePartMissing(string template, string property)
-    : Exception($"Event stream id template '{template}' requires a nonblank '{property}' and must not resolve to the default stream id.");
+    : Exception($"Event stream id template '{template}' requires a nonblank '{property}' and must not resolve to the default stream id.")
+{
+    /// <summary>
+    /// Gets the missing template property.
+    /// </summary>
+    public string Property { get; } = property;
+}

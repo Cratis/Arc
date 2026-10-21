@@ -87,6 +87,66 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
     }
 
     /// <summary>
+    /// Reads a complete uniqueness declaration for emission and reaction batch admission.
+    /// </summary>
+    /// <param name="type">The type declaring the constraint.</param>
+    /// <param name="invocation">The call declaring the rule.</param>
+    /// <param name="semanticModel">The semantic model owning the call.</param>
+    /// <returns>The faithfully recovered rule, or null.</returns>
+    internal static ConstraintModel? ReadUnique(INamedTypeSymbol type, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        var releases = ConstraintTargets.Releases(invocation, semanticModel);
+        if (releases is null)
+        {
+            return null;
+        }
+
+        var rule = ReadRule(type, invocation, semanticModel);
+
+        return rule is null ? null : rule with { ReleasedBy = releases };
+    }
+
+    /// <summary>
+    /// Reads every target sharing a rule, retaining the existing single-target naming behavior.
+    /// </summary>
+    /// <param name="type">The type declaring the constraint.</param>
+    /// <param name="invocation">The uniqueness declaration.</param>
+    /// <param name="semanticModel">The semantic model owning the declaration.</param>
+    /// <returns>The complete rule, or null if any target cannot be stated.</returns>
+    static ConstraintModel? ReadRule(INamedTypeSymbol type, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (InvocationChain.TypeArgumentOf(invocation) is { } declaredEvent)
+        {
+            var resolved = semanticModel.GetTypeInfo(declaredEvent).Type;
+
+            return resolved is null
+                ? null
+                : new UniqueEventConstraintModel(ConstraintNames.Resolve(invocation, semanticModel, type, resolved), resolved.Name);
+        }
+
+        var targets = ConstraintTargets.Properties(invocation, semanticModel);
+        if (targets is null)
+        {
+            return null;
+        }
+
+        var calls = ConstraintBuilderCalls.Callback(invocation, semanticModel)!;
+        var firstCall = calls.First(_ => InvocationChain.NameOf(_) == On);
+        var declaring = semanticModel.GetTypeInfo(InvocationChain.TypeArgumentOf(firstCall)!).Type!;
+        var first = targets[0];
+
+        return new UniquePropertyConstraintModel(
+            ConstraintNames.Resolve(invocation, semanticModel, type, declaring, first.Property),
+            first.Property,
+            first.EventName)
+        {
+            AdditionalProperties = first.AdditionalProperties,
+            AdditionalRules = targets.Skip(1).ToArray(),
+            IgnoreCasing = calls.Any(_ => InvocationChain.NameOf(_) == "IgnoreCasing")
+        };
+    }
+
+    /// <summary>
     /// Builds the declaration pointing at the file holding a rule that could not be described.
     /// </summary>
     /// <param name="type">The type declaring the constraint.</param>
@@ -132,69 +192,5 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
         }
 
         return foundUnique;
-    }
-
-    /// <summary>
-    /// Reads one uniqueness rule.
-    /// </summary>
-    /// <param name="type">The type declaring the constraint.</param>
-    /// <param name="invocation">The call declaring the rule.</param>
-    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
-    /// <returns>The constraint, or <see langword="null"/> when the rule cannot be described.</returns>
-    /// <remarks>
-    /// The generic form names the event type directly and constrains the whole event, while the builder form names
-    /// every property target it constrains inside nested calls. Releases belong to the whole shared claim.
-    /// </remarks>
-    ConstraintModel? ReadUnique(INamedTypeSymbol type, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
-    {
-        var releases = ConstraintTargets.Releases(invocation, semanticModel);
-        if (releases is null)
-        {
-            return null;
-        }
-
-        var rule = ReadRule(type, invocation, semanticModel);
-
-        return rule is null ? null : rule with { ReleasedBy = releases };
-    }
-
-    /// <summary>
-    /// Reads every target sharing a rule, retaining the existing single-target naming behavior.
-    /// </summary>
-    /// <param name="type">The type declaring the constraint.</param>
-    /// <param name="invocation">The uniqueness declaration.</param>
-    /// <param name="semanticModel">The semantic model owning the declaration.</param>
-    /// <returns>The complete rule, or null if any target cannot be stated.</returns>
-    ConstraintModel? ReadRule(INamedTypeSymbol type, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
-    {
-        if (InvocationChain.TypeArgumentOf(invocation) is { } declaredEvent)
-        {
-            var resolved = semanticModel.GetTypeInfo(declaredEvent).Type;
-
-            return resolved is null
-                ? null
-                : new UniqueEventConstraintModel(ConstraintNames.Resolve(invocation, semanticModel, type, resolved), resolved.Name);
-        }
-
-        var targets = ConstraintTargets.Properties(invocation, semanticModel);
-        if (targets is null)
-        {
-            return null;
-        }
-
-        var calls = ConstraintBuilderCalls.Callback(invocation, semanticModel)!;
-        var firstCall = calls.First(_ => InvocationChain.NameOf(_) == On);
-        var declaring = semanticModel.GetTypeInfo(InvocationChain.TypeArgumentOf(firstCall)!).Type!;
-        var first = targets[0];
-
-        return new UniquePropertyConstraintModel(
-            ConstraintNames.Resolve(invocation, semanticModel, type, declaring, first.Property),
-            first.Property,
-            first.EventName)
-        {
-            AdditionalProperties = first.AdditionalProperties,
-            AdditionalRules = targets.Skip(1).ToArray(),
-            IgnoreCasing = calls.Any(_ => InvocationChain.NameOf(_) == "IgnoreCasing")
-        };
     }
 }

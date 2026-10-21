@@ -17,7 +17,10 @@
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
+        <Compile Include="../Shared/ArcGeneratorDiagnostics.cs" Link="ArcGeneratorDiagnostics.cs" />
         <Compile Include="../Shared/QuerySelectionPolicy.cs" Link="QuerySelectionPolicy.cs" />
+        <Compile Include="../Shared/AttributePrecedencePolicy.cs" Link="AttributePrecedencePolicy.cs" />
+        <Compile Include="../Shared/CommandAttributeSymbols.cs" Link="CommandAttributeSymbols.cs" />
         <AdditionalFiles Include="../Arc.Core.Generators/AnalyzerReleases.Shipped.md" Link="AnalyzerReleases.Shipped.md" />
         <AdditionalFiles Include="../Arc.Core.Generators/AnalyzerReleases.Unshipped.md" Link="AnalyzerReleases.Unshipped.md" />
     </ItemGroup>

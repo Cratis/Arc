@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
@@ -38,7 +39,7 @@ public class when_getting_aggregate_root_with_only_events_for_other_streams : Sp
         await _scenario.EventSequence.Append(_eventSourceId, new Foreign(), "OtherStream");
         _lastForeign = (await _scenario.EventSequence.Append(_eventSourceId, new Foreign())).SequenceNumber;
 
-        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var unitOfWork = Substitute.For<UnitOfWorkWithNamedTags>();
         unitOfWork.When(_ => _.AddEvent(
                 Arg.Any<EventSequenceId>(),
                 _eventSourceId,
@@ -52,6 +53,7 @@ public class when_getting_aggregate_root_with_only_events_for_other_streams : Sp
 
         var eventStore = Substitute.For<IEventStore>();
         eventStore.GetEventSequence(Arg.Any<EventSequenceId>()).Returns(_scenario.EventSequence);
+        eventStore.EventTypes.HasFor(typeof(Created)).Returns(true);
 
         var handlers = Substitute.For<IAggregateRootEventHandlers>();
         handlers.HasHandleMethods.Returns(false);

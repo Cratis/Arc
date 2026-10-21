@@ -12,7 +12,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <param name="files">The <see cref="IUserInterfaceFiles"/> telling what sits alongside the source.</param>
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of each file.</param>
 /// <param name="ambiguity">The <see cref="AmbiguousScreens"/> anything uncertain is reported to.</param>
-/// <param name="data">The <see cref="ScreenDataReader"/> reading which of the slice's queries a screen binds.</param>
+/// <param name="data">The <see cref="ScreenDataReader"/> resolving the query imports a screen binds.</param>
 /// <param name="structure">The <see cref="ScreenStructureReader"/> reading what a screen states through known Cratis Components.</param>
 /// <param name="elsewhere">The <see cref="CrossSliceQueries"/> told what each slice declares and where it lives.</param>
 /// <remarks>
@@ -30,13 +30,13 @@ public class ScreenReader(
     CrossSliceQueries elsewhere)
 {
     /// <summary>
-    /// Reads the screens of a slice.
+    /// Finds the screens of a slice and defers their directives until every slice has declared its proxies.
     /// </summary>
     /// <param name="namespace">The namespace of the slice.</param>
     /// <param name="types">The types the slice is declared by.</param>
     /// <param name="queries">The queries the slice declares, under the names it declares them.</param>
     /// <param name="commands">The commands the slice declares.</param>
-    /// <returns>The screens, ordered by name.</returns>
+    /// <returns>The screen identities, ordered by name, whose directives <see cref="CrossSliceQueries.Apply"/> resolves.</returns>
     public IEnumerable<ScreenModel> Read(
         string @namespace,
         IEnumerable<INamedTypeSymbol> types,
@@ -44,7 +44,7 @@ public class ScreenReader(
         IReadOnlyCollection<CommandModel> commands)
     {
         var directories = SliceDirectories.Of(types);
-        elsewhere.Declare(@namespace, directories, queries);
+        elsewhere.Declare(@namespace, directories, queries, commands);
 
         if (directories.Count == 0)
         {
@@ -101,14 +101,23 @@ public class ScreenReader(
                 continue;
             }
 
-            var stated = structure.Read(@namespace, name, path, queries, commands);
-            screens.Add(name, new(name, paths.Relative(path) ?? path)
+            var screen = new ScreenModel(name, paths.Relative(path) ?? path);
+            screens.Add(name, screen);
+            elsewhere.DeclareScreen(screen, @namespace, path);
+            elsewhere.Defer(screen, () =>
             {
-                Data = [.. data.Read(@namespace, name, path, queries)],
-                Titles = stated.Titles,
-                Toolbars = stated.Toolbars,
-                Tables = stated.Tables,
-                Actions = stated.Actions
+                var components = KnownComponents.In(files.Contents(path) ?? string.Empty);
+                var resolved = new ScreenProxyReferences(@namespace, path, components, queries, commands, elsewhere);
+                var stated = structure.Read(@namespace, name, path, queries, commands, resolved, route => elsewhere.Navigation(@namespace, route));
+                return screen with
+                {
+                    Data = [.. data.Read(@namespace, path)],
+                    Titles = stated.Titles,
+                    Toolbars = stated.Toolbars,
+                    Tables = stated.Tables,
+                    Actions = stated.Actions,
+                    AfterSuccess = stated.AfterSuccess
+                };
             });
         }
 

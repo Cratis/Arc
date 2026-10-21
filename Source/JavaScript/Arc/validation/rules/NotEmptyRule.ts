@@ -21,7 +21,7 @@ export class NotEmptyRule<T> extends PropertyRule<T, unknown> {
         if (value === null || value === undefined) {
             return false;
         }
-        if (typeof value === 'string' && value.trim() === '') {
+        if (typeof value === 'string' && /^\p{White_Space}*$/u.test(value)) {
             return false;
         }
         if (Array.isArray(value) && value.length === 0) {

@@ -29,12 +29,16 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
+        <Compile Include="../Shared/ArcGeneratorDiagnostics.cs" Link="ArcGeneratorDiagnostics.cs" />
         <Compile Include="../Shared/QuerySelectionPolicy.cs" Link="QuerySelectionPolicy.cs" />
+        <Compile Include="../Shared/AttributePrecedencePolicy.cs" Link="AttributePrecedencePolicy.cs" />
+        <Compile Include="../Shared/CommandAttributeSymbols.cs" Link="CommandAttributeSymbols.cs" />
     </ItemGroup>
 
     <ItemGroup>
         <!-- Grants the code fixes project (a separate assembly, see above) access to the internal
              DiagnosticDescriptors this project's analyzers and that project's code fixes both need to agree on. -->
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes" />
+        <InternalsVisibleTo Include="Cratis.Arc.Chronicle.CodeAnalysis.Specs" />
     </ItemGroup>
 </Project>

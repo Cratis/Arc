@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Events;
+using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -36,6 +37,16 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     readonly ProducesConditionResolver _conditions = new(diagnostics);
 
     /// <summary>
+    /// Gets the shared registry used to preserve explicit destination and stream key types.
+    /// </summary>
+    internal TypeRegistry? Types { get; init; }
+
+    /// <summary>
+    /// Gets analyzed definitions used to resolve stored legacy route names without guessing aliases.
+    /// </summary>
+    internal IReadOnlyList<INamedTypeSymbol> Definitions { get; init; } = [];
+
+    /// <summary>
     /// Reads everything the handlers of a command produce.
     /// </summary>
     /// <param name="command">The type declaring the command.</param>
@@ -51,11 +62,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
 
         foreach (var handler in handlers)
         {
-            if (!generatedIdentity && !EventResponseTuples.UsesCommandContext(handler.ReturnType))
-            {
-                ReportEventSourceIdResult(command, handler, location);
-            }
-
+            var firstProduction = produces.Count;
             foreach (var body in HandlerBodies.Of(handler))
             {
                 if (models.For(body.SyntaxTree) is not { } semanticModel)
@@ -73,7 +80,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                     var first = produces.Count;
                     var aggregateUsesCommandContext = usesCommandContext &&
                         ProductionDestinations.AggregateUsesCommandContext(behavior, body, semanticModel, command, identifier);
-                    ReadBehavior(command, behavior, location, produces, aggregateUsesCommandContext);
+                    ReadBehavior(command, behavior, location, produces, aggregateUsesCommandContext, sources);
                     if (!InlineProductionShape.IsUnconditional(body))
                     {
                         for (var index = first; index < produces.Count; index++)
@@ -82,6 +89,11 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                         }
                     }
                 }
+            }
+            if (!generatedIdentity && !EventResponseTuples.UsesCommandContext(handler.ReturnType) &&
+                (produces.Count == firstProduction || produces.Skip(firstProduction).Any(production => !production.UsesCommandContext && production.Destination is null)))
+            {
+                ReportEventSourceIdResult(command, handler, location);
             }
         }
 
@@ -126,8 +138,13 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     static bool IsSame(ProducesModel left, ProducesModel right) =>
         string.Equals(left.EventName, right.EventName, StringComparison.Ordinal) &&
         Equals(left.When, right.When) &&
+        Equals(left.Destination, right.Destination) &&
+        Equals(left.Route, right.Route) &&
+        left.DestinationDependencies.SequenceEqual(right.DestinationDependencies) &&
         left.Mappings.SequenceEqual(right.Mappings) &&
-        left.EventTypeIdentity == right.EventTypeIdentity;
+        left.EventTypeIdentity == right.EventTypeIdentity &&
+        Equals(left.UnavailableCondition, right.UnavailableCondition) &&
+        Equals(left.UnavailableDestination, right.UnavailableDestination);
 
     /// <summary>
     /// Reads every event constructed within one handler body.
@@ -152,7 +169,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         AuthoringSources? sources = null,
         bool generatedIdentity = false)
     {
-        var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot);
+        var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot) { ConsumedGuards = sources?.ConsumedGuards };
 
         foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
         {
@@ -162,15 +179,22 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             }
 
             var before = diagnostics.All.Count;
-            var when = _conditions.Resolve(creation, body, scope, type, location);
+            var unavailableCondition = UnavailableProductionDependencies.Condition(creation, body, sources, semanticModel, scope.Bindings);
+            var unavailableDestination = UnavailableProductionDependencies.Destination(creation, body, sources, semanticModel);
+            var when = unavailableCondition is null ? _conditions.Resolve(creation, body, scope, type, location) : null;
             var mappings = _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings, sources).ToList();
-            produces.Add(new(type.Name, when, mappings)
+            var production = new ProducesModel(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
+                UnavailableCondition = unavailableCondition,
+                UnavailableDestination = unavailableDestination,
                 UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
-            });
+            };
+            produces.Add(behavior is null && Types is not null
+                ? new ReturnedProductionRoutes(models, Types) { Definitions = Definitions }.Apply(production, creation, body, semanticModel, command, sources, generatedIdentity)
+                : production);
         }
     }
 
@@ -182,6 +206,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="produces">The productions collected so far.</param>
     /// <param name="usesCommandContext">Whether the reached aggregate belongs to the command context.</param>
+    /// <param name="sources">The generated input identities from the calling handler.</param>
     /// <remarks>
     /// The behavior is written wherever the aggregate root is, and a project that was not handed over is one whose
     /// source cannot be read at all. Saying so is the difference between a command stated as producing nothing and a
@@ -192,11 +217,12 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         AggregateRootInvocation behavior,
         string location,
         List<ProducesModel> produces,
-        bool usesCommandContext)
+        bool usesCommandContext,
+        AuthoringSources? sources)
     {
         if (models.For(behavior.Body.SyntaxTree) is { } semanticModel)
         {
-            ReadBody(command, behavior.Body, semanticModel, location, produces, behavior, usesCommandContext);
+            ReadBody(command, behavior.Body, semanticModel, location, produces, behavior, usesCommandContext, sources);
 
             return;
         }

@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,9 +53,15 @@ internal static class ProtectedValidatorConstruction
     internal static object Construct(Type validatorType)
     {
         var validator = ConstructUncertified(validatorType);
-        _constructed.AddOrUpdate(validator, SnapshotOf(validator));
+        Certify(validator);
         return validator;
     }
+
+    /// <summary>
+    /// Records the rules after Arc's fresh construction and optional configuration callback.
+    /// </summary>
+    /// <param name="validator">The Arc-constructed instance.</param>
+    internal static void Certify(object validator) => _constructed.AddOrUpdate(validator, SnapshotOf(validator));
 
     /// <summary>
     /// Determines whether a validator instance is exactly of the given type, was constructed by Arc, and still has the
@@ -70,30 +77,42 @@ internal static class ProtectedValidatorConstruction
 
     /// <summary>
     /// Makes the container construct every convention-bound, dependency-free discoverable validator through Arc, so a
-    /// validator the container resolves can be certified.
+    /// validator the container resolves can be certified, and records which validators are bound by convention as
+    /// transient.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> holding the bindings.</param>
     /// <param name="types">The <see cref="ITypes"/> to discover validators from.</param>
     /// <remarks>
     /// Only a plain type binding of a validator to itself is replaced; it constructs the same instance through the
     /// same parameterless constructor with the same lifetime. A factory, instance or other implementation registration
-    /// is left untouched and is therefore not certified.
+    /// is left untouched and is therefore not certified. Validators that take dependencies keep their bindings.
     /// <para>
     /// Only a transient validator resolved outside a protected decision skips the certificate: nothing shares that
     /// instance with a later protected decision, so the rule snapshot would be wasted work on every other pipeline. A
     /// scoped or singleton validator is always certified, because a later protected decision may reuse the instance.
     /// </para>
+    /// <para>
+    /// The record of plain transient bindings is what read protection On relies on: such a validator, whatever model
+    /// it validates, is constructed fresh by Arc for the invocation, while any other registration shape is refused.
+    /// </para>
     /// </remarks>
     internal static void ConstructDependencyFreeValidatorsThroughArc(this IServiceCollection services, ITypes types)
     {
-        var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).Where(IsDependencyFree).ToHashSet();
+        var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).ToHashSet();
+        var origins = ProtectedDecisionRegistrationOrigins.For(services);
+        origins.DiscoverValidators(validatorTypes);
+        var boundThroughArc = new HashSet<ServiceDescriptor>();
         for (var index = 0; index < services.Count; index++)
         {
             var descriptor = services[index];
-            if (!descriptor.IsKeyedService &&
-                descriptor.ImplementationType is { } implementationType &&
+            if (descriptor.IsKeyedService || !validatorTypes.Contains(descriptor.ServiceType))
+            {
+                continue;
+            }
+
+            if (descriptor.ImplementationType is { } implementationType &&
                 implementationType == descriptor.ServiceType &&
-                validatorTypes.Contains(implementationType))
+                IsDependencyFree(implementationType))
             {
                 var lifetime = descriptor.Lifetime;
                 services[index] = new ServiceDescriptor(
@@ -102,8 +121,41 @@ internal static class ProtectedValidatorConstruction
                         ? ConstructUncertified(implementationType)
                         : Construct(implementationType),
                     lifetime);
+                boundThroughArc.Add(services[index]);
+                origins.TransferConvention(descriptor, services[index]);
             }
         }
+
+        // Read the final bindings when the built provider first needs them, so a validator registered again after
+        // this call is judged by the registration the provider actually uses.
+        services.AddSingleton(_ => new ConventionTransientValidators(ConventionTransientsIn(services, validatorTypes, boundThroughArc)));
+    }
+
+    /// <summary>
+    /// Determines whether a validator is bound to itself as transient, so Arc may construct it fresh for an invocation
+    /// instead of taking an instance from the provider.
+    /// </summary>
+    /// <param name="serviceProvider">The executing command's provider.</param>
+    /// <param name="validatorType">The validator type.</param>
+    /// <returns>True when the validator's binding is a plain transient binding; otherwise false.</returns>
+    internal static bool IsConventionTransient(IServiceProvider serviceProvider, Type validatorType) =>
+        serviceProvider.GetService(typeof(ConventionTransientValidators)) is ConventionTransientValidators conventionTransients &&
+        conventionTransients.Contains(validatorType);
+
+    static IEnumerable<Type> ConventionTransientsIn(IServiceCollection services, HashSet<Type> validatorTypes, HashSet<ServiceDescriptor> boundThroughArc)
+    {
+        var lastBindings = new Dictionary<Type, ServiceDescriptor>();
+        foreach (var descriptor in services)
+        {
+            if (!descriptor.IsKeyedService && validatorTypes.Contains(descriptor.ServiceType))
+            {
+                lastBindings[descriptor.ServiceType] = descriptor;
+            }
+        }
+
+        return lastBindings.Values
+            .Where(_ => _.Lifetime == ServiceLifetime.Transient && (boundThroughArc.Contains(_) || _.ImplementationType == _.ServiceType))
+            .Select(_ => _.ServiceType);
     }
 
     static object ConstructUncertified(Type validatorType) =>

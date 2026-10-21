@@ -63,10 +63,24 @@ internal static class ModelGraphWalkerTypes
     /// <returns>The walkers to register.</returns>
     public static IEnumerable<ModelGraphWalker> For(IEnumerable<ITypeSymbol> roots, Compilation compilation, CancellationToken cancellationToken)
     {
-        var walkers = new List<ModelGraphWalker>();
+        return ReachableTypes(roots, compilation, cancellationToken)
+            .Select(type => (Type: type, Properties: WalkedProperties(type, compilation, cancellationToken)))
+            .Where(item => item.Properties is not null)
+            .Select(item => new ModelGraphWalker(item.Type.ToDisplayString(_format), Render(item.Type, item.Properties!)));
+    }
+
+    /// <summary>
+    /// Gets source types reachable through the bounded validation model graph.
+    /// </summary>
+    /// <param name="roots">The command and query argument roots.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The reachable source types.</returns>
+    internal static IEnumerable<INamedTypeSymbol> ReachableTypes(IEnumerable<ITypeSymbol> roots, Compilation compilation, CancellationToken cancellationToken)
+    {
         if (IsExperimental(compilation.Assembly) || IsExperimental(compilation.SourceModule))
         {
-            return walkers;
+            yield break;
         }
 
         var seen = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
@@ -88,14 +102,38 @@ internal static class ModelGraphWalkerTypes
                 }
             }
 
-            if (WalkedProperties(type, compilation, cancellationToken) is { } properties)
-            {
-                walkers.Add(new(type.ToDisplayString(_format), Render(type, properties)));
-            }
+            yield return type;
         }
-
-        return walkers;
     }
+
+    /// <summary>
+    /// Whether generated code can read a property as a plain value through its declaring type.
+    /// </summary>
+    /// <param name="property">The property.</param>
+    /// <param name="compilation">The compilation the generated code is emitted into.</param>
+    /// <returns>Whether generated code can read the property.</returns>
+    internal static bool CanRead(IPropertySymbol property, Compilation compilation) =>
+        !property.IsOverride && !property.ReturnsByRef && !property.ReturnsByRefReadonly &&
+        !IsUnsafe(property.Type) && !property.Type.IsRefLikeType &&
+        SyntaxFacts.IsValidIdentifier(property.Name) &&
+        compilation.IsSymbolAccessibleWithin(property, compilation.Assembly) &&
+        compilation.IsSymbolAccessibleWithin(property.GetMethod!, compilation.Assembly) &&
+        !IsFlagged(property) && !IsFlagged(property.GetMethod!) &&
+        TypeNaming.CanBeNamed(property.ContainingType, compilation);
+
+    /// <summary>
+    /// Reading an obsolete, experimental or trim/AOT annotated member reports a diagnostic in the consumer's build that
+    /// the reflection walk does not.
+    /// </summary>
+    /// <param name="symbol">The member.</param>
+    /// <returns>Whether the member is flagged.</returns>
+    internal static bool IsFlagged(ISymbol symbol) =>
+        symbol.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() is { } name &&
+            (TypeNaming.IsFlag(name) ||
+             string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute", StringComparison.Ordinal) ||
+             string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute", StringComparison.Ordinal) ||
+             string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresAssemblyFilesAttribute", StringComparison.Ordinal) ||
+             string.Equals(name, "System.Runtime.Versioning.RequiresPreviewFeaturesAttribute", StringComparison.Ordinal)));
 
     /// <summary>
     /// Follows a declared type to the types values of it can have at runtime that could get a walker.
@@ -104,7 +142,7 @@ internal static class ModelGraphWalkerTypes
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <param name="seen">The types already followed.</param>
     /// <param name="pending">The types whose properties are still to be found.</param>
-    static void Follow(ITypeSymbol type, Compilation compilation, HashSet<ITypeSymbol> seen, Queue<INamedTypeSymbol> pending)
+    internal static void Follow(ITypeSymbol type, Compilation compilation, HashSet<ITypeSymbol> seen, Queue<INamedTypeSymbol> pending)
     {
         if (seen.Count >= MaximumTypes || GenericDepth(type) > MaximumGenericDepth || !seen.Add(type))
         {
@@ -173,8 +211,9 @@ internal static class ModelGraphWalkerTypes
     /// <param name="type">The type.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
+    /// <param name="publicGettersOnly">Whether to use the protected-key public getter contract.</param>
     /// <returns>The properties, or null when the type keeps the reflection walk.</returns>
-    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
+    internal static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken, bool publicGettersOnly = false)
     {
         if (!IsConcrete(type) || !TypeNaming.CanBeNamed(type, compilation))
         {
@@ -204,7 +243,8 @@ internal static class ModelGraphWalkerTypes
             return null;
         }
 
-        var walked = declared.Where(IsWalked).ToList();
+        var walked = declared.Where(property => IsWalked(property) &&
+            (!publicGettersOnly || property.GetMethod!.DeclaredAccessibility == Accessibility.Public)).ToList();
         return walked.TrueForAll(property => CanRead(property, compilation)) ? walked : null;
     }
 
@@ -231,21 +271,6 @@ internal static class ModelGraphWalkerTypes
         type.TypeKind is TypeKind.Class or TypeKind.Struct && !type.IsAbstract && !type.IsStatic && !type.IsRefLikeType && !type.IsUnboundGenericType;
 
     /// <summary>
-    /// Whether generated code can read a property as a plain value through its declaring type.
-    /// </summary>
-    /// <param name="property">The property.</param>
-    /// <param name="compilation">The compilation the generated code is emitted into.</param>
-    /// <returns>Whether generated code can read the property.</returns>
-    static bool CanRead(IPropertySymbol property, Compilation compilation) =>
-        !property.IsOverride && !property.ReturnsByRef && !property.ReturnsByRefReadonly &&
-        !IsUnsafe(property.Type) && !property.Type.IsRefLikeType &&
-        SyntaxFacts.IsValidIdentifier(property.Name) &&
-        compilation.IsSymbolAccessibleWithin(property, compilation.Assembly) &&
-        compilation.IsSymbolAccessibleWithin(property.GetMethod!, compilation.Assembly) &&
-        !IsFlagged(property) && !IsFlagged(property.GetMethod!) &&
-        TypeNaming.CanBeNamed(property.ContainingType, compilation);
-
-    /// <summary>
     /// Whether a type is a pointer or function pointer, or an array of them at any depth, which generated code can only
     /// name in an unsafe context.
     /// </summary>
@@ -260,20 +285,6 @@ internal static class ModelGraphWalkerTypes
 
         return type is IPointerTypeSymbol or IFunctionPointerTypeSymbol;
     }
-
-    /// <summary>
-    /// Reading an obsolete, experimental or trim/AOT annotated member reports a diagnostic in the consumer's build that
-    /// the reflection walk does not.
-    /// </summary>
-    /// <param name="symbol">The member.</param>
-    /// <returns>Whether the member is flagged.</returns>
-    static bool IsFlagged(ISymbol symbol) =>
-        symbol.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() is { } name &&
-            (TypeNaming.IsFlag(name) ||
-             string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresUnreferencedCodeAttribute", StringComparison.Ordinal) ||
-             string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute", StringComparison.Ordinal) ||
-             string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresAssemblyFilesAttribute", StringComparison.Ordinal) ||
-             string.Equals(name, "System.Runtime.Versioning.RequiresPreviewFeaturesAttribute", StringComparison.Ordinal)));
 
     /// <summary>
     /// An experimental assembly or module makes every type in it experimental, so generated code naming them would

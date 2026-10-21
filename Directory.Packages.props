@@ -15,43 +15,48 @@
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- Microsoft.OpenApi 2.0.0 (pulled in transitively by Microsoft.AspNetCore.OpenApi) has a high-severity
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.0" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.39.1" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.39.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.39.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.24.0" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.19.4" />
-    <PackageVersion Include="Cratis.Screenplay" Version="4.148.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.102.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.102.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.102.0" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.25.0" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.25.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="4.208.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.1" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.1" />
     <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.18.1" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.13" />
     <!-- Microsoft -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.12" />
+    <PackageVersion Include="Azure.Identity" Version="1.21.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.10.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.13" />
     <!-- Keep Orleans Reminders aligned with the server pulled in by Chronicle.Testing. -->
     <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.9.6" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <!-- System -->
-    <PackageVersion Include="System.Collections.Immutable" Version="10.0.12" />
-    <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.12" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.12" />
+    <PackageVersion Include="System.Collections.Immutable" Version="10.0.13" />
+    <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.13" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.13" />
+    <!-- Pkcs: GHSA-2fmv-rv2c-59x7, GHSA-846f-f764-76mx. Pin patched transitive dependencies. -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <!-- Xml: GHSA-c399-9853-6jmj, GHSA-7hqp-7c5m-4vq6, GHSA-r955-8q5j-3h83. -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
     <!-- Third Party -->
-    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
     <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
@@ -87,7 +92,7 @@
     <PackageVersion Include="Microsoft.NET.StringTools" Version="18.9.6" />
     <!-- Override vulnerable/incompatible transitive dependencies from analyzer testing packages -->
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.9.0" />
-    <PackageVersion Include="System.Formats.Asn1" Version="10.0.12" />
+    <PackageVersion Include="System.Formats.Asn1" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Composition" Version="1.0.31" />
     <!-- Analysis -->
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
@@ -103,7 +108,7 @@
          the package updater cannot publish that incompatible test setup. Moving to 6 requires
          migrating and verifying this interception boundary, not a version bump alone. -->
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
     <PackageVersion Include="Microsoft.ClearScript.V8" Version="7.5.1.1" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.osx-arm64" Version="7.5.1.1" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.osx-x64" Version="7.5.1" />

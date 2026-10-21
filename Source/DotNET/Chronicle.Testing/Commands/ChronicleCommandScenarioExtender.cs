@@ -1,9 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -12,7 +17,6 @@ using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.Events;
 using Cratis.Chronicle.Testing.EventSequences;
-using Cratis.Chronicle.Testing.ReadModels;
 using Cratis.Chronicle.Transactions;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,9 +64,27 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     internal const string DecisionScenarioKey = "Chronicle.DecisionScenario";
 
     /// <summary>
+    /// Key for competing appends in a scenario that keeps its ordinary read mode.
+    /// </summary>
+    internal const string ConcurrentScenarioKey = "Chronicle.ConcurrentScenario";
+
+    /// <summary>
     /// The context key for the serializer registration owned by this extender.
     /// </summary>
     internal const string EventSerializerRegistrationKey = "Chronicle.EventSerializerRegistration";
+
+    const string EventStoreNameKey = "Chronicle.EventStoreName";
+    const string EventStoreNamespaceKey = "Chronicle.EventStoreNamespace";
+
+    /// <inheritdoc/>
+    public void Extend(Type commandType, IServiceCollection services, IDictionary<string, object> context)
+    {
+        Extend(services, context);
+        if (NeedsDecisionReads(commandType))
+        {
+            EnableDecisionReads(services, context);
+        }
+    }
 
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
@@ -72,7 +94,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var namespaceName = new EventStoreNamespaceName($"default-{scenarioId:N}");
         var eventScenario = new EventScenario(EventSequenceId.Log, eventStoreName, namespaceName, new DiscoveredConstraintsForScenario(Defaults.Instance));
         var appendedEvents = new List<AppendedEventWithResult>();
-        var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
+        var readModels = new CommandScenarioReadModels(
+            Defaults.Instance.EventStore.ReadModels,
+            commandLog: eventScenario.EventLog);
         var eventStore = new EventStoreForScenario(eventScenario, readModels, eventStoreName, namespaceName);
         var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
@@ -95,10 +119,50 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         // the in-memory kernel, with the explicit transactional style enrolling in the command's unit of work.
         services.AddSingleton<IEventLog>(new EventLogForScenario(eventScenario.EventLog, unitOfWorkManager));
 
+        context[EventStoreNameKey] = eventStoreName;
+        context[EventStoreNamespaceKey] = namespaceName;
         context[EventSerializerRegistrationKey] = eventSerializerRegistration;
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
         context[ReadModelsKey] = readModels;
+        context[nameof(GeneratedIdentifierCollisionScenarioCheck)] = new GeneratedIdentifierCollisionScenarioCheck(context, readModels);
+    }
+
+    /// <summary>
+    /// Enables competing appends on the existing scenario log without opting into decision reads.
+    /// </summary>
+    /// <param name="services">The services of the uninitialized scenario.</param>
+    /// <param name="context">The scenario context.</param>
+    /// <returns>The competing append queue for the existing log.</returns>
+    /// <exception cref="ConcurrentAppendsCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+    internal static DecisionCommandScenario EnableConcurrentAppends(IServiceCollection services, IDictionary<string, object> context)
+    {
+        if (services.Any(_ => _.ServiceType == typeof(IInstancesOf<ICommandExecutionScope>) || _.ServiceType == typeof(ICommandExecutionScope)))
+        {
+            throw new ConcurrentAppendsCannotOrderCustomExecutionScopes();
+        }
+
+        var eventScenario = (EventScenario)context[ContextKey];
+        var unitOfWorkManager = (IUnitOfWorkManager)services.Last(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ImplementationInstance!;
+        var scenario = new DecisionCommandScenario(eventScenario.EventLog, unitOfWorkManager, (List<AppendedEventWithResult>)context[AppendedEventsKey], captureCommands: false);
+        services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(sp =>
+        {
+            var types = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandExecutionScope>()
+                .Where(type => type != typeof(DecisionScenarioConcurrentAppendScope) && type != typeof(DecisionScenarioCommandCaptureScope));
+            var scopes = types.Select(type => (ICommandExecutionScope)ActivatorUtilities.GetServiceOrCreateInstance(sp, type)).ToList();
+            var ownerIndex = scopes.FindIndex(scope => scope is TransactionalCommandScope);
+            if (ownerIndex < 0)
+            {
+                throw new ConcurrentAppendsRequireTransactionalCommandScope();
+            }
+
+            scopes.Insert(ownerIndex, new DecisionScenarioCommandCaptureScope(scenario));
+            scopes.Insert(ownerIndex + 2, new DecisionScenarioConcurrentAppendScope(scenario));
+            return new KnownInstancesOf<ICommandExecutionScope>(scopes);
+        });
+        context[ConcurrentScenarioKey] = scenario;
+
+        return scenario;
     }
 
     /// <summary>
@@ -127,7 +191,13 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         }
 
         // Defaults exposes the serializer paired with its testing store; the store's serializer is internal.
-        var decisionDefaults = new Defaults(Defaults.Instance.ClientArtifactsProvider);
+        var decisionDefaults = new Defaults(
+            Defaults.Instance.ClientArtifactsProvider,
+            serviceProvider: null,
+            options: null,
+            time: null,
+            eventStore: (EventStoreName)context[EventStoreNameKey],
+            @namespace: (EventStoreNamespaceName)context[EventStoreNamespaceKey]);
         var store = (EventStoreForTesting)decisionDefaults.EventStore;
         var commandEvents = new List<AppendedEventWithResult>();
         var scenario = new DecisionCommandScenario(store, commandEvents);
@@ -173,4 +243,29 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[AppendedEventsKey] = commandEvents;
         context[ReadModelsKey] = readModels;
     }
+
+    static bool NeedsDecisionReads(Type commandType)
+    {
+        // Provision before the test registers its host configuration. The real pipeline still applies
+        // the operational cap on every execution; provisioning a store never enables a guard by itself.
+        using var profile = CommandDecisionPolicy.Begin(commandType);
+        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Protected || CommandDecisionPolicy.ReadProtection != ReadProtectionMode.Off)
+        {
+            return true;
+        }
+
+        var dependencies = commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+            .Where(_ => _.Name == "Handle" || _.Name == "Provide")
+            .SelectMany(_ => _.GetParameters());
+        var validators = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple(typeof(IDiscoverableValidator<>))
+            .Where(_ => typeof(IDiscoverableValidator<>).MakeGenericType(commandType).IsAssignableFrom(_));
+        return dependencies.Concat(validators.SelectMany(_ => _.GetConstructors()).SelectMany(_ => _.GetParameters()))
+            .Any(_ => IsDecisionDependency(_.ParameterType) ||
+                _.GetCustomAttribute<GeneratedValueAttribute>()?.Freshness == GeneratedValueFreshness.Guarded);
+    }
+
+    static bool IsDecisionDependency(Type type) =>
+        type == typeof(IDecisionReads) || type == typeof(IStreamReads) || type == typeof(StreamDecision) ||
+        (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>)) ||
+        PerStreamReadModelBinding.IsDeclared(type);
 }

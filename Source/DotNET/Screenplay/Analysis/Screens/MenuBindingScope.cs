@@ -41,6 +41,27 @@ internal sealed partial class MenuBindingScope(TsxSource source)
     }
 
     /// <summary>
+    /// Proves that a literal navigation callback uses the hook binding of its directly returned component.
+    /// </summary>
+    /// <param name="declaration">The navigation hook declaration.</param>
+    /// <param name="position">The JSX callback element position.</param>
+    /// <returns>Whether the imported hook and navigation variable are unshadowed.</returns>
+    internal bool BindsNavigation(Match declaration, int position)
+    {
+        var body = BodyAt(position);
+        var component = ComponentRegex().Matches(source.Code).Cast<Match>()
+            .SingleOrDefault(_ => _.Index + _.Length - 1 == body && source.IsCode(_.Index));
+        if (body < 0 || BodyAt(declaration.Index) != body || component is null)
+        {
+            return false;
+        }
+
+        var names = new[] { declaration.Groups["name"].Value, declaration.Groups["hook"].Value };
+        var shadowed = IdentifierRegex().Matches(component.Groups["parameters"].Value).Cast<Match>().Any(_ => names.Contains(_.Value, StringComparer.Ordinal));
+        return !shadowed && IsDirectReturn(body, position) && HasNavigationHook(declaration, body);
+    }
+
+    /// <summary>
     /// Finds the narrow supported component function headers.
     /// </summary>
     /// <returns>The function header pattern.</returns>
@@ -87,6 +108,15 @@ internal sealed partial class MenuBindingScope(TsxSource source)
         var calls = MenuCallbacks.Patterns.TupleRegex().Matches(source.Code).Cast<Match>()
             .Select(_ => _.Groups["hook"].Index).ToHashSet();
 
+        return references.All(_ => calls.Contains(_.Index));
+    }
+
+    bool HasNavigationHook(Match declaration, int body)
+    {
+        var hook = declaration.Groups["hook"].Value;
+        var references = IdentifierRegex().Matches(source.Code).Cast<Match>().Where(_ => _.Value == hook && IsBodyReference(_, body));
+        var calls = MenuCallbacks.Patterns.NavigateBindingRegex().Matches(source.Code).Cast<Match>()
+            .Where(_ => source.IsCode(_.Index)).Select(_ => _.Groups["hook"].Index).ToHashSet();
         return references.All(_ => calls.Contains(_.Index));
     }
 

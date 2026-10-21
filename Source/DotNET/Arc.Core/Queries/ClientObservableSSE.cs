@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -53,11 +54,13 @@ public class ClientObservableSSE<T>(
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
             .CaptureLiveRequest(context.RequestServices);
         using var emissionGate = new SemaphoreSlim(1, 1);
+        using var telemetry = new ObservableQueryTelemetry(context.RequestServices, queryContext.Name.Value, WellKnownTelemetryNames.ServerSentEventsTransport);
 
         IDisposable? subscription = null;
         Exception? failure = null;
         try
         {
+            telemetry.Start();
             subscription = Subject.Subscribe(Next, Error, Complete);
             using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
             await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
@@ -107,7 +110,7 @@ public class ClientObservableSSE<T>(
                     logger.ObservableForwardingNullItem();
                 }
 
-                queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
+                queryResult.Paging = ObservableQueryPaging.PagingFor(data, queryContext);
 
                 // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
                 // context set up for this connection does not flow. Restoring it here — and resolving through
@@ -132,9 +135,11 @@ public class ClientObservableSSE<T>(
                 var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
                 var sseMessage = $"data: {json}\n\n";
 
+                using var push = telemetry.BeginPush();
                 try
                 {
                     await context.Write(sseMessage, cts.Token);
+                    push.Delivered();
                     hasDeliveredEmission = true;
                 }
                 catch (Exception ex)

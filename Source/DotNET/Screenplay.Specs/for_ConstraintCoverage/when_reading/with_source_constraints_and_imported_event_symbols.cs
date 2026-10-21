@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Analysis.Constraints;
+using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.for_ConstraintCoverage.when_reading;
@@ -30,6 +31,8 @@ public class with_source_constraints_and_imported_event_symbols
         var reactor = Analyzed.Project("Reactors", [MetadataReference.CreateFromImage(stream.ToArray())], ("Library/Reactors.cs", "namespace Reactors; public class Reactor;"));
         var coverage = ConstraintCoverage.Read([.. ArtifactCatalog.From(contracts).Types, .. ArtifactCatalog.From(reactor).Types], new SemanticModels([contracts, reactor]));
 
-        coverage.UnprovenBatch([reactor.GetTypeByMetadataName("Contracts.A")!, reactor.GetTypeByMetadataName("Contracts.B")!]).ShouldContain(reason);
+        var gap = coverage.UnprovenBatch([reactor.GetTypeByMetadataName("Contracts.A")!, reactor.GetTypeByMetadataName("Contracts.B")!]);
+        gap!.Message.ShouldContain(reason);
+        gap.Kind.ShouldEqual(declaration.Contains("ClosesStreamOn", StringComparison.Ordinal) ? ReactionBatchGapKind.Closing : ReactionBatchGapKind.Rejection);
     }
 }

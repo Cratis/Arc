@@ -56,11 +56,9 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <param name="type">The read model to read.</param>
     /// <returns>The methods, ordered so that the same read model always reads the same way.</returns>
     /// <remarks>
-    /// Arc exposes a static method on a read model as a query when it returns that read model - one of it or many of
-    /// it, however the return type dresses that up - using its legacy accessibility rules by default. Both halves of that
-    /// matter: a read model routinely carries static helpers returning something else, and stating them as endpoints
-    /// would put routes in the document that no application serves, while a query that happens not to be public is a
-    /// route the application really does serve.
+    /// Arc exposes only public static methods returning the read model or a supported wrapper around it.
+    /// Non-public helpers are never queries, even when marked, while the declaring read-model type may be internal.
+    /// Explicit selection additionally requires the query marker. Helpers must not appear as routes in the document.
     /// </remarks>
     public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type) => ModelBoundQuerySelection.MethodsOf(type);
 
@@ -268,7 +266,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <returns>The <see cref="PropertyModel"/>.</returns>
     PropertyModel ToParameter(IParameterSymbol parameter)
     {
-        var type = types.Resolve(parameter.Type);
+        var type = types.ResolveCarried(parameter.Type);
 
         return new(parameter.Name, type with { IsOptional = parameter.HasExplicitDefaultValue || type.IsOptional });
     }

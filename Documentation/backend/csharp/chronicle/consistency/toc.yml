@@ -1,0 +1,20 @@
+- name: Choosing how a rule holds
+  href: index.md
+- name: Getting started
+  href: getting-started.md
+- name: Adopting read protection
+  href: adopting.md
+- name: Reads
+  href: reads.md
+- name: Validators
+  href: validators.md
+- name: Refusals
+  href: refusals.md
+- name: How it works
+  href: how-it-works.md
+- name: Scenarios
+  href: scenarios/toc.yml
+- name: Pitfalls
+  href: pitfalls.md
+- name: FAQ
+  href: faq.md

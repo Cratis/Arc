@@ -46,6 +46,21 @@ public class a_returned_event_batch : a_reacting_application
         (ScenarioPath, Scenario)
         ]);
 
+    protected void AssertAtomicBatch(bool scenario = true)
+    {
+        Result.Source.ShouldContain("reaction batches atomic");
+        Result.Source.ShouldNotContain("file Authors/Welcoming/Welcoming.cs");
+        Result.Diagnostics.Where(_ => _.Code == "SP0070").ShouldBeEmpty();
+        if (scenario)
+        {
+            Result.Source.ShouldContain($"specification {ScenarioName}");
+            ScenarioReports.ShouldBeEmpty();
+        }
+        Bound.Value!.Model.SemanticVersion.ShouldEqual(Cratis.Screenplay.Semantics.SemanticVersion.V22);
+        Bound.Value.Model.Application.ReactionProductionMode.ShouldEqual(Cratis.Screenplay.Semantics.SemanticReactionProductionMode.Atomic);
+        AssertDocument();
+    }
+
     protected void AssertWithheld()
     {
         Result.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");

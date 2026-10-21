@@ -10,7 +10,7 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="FilePath">The path of the file realizing the screen, relative to the root of the source.</param>
 /// <remarks>
 /// A screen is the one part of a slice whose realization is not C#, so most of what it shows stays where it is
-/// written. What is recovered is what can be read without guessing: which file realizes it, which of the slice's
+/// written. What is recovered is what can be read without guessing: which file realizes it, which declared
 /// queries it binds, and the structure stated through the properties of known Cratis Components - the title of a
 /// data page, the tables and columns of its data tables and the commands its command dialogs run. Structure written
 /// in any other JSX is not read, because inventing it would put a confident falsehood into a document whose whole
@@ -19,7 +19,7 @@ namespace Cratis.Arc.Screenplay.Model;
 public record ScreenModel(string Name, string FilePath)
 {
     /// <summary>
-    /// Gets the read models the screen binds through the queries of its slice.
+    /// Gets the read models the screen binds through resolved query imports.
     /// </summary>
     public IEnumerable<ScreenDataModel> Data { get; init; } = [];
 
@@ -29,7 +29,7 @@ public record ScreenModel(string Name, string FilePath)
     public IEnumerable<string> Titles { get; init; } = [];
 
     /// <summary>
-    /// Gets the command input openers recovered from data page menus.
+    /// Gets the command input openers and literal navigation items recovered from data page menus.
     /// </summary>
     public IEnumerable<ScreenToolbarModel> Toolbars { get; init; } = [];
 
@@ -39,7 +39,12 @@ public record ScreenModel(string Name, string FilePath)
     public IEnumerable<ScreenTableModel> Tables { get; init; } = [];
 
     /// <summary>
-    /// Gets the commands of its slice the screen runs, in the order its components state them.
+    /// Gets the resolved commands the screen runs, in the order its components state them.
     /// </summary>
     public IEnumerable<string> Actions { get; init; } = [];
+
+    /// <summary>
+    /// Gets navigation performed after a command succeeds, keyed by the action reference.
+    /// </summary>
+    public IReadOnlyDictionary<string, ScreenNavigationModel> AfterSuccess { get; init; } = new Dictionary<string, ScreenNavigationModel>();
 }

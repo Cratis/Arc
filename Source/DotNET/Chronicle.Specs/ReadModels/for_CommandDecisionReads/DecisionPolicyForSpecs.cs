@@ -10,5 +10,5 @@ internal static class DecisionPolicyForSpecs
 {
     internal static IDisposable Begin(Type commandType) => (IDisposable)typeof(CommandDecisionPolicy)
         .GetMethod("Begin", BindingFlags.NonPublic | BindingFlags.Static)!
-        .Invoke(null, [commandType])!;
+        .Invoke(null, [commandType, null])!;
 }

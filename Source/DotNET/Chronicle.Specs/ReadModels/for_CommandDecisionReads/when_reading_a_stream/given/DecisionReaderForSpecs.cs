@@ -3,6 +3,7 @@
 
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads.when_reading_a_stream.given;
 
@@ -11,6 +12,12 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads.when_reading_
 /// </summary>
 public abstract class DecisionReaderForSpecs : IDecisionReads
 {
+    public abstract DecisionReadDescription Describe<T>()
+        where T : class;
+    public abstract Task<DecisionRead<T>> GetFor<T>(IUnitOfWork unitOfWork, ReadModelKey key, CancellationToken cancellationToken = default)
+        where T : class;
+    public abstract Task<DecisionRead<T>> GetFor<T>(IUnitOfWork unitOfWork, EventSourceId eventSourceId, EventStreamType eventStreamType, EventStreamId eventStreamId, EventSourceType? eventSourceType = default, CancellationToken cancellationToken = default)
+        where T : class;
     public abstract DecisionReadAdmission Admit<T>()
         where T : class;
     public abstract DecisionReadAdmission AdmitForStream<T>()

@@ -45,7 +45,13 @@ export const ValidationResultReason = {
      * The request itself could not be read - a malformed body, or a value that could not be bound. No rule was
      * reached.
      */
-    MalformedRequest: 'malformedRequest'
+    MalformedRequest: 'malformedRequest',
+
+    /**
+     * The framework could not fulfill a command contract or complete its effects. This is framework-composed;
+     * the message is a developer diagnostic, not end-user copy.
+     */
+    FrameworkFailure: 'frameworkFailure'
 } as const;
 
 /**

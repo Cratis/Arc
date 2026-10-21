@@ -14,6 +14,7 @@ Add relational persistence when your Arc application needs it. The optional `Cra
 | [Entity Mapping](./entity-mapping.md) | How to configure entities using IEntityTypeConfiguration&lt;T&gt; for clean, organized entity configuration. |
 | [Read Only DbContexts](./read-only.md) | How to implement read-only database contexts for query scenarios. |
 | [Automatic Database hookup](./automatic-database-hookup.md) | Provider detection, pooled context registration, and connection-string limits. |
+| [Upserts](./upserts.md) | Tracked persistence and atomic native upserts for SQL Server, PostgreSQL, and SQLite. |
 | [Observing DbSet](./observing.md) | How to monitor entity changes in real-time using reactive extensions. |
 | [Common Column Types](./common-column-types.md) | Common column type configurations and conventions. |
 | [Property Extensions](./property-extensions.md) | Property configuration extensions for cross-database compatibility. |

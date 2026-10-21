@@ -36,22 +36,25 @@ public class a_delta_subscription : an_observable_query_demultiplexer
     protected async Task Emit(params IEnumerable<Item>[] snapshots)
     {
         _subscription = _hub.SubscribeToStreamingData(
-            Substitute.For<IHttpRequestContext>(),
-            _subject,
-            "query-1",
-            new PagingInfo(0, 0, 0),
-            "delta",
-            CorrelationId.New(),
-            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
-            (result, _) =>
-            {
-                _results.Add(result);
-                _signals.Signal();
-                return Task.CompletedTask;
-            },
-            (_, _, _) => Task.CompletedTask,
-            (_, _) => Task.CompletedTask,
-            CancellationToken.None);
+            new ObservableQuerySubscriptionContext(
+                Substitute.For<IHttpRequestContext>(),
+                "query-1",
+                new PagingInfo(0, 0, 0),
+                "delta",
+                CorrelationId.New(),
+                new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
+                (result, _) =>
+                {
+                    _results.Add(result);
+                    _signals.Signal();
+                    return Task.CompletedTask;
+                },
+                (_, _, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask,
+                () => { },
+                null,
+                CancellationToken.None),
+            _subject);
 
         foreach (var (snapshot, index) in snapshots.Select((snapshot, index) => (snapshot, index)))
         {

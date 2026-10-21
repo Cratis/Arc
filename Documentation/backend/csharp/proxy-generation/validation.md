@@ -36,7 +36,7 @@ Controller-based queries use a separate lookup: the generator selects the first 
 | `LessThan(n)`             | `lessThan(n)`                                           |
 | `LessThanOrEqualTo(n)`    | `lessThanOrEqual(n)`                                    |
 
-Comparisons require **numeric constant** values. Cross-property comparisons and nonnumeric constants, such as date sentinels, are not projected. A .NET regex pattern must also be valid and meaningful in JavaScript; extraction is not a regex-language translation.
+Comparisons require **numeric constant** values. Cross-property comparisons and nonnumeric constants, such as date sentinels, are not projected. DateOnly, DateTime, and DateTimeOffset ordering stays server-side: JavaScript dates lose .NET tick precision, and Arc emits no client clock rule. For date-time inputs that must identify an instant, use [explicit-offset binding](../commands/input-binding.md#require-explicit-date-time-offsets). A .NET regex pattern must also be valid and meaningful in JavaScript; extraction is not a regex-language translation.
 
 ## A complete command declaration
 

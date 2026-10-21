@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Model;
+
 namespace Cratis.Arc.Screenplay.Analysis;
 
 /// <summary>
@@ -19,16 +21,31 @@ public static class ConceptValidations
     /// <param name="readers">The readers holding the concepts and the validators.</param>
     public static void Link(ArtifactCatalog catalog, ArtifactReaders readers)
     {
-        var declared = readers.Types.Concepts.Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
+        var declared = readers.Types.Concepts.ToDictionary(concept => concept.Name, StringComparer.Ordinal);
 
-        foreach (var type in catalog.Types.Where(_ => declared.Contains(_.Name)))
+        foreach (var type in catalog.Types.Where(_ => declared.ContainsKey(_.Name)))
         {
             if (type.FindBase(WellKnownTypeNames.ConceptAs) is null)
             {
                 continue;
             }
 
-            readers.Types.AddValidations(type.Name, readers.Validators.For(type));
+            var rules = readers.Validators.For(type).ToList();
+            readers.Types.AddValidations(type.Name, rules);
+            var concept = declared[type.Name];
+            if (!NeedsValidatorSource(concept, rules))
+            {
+                continue;
+            }
+
+            readers.Types.AddValidatorSources(type.Name, readers.Validators.SourcesFor(type));
+            if (!readers.Validators.IsComplete(type))
+            {
+                readers.Types.MarkValidationIncomplete(type.Name);
+            }
         }
     }
+
+    static bool NeedsValidatorSource(ConceptModel concept, IReadOnlyList<ValidationRuleModel> rules) =>
+        concept.HasGeneratedUses || concept.Generation is not null || rules.Any(rule => rule.Kind == ValidationRuleKind.Checksum);
 }

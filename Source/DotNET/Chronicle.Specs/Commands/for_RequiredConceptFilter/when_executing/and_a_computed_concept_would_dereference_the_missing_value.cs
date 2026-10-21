@@ -14,5 +14,5 @@ public class and_a_computed_concept_would_dereference_the_missing_value : given.
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_not_carry_any_exception() => _result.HasExceptions.ShouldBeFalse();
-    [Fact] void should_point_at_the_missing_property() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains(nameof(CommandWithComputedConcept.First)));
+    [Fact] void should_point_at_the_missing_property() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains("first"));
 }

@@ -65,8 +65,10 @@ public class ArcAuthorizationPolicyRuntime(IEnumerable<AuthorizationPolicyRegist
     AuthorizationPolicyRegistration PolicyFor(string name) =>
         _registrations.Single(registration => registration.Name == name);
 
-    sealed class NativeResolution(ArcAuthorizationPolicyRuntime runtime, AuthorizationRequirement[] requirements) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution
+    sealed class NativeResolution(ArcAuthorizationPolicyRuntime runtime, AuthorizationRequirement[] requirements) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution, IResourceFreePolicyResolution
     {
+        public bool CanEvaluateWithoutResource => requirements.All(requirement => string.IsNullOrWhiteSpace(requirement.Policy));
+
         public bool EvaluatesAnonymous => requirements.Length > 0 && requirements.All(requirement =>
             requirement.AnyOfRoles.Count == 0 && requirement.AuthenticationSchemes.Count == 0 &&
             !string.IsNullOrWhiteSpace(requirement.Policy) && runtime.PolicyFor(requirement.Policy).EvaluatesAnonymous);

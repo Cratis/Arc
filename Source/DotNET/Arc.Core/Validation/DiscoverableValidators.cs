@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
@@ -56,9 +57,11 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            var instance = CommandDecisionPolicy.RefusesDiscoverableValidators
-                ? ConstructForProtectedDecision(serviceProvider, value)
-                : Construct(serviceProvider, value);
+            var instance = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On
+                ? ConstructForReadProtection(serviceProvider, value)
+                : CommandDecisionPolicy.RefusesDiscoverableValidators
+                    ? ConstructForProtectedDecision(serviceProvider, value)
+                    : Construct(serviceProvider, value);
             validator = (instance as IValidator)!;
             return true;
         }
@@ -73,6 +76,20 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="validatorType">The validator type.</param>
     /// <returns>The public constructors.</returns>
     internal static ConstructorInfo[] PublicConstructorsOf(Type validatorType) => validatorType.GetConstructors();
+
+    /// <summary>
+    /// Constructs a fresh validator using command-aware parameter resolution.
+    /// </summary>
+    /// <param name="serviceProvider">The executing command's provider.</param>
+    /// <param name="validatorType">The validator type.</param>
+    /// <returns>The freshly constructed validator.</returns>
+    internal static object ConstructDependencies(IServiceProvider serviceProvider, Type validatorType)
+    {
+        var constructor = ConstructorOf(validatorType);
+        var arguments = ResolveArguments(serviceProvider, validatorType, constructor);
+
+        return constructor.Invoke(BindingFlags.DoNotWrapExceptions, null, arguments, null);
+    }
 
     /// <summary>
     /// Gets the model type a validator declares through <see cref="IDiscoverableValidator{T}"/>.
@@ -113,24 +130,32 @@ public class DiscoverableValidators : IDiscoverableValidators
     }
 
     /// <summary>
-    /// Constructs a validator for a protected decision command, refusing a validator that takes dependencies or that
-    /// Arc did not construct (Arc#2831).
+    /// Constructs a validator for a protected decision command, certifying supported dependencies only in an
+    /// attested scope and refusing instances Arc did not construct (Arc#2831).
     /// </summary>
     /// <param name="serviceProvider">The executing <see cref="IServiceProvider"/>.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>A validator constructed by Arc.</returns>
-    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The validator takes dependencies, or the provider supplied an instance Arc did not construct.</exception>
+    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The dependency graph cannot be certified, or the provider supplied an instance Arc did not construct.</exception>
     /// <remarks>
-    /// A validator with constructor dependencies is refused before the provider is consulted, so no dependency, factory
-    /// or rule runs. Otherwise the provider's registration still wins, as it does for other commands, so no rule a
-    /// registration adds is silently dropped: the instance it supplies is used only when Arc constructed it, and
-    /// refused otherwise. With no registration, Arc constructs the validator exactly as it does for other commands.
+    /// Constructor dependencies and Arc-owned configuration callbacks require an attested scope and a complete
+    /// dependency preflight before activation. Parameterless validators without such configuration retain their
+    /// existing registration behavior: registered instances must have been constructed by Arc, and unregistered
+    /// validators are constructed directly by Arc.
     /// </remarks>
     static object ConstructForProtectedDecision(IServiceProvider serviceProvider, Type validatorType)
     {
         if (!ProtectedValidatorConstruction.IsDependencyFree(validatorType))
         {
-            throw new DiscoverableValidatorRefusedInProtectedDecision(validatorType);
+            if (!ProtectedDecisionProviderAttestations.TryGetAttestation(serviceProvider, out _))
+            {
+                throw new DiscoverableValidatorRefusedInProtectedDecision(validatorType);
+            }
+            return CertifiedProtectedValidatorConstruction.Construct(serviceProvider, validatorType, RuntimeFeature.IsDynamicCodeSupported);
+        }
+        if (CertifiedProtectedValidatorConstruction.IsConfigured(serviceProvider, validatorType))
+        {
+            return CertifiedProtectedValidatorConstruction.Construct(serviceProvider, validatorType, RuntimeFeature.IsDynamicCodeSupported);
         }
 
         var registered = serviceProvider.GetService(validatorType);
@@ -154,6 +179,25 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
+    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The validator has a registration other than a plain transient binding.</exception>
+    /// <remarks>
+    /// The refusal depends on how the validator is registered, not on which model it validates: a validator of a child
+    /// model reached through nested validation follows the same rule as the command's own validator. A plain transient
+    /// binding is constructed fresh by Arc for the invocation, without consulting the provider, so its read-model
+    /// dependencies resolve as protected reads. An unregistered validator is constructed the same way. Any other
+    /// registration may share or supply an instance Arc did not construct for this invocation, and is refused.
+    /// </remarks>
+    static object ConstructForReadProtection(IServiceProvider serviceProvider, Type validatorType)
+    {
+        if (ProtectedValidatorConstruction.IsConventionTransient(serviceProvider, validatorType) ||
+            serviceProvider.GetService(validatorType) is null)
+        {
+            return ConstructDependencies(serviceProvider, validatorType);
+        }
+
+        throw DiscoverableValidatorRefusedInProtectedDecision.NotTransientForReadProtection(validatorType);
+    }
+
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
         // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
@@ -163,15 +207,20 @@ public class DiscoverableValidators : IDiscoverableValidators
             return registered;
         }
 
-        var constructor = PublicConstructorsOf(validatorType)
-            .OrderByDescending(_ => _.GetParameters().Length)
-            .First();
-
-        var arguments = ParameterDependencyResolver.Resolve(
-            serviceProvider,
-            constructor.GetParameters(),
-            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
+        var constructor = ConstructorOf(validatorType);
+        var arguments = ResolveArguments(serviceProvider, validatorType, constructor);
 
         return constructor.Invoke(arguments);
     }
+
+    static ConstructorInfo ConstructorOf(Type validatorType) =>
+        PublicConstructorsOf(validatorType)
+            .OrderByDescending(_ => _.GetParameters().Length)
+            .First();
+
+    static object?[] ResolveArguments(IServiceProvider serviceProvider, Type validatorType, ConstructorInfo constructor) =>
+        ParameterDependencyResolver.Resolve(
+            serviceProvider,
+            constructor.GetParameters(),
+            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
 }

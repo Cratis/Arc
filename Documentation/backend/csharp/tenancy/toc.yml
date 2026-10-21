@@ -1,5 +1,7 @@
 - name: Overview
   href: index.md
+- name: Tenancy End to End
+  href: end-to-end.md
 - name: Resolving Tenant IDs
   href: resolvers.md
 - name: Configuration
@@ -8,3 +10,5 @@
   href: tenant-context.md
 - name: Database Isolation
   href: database-resolvers.md
+- name: Connection Resolution
+  href: connection-resolution.md

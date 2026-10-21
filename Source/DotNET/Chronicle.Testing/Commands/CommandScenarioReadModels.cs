@@ -18,16 +18,18 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// <see cref="SeedEvents"/>. Decision mode passes its single in-process log, so non-decision reads see the same events that
 /// protected decision reads fold.
 /// </param>
+/// <param name="commandLog">The legacy command log whose successful appends are mirrored into a private observation log.</param>
 /// <remarks>
 /// Seeding events is deliberately type-agnostic: a test states the events that happened for an event source, and any
 /// read model a command injects for that source is materialized from those events on demand — mirroring how the real
 /// system derives read models from the event log. Pinned instances take precedence when a test wants to assert against
 /// a specific read model value directly.
 /// </remarks>
-internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null) : IReadModels
+internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null, IEventSequence? commandLog = null) : IReadModels, IDisposable
 {
     readonly Dictionary<(Type ReadModelType, string EventSourceId), object> _instances = [];
     readonly Dictionary<string, List<object>> _events = [];
+    readonly PrivateReadModelObservationLog? _observationLog = commandLog is null ? null : new(commandLog);
 
     /// <inheritdoc/>
     public IMaterializedReadModels Materialized => inner.Materialized;
@@ -38,8 +40,11 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
     /// <param name="readModelType">The read model type.</param>
     /// <param name="eventSourceId">The event source id to associate the instance with.</param>
     /// <param name="instance">The read model instance.</param>
-    public void SeedInstance(Type readModelType, EventSourceId eventSourceId, object instance) =>
+    public void SeedInstance(Type readModelType, EventSourceId eventSourceId, object instance)
+    {
         _instances[(readModelType, eventSourceId.Value)] = instance;
+        _pinsChanged.OnNext(_pinsChanged.Value + 1);
+    }
 
     /// <summary>
     /// Seeds events for an event source id that read models are materialized from on demand.
@@ -54,7 +59,9 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
             _events[eventSourceId.Value] = seeded;
         }
 
-        seeded.AddRange(events);
+        var snapshot = events.ToArray();
+        seeded.AddRange(snapshot);
+        _observationLog?.Seed(eventSourceId, snapshot);
     }
 
     /// <inheritdoc/>
@@ -65,10 +72,20 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
             return instance;
         }
 
-        var events = await EventsFor(new EventSourceId(key.Value));
-        if (events.Count > 0)
+        var eventSourceId = new EventSourceId(key.Value);
+        if (eventLog is not null)
         {
-            return (await ProjectReadModel(readModelType, new EventSourceId(key.Value), events))!;
+            // Read the scenario's log at resolution time, before any queued competing append. Keep the original
+            // contexts: rebuilding them from bare contents would renumber revisions and replace occurrence times.
+            var appended = await eventLog.GetFromSequenceNumber(EventSequenceNumber.First, eventSourceId);
+            if (appended.Count > 0)
+            {
+                return (await ProjectReadModel(readModelType, "ProcessAppendedEvents", [appended]))!;
+            }
+        }
+        else if (_events.TryGetValue(eventSourceId.Value, out var events) && events.Count > 0)
+        {
+            return (await ProjectReadModel(readModelType, "ProcessEventsFor", [eventSourceId, events]))!;
         }
 
         // Nothing seeded for this event source id, or none of it concerns this read model (the projection yields no
@@ -81,6 +98,10 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
     /// <inheritdoc/>
     public async Task<TReadModel> GetInstanceById<TReadModel>(ReadModelKey key, ReadModelSessionId? sessionId = null) =>
         (TReadModel)await GetInstanceById(typeof(TReadModel), key, sessionId);
+
+    /// <inheritdoc/>
+    public Task<TReadModel> GetInstanceById<TReadModel>(EventSourceId eventSourceId, EventStreamId eventStreamId) =>
+        inner.GetInstanceById<TReadModel>(eventSourceId, eventStreamId);
 
     /// <inheritdoc/>
     public Task Register() => inner.Register();
@@ -115,7 +136,15 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
     /// <returns>True if state has been seeded.</returns>
     internal bool HasSeededState() => _events.Count > 0 || _instances.Count > 0;
 
-    static async Task<object?> ProjectReadModel(Type readModelType, EventSourceId eventSourceId, IEnumerable<object> events)
+    /// <summary>
+    /// Checks whether prior events were seeded for a canonical generated identifier.
+    /// </summary>
+    /// <param name="identifier">The canonical generated identifier.</param>
+    /// <returns>True if at least one prior event was seeded for that exact source.</returns>
+    internal bool HasSeededEventsFor(string identifier) =>
+        _events.TryGetValue(identifier, out var events) && events.Count > 0;
+
+    static async Task<object?> ProjectReadModel(Type readModelType, string processMethod, object[] arguments)
     {
         // ReadModelScenario<T> is Chronicle's own engine for materializing a read model from events through its real
         // reducer or projection — we build on it here rather than reimplementing projection. Reflection is used only
@@ -128,24 +157,9 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
         var scenarioType = typeof(ReadModelScenario<>).MakeGenericType(readModelType);
         var scenario = Activator.CreateInstance(scenarioType, [null])!;
 
-        var processTask = (Task)scenarioType.GetMethod("ProcessEventsFor")!.Invoke(scenario, [eventSourceId, events])!;
+        var processTask = (Task)scenarioType.GetMethod(processMethod)!.Invoke(scenario, arguments)!;
         await processTask;
 
         return scenarioType.GetProperty("Instance")!.GetValue(scenario);
-    }
-
-    async Task<IReadOnlyList<object>> EventsFor(EventSourceId eventSourceId)
-    {
-        if (eventLog is null)
-        {
-            return _events.TryGetValue(eventSourceId.Value, out var seeded) ? seeded : [];
-        }
-
-        // Production derives a read model from the event log; resolving from the same log the decision reads fold keeps
-        // the two consistent. The read is taken when the command asks for it, so events appended later in the scenario
-        // (such as competing appends queued with AppendConcurrently) are not visible to it, just as a read made before a
-        // concurrent write would not see that write.
-        var appended = await eventLog.GetFromSequenceNumber(EventSequenceNumber.First, eventSourceId);
-        return appended.Select(_ => _.Content).ToArray();
     }
 }

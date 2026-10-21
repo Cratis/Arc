@@ -22,12 +22,12 @@ internal static class ModelBoundQueryMethod
     internal const string QueryName = QuerySelectionPolicy.QueryName;
 
     /// <summary>
-    /// Tests the legacy reflection candidate shape without changing its eligibility rules.
+    /// Tests the public static reflection candidate shape.
     /// </summary>
     /// <param name="method">The method.</param>
     /// <returns>Whether the method is a candidate.</returns>
     internal static bool IsCandidate(MethodInfo method) =>
-        (method.IsPublic || method.IsAssembly) &&
+        method.IsPublic &&
         method.IsStatic &&
         !method.IsSpecialName &&
         !method.Name.Contains('<') &&
@@ -68,13 +68,13 @@ internal static class ModelBoundQueryMethod
         ReadModel(type)?.NamedArguments.Any(_ => _.MemberName == "RequireQueryAttribute" && _.TypedValue.Value is true) == true;
 
     /// <summary>
-    /// Applies opt-in selection without narrowing legacy methods.
+    /// Requires public static visibility before applying opt-in selection.
     /// </summary>
     /// <param name="method">The method.</param>
     /// <param name="owner">The discovery owner.</param>
     /// <returns>Whether selection permits the method.</returns>
     internal static bool IsSelected(MethodInfo method, Type owner) =>
-        QuerySelectionPolicy.IsSelected(RequiresQueryAttribute(owner), () => IsMarked(method), () => IsValidExplicitQuery(method));
+        method.IsPublic && method.IsStatic && QuerySelectionPolicy.IsSelected(HasSelfParameter(method, owner), RequiresQueryAttribute(owner), () => IsMarked(method), () => IsValidExplicitQuery(method));
 
     /// <summary>
     /// Validates explicit declarations before selecting endpoints, preserving the caller's legacy return predicate.
@@ -134,9 +134,12 @@ internal static class ModelBoundQueryMethod
     {
         foreach (var method in methods.Where(IsMarked))
         {
-            if (ReadModel(owner) is null || !IsValidExplicitQuery(method) || !legacyReturn(method))
+            if (ReadModel(owner) is null || HasSelfParameter(method, owner) || !IsValidExplicitQuery(method) || !legacyReturn(method))
             {
-                throw new InvalidQueryDeclaration(owner, method.Name, "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]");
+                var reason = HasSelfParameter(method, owner)
+                    ? QuerySelectionPolicy.SelfParameterReason
+                    : "[Query] requires a public static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]";
+                throw new InvalidQueryDeclaration(owner, method.Name, reason);
             }
         }
     }
@@ -148,7 +151,24 @@ internal static class ModelBoundQueryMethod
     /// <returns>Whether the method is eligible in explicit mode.</returns>
     internal static bool IsValidExplicitQuery(MethodInfo method) =>
         IsCandidate(method) && !method.ContainsGenericParameters &&
-        !method.ReturnType.IsByRef && method.GetParameters().All(_ => !_.ParameterType.IsByRef);
+        !method.ReturnType.IsByRef && method.GetParameters().All(_ => !_.ParameterType.IsByRef) &&
+        !HasSelfParameter(method, method.DeclaringType!);
+
+    /// <summary>
+    /// Detects an exact self parameter, including nullable value types in MetadataLoadContext.
+    /// </summary>
+    /// <param name="method">The method.</param>
+    /// <param name="owner">The read model.</param>
+    /// <returns>Whether any parameter is the read model itself.</returns>
+    internal static bool HasSelfParameter(MethodInfo method, Type owner) =>
+        method.GetParameters().Any(parameter => UnwrapNullable(parameter.ParameterType.IsByRef
+            ? parameter.ParameterType.GetElementType()!
+            : parameter.ParameterType) == owner);
+
+    static Type UnwrapNullable(Type type) =>
+        type.IsGenericType && type.GetGenericTypeDefinition().FullName == "System.Nullable`1"
+            ? type.GetGenericArguments()[0]
+            : type;
 
     static CustomAttributeData? AttributeOf(MemberInfo member, string fullName)
     {

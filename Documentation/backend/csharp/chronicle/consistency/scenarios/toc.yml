@@ -1,0 +1,26 @@
+- name: Scenarios
+  href: index.md
+- name: One entity
+  href: single-entity.md
+- name: Unique and once
+  href: unique-and-once.md
+- name: Two entities
+  href: two-entities.md
+- name: One stream
+  href: per-stream.md
+- name: Process stream
+  href: process-stream.md
+- name: Gapless numbers
+  href: numbering.md
+- name: Rich aggregate
+  href: aggregate.md
+- name: Editing conflict
+  href: editing-conflict.md
+- name: Rules that need no guard
+  href: no-guard.md
+- name: Less idiomatic Arc
+  href: less-idiomatic.md
+- name: Chronicle used directly
+  href: chronicle-direct.md
+- name: Test the race
+  href: testing.md

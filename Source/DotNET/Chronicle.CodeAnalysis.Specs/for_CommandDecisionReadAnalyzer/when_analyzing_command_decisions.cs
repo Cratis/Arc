@@ -11,8 +11,8 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandDecisionReadAnalyze
 
 public class when_analyzing_command_decisions
 {
-    const string HandlerAdvice = "Mark the command [ProtectedDecision] and use DecisionRead<T> or IDecisionReads in Provide or Handle, or mark the command or the intentional legacy read [Unprotected]";
-    const string ValidatorAdvice = "Protected commands refuse validators with constructor dependencies, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
+    const string HandlerAdvice = "Enable ReadProtection(On) and take the read model as a parameter, or mark the intentional advisory read [Unprotected(\"why\")]";
+    const string ValidatorAdvice = "Enable ReadProtection(On) and take the read model in the CommandValidator constructor for state-dependent rules; under Off this read is only a hint";
 
     const string Definitions = """
         using System;

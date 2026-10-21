@@ -1,50 +1,57 @@
 ---
 title: Messaging
-description: Publish and subscribe to typed messages with the @cratis/arc/messaging messenger, including scoped parent and child messengers.
+description: Publish and subscribe to typed frontend messages with Messenger, including subscription cleanup and parent-child scope propagation.
 ---
 
-Arc core provides a typed publish/subscribe messenger through `@cratis/arc/messaging`.
+`Messenger` connects frontend publishers and subscribers through typed, in-memory messages. Use it for UI coordination, such as letting a details panel react to a selection, without coupling the publisher to the panel.
 
 ## IMessenger
 
-`IMessenger` publishes and subscribes by runtime type:
+- `IMessenger` defines `publish(...)`, `subscribe(...)`, and propagation settings.
+- `Messenger` implements that contract with RxJS subscriptions.
+- `subscribe(MessageType, handler)` returns a subscription; call `unsubscribe()` when its owner no longer needs messages.
 
-```ts
-import { IMessenger, Messenger } from '@cratis/arc/messaging';
+Messages are matched by their constructor, not by a string name or a matching object shape. Publish an instance of the same class passed to `subscribe`; a plain object with identical properties does not have that constructor.
 
-class UserSelected {
-    constructor(readonly userId: string) {
-    }
+```typescript
+import { Messenger } from '@cratis/arc/messaging';
+
+class CustomerSelected {
+    constructor(readonly customerId: string) {}
 }
 
-const messenger: IMessenger = new Messenger();
-
-messenger.subscribe(UserSelected, message => {
-    console.log(message.userId);
+const messenger = new Messenger();
+const subscription = messenger.subscribe(CustomerSelected, message => {
+    console.log('Load customer details:', message.customerId);
 });
 
-messenger.publish(new UserSelected('42'));
+messenger.publish(new CustomerSelected('customer-42'));
+subscription.unsubscribe();
+messenger.dispose();
 ```
+
+Register subscribers before publishing. This is a live message channel, not a replaying store: a later subscriber does not receive earlier selections. It also does not send messages to a backend or persist them as domain events.
 
 ## Scoped hierarchy
 
-`Messenger` can be created with a parent messenger:
+Construct a child with `new Messenger(parent)` when a feature needs its own scope. A message is delivered locally, then follows these settings:
 
-```ts
-import { Messenger } from '@cratis/arc/messaging';
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `bubbleToParent` | `false` | Allows a locally published message to travel upward. Each ancestor's setting controls further bubbling. |
+| `trickleDownToChildren` | `true` | Allows delivery down the child tree. Each receiving scope controls propagation to its own children. |
 
-const root = new Messenger();
-const child = new Messenger(root);
-```
+### Propagation and cleanup
 
-Default behavior:
+When a child bubbles a message to a parent that trickles, sibling scopes can receive it too; the sending child is excluded from that return path. Use propagation deliberately rather than assuming a child scope isolates every message.
 
-- Messages published in a child stay in that branch (no bubbling to parent).
-- Messages published in a parent trickle down to all descendants recursively.
+`dispose()` detaches a messenger from its parent. It does not replace subscription cleanup: keep and unsubscribe subscriptions when their handlers are no longer needed.
 
-### Override properties
+## React usage
 
-Each messenger has two properties:
+React applications use the nearest messenger from context. `useOnMessage` handles subscription cleanup on unmount; `useMessenger` exposes the messenger for publishing. See [React Messaging](../react/messaging.md) for component examples and scope configuration.
 
-- `bubbleToParent` (default `false`) — bubble published messages to parent.
-- `trickleDownToChildren` (default `true`) — forward messages to child messengers.
+## See also
+
+- [Core TypeScript](index.md)
+- [Arc provider configuration](../react/arc.md)

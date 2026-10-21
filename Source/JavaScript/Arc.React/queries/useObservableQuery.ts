@@ -19,6 +19,8 @@ import { ArcContext } from '../ArcContext.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
+import { buildQueryKey } from './buildQueryKey.js';
+import { useResultForKey } from './useResultForKey.js';
 
 /**
  * Applies a server-provided {@link ChangeSet} to a snapshot array, producing the new state.
@@ -194,12 +196,11 @@ function useObservableQueryInternal<
     const arc = useContext(ArcContext);
     const queryCache = useContext(QueryInstanceCacheContext);
     const queryScope = useQueryScope();
-    const cacheKeyRef = useRef<string>('');
     const ownerRef = useRef<string | undefined>(owner);
     ownerRef.current = owner;
     const argsDependency = serializeArgsForDependency(args as object | undefined);
 
-    const queryInstance = useMemo(() => {
+    const [queryInstance, cacheKey] = useMemo(() => {
         // Create the instance first to read queryName, which is a hardcoded fully-qualified
         // string in generated proxies and survives minification. constructor.name is unstable
         // under minification and must not be used as a cache key.
@@ -212,19 +213,12 @@ function useObservableQueryInternal<
 
         const typeName =
             (freshInstance as { queryName?: string }).queryName ?? query.name;
-        const key = queryCache.buildKey(typeName, args as object | undefined);
-        cacheKeyRef.current = key;
+        const key = buildQueryKey(queryCache, typeName, args as object | undefined, { paging: currentPaging, sorting: currentSorting });
+        const { instance } = queryCache.getOrCreate(key, () => freshInstance);
 
-        const { instance, isNew } = queryCache.getOrCreate(key, () => freshInstance);
-
-        if (!isNew) {
-            // Update mutable settings on the shared instance
-            (instance as TQuery).paging = currentPaging;
-            (instance as TQuery).sorting = currentSorting;
-        }
-
-        return instance as TQuery;
+        return [instance as TQuery, key] as const;
     }, [
+        query,
         currentPaging,
         currentSorting,
         arc.microservice,
@@ -233,11 +227,9 @@ function useObservableQueryInternal<
         argsDependency,
     ]);
 
-    const cachedResult = queryCache.getLastResult<TDataType>(cacheKeyRef.current);
+    const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
-        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue),
-    );
+    const [result, setResult] = useResultForKey<TDataType>(cacheKey, cachedResult, queryInstance.defaultValue, cached => cached);
 
     // Stable listener ref so we can add/remove the same function reference.
     const listenerRef = useRef<(r: QueryResultWithState<TDataType>) => void>();
@@ -256,6 +248,7 @@ function useObservableQueryInternal<
     // Include queryVersion so that reconnectQueries() forces all hooks to re-subscribe
     // through fresh transport connections.
     const effectDeps = [
+        cacheKey,
         argsDependency,
         currentPaging,
         currentSorting,
@@ -268,7 +261,7 @@ function useObservableQueryInternal<
     ];
 
     useEffect(() => {
-        const key = cacheKeyRef.current;
+        const key = cacheKey;
         const listener = listenerRef.current!;
 
         queryCache.acquire(key);

@@ -4,7 +4,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
-using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Reactors;
@@ -54,9 +53,19 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public bool ReactionMetadataEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v19 reaction refusal branches are admitted.
+    /// </summary>
+    public bool ReactionRefusalsEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets where routed occurrences from retained specifications are collected for source declarations.
     /// </summary>
     public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
+
+    /// <summary>
+    /// Gets whether ESM v22 atomic reaction batches are admitted.
+    /// </summary>
+    internal bool ReactionAtomicBatchesEnabled { get; init; } = true;
 
     bool EventRoutes => AuthoringOnlyConstructs || ExecutableRoutes;
 
@@ -65,20 +74,12 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </summary>
     /// <param name="specifications">The scenarios the slice is specified by.</param>
     /// <returns>The specifications, ordered by name.</returns>
-    public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications) =>
-    [
-        .. specifications
-            .Select(WithRepresentableCaller)
-            .OfType<SpecificationModel>()
-            .Select(WithRepresentableSources)
-            .OfType<SpecificationModel>()
-            .Select(WithReactionsAccountedFor)
-            .OfType<SpecificationModel>()
-            .Select(WithFollowingAssertions)
-            .OfType<SpecificationModel>()
-            .Select(Build)
-            .OrderBy(_ => _.Name, StringComparer.Ordinal)
-    ];
+    public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications)
+    {
+        var rows = specifications.Select(PrepareAndBuild).ToList();
+
+        return FoldCases(rows).OrderBy(specification => specification.Name, StringComparer.Ordinal).ToList();
+    }
 
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$", RegexOptions.None, 1000)]
     private static partial Regex IsoInstant();
@@ -137,6 +138,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
         specification = pinned;
+        if (EventRoutes && command?.Produces.Any(production => production.Route is not null) == true && !specification.Errors.Any())
+        {
+            if (SpecificationProductionRoutes.Apply(specification, command) is not { } routed)
+            {
+                Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its per-production destinations and effective routes are not complete ordered concrete fixtures", location);
+                return null;
+            }
+            specification = routed;
+        }
         if (HasUnrepresentableCommandSources(evidence, command, specification))
         {
             Diagnostics?.Warning(
@@ -165,7 +175,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             specification = specification with
             {
                 Then = specification.Then.Select(state => state.Kind == SpecificationStateKind.Event && state.For is null
-                    ? state with { Route = new(commandRoute.Source, commandRoute.Stream, streamId) { StreamIdParts = streamIdParts } }
+                    ? state with { Route = SpecificationRouteDeclarations.Inferred(commandRoute, streamId, streamIdParts) }
                     : state).ToList()
             };
         }
@@ -270,12 +280,12 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </remarks>
     SpecificationModel? WithReactionsAccountedFor(SpecificationModel specification)
     {
-        if (Application is null || specification.When is not { } action || specification.Errors.Any())
+        if (Application is null || specification.When is not { } action || specification.Errors.Any() || specification.Denied)
         {
             return specification;
         }
 
-        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled };
+        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled, RefusalsEnabled = ReactionRefusalsEnabled, AtomicBatchesEnabled = ReactionAtomicBatchesEnabled };
         var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
             Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         var reason = specification.Reactor is { } reactor
@@ -394,20 +404,14 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return false;
         }
 
-        var declarations = Application is { } application
-            ? application.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route)
-                .OfType<CommandRouteModel>().Concat(ApplicationSyntaxBuilder.SpecificationRoutes(application, (RoutedOccurrences ?? []).Concat(occurrences)))
-                .Where(candidate => candidate.Source == route.Source).ToList()
-            : [];
-        var streamDeclarations = declarations.Where(candidate => candidate.Stream == route.Stream).ToList();
-        if (declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().Distinct().Count() > 1 ||
-            streamDeclarations.Exists(candidate => !CommandRouteAdmission.SameStream(streamDeclarations[0], candidate)))
+        var resolved = ResolveRoutes(occurrences);
+        if (resolved.ConflictingSources.Contains(route.Identity!.Source))
         {
             return false;
         }
-
-        var declared = streamDeclarations.FirstOrDefault();
-        var identity = declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault();
+        var sourceDeclaration = resolved.Sources.SingleOrDefault(source => source.Identity.Source == route.Identity.Source);
+        var declared = sourceDeclaration?.Streams.SingleOrDefault(stream => stream.Identity == route.Identity);
+        var identity = sourceDeclaration?.IdentifierType;
         var identifiers = Application?.Slices.SelectMany(slice => slice.Commands)
             .Where(command => command.Produces.Any(production => production.EventName == state.Name))
             .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
@@ -433,6 +437,18 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return route.StreamIdParts.Count == 0 && route.StreamId is { } id && CanStateStreamId(id, streamIdType);
     }
 
+    ResolvedEventSources ResolveRoutes(IEnumerable<SpecificationStateModel> occurrences)
+    {
+        if (Application is not { } application)
+        {
+            return new([], new HashSet<string>(StringComparer.Ordinal));
+        }
+        var routes = application.Slices.SelectMany(slice => slice.Commands).SelectMany(Commands.ProductionRouteAdmission.Routes);
+        var stated = SpecificationRouteDeclarations.Read(application, (RoutedOccurrences ?? []).Concat(occurrences));
+
+        return EventSourceDeclarations.Resolve(routes.Concat(stated), EventSourceDeclarations.ObservedRoutes(application, ReactionMetadataEnabled));
+    }
+
     bool CanStateStreamId(LiteralSource id, TypeReferenceModel type) => CanStateLiteral(id, type) &&
             (id.Value is not string text || (text.Length > 0 && text.IsNormalized() && naming.ToStringLiteral(text) == text)) &&
             (id.Value is not long number || number is >= -9007199254740991 and <= 9007199254740991);
@@ -445,8 +461,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         if (EventRoutes && state.Route is { Source: not null } route)
         {
             var declaredType = Application?.Slices.SelectMany(slice => slice.Commands)
-                .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
-                .FirstOrDefault(candidate => candidate.Source == route.Source)?.IdentifierType;
+                .SelectMany(Commands.ProductionRouteAdmission.Routes)
+                .FirstOrDefault(candidate => candidate.Identity.HasSameSourceAs(route.Identity))?.IdentifierType;
             if (declaredType is not null)
             {
                 return CanStateLiteral(state.For!, declaredType);
@@ -511,7 +527,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             RoutedOccurrences?.Add(occurrence);
         }
 
-        return new(
+        return Syntax(specification);
+    }
+
+    /// <summary>
+    /// Creates syntax without registering routed occurrences a second time when rows are folded.
+    /// </summary>
+    /// <param name="specification">The already admitted scenario.</param>
+    /// <returns>The specification syntax.</returns>
+    SpecificationSyntax Syntax(SpecificationModel specification) => new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
             When(specification),
@@ -520,14 +544,16 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
             [.. ReadModels(specification.Then)])
-        {
-            WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
+    {
+        WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
                 ? Event(appended)
                 : null,
-            GivenCaller = Caller(specification.Caller),
-            ThenReturns = Returns(specification.Returns)
-        };
-    }
+        GivenCaller = Caller(specification.Caller),
+        ThenReturns = Returns(specification.Returns),
+        ThenDenied = specification.Denied ? new(SourceLocation.Start) : null,
+        Parameters = CaseParameters(specification),
+        Cases = CaseRows(specification)
+    };
 
     /// <summary>
     /// Builds the response a scenario expects.
@@ -619,5 +645,9 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// <param name="state">The state to build from.</param>
     /// <returns>The values.</returns>
     IEnumerable<PropertyMappingSyntax> Values(SpecificationStateModel state) =>
-        state.Values.Select(_ => new PropertyMappingSyntax(naming.ToPropertyName(_.Property), _sources.Convert(_.Source), SourceLocation.Start));
+        state.Values.Select(_ => new PropertyMappingSyntax(naming.ToPropertyName(_.Property), FixtureValue(_.Source), SourceLocation.Start));
+
+    ExpressionSyntax FixtureValue(MappingSourceModel source) => source is LiteralSource { Value: object?[] items }
+        ? new ListExpressionSyntax(items.Select(item => FixtureValue(new LiteralSource(item))), SourceLocation.Start)
+        : CaseValue(source);
 }

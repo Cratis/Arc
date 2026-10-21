@@ -70,29 +70,32 @@ public class EmbeddedDocumentGenerator(
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(reported);
 
-        var documents = new List<GeneratedDocument>();
         var verify = !SourceDidNotCompile(reported);
 
         // Concepts belong to the whole application, even in documents without their exercised carrier commands.
         model = new ExecutableValidationRules(diagnostics).Apply(model);
         var scopes = DocumentScopes.Of(model, resolved);
-        foreach (var scope in scopes)
+
+        // Emitting a scope and reading it back touches nothing shared - each emission reports to its own
+        // diagnostics - so the scopes are produced side by side. The order the results are reported in is the
+        // order of the scopes, so a build log reads the same however many cores produced it.
+        var produced = scopes
+            .AsParallel()
+            .AsOrdered()
+            .Select(scope => Produce(model, scope, scopes, resolved, verify))
+            .ToList();
+
+        var documents = new List<GeneratedDocument>();
+        foreach (var document in produced)
         {
-            var documentOptions = ScreenplayOptionsFor(scope, resolved);
-            var emission = emitter.Emit(ScopedApplicationModel.For(model, scope, documentOptions), documentOptions);
-            diagnostics.AddRange(emission.Diagnostics);
+            diagnostics.AddRange(document.EmissionDiagnostics);
 
-            if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
+            if (document.Verification is not null)
             {
-                emission = AssemblyDocumentArrangement.Apply(emission, scopes);
+                ReportDocumentThatDoesNotCompile(document.Verification, document.Scope, diagnostics, resolved.AuthoringOnlyConstructs);
             }
 
-            if (verify)
-            {
-                ReportDocumentThatDoesNotCompile(emission.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
-            }
-
-            documents.Add(new(scope.Document, emission.Source));
+            documents.Add(new(document.Scope.Document, document.Source));
         }
 
         return new(documents, [.. diagnostics.All.Distinct()]);
@@ -130,26 +133,20 @@ public class EmbeddedDocumentGenerator(
             _.Severity == ScreenplayDiagnosticSeverity.Error);
 
     /// <summary>
-    /// Checks every document's syntax and the whole-application document's semantic binding.
+    /// Reports what reading back the document of one scope found.
     /// </summary>
-    /// <param name="source">The printed document.</param>
+    /// <param name="verification">What the Screenplay compiler made of the document.</param>
     /// <param name="scope">The scope the document describes.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
     /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
     /// <remarks>
     /// Embedding a document nobody can open is worse than failing the build, because the failure then surfaces in
     /// an application rather than in the build that produced it. Every document is read back, including the ones
-    /// scoping narrows. Scoped documents contain subsets of the assembly document and symbolic imports that ESM v1
-    /// cannot bind, so they are compiled independently but semantically verified through the final assembly document.
-    /// Binding defects in that whole-application document are Information here so a generator limitation cannot
-    /// break a consumer's build; the end-to-end gate rejects SP0056 regardless of severity.
+    /// scoping narrows. Binding defects in the whole-application document are Information here so a generator
+    /// limitation cannot break a consumer's build; the end-to-end gate rejects SP0056 regardless of severity.
     /// </remarks>
-    void ReportDocumentThatDoesNotCompile(string source, DocumentScope scope, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs)
+    static void ReportDocumentThatDoesNotCompile(ScreenplayVerification verification, DocumentScope scope, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs)
     {
-        var verification = scope.Kind == EmbeddedDocumentKind.Assembly
-            ? verifier.Verify(source)
-            : verifier.VerifySyntax(source);
-
         if (verification.Compiles)
         {
             foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
@@ -170,4 +167,53 @@ public class EmbeddedDocumentGenerator(
             $"The generated document for '{scope.Id}' did not compile - {verification.Errors.Count} error(s), the first being '{first.Message}' on line {first.Location.Line}. That is the generator being wrong rather than anything the source declared, and nothing is embedded that the Screenplay compiler has not accepted",
             scope.Namespace);
     }
+
+    /// <summary>
+    /// Emits the document of one scope and, when asked, reads it back with the Screenplay compiler.
+    /// </summary>
+    /// <param name="model">The model of the whole application.</param>
+    /// <param name="scope">The scope of the document.</param>
+    /// <param name="scopes">Every scope the application is split into.</param>
+    /// <param name="options">The resolved options the documents are generated with.</param>
+    /// <param name="verify">Whether the document is read back.</param>
+    /// <returns>The <see cref="ProducedDocument"/>.</returns>
+    ProducedDocument Produce(
+        ApplicationModel model,
+        DocumentScope scope,
+        IReadOnlyList<DocumentScope> scopes,
+        EmbeddedDocumentOptions options,
+        bool verify)
+    {
+        var documentOptions = ScreenplayOptionsFor(scope, options);
+        var emission = emitter.Emit(ScopedApplicationModel.For(model, scope, documentOptions), documentOptions);
+        var emissionDiagnostics = emission.Diagnostics;
+
+        if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
+        {
+            emission = AssemblyDocumentArrangement.Apply(emission, scopes);
+        }
+
+        // Scoped documents contain subsets of the assembly document and symbolic imports that ESM v1 cannot bind,
+        // so they are compiled independently but semantically verified through the final assembly document.
+        var verification = verify
+            ? scope.Kind == EmbeddedDocumentKind.Assembly
+                ? verifier.Verify(emission.Source)
+                : verifier.VerifySyntax(emission.Source)
+            : null;
+
+        return new(scope, emission.Source, emissionDiagnostics, verification);
+    }
+
+    /// <summary>
+    /// Represents the document of one scope along with what producing it reported.
+    /// </summary>
+    /// <param name="Scope">The scope the document describes.</param>
+    /// <param name="Source">The printed document.</param>
+    /// <param name="EmissionDiagnostics">What emitting the document reported.</param>
+    /// <param name="Verification">What reading the document back found, or null when it was not read back.</param>
+    sealed record ProducedDocument(
+        DocumentScope Scope,
+        string Source,
+        IReadOnlyList<ScreenplayDiagnostic> EmissionDiagnostics,
+        ScreenplayVerification? Verification);
 }

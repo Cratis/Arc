@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
@@ -8,6 +9,7 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.EventSources;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -168,6 +170,8 @@ internal static class CommandTransactionAppender
         IEnumerable<NamedTag>? namedTags = default)
     {
         routing ??= ResolveRouting(null, commandContext);
+        var freshness = FreshIdentifierScopes.For(commandContext);
+        concurrencyScope = freshness.Resolve(eventLog.Id, eventSourceId, concurrencyScope, false);
         var mergedTags = MergeEventTags(commandContext, namedTags);
         if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
@@ -175,12 +179,51 @@ internal static class CommandTransactionAppender
             return false;
         }
 
-        if (routing.EventSource is not null)
+        if (concurrencyScope is not null) ReadProtectionMeasurement.Current?.Scope(eventSourceId, concurrencyScope, "Explicit scope");
+        if (unitOfWork.IsEnforcingReadProtection)
+        {
+            var declared = ConcurrencyScopeBuilder.DeclaredFor(commandContext);
+            var origin = concurrencyScope is null ? ConcurrencyScopeOrigin.Routing : ConcurrencyScopeOrigin.Explicit;
+            if (routing.EventSource is not null)
+            {
+                var wrapper = new EventForEventSourceId(eventSourceId, @event, eventLog.CreateCommandCausation(commandContext))
+                {
+                    EventSource = routing.EventSource,
+                    EventStream = routing.EventStream,
+                    EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                    DeclaredConcurrency = declared,
+                    Subject = routing.Subject,
+                    Occurred = occurred,
+                    Tags = tags ?? [],
+                    NamedTags = mergedTags
+                };
+                unitOfWork.AddEvents(eventLog.Id, [wrapper], [new(eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet)], origin);
+            }
+            else
+            {
+                unitOfWork.AddEventWithOptions(eventLog.Id, eventSourceId, @event, eventLog.CreateCommandCausation(commandContext), new(
+                    routing.EventStreamType,
+                    routing.EventStreamId,
+                    routing.EventSourceType,
+                    concurrencyScope,
+                    origin,
+                    tags,
+                    mergedTags,
+                    occurred,
+                    routing.Subject)
+                {
+                    DeclaredConcurrency = declared
+                });
+            }
+        }
+        else if (routing.EventSource is not null || freshness.HasGuard(eventLog.Id, eventSourceId))
         {
             var eventForEventSource = new EventForEventSourceId(eventSourceId, @event, eventLog.CreateCommandCausation(commandContext))
             {
                 EventSource = routing.EventSource,
                 EventStream = routing.EventStream,
+                EventSourceType = routing.EventSource is null ? routing.EventSourceType ?? EventSourceType.Default : EventSourceType.Default,
+                EventStreamType = routing.EventSource is null ? routing.EventStreamType ?? EventStreamType.All : EventStreamType.All,
                 EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
                 Subject = routing.Subject,
                 Occurred = occurred,
@@ -223,6 +266,8 @@ internal static class CommandTransactionAppender
                 occurred,
                 routing.Subject);
         }
+
+        freshness.Enrolled(unitOfWork, eventLog.Id, eventSourceId);
 
         return true;
     }
@@ -311,6 +356,70 @@ internal static class CommandTransactionAppender
     }
 
     /// <summary>
+    /// Appends resolved wrappers as one batch while retaining per-event tags.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="wrappers">The resolved event wrappers.</param>
+    /// <param name="concurrencyScopes">The scope for every event source id.</param>
+    /// <returns>The batch append result.</returns>
+    internal static Task<AppendManyResult> AppendRoutedBatch(
+        this IEventLog eventLog,
+        EventForEventSourceId[] wrappers,
+        IDictionary<EventSourceId, ConcurrencyScope> concurrencyScopes) =>
+        wrappers.Any(_ => _.NamedTags.Any())
+            ? eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: concurrencyScopes)
+            : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
+
+    /// <summary>
+    /// Appends resolved wrappers as one batch that requires every supplied guard, including several for one event source id.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="wrappers">The resolved event wrappers.</param>
+    /// <param name="concurrencyScopes">The ordered guards; an event source id repeats once per distinct predicate.</param>
+    /// <returns>The batch append result.</returns>
+    /// <remarks>
+    /// An id with one scope keeps using the dictionary overload; the ordered one is only needed when a label repeats.
+    /// </remarks>
+    internal static Task<AppendManyResult> AppendRoutedBatch(
+        this IEventLog eventLog,
+        EventForEventSourceId[] wrappers,
+        IReadOnlyList<KeyValuePair<EventSourceId, ConcurrencyScope>> concurrencyScopes)
+    {
+        if (concurrencyScopes.Select(_ => _.Key).Distinct().Count() == concurrencyScopes.Count)
+        {
+            return eventLog.AppendRoutedBatch(wrappers, concurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value));
+        }
+
+        return wrappers.Any(_ => _.NamedTags.Any())
+            ? eventLog.AppendManyWithNamedTags(wrappers, [], null, null, concurrencyScopes)
+            : eventLog.AppendMany(wrappers, null, null, concurrencyScopes);
+    }
+
+    /// <summary>
+    /// Creates a routed event without adding legacy types to a definition route.
+    /// </summary>
+    /// <param name="eventSourceId">The event source id.</param>
+    /// <param name="event">The returned event.</param>
+    /// <param name="routing">The resolved routing.</param>
+    /// <param name="namedTags">The merged named tag snapshot.</param>
+    /// <param name="tags">The tags supplied for this event.</param>
+    /// <param name="occurred">The occurrence time supplied for this event.</param>
+    /// <returns>The event carrying the same routing metadata as an individual append.</returns>
+    internal static EventForEventSourceId CreateRoutedEvent(EventSourceId eventSourceId, object @event, EventRouting routing, IEnumerable<NamedTag> namedTags, IEnumerable<string>? tags = default, DateTimeOffset? occurred = default) =>
+        new(eventSourceId, @event)
+        {
+            EventSource = routing.EventSource,
+            EventStream = routing.EventStream,
+            EventSourceType = routing.EventSource is null ? routing.EventSourceType ?? EventSourceType.Default : EventSourceType.Default,
+            EventStreamType = routing.EventSource is null ? routing.EventStreamType ?? EventStreamType.All : EventStreamType.All,
+            EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+            Subject = routing.Subject,
+            NamedTags = namedTags,
+            Tags = tags ?? [],
+            Occurred = occurred
+        };
+
+    /// <summary>
     /// Appends a subject-routed batch while retaining each event type's own static tags.
     /// </summary>
     /// <param name="eventLog">The event log.</param>
@@ -329,33 +438,11 @@ internal static class CommandTransactionAppender
         NamedTag[] namedTags)
     {
         // Wrapper batches keep static tags per event, just as the subject-routed single appends did.
-        var wrappers = events.Select(@event => CreateSubjectRoutedEvent(eventSourceId, @event, routing, namedTags)).ToArray();
+        var wrappers = events.Select(@event => CreateRoutedEvent(eventSourceId, @event, routing, namedTags)).ToArray();
         var concurrencyScopes = new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } };
 
-        return namedTags.Length > 0
-            ? eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: concurrencyScopes)
-            : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
+        return eventLog.AppendRoutedBatch(wrappers, concurrencyScopes);
     }
-
-    /// <summary>
-    /// Creates a subject-routed event without adding legacy types to a definition route.
-    /// </summary>
-    /// <param name="eventSourceId">The event source id.</param>
-    /// <param name="event">The returned event.</param>
-    /// <param name="routing">The resolved routing.</param>
-    /// <param name="namedTags">The command's named tag snapshot.</param>
-    /// <returns>The event carrying the same routing metadata as an individual append.</returns>
-    static EventForEventSourceId CreateSubjectRoutedEvent(EventSourceId eventSourceId, object @event, EventRouting routing, NamedTag[] namedTags) =>
-        new(eventSourceId, @event)
-        {
-            EventSource = routing.EventSource,
-            EventStream = routing.EventStream,
-            EventSourceType = routing.EventSource is null ? routing.EventSourceType ?? EventSourceType.Default : EventSourceType.Default,
-            EventStreamType = routing.EventSource is null ? routing.EventStreamType ?? EventStreamType.All : EventStreamType.All,
-            EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
-            Subject = routing.Subject,
-            NamedTags = namedTags
-        };
 
     /// <summary>
     /// Appends a named-tag batch using its definition or legacy routing.

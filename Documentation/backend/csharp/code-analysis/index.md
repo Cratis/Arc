@@ -3,11 +3,11 @@ title: Code analysis rules
 description: Core Arc diagnostic inventory, default severities, analyzer packaging, and available editor fixes.
 ---
 
-Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.
+Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The model-graph generator also reports [ARC0030](ARC0030.md) for composite protected-read keys when Chronicle's accessor registry is referenced, and [ARC0031](ARC0031.md) for commands whose key properties cannot be generated. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0028 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0031 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -39,6 +39,9 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0026](ARC0026.md) | Invalid explicit query declaration | Error | `ReadModelAnalyzer` and query metadata generation |
 | [ARC0027](ARC0027.md) | Generated value implements both generation contracts | Warning | `GeneratedValueAnalyzer` |
 | [ARC0028](ARC0028.md) | Move inline generation to a generated parameter | Info | `InlineGeneratedValueAnalyzer` |
+| [ARC0029](ARC0029.md) | Non-public static method is not exposed as a query | Warning | `NonPublicQueryAnalyzer` |
+| [ARC0030](ARC0030.md) | Composite key requires accessor registration | Info | `ModelGraphWalkerGenerator` |
+| [ARC0031](ARC0031.md) | Command key properties are read through reflection | Info | `ModelGraphWalkerGenerator` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -87,11 +90,11 @@ Reports a FluentValidation `RuleFor` selector that dereferences a member of a co
 
 ## ARC0014: Generic query methods
 
-Reports public or internal static generic methods on a `[ReadModel]` whose return type has an accepted query shape. Query invocation cannot close the method's type parameters. Make the query non-generic, move a generic composition helper off the read model, or opt into explicit query selection and leave the helper unmarked. A valid return type alone does not make a generic method invocable.
+Reports public static generic methods on a `[ReadModel]` whose return type has an accepted query shape. Methods with a parameter of their own read-model type, nullable or not, are excluded; generic self-parameter helpers are not query candidates. Query invocation cannot close a genuine query's type parameters. Make the query non-generic, move a generic composition helper off the read model, or opt into explicit query selection and leave the helper unmarked. A valid return type alone does not make a generic method invocable.
 
 ## ARC0015: Concept query parameters
 
-Reports `string`, `Guid`, or nullable `Guid` parameters converted to a `ConceptAs<T>`-derived type inside a public or internal static non-void method on a `[ReadModel]`. In explicit mode only selected queries are analyzed; unmarked helpers are ignored. The analyzer recognizes conversion operations (including implicit conversions), not every possible manual construction or data-flow pattern.
+Reports `string`, `Guid`, or nullable `Guid` parameters converted to a `ConceptAs<T>`-derived type inside a public static non-void method on a `[ReadModel]`. Self-parameter methods are never queries and are ignored. In explicit mode only selected queries are analyzed; unmarked helpers are ignored. The analyzer recognizes conversion operations (including implicit conversions), not every possible manual construction or data-flow pattern.
 
 Declare the parameter as the concept when you want Arc's query pipeline to validate that concept before invoking the method. Preserve null-aware handling for omitted input. For free-text search whose accepted values intentionally differ from an identifier concept's rules, review the model or suppress this warning locally with a reason. Direct static calls still bypass the query pipeline.
 
@@ -183,6 +186,6 @@ The `Cratis.Arc.Core` NuGet package depends on `Cratis.Arc.Core.CodeAnalysis`. I
 dotnet add package Cratis.Arc.Core
 ```
 
-The analyzer package places `Cratis.Arc.Core.CodeAnalysis.dll` and `Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll` under `analyzers/dotnet/cs`. Compiler analysis and workspace-based editor fixes live in separate assemblies. Arc Core's source generators are separate assets, not additional `ARC` rules. Editor support and the installed package version determine which fixes you see.
+The analyzer package places `Cratis.Arc.Core.CodeAnalysis.dll` and `Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll` under `analyzers/dotnet/cs`. Compiler analysis and workspace-based editor fixes live in separate assemblies. Arc Core's source generators are separate assets; `ModelGraphWalkerGenerator` supplies ARC0030 for the optional Chronicle accessor registry. Editor support and the installed package version determine which fixes you see.
 
 For source contributors, the inventory is defined by `Source/DotNET/Arc.Core.CodeAnalysis/DiagnosticDescriptors.cs`, each analyzer's `SupportedDiagnostics`, `AnalyzerReleases.*.md`, and `Arc.Core.CodeAnalysis.Package/Arc.Core.CodeAnalysis.Package.csproj`. Check all four when adding a rule; a descriptor alone does not demonstrate that a diagnostic runs or is packaged.

@@ -53,6 +53,16 @@ internal sealed class ScenarioGeneratedValueFixture : IGeneratedValueFixture
     public void Record(Type commandType, GeneratedValue value) => Values.Add(value);
 
     /// <summary>
+    /// Reads an explicitly configured pin without generating a value or freezing configuration.
+    /// </summary>
+    /// <param name="commandType">The command declaring the parameter.</param>
+    /// <param name="name">The generated value name.</param>
+    /// <param name="value">The configured pin, when present.</param>
+    /// <returns>Whether the scenario has a pin for this command and name.</returns>
+    internal bool TryGetPin(Type commandType, string name, out object value) =>
+        _pins.TryGetValue((commandType, name), out value!);
+
+    /// <summary>
     /// Configures a named pin for a command before execution.
     /// </summary>
     /// <param name="commandType">The command declaring the parameter.</param>

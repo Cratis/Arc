@@ -19,10 +19,26 @@ public class DiscoverableValidatorRefusedInProtectedDecision : Exception
     {
     }
 
-    DiscoverableValidatorRefusedInProtectedDecision(string message)
-        : base(message)
+    DiscoverableValidatorRefusedInProtectedDecision(string message, Exception? inner = null)
+        : base(message, inner)
     {
     }
+
+    /// <summary>
+    /// Creates a failure after every owned object has been offered cleanup, before transaction completion.
+    /// </summary>
+    /// <param name="failures">The cleanup failures in reverse construction order.</param>
+    /// <returns>The command-stopping cleanup failure.</returns>
+    internal static DiscoverableValidatorRefusedInProtectedDecision CleanupFailed(IEnumerable<Exception> failures) =>
+        new("Releasing a protected decision validator graph failed. The command cannot complete successfully.", new AggregateException(failures));
+
+    /// <summary>
+    /// Creates the refusal for a registered validator that cannot be constructed fresh through command parameter resolution.
+    /// </summary>
+    /// <param name="validatorType">The refused validator.</param>
+    /// <returns>The refusal.</returns>
+    internal static DiscoverableValidatorRefusedInProtectedDecision NotTransientForReadProtection(Type validatorType) =>
+        new($"Discoverable validator '{validatorType}' cannot run while read protection is On because Arc did not construct it for this invocation. Let convention discovery register it as transient; do not use a scoped, singleton, factory or instance registration.");
 
     /// <summary>
     /// Creates the exception for a validator instance the service provider supplied but Arc did not construct.

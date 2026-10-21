@@ -77,6 +77,8 @@ public static class ExternalEvents
     public static IEnumerable<string> ReferredToBy(SliceModel slice) =>
         slice.Commands.SelectMany(_ => _.Produces).Select(_ => _.EventName)
             .Concat(slice.Reactors.SelectMany(_ => _.ObservedEvents))
+            .Concat(slice.Reactors.SelectMany(reactor => reactor.Reactions).SelectMany(reaction => reaction.Produces.Concat(
+                reaction.Invokes.SelectMany(invocation => invocation.OnRefused).SelectMany(branch => branch.Produces))).Select(production => production.EventName))
             .Concat(slice.Constraints.SelectMany(EventsOf))
             .Concat(slice.Projections.SelectMany(ProjectionEvents.In))
             .Distinct(StringComparer.Ordinal);

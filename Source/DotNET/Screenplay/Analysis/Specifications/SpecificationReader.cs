@@ -76,15 +76,24 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// left out of a scenario that was itself left out describes a document that says something it does not say, and
     /// there are far more values than scenarios - so the noise would be the loudest thing in the report.
     /// </remarks>
-    public SpecificationModel? Read(INamedTypeSymbol type, string name)
+    public SpecificationModel? Read(INamedTypeSymbol type, string name) => Read(type, name, null);
+
+    /// <summary>
+    /// Reads a shared scenario symbolically or with one row's literal bindings.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <param name="name">The specification name.</param>
+    /// <param name="caseValues">The constructor parameter bindings.</param>
+    /// <returns>The recovered scenario, or null when it cannot be stated.</returns>
+    internal SpecificationModel? Read(INamedTypeSymbol type, string name, SpecificationCaseValues? caseValues)
     {
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
         var readModel = SpecificationMembers.ReadModelOf(steps);
-        var draft = new SpecificationDraft { EventSources = new(models, _held) };
+        var draft = new SpecificationDraft { EventSources = new(models, _held), CaseValues = caseValues };
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)), _held);
+        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models), models), _held);
         reader.ReadWhen(steps, draft, name, location);
         reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
@@ -114,7 +123,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
                 ? "the event it appends is put together somewhere this cannot read"
                 : "the command it issues is put together somewhere this cannot read");
         }
-        else if (draft.Then.Count == 0 && draft.Errors.Count == 0 && draft.Returns is null)
+        else if (draft.Then.Count == 0 && draft.Errors.Count == 0 && draft.Returns is null && !draft.Denied)
         {
             draft.CannotRead(draft.AssertsResponse
                 ? "it asserts only CommandResult.Response, and not as an unconditional equality with concrete values the document can state as then returns"
@@ -138,6 +147,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
             steps,
             new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors])
             {
+                Denied = draft.Denied,
                 AssertsResponse = draft.AssertsResponse,
                 Returns = draft.Returns,
                 Caller = caller.Caller,

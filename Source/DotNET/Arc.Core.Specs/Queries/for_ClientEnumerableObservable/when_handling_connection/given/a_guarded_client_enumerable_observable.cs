@@ -27,7 +27,7 @@ public class a_guarded_client_enumerable_observable : Specification
     /// </summary>
     protected Func<ObservableQueryEmissionContext, ObservableQueryEmissionVerdict> _verdict = _ => ObservableQueryEmissionVerdict.Allow;
 
-    TaskCompletionSource _incomingCompleted;
+    protected TaskCompletionSource _incomingCompleted;
 
     void Establish()
     {
@@ -79,7 +79,7 @@ public class a_guarded_client_enumerable_observable : Specification
 
         _observable = new ClientEnumerableObservable<string>(
             _queryContext,
-            TwoItems(),
+            Items(),
             readModelInterceptors,
             webSocketConnectionHandler,
             _emissionGuards,
@@ -88,6 +88,12 @@ public class a_guarded_client_enumerable_observable : Specification
 
     protected async Task RunConnection() =>
         await _observable.HandleConnection(_context).WaitAsync(TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// The items the observed query yields. Two items by default.
+    /// </summary>
+    /// <returns>The items.</returns>
+    protected virtual IAsyncEnumerable<string> Items() => TwoItems();
 
     static async IAsyncEnumerable<string> TwoItems([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

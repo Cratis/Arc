@@ -19,9 +19,9 @@ public class when_finding_refused_decision_reads : Specification
     }
 
     [Fact] void should_refuse_the_children_projection() => _refused.ShouldContain(new RefusedDecisionRead(typeof(DecideOnRefusedShapes), typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
-    [Fact] void should_refuse_the_reducer_read_in_provide() => _refused.ShouldContain(new RefusedDecisionRead(typeof(DecideOnRefusedShapes), typeof(LedgerBalance), DecisionReadRefusalReason.Reducer));
+    [Fact] void should_admit_the_unfiltered_dependency_free_reducer_read_in_provide() => _refused.Any(_ => _.ReadModelType == typeof(LedgerBalance)).ShouldBeFalse();
     [Fact] void should_refuse_the_read_of_an_inherited_handle() => _inherited.ShouldContain(new RefusedDecisionRead(typeof(DecideThroughInheritedHandle), typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
     [Fact] void should_refuse_the_enumerated_read() => _inherited.ShouldContain(new RefusedDecisionRead(typeof(DecideOnEnumeratedRefusedShapes), typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
     [Fact] void should_not_check_methods_that_are_not_injected() => _inherited.Count.ShouldEqual(2);
-    [Fact] void should_report_only_the_refused_reads() => _refused.Count.ShouldEqual(2);
+    [Fact] void should_report_only_the_refused_reads() => _refused.Count.ShouldEqual(1);
 }

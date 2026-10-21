@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cratis.Arc.Commands;
@@ -13,7 +13,7 @@ namespace Cratis.Arc.Commands;
 /// <summary>
 /// Resolves, validates and captures a generated command argument without logging its value.
 /// </summary>
-internal sealed class GeneratedValueResolution
+internal static class GeneratedValueResolution
 {
     /// <summary>
     /// Reuses async validation and severity mapping without logging validator exceptions, whose messages may contain values.
@@ -48,7 +48,7 @@ internal sealed class GeneratedValueResolution
 
         await Validate(commandType, name, type, value, services, context.CancellationToken);
         context.CancellationToken.ThrowIfCancellationRequested();
-        context.GeneratedValues.Add(name, type, value);
+        context.GeneratedValues.Add(name, type, value, parameter.GetCustomAttribute<GeneratedValueAttribute>()!.Freshness);
         fixture?.Record(commandType, context.GeneratedValues[^1]);
         return value;
     }
@@ -80,21 +80,17 @@ internal sealed class GeneratedValueResolution
 
     static async Task Validate(Type commandType, string name, Type type, object value, IServiceProvider services, CancellationToken cancellationToken)
     {
+        await using var activation = new ProtectedValidatorActivationFrame();
         if (services.GetService<IDiscoverableValidators>() is not { } validators || !validators.TryGet(type, services, out var validator))
         {
             return;
         }
 
+        CertifiedProtectedValidatorConstruction.VerifyInvocation(validator, services);
         var failures = (await _validatorInvoker.Invoke(value, validator, name, cancellationToken)).ToArray();
-        var errors = failures.Where(failure => failure.Severity is not (ValidationResultSeverity.Warning or ValidationResultSeverity.Information)).ToArray();
-        if (errors.Length > 0)
-        {
-            throw new GeneratedValueRejected(commandType, name, type, errors.Select(failure => failure.Message).ToArray());
-        }
-
         if (failures.Length > 0)
         {
-            services.GetService<ILogger<GeneratedValueResolution>>()?.GeneratedValueWarning(commandType.FullName!, name, type.FullName!);
+            throw new GeneratedValueRejected(commandType, name, type, failures.Select(failure => failure.Message).ToArray());
         }
     }
 }

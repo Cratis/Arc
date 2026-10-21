@@ -10,6 +10,7 @@ public class and_a_hosted_command_has_no_authorization_evaluation : given.a_host
     async Task Because() => _result = await _commandPipeline.ExecuteHosted(new ProtectedCommand(), _serviceProvider, null, CancellationToken.None);
 
     [Fact] void should_report_unauthorized_rather_than_an_error() => _result.IsAuthorized.ShouldBeFalse();
+    [Fact] void should_not_classify_as_a_business_refusal() => _result.GetRefusal().ShouldBeNull();
     [Fact] void should_not_report_an_exception() => _result.HasExceptions.ShouldBeFalse();
     [Fact] void should_not_invoke_the_handler() => _handler.DidNotReceive().Handle(Arg.Any<CommandContext>());
 }

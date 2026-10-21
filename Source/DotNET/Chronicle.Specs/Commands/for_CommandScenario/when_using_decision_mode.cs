@@ -23,7 +23,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task absent_decision_can_commit()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAtSource>();
         var source = EventSourceId.New();
         var result = await scenario.Execute(new DecideAtSource(source));
         result.ShouldBeSuccessful();
@@ -68,7 +68,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task present_decision_conflicts_when_matching_event_arrives()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAtSource>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
         scenario.AppendConcurrently(source, new DecisionStateChanged());
@@ -198,7 +198,7 @@ public class when_using_decision_mode
     [Fact]
     public void legacy_events_cannot_be_silently_transferred_to_decision_mode()
     {
-        using var scenario = new CommandScenario<DecideAtSource>();
+        using var scenario = new CommandScenario<when_automatically_enabling_decision_reads.Ordinary>();
         scenario.Given.ForEventSource(EventSourceId.New()).Events(new DecisionStateChanged());
         Assert.Throws<DecisionReadsMustBeEnabledBeforeSeeding>(scenario.UseDecisionReads);
     }
@@ -206,7 +206,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task seeded_legacy_event_log_is_refused_before_enabling_decisions()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>();
+        await using var scenario = new CommandScenario<when_automatically_enabling_decision_reads.Ordinary>();
         await scenario.EventLog.Append(EventSourceId.New(), new DecisionStateChanged());
         Assert.Throws<DecisionReadsMustBeEnabledBeforeSeeding>(scenario.UseDecisionReads);
     }
@@ -221,7 +221,7 @@ public class when_using_decision_mode
     [Fact]
     public void custom_execution_scope_is_refused_instead_of_silently_dropped()
     {
-        using var scenario = new CommandScenario<DecideAtSource>();
+        using var scenario = new CommandScenario<when_automatically_enabling_decision_reads.Ordinary>();
         scenario.Services.AddSingleton<ICommandExecutionScope>(new DecisionScenarioConcurrentAppendScope());
         Assert.Throws<DecisionScenarioCannotOrderCustomExecutionScopes>(scenario.UseDecisionReads);
     }
@@ -229,7 +229,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task unmarked_read_is_refused_before_a_returned_event_can_append()
     {
-        await using var scenario = new CommandScenario<UnmarkedRead>().UseDecisionReads();
+        await using var scenario = new CommandScenario<UnmarkedRead>();
         var result = await scenario.Execute(new UnmarkedRead(EventSourceId.New()));
         Assert.Contains("[ProtectedDecision]", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);

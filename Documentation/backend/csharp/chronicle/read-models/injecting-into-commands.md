@@ -5,6 +5,10 @@ description: Take a Chronicle read model as a dependency in a CommandValidator, 
 
 A command can take the read model Arc resolved for its key in three places: the constructor of a `CommandValidator<TCommand>`, a `Provide()` method, and a `Handle()` method. All three resolve from the same command scope, so all three see the same instance.
 
+:::caution[A plain read guards nothing under Off]
+Under read protection `Off`, the default, an injected read model is a **plain read**: it returns a snapshot, captures no boundary and guards nothing, in a validator, in `Provide()` and in `Handle()` alike. Under `On`, the same parameter is read fresh and guarded. The next major version of Arc makes `On` the default; see [The default changes in the next major version](../consistency/index.md#the-default-changes-in-the-next-major-version). Use a constraint for uniqueness. See [Choosing how a command's rule holds](../consistency/index.md) and [Getting started with read protection](../consistency/getting-started.md).
+:::
+
 Which one to use is a question about *what the state is for*. These are focused dependency fragments using application read models, events, and commands; declarations without `Handle()` show only the validator's input shape, not complete runnable commands.
 
 | Position | Use it when | The state is… |
@@ -15,7 +19,7 @@ Which one to use is a question about *what the state is for*. These are focused 
 
 ## In a validator
 
-Validators run before the handler, which makes them the natural place for state-based rejection. The read model is an ordinary constructor dependency:
+Validators run before the handler, so a validator can reject early with a message. The read model is an ordinary constructor dependency. Under `Off` the rejection is advisory: two concurrent commands can both pass it. Under `On` the parameter is guarded, so a command that passed on stale state is not committed. See [validators and read protection](../consistency/validators.md):
 
 ```csharp
 [Command]
@@ -51,7 +55,7 @@ public record UseReducerReadModelInHandle(EventSourceId AccountId)
 }
 ```
 
-The injection signature is the same for reducer, fluent-projection, and model-bound-projection backings, including passive models. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
+The injection signature is the same for classic reducers, [self-reducing models](./index.md#self-reducing-read-models) (Chronicle 19.58.0+), fluent projections, and model-bound projections, including passive models. A self model needs no separate reducer registration in Arc: Chronicle's discovered reducer set supplies it. Existing instances are read through `IReadModels` and released before injection; absent self-model state resolves to null. Under `Off`, none of these snapshots protects a later append against concurrent changes. Under `On`, a model that read protection can guard is read fresh and guarded, and a reducer that it cannot guard is refused. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
 
 ## In `Provide()`
 
@@ -178,25 +182,30 @@ public record AddItemToCart([Key] Guid CartId, Guid ProductId, int Quantity)
 
 This fragment assumes an asynchronous aggregate mutation and `Cratis.Arc.Chronicle.Aggregates.AggregateRootCommitResult`. Do not also return the event the aggregate applies. Explicit commit propagates aggregate failures but finalizes the shared unit of work; see [commit boundaries](../aggregates/defining-an-aggregate-root.md#reporting-failure-and-committing).
 
-Read models never emit events. Materialized models can lag; passive models are still snapshots rather than locks. For concurrent invariants, verify the aggregate's revision enforcement or use a Chronicle [constraint](/chronicle/constraints/) at append time.
+Read models never emit events. Under `Off`, materialized models can lag and passive models are snapshots rather than locks. For concurrent invariants use a Chronicle [constraint](/chronicle/constraints/) for uniqueness, or read protection `On` for state. An aggregate guards only its own event source and the event types it handles. Under `On`, an aggregate and a plain read of the **same** event source in one command are refused; a read of a different source is allowed. See [choosing how a command's rule holds](../consistency/index.md).
 
 ## Decision reads for event-dependent commands
 
-A plain `T` read-model parameter remains advisory: it does not protect a command from a concurrent append. **Opt in at the command declaration with `[ProtectedDecision]`** (`Cratis.Arc.Chronicle.ReadModels`) before injecting `DecisionRead<T>` into `Provide()` or `Handle()`; use `.Instance` / `.Exists`. Inject the command-aware `IDecisionReads` and call `Get<T>(otherKey)` to guard a different event source. The profile is fixed when the Arc pipeline enters each command, including nested commands and supplied-provider calls. An unmarked command behaves as it did before protected decisions: it retains legacy validators and plain read models, and `IDecisionReads.GetDetached<T>` returns a detached snapshot exactly as Chronicle's own reader does. The same holds for an `[Unprotected]` command, in its handler and its validator, on both `Validate` and `Execute`: `GetDetached<T>` is an explicitly advisory, unguarded read there. `DecisionRead<T>` and `IDecisionReads.Get<T>`, including the stream-scoped overload, return the same kind of unguarded read there, shared within the invocation (`IsProtected` is `false`); neither can silently activate protection. Inside a `[ProtectedDecision]` command `GetDetached<T>` is refused, because a detached snapshot is not enrolled in the decision. Every protected read must be enrolled in the command's owner-capable Chronicle unit of work; a successful command with no returned events still validates its reads at completion. A conflict returns `concurrencyViolation` without exposing sequence numbers, and the command is not retried.
+Under read protection `On`, a plain `T` parameter in `Handle()`, `Provide()` or a validator constructor is a guarded read. Nothing else is needed on the command. [Getting started](../consistency/getting-started.md) shows the whole path, and [Reads](../consistency/reads.md) lists what each read becomes.
 
-`Validate` is advisory: it reads a detached snapshot and does not validate or append, so a successful validation response does **not** promise that `Execute` will commit; the next execution folds a fresh decision. `[Unprotected]` on a **command class** opts out of protected reads: its `DecisionRead<T>` dependencies use the legacy, unguarded read path in both `Validate` and `Execute`. Do not combine it with `[ProtectedDecision]`. On a plain model parameter or `Handle`/`Provide` method `[Unprotected]` is only an acknowledgement for tooling; parameter-level runtime opt-out is unsupported. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation.
+| You write | Under `Off` or `Measure` | Under `On` |
+| --- | --- | --- |
+| `Handle(BookStock? stock)`, or a validator constructor parameter | Plain read | Guarded read |
+| `[Unprotected("why")]` on the parameter or the model | Plain read | Advisory read: stored, unguarded |
+| `[LookUpBy(nameof(Property))]` on a parameter | Selects the key | Selects the key |
+| `DecisionRead<T>` with `[ProtectedDecision]` | Guarded read for that command | Guarded read. The attribute is redundant |
+| `IDecisionReads.Get<T>(key)` in `Provide()` | Guarded for `[ProtectedDecision]` commands | Guarded read |
+| `IReadModels`, `IEventStore` or `IEventLog` reads | Allowed | Refused unless the method is `[Unprotected("why")]` |
 
-**Protected-mode validator boundary:** A `[ProtectedDecision]` command runs a discoverable validator — a `CommandValidator<T>`, a `ConceptValidator<T>` or any other `IDiscoverableValidator<T>` in its command graph — only when Arc can certify the two narrow properties below. Neither proves that the rules read nothing but the input they validate; the list after them names what stays your responsibility:
+A conflict returns `concurrencyViolation` with the detail `ReadChanged`, and the command is not retried. See [Refusals](../consistency/refusals.md).
 
-- The validator's only public constructor is parameterless, so nothing is injected into it. A validator whose constructor takes dependencies — a read model, `DecisionRead<T>`, `IDecisionReads` or any other service — is refused before its dependencies are resolved, its registration runs or its rules are evaluated.
-- Arc runs the constructor. Arc binds each convention-discovered, parameterless validator to its own construction, keeping its lifetime, and a validator with no registration at all is constructed directly. When the service provider supplies an instance Arc did not construct — from a factory, an instance registration or an explicit registration added after Arc's conventions — the command is refused, so a rule a registration adds never silently disappears. A transient validator resolved outside a protected decision is not certified, because nothing shares that instance with a later protected decision; inside a protected decision Arc always resolves a fresh instance and refuses one it did not certify, so an uncertified instance fails closed. Such a registration's factory still runs before the refusal, because only resolving it reveals what it supplies; the command still fails and nothing the factory produced is used.
+`Validate` is advisory: it reads fresh state and does not append or guard, so a successful validation response does **not** promise that `Execute` will commit.
 
-What Arc certifies is exactly this: the parameterless constructor ran in Arc, and the instance still has, by reference, the same rules and the same components of each rule that the constructor left it with. A decorator or code that adds, removes or replaces a rule or a rule component on Arc's instance is therefore refused. Nothing else about the instance is certified. **Keeping validators free of anything that can carry decision state is your responsibility, for all of the following:**
+### Commands marked [ProtectedDecision]
 
-- static members and service locators read by a rule;
-- a decorator (for example Scrutor's `Decorate`) that returns Arc's inner instance after changing its state;
-- property injection, or any code that resolves the validator and then sets a field or property that a rule closure reads;
-- `ApplyCondition` on an existing rule, a changed cascade mode, or rules added to a nested child validator, none of which the rule and component references reveal.
+A command that is not under `On` can opt in on its own. **Mark it with `[ProtectedDecision]`** (`Cratis.Arc.Chronicle.ReadModels`) before injecting `DecisionRead<T>` into `Provide()` or `Handle()`; use `.Instance` and `.Exists`. Inject the command-aware `IDecisionReads` and call `Get<T>(otherKey)` to guard a different event source. The profile is fixed when the Arc pipeline enters each command, including nested commands. An unmarked command under `Off` keeps its plain reads, and `IDecisionReads.GetDetached<T>` returns a detached snapshot as Chronicle's own reader does. Inside a `[ProtectedDecision]` command `GetDetached<T>` is refused, because a detached snapshot is not enrolled in the decision. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation.
+
+By default, a `[ProtectedDecision]` command outside `On` runs a discoverable validator only if it has one public, parameterless constructor. [Certified validator construction](../consistency/certified-validators.md) opts dependency-taking validators into fresh construction in a native Microsoft DI scope: use `DecisionRead<T>` or the command-aware `IDecisionReads`, not a plain read-model parameter. This capability requires an untrimmed JIT runtime. Under `On`, validators with plain read-model parameters remain allowed without that opt-in. See [Validators and read protection](../consistency/validators.md#commands-marked-protecteddecision).
 
 ```csharp
 [Command]
@@ -213,15 +222,31 @@ public class RenameLedgerValidator : CommandValidator<RenameLedger>
 }
 ```
 
-A refusal is an exception outcome and cannot be allowed by `X-Allowed-Severity`; validation is never silently skipped. Queries the command performs still run their own validators, such as paging validation. Keep state-based rules in `Provide()` or `Handle()` with `DecisionRead<T>` or command-aware `IDecisionReads`; validators that read decision state are tracked in [Arc #2831](https://github.com/Cratis/Arc/issues/2831), and Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on that work. A parameterless validator can still reach state in the ways listed above, which Arc cannot see; do not make protected decisions that way. Legacy `[Unprotected]` and unmarked commands retain their existing validator resolution and rules (including parent validators that inject child validators). Arc cannot certify arbitrary services, filters, or handler-owned closures that hold decision state, nor turn a raw Chronicle SDK reader obtained from `IEventStore` into a command-aware read. Do not use those paths to make protected decisions. A custom provider must supply the command-aware Chronicle reader and protection support; a missing guard refuses protected commands before validation or handler work. Custom unit-of-work implementations continue to work for legacy commands but cannot own protected decisions.
+### What is guarded
 
-Protection requires a projection admitted by Chronicle for direct event-source-keyed event-log reads with a supported key conversion and a known, nonempty event-type set. Reducers, joins, nested/child and open-ended sources, arbitrary keys, passive/incomplete definitions and other refused shapes cannot be made safe by injection. Chronicle's decision-read limitations also apply: revisions, redactions, generation migrations, definition changes, other event sequences, external or non-Chronicle state and foreign writers are not guarded. Explicit concurrency scopes on the same label cannot be merged into a decision scope. Immediate `IEventLog.Append*` calls made inside a handler are **not** protected; return events for transactional enrollment instead. A command that manually commits a protected aggregate before its owner finishes is refused.
+A guarded read requires a model that Chronicle admits for direct, event-source-keyed event-log reads with a supported key conversion and a known, nonempty event-type set. Flat projections, unfiltered reducers and self-reducing models without constructor dependencies other than `ILogger<T>` are admitted. Reducers with a filter or other dependencies, joins, nested or child sources, `FromEvery`, by-property keys, stream-keyed projections read as a plain parameter, open-ended event types and Pinned generation delivery are refused. The model needs an `Id` property of a string-like or `Guid` type, which is matched to the command's key or to a `[LookUpBy]` property.
 
-**Direct completion of a protected unit of work is refused.** Arc claims ownership of the command's Chronicle unit of work and commits or rolls it back as owner. A direct `Rollback()` or `Commit()` of that unit from command code, including an aggregate root committing its mutation, is refused with `ProtectedUnitOfWorkRequiresOwner` once the unit has enrolled decision reads, so the guard cannot be bypassed. This requires Chronicle 19.23 or later. A failed command whose unit has no enrolled decision reads is rolled back through the public `Rollback()`, as before.
+Revisions, redactions, projection definition changes, other event sequences, external state and writes that bypass the kernel's append path are not guarded. A guard detects every matching event appended through the kernel, whoever wrote it. An unguarded writer's own decision is not protected.
+
+Arc claims ownership of the command's Chronicle unit of work and commits or rolls it back as owner. A direct `Commit()` or `Rollback()` of that unit from command code is refused with `ProtectedUnitOfWorkRequiresOwner`. Immediate `IEventLog.Append*` calls inside a handler are not part of the guarded commit: under `On` they are refused; return events instead.
+
+### Read models scoped to one event stream
+
+Declare `[EventStream<TSource>(stream)]` from `Cratis.Chronicle.ReadModels` on a source-keyed model when it always represents one stream. Take it as a plain parameter in `Handle()`, `Provide()` or a `CommandValidator<T>` constructor. Arc derives the source id, source type, stream type and stream id from the command's route, including `[EventStreamId("{Month}")]` templates. The [monthly-limit example](../consistency/scenarios/per-stream.md#a-monthly-limit) includes the declaration, validator and a `ForMonth` query.
+
+| Mode | Per-stream parameter |
+| --- | --- |
+| `On` | Fresh stream fold, enrolled before the value is returned; validator and handler share one fold |
+| `Off` or `Measure` | Plain stream fold, no guard |
+| `On` with `[Unprotected("why")]` on the parameter or model | Advisory stream fold, no guard |
+
+A different source or stream, `All`, or a missing/default stream id is refused in every mode with `ReadModelStreamNotOnCommandRoute`. A missing template part returns `400` naming the command property before reading. `[LookUpBy]` is refused on per-stream parameters: the source belongs to the command's route, not the lookup convention. A `DecisionRead<T>` of a declared per-stream model uses that same route; other models remain key-based.
+
+The model is implicitly passive. Queries use `IReadModels.GetInstanceById<T>(EventSourceId, EventStreamId)`, which supplies no guard; key-only reads and watchers are refused. Combining a stream model with a whole-source read on the same source chooses a whole-source guard. All writers must use the definition route: events without its source type are neither folded nor guarded.
 
 ### Read a projection within one stream
 
-When a projection-based decision concerns only one event stream, inject the command-aware `IDecisionReads` and pass the source id, stream type and stream id explicitly. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
+For another stream or source, or a projection without a per-stream declaration, inject the command-aware `IDecisionReads` and pass the source id, stream type and stream id explicitly. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
 
 ```csharp
 using Cratis.Arc.Chronicle.ReadModels;
@@ -230,7 +255,6 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
 
 [Command]
-[ProtectedDecision]
 [EventSourceType("reports")]
 [EventStreamType("approval")]
 [EventStreamId("{Period}")]
@@ -243,11 +267,13 @@ public record DecideWithinPeriod(EventSourceId Id, string Period)
 }
 ```
 
-The fold and its append guard use those same dimensions. `Provide()` returns the issued token to `Handle()`; Arc enrolls it in the command transaction and caches identical reads only within that invocation. A whole-source read or another stream's read does not share that cache entry. The optional event source type narrows both the fold and guard. Keep it aligned with the returned event route.
+Under `On` the command needs no attribute. Outside `On`, add `[ProtectedDecision]`. The fold and its append guard use those same dimensions. `Provide()` returns the issued token to `Handle()`; Arc enrolls it in the command transaction and caches identical reads only within that invocation. A whole-source read or another stream's read does not share that cache entry. The optional event source type narrows both the fold and guard. Keep it aligned with the returned event route.
 
-Use `AdmitForStream<T>()` to check the projection shape without reading. Chronicle also admits consistently stream-id-keyed projections through this overload; reading them through a key-only `Get<T>` refuses with `StreamKeyRequiresStreamScope`. An injected `DecisionRead<T>` parameter stays key-based: Arc does not automatically narrow it to the command's stream. Use the explicit stream overload for that decision.
+Use `AdmitForStream<T>()` to check the projection shape without reading. Chronicle also admits consistently stream-id-keyed projections through this overload; reading them through a key-only `Get<T>` refuses with `StreamKeyRequiresStreamScope`. An injected `DecisionRead<T>` is narrowed automatically only when `T` declares `[EventStream<TSource>(stream)]`; otherwise it stays key-based. Use the explicit stream overload for another stream or source.
 
 The stream type must be specific, not `EventStreamType.All`. See Chronicle's [stream-scoped decision-read contract](/chronicle/read-models/decision-reads/#scoped-to-one-event-stream) for default-id behavior, key requirements and merged guard widening. The kernel must acknowledge stream scoping; unsupported scoping fails rather than silently folding the whole source.
+
+For the decision matrix, costs, pitfalls and scenarios that put these pieces together, see [Choosing how a command's rule holds](../consistency/index.md), its [scenarios](../consistency/scenarios/index.md) and its [pitfalls](../consistency/pitfalls.md).
 
 ## Read models from other providers
 
@@ -257,7 +283,7 @@ What differs is where the read model is loaded from and what key loads it, inclu
 
 ## Testing
 
-For legacy plain read models, seed state with the `Given` builder — either events or a pinned instance. For protected decisions, explicitly select the [single-log decision scenario](../../testing/chronicle.md#protected-decision-scenarios) and seed actual events; pinned state cannot supply a valid guard.
+For legacy plain read models, seed state with the `Given` builder — either events or a pinned instance. For guarded reads, explicitly select the [single-log decision scenario](../../testing/chronicle.md#protected-decision-scenarios) and seed actual events; pinned state cannot supply a valid guard. See [Test the race](../consistency/scenarios/testing.md).
 
 ## See also
 

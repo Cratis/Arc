@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Events;
+using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -20,6 +21,7 @@ internal sealed class ConstraintCoverage
 
     static readonly HashSet<string> _targetMethods = new(StringComparer.Ordinal) { "Unique", "On", "ClosesStreamOn", "RemovedWith" };
 
+    readonly ConstraintBatchRequirements _requirements = new();
     readonly Dictionary<string, string> _targeted = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> _closing = new(StringComparer.Ordinal);
     string? _unknownReason;
@@ -59,15 +61,25 @@ internal sealed class ConstraintCoverage
     /// </summary>
     /// <param name="events">The produced event types in return order.</param>
     /// <returns>The reason equivalence is unproven, or null.</returns>
-    internal string? UnprovenBatch(IReadOnlyList<INamedTypeSymbol> events)
+    internal ReactionBatchGap? UnprovenBatch(IReadOnlyList<INamedTypeSymbol> events)
     {
         if (events.Count < 2)
         {
             return null;
         }
 
-        return _unknownReason ?? events.Skip(1).Select(RejectionReason).FirstOrDefault(_ => _ is not null) ??
-            events.SkipLast(1).Select(ClosingReason).FirstOrDefault(_ => _ is not null);
+        if (_unknownReason is { } unreadable)
+        {
+            return new(ReactionBatchGapKind.Unreadable, unreadable);
+        }
+        if (events.SkipLast(1).Select(ClosingReason).FirstOrDefault(_ => _ is not null) is { } closing)
+        {
+            return new(ReactionBatchGapKind.Closing, closing);
+        }
+
+        var rejection = events.Skip(1).Select(RejectionReason).FirstOrDefault(_ => _ is not null);
+
+        return _requirements.For(events, rejection);
     }
 
     static IEnumerable<INamedTypeSymbol> TypesIn(INamespaceOrTypeSymbol scope) =>
@@ -153,6 +165,11 @@ internal sealed class ConstraintCoverage
         {
             Unknown(constraint);
             return;
+        }
+
+        if (method.Name == "Unique")
+        {
+            _requirements.Read(constraint, invocation, method, model);
         }
 
         if (_targetMethods.Contains(method.Name))

@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
 using Cratis.Reflection;
 using Cratis.Strings;
@@ -26,6 +27,11 @@ public partial class ObservableQueryDemultiplexer
             callbacks.OnCompleted();
         }
     }
+
+    static string TransportOf(string protocol) =>
+        string.Equals(protocol, "SSE", StringComparison.OrdinalIgnoreCase)
+            ? WellKnownTelemetryNames.ServerSentEventsTransport
+            : WellKnownTelemetryNames.WebSocketTransport;
 
     static void EnsureAuthorizationDoesNotRequireAsynchronousEvaluation(FullyQualifiedQueryName fullyQualifiedName, IServiceProvider queryServiceProvider)
     {
@@ -75,6 +81,16 @@ public partial class ObservableQueryDemultiplexer
         ExceptionStackTrace = string.Empty,
         Paging = queryResult.Paging
     };
+
+    static Task SendValidationRejection(QueryResult result, SubscriptionCallbacks callbacks, CancellationToken token)
+    {
+        var rejection = new QueryResult
+        {
+            CorrelationId = result.CorrelationId,
+            ValidationResults = result.ValidationResults
+        };
+        return callbacks.OnNext(rejection, token);
+    }
 
     static bool TransferScopeToSubscription(IDisposable? subscription, IServiceScope? ownedScope)
     {
@@ -138,12 +154,13 @@ public partial class ObservableQueryDemultiplexer
     /// Creates the subscription for a reserved operation and wires it to the transport, registering it for health tracking.
     /// </summary>
     /// <param name="session">The <see cref="SubscriptionSession"/> describing the reserved operation and its transport.</param>
-    /// <param name="requestServices">The admission request's services; not retained by the session.</param>
+    /// <param name="requestContext">The live admission request; not retained by the session.</param>
     /// <returns>True when the subscription ended because the caller was not authorized; otherwise false.</returns>
-    async Task<bool> EstablishSubscription(SubscriptionSession session, IServiceProvider requestServices)
+    async Task<bool> EstablishSubscription(SubscriptionSession session, IHttpRequestContext requestContext)
     {
         var operation = session.Operation;
         var previousContext = httpRequestContextAccessor.Current;
+        session.Telemetry = new ObservableQueryTelemetry(serviceProvider, session.Request.QueryName, TransportOf(session.Protocol));
 
         try
         {
@@ -152,12 +169,13 @@ public partial class ObservableQueryDemultiplexer
             var subscription = await CreateSubscription(
                 new SubscriptionTarget(
                     session.SubscriptionContext,
-                    requestServices,
+                    requestContext,
                     session.SubscriptionContext.GetPrincipal(),
                     session.QueryId,
                     session.Request),
                 new SubscriptionCallbacks(
                     (result, operationToken) => DeliverResult(session, result, operationToken),
+                    (result, operationToken) => DeliverResult(session, result, operationToken, isPush: true),
                     (id, errorMsg, operationToken) => DeliverError(session, id, errorMsg, operationToken),
                     (id, operationToken) => DeliverUnauthorized(session, id, operationToken),
                     () => TerminateSubscription(session.Subscriptions, session.QueryId, operation)),
@@ -182,17 +200,20 @@ public partial class ObservableQueryDemultiplexer
         return session.WasUnauthorized;
     }
 
-    async Task DeliverResult(SubscriptionSession session, QueryResult result, CancellationToken operationToken)
+    async Task DeliverResult(SubscriptionSession session, QueryResult result, CancellationToken operationToken, bool isPush = false)
     {
         if (!IsCurrent(session.Subscriptions, session.QueryId, session.Operation))
         {
             return;
         }
 
+        // Only a result an emission produced is a push; a snapshot or a validation rejection is the answer to the subscribe.
+        using var push = isPush && session.Telemetry is { } telemetry ? telemetry.BeginPush() : default;
         var msg = ObservableQueryHubMessage.CreateQueryResult(session.QueryId, result, session.Operation.Revision);
         if (await session.Send(msg, operationToken) &&
             IsCurrent(session.Subscriptions, session.QueryId, session.Operation))
         {
+            push.Delivered();
             healthTracker.RecordDataServed(session.ConnectionId, session.QueryId);
         }
     }
@@ -233,8 +254,16 @@ public partial class ObservableQueryDemultiplexer
         {
             var metadata = CreateSubscriptionMetadata(session.QueryId, session.Request, session.SubscriptionContext, session.Protocol);
             session.Operation.TryRegister(
-                () => healthTracker.RegisterSubscription(session.ConnectionId, session.Protocol, metadata),
-                () => healthTracker.UnregisterSubscription(session.ConnectionId, session.QueryId));
+                () =>
+                {
+                    healthTracker.RegisterSubscription(session.ConnectionId, session.Protocol, metadata);
+                    session.Telemetry?.Start();
+                },
+                () =>
+                {
+                    healthTracker.UnregisterSubscription(session.ConnectionId, session.QueryId);
+                    session.Telemetry?.Dispose();
+                });
         }
         else if (subscription is null)
         {
@@ -269,12 +298,18 @@ public partial class ObservableQueryDemultiplexer
 
     async Task<IDisposable?> CreateSubscriptionCore(SubscriptionTarget target, SubscriptionCallbacks callbacks, CancellationToken token)
     {
-        var (context, queryServiceProvider, principal, queryId, request) = target;
+        var (context, requestContext, principal, queryId, request) = target;
+        var queryServiceProvider = requestContext.RequestServices;
         var query = new SubscriptionQuery(
             new FullyQualifiedQueryName(request.QueryName),
             BuildQueryArguments(request.Arguments),
             BuildPaging(request),
             BuildSorting(request));
+
+        if (!await AdmitHostFallback(query.Name, target, callbacks, token))
+        {
+            return null;
+        }
 
         // Run through the full query pipeline (including authorization filters). The call stays inline: a custom
         // pipeline may set the query context (AsyncLocal) synchronously, and an async helper would restore it on return.
@@ -294,17 +329,8 @@ public partial class ObservableQueryDemultiplexer
         var ownedScope = queryResult.OwnedScope;
         try
         {
-            if (!queryResult.IsAuthorized)
+            if (!await AdmitQueryResult(queryResult, target, callbacks, token))
             {
-                logger.QueryUnauthorized(request.QueryName, queryId);
-                await callbacks.OnUnauthorized(queryId, token);
-                return null;
-            }
-
-            if (!queryResult.IsSuccess)
-            {
-                var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
-                await callbacks.OnError(queryId, errorMsg, token);
                 return null;
             }
 
@@ -313,17 +339,17 @@ public partial class ObservableQueryDemultiplexer
             var streamingData = queryResult.Data;
             if (streamingData is null || !IsStreamingResult(streamingData))
             {
-                // Non-streaming result — send current snapshot and return null (no long-lived subscription)
-                await callbacks.OnNext(CreateSnapshotResult(queryResult), token);
+                await DeliverSnapshot(target, (query, queryResult, queryServiceProvider), callbacks, token);
                 return null;
             }
 
             var identity = CreateSubscriptionIdentity(query, principal, queryResult, queryServiceProvider);
-
             IDisposable? subscription = null;
             try
             {
-                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, callbacks.OnNext, callbacks.OnError, callbacks.OnUnauthorized, callbacks.OnCompleted, queryResult.AuthorizedQueryContext, token);
+                subscription = SubscribeToStreamingData(
+                    new ObservableQuerySubscriptionContext(context, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, callbacks.OnPush, callbacks.OnError, callbacks.OnUnauthorized, callbacks.OnCompleted, queryResult.AuthorizedQueryContext, token),
+                    streamingData);
                 if (TransferScopeToSubscription(subscription, ownedScope))
                 {
                     ownedScope = null;
@@ -342,6 +368,120 @@ public partial class ObservableQueryDemultiplexer
         {
             ownedScope?.Dispose();
         }
+    }
+
+    async Task<bool> AdmitQueryResult(
+        QueryResult queryResult,
+        SubscriptionTarget target,
+        SubscriptionCallbacks callbacks,
+        CancellationToken token)
+    {
+        if (!queryResult.IsAuthorized)
+        {
+            logger.QueryUnauthorized(target.Request.QueryName, target.QueryId);
+            await callbacks.OnUnauthorized(target.QueryId, token);
+            return false;
+        }
+
+        if (!queryResult.IsValid)
+        {
+            await SendValidationRejection(queryResult, callbacks, token);
+            return false;
+        }
+
+        if (!queryResult.IsSuccess)
+        {
+            var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
+            await callbacks.OnError(target.QueryId, errorMsg, token);
+            return false;
+        }
+
+        return true;
+    }
+
+    async Task DeliverSnapshot(
+        SubscriptionTarget target,
+        (SubscriptionQuery Query, QueryResult Result, IServiceProvider QueryServices) snapshot,
+        SubscriptionCallbacks callbacks,
+        CancellationToken token)
+    {
+        var (query, queryResult, queryServiceProvider) = snapshot;
+        if (emissionGuards.HasGuards)
+        {
+            var snapshotIdentity = CreateSubscriptionIdentity(query, target.Principal, queryResult, queryServiceProvider);
+            var guardServices = queryResult.OwnedScope?.ServiceProvider ?? queryServiceProvider;
+            using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                target.Context, guardServices, snapshotIdentity.Principal ?? target.Context.User, snapshotIdentity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            var guardRequest = new GuardRequest(target.QueryId, snapshotIdentity, queryResult.CorrelationId, guardServices, IsFirstEmission: true, IsSnapshot: true);
+            if (await EvaluateGuard(guardRequest, callbacks.OnUnauthorized, token) != GuardOutcome.Deliver)
+            {
+                return;
+            }
+        }
+
+        // A snapshot has no continuing subscription, including when a guard suppresses its only frame.
+        await callbacks.OnNext(CreateSnapshotResult(queryResult), token);
+    }
+
+    async Task<bool> AdmitHostFallback(
+        FullyQualifiedQueryName queryName,
+        SubscriptionTarget target,
+        SubscriptionCallbacks callbacks,
+        CancellationToken token)
+    {
+        var requestContext = target.RequestContext;
+        var principal = target.Principal;
+        var queryId = target.QueryId;
+        try
+        {
+            if (AllowsAnonymousQuery(queryName, requestContext.RequestServices))
+            {
+                return true;
+            }
+
+            var fallback = requestContext.RequestServices?.GetService<IEndpointFallbackAuthorization>() ??
+                serviceProvider.GetRequiredService<IEndpointFallbackAuthorization>();
+            if (await fallback.IsAuthorized(requestContext, principal, token))
+            {
+                token.ThrowIfCancellationRequested();
+                return true;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (!IsFatal(exception))
+        {
+            // An unavailable host policy is a denial, never permission to execute the query.
+            logger.HostFallbackCheckFailed(queryName.Value, queryId, exception);
+        }
+
+        await callbacks.OnUnauthorized(queryId, token);
+        return false;
+    }
+
+    bool AllowsAnonymousQuery(FullyQualifiedQueryName queryName, IServiceProvider requestServices)
+    {
+        if (_anonymousQueries.TryGetValue(queryName, out var anonymous))
+        {
+            return anonymous;
+        }
+
+        var catalog = requestServices?.GetService<IQueryPerformerProviders>() ?? serviceProvider.GetService<IQueryPerformerProviders>();
+        if (catalog is null || !catalog.TryGetPerformersFor(queryName, out var performer))
+        {
+            return false;
+        }
+
+        return _anonymousQueries.GetOrAdd(
+            queryName,
+            static (_, state) =>
+            {
+                using var scope = state.ServiceProvider.CreateScope();
+                return QueryEndpointAccess.AllowsAnonymous(state.Performer, scope.ServiceProvider);
+            },
+            (ServiceProvider: serviceProvider, Performer: performer));
     }
 
     /// <summary>
@@ -433,13 +573,14 @@ public partial class ObservableQueryDemultiplexer
 
     readonly record struct SubscriptionCallbacks(
         Func<QueryResult, CancellationToken, Task> OnNext,
+        Func<QueryResult, CancellationToken, Task> OnPush,
         Func<string, string, CancellationToken, Task> OnError,
         Func<string, CancellationToken, Task> OnUnauthorized,
         Action OnCompleted);
 
     readonly record struct SubscriptionTarget(
         IHttpRequestContext Context,
-        IServiceProvider Services,
+        IHttpRequestContext RequestContext,
         ClaimsPrincipal Principal,
         string QueryId,
         ObservableQuerySubscriptionRequest Request);
@@ -461,5 +602,6 @@ public partial class ObservableQueryDemultiplexer
         public required string Protocol { get; init; }
         public required Func<ObservableQueryHubMessage, CancellationToken, Task<bool>> Send { get; init; }
         public bool WasUnauthorized { get; set; }
+        public ObservableQueryTelemetry? Telemetry { get; set; }
     }
 }

@@ -3,18 +3,20 @@
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Reducers;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,7 +47,7 @@ public static class ReadModelServiceCollectionExtensions
     /// A read model is injectable into command-scoped code (a <c>CommandValidator&lt;&gt;</c>, <c>Provide()</c>, or
     /// <c>Handle()</c>) because it is resolvable by key (the resolved event source id) through <see cref="IReadModels"/>.
     /// What makes a read model resolvable that way is a Chronicle backing artifact, so this registers every read model
-    /// that has a projection, standalone model-bound projection, or reducer — independent of whether it also carries the Arc-level
+    /// that has a projection, standalone model-bound projection, classic reducer, or self reduction — independent of whether it also carries the Arc-level
     /// <c>[ReadModel]</c> attribute. It deliberately does not register read models by <c>[ReadModel]</c> alone: that
     /// attribute is an Arc concept that does not imply Chronicle key resolution, and a read model backed by another
     /// provider (for example Entity Framework Core) is registered by that provider, not here.
@@ -54,40 +56,24 @@ public static class ReadModelServiceCollectionExtensions
     {
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
-        var readModelTypes = _discoveryByArtifacts
-            .GetValue(clientArtifactsProvider, _ => new ReadModelDiscovery())
-            .GetTypes(clientArtifactsProvider);
+        var readModelTypes = DiscoverReadModelTypes(clientArtifactsProvider);
+        ProtectedDecisionRegistrationOrigins.For(services).RecognizeReaders(typeof(IDecisionReads), readModelTypes);
 
         // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
+        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes));
+        services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
+            new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
 
         // This public entry point also registers DecisionRead<T>. Never leave it bound to Chronicle's raw reader.
         services.AddCommandAwareDecisionReads();
 
         foreach (var readModelType in readModelTypes)
         {
-            var closedType = typeof(DecisionRead<>).MakeGenericType(readModelType);
-
-            // Close the resolver once per read model at registration rather than on every resolution.
-            var resolve = typeof(ReadModelServiceCollectionExtensions)
-                .GetMethod(nameof(ResolveDecisionRead), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(readModelType);
-
-            // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
-            services.TryAddTransient(closedType, sp =>
-            {
-                try
-                {
-                    return resolve.Invoke(null, [sp])!;
-                }
-                catch (TargetInvocationException exception) when (exception.InnerException is not null)
-                {
-                    ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-                    throw;
-                }
-            });
+            // One closed registration per read model; it registers the typed dispatch and the DecisionRead<T> factory.
+            RegisterReadModel(readModelType, services, readModelTypes);
         }
 
         return services;
@@ -100,12 +86,20 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>These same services for further registrations.</returns>
     public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
     {
+        services.AddOptions<ProtectedReadModelKeyOptions>();
+        services.TryAddSingleton<ProtectedReadModelKeyTraversal>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ProtectedReadModelKeyStartup>());
+        services.TryAddSingleton<ReadProtectionMeasureQueue>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ReadProtectionMeasureQueue>(sp => sp.GetRequiredService<ReadProtectionMeasureQueue>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandExceptionMapper, ReadProtectionCommandExceptionMapper>());
         services.TryAddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>();
-        services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
+        var descriptor = ServiceDescriptor.Scoped<IDecisionReads>(sp => new CommandDecisionReads(
             sp.GetRequiredService<IEventStore>().GetDecisionReads(),
             sp.GetRequiredService<IEventStore>(),
             sp.GetRequiredService<IReadModels>()));
+        services.Add(descriptor);
+        ProtectedValidatorReadBindings.RecordReader(services, descriptor);
         return services;
     }
 
@@ -115,11 +109,16 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
+    /// <param name="key">An optional per-parameter key, instead of the command key.</param>
     /// <returns>The resolved read model instance, or null when it does not exist.</returns>
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
-    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
+    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels, ReadModelKey? key = null)
     {
-        var eventSourceId = commandContext.GetEventSourceId();
+        if (PerStreamReadModelBinding.IsDeclared(readModelType))
+        {
+            return PerStreamReadModelBinding.Resolve(readModelType, commandContext, commandContext.ServiceProvider!);
+        }
+        var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
         if (eventSourceId == EventSourceId.Unspecified)
         {
             // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
@@ -131,6 +130,7 @@ public static class ReadModelServiceCollectionExtensions
             throw new UnableToResolveReadModelFromCommandContext(readModelType);
         }
 
+        ReadProtectionMeasurement.Current?.StoredRead(readModelType, (ReadModelKey)eventSourceId);
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
 
         // A never-created or removed read model resolves to null; there is nothing to release (decrypt).
@@ -149,10 +149,72 @@ public static class ReadModelServiceCollectionExtensions
         return readModel is null ? readModel : ReleaseReadModel(readModels, readModelType, readModel);
     }
 
+    /// <summary>
+    /// Discovers the same Chronicle-backed models for parameter resolution and admission checks.
+    /// </summary>
+    /// <param name="artifacts">The discovered client artifacts.</param>
+    /// <returns>The injectable read model types.</returns>
+    internal static Type[] DiscoverReadModelTypes(IClientArtifactsProvider artifacts) =>
+        _discoveryByArtifacts.GetValue(artifacts, _ => new ReadModelDiscovery()).GetTypes(artifacts);
+
+    /// <summary>
+    /// Registers typed dispatch for a read model type that <see cref="AddReadModels"/> did not discover. This and
+    /// <see cref="AddReadModels"/> share the single place that closes the registration over the model type.
+    /// </summary>
+    /// <param name="model">The read model type.</param>
+    /// <returns>Whether dispatch is now registered.</returns>
+    internal static bool TryRegisterDispatch(Type model)
+    {
+        if (!model.IsClass)
+        {
+            return false;
+        }
+
+        try
+        {
+            RegisterReadModel(model, null, []);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or TargetInvocationException)
+        {
+            return false;
+        }
+    }
+
+    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes) =>
+        typeof(ReadModelServiceCollectionExtensions)
+            .GetMethod(nameof(RegisterReadModelOf), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(model)
+            .Invoke(null, [services, readModelTypes]);
+
+    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes)
+        where T : class
+    {
+        ReadModelDispatch.Register<T>();
+        if (services is null)
+        {
+            return;
+        }
+
+        // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
+        var descriptor = ServiceDescriptor.Transient(ResolveDecisionRead<T>);
+        var count = services.Count;
+        services.TryAdd(descriptor);
+        if (services.Count != count)
+        {
+            ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
+        }
+    }
+
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
         where T : class
     {
         var context = services.GetRequiredService<ICommandContextAccessor>().Current;
+        if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
+        {
+            var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
+            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+        }
         var key = context.GetEventSourceId();
         if (key == EventSourceId.Unspecified)
         {
@@ -223,6 +285,7 @@ public static class ReadModelServiceCollectionExtensions
                     _readModelTypes = ReadModelTargetsFrom(projections, typeof(IProjectionFor<>))
                         .Concat(modelBoundReadModels)
                         .Concat(ReadModelTargetsFrom(reducers, typeof(IReducerFor<>)))
+                        .Concat(reducers.Where(SelfReducingReadModel.IsSelfReducing))
                         .Distinct()
                         .ToArray();
                     _projections = projections;

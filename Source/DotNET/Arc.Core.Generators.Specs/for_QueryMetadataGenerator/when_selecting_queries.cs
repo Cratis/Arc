@@ -9,6 +9,12 @@ public class when_selecting_queries
 {
     [Theory]
     [InlineData(false, "public static Order Helper() => new();", true)]
+    [InlineData(false, "public static Order Helper(Order first, object service) => first;", false)]
+    [InlineData(false, "public static Order Helper(object e, Order current) => current;", false)]
+    [InlineData(false, "public static Order? Helper(object e, Order? current) => current;", false)]
+    [InlineData(false, "public static Task<Order?> Helper(object e, object context, Order? current) => Task.FromResult(current);", false)]
+    [InlineData(false, "public static Order Helper(IEnumerable<Order> values) => new();", true)]
+    [InlineData(false, "public static Order Helper(System.Uri service) => new();", true)]
     [InlineData(false, "[Query] public static Order Helper() => new();", true)]
     [InlineData(true, "public static Order Helper() => new();", false)]
     [InlineData(true, "internal static Order Helper() => new();", false)]
@@ -20,7 +26,7 @@ public class when_selecting_queries
     [InlineData(true, "public static Task BeginReplayPartition(string partition, object service) => Task.CompletedTask;", false)]
     [InlineData(true, "public static Task EndReplayPartition(string partition, object service) => Task.CompletedTask;", false)]
     [InlineData(true, "[Query] public static Order? Helper() => null;", true)]
-    [InlineData(true, "[Query] internal static Task<Order> Helper() => Task.FromResult(new Order());", true)]
+    [InlineData(true, "[Query] public static Task<Order> Helper() => Task.FromResult(new Order());", true)]
     [InlineData(true, "[Query] public static ISubject<IEnumerable<Order>> Helper() => null!;", true)]
     [InlineData(false, "public static Task<ISubject<IEnumerable<Order>>> Helper() => null!;", true)]
     [InlineData(true, "[Query] public static Task<ISubject<IEnumerable<Order>>> Helper() => null!;", true)]
@@ -35,11 +41,17 @@ public class when_selecting_queries
 
     [Theory]
     [InlineData("[Query] private static Order Helper() => new();")]
+    [InlineData("[Query] internal static Order Helper() => new();")]
+    [InlineData("[Query] protected static Order Helper() => new();")]
+    [InlineData("[Query] protected internal static Order Helper() => new();")]
+    [InlineData("[Query] private protected static Order Helper() => new();")]
     [InlineData("[Query] public Order Helper() => new();")]
     [InlineData("[Query] public static Order Helper<T>(T value) => new();")]
     [InlineData("[Query] public static Task Helper() => Task.CompletedTask;")]
     [InlineData("[Query] public static string Helper() => string.Empty;")]
     [InlineData("[Query] public static Order Helper(ref int value) => new();")]
+    [InlineData("[Query] public static Order Helper(Order current) => current;")]
+    [InlineData("[Query] public static Order? Helper(object e, Order? current) => current;")]
     public void should_reject_invalid_markers_before_filtering(string method)
     {
         var result = GeneratorTestHelper.RunGenerator(Source(method, true));
@@ -55,6 +67,30 @@ public class when_selecting_queries
         var result = GeneratorTestHelper.RunGenerator([Source(method, explicitMode), "namespace Custom { public interface IEnumerable<T> { } }"]);
         result.Diagnostics.ShouldBeEmpty();
         GeneratorTestHelper.GetGeneratedSourceByHintName(result, "GeneratedQueryMetadata.g.cs").ShouldContain("TestApp.Order.Helper");
+    }
+
+    [Fact]
+    public void should_normalize_nullable_value_self_parameters()
+    {
+        // A spec-local owner attribute exercises the linked symbol adapter for value owners; Arc's public
+        // ReadModelAttribute is restricted to classes and is not widened by this change.
+        var result = GeneratorTestHelper.RunGenerator("""
+            using Cratis.Arc.Queries.ModelBound;
+            [ReadModel] public struct Count
+            {
+                public static Count Helper(Count? current) => current ?? default;
+                public static Count All() => default;
+            }
+            namespace Cratis.Arc.Queries.ModelBound
+            {
+                [System.AttributeUsage(System.AttributeTargets.Struct)]
+                public class ReadModelAttribute : System.Attribute { }
+            }
+            """);
+        result.Diagnostics.ShouldBeEmpty();
+        var generated = GeneratorTestHelper.GetGeneratedSourceByHintName(result, "GeneratedQueryMetadata.g.cs");
+        generated.ShouldNotContain("Count.Helper");
+        generated.ShouldContain("Count.All");
     }
 
     [Fact]

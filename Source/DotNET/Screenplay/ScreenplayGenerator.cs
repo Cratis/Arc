@@ -57,11 +57,14 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var ordered = AnalyzedCompilations.Ordered(compilations);
         var resolved = options.WithDefaults(AnalyzedCompilations.NameOf(ordered));
         var analysis = analyzer.Analyze(ordered, resolved);
-        var emission = emitter.Emit(analysis.Model, resolved);
+        var candidate = emitter.Emit(analysis.Model, resolved);
+        var admitted = new ProtectedReadAdmission(emitter, _verifier).Admit(analysis.Model, resolved, candidate);
+        var emission = admitted.Emission;
 
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
+        diagnostics.AddRange(admitted.Diagnostics);
         ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain, resolved.AuthoringOnlyConstructs);
 
         return new(emission.Source, analysis.Model, diagnostics.All);
@@ -112,6 +115,10 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var verification = _verifier.Verify(source);
         if (verification.Compiles)
         {
+            foreach (var warning in verification.BindingDiagnostics.Where(diagnostic => diagnostic.Code == "PLAY0689"))
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnprovenGeneratedConceptRule, $"{warning.Code}: {warning.Message}", $"{location}:{warning.Location.Line}");
+            }
             foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
             {
                 diagnostics.Warning(

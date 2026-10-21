@@ -1,4 +1,18 @@
 <Project>
+    <!-- Emits the assembly rollout declaration without changing command execution. -->
+    <ItemGroup Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(CratisReadProtection)', '^(Off|Measure|On)$'))">
+        <AssemblyAttribute Include="Cratis.Arc.Commands.ReadProtectionAttribute">
+            <_Parameter1>Cratis.Arc.Commands.ReadProtectionMode.$(CratisReadProtection)</_Parameter1>
+            <_Parameter1_IsLiteral>true</_Parameter1_IsLiteral>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <Target Name="_CratisArcValidateReadProtection"
+            BeforeTargets="CoreGenerateAssemblyInfo"
+            Condition="'$(CratisReadProtection)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(CratisReadProtection)', '^(Off|Measure|On)$'))">
+        <Error Text="CratisReadProtection must be Off, Measure, or On." />
+    </Target>
+
     <!-- Reports the project references of the compilation to the ProjectReferenceModulesGenerator in
          Cratis.Arc.Core, which emits code into an executable that runs the module initializers of each of them. Those
          register the metadata generated for them, and without this the runtime can only find them through the

@@ -2,11 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Aggregates;
 
@@ -51,7 +54,10 @@ public class AggregateRootMutation(
     /// <inheritdoc/>
     public async Task Apply(object @event)
     {
-        @event.GetType().ValidateEventType();
+        if ((aggregateRootContext as AggregateRootContext)?.EventTypes?.HasFor(@event.GetType()) == false)
+        {
+            throw new TypeIsNotAnEventType(@event.GetType());
+        }
         var causation = new Causation(DateTimeOffset.Now, CausationType, new Dictionary<string, string>
         {
             { AggregateRootCausationTypeProperty, aggregateRootContext.AggregateRoot.GetType().AssemblyQualifiedName! },
@@ -73,8 +79,28 @@ public class AggregateRootMutation(
             scope.EventSourceType,
             eventTypes);
 
+        var freshness = (aggregateRootContext as AggregateRootContext)?.FreshIdentifiers;
+        var freshScope = freshness?.Resolve(eventSequence.Id, EventSourceId, null, false);
+        concurrencyScope = freshScope ?? concurrencyScope;
         var declared = aggregateRootContext as IAggregateRootEventSourceContext;
-        if (declared?.EventSource is null)
+        if (aggregateRootContext.UnitOfWOrk.IsEnforcingReadProtection)
+        {
+            aggregateRootContext.UnitOfWOrk.AddEvents(
+                eventSequence.Id,
+                [
+                    new EventForEventSourceId(EventSourceId, @event, causation)
+                    {
+                        EventSource = declared?.EventSource,
+                        EventStream = declared?.EventStream,
+                        EventStreamType = aggregateRootContext.EventStreamType,
+                        EventStreamId = aggregateRootContext.EventStreamId,
+                        EventSourceType = aggregateRootContext.EventSourceType
+                    }
+                ],
+                [new(EventSourceId, concurrencyScope)],
+                freshScope is null ? ConcurrencyScopeOrigin.Aggregate : ConcurrencyScopeOrigin.Explicit);
+        }
+        else if (declared?.EventSource is null && freshScope is null)
         {
             aggregateRootContext.UnitOfWOrk.AddEvent(
                 eventSequence.Id,
@@ -94,8 +120,8 @@ public class AggregateRootMutation(
                 [
                     new EventForEventSourceId(EventSourceId, @event, causation)
                     {
-                        EventSource = declared.EventSource,
-                        EventStream = declared.EventStream,
+                        EventSource = declared?.EventSource,
+                        EventStream = declared?.EventStream,
                         EventStreamType = aggregateRootContext.EventStreamType,
                         EventStreamId = aggregateRootContext.EventStreamId,
                         EventSourceType = aggregateRootContext.EventSourceType
@@ -104,6 +130,7 @@ public class AggregateRootMutation(
                 [new(EventSourceId, concurrencyScope)]);
         }
 
+        freshness?.Enrolled(aggregateRootContext.UnitOfWOrk, eventSequence.Id, EventSourceId);
         UncommittedEvents = UncommittedEvents.Add(@event);
 
         await mutator.Mutate(@event);
@@ -115,7 +142,12 @@ public class AggregateRootMutation(
         CommandOperationBoundary.ThrowIfActive();
         var events = UncommittedEvents;
         var eventCount = events.Count;
-        await aggregateRootContext.UnitOfWOrk.Commit();
+        using var measurementCommit = ReadProtectionMeasurement.Committing();
+        var committedByOwner = await TransactionalCommandScope.CommitAggregate(aggregateRootContext.UnitOfWOrk);
+        if (!committedByOwner)
+        {
+            await aggregateRootContext.UnitOfWOrk.Commit();
+        }
 
         IEnumerable<EventSequenceNumber> sequenceNumbers = [];
         if (aggregateRootContext.UnitOfWOrk.TryGetLastCommittedEventSequenceNumber(
@@ -140,6 +172,9 @@ public class AggregateRootMutation(
 
         // Report this aggregate's own events, not the whole unit of work, so Events and SequenceNumbers correspond
         // one-to-one. Violations and errors are legitimately unit-of-work wide and stay sourced from it.
-        return AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, events, sequenceNumbers);
+        var result = AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, events, sequenceNumbers);
+
+        // A protected read that changed is reported as such, as it is when the command commits at completion.
+        return committedByOwner ? TransactionalCommandScope.ReportReadChanges(aggregateRootContext.UnitOfWOrk, result) : result;
     }
 }

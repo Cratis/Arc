@@ -19,7 +19,7 @@ public class when_reading_a_stream_decision
     [Fact]
     public async Task should_fold_only_the_selected_stream()
     {
-        await using var scenario = new CommandScenario<DecideWithinPeriod>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideWithinPeriod>();
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).OnRoute(new EventRoute("reports", "approval", "period")).Events(new PeriodValueChanged(10));
         scenario.Given.ForEventSource(id).OnRoute(new EventRoute("reports", "approval", "other")).Events(new PeriodValueChanged(20));
@@ -33,7 +33,7 @@ public class when_reading_a_stream_decision
     [InlineData("other", true)]
     public async Task should_guard_only_the_selected_stream(string competingPeriod, bool succeeds)
     {
-        await using var scenario = new CommandScenario<DecideWithinPeriod>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideWithinPeriod>();
         var id = EventSourceId.New();
         scenario.AppendConcurrently(id, new EventRoute("reports", "approval", competingPeriod), new PeriodValueChanged(30));
         var result = await scenario.Execute(new(id, "period"));

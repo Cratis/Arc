@@ -123,7 +123,11 @@ public class ArtifactReaders
         var models = whole.Models;
         var diagnostics = whole.Diagnostics;
         var properties = new PropertyReader(types);
-        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics, whole.AuthoringOnlyConstructs);
+        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics, whole.AuthoringOnlyConstructs)
+        {
+            Types = types,
+            Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList()
+        };
         var validators = ValidatorCatalog.From(catalog, new(models, diagnostics, paths));
 
         return new(
@@ -134,9 +138,11 @@ public class ArtifactReaders
             new CommandReader(properties, produces, validators, paths, new(models, diagnostics))
             {
                 Diagnostics = diagnostics,
+                Models = models,
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
                 {
                     ExecutableRoutes = whole.ExecutableRoutes,
+                    ValidationFailure = new Commands.GeneratedValidationAdmission(models, types, whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList(), whole.MaximumExecutableModelVersion).Failure,
                     ValidatedTypes = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
                         .Select(ValidationReader.ValidatedTypeOf).OfType<ITypeSymbol>().Select(type => type.ToDisplayString()).ToHashSet(StringComparer.Ordinal)
                 }
@@ -145,9 +151,10 @@ public class ArtifactReaders
             new QueryReader(types, diagnostics) { Paths = paths, Models = models },
             new ModelBoundProjectionReader(diagnostics),
             new FluentProjectionReader(models, diagnostics),
-            new ReducerReader(diagnostics),
+            new ReducerReader(diagnostics) { Models = models },
             new ReactorReader(models, paths)
             {
+                Diagnostics = diagnostics,
                 Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList()
             },
             new ConstraintReader(models, paths, diagnostics),

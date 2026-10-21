@@ -11,7 +11,6 @@ public class and_many_observations_exist : given.an_observed_collection
 
     async Task Because()
     {
-        var subscriptions = new List<IDisposable>();
         var initialEmissions = new List<Task>();
         for (var i = 0; i < Observations; i++)
         {

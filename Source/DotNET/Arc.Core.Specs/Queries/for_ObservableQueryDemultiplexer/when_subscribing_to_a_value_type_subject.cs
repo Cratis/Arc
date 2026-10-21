@@ -18,28 +18,37 @@ public class when_subscribing_to_a_value_type_subject : given.an_observable_quer
     readonly List<QueryResult> _results = [];
     IDisposable _subscription;
 
+    void Establish() => _queryContextManager.Current.Returns(new QueryContext(
+        "[TestApp].[TestQuery]", CorrelationId.New(), new Paging(2, 10, true), Sorting.None)
+    {
+        TotalItems = 73
+    });
+
     async Task Because()
     {
         _subscription = _hub.SubscribeToStreamingData(
-            Substitute.For<IHttpRequestContext>(),
-            _subject,
-            "query-1",
-            new PagingInfo(0, 0, 0),
-            null,
-            CorrelationId.New(),
-            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
-            (result, _) =>
-            {
-                lock (_results)
+            new ObservableQuerySubscriptionContext(
+                Substitute.For<IHttpRequestContext>(),
+                "query-1",
+                new PagingInfo(2, 10, 73),
+                null,
+                CorrelationId.New(),
+                new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
+                (result, _) =>
                 {
-                    _results.Add(result);
-                }
-                _signals.Signal();
-                return Task.CompletedTask;
-            },
-            (_, _, _) => Task.CompletedTask,
-            (_, _) => Task.CompletedTask,
-            CancellationToken.None);
+                    lock (_results)
+                    {
+                        _results.Add(result);
+                    }
+                    _signals.Signal();
+                    return Task.CompletedTask;
+                },
+                (_, _, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask,
+                () => { },
+                null,
+                CancellationToken.None),
+            _subject);
 
         await WaitFor(() => _results.Count == 1);
         _subject.OnNext(43);
@@ -53,5 +62,7 @@ public class when_subscribing_to_a_value_type_subject : given.an_observable_quer
     [Fact] void should_replay_the_current_value_first() => _results[0].Data.ShouldEqual(42);
     [Fact] void should_send_the_next_value() => _results[1].Data.ShouldEqual(43);
     [Fact] void should_not_carry_a_change_set_for_a_single_value() => _results[1].ChangeSet.ShouldBeNull();
+    [Fact] void should_not_report_paging_on_the_initial_value() => _results[0].Paging.ShouldEqual(PagingInfo.NotPaged);
+    [Fact] void should_not_report_paging_on_subsequent_values() => _results[1].Paging.ShouldEqual(PagingInfo.NotPaged);
     [Fact] void should_stop_sending_after_the_subscription_is_disposed() => _results.Count.ShouldEqual(2);
 }

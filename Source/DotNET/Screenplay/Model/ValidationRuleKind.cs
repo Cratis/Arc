@@ -71,5 +71,15 @@ public enum ValidationRuleKind
     /// <summary>
     /// The value has to satisfy a named predicate implemented in a source file.
     /// </summary>
-    Rule = 12
+    Rule = 12,
+
+    /// <summary>
+    /// The String value has to satisfy the named checksum algorithm.
+    /// </summary>
+    Checksum = 13,
+
+    /// <summary>
+    /// The value must differ from the operand.
+    /// </summary>
+    NotEqual = 14
 }

@@ -29,7 +29,7 @@ public class a_definition_routed_command : Specification
             new EventSourceDefinition(typeof(Ledger), "Ledger", "", ConcurrencyDimensions.None, [new("Entries", "", ConcurrencyDimensions.None)])]);
         _eventLog = Substitute.For<IEventLog>();
         _eventLog.Id.Returns(EventSequenceId.Log);
-        _unitOfWork = Substitute.For<IUnitOfWork>();
+        _unitOfWork = Substitute.For<UnitOfWorkWithNamedTags>();
         _context = new(CorrelationId.New(), typeof(object), new object(), [], new CommandContextValues
         {
             { WellKnownCommandContextKeys.EventSource, typeof(Account) },

@@ -29,6 +29,8 @@ public class ConceptRegistry
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
+    readonly HashSet<string> _incompleteValidation = new(StringComparer.Ordinal);
+    readonly Dictionary<string, List<ValidationRuleModel>> _validatorSources = new(StringComparer.Ordinal);
     readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
     readonly Dictionary<string, ITypeSymbol> _enumerations = new(StringComparer.Ordinal);
@@ -54,7 +56,9 @@ public class ConceptRegistry
             .Select(_ => _ with
             {
                 IsPii = _.IsPii || _pii.Contains(_.Name),
-                Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : []
+                Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : [],
+                ValidationRecoveryComplete = !_incompleteValidation.Contains(_.Name),
+                ValidatorSources = _validatorSources.GetValueOrDefault(_.Name) ?? []
             })
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
     ];
@@ -150,6 +154,38 @@ public class ConceptRegistry
         }
 
         declared.AddRange(rules);
+    }
+
+    /// <summary>
+    /// Resolves a scalar or concept to its declared backing primitive.
+    /// </summary>
+    /// <param name="type">The scalar or concept type.</param>
+    /// <returns>The primitive, or null for an unsupported type.</returns>
+    internal static ScreenplayPrimitive? PrimitiveOf(ITypeSymbol? type)
+    {
+        var backing = type?.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments[0] ?? type;
+
+        return backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive) ? primitive : null;
+    }
+
+    /// <summary>
+    /// Records that generation cannot rely on the concept's recovered validation.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    internal void MarkValidationIncomplete(string name) => _incompleteValidation.Add(name);
+
+    /// <summary>
+    /// Records the original validator source for non-declarative fallback.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    /// <param name="sources">The source attachments.</param>
+    internal void AddValidatorSources(string name, IEnumerable<ValidationRuleModel> sources)
+    {
+        if (!_validatorSources.TryGetValue(name, out var existing))
+        {
+            _validatorSources[name] = existing = [];
+        }
+        existing.AddRange(sources);
     }
 
     /// <summary>
@@ -257,9 +293,7 @@ public class ConceptRegistry
             return Enumeration(type.Name, backing, pii) with { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
         }
 
-        var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
-            ? primitive
-            : ScreenplayPrimitive.String;
+        var resolved = PrimitiveOf(backing) ?? ScreenplayPrimitive.String;
 
         return new(type.Name, resolved, pii, [], [])
         {

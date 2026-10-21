@@ -148,6 +148,18 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
             : null;
     }
 
+    /// <summary>
+    /// Determines whether an assertion reads only the result assigned by the scenario action.
+    /// </summary>
+    /// <param name="subject">The asserted result expression.</param>
+    /// <param name="semanticModel">The model owning the assertion.</param>
+    /// <param name="scenario">The scenario containing the result.</param>
+    /// <param name="action">The command execution assigning the result.</param>
+    /// <returns>Whether the result is exactly the action's stable result.</returns>
+    internal bool IsActionResult(ExpressionSyntax subject, SemanticModel semanticModel, INamedTypeSymbol scenario, InvocationExpressionSyntax action) =>
+        models.For(action.SyntaxTree) is { } actionModel && ResultOf(action, actionModel) is { } result &&
+        IsResult(subject, result, semanticModel) && WrittenOnlyBy(result, action, scenario);
+
     static SyntaxNode? Outer(ExpressionSyntax expression) => Wrapper(expression).Parent;
 
     static ExpressionSyntax Receiver(ExpressionSyntax expression) => expression switch
@@ -388,6 +400,18 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         return fields.Count >= declared.Count;
     }
 
+    LiteralSource? GeneratedInteger(ExpressionSyntax expression, ITypeSymbol expected, SemanticModel model)
+    {
+        if (expected is not INamedTypeSymbol concept || new GenerationStrategyReader(models).Read(concept)?.Kind != "random")
+        {
+            return null;
+        }
+        var primitive = new UuidGenerationForms(models).PrimitiveOf(expression, concept, model);
+
+        return primitive is not null && model.GetConstantValue(primitive) is { HasValue: true, Value: int or long } integer
+            ? new LiteralSource(integer.Value) : null;
+    }
+
     LiteralSource? Literal(ExpressionSyntax expression, ITypeSymbol type, SemanticModel semanticModel)
     {
         if (type.NullableAnnotation == NullableAnnotation.Annotated)
@@ -399,6 +423,11 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         if (sources.ReadQueryLiteral(expression, semanticModel, expected, expected) is { } literal)
         {
             return literal;
+        }
+
+        if (GeneratedInteger(expression, expected, semanticModel) is { } integer)
+        {
+            return integer;
         }
 
         var unwrapped = expression;

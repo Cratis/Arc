@@ -3,6 +3,8 @@ title: Database isolation
 description: Distinguish MongoDB tenant naming from application-owned EF Core isolation and optional Chronicle namespaces.
 ---
 
+For a side-by-side walkthrough of all three integrations, see [tenancy end to end](./end-to-end.md).
+
 Resolving a tenant ID selects a context. Whether that context selects separate storage depends on the integration; it does not prove that the caller may access the tenant.
 
 ## MongoDB database naming
@@ -16,11 +18,13 @@ With the optional Arc MongoDB integration, `DefaultMongoDatabaseNameResolver` us
 
 For a base name `MyDatabase`, both `TenantId.NotSet` and `TenantId.Default` select `MyDatabase`; tenant `acme-corp` selects `MyDatabase+acme-corp`. `TenantId.IsDefault` covers both default aliases. Preserve that behavior in custom resolvers unless you intentionally migrate to different naming.
 
+To place tenants on other servers or databases, or give them their own credentials, use [connection resolution](./connection-resolution.md) instead of a custom name resolver.
+
 Database naming separates destinations; it does not check membership or database permissions. Reject unauthorized tenant selections before accessing tenant-scoped services, and avoid singleton capture of tenant-scoped collections. See [MongoDB tenancy](../mongodb/tenancy.md).
 
 ## Entity Framework Core database naming
 
-Arc's EF Core registration uses the configured connection string, including in pooled context registration. It does **not** automatically append the tenant ID or create a database per tenant.
+Arc's EF Core registration uses the configured connection string, including in pooled context registration. It does **not** automatically append the tenant ID or create a database per tenant. To connect each tenant to its own database, server or identity, configure [connection resolution](./connection-resolution.md); Arc then resolves the connection for the current tenant every time it opens.
 
 Choose and implement relational isolation in the application: separate connections/databases, schemas, or appropriately enforced tenant filtering. Verify tenant selection, all read/write paths, and pooled-context reuse for that design. A tenant context by itself does not make an ordinary `DbContext` tenant-aware. See [EF Core configuration](../entity-framework/automatic-database-hookup.md); this page does not prescribe an untested pooled-context isolation recipe.
 
