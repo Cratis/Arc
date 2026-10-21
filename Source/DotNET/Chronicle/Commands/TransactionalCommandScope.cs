@@ -149,8 +149,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             {
                 // Only failures belonging to this command — a failure attributed to a different correlation is a
                 // concurrent command's and must not fail this one. An unattributed failure (no correlation on the
-                // result) during this command's window is treated as this command's.
-                var attributable = appended.Where(_ => _.Result.CorrelationId == context.CorrelationId || _.Result.CorrelationId == CorrelationId.NotSet).ToArray();
+                // result) is treated as this command's when it was made from inside this command's own flow; the
+                // log is shared by the whole process, so one made by another writer is not (Cratis/Arc#3493).
+                var ownFlow = IsWithin(frame);
+                var attributable = appended.Where(_ => _.Result.CorrelationId == context.CorrelationId || (_.Result.CorrelationId == CorrelationId.NotSet && ownFlow)).ToArray();
                 failedAppends.AddRange(attributable.Where(_ => !_.Result.IsSuccess));
                 lock (observation)
                 {
@@ -544,6 +546,22 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
                 break;
             }
         }
+    }
+
+    // The append observable raises on the appender's own flow. An append without correlation made from inside this command (its handler, or a task it
+    // started) has the command's frame on its chain; one made by anything else in the process - another request, a background writer - does not, and a
+    // concurrency violation of a stream this command never touched must not fail it.
+    static bool IsWithin(TransactionFrame frame)
+    {
+        for (var current = _frames.Value; current is not null; current = current.Previous)
+        {
+            if (ReferenceEquals(current, frame))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static TransactionFrame? ActiveFrame()
