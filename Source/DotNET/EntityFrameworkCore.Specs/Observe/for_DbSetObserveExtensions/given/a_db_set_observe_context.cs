@@ -49,6 +49,25 @@ public class AuxiliaryCountInterceptor : DbCommandInterceptor
     }
 }
 
+public class QueryFailureInterceptor : DbCommandInterceptor
+{
+    int _armed;
+
+    public void Arm() => Volatile.Write(ref _armed, 1);
+
+    public void Disarm() => Volatile.Write(ref _armed, 0);
+
+    public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    {
+        if (Volatile.Read(ref _armed) == 1 && command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Simulated re-query failure");
+        }
+
+        return result;
+    }
+}
+
 public class ShadowKeyEntity
 {
     public string Name { get; set; } = string.Empty;
@@ -108,6 +127,7 @@ public class a_db_set_observe_context : Specification
     protected QueryContext _queryContext;
     protected ILogger _logger;
     protected AuxiliaryCountInterceptor _auxiliaryCountInterceptor;
+    protected QueryFailureInterceptor _queryFailureInterceptor;
     SqliteConnection _connection;
 
     void Establish()
@@ -123,6 +143,7 @@ public class a_db_set_observe_context : Specification
 
         // Set up service collection
         _auxiliaryCountInterceptor = new AuxiliaryCountInterceptor();
+        _queryFailureInterceptor = new QueryFailureInterceptor();
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
             .SetMinimumLevel(LogLevel.Warning)
@@ -144,7 +165,7 @@ public class a_db_set_observe_context : Specification
             var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
             var interceptorLogger = serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
             options.UseSqlite(connection)
-                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger), _auxiliaryCountInterceptor);
+                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger), _auxiliaryCountInterceptor, _queryFailureInterceptor);
         });
 
         _serviceProvider = services.BuildServiceProvider();
@@ -164,7 +185,7 @@ public class a_db_set_observe_context : Specification
         var interceptorLogger = _serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseSqlite(_connection)
-            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger), _auxiliaryCountInterceptor)
+            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger), _auxiliaryCountInterceptor, _queryFailureInterceptor)
             .Options;
 
         _dbContext = new TestDbContext(options);

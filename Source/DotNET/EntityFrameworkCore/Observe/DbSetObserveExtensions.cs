@@ -282,6 +282,7 @@ public static class DbSetObserveExtensions
                 return;
             }
 
+            Exception? failure = null;
             try
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -310,10 +311,37 @@ public static class DbSetObserveExtensions
             catch (Exception ex)
             {
                 logger.UnexpectedError(typeof(TEntity).Name, ex);
+
+                // A failure during teardown is expected and stays quiet; anything else must fault the observable.
+                if (!cancellationToken.IsCancellationRequested && ex is not (OperationCanceledException or ObjectDisposedException))
+                {
+                    failure = ex;
+                }
             }
             finally
             {
                 queryExecutionSemaphore.Release();
+            }
+
+            // Fault outside the semaphore: ending the observation runs Cleanup, which waits for it.
+            if (failure is not null)
+            {
+                Fault(failure);
+            }
+        }
+
+        void Fault(Exception exception)
+        {
+            subject.OnError(exception);
+
+            try
+            {
+                // Cancelling ends Watch, which runs Cleanup; later change notifications are ignored.
+                cancellationTokenSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Cleanup already ran.
             }
         }
 
