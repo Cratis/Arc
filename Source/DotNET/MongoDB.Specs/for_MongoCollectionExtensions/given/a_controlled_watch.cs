@@ -8,8 +8,6 @@ namespace Cratis.Arc.MongoDB.for_MongoCollectionExtensions.given;
 public class a_controlled_watch : an_observed_collection
 {
     protected static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
-    protected CancellationToken _watchToken;
-    protected TaskCompletionSource<bool> _nextBatch;
     protected TaskCompletionSource _completed;
     protected IObservable<object> _observable;
     protected IDisposable _subscription;
@@ -18,21 +16,8 @@ public class a_controlled_watch : an_observed_collection
 
     void Establish()
     {
-        _nextBatch = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _initialEmission = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cursor = Substitute.For<IChangeStreamCursor<ChangeStreamDocument<ObservedDocument>>>();
-        cursor.MoveNextAsync(Arg.Any<CancellationToken>()).Returns(_nextBatch.Task);
-        _collection
-            .WatchAsync(
-                Arg.Any<PipelineDefinition<ChangeStreamDocument<ObservedDocument>, ChangeStreamDocument<ObservedDocument>>>(),
-                Arg.Any<ChangeStreamOptions>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                _watchToken = call.Arg<CancellationToken>();
-                return Task.FromResult(cursor);
-            });
     }
 
     protected async Task StartObserving(string kind)
@@ -53,7 +38,6 @@ public class a_controlled_watch : an_observed_collection
 
     void Destroy()
     {
-        _nextBatch.TrySetResult(false);
         _subscription?.Dispose();
     }
 }

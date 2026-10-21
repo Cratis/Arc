@@ -4,6 +4,7 @@
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
+using System.Threading.Channels;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Cratis.Arc.Queries;
@@ -11,6 +12,7 @@ using Cratis.Concepts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 
 namespace MongoDB.Driver;
@@ -298,34 +300,11 @@ public static class MongoCollectionExtensions
         var idProperty = typeof(TDocument).GetProperty(classMap.IdMemberMap?.MemberName ?? "Id", BindingFlags.Instance | BindingFlags.Public) ?? throw new MissingIdMapping(typeof(TDocument));
         var documents = new QueryContextAwareSet<TDocument>(observationContext, idProperty);
 
-        var options = new ChangeStreamOptions
-        {
-            FullDocument = ChangeStreamFullDocumentOption.UpdateLookup
-        };
         var filterRendered = filter.Render(new(collection.DocumentSerializer, collection.Settings.SerializerRegistry));
-        PrefixKeys(filterRendered);
-
-        // An insert is narrowed by the observed filter server-side: a document that never matched is
-        // of no interest to this observer and there is no reason to carry it over the wire.
-        //
-        // An update or a replace is deliberately NOT narrowed, and that is the whole point. The
-        // filter is rendered against fullDocument - the document as it is *after* the change - so
-        // narrowing update events by it discards precisely the events that say a document has left
-        // the result set. An observer watching "work that is still running" would be told when work
-        // started and never when it finished, so the finished item stayed in the observed set until
-        // the client reconnected. Membership is decided per event in HandleChange instead.
-        var fullFilter = Builders<ChangeStreamDocument<TDocument>>.Filter.Or(
-            Builders<ChangeStreamDocument<TDocument>>.Filter.And(
-                   filterRendered,
-                   Builders<ChangeStreamDocument<TDocument>>.Filter.Eq(
-                       new StringFieldDefinition<ChangeStreamDocument<TDocument>, string>("operationType"),
-                       "insert")),
-            Builders<ChangeStreamDocument<TDocument>>.Filter.In(
-                new StringFieldDefinition<ChangeStreamDocument<TDocument>, string>("operationType"),
-                ["replace", "update", "delete"]),
-            Builders<ChangeStreamDocument<TDocument>>.Filter.Eq("fullDocument", BsonNull.Value));
-
-        var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<TDocument>>().Match(fullFilter);
+        var matchesEverything = filterRendered.ElementCount == 0;
+        var watcher = Internals.ServiceProvider.GetRequiredService<IMongoDBWatcher>();
+        var databaseChanges = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName);
+        var collectionName = collection.CollectionNamespace.CollectionName;
 
     #pragma warning disable CA2000 // Dispose objects before losing scope
         var cancellationTokenSource = new CancellationTokenSource();
@@ -354,53 +333,67 @@ public static class MongoCollectionExtensions
                 query = AddSorting(observationContext, query);
                 query = AddPaging(observationContext, query);
 
-                using var cursor = await collection.WatchAsync(pipeline, options, cancellationToken);
+                // Every observation of the database shares one change stream, so this costs no connection of its own.
+                // Subscribe before the initial query so a change made while it runs is buffered, not missed, and
+                // handle changes one at a time, in order, on this task.
+                var changes = Channel.CreateUnbounded<ChangeStreamDocument<BsonDocument>>(new() { SingleReader = true });
+                using var subscription = databaseChanges.Subscribe(
+                    change =>
+                    {
+                        if (IsRelevantChange(change, collectionName))
+                        {
+                            changes.Writer.TryWrite(change);
+                        }
+                    },
+                    error => changes.Writer.TryComplete(error),
+                    () => changes.Writer.TryComplete());
+
                 if (!ignoreQueryContext)
                 {
-                    queryContext.TotalItems = (int)await findCall().CountDocumentsAsync();
+                    queryContext.TotalItems = (int)await findCall().CountDocumentsAsync(cancellationToken);
                 }
                 await documents.InitializeWithQuery(query);
 
                 // The initial emission is a whole snapshot, not a delta - there is no previous state to state a
                 // change against, so it carries no changes and downstream treats it as the baseline.
                 onNext(documents, null, subject);
-                await cursor.ForEachAsync(
-                    async changeDocument =>
+                await foreach (var changeDocument in changes.Reader.ReadAllAsync(cancellationToken))
+                {
+                    try
                     {
-                        try
+                        if (observationContext.Paging.IsPaged)
                         {
-                            if (observationContext.Paging.IsPaged)
-                            {
-                                await HandlePagedChange(
-                                    collection,
-                                    findCall,
-                                    observationContext,
-                                    ignoreQueryContext,
-                                    onNext,
-                                    query,
-                                    documents,
-                                    subject,
-                                    cancellationToken);
-                                return;
-                            }
-
-                            await HandleChange(
+                            await HandlePagedChange(
                                 collection,
-                                filter,
+                                findCall,
                                 observationContext,
+                                ignoreQueryContext,
                                 onNext,
-                                changeDocument,
+                                query,
                                 documents,
                                 subject,
-                                idProperty,
                                 cancellationToken);
+                            continue;
                         }
-                        catch (Exception e)
-                        {
-                            logger.UnexpectedError(e);
-                        }
-                    },
-                    cancellationToken);
+
+                        await HandleChange(
+                            collection,
+                            filter,
+                            matchesEverything,
+                            observationContext,
+                            onNext,
+                            changeDocument,
+                            documents,
+                            subject,
+                            idProperty,
+                            cancellationToken);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.UnexpectedError(e);
+                    }
+                }
+
                 logger.IteratingChangeStreamCursorCompleted();
             }
             catch (ObjectDisposedException)
@@ -485,9 +478,10 @@ public static class MongoCollectionExtensions
     static async Task HandleChange<TDocument, TResult>(
         IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument> filter,
+        bool matchesEverything,
         QueryContext queryContext,
         Action<IEnumerable<TDocument>, IReadOnlyList<CollectionChange>?, ISubject<TResult>> onNext,
-        ChangeStreamDocument<TDocument> changeDocument,
+        ChangeStreamDocument<BsonDocument> changeDocument,
         QueryContextAwareSet<TDocument> documents,
         ISubject<TResult> subject,
         PropertyInfo idProperty,
@@ -498,7 +492,7 @@ public static class MongoCollectionExtensions
         if (changeDocument.DocumentKey is not null && changeDocument.DocumentKey.TryGetValue("_id", out var idValue))
         {
             var id = GetId(idProperty, idValue);
-            var fullDocument = changeDocument.FullDocument;
+            var fullDocument = changeDocument.FullDocument is null ? default : Deserialize(collection, changeDocument.FullDocument);
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
                 // A delete cannot be narrowed by the filter - the document is gone - so it arrives for every
@@ -510,22 +504,14 @@ public static class MongoCollectionExtensions
                     queryContext.TotalItems--;
                 }
             }
-            else if (changeDocument.OperationType == ChangeStreamOperationType.Insert)
-            {
-                queryContext.TotalItems++;
-                hasChanges = documents.Add(fullDocument);
-                if (hasChanges)
-                {
-                    changes.Add(new(CollectionChangeKind.Added, id));
-                }
-            }
             else if (fullDocument is not null)
             {
-                // An update or a replace. It arrives whether or not the new document still satisfies
-                // the observed filter, because an event saying a document has left the result set
-                // looks exactly like one saying it never belonged. Ask the collection which it is:
-                // one indexed lookup on the document's own key.
-                var belongs = await collection
+                // An insert, an update or a replace. The shared change stream carries every change in the
+                // database, so none of them has been narrowed by the observed filter, and an event saying a
+                // document has left the result set looks exactly like one saying it never belonged. Ask the
+                // collection which it is: one indexed lookup on the document's own key, skipped when the
+                // observation takes every document.
+                var belongs = matchesEverything || await collection
                     .Find(Builders<TDocument>.Filter.And(filter, Builders<TDocument>.Filter.Eq("_id", idValue)))
                     .AnyAsync(cancellationToken);
 
@@ -675,33 +661,18 @@ public static class MongoCollectionExtensions
         return queryContext.Paging.IsPaged ? response.Sort(byId) : response;
     }
 
-    static void PrefixKeys(BsonDocument document)
-    {
-        foreach (var name in document.Names.ToArray())
-        {
-            var value = document[name];
-            if (!name.StartsWith('$'))
-            {
-                var index = document.IndexOfName(name);
-                document.InsertAt(index, new BsonElement($"fullDocument.{name}", value));
-                document.Remove(name);
-            }
+    static bool IsRelevantChange(ChangeStreamDocument<BsonDocument> change, string collectionName) =>
+        change.CollectionNamespace?.CollectionName == collectionName &&
+        change.OperationType is
+            ChangeStreamOperationType.Insert or
+            ChangeStreamOperationType.Update or
+            ChangeStreamOperationType.Replace or
+            ChangeStreamOperationType.Delete;
 
-            if (value is BsonArray array)
-            {
-                foreach (var item in array)
-                {
-                    if (item is BsonDocument itemAsDocument)
-                    {
-                        PrefixKeys(itemAsDocument);
-                    }
-                }
-            }
-            else if (value is BsonDocument childAsDocument)
-            {
-                PrefixKeys(childAsDocument);
-            }
-        }
+    static TDocument Deserialize<TDocument>(IMongoCollection<TDocument> collection, BsonDocument document)
+    {
+        using var reader = new BsonDocumentReader(document);
+        return collection.DocumentSerializer.Deserialize(BsonDeserializationContext.CreateRoot(reader));
     }
 
     /// <summary>

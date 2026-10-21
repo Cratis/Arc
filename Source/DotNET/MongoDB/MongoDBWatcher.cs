@@ -36,30 +36,13 @@ public class MongoDBWatcher(
     public IMongoDBObserveBuilder<TDocument> Observe<TDocument>(
         Expression<Func<TDocument, bool>>? filter = null)
     {
-        var databaseName = databaseNameResolver.Resolve();
-        var lazyWatch = _watches.GetOrAdd(
-            databaseName,
-            static (name, self) => new Lazy<DatabaseWatch>(() => self.StartWatch(name)),
-            this);
-
-        DatabaseWatch watch;
-        try
-        {
-            watch = lazyWatch.Value;
-        }
-        catch
-        {
-            // A Lazy in the default ExecutionAndPublication mode caches a factory exception permanently. If starting
-            // the watch failed — e.g. the client factory threw transiently — evict this exact entry so the next
-            // Observe retries a fresh connection instead of replaying the cached failure for the process lifetime.
-            // The keyed overload removes only while the stored value is still this poisoned Lazy, never a newer one.
-            _watches.TryRemove(new KeyValuePair<string, Lazy<DatabaseWatch>>(databaseName, lazyWatch));
-            throw;
-        }
-
+        var watch = GetWatch(databaseNameResolver.Resolve());
         var collection = watch.Database.GetCollection<TDocument>();
         return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes);
     }
+
+    /// <inheritdoc/>
+    public IObservable<ChangeStreamDocument<BsonDocument>> GetChanges(string databaseName) => GetWatch(databaseName).Changes;
 
     /// <inheritdoc/>
     public void Dispose()
@@ -75,6 +58,28 @@ public class MongoDBWatcher(
 
         _watches.Clear();
         GC.SuppressFinalize(this);
+    }
+
+    DatabaseWatch GetWatch(string databaseName)
+    {
+        var lazyWatch = _watches.GetOrAdd(
+            databaseName,
+            static (name, self) => new Lazy<DatabaseWatch>(() => self.StartWatch(name)),
+            this);
+
+        try
+        {
+            return lazyWatch.Value;
+        }
+        catch
+        {
+            // A Lazy in the default ExecutionAndPublication mode caches a factory exception permanently. If starting
+            // the watch failed — e.g. the client factory threw transiently — evict this exact entry so the next
+            // call retries a fresh connection instead of replaying the cached failure for the process lifetime.
+            // The keyed overload removes only while the stored value is still this poisoned Lazy, never a newer one.
+            _watches.TryRemove(new KeyValuePair<string, Lazy<DatabaseWatch>>(databaseName, lazyWatch));
+            throw;
+        }
     }
 
     DatabaseWatch StartWatch(string databaseName)

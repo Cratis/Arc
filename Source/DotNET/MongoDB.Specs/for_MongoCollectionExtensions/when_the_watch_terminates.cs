@@ -9,35 +9,26 @@ public class when_the_watch_terminates : given.a_controlled_watch
     [InlineData("single", "completed")]
     [InlineData("by_id", "completed")]
     [InlineData("list", "completed")]
-    [InlineData("single", "cancelled")]
-    [InlineData("by_id", "cancelled")]
-    [InlineData("list", "cancelled")]
     [InlineData("single", "failed")]
     [InlineData("by_id", "failed")]
     [InlineData("list", "failed")]
-    public async Task should_complete_the_observable_and_stop_its_lifetime(string kind, string termination)
+    public async Task should_complete_the_observable_and_leave_the_shared_stream(string kind, string termination)
     {
         await StartObserving(kind);
-        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var registration = _watchToken.Register(() => cancelled.TrySetResult());
 
-        switch (termination)
+        if (termination == "completed")
         {
-            case "completed":
-                _nextBatch.SetResult(false);
-                break;
-            case "cancelled":
-                _nextBatch.SetCanceled();
-                break;
-            default:
-                _nextBatch.SetException(new Exception("The change stream failed."));
-                break;
+            _databaseChanges.Complete();
+        }
+        else
+        {
+            _databaseChanges.Fail(new Exception("The change stream failed."));
         }
 
-        // Watch has always translated cursor cancellation and failure into observable completion.
-        // Both signals must arrive; a swallowed callback failure or an OnError is not completion.
-        await Task.WhenAll(_completed.Task, cancelled.Task).WaitAsync(Deadline);
-        _watchToken.IsCancellationRequested.ShouldBeTrue();
+        // A failed or completed shared stream has always been translated into observable completion.
+        // An OnError, or a swallowed failure, is not completion.
+        await _completed.Task.WaitAsync(Deadline);
+        _databaseChanges.Subscribers.ShouldEqual(0);
         Catch.Exception(_subscription.Dispose).ShouldBeNull();
     }
 }

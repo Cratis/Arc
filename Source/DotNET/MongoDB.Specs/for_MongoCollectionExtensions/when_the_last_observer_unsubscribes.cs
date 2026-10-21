@@ -9,17 +9,27 @@ public class when_the_last_observer_unsubscribes : given.a_controlled_watch
     [InlineData("single")]
     [InlineData("by_id")]
     [InlineData("list")]
-    public async Task should_cancel_only_after_the_last_subscription_is_disposed(string kind)
+    public async Task should_leave_the_shared_stream_only_after_the_last_subscription_is_disposed(string kind)
     {
         await StartObserving(kind);
         using var secondSubscription = _observable.Subscribe(_ => { });
-        await using var registration = _watchToken.Register(() => _nextBatch.TrySetCanceled(_watchToken));
+        _databaseChanges.Subscribers.ShouldEqual(1);
 
         _subscription.Dispose();
-        _watchToken.IsCancellationRequested.ShouldBeFalse();
+        _databaseChanges.Subscribers.ShouldEqual(1);
 
         secondSubscription.Dispose();
-        _watchToken.IsCancellationRequested.ShouldBeTrue();
+        await WaitUntil(() => _databaseChanges.Subscribers == 0);
+        _databaseChanges.Subscribers.ShouldEqual(0);
         Catch.Exception(secondSubscription.Dispose).ShouldBeNull();
+    }
+
+    static async Task WaitUntil(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + Deadline;
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
     }
 }
