@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.EntityFrameworkCore;
 
 namespace Microsoft.EntityFrameworkCore;
@@ -23,7 +24,35 @@ public static class DbSetExtensions
     /// It will check the local tracked entities first before querying the database.
     /// </remarks>
     /// <exception cref="EntityDoesNotHavePrimaryKey">Thrown if the entity does not have a primary key.</exception>
-    public static async Task Upsert<TEntity>(this DbSet<TEntity> dbSet, TEntity item)
+    public static Task Upsert<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity item)
+        where TEntity : class => dbSet.UpsertTracked(item, CancellationToken.None);
+
+    /// <summary>
+    /// Upserts an item atomically using the database provider's native SQL when supported.
+    /// </summary>
+    /// <typeparam name="TEntity">The type of the entity.</typeparam>
+    /// <param name="dbSet">The DbSet to upsert the item in.</param>
+    /// <param name="item">The item to upsert.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// SQL Server, PostgreSQL, and SQLite execute immediately, bypassing change tracking. Tracked instances
+    /// and generated values are not refreshed. Other providers and mappings requiring tracked persistence
+    /// (including generated keys, navigations, shadow properties, owned entities, inheritance, and multiple tables) fall back to
+    /// <see cref="Upsert{TEntity}"/> and require SaveChanges. Use an application-assigned key for atomic upserts.
+    /// </remarks>
+    /// <exception cref="EntityDoesNotHavePrimaryKey">Thrown if the entity does not have a primary key.</exception>
+    public static async Task UpsertAsync<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken = default)
+        where TEntity : class
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!await NativeUpsert.TryExecute(dbSet, item, cancellationToken))
+        {
+            await dbSet.UpsertTracked(item, cancellationToken);
+        }
+    }
+
+    static async Task UpsertTracked<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken)
         where TEntity : class
     {
         var entityType = dbSet.EntityType;
@@ -42,7 +71,7 @@ public static class DbSetExtensions
         }
 
         var keyValues = GetKeyValues(item, keyProperties);
-        var existingInDb = await dbSet.FindAsync(keyValues);
+        var existingInDb = await dbSet.FindAsync(keyValues, cancellationToken);
 
         if (existingInDb is not null)
         {
@@ -54,7 +83,7 @@ public static class DbSetExtensions
         }
     }
 
-    static void UpdateExisting<TEntity>(this DbSet<TEntity> dbSet, TEntity newEntity, TEntity existingEntity)
+    static void UpdateExisting<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity newEntity, TEntity existingEntity)
         where TEntity : class
     {
         var entry = dbSet.Entry(existingEntity);

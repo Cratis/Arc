@@ -11,4 +11,7 @@
         <PackageReference Include="Testcontainers.PostgreSql" />
         <ProjectReference Include="../EntityFrameworkCore/EntityFrameworkCore.csproj"/>
     </ItemGroup>
+    <ItemGroup>
+        <Compile Include="../EntityFrameworkCore.Specs/for_DbSetExtensions/Model/*.cs" Link="for_DbSetExtensions/Model/%(Filename)%(Extension)" />
+    </ItemGroup>
 </Project>
