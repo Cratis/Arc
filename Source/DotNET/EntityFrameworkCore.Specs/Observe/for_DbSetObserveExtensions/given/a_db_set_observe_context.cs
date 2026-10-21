@@ -52,6 +52,9 @@ public class AuxiliaryCountInterceptor : DbCommandInterceptor
 public class QueryFailureInterceptor : DbCommandInterceptor
 {
     int _armed;
+    int _failures;
+
+    public int Failures => Volatile.Read(ref _failures);
 
     public void Arm() => Volatile.Write(ref _armed, 1);
 
@@ -61,6 +64,7 @@ public class QueryFailureInterceptor : DbCommandInterceptor
     {
         if (Volatile.Read(ref _armed) == 1 && command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
         {
+            Interlocked.Increment(ref _failures);
             throw new InvalidOperationException("Simulated re-query failure");
         }
 

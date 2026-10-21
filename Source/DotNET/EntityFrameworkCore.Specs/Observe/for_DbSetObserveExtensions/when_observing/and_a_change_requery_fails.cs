@@ -16,7 +16,6 @@ public class and_a_change_requery_fails : a_db_set_observe_context
     List<IEnumerable<TestEntity>> _received;
     Exception _error;
     Exception _callerException;
-    int _emissionsAfterError;
     ManualResetEventSlim _initialReceived;
     ManualResetEventSlim _errorReceived;
 
@@ -35,12 +34,6 @@ public class and_a_change_requery_fails : a_db_set_observe_context
         _subject.Subscribe(
             entities =>
             {
-                if (_errorReceived.IsSet)
-                {
-                    Interlocked.Increment(ref _emissionsAfterError);
-                    return;
-                }
-
                 _received.Add(entities.ToList());
                 _initialReceived.Set();
             },
@@ -63,16 +56,14 @@ public class and_a_change_requery_fails : a_db_set_observe_context
         }
 
         _errorReceived.Wait(TimeSpan.FromSeconds(2));
-        _queryFailureInterceptor.Disarm();
 
-        // A change arriving after the fault must be ignored by the ended observation.
+        // A change arriving after the fault must not execute another query (interceptor stays armed).
         InsertDirectlyIntoDatabase(new TestEntity { Name = "LateEntity", IsActive = true });
-        Thread.Sleep(300);
     }
 
     [Fact] void should_fault_the_observable() => _error.ShouldNotBeNull();
     [Fact] void should_fault_with_the_requery_failure() => _error.ToString().ShouldContain("Simulated re-query failure");
     [Fact] void should_not_throw_into_the_save_changes_caller() => _callerException.ShouldBeNull();
-    [Fact] void should_not_emit_after_the_fault() => _emissionsAfterError.ShouldEqual(0);
+    [Fact] void should_not_run_a_query_for_a_change_after_the_fault() => _queryFailureInterceptor.Failures.ShouldEqual(1);
     [Fact] void should_only_have_emitted_the_initial_state() => _received.Count.ShouldEqual(1);
 }

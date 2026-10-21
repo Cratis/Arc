@@ -266,11 +266,12 @@ public static class DbSetObserveExtensions
 
         IDisposable? changeSubscription = null;
         IDatabaseChangeNotifier? databaseNotifier = null;
+        var faulted = 0;
 
         // Common callback for both in-process and database-level changes
         void OnChangeDetected()
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1)
             {
                 return;
             }
@@ -285,7 +286,7 @@ public static class DbSetObserveExtensions
             Exception? failure = null;
             try
             {
-                if (cancellationToken.IsCancellationRequested)
+                if (cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1)
                 {
                     return;
                 }
@@ -316,6 +317,9 @@ public static class DbSetObserveExtensions
                 if (!cancellationToken.IsCancellationRequested && ex is not (OperationCanceledException or ObjectDisposedException))
                 {
                     failure = ex;
+
+                    // Terminal while still holding the semaphore, so no later change can emit after the error.
+                    Volatile.Write(ref faulted, 1);
                 }
             }
             finally
@@ -332,16 +336,26 @@ public static class DbSetObserveExtensions
 
         void Fault(Exception exception)
         {
-            subject.OnError(exception);
-
             try
             {
-                // Cancelling ends Watch, which runs Cleanup; later change notifications are ignored.
-                cancellationTokenSource.Cancel();
+                subject.OnError(exception);
             }
-            catch (ObjectDisposedException)
+            catch (Exception ex)
             {
-                // Cleanup already ran.
+                // A throwing observer must never reach the SaveChanges caller.
+                logger.UnexpectedError(typeof(TEntity).Name, ex);
+            }
+            finally
+            {
+                try
+                {
+                    // Cancelling ends Watch, which runs Cleanup; later change notifications are ignored.
+                    cancellationTokenSource.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Cleanup already ran.
+                }
             }
         }
 

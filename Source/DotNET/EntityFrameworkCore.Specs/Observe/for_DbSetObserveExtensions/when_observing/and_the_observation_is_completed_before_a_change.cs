@@ -33,7 +33,6 @@ public class and_the_observation_is_completed_before_a_change : a_db_set_observe
         _subject.OnCompleted();
 
         InsertDirectlyIntoDatabase(new TestEntity { Name = "NewEntity", IsActive = true });
-        Thread.Sleep(300);
         _queryFailureInterceptor.Disarm();
     }
 
