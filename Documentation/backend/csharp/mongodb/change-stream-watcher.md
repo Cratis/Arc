@@ -3,7 +3,9 @@ title: Watch multiple collections with a shared change stream
 description: Join live results through Arc's per-database MongoDB watcher.
 ---
 
-The `IMongoDBWatcher` provides a single, process-wide MongoDB change stream connection per database. Instead of opening one change stream per collection, you share one connection and funnel events from multiple collections through it. This reduces the number of open cursors and network connections, which matters when you observe many collections simultaneously.
+The `IMongoDBWatcher` provides a single, process-wide MongoDB change stream connection per database. Instead of opening one change stream per collection, every observation shares one connection and funnels events from multiple collections through it. This reduces the number of open cursors and network connections, which matters when you observe many collections simultaneously.
+
+The `Observe()`, `ObserveSingle()` and `ObserveById()` [collection extensions](./observing-collections.md) use this shared stream too, so you do not have to inject the watcher to benefit from it. Inject it when you want to join several collections into one result.
 
 ## How it works
 

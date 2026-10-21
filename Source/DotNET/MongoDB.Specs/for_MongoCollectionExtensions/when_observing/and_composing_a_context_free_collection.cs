@@ -40,7 +40,7 @@ public class and_composing_a_context_free_collection : given.a_composed_observat
         _initialSecondary = await initial.Task;
         _initialTotal = _queryContext.TotalItems;
 
-        PushAuxiliaryChange(InsertOf(new(Guid.NewGuid(), "Auxiliary D")));
+        PushAuxiliaryChange("insert", new(Guid.NewGuid(), "Auxiliary D"));
         _updatedSecondary = await updated.Task.WaitAsync(TimeSpan.FromSeconds(5));
         _updatedTotal = _queryContext.TotalItems;
     }

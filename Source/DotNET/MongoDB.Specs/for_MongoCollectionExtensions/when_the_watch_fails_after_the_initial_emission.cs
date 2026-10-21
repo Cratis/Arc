@@ -24,7 +24,7 @@ public class when_the_watch_fails_after_the_initial_emission : given.a_controlle
             () => notifications.Add("completed"));
         var failure = new Exception("The change stream failed after the first emission.");
 
-        _nextBatch.SetException(failure);
+        _databaseChanges.Fail(failure);
 
         (await error.Task.WaitAsync(Deadline)).ShouldBeSame(failure);
         notifications.ShouldEqual(["next", "error"]);

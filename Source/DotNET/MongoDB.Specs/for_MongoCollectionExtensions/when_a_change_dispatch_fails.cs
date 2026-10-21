@@ -24,9 +24,10 @@ public class when_a_change_dispatch_fails : given.an_observed_collection
             .Returns<Task<IAsyncCursor<BsonDocument>>>(_ => throw failure);
         IObservable<object> observable = kind switch
         {
-            "single" => _collection.ObserveSingle(),
+            // The re-check only happens for a filtered observation: one that takes every document has nothing to ask.
+            "single" => _collection.ObserveSingle(document => document.Name != "Excluded"),
             "by_id" => _collection.ObserveById(_documents[0].Id),
-            _ => _collection.Observe()
+            _ => _collection.Observe(document => document.Name != "Excluded")
         };
         var initial = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var error = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);

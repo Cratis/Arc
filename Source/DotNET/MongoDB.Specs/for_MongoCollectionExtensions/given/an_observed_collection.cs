@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
-using System.Threading.Channels;
 using Cratis.Arc.Queries;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,21 +13,28 @@ namespace Cratis.Arc.MongoDB.for_MongoCollectionExtensions.given;
 
 public class an_observed_collection : Specification
 {
+    protected const string DatabaseName = "testdb";
+    protected const string CollectionName = "observeddocument";
+
     protected IMongoCollection<ObservedDocument> _collection;
+    protected ControlledDatabaseChanges _databaseChanges;
+    protected IMongoDBWatcher _watcher;
     protected List<ObservedDocument> _documents;
     protected TaskCompletionSource _initialQueryGate;
-    protected CancellationTokenSource _changeStreamLifetime;
     protected QueryContext _queryContext;
     protected FindOptions<ObservedDocument, ObservedDocument> _primaryFindOptions;
 
-    Channel<ChangeStreamDocument<ObservedDocument>> _changes;
+    bool _belongs;
+    bool _belongsCheckStubbed;
+    int _belongsChecks;
 
     void Establish()
     {
         _documents = [new(Guid.NewGuid(), "First"), new(Guid.NewGuid(), "Second")];
         _initialQueryGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _changeStreamLifetime = new();
-        _changes = Channel.CreateUnbounded<ChangeStreamDocument<ObservedDocument>>();
+        _databaseChanges = new();
+        _watcher = Substitute.For<IMongoDBWatcher>();
+        _watcher.GetChanges(DatabaseName).Returns(_databaseChanges);
 
         var queryContextManager = Substitute.For<IQueryContextManager>();
         _queryContext = new QueryContext("ObservedDocuments", CorrelationId.New(), Paging.NotPaged, Sorting.None);
@@ -37,10 +43,14 @@ public class an_observed_collection : Specification
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(queryContextManager);
+        services.AddSingleton(_watcher);
         Internals.ServiceProvider = services.BuildServiceProvider();
 
         _collection = Substitute.For<IMongoCollection<ObservedDocument>>();
-        _collection.CollectionNamespace.Returns(new CollectionNamespace("testdb", "observeddocument"));
+        _collection.CollectionNamespace.Returns(new CollectionNamespace(DatabaseName, CollectionName));
+        var database = Substitute.For<IMongoDatabase>();
+        database.DatabaseNamespace.Returns(new DatabaseNamespace(DatabaseName));
+        _collection.Database.Returns(database);
         _collection.Settings.Returns(new MongoCollectionSettings());
 
         // Needed to render a real filter expression (rather than the trivial "_ => true" default) into the
@@ -73,31 +83,23 @@ public class an_observed_collection : Specification
                 return CreateCursor(_documents);
             });
 
-        // The change stream stays open for the lifetime of the spec, so the observable is never completed and
-        // disposed underneath a subscriber. Changes pushed through PushChange() are delivered to the SUT's
-        // ForEachAsync loop the next time it drains the channel, in push order.
-        _collection
-            .WatchAsync(
-                Arg.Any<PipelineDefinition<ChangeStreamDocument<ObservedDocument>, ChangeStreamDocument<ObservedDocument>>>(),
-                Arg.Any<ChangeStreamOptions>(),
-                Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(CreateChangeStreamCursor()));
+        // Whether a changed document still belongs to the observation is decided by a lookup on the document's
+        // own key; unless a spec says otherwise it does.
+        StubBelongsCheck(true);
     }
 
     void Destroy()
     {
         _initialQueryGate.TrySetResult();
-        _changes.Writer.TryComplete();
-        _changeStreamLifetime.Cancel();
-        _changeStreamLifetime.Dispose();
+        _databaseChanges.Complete();
     }
 
     /// <summary>
-    /// Pushes a change-stream document into the observed collection's change stream, as if the server had
-    /// emitted it. Delivered to the SUT's change-stream loop the next time it reads the channel.
+    /// Pushes a change-stream document into the shared database change stream, as if the server had emitted it.
+    /// Delivered to every observation of the database in push order.
     /// </summary>
     /// <param name="change">The change to push.</param>
-    protected void PushChange(ChangeStreamDocument<ObservedDocument> change) => _changes.Writer.TryWrite(change);
+    protected void PushChange(ChangeStreamDocument<BsonDocument> change) => _databaseChanges.Push(change);
 
     /// <summary>
     /// Stubs the "does the updated document still belong" re-check <c>HandleChange</c> performs after an
@@ -106,34 +108,71 @@ public class an_observed_collection : Specification
     /// generic <c>FindAsync</c> instantiation from the one backing the initial query.
     /// </summary>
     /// <param name="belongs">Whether the re-check should report the document as still matching the filter.</param>
-    protected void StubUpdateBelongsCheck(bool belongs) =>
+    protected void StubUpdateBelongsCheck(bool belongs) => StubBelongsCheck(belongs);
+
+    /// <summary>
+    /// Stubs the "does the changed document belong" re-check performed after an insert, update or replace.
+    /// </summary>
+    /// <param name="belongs">Whether the re-check should report the document as matching the filter.</param>
+    protected void StubBelongsCheck(bool belongs)
+    {
+        _belongs = belongs;
+        if (_belongsCheckStubbed)
+        {
+            return;
+        }
+
+        _belongsCheckStubbed = true;
         _collection
             .FindAsync(
                 Arg.Any<FilterDefinition<ObservedDocument>>(),
                 Arg.Any<FindOptions<ObservedDocument, BsonDocument>>(),
                 Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(CreateCursor(belongs ? [new BsonDocument()] : (IEnumerable<BsonDocument>)[])));
+            .Returns(_ =>
+            {
+                var answer = _belongs;
+                Interlocked.Increment(ref _belongsChecks);
+                return Task.FromResult(CreateCursor(answer ? [new BsonDocument()] : (IEnumerable<BsonDocument>)[]));
+            });
+    }
+
+    /// <summary>
+    /// Waits until the observation has asked whether a changed document belongs the given number of times.
+    /// </summary>
+    /// <param name="checks">The number of checks to wait for.</param>
+    /// <returns>A <see cref="Task"/> that completes when they have been made.</returns>
+    protected async Task WaitForBelongsChecks(int checks)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (Volatile.Read(ref _belongsChecks) < checks && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(5);
+        }
+
+        Volatile.Read(ref _belongsChecks).ShouldBeGreaterThanOrEqual(checks);
+    }
 
     /// <summary>
     /// Builds a change-stream document representing a hard delete of the document with the given id.
     /// </summary>
     /// <param name="id">The identifier of the deleted document.</param>
     /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the delete.</returns>
-    protected static ChangeStreamDocument<ObservedDocument> DeleteOf(Guid id) =>
+    protected static ChangeStreamDocument<BsonDocument> DeleteOf(Guid id) =>
         new(
             new BsonDocument
             {
                 { "operationType", "delete" },
+                { "ns", new BsonDocument { { "db", DatabaseName }, { "coll", CollectionName } } },
                 { "documentKey", new BsonDocument("_id", IdValue(id)) }
             },
-            BsonSerializer.LookupSerializer<ObservedDocument>());
+            BsonSerializer.LookupSerializer<BsonDocument>());
 
     /// <summary>
     /// Builds a change-stream document representing an insert of the given document.
     /// </summary>
     /// <param name="document">The inserted document.</param>
     /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the insert.</returns>
-    protected static ChangeStreamDocument<ObservedDocument> InsertOf(ObservedDocument document) => ChangeOf("insert", document);
+    protected static ChangeStreamDocument<BsonDocument> InsertOf(ObservedDocument document) => ChangeOf("insert", document);
 
     /// <summary>
     /// Builds a change-stream document representing an update or replace of the given document — the shape
@@ -141,7 +180,7 @@ public class an_observed_collection : Specification
     /// </summary>
     /// <param name="document">The updated document.</param>
     /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the update.</returns>
-    protected static ChangeStreamDocument<ObservedDocument> UpdateOf(ObservedDocument document) => ChangeOf("update", document);
+    protected static ChangeStreamDocument<BsonDocument> UpdateOf(ObservedDocument document) => ChangeOf("update", document);
 
     protected static async Task<IEnumerable<ObservedDocument>> FirstEmission(
         ISubject<IEnumerable<ObservedDocument>> subject,
@@ -178,15 +217,64 @@ public class an_observed_collection : Specification
     /// <returns>The <see cref="EmissionSequence"/> recording emissions.</returns>
     protected static EmissionSequence RecordEmissions(ISubject<ObservedDocument> subject) => new(subject);
 
-    static ChangeStreamDocument<ObservedDocument> ChangeOf(string operationType, ObservedDocument document) =>
+    /// <summary>
+    /// Builds a change-stream document for any collection of the database, the way the shared stream delivers it.
+    /// </summary>
+    /// <param name="collectionName">The collection the change happened in.</param>
+    /// <param name="operationType">The operation type.</param>
+    /// <param name="document">The document the change concerns.</param>
+    /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the change.</returns>
+    protected static ChangeStreamDocument<BsonDocument> ChangeIn(string collectionName, string operationType, ObservedDocument document) =>
         new(
             new BsonDocument
             {
                 { "operationType", operationType },
+                { "ns", new BsonDocument { { "db", DatabaseName }, { "coll", collectionName } } },
                 { "documentKey", new BsonDocument("_id", IdValue(document.Id)) },
                 { "fullDocument", document.ToBsonDocument() }
             },
-            BsonSerializer.LookupSerializer<ObservedDocument>());
+            BsonSerializer.LookupSerializer<BsonDocument>());
+
+    /// <summary>
+    /// Builds a change-stream document for an operation that carries no document, such as <c>drop</c> or <c>invalidate</c>.
+    /// </summary>
+    /// <param name="operationType">The operation type.</param>
+    /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the operation.</returns>
+    protected static ChangeStreamDocument<BsonDocument> OperationOf(string operationType) =>
+        new(
+            new BsonDocument
+            {
+                { "operationType", operationType },
+                { "ns", new BsonDocument { { "db", DatabaseName }, { "coll", CollectionName } } }
+            },
+            BsonSerializer.LookupSerializer<BsonDocument>());
+
+    /// <summary>
+    /// Builds the notification the shared stream publishes after it was reopened, when changes may have been missed.
+    /// It names no collection.
+    /// </summary>
+    /// <returns>The <see cref="ChangeStreamDocument{TDocument}"/> for the resynchronization.</returns>
+    protected static ChangeStreamDocument<BsonDocument> ResynchronizationNotice() =>
+        new(new BsonDocument("operationType", "invalidate"), BsonSerializer.LookupSerializer<BsonDocument>());
+
+    /// <summary>
+    /// Waits until the given number of observations have attached to the shared database change stream.
+    /// </summary>
+    /// <param name="subscribers">The number of subscribers to wait for.</param>
+    /// <returns>A <see cref="Task"/> that completes when they have attached.</returns>
+    protected async Task WaitForSubscribers(int subscribers)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (_databaseChanges.Subscribers < subscribers && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(5);
+        }
+
+        _databaseChanges.Subscribers.ShouldEqual(subscribers);
+    }
+
+    static ChangeStreamDocument<BsonDocument> ChangeOf(string operationType, ObservedDocument document) =>
+        ChangeIn(CollectionName, operationType, document);
 
     /// <summary>
     /// Wraps a document id the way the server would encode it on the wire. <see cref="BsonValue.Create(object)"/>
@@ -196,32 +284,6 @@ public class an_observed_collection : Specification
     /// <param name="id">The id to wrap.</param>
     /// <returns>The <see cref="BsonValue"/> representing the id.</returns>
     static BsonValue IdValue(Guid id) => new BsonBinaryData(id, GuidRepresentation.Standard);
-
-    IChangeStreamCursor<ChangeStreamDocument<ObservedDocument>> CreateChangeStreamCursor()
-    {
-        var cursor = Substitute.For<IChangeStreamCursor<ChangeStreamDocument<ObservedDocument>>>();
-        var currentBatch = (IEnumerable<ChangeStreamDocument<ObservedDocument>>)[];
-
-        cursor.MoveNextAsync(Arg.Any<CancellationToken>()).Returns(async callInfo =>
-        {
-            var sutToken = callInfo.Arg<CancellationToken>();
-            using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(sutToken, _changeStreamLifetime.Token);
-            if (!await _changes.Reader.WaitToReadAsync(linkedTokenSource.Token))
-            {
-                return false;
-            }
-
-            var batch = new List<ChangeStreamDocument<ObservedDocument>>();
-            while (_changes.Reader.TryRead(out var change))
-            {
-                batch.Add(change);
-            }
-            currentBatch = batch;
-            return true;
-        });
-        cursor.Current.Returns(_ => currentBatch);
-        return cursor;
-    }
 
     protected static IAsyncCursor<T> CreateCursor<T>(IEnumerable<T> documents)
     {
@@ -280,5 +342,49 @@ public class an_observed_collection : Specification
                 _signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             }
         }
+    }
+
+    /// <summary>
+    /// The shared database change stream, driven by a spec: it delivers pushed changes to every subscriber, counts
+    /// the subscribers still attached and can be completed or failed.
+    /// </summary>
+    protected sealed class ControlledDatabaseChanges : IObservable<ChangeStreamDocument<BsonDocument>>
+    {
+        readonly Subject<ChangeStreamDocument<BsonDocument>> _subject = new();
+        int _subscribers;
+
+        /// <summary>
+        /// Gets the number of subscriptions that have not been disposed.
+        /// </summary>
+        public int Subscribers => Volatile.Read(ref _subscribers);
+
+        /// <inheritdoc/>
+        public IDisposable Subscribe(IObserver<ChangeStreamDocument<BsonDocument>> observer)
+        {
+            Interlocked.Increment(ref _subscribers);
+            var subscription = _subject.Subscribe(observer);
+            return System.Reactive.Disposables.Disposable.Create(() =>
+            {
+                subscription.Dispose();
+                Interlocked.Decrement(ref _subscribers);
+            });
+        }
+
+        /// <summary>
+        /// Delivers a change to every subscriber.
+        /// </summary>
+        /// <param name="change">The change to deliver.</param>
+        public void Push(ChangeStreamDocument<BsonDocument> change) => _subject.OnNext(change);
+
+        /// <summary>
+        /// Completes the stream, as the watcher does when it is disposed.
+        /// </summary>
+        public void Complete() => _subject.OnCompleted();
+
+        /// <summary>
+        /// Fails the stream.
+        /// </summary>
+        /// <param name="error">The error to fail with.</param>
+        public void Fail(Exception error) => _subject.OnError(error);
     }
 }

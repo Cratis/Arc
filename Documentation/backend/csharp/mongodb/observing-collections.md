@@ -1,9 +1,9 @@
 ---
 title: Observe MongoDB collections
-description: Use per-collection change streams with the actual options, lifetime, and failure contract.
+description: Observe collections over the shared database change stream, with the actual options, lifetime, and failure contract.
 ---
 
-After ordinary collection reads work, use `Observe()` to publish an initial result and update it from MongoDB change streams. This is a live result set, not an audit log or a guarantee that every intermediate state reaches every subscriber.
+After ordinary collection reads work, use `Observe()` to publish an initial result and update it from MongoDB change streams. Every observation of a database shares one change stream, so observing many collections or queries does not open a stream of its own, or hold a MongoDB pool connection, for each subscription. This is a live result set, not an audit log or a guarantee that every intermediate state reaches every subscriber.
 
 ## Prerequisites
 
@@ -26,7 +26,29 @@ var byId = collection.ObserveById<Author, Guid>(authorId);
 
 The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. When no document matches, single observation emits `null` and stays open; see [when there is no matching document](#when-the-observed-document-is-gone) below.
 
-The watch starts when `Observe()` is called, not when the first subscriber arrives. The collection result replays its latest emission to late subscribers. It does not emit a placeholder empty collection before the initial database query finishes.
+The observation attaches to the shared stream when `Observe()` is called, not when the first subscriber arrives. The collection result replays its latest emission to late subscribers. It does not emit a placeholder empty collection before the initial database query finishes.
+
+## How observations share a change stream
+
+Arc keeps one change stream per database per process, owned by the [`IMongoDBWatcher`](./change-stream-watcher.md) singleton. It watches the whole database, so it carries the changes of every collection. Each `Observe()`, `ObserveSingle()` and `ObserveById()` call subscribes to that stream and handles only the changes of its own collection, in order. You do not have to inject or opt in to anything: the extension methods use the shared stream automatically.
+
+```mermaid
+graph LR
+    DB[(MongoDB database)] -->|one change stream| W[IMongoDBWatcher]
+    W --> O1[Observe Authors]
+    W --> O2[Observe Authors, filtered]
+    W --> O3[ObserveById Books]
+```
+
+What this means in practice:
+
+- A board of 30 observable queries holds one change stream and one pooled connection for the change stream, not 30.
+- The stream is not narrowed by your filter, so the observation decides whether a changed document belongs. Inserts, updates and replaces cost one indexed lookup on the document's own key; an observation that takes every document skips that lookup. Deletes cost nothing, because the observation already knows its members.
+- Paged observations re-read their page after any change in their collection.
+- When the stream reopens after a failure, or its collection is dropped or renamed, changes may have been missed. Every observation then reads its collection again and emits what changed.
+- Changes made while the initial query runs are held and applied after it, so none is lost.
+- A database that is not observed opens no stream. The stream for a database opens on the first observation and stays open for the life of the process.
+- In a multi-tenant application the stream is per resolved database name, so each tenant database gets its own.
 
 ## Find options, paging, and sorting
 
@@ -70,19 +92,19 @@ using var subscription = subject.Subscribe(
 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
 ```
 
-When the last subscriber unsubscribes, the lifetime-aware subject cancels the watch. Cleanup completes/disposes the subject and cursor. Do not create an observation that is never subscribed or retained. Once completed, create a **new** observation rather than reusing the terminated subject.
+When the last subscriber unsubscribes, the lifetime-aware subject detaches the observation from the shared stream. Cleanup completes and disposes the subject. The shared stream stays open for the other observations. Do not create an observation that is never subscribed or retained. Once completed, create a **new** observation rather than reusing the terminated subject.
 
 Arc registers collections as **scoped** services. Register a service that captures `IMongoCollection<T>` as scoped too, not singleton. Keep its scope alive for the subscription's lifetime. A background worker must establish the intended tenant context and resolve a collection inside an appropriate scope; do not cache the first tenant's collection globally. See [MongoDB tenancy](./tenancy.md).
 
 ## Errors and recovery limits
 
-A failure to start or iterate the per-collection watch, or to apply a change to the result, is logged at Error level (naming the collection and document type) and forwarded to subscribers through `OnError` before cleanup disposes the subject and cursor. This includes connection failures when MongoDB is unreachable. Normal cancellation, disposal, and cursor completion still complete quietly; unsubscribing does not produce an error. A failed observation is not resumed: a client resubscribes to get a fresh snapshot. Configuration errors before the background watch starts can still throw synchronously.
+A failure to attach to the shared stream, to read from it, or to apply a change to the result, is logged at Error level (naming the collection and document type) and forwarded to subscribers through `OnError` before cleanup disposes the subject. This includes connection failures when MongoDB is unreachable. Normal cancellation, disposal, and completion of the shared stream (when the host shuts down) still complete quietly; unsubscribing does not produce an error. A failed observation is not resumed: a client resubscribes to get a fresh snapshot. Configuration errors before the background watch starts can still throw synchronously.
 
 Handle `OnError` to distinguish a failed watch from normal completion. Arc's observable query hub forwards this failure to the frontend as a failed query result with `hasExceptions: true` and the error in `exceptionMessages`, rather than leaving it waiting for its first result.
 
-The failed watch does not restart automatically. `.Retry(3)` on the existing subject does not recreate it. If your application needs reconnection, design and test ownership, fresh scopes/subjects, cancellation, and backoff explicitly; this page does not claim a tested automatic retry recipe.
+The shared stream itself reconnects with backoff and resumes from its last change, so a transient connection failure does not end your observations; see [the watcher's lifetime](./change-stream-watcher.md#lifetime-and-disposal). An observation that has failed does not restart automatically. `.Retry(3)` on the existing subject does not recreate it. If your application needs reconnection, design and test ownership, fresh scopes/subjects, cancellation, and backoff explicitly; this page does not claim a tested automatic retry recipe.
 
-The [shared database watcher](./change-stream-watcher.md) has a different reconnect and error contract. Do not transfer guarantees between the two APIs.
+The [joined results](./change-stream-watcher.md) built with `IMongoDBWatcher.Observe<T>()` use the same stream but have their own refresh and error contract. Do not transfer guarantees between the two APIs.
 
 ## Change handling and troubleshooting
 
@@ -120,4 +142,4 @@ return <AccountDetails account={result.data} />;
 
 ## Advanced Usage
 
-If no first result arrives, verify replica-set configuration, permissions, ID mapping, and connectivity. Enable logging for `MongoDB.Driver.MongoCollection` to inspect per-collection watch failures. Test filtered membership, deletion, paging, and forced disconnections in your deployment before relying on live results.
+If no first result arrives, verify replica-set configuration, permissions, ID mapping, and connectivity. Enable logging for `MongoDB.Driver.MongoCollection` to inspect observation failures, and for `Cratis.Arc.MongoDB.MongoDBWatcher` to inspect the shared stream's connection and reconnects. Test filtered membership, deletion, paging, and forced disconnections in your deployment before relying on live results.

@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Cratis.Arc.MongoDB;
@@ -49,6 +50,16 @@ public class MongoDBWatcher(
     }
 
     /// <inheritdoc/>
+    public IObservable<ChangeStreamDocument<BsonDocument>> GetChanges(string databaseName)
+    {
+        lock (_lifetimeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return GetWatch(databaseName, connections?.Resolve()).Changes;
+        }
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         lock (_lifetimeGate)
@@ -68,30 +79,32 @@ public class MongoDBWatcher(
     MongoDBObserveBuilder<TDocument> CreateObservation<TDocument>(Expression<Func<TDocument, bool>>? filter)
     {
         var connection = connections?.Resolve();
-        var databaseName = connection?.DatabaseName ?? databaseNameResolver.Resolve();
+        var watch = GetWatch(connection?.DatabaseName ?? databaseNameResolver.Resolve(), connection);
+        var collection = watch.Database.GetCollection<TDocument>();
+        return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes, logger);
+    }
+
+    MongoDBDatabaseWatch GetWatch(string databaseName, MongoDBConnection? connection)
+    {
         var key = connection is null ? databaseName : $"{string.Join(',', connection.Client.Settings.Servers)}/{databaseName}";
         var lazyWatch = _watches.GetOrAdd(
             key,
             static (_, state) => new Lazy<MongoDBDatabaseWatch>(() => state.Self.StartWatch(state.Name, state.Client)),
             (Self: this, Name: databaseName, connection?.Client));
 
-        MongoDBDatabaseWatch watch;
         try
         {
-            watch = lazyWatch.Value;
+            return lazyWatch.Value;
         }
         catch
         {
             // A Lazy in the default ExecutionAndPublication mode caches a factory exception permanently. If starting
             // the watch failed — e.g. the client factory threw transiently — evict this exact entry so the next
-            // Observe retries a fresh connection instead of replaying the cached failure for the process lifetime.
+            // call retries a fresh connection instead of replaying the cached failure for the process lifetime.
             // The keyed overload removes only while the stored value is still this poisoned Lazy, never a newer one.
             _watches.TryRemove(new KeyValuePair<string, Lazy<MongoDBDatabaseWatch>>(key, lazyWatch));
             throw;
         }
-
-        var collection = watch.Database.GetCollection<TDocument>();
-        return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes, logger);
     }
 
     MongoDBDatabaseWatch StartWatch(string databaseName, IMongoClient? client)

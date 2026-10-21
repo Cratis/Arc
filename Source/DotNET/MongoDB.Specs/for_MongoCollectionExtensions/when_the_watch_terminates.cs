@@ -6,37 +6,18 @@ namespace Cratis.Arc.MongoDB.for_MongoCollectionExtensions;
 public class when_the_watch_terminates : given.a_controlled_watch
 {
     [Theory]
-    [InlineData("single", "completed")]
-    [InlineData("by_id", "completed")]
-    [InlineData("list", "completed")]
-    [InlineData("single", "cancelled")]
-    [InlineData("by_id", "cancelled")]
-    [InlineData("list", "cancelled")]
-    [InlineData("single", "disposed")]
-    [InlineData("by_id", "disposed")]
-    [InlineData("list", "disposed")]
-    public async Task should_complete_the_observable_and_stop_its_lifetime(string kind, string termination)
+    [InlineData("single")]
+    [InlineData("by_id")]
+    [InlineData("list")]
+    public async Task should_complete_the_observable_and_leave_the_shared_stream(string kind)
     {
         await StartObserving(kind);
-        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var registration = _watchToken.Register(() => cancelled.TrySetResult());
 
-        switch (termination)
-        {
-            case "completed":
-                _nextBatch.SetResult(false);
-                break;
-            case "cancelled":
-                _nextBatch.SetCanceled();
-                break;
-            case "disposed":
-                _nextBatch.SetException(new ObjectDisposedException("change stream"));
-                break;
-        }
+        // The shared stream completes when the watcher is disposed; that is normal completion, never an error.
+        _databaseChanges.Complete();
 
-        // Normal completion and cancellation must never be reported as an error.
-        await Task.WhenAll(_completed.Task, cancelled.Task).WaitAsync(Deadline);
-        _watchToken.IsCancellationRequested.ShouldBeTrue();
+        await _completed.Task.WaitAsync(Deadline);
+        _databaseChanges.Subscribers.ShouldEqual(0);
         Catch.Exception(_subscription.Dispose).ShouldBeNull();
     }
 
@@ -44,19 +25,16 @@ public class when_the_watch_terminates : given.a_controlled_watch
     [InlineData("single")]
     [InlineData("by_id")]
     [InlineData("list")]
-    public async Task should_error_the_observable_and_stop_its_lifetime(string kind)
+    public async Task should_error_the_observable_and_leave_the_shared_stream(string kind)
     {
         await StartObserving(kind);
-        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var registration = _watchToken.Register(() => cancelled.TrySetResult());
         var failure = new Exception("The change stream failed.");
 
-        _nextBatch.SetException(failure);
+        _databaseChanges.Fail(failure);
 
         var error = await Catch.Exception(() => _completed.Task.WaitAsync(Deadline));
         error.ShouldBeSame(failure);
-        await cancelled.Task.WaitAsync(Deadline);
-        _watchToken.IsCancellationRequested.ShouldBeTrue();
+        _databaseChanges.Subscribers.ShouldEqual(0);
         Catch.Exception(_subscription.Dispose).ShouldBeNull();
     }
 }

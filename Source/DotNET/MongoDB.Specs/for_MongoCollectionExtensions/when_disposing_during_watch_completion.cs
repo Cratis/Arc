@@ -9,29 +9,23 @@ public class when_disposing_during_watch_completion : given.a_controlled_watch
     [InlineData("single")]
     [InlineData("by_id")]
     [InlineData("list")]
-    public async Task should_keep_cancellation_resources_alive_until_the_cancellation_callback_returns(string kind)
+    public async Task should_not_fail_when_the_shared_stream_completes_while_the_observable_is_disposed(string kind)
     {
         await StartObserving(kind);
-        Exception callbackError = null;
-        var callbackExecuted = false;
-        await using var registration = _watchToken.Register(() =>
+
+        // Completion of the shared stream and disposal of the observable race: both end the observation, and
+        // neither may be allowed to fault the other or leave the cancellation resources disposed underneath it.
+        var completion = Task.Run(_databaseChanges.Complete);
+        var disposal = Task.Run(() => ((IDisposable)_observable).Dispose());
+        var error = await Catch.Exception(() => Task.WhenAll(completion, disposal).WaitAsync(Deadline));
+
+        error.ShouldBeNull();
+        var deadline = DateTime.UtcNow + Deadline;
+        while (_databaseChanges.Subscribers > 0 && DateTime.UtcNow < deadline)
         {
-            callbackExecuted = true;
+            await Task.Delay(10);
+        }
 
-            // Cancellation lets the driver finish its pending move. Hold its cancellation callback open
-            // until the watch delivers completion, forcing cleanup to overlap Cancel rather than racing it.
-            _nextBatch.SetResult(false);
-            callbackError = Catch.Exception(() =>
-            {
-                _completed.Task.WaitAsync(Deadline).GetAwaiter().GetResult();
-                _watchToken.WaitHandle.WaitOne(0).ShouldBeTrue();
-            });
-        });
-
-        var disposalError = await Catch.Exception(() => Task.Run(() => ((IDisposable)_observable).Dispose()).WaitAsync(Deadline));
-
-        disposalError.ShouldBeNull();
-        callbackExecuted.ShouldBeTrue();
-        callbackError.ShouldBeNull();
+        _databaseChanges.Subscribers.ShouldEqual(0);
     }
 }
