@@ -4,6 +4,7 @@
     "description": "Cratis Arc ESLint rules: skip generated proxies and keep MVVM view models React-free. Compose on top of @cratis/eslint-config.",
     "author": "Cratis",
     "license": "MIT",
+    "homepage": "https://www.cratis.io/arc/",
     "type": "module",
     "repository": {
         "type": "git",
