@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.ProxyGenerator.Templates;
+using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound;
 
@@ -32,8 +33,9 @@ public class ModelBoundArtifactsProvider : IArtifactsProvider
         var commands = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsCommand()).ToArray();
         Commands = commands.Select(_ => _.ToCommandDescriptor(outputPath, segmentsToSkip, skipCommandNameInRoute, apiPrefix, commands)).ToArray();
 
-        var queries = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsQuery()).ToArray();
-        Queries = queries.SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries)).ToArray();
+        using var attributes = new MetadataQueryAttributes();
+        var queries = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsQuery(attributes.Find)).ToArray();
+        Queries = queries.SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries, attributes.Find)).ToArray();
     }
 
     /// <inheritdoc/>
