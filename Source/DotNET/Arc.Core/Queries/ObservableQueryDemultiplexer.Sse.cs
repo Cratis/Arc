@@ -17,7 +17,7 @@ public partial class ObservableQueryDemultiplexer
 
         logger.SseClientConnected(connectionId);
 
-        httpRequestContextAccessor.Current = context;
+        using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, context);
 
         context.SetSseResponseHeaders();
 

@@ -50,7 +50,7 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
             await using var scope = serviceProvider.CreateAsyncScope();
             var requestContext = new HttpListenerRequestContext(context, scope.ServiceProvider);
             var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
-            httpRequestContextAccessor.Current = requestContext;
+            using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, requestContext);
 
             var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
             var authenticationMiddleware = new AuthenticationMiddleware(authentication);

@@ -14,7 +14,7 @@ public partial class ObservableQueryDemultiplexer
     {
         logger.WebSocketClientConnected();
 
-        httpRequestContextAccessor.Current = context;
+        using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, context);
 
         var connectionId = $"ws-{Interlocked.Increment(ref _nextConnectionId)}";
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
