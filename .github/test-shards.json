@@ -102,6 +102,7 @@
       "name": "proxy-2",
       "namespaces": [
         "Cratis.Arc.ProxyGenerator.ModelBound.for_CommandExtensions",
+        "Cratis.Arc.ProxyGenerator.ModelBound.for_MetadataQueryAttributes",
         "Cratis.Arc.ProxyGenerator.ModelBound.for_TypeExtensionsModelBound",
         "Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries",
         "Cratis.Arc.ProxyGenerator.Scenarios.for_Queries",
