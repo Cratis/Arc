@@ -22,6 +22,17 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
     TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
+    /// Determines whether a driver failure requires a new snapshot rather than resuming.
+    /// </summary>
+    /// <param name="error">The driver failure.</param>
+    /// <returns>Whether the resume token must be discarded.</returns>
+    internal static bool HasInvalidResumeToken(Exception error) => error is MongoCommandException command &&
+        (command.Code is 286 or 260 or 280 ||
+        string.Equals(command.CodeName, "ChangeStreamHistoryLost", StringComparison.Ordinal) ||
+        string.Equals(command.CodeName, "InvalidResumeToken", StringComparison.Ordinal) ||
+        string.Equals(command.CodeName, "ChangeStreamFatalError", StringComparison.Ordinal));
+
+    /// <summary>
     /// Gets the watched database.
     /// </summary>
     internal IMongoDatabase Database { get; } = database;
@@ -46,17 +57,6 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
             return _opened.Task.WaitAsync(cancellationToken);
         }
     }
-
-    /// <summary>
-    /// Determines whether a driver failure requires a new snapshot rather than resuming.
-    /// </summary>
-    /// <param name="error">The driver failure.</param>
-    /// <returns>Whether the resume token must be discarded.</returns>
-    internal static bool HasInvalidResumeToken(Exception error) => error is MongoCommandException command &&
-        (command.Code is 286 or 260 or 280 ||
-        string.Equals(command.CodeName, "ChangeStreamHistoryLost", StringComparison.Ordinal) ||
-        string.Equals(command.CodeName, "InvalidResumeToken", StringComparison.Ordinal) ||
-        string.Equals(command.CodeName, "ChangeStreamFatalError", StringComparison.Ordinal));
 
     /// <summary>
     /// Watches until canceled, reopening and resynchronizing when necessary.
@@ -132,6 +132,7 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
                         resynchronize = true;
                         logger.DatabaseWatchResumeTokenReset(databaseName);
                     }
+
                     // Without a token, reopening cannot replay writes committed while disconnected.
                     resynchronize |= resumeToken is null;
                     logger.UnexpectedError(ex);
