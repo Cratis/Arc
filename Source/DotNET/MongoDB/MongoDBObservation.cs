@@ -108,6 +108,10 @@ internal static class MongoDBObservation
         {
             try
             {
+                if (changes is MongoDBDatabaseWatch databaseWatch)
+                {
+                    await databaseWatch.WhenOpen(token);
+                }
                 await Refresh();
                 await foreach (var notification in channel.Reader.ReadAllAsync(token))
                 {

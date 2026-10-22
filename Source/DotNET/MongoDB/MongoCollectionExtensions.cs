@@ -340,7 +340,8 @@ public static class MongoCollectionExtensions
                 // changes on this task. What is held is collapsed while this task is busy (one change per document,
                 // or one read again), so a slow query cannot make it grow with the write rate.
                 var changes = new PendingChanges(observationContext.Paging.IsPaged);
-                using var subscription = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName).Subscribe(
+                var databaseChanges = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName);
+                using var subscription = databaseChanges.Subscribe(
                     change =>
                     {
                         if (IsRelevantChange(change, collectionNamespace))
@@ -350,6 +351,13 @@ public static class MongoCollectionExtensions
                     },
                     changes.Complete,
                     () => changes.Complete());
+
+                // Subscribing alone does not mean WatchAsync has returned a cursor. Writes before it opens
+                // must be included in the snapshot, since the stream cannot deliver them afterward.
+                if (databaseChanges is MongoDBDatabaseWatch databaseWatch)
+                {
+                    await databaseWatch.WhenOpen(cancellationToken);
+                }
 
                 if (!ignoreQueryContext)
                 {
