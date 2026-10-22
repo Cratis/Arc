@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
@@ -98,7 +99,7 @@ internal static class ProtectedValidatorConstruction
     /// </remarks>
     internal static void ConstructDependencyFreeValidatorsThroughArc(this IServiceCollection services, ITypes types)
     {
-        var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).ToHashSet();
+        var validatorTypes = TypeUniverseMetadata.DiscoverableValidatorsIn(types);
         var origins = ProtectedDecisionRegistrationOrigins.For(services);
         origins.DiscoverValidators(validatorTypes);
         var boundThroughArc = new HashSet<ServiceDescriptor>();
@@ -142,7 +143,7 @@ internal static class ProtectedValidatorConstruction
         serviceProvider.GetService(typeof(ConventionTransientValidators)) is ConventionTransientValidators conventionTransients &&
         conventionTransients.Contains(validatorType);
 
-    static IEnumerable<Type> ConventionTransientsIn(IServiceCollection services, HashSet<Type> validatorTypes, HashSet<ServiceDescriptor> boundThroughArc)
+    static IEnumerable<Type> ConventionTransientsIn(IServiceCollection services, FrozenSet<Type> validatorTypes, HashSet<ServiceDescriptor> boundThroughArc)
     {
         var lastBindings = new Dictionary<Type, ServiceDescriptor>();
         foreach (var descriptor in services)
