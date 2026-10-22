@@ -15,6 +15,7 @@ public class and_the_shared_cursor_is_not_open : given.an_observation_with_an_op
     {
         var initial = StartObserving();
         await _watchRequested.Task.WaitAsync(Deadline);
+
         // The cursor is deliberately slow: keep it unopened while checking for a premature query.
         await Task.WhenAny(initial, Task.Delay(200));
         _emittedBeforeOpen = initial.IsCompleted;

@@ -28,6 +28,7 @@ public class and_the_shared_cursor_is_not_open : a_database_watch
             value => value,
             NullLogger<MongoDBWatcher>.Instance);
         using var subscription = _subject.Subscribe(value => emitted.TrySetResult(value));
+
         // Keep the cursor deliberately unopened during this assertion window.
         await Task.WhenAny(queried.Task, Task.Delay(200));
         _queriedBeforeOpen = queried.Task.IsCompleted;

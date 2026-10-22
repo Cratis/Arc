@@ -22,17 +22,6 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
     TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
-    /// Determines whether a driver failure requires a new snapshot rather than resuming.
-    /// </summary>
-    /// <param name="error">The driver failure.</param>
-    /// <returns>Whether the resume token must be discarded.</returns>
-    internal static bool HasInvalidResumeToken(Exception error) => error is MongoCommandException command &&
-        (command.Code is 286 or 260 or 280 ||
-        string.Equals(command.CodeName, "ChangeStreamHistoryLost", StringComparison.Ordinal) ||
-        string.Equals(command.CodeName, "InvalidResumeToken", StringComparison.Ordinal) ||
-        string.Equals(command.CodeName, "ChangeStreamFatalError", StringComparison.Ordinal));
-
-    /// <summary>
     /// Gets the watched database.
     /// </summary>
     internal IMongoDatabase Database { get; } = database;
@@ -44,6 +33,17 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
 
     /// <inheritdoc/>
     public IDisposable Subscribe(IObserver<ChangeStreamDocument<BsonDocument>> observer) => Changes.Subscribe(observer);
+
+    /// <summary>
+    /// Determines whether a driver failure requires a new snapshot rather than resuming.
+    /// </summary>
+    /// <param name="error">The driver failure.</param>
+    /// <returns>Whether the resume token must be discarded.</returns>
+    internal static bool HasInvalidResumeToken(Exception error) => error is MongoCommandException command &&
+        (command.Code is 286 or 260 or 280 ||
+        string.Equals(command.CodeName, "ChangeStreamHistoryLost", StringComparison.Ordinal) ||
+        string.Equals(command.CodeName, "InvalidResumeToken", StringComparison.Ordinal) ||
+        string.Equals(command.CodeName, "ChangeStreamFatalError", StringComparison.Ordinal));
 
     /// <summary>
     /// Waits for the current connection to open before an observation reads its snapshot.
