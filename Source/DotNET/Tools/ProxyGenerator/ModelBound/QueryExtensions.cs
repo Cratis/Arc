@@ -29,19 +29,8 @@ public static class QueryExtensions
         int segmentsToSkip,
         bool skipQueryNameInRoute,
         string apiPrefix,
-        IEnumerable<TypeInfo> allQueryTypes)
-    {
-        var queryMethods = readModelType.GetQueryMethods();
-        var descriptors = new List<QueryDescriptor>();
-
-        foreach (var method in queryMethods)
-        {
-            var descriptor = method.ToQueryDescriptor(readModelType, targetPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, allQueryTypes);
-            descriptors.Add(descriptor);
-        }
-
-        return descriptors;
-    }
+        IEnumerable<TypeInfo> allQueryTypes) =>
+        ToQueryDescriptors(readModelType, targetPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, allQueryTypes, null);
 
     /// <summary>
     /// Convert a static query method to a <see cref="QueryDescriptor"/>.
@@ -61,7 +50,62 @@ public static class QueryExtensions
         int segmentsToSkip,
         bool skipQueryNameInRoute,
         string apiPrefix,
-        IEnumerable<TypeInfo> allQueryTypes)
+        IEnumerable<TypeInfo> allQueryTypes) =>
+        ToQueryDescriptor(method, readModelType, targetPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, allQueryTypes, null);
+
+    /// <summary>
+    /// Converts queries within a metadata discovery scope.
+    /// </summary>
+    /// <param name="readModelType">The read model type.</param>
+    /// <param name="targetPath">The output path.</param>
+    /// <param name="segmentsToSkip">The namespace segments to skip.</param>
+    /// <param name="skipQueryNameInRoute">Whether to skip the query name in the route.</param>
+    /// <param name="apiPrefix">The API prefix.</param>
+    /// <param name="allQueryTypes">All query types for route conflict detection.</param>
+    /// <param name="findAttribute">The discovery-scoped marker probe.</param>
+    /// <returns>The query descriptors.</returns>
+    internal static IEnumerable<QueryDescriptor> ToQueryDescriptors(
+        this TypeInfo readModelType,
+        string targetPath,
+        int segmentsToSkip,
+        bool skipQueryNameInRoute,
+        string apiPrefix,
+        IEnumerable<TypeInfo> allQueryTypes,
+        Func<MemberInfo, string, bool, CustomAttributeData?>? findAttribute)
+    {
+        var queryMethods = readModelType.GetQueryMethods(findAttribute);
+        var descriptors = new List<QueryDescriptor>();
+
+        foreach (var method in queryMethods)
+        {
+            var descriptor = method.ToQueryDescriptor(readModelType, targetPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, allQueryTypes, findAttribute);
+            descriptors.Add(descriptor);
+        }
+
+        return descriptors;
+    }
+
+    /// <summary>
+    /// Converts queries within a metadata discovery scope.
+    /// </summary>
+    /// <param name="method">The query method.</param>
+    /// <param name="readModelType">The read model type.</param>
+    /// <param name="targetPath">The output path.</param>
+    /// <param name="segmentsToSkip">The namespace segments to skip.</param>
+    /// <param name="skipQueryNameInRoute">Whether to skip the query name in the route.</param>
+    /// <param name="apiPrefix">The API prefix.</param>
+    /// <param name="allQueryTypes">All query types for route conflict detection.</param>
+    /// <param name="findAttribute">The discovery-scoped marker probe.</param>
+    /// <returns>The query descriptors.</returns>
+    internal static QueryDescriptor ToQueryDescriptor(
+        this MethodInfo method,
+        TypeInfo readModelType,
+        string targetPath,
+        int segmentsToSkip,
+        bool skipQueryNameInRoute,
+        string apiPrefix,
+        IEnumerable<TypeInfo> allQueryTypes,
+        Func<MemberInfo, string, bool, CustomAttributeData?>? findAttribute)
     {
         var typesInvolved = new List<Type>();
 
@@ -93,7 +137,7 @@ public static class QueryExtensions
 
         var namespaceKey = string.Join('.', location.Skip(segmentsToSkip));
         var queriesInSameNamespace = allQueryTypes.Where(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(segmentsToSkip)) == namespaceKey);
-        var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods().Count());
+        var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods(findAttribute).Count());
         var hasConflict = totalMethodsInNamespace > 1;
         var includeQueryName = !skipQueryNameInRoute || hasConflict;
 
@@ -274,7 +318,7 @@ public static class QueryExtensions
     /// enum's <see cref="RequestParameterDescriptor.OriginalType"/> stays <c>Nullable&lt;TEnum&gt;</c> rather than
     /// <c>TEnum</c> - <see cref="TypeExtensions.IsKnownType"/> unwraps <c>Nullable&lt;T&gt;</c> before consulting the
     /// primitive map, but an enum is never in that map either way, so the wrapper type (not the enum) is what
-    /// <see cref="QueryExtensions.ToQueryDescriptor"/> collects into <c>TypesInvolved</c>. <c>Nullable&lt;TEnum&gt;</c>
+    /// <see cref="ToQueryDescriptor(MethodInfo, TypeInfo, string, int, bool, string, IEnumerable{TypeInfo})"/> collects into <c>TypesInvolved</c>. <c>Nullable&lt;TEnum&gt;</c>
     /// is not itself an enum, so it is missed by the enum split in the generator and instead run through
     /// <see cref="TypeExtensions.ToTypeDescriptor"/> as if it were a plain class - reflecting <c>Nullable&lt;T&gt;</c>'s
     /// own <c>HasValue</c>/<c>Value</c> properties into a bogus emitted type that collides with the enum's real name.

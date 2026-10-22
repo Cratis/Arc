@@ -11,8 +11,56 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// <summary>
 /// Probes metadata-only markers without resolving unrelated attribute assemblies.
 /// </summary>
-internal static class MetadataQueryAttributes
+internal sealed class MetadataQueryAttributes : IDisposable
 {
+    readonly Dictionary<string, PEReader> _images = new(StringComparer.Ordinal);
+    readonly Func<string, PEReader> _openImage;
+    bool _disposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MetadataQueryAttributes"/> class.
+    /// </summary>
+    internal MetadataQueryAttributes()
+        : this(OpenImage)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MetadataQueryAttributes"/> class.
+    /// </summary>
+    /// <param name="openImage">Opens a module image owned by this discovery scope.</param>
+    internal MetadataQueryAttributes(Func<string, PEReader> openImage) => _openImage = openImage;
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        foreach (var image in _images.Values)
+        {
+            image.Dispose();
+        }
+
+        _images.Clear();
+    }
+
+    /// <summary>
+    /// Probes a marker without retaining images beyond the call.
+    /// </summary>
+    /// <param name="member">The metadata-only member.</param>
+    /// <param name="fullName">The attribute type name.</param>
+    /// <param name="matchFullName">Whether to match a full name.</param>
+    /// <returns>The matching attribute, or null.</returns>
+    internal static CustomAttributeData? FindUncached(MemberInfo member, string fullName, bool matchFullName = true)
+    {
+        using var attributes = new MetadataQueryAttributes();
+        return attributes.Find(member, fullName, matchFullName);
+    }
+
     /// <summary>
     /// Finds an exact marker using only the member's own metadata image before reading its values.
     /// </summary>
@@ -20,17 +68,23 @@ internal static class MetadataQueryAttributes
     /// <param name="fullName">The full attribute type name.</param>
     /// <param name="matchFullName">Whether to match a full name rather than the legacy simple-name predicate.</param>
     /// <returns>The matching attribute, or null.</returns>
-    internal static CustomAttributeData? Find(MemberInfo member, string fullName, bool matchFullName = true)
+    internal CustomAttributeData? Find(MemberInfo member, string fullName, bool matchFullName = true)
     {
-        if (string.IsNullOrEmpty(member.Module.Assembly.Location))
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!member.Module.Assembly.ReflectionOnly || string.IsNullOrEmpty(member.Module.Assembly.Location))
         {
             // In-memory metadata has no physical image to probe; retain reflection behavior for that adapter.
             return member.GetCustomAttributesData().FirstOrDefault(_ =>
                 (matchFullName ? _.AttributeType.FullName : _.AttributeType.Name) == fullName);
         }
 
-        using var stream = File.OpenRead(member.Module.FullyQualifiedName);
-        using var image = new PEReader(stream, PEStreamOptions.PrefetchMetadata);
+        var path = member.Module.FullyQualifiedName;
+        if (!_images.TryGetValue(path, out var image))
+        {
+            image = _openImage(path);
+            _images.Add(path, image);
+        }
+
         var reader = image.GetMetadataReader();
         var index = 0;
         foreach (var handle in reader.GetCustomAttributes(MetadataTokens.EntityHandle(member.MetadataToken)))
@@ -47,6 +101,13 @@ internal static class MetadataQueryAttributes
         }
 
         return null;
+    }
+
+    static PEReader OpenImage(string path)
+    {
+        // PrefetchMetadata makes the reader independent of the stream after construction.
+        using var stream = File.OpenRead(path);
+        return new PEReader(stream, PEStreamOptions.PrefetchMetadata);
     }
 
     static EntityHandle AttributeType(MetadataReader reader, CustomAttributeHandle attribute)
