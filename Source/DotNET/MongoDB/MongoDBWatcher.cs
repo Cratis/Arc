@@ -55,7 +55,7 @@ public class MongoDBWatcher(
         lock (_lifetimeGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return GetWatch(databaseName, connections?.Resolve()).Changes;
+            return GetWatch(databaseName, connections?.Resolve());
         }
     }
 
@@ -81,7 +81,7 @@ public class MongoDBWatcher(
         var connection = connections?.Resolve();
         var watch = GetWatch(connection?.DatabaseName ?? databaseNameResolver.Resolve(), connection);
         var collection = watch.Database.GetCollection<TDocument>();
-        return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes, logger);
+        return new MongoDBObserveBuilder<TDocument>(collection, filter, watch, logger);
     }
 
     MongoDBDatabaseWatch GetWatch(string databaseName, MongoDBConnection? connection)

@@ -87,7 +87,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         {
             var context = new AspNetCoreHttpRequestContext(httpContext);
             var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
-            accessor.Current = context;
+            using var request = HttpRequestContextAccessor.BeginRequest(accessor, context);
             await handler(context);
         };
 

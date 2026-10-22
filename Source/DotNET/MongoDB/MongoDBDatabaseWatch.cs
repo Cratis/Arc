@@ -16,7 +16,11 @@ namespace Cratis.Arc.MongoDB;
 /// <param name="logger">The shared watch logger.</param>
 /// <param name="token">The watcher lifetime.</param>
 internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<MongoDBWatcher> logger, CancellationToken token)
+    : IObservable<ChangeStreamDocument<BsonDocument>>
 {
+    readonly object _openGate = new();
+    TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     /// <summary>
     /// Gets the watched database.
     /// </summary>
@@ -26,6 +30,9 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
     /// Gets the serialized stream of changes and resynchronization notifications.
     /// </summary>
     internal ISubject<ChangeStreamDocument<BsonDocument>> Changes { get; } = Subject.Synchronize(new Subject<ChangeStreamDocument<BsonDocument>>());
+
+    /// <inheritdoc/>
+    public IDisposable Subscribe(IObserver<ChangeStreamDocument<BsonDocument>> observer) => Changes.Subscribe(observer);
 
     /// <summary>
     /// Determines whether a driver failure requires a new snapshot rather than resuming.
@@ -37,6 +44,19 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
         string.Equals(command.CodeName, "ChangeStreamHistoryLost", StringComparison.Ordinal) ||
         string.Equals(command.CodeName, "InvalidResumeToken", StringComparison.Ordinal) ||
         string.Equals(command.CodeName, "ChangeStreamFatalError", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Waits for the current connection to open before an observation reads its snapshot.
+    /// </summary>
+    /// <param name="cancellationToken">The observation lifetime.</param>
+    /// <returns>A task that completes once the current cursor is open.</returns>
+    internal Task WhenOpen(CancellationToken cancellationToken)
+    {
+        lock (_openGate)
+        {
+            return _opened.Task.WaitAsync(cancellationToken);
+        }
+    }
 
     /// <summary>
     /// Watches until canceled, reopening and resynchronizing when necessary.
@@ -62,6 +82,10 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
                     };
                     var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
                     using var cursor = await Database.WatchAsync(pipeline, options, token);
+                    lock (_openGate)
+                    {
+                        _opened.TrySetResult();
+                    }
                     logger.StartedWatchingDatabase(databaseName);
                     if (resynchronize)
                     {
@@ -108,7 +132,20 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
                         resynchronize = true;
                         logger.DatabaseWatchResumeTokenReset(databaseName);
                     }
+
+                    // Without a token, reopening cannot replay writes committed while disconnected.
+                    resynchronize |= resumeToken is null;
                     logger.UnexpectedError(ex);
+                }
+                finally
+                {
+                    lock (_openGate)
+                    {
+                        if (_opened.Task.IsCompleted)
+                        {
+                            _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                        }
+                    }
                 }
 
                 logger.DatabaseWatchReconnecting(databaseName, delay.TotalSeconds);
@@ -122,6 +159,10 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
         }
         finally
         {
+            lock (_openGate)
+            {
+                _opened.TrySetCanceled(token);
+            }
             Changes.OnCompleted();
         }
     }

@@ -17,6 +17,10 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// for work that runs earlier in the request, such as identity resolution that reads tenant-scoped data. That work
 /// then sees no request context and silently resolves no tenant. Publishing the context in early middleware makes it
 /// available for the entire pipeline, so tenant resolution is consistent regardless of where in the request it runs.
+/// <para>
+/// The request ends with the pipeline, also for work that captured the execution context during it and runs after the
+/// response - that work sees no request rather than a disposed one.
+/// </para>
 /// </remarks>
 public class HttpRequestContextMiddleware(IHttpRequestContextAccessor httpRequestContextAccessor) : IMiddleware
 {
@@ -24,7 +28,7 @@ public class HttpRequestContextMiddleware(IHttpRequestContextAccessor httpReques
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         using var tenantBoundary = TenantIdAccessor.Independent.BeginRequest();
-        httpRequestContextAccessor.Current = new AspNetCoreHttpRequestContext(context);
+        using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, new AspNetCoreHttpRequestContext(context));
         await next(context);
     }
 }
