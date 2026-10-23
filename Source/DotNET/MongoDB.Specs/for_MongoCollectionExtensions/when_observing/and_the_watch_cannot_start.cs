@@ -16,7 +16,7 @@ public class and_the_watch_cannot_start : given.an_observed_collection
     {
         var deadline = TimeSpan.FromSeconds(5);
         var failure = new Exception("MongoDB is unreachable.");
-        _watcher.GetChanges(DatabaseName).Returns<IObservable<ChangeStreamDocument<BsonDocument>>>(_ => throw failure);
+        _watcher.GetChanges(_database).Returns<IObservable<ChangeStreamDocument<BsonDocument>>>(_ => throw failure);
         IObservable<object> observable = kind switch
         {
             "single" => _collection.ObserveSingle(),

@@ -30,7 +30,7 @@ The observation attaches to the shared stream when `Observe()` is called, not wh
 
 ## How observations share a change stream
 
-Arc keeps one change stream per database per process, owned by the [`IMongoDBWatcher`](./change-stream-watcher.md) singleton. It watches the whole database, so it carries the changes of every collection. Each `Observe()`, `ObserveSingle()` and `ObserveById()` call subscribes to that stream and handles only the changes of its own collection, in order. You do not have to inject or opt in to anything: the extension methods use the shared stream automatically.
+Arc keeps one change stream per database per deployment per process, owned by the [`IMongoDBWatcher`](./change-stream-watcher.md) singleton. The stream is opened with the client the collection belongs to, so a collection from a client the application did not configure is watched where it lives. It watches the whole database, so it carries the changes of every collection. Each `Observe()`, `ObserveSingle()` and `ObserveById()` call subscribes to that stream and handles only the changes of its own collection, in order. You do not have to inject or opt in to anything: the extension methods use the shared stream automatically.
 
 ```mermaid
 graph LR

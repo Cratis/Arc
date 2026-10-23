@@ -340,7 +340,7 @@ public static class MongoCollectionExtensions
                 // changes on this task. What is held is collapsed while this task is busy (one change per document,
                 // or one read again), so a slow query cannot make it grow with the write rate.
                 var changes = new PendingChanges(observationContext.Paging.IsPaged);
-                var databaseChanges = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName);
+                var databaseChanges = watcher.GetChanges(collection.Database);
                 using var subscription = databaseChanges.Subscribe(
                     change =>
                     {
@@ -512,7 +512,6 @@ public static class MongoCollectionExtensions
         if (changeDocument.DocumentKey is not null && changeDocument.DocumentKey.TryGetValue("_id", out var idValue))
         {
             var id = GetId(idProperty, idMemberMap, idValue);
-            var fullDocument = changeDocument.FullDocument is null ? default : Deserialize(collection, changeDocument.FullDocument);
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
                 // A delete cannot be narrowed by the filter - the document is gone - so it arrives for every
@@ -524,7 +523,7 @@ public static class MongoCollectionExtensions
                     queryContext.TotalItems--;
                 }
             }
-            else if (fullDocument is not null)
+            else if (changeDocument.FullDocument is not null)
             {
                 // An insert, an update or a replace. The shared change stream carries every change in the
                 // database, so none of them has been narrowed by the observed filter, and an event saying a
@@ -538,6 +537,9 @@ public static class MongoCollectionExtensions
                 var wasPresent = documents.Contains(id);
                 if (belongs)
                 {
+                    // Deserialized only once it is known to belong: a document outside the filter may be one this
+                    // observation's type cannot read, such as a record of a kind the filter deliberately excludes.
+                    var fullDocument = Deserialize(collection, changeDocument.FullDocument);
                     if (!wasPresent)
                     {
                         queryContext.TotalItems++;

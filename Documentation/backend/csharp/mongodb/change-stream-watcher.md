@@ -18,7 +18,20 @@ graph LR
     B2 -->|Join + Select| S2[ISubject&lt;BookCatalog&gt;]
 ```
 
-`IMongoDBWatcher` is registered as a singleton automatically when you call `UseCratisMongoDB()`. The underlying change stream opens on the first `Observe<T>()` for each resolved database name. Subsequent calls for that name share it. Each call resolves the database name from the current context; the cache key is the database name, not a server-and-database pair. Do not assume a custom tenant-specific server strategy is supported by that cache.
+`IMongoDBWatcher` is registered as a singleton automatically when you call `UseCratisMongoDB()`. It keeps one change stream per database per deployment: the key is the servers and credential of the client together with the database name, the same way Arc's client factory shares clients. The stream opens on the first observation of that database and later observations share it.
+
+- `Observe<T>()` on the watcher resolves the database name and client from the current context, so tenants that resolve to different databases or servers get streams of their own.
+- The collection extensions (`Observe()`, `ObserveSingle()`, `ObserveById()`) watch the collection's own database with the client it belongs to. A collection from a client the application did not configure, such as another library's storage, is watched on the deployment it lives on.
+
+## Using the watcher without Arc's MongoDB configuration
+
+A library or host that brings its own `IMongoDatabase` and observes its collections with the collection extensions needs only the watcher, not the rest of the MongoDB integration:
+
+```csharp
+services.AddMongoDBWatcher();
+```
+
+It registers the same singleton `UseCratisMongoDB()` does, so calling both registers it once. Without the MongoDB configuration, `IMongoDBWatcher.Observe<T>()` throws `MongoDBWatcherNotConfigured`, because it has no configured database to watch; the collection extensions work, since they name their database themselves.
 
 ## Prerequisites
 
