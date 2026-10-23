@@ -219,8 +219,8 @@ public static class HostBuilderExtensions
     /// whatever the provider registry held at that moment, for the rest of the process and for every other Cratis
     /// product sharing it. Building from the universe Arc just took keeps polymorphic JSON and the MongoDB
     /// discriminator conventions seeing the same types everything else in the host sees, at the cost of no longer
-    /// sharing Fundamentals' global singleton. The cost is one more pass over a universe
-    /// <c>RegisterTypeConvertersForConcepts</c> has already walked in the same call.
+    /// sharing Fundamentals' global singleton. The pass over the universe runs once per universe instance and is
+    /// reused by every later call holding the same universe, see <see cref="DerivedTypes.For(ITypes)"/>.
     /// </para>
     /// <para>
     /// <c>Replace</c> rather than <c>AddSingleton</c> because <c>AddBindingsByConvention</c> binds
@@ -232,7 +232,7 @@ public static class HostBuilderExtensions
     /// </remarks>
     static DerivedTypes UseDerivedTypesFrom(this IServiceCollection services, ITypes types)
     {
-        var current = new DerivedTypes(types);
+        var current = DerivedTypes.For(types);
         services.Replace(ServiceDescriptor.Singleton<IDerivedTypes>(current));
         return current;
     }

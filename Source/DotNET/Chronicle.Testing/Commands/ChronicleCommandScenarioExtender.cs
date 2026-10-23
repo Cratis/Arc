@@ -31,6 +31,8 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// <para>
 /// After construction the scenario exposes an <see cref="EventScenario"/> through
 /// the C# extension property defined in <see cref="CommandScenarioChronicleExtensions"/>.
+/// A command that declares read protection or protected dependencies gets only the decision store instead;
+/// no <see cref="EventScenario"/> is built and its context key is absent.
 /// Events appended during command execution are also captured via the <c>AppendOperations</c>
 /// observable and exposed through the <c>AppendedEvents</c> extension property defined in
 /// <see cref="CommandScenarioChronicleExtensions"/>.
@@ -74,19 +76,19 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// <inheritdoc/>
     public void Extend(Type commandType, IServiceCollection services, IDictionary<string, object> context)
     {
-        Extend(services, context);
         if (NeedsDecisionReads(commandType))
         {
-            EnableDecisionReads(services, context);
+            ExtendForDecisionReads(services, context);
+            return;
         }
+
+        Extend(services, context);
     }
 
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
     {
-        var scenarioId = Guid.NewGuid();
-        var eventStoreName = new EventStoreName($"test-event-store-{scenarioId:N}");
-        var namespaceName = new EventStoreNamespaceName($"default-{scenarioId:N}");
+        var (eventStoreName, namespaceName) = NewScenarioIdentity();
         var eventScenario = new EventScenario(EventSequenceId.Log, eventStoreName, namespaceName, new DiscoveredConstraintsForScenario(Defaults.Instance));
         var appendedEvents = new List<AppendedEventWithResult>();
         var readModels = new CommandScenarioReadModels(
@@ -184,19 +186,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
             throw new DecisionScenarioCannotOrderCustomExecutionScopes();
         }
 
-        // Defaults exposes the serializer paired with its testing store; the store's serializer is internal.
-        var decisionDefaults = new Defaults(
-            Defaults.Instance.ClientArtifactsProvider,
-            serviceProvider: null,
-            options: null,
-            time: null,
-            eventStore: (EventStoreName)context[EventStoreNameKey],
-            @namespace: (EventStoreNamespaceName)context[EventStoreNamespaceKey]);
-        var store = (EventStoreForTesting)decisionDefaults.EventStore;
-        var commandEvents = new List<AppendedEventWithResult>();
-        var scenario = new DecisionCommandScenario(store, commandEvents);
-        services.Replace(ServiceDescriptor.Singleton<IEventStore>(store));
-        services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager>(store.UnitOfWorkManager));
+        var decision = CreateDecisionStore((EventStoreName)context[EventStoreNameKey], (EventStoreNamespaceName)context[EventStoreNamespaceKey]);
 
         // The IEventSources factory follows the replaced store. IEventStore does not expose a serializer,
         // so replace only our own registration in place, retaining the precedence of explicit overrides.
@@ -204,13 +194,87 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var serializerIndex = services.IndexOf(serializerRegistration);
         if (serializerIndex >= 0)
         {
-            services[serializerIndex] = ServiceDescriptor.Singleton<IEventSerializer>(decisionDefaults.EventSerializer);
+            services[serializerIndex] = ServiceDescriptor.Singleton<IEventSerializer>(decision.Defaults.EventSerializer);
         }
+
+        RegisterDecisionStore(services, decision);
+        context[DecisionScenarioKey] = decision.Scenario;
+        context[AppendedEventsKey] = decision.CommandEvents;
+        context[ReadModelsKey] = decision.ReadModels;
+    }
+
+    /// <summary>
+    /// Builds a decision scenario directly, without the legacy <see cref="EventScenario"/> that is discarded
+    /// when a command declares read protection or protected dependencies.
+    /// </summary>
+    /// <param name="services">The services of the uninitialized scenario.</param>
+    /// <param name="context">The scenario context.</param>
+    /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+    static void ExtendForDecisionReads(IServiceCollection services, IDictionary<string, object> context)
+    {
+        var (eventStoreName, namespaceName) = NewScenarioIdentity();
+        if (services.Any(_ => _.ServiceType == typeof(IInstancesOf<ICommandExecutionScope>) || _.ServiceType == typeof(ICommandExecutionScope)))
+        {
+            throw new DecisionScenarioCannotOrderCustomExecutionScopes();
+        }
+
+        var decision = CreateDecisionStore(eventStoreName, namespaceName);
+
+        // The registrations follow the order the explicit opt-in leaves behind, so both routes resolve identically.
+        var eventSerializerRegistration = ServiceDescriptor.Singleton<IEventSerializer>(decision.Defaults.EventSerializer);
+        services.TryAdd(eventSerializerRegistration);
+        services.AddSingleton(Defaults.Instance.EventTypes);
+        services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
+        services.TryAddSingleton<IEventSources>(provider => provider.GetRequiredService<IEventStore>().EventSources);
+        RegisterDecisionStore(services, decision);
+
+        context[EventStoreNameKey] = eventStoreName;
+        context[EventStoreNamespaceKey] = namespaceName;
+        context[EventSerializerRegistrationKey] = eventSerializerRegistration;
+        context[AppendedEventsKey] = decision.CommandEvents;
+        context[ReadModelsKey] = decision.ReadModels;
+        context[nameof(GeneratedIdentifierCollisionScenarioCheck)] = new GeneratedIdentifierCollisionScenarioCheck(context, decision.ReadModels);
+        context[DecisionScenarioKey] = decision.Scenario;
+    }
+
+    static (EventStoreName Name, EventStoreNamespaceName Namespace) NewScenarioIdentity()
+    {
+        var scenarioId = Guid.NewGuid();
+        return (new EventStoreName($"test-event-store-{scenarioId:N}"), new EventStoreNamespaceName($"default-{scenarioId:N}"));
+    }
+
+    static DecisionStore CreateDecisionStore(EventStoreName eventStoreName, EventStoreNamespaceName namespaceName)
+    {
+        // Defaults exposes the serializer paired with its testing store; the store's serializer is internal.
+        var decisionDefaults = new Defaults(
+            Defaults.Instance.ClientArtifactsProvider,
+            serviceProvider: null,
+            options: null,
+            time: null,
+            eventStore: eventStoreName,
+            @namespace: namespaceName);
+        var store = (EventStoreForTesting)decisionDefaults.EventStore;
+        var commandEvents = new List<AppendedEventWithResult>();
 
         // Non-decision reads (IReadModels, injected read models and an [Unprotected] command's DecisionRead<T>) resolve a
         // pinned instance or materialize from the same log the protected decision reads fold.
-        var readModels = new CommandScenarioReadModels(store.ReadModels, store.EventLog);
-        services.Replace(ServiceDescriptor.Singleton<IReadModels>(readModels));
+#pragma warning disable CA2000 // The read models are kept in the scenario context, which disposes them with the scenario.
+        return new(
+            decisionDefaults,
+            store,
+            new DecisionCommandScenario(store, commandEvents),
+            commandEvents,
+            new CommandScenarioReadModels(store.ReadModels, store.EventLog));
+#pragma warning restore CA2000
+    }
+
+    static void RegisterDecisionStore(IServiceCollection services, DecisionStore decision)
+    {
+        var store = decision.Store;
+        var scenario = decision.Scenario;
+        services.Replace(ServiceDescriptor.Singleton<IEventStore>(store));
+        services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager>(store.UnitOfWorkManager));
+        services.Replace(ServiceDescriptor.Singleton<IReadModels>(decision.ReadModels));
         services.Replace(ServiceDescriptor.Singleton<IEventLog>(scenario.EventLog));
         services.Replace(ServiceDescriptor.Singleton<IEventSequence>(store.EventLog));
         services.AddCommandAwareDecisionReads();
@@ -231,9 +295,6 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
             scopes.Insert(ownerIndex + 2, new DecisionScenarioConcurrentAppendScope(scenario));
             return new KnownInstancesOf<ICommandExecutionScope>(scopes);
         });
-        context[DecisionScenarioKey] = scenario;
-        context[AppendedEventsKey] = commandEvents;
-        context[ReadModelsKey] = readModels;
     }
 
     static bool NeedsDecisionReads(Type commandType)
@@ -248,4 +309,11 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
 
         return CommandDecisionDependencies.Declares(commandType);
     }
+
+    sealed record DecisionStore(
+        Defaults Defaults,
+        EventStoreForTesting Store,
+        DecisionCommandScenario Scenario,
+        List<AppendedEventWithResult> CommandEvents,
+        CommandScenarioReadModels ReadModels);
 }
