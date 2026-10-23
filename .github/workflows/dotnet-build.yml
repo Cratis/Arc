@@ -69,8 +69,17 @@ on:
       - "scripts/ci-test-shards.py"
       - "scripts/viewer-bundle.test.mjs"
 
+# pull_request_target runs in the base repository's context, so the token is write-scoped by default and the cache
+# scope is main's. That is safe only for code from this repository's own branches (people with write access, Copilot
+# and bots). Every job is read-only unless it declares more, checkouts do not keep the token, and the build - which
+# every other job needs - does not run pull request code from a fork. A fork contribution is built once a maintainer
+# pushes its branch to this repository.
+permissions:
+  contents: read
+
 jobs:
   dotnet-build:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -82,6 +91,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       # The specs run in a few shards rather than one job per ProxyGenerator.Specs 'for_' namespace and per spec
       # project; the per-job setup and artifact download cost several times what the tests did. The assignment lives
@@ -188,6 +198,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
       - name: Setup .Net
@@ -256,6 +267,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       - name: Setup .Net
         uses: actions/setup-dotnet@v4
@@ -352,6 +364,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
       - name: Setup .Net
