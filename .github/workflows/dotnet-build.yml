@@ -1,16 +1,12 @@
 name: .NET Build
 
-# The build runs on pull_request_target, where github.ref is the branch being merged into rather than the pull
-# request - refs/heads/main for every one of them. Grouping on it therefore put every open pull request in one
-# group, and cancel-in-progress made each new one cancel the build of whichever was already running. The pull
-# request that lost was left with a cancelled run and no failing job, which reads as though it is still going
-# rather than as though anything is wrong. So the group is the pull request when there is one, and the ref only
-# for the manual runs that have no pull request to name.
+# PR builds run under pull_request and build the PR head. Group by pull request when there is one,
+# otherwise by ref, so a newer PR run cancels only the older run for the same pull request.
 # Runs on main (push and manual) are never cancelled: a burst of merges queues, GitHub keeps only the newest
 # pending run, and that run verifies the latest main. Cancelling would leave main unverified while merges keep coming.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   DOTNET8_VERSION: "8.0.407"
@@ -48,7 +44,7 @@ on:
       - ".github/test-shards.json"
       - "scripts/ci-test-shards.py"
       - "scripts/viewer-bundle.test.mjs"
-  pull_request_target:
+  pull_request:
     branches:
       - "**"
     paths:
@@ -69,17 +65,13 @@ on:
       - "scripts/ci-test-shards.py"
       - "scripts/viewer-bundle.test.mjs"
 
-# pull_request_target runs in the base repository's context, so the token is write-scoped by default and the cache
-# scope is main's. That is safe only for code from this repository's own branches (people with write access, Copilot
-# and bots). Every job is read-only unless it declares more, checkouts do not keep the token, and the build - which
-# every other job needs - does not run pull request code from a fork. A fork contribution is built once a maintainer
-# pushes its branch to this repository.
+# PR builds run with a read-only token, and checkouts do not keep credentials.
+# PR runs restore caches but never save them. Only the main-only reporting job declares write permissions.
 permissions:
   contents: read
 
 jobs:
   dotnet-build:
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -90,7 +82,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       # The specs run in a few shards rather than one job per ProxyGenerator.Specs 'for_' namespace and per spec
@@ -197,7 +189,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
@@ -266,7 +258,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Setup .Net
@@ -363,7 +355,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
@@ -434,7 +426,7 @@ jobs:
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
     needs: [dotnet-build, specs, screenplay-end-to-end, proxy-specs]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target' }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
