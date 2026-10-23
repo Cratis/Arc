@@ -99,7 +99,7 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.235" />
     <!-- Specifications -->
-    <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.1.0" />
+    <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.3.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
