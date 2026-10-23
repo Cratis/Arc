@@ -18,10 +18,10 @@ public class for_another_universe : Specification
         _firstUniverse.All.Returns([]);
         _secondUniverse = Substitute.For<ITypes>();
         _secondUniverse.All.Returns([typeof(TheDerivedType)]);
-        _first = TypeUniverseMetadata.DerivedTypesFor(_firstUniverse);
+        _first = DerivedTypes.For(_firstUniverse);
     }
 
-    void Because() => _second = TypeUniverseMetadata.DerivedTypesFor(_secondUniverse);
+    void Because() => _second = DerivedTypes.For(_secondUniverse);
 
     [Fact] void should_build_new_derived_types() => ReferenceEquals(_second, _first).ShouldBeFalse();
     [Fact] void should_read_them_off_the_other_universe() => _second.IsDerivedType(typeof(TheDerivedType)).ShouldBeTrue();
