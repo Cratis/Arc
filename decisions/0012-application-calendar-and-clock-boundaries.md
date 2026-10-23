@@ -137,8 +137,8 @@ DateTimeOffset NextLocalDateChange(TimeZoneInfo zone, DateTimeOffset instant);
   asserts that a clock epoch arrives as a stream emission, not as a one-off snapshot.
 
 - **Epochs.** On each candidate emission (a data epoch), the operator reads `TimeProvider.GetUtcNow()`, calls
-  `evaluate` with the latest candidates and emits the result. It reads the clock again and arms a one-shot
-  `TimeProvider.CreateTimer` for `NextBoundary`; null arms nothing, and a boundary that passed while it evaluated is
+  `evaluate` with the latest candidates, reads the clock again, arms a one-shot `TimeProvider.CreateTimer` for
+  `NextBoundary` and emits the result; null arms nothing, and a boundary that passed while it evaluated is
   evaluated again at once. When the timer fires (a clock epoch), it reads the clock again. If the instant
   is still before the boundary (early fire or the clock moved back), it re-arms and emits nothing. Otherwise it
   evaluates the last candidates at that instant, which is at least the boundary and is the current instant after a

@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Disposables;
 using System.Reactive.Subjects;
+using System.Runtime.ExceptionServices;
 
 namespace Cratis.Arc.Calendar;
 
@@ -106,24 +107,27 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
         Drain();
     }
 
+    /// <summary>
+    /// Runs queued inputs until the queue is empty. An input that throws (an observer failing, as Rx lets observer
+    /// exceptions reach the producer) does not stop the inputs queued behind it, so a queued end still releases the timer,
+    /// the candidates and the cancellation. The first exception is rethrown to the caller once the queue is empty.
+    /// </summary>
     void Drain()
     {
-        try
+        ExceptionDispatchInfo? failure = null;
+        while (Take() is { } input)
         {
-            while (Take() is { } input)
+            try
             {
                 input();
             }
-        }
-        catch
-        {
-            lock (_inputs)
+            catch (Exception ex)
             {
-                _draining = false;
+                failure ??= ExceptionDispatchInfo.Capture(ex);
             }
-
-            throw;
         }
+
+        failure?.Throw();
     }
 
     Action? Take()
@@ -218,8 +222,8 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
             return;
         }
 
-        Emit(evaluation.Result);
         Schedule(evaluation.NextBoundary, now);
+        Emit(evaluation.Result);
     }
 
     ClockEvaluation<TResult>? TryEvaluate(DateTimeOffset now)
@@ -255,7 +259,8 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
 
     /// <summary>
     /// Arms the timer for the boundary of an evaluation at <paramref name="evaluatedAt"/>. The clock is read again because
-    /// evaluating and emitting take time: a boundary that passed meanwhile is caught up at once instead of by a timer.
+    /// evaluating takes time: a boundary that passed meanwhile is caught up at once instead of by a timer. It runs before the
+    /// emission, so an observer that throws cannot leave the next boundary unarmed.
     /// </summary>
     /// <param name="boundary">The next boundary the evaluation stated, or <see langword="null"/> when there is none.</param>
     /// <param name="evaluatedAt">The instant the evaluation ran at.</param>
