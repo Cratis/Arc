@@ -6,6 +6,7 @@ using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Cratis.Metrics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -47,6 +48,23 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Adds the process-wide <see cref="IMongoDBWatcher"/> that observable MongoDB queries share their change streams
+    /// through, without the rest of the MongoDB configuration.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to add the watcher to.</param>
+    /// <returns><see cref="IServiceCollection"/> for building continuation.</returns>
+    /// <remarks>
+    /// For a library that brings its own <see cref="IMongoDatabase"/> and observes its collections with
+    /// <c>Observe</c>: each collection is watched on its own client, one change stream per database per deployment.
+    /// <see cref="AddCratisMongoDB"/> adds the same watcher, so calling both registers it once.
+    /// </remarks>
+    public static IServiceCollection AddMongoDBWatcher(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IMongoDBWatcher, MongoDBWatcher>();
+        return services;
+    }
+
     static void ConfigureNamingPolicy(MongoDBBuilder mongoDBBuilder)
     {
         if (mongoDBBuilder.NamingPolicy is not null)
@@ -81,7 +99,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(typeof(IMongoServerResolver), mongoDBBuilder.ServerResolverType);
         services.AddSingleton(typeof(IMongoDatabaseNameResolver), mongoDBBuilder.DatabaseNameResolverType);
         services.AddSingleton<IMongoDBClientFactory, MongoDBClientFactory>();
-        services.AddSingleton<IMongoDBWatcher, MongoDBWatcher>();
+        services.AddMongoDBWatcher();
         services.AddConnectionResolution();
         services.AddSingleton<IMongoDBConnections, MongoDBConnections>();
 

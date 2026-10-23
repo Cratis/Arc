@@ -19,6 +19,7 @@ public class an_observed_collection : Specification
     protected IMongoCollection<ObservedDocument> _collection;
     protected ControlledDatabaseChanges _databaseChanges;
     protected IMongoDBWatcher _watcher;
+    protected IMongoDatabase _database;
     protected List<ObservedDocument> _documents;
     protected TaskCompletionSource _initialQueryGate;
     protected QueryContext _queryContext;
@@ -33,8 +34,10 @@ public class an_observed_collection : Specification
         _documents = [new(Guid.NewGuid(), "First"), new(Guid.NewGuid(), "Second")];
         _initialQueryGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _databaseChanges = new();
+        _database = Substitute.For<IMongoDatabase>();
+        _database.DatabaseNamespace.Returns(new DatabaseNamespace(DatabaseName));
         _watcher = Substitute.For<IMongoDBWatcher>();
-        _watcher.GetChanges(DatabaseName).Returns(_databaseChanges);
+        _watcher.GetChanges(_database).Returns(_databaseChanges);
 
         var queryContextManager = Substitute.For<IQueryContextManager>();
         _queryContext = new QueryContext("ObservedDocuments", CorrelationId.New(), Paging.NotPaged, Sorting.None);
@@ -48,9 +51,7 @@ public class an_observed_collection : Specification
 
         _collection = Substitute.For<IMongoCollection<ObservedDocument>>();
         _collection.CollectionNamespace.Returns(new CollectionNamespace(DatabaseName, CollectionName));
-        var database = Substitute.For<IMongoDatabase>();
-        database.DatabaseNamespace.Returns(new DatabaseNamespace(DatabaseName));
-        _collection.Database.Returns(database);
+        _collection.Database.Returns(_database);
         _collection.Settings.Returns(new MongoCollectionSettings());
 
         // Needed to render a real filter expression (rather than the trivial "_ => true" default) into the
