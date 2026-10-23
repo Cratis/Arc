@@ -169,8 +169,9 @@ DateTimeOffset NextLocalDateChange(TimeZoneInfo zone, DateTimeOffset instant);
   code observes the candidate set with only non-clock filters and applies the clock predicate in `evaluate`. Chronicle
   does not change.
 - **Context and lifetime.** `ClockBoundaryContext` carries the tenant, the zone resolved at subscription and the
-  cancellation token. The operator begins `ITenantScope` around `evaluate`, because timer callbacks carry no ambient
-  context. It serializes data and clock epochs so `evaluate` never runs concurrently. It disposes its timer when the
+  cancellation token. The operator begins `ITenantScope` around `evaluate` explicitly. `TimeProvider.CreateTimer`
+  captures the `ExecutionContext` of whichever epoch armed the timer, so relying on it would make the tenant depend
+  on that call path instead of on the subscription. It serializes data and clock epochs so `evaluate` never runs concurrently. It disposes its timer when the
   subscription ends, errors or completes. Snapshots arm no timer.
 - **Tenants.** Each subscription arms its own timers in its own tenant's zone. A shared per-zone ticker is deferred
   until measurements show a need.
