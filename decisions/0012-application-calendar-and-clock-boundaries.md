@@ -125,8 +125,11 @@ DateTimeOffset NextLocalDateChange(TimeZoneInfo zone, DateTimeOffset instant);
 ```
 
 - **Result shape.** The operator returns `ISubject<TResult>`, a shape that subscriptions already stream
-  (`IsStreamingResult`), so stream admission and the subscription path do not change. Its observer side forwards to
-  the candidate subject. A transport spec subscribes to a query that returns the operator
+  (`IsStreamingResult`), so stream admission and the subscription path do not change. Its observer side does not forward to the
+  candidates, because a `TResult` cannot become a `TSource`: `OnNext` from outside throws `NotSupportedException`,
+  while `OnError` and `OnCompleted` terminate the output stream, cancel the boundary timer and dispose the candidate
+  subscription. Arc's transports call `Subject.OnError` when a push fails
+  (`Source/DotNET/Arc.Core/Queries/ClientObservable.cs:192,208`), so terminal calls must stay supported. A transport spec subscribes to a query that returns the operator
   over each Arc transport: WebSocket and server-sent events
   (`ObservableQueryDemultiplexer.WebSocket.cs`, `ObservableQueryDemultiplexer.Sse.cs` in `Source/DotNET/Arc.Core/Queries`). It
   asserts that a clock epoch arrives as a stream emission, not as a one-off snapshot.
