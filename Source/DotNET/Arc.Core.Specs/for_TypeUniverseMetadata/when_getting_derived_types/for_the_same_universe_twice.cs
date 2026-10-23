@@ -19,8 +19,8 @@ public class for_the_same_universe_twice : Specification
 
     void Because()
     {
-        _first = TypeUniverseMetadata.DerivedTypesFor(_types);
-        _second = TypeUniverseMetadata.DerivedTypesFor(_types);
+        _first = DerivedTypes.For(_types);
+        _second = DerivedTypes.For(_types);
     }
 
     [Fact] void should_reuse_the_derived_types() => _second.ShouldBeSame(_first);
