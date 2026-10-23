@@ -1,0 +1,19 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+name: Broken fixture
+on:
+  workflow_call:
+    inputs:
+      declared:
+        type: string
+concurrency:
+  group: fixture
+  invalid-key: true
+jobs:
+  check:
+    needs: missing-job
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fixture
+        env:
+          UNDEFINED: ${{ inputs.nope }}
