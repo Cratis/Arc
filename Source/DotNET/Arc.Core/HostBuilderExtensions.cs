@@ -3,6 +3,7 @@
 
 using System.Diagnostics.Metrics;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Calendar;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
@@ -91,6 +92,7 @@ public static class HostBuilderExtensions
         services.TryAddSingleton<IOperationContextAccessor, OperationContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, IntrospectionOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, CalendarOptionsValidator>());
 
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());

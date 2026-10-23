@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
@@ -230,6 +231,35 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     {
         _identityProperties.Clear();
         _overridesEquality.Clear();
+    }
+
+    /// <summary>
+    /// Gets whether two results of a clock-dependent evaluation are equivalent.
+    /// </summary>
+    /// <param name="previous">The previous result.</param>
+    /// <param name="current">The current result.</param>
+    /// <returns>True when the two are equivalent.</returns>
+    /// <remarks>
+    /// Collections are compared positionally, item by item, so a reorder is a change. Items and any other result
+    /// follow the identity-then-JSON rule of <see cref="AreEquivalent(object, object)"/>.
+    /// </remarks>
+    internal bool AreEquivalentResults(object? previous, object? current)
+    {
+        if (previous is null || current is null)
+        {
+            return previous is null && current is null;
+        }
+
+        if (previous is IEnumerable previousItems and not string
+            && current is IEnumerable currentItems and not string)
+        {
+            var previousList = previousItems.Cast<object?>().ToList();
+            var currentList = currentItems.Cast<object?>().ToList();
+            return previousList.Count == currentList.Count
+                && previousList.Zip(currentList).All(pair => AreEquivalentResults(pair.First, pair.Second));
+        }
+
+        return AreEquivalent(previous, current);
     }
 
     /// <summary>
