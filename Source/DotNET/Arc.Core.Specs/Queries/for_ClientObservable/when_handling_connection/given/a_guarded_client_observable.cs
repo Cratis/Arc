@@ -23,6 +23,8 @@ public class a_guarded_client_observable : Specification
     protected ClaimsPrincipal _principal;
     protected QueryContext _queryContext;
     protected ClientObservable<string> _observable;
+    protected IWebSocketConnectionHandler _webSocketConnectionHandler;
+    protected ILogger<ClientObservable<string>> _logger;
 
     /// <summary>
     /// The verdict for an emission. Assign in a spec's own Establish — it is read when the emission happens.
@@ -51,8 +53,8 @@ public class a_guarded_client_observable : Specification
         _context.RequestServices.Returns(Substitute.For<IServiceProvider>());
         _context.User.Returns(_principal);
 
-        var webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
-        webSocketConnectionHandler
+        _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
+        _webSocketConnectionHandler
             .HandleIncomingMessages(Arg.Any<IWebSocket>(), Arg.Any<SemaphoreSlim>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
@@ -60,7 +62,7 @@ public class a_guarded_client_observable : Specification
                 _incomingStarted.TrySetResult();
                 return _incomingCompleted.Task;
             });
-        webSocketConnectionHandler
+        _webSocketConnectionHandler
             .SendMessage(Arg.Any<IWebSocket>(), Arg.Any<QueryResult>(), Arg.Any<SemaphoreSlim>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
@@ -86,15 +88,17 @@ public class a_guarded_client_observable : Specification
         var hostApplicationLifetime = Substitute.For<IHostApplicationLifetime>();
         hostApplicationLifetime.ApplicationStopping.Returns(CancellationToken.None);
 
+        _logger = Substitute.For<ILogger<ClientObservable<string>>>();
+        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         _observable = new ClientObservable<string>(
             _queryContext,
             _subject,
             readModelInterceptors,
             Substitute.For<IHttpRequestContextAccessor>(),
-            webSocketConnectionHandler,
+            _webSocketConnectionHandler,
             hostApplicationLifetime,
             _emissionGuards,
-            Substitute.For<ILogger<ClientObservable<string>>>());
+            _logger);
     }
 
     protected bool ServerEndedTheConnection => _incomingCompleted.Task.IsCompleted;
