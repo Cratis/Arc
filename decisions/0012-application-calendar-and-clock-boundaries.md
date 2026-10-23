@@ -1,8 +1,10 @@
 ---
 id: 0012-application-calendar-and-clock-boundaries
 title: Resolve an application calendar on the server and re-evaluate live queries at clock boundaries
-status: proposed
+status: accepted
 stage: none
+decided: 2026-10-23
+decider: woksin (via L0)
 class: contract
 reversibility: costly
 applies-to:
@@ -17,7 +19,7 @@ applies-to:
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Proposed on 2026-10-23. Acceptance and a named human decider remain pending.
+Accepted on 2026-10-23 by woksin (via L0, Q-25), with every recommendation under *Open questions for the decider* taken. Item 5 (an advanceable clock for query scenarios) is a follow-on outside the first increment.
 
 ## Context
 
