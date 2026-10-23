@@ -76,6 +76,8 @@ ISubject<IEnumerable<Item>> answer = candidates.ReevaluateAtBoundaries(
 
 `LocalDateChanges.NextLocalDateChange` handles a local midnight, a gap that skips midnight, a wholly skipped date, and a transition that moves the local date back.
 
+The next boundary of an evaluation must be after `reading.Instant`, or `null` when the result cannot change because of the clock. A boundary that is not after it ends the subject with a `ClockBoundaryIsNotInTheFuture` error instead of re-evaluating in a loop.
+
 An evaluation whose result equals the last emitted result is not emitted, but only inside this operator. The first evaluation is always emitted. Collections are compared positionally, so a reorder is a change. Evaluations run one at a time inside the tenant of the context.
 
 The subject connects on its first subscription. It releases its timer and its subscription to the candidates when the last subscriber leaves, the context's token is cancelled, or the stream errors or completes. Calling `OnNext` on it is not supported.

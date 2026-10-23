@@ -223,6 +223,11 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
         }
 
         Schedule(evaluation.NextBoundary, now);
+        if (_ended)
+        {
+            return;
+        }
+
         Emit(evaluation.Result);
     }
 
@@ -270,6 +275,12 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
         if (boundary is not DateTimeOffset next)
         {
             _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        if (next <= evaluatedAt)
+        {
+            End(new ClockBoundaryIsNotInTheFuture(next, evaluatedAt), true);
             return;
         }
 
