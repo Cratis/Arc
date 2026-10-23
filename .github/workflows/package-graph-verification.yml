@@ -1,12 +1,32 @@
 name: Package Graph Verification
 
+# Pull requests run this only when they change what gets packed: project files, build and package props, the
+# generators, analyzers and code fixes the packed consumers exercise, the meta-packages and the embedded viewer.
+# Every merge to main runs it in full, so a package-graph break from any other change shows up right after it lands.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "Source/DotNET/**"
+      - "Directory.Build.props"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - "stylecop.json"
+      - "Arc.slnx"
+      - ".github/workflows/package-graph-verification.yml"
   pull_request:
     # Draft PRs wait until they are marked ready for review.
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
-      - "Source/DotNET/**"
+      - "Source/DotNET/**/*.csproj"
+      - "Source/DotNET/**/*.props"
+      - "Source/DotNET/**/*.targets"
+      - "Source/DotNET/*Generators*/**"
+      - "Source/DotNET/*CodeAnalysis*/**"
+      - "Source/DotNET/Cratis/**"
+      - "Source/DotNET/Cratis.Testing/**"
+      - "Source/DotNET/Screenplay.Embedded/**"
       - "Directory.Build.props"
       - "Directory.Packages*.props"
       - "global.json"

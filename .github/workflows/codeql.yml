@@ -21,16 +21,32 @@ env:
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
 
+# Every merge to main is scanned, plus a weekly full scan, so alerts on any code surface right after it lands.
+# Pull requests are scanned only when they touch authentication, authorization, identity or tenancy code (or this
+# workflow): that is where a finding should block before merge, and it saves ~7 runner-minutes on every other PR.
 on:
-  pull_request:
-    # Draft PRs wait until they are marked ready for review.
-    types: [opened, synchronize, reopened, ready_for_review]
+  push:
     branches: [ "main" ]
-    # Documentation-only pull requests have nothing for CodeQL to analyze.
     paths-ignore:
       - "Documentation/**"
       - "**.md"
       - "**.mdx"
+  pull_request:
+    # Draft PRs wait until they are marked ready for review.
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ "main" ]
+    paths:
+      - "Source/DotNET/Arc.Core/Authentication/**"
+      - "Source/DotNET/Arc.Core/Authorization/**"
+      - "Source/DotNET/Arc.Core/Identity/**"
+      - "Source/DotNET/Arc.Core/Tenancy/**"
+      - "Source/DotNET/Arc/Authorization/**"
+      - "Source/DotNET/Arc/Identity/**"
+      - "Source/DotNET/Chronicle/Identities/**"
+      - "Source/DotNET/Chronicle/Tenancy/**"
+      - "Source/JavaScript/Arc/identity/**"
+      - "Source/JavaScript/Arc.React/identity/**"
+      - ".github/workflows/codeql.yml"
   schedule:
     - cron: '43 2 * * 0'
 
