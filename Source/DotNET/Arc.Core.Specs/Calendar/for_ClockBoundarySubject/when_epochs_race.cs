@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Calendar.for_ClockBoundarySubject;
 
 /// <summary>
-/// A candidate arriving from another thread while a timer epoch evaluates waits for it; evaluations never overlap.
+/// A candidate arriving from another thread while a timer epoch evaluates is queued behind it; evaluations never overlap.
 /// </summary>
 public class when_epochs_race : given.a_clock_boundary_subject
 {

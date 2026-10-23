@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 
@@ -11,6 +12,14 @@ namespace Cratis.Arc.Calendar;
 /// </summary>
 /// <typeparam name="TSource">The type of the candidates.</typeparam>
 /// <typeparam name="TResult">The type of the answer.</typeparam>
+/// <remarks>
+/// Every input (a candidate, a terminal call, a timer fire, a subscription, an unsubscription, a cancellation and disposal)
+/// is queued and run by one drainer at a time, on the thread of whichever input found the queue idle. No lock is held while
+/// an input runs, so an input raised from inside another (an observer reacting to an emission, a candidate pushed while
+/// subscribing, a callback raised while disposing) is queued behind it, never run nested and never waited for. All state
+/// below the queue is touched only by the drainer.
+/// </remarks>
+[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "The timer and the candidate subscription are disposed by End, which Dispose queues to the drainer that owns them.")]
 sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDisposable
 {
     /// <summary>
@@ -21,21 +30,19 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
     readonly ISubject<TSource> _candidates;
     readonly ClockBoundaryContext _context;
     readonly Func<TSource, ClockReading, ClockEvaluation<TResult>> _evaluate;
-    readonly Subject<TResult> _output = new();
-    readonly object _gate = new();
-    IDisposable? _candidateSubscription;
+    readonly Queue<Action> _inputs = new();
+    readonly List<Subscription> _subscriptions = [];
+    readonly SingleAssignmentDisposable _candidateSubscription = new();
+    bool _draining;
     CancellationTokenRegistration _cancellation;
-    CancellationTokenRegistration _endedCancellation;
     ITimer? _timer;
-    DateTimeOffset _boundary;
+    DateTimeOffset? _boundary;
     TSource? _latest;
     TResult? _last;
-    bool _hasLatest;
+    Exception? _error;
     bool _hasLast;
     bool _connected;
     bool _ended;
-    bool _terminated;
-    int _subscribers;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ClockBoundarySubject{TSource, TResult}"/> class.
@@ -56,120 +63,235 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
     /// <inheritdoc/>
     public IDisposable Subscribe(IObserver<TResult> observer)
     {
-        try
-        {
-            lock (_gate)
-            {
-                return SubscribeLocked(observer);
-            }
-        }
-        finally
-        {
-            ReleaseCancellation();
-        }
+        var subscription = new Subscription(this, observer);
+        Post(() => Join(subscription));
+        return subscription;
     }
 
     /// <inheritdoc/>
     public void OnNext(TResult value) => throw new NotSupportedException("The values of a clock-boundary subject come from its candidates and its clock.");
 
     /// <inheritdoc/>
-    public void OnError(Exception error) => End(error, true);
+    public void OnError(Exception error) => Post(() => End(error, true));
 
     /// <inheritdoc/>
-    public void OnCompleted() => End(null, true);
+    public void OnCompleted() => Post(() => End(null, true));
 
     /// <inheritdoc/>
-    public void Dispose()
+    public void Dispose() => Post(() => End(null, false));
+
+    static TimeSpan Clamp(TimeSpan due)
     {
-        End(null, false);
-        lock (_gate)
+        if (due < TimeSpan.Zero)
         {
-            _output.Dispose();
+            return TimeSpan.Zero;
         }
+
+        return due > MaxTimerDueTime ? MaxTimerDueTime : due;
     }
 
-    IDisposable SubscribeLocked(IObserver<TResult> observer)
+    void Post(Action input)
     {
-        if (_ended)
+        lock (_inputs)
         {
-            if (_terminated)
+            _inputs.Enqueue(input);
+            if (_draining)
             {
-                return _output.Subscribe(observer);
+                return;
             }
 
-            observer.OnCompleted();
-            return Disposable.Empty;
+            _draining = true;
         }
 
-        var subscription = _output.Subscribe(observer);
-        _subscribers++;
-        if (!_connected)
-        {
-            _connected = true;
-            _cancellation = _context.CancellationToken.Register(() => End(null, false));
-            if (_ended)
-            {
-                subscription.Dispose();
-                return Disposable.Empty;
-            }
-
-            _candidateSubscription = _candidates.Subscribe(new CandidateObserver(this));
-        }
-
-        return Disposable.Create(() => Unsubscribe(subscription));
+        Drain();
     }
 
-    void OnCandidate(TSource value)
+    void Drain()
     {
         try
         {
-            lock (_gate)
+            while (Take() is { } input)
             {
-                if (_ended)
-                {
-                    return;
-                }
-
-                _latest = value;
-                _hasLatest = true;
-                Evaluate();
+                input();
             }
         }
-        finally
+        catch
         {
-            ReleaseCancellation();
+            lock (_inputs)
+            {
+                _draining = false;
+            }
+
+            throw;
         }
     }
 
-    void Unsubscribe(IDisposable subscription)
+    Action? Take()
     {
-        var last = false;
-        lock (_gate)
+        lock (_inputs)
         {
-            subscription.Dispose();
-            if (_subscribers > 0 && --_subscribers == 0)
-            {
-                last = true;
-            }
+            _draining = _inputs.TryDequeue(out var input);
+            return input;
+        }
+    }
+
+    void Join(Subscription subscription)
+    {
+        if (subscription.IsDisposed)
+        {
+            return;
         }
 
-        if (last)
+        if (_ended)
+        {
+            subscription.End(_error);
+            return;
+        }
+
+        _subscriptions.Add(subscription);
+        if (!_connected)
+        {
+            Connect();
+        }
+    }
+
+    void Leave(Subscription subscription)
+    {
+        if (_subscriptions.Remove(subscription) && _subscriptions.Count == 0)
         {
             End(null, false);
         }
     }
 
-    void End(Exception? error, bool forward)
+    void Connect()
     {
-        lock (_gate)
+        _connected = true;
+        _cancellation = _context.CancellationToken.Register(() => Post(() => End(null, false)));
+        if (_context.CancellationToken.IsCancellationRequested)
         {
-            EndLocked(error, forward);
+            return;
         }
 
-        ReleaseCancellation();
+        try
+        {
+            _candidateSubscription.Disposable = _candidates.Subscribe(new CandidateObserver(this));
+        }
+        catch (Exception ex)
+        {
+            End(ex, true);
+        }
     }
 
-    void EndLocked(Exception? error, bool forward)
+    void Accept(TSource value)
+    {
+        if (_ended)
+        {
+            return;
+        }
+
+        _latest = value;
+        Evaluate(_context.TimeProvider.GetUtcNow());
+    }
+
+    void OnClockEpoch()
+    {
+        if (_ended || _boundary is not DateTimeOffset boundary)
+        {
+            return;
+        }
+
+        var now = _context.TimeProvider.GetUtcNow();
+        if (now < boundary)
+        {
+            ArmTimer(boundary - now);
+            return;
+        }
+
+        Evaluate(now);
+    }
+
+    void Evaluate(DateTimeOffset now)
+    {
+        var evaluation = TryEvaluate(now);
+        if (evaluation is null)
+        {
+            return;
+        }
+
+        Emit(evaluation.Result);
+        Schedule(evaluation.NextBoundary, now);
+    }
+
+    ClockEvaluation<TResult>? TryEvaluate(DateTimeOffset now)
+    {
+        try
+        {
+            using (_context.TenantScope.Begin(_context.Tenant))
+            {
+                return _evaluate(_latest!, new ClockReading(now, _context.Zone));
+            }
+        }
+        catch (Exception ex)
+        {
+            End(ex, true);
+            return null;
+        }
+    }
+
+    void Emit(TResult result)
+    {
+        if (_hasLast && _context.ChangeSetComputor.AreEquivalentResults(_last, result))
+        {
+            return;
+        }
+
+        _last = result;
+        _hasLast = true;
+        foreach (var subscription in _subscriptions)
+        {
+            subscription.Next(result);
+        }
+    }
+
+    /// <summary>
+    /// Arms the timer for the boundary of an evaluation at <paramref name="evaluatedAt"/>. The clock is read again because
+    /// evaluating and emitting take time: a boundary that passed meanwhile is caught up at once instead of by a timer.
+    /// </summary>
+    /// <param name="boundary">The next boundary the evaluation stated, or <see langword="null"/> when there is none.</param>
+    /// <param name="evaluatedAt">The instant the evaluation ran at.</param>
+    void Schedule(DateTimeOffset? boundary, DateTimeOffset evaluatedAt)
+    {
+        _boundary = boundary;
+        if (boundary is not DateTimeOffset next)
+        {
+            _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        var now = _context.TimeProvider.GetUtcNow();
+        if (next > evaluatedAt && next <= now)
+        {
+            _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            Post(OnClockEpoch);
+            return;
+        }
+
+        ArmTimer(next - now);
+    }
+
+    void ArmTimer(TimeSpan due)
+    {
+        due = Clamp(due);
+        if (_timer is null)
+        {
+            _timer = _context.TimeProvider.CreateTimer(_ => Post(OnClockEpoch), null, due, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        _timer.Change(due, Timeout.InfiniteTimeSpan);
+    }
+
+    void End(Exception? error, bool forward)
     {
         if (_ended)
         {
@@ -177,137 +299,65 @@ sealed class ClockBoundarySubject<TSource, TResult> : ISubject<TResult>, IDispos
         }
 
         _ended = true;
+        _boundary = null;
+        _error = forward ? error : null;
+        Subscription[] subscriptions = forward ? [.. _subscriptions] : [];
+        _subscriptions.Clear();
         _timer?.Dispose();
         _timer = null;
-        _candidateSubscription?.Dispose();
-        _candidateSubscription = null;
-        _endedCancellation = _cancellation;
-        _cancellation = default;
-        if (!forward)
+        _candidateSubscription.Dispose();
+        _cancellation.Dispose();
+        foreach (var subscription in subscriptions)
         {
-            return;
-        }
-
-        _terminated = true;
-        if (error is null)
-        {
-            _output.OnCompleted();
-        }
-        else
-        {
-            _output.OnError(error);
+            subscription.End(error);
         }
     }
 
-    /// <summary>
-    /// Disposes the cancellation registration of an ended subject. Disposing a registration waits for a running callback,
-    /// which takes the gate, so it is done outside the gate.
-    /// </summary>
-    void ReleaseCancellation()
+    sealed class Subscription(ClockBoundarySubject<TSource, TResult> owner, IObserver<TResult> observer) : IDisposable
     {
-        CancellationTokenRegistration registration;
-        lock (_gate)
-        {
-            registration = _endedCancellation;
-            _endedCancellation = default;
-        }
+        int _disposed;
 
-        registration.Dispose();
-    }
+        public bool IsDisposed => Volatile.Read(ref _disposed) == 1;
 
-    void Evaluate()
-    {
-        var now = _context.TimeProvider.GetUtcNow();
-        ClockEvaluation<TResult> evaluation;
-        try
+        public void Next(TResult value)
         {
-            using (_context.TenantScope.Begin(_context.Tenant))
+            if (!IsDisposed)
             {
-                evaluation = _evaluate(_latest!, new ClockReading(now, _context.Zone));
+                observer.OnNext(value);
             }
         }
-        catch (Exception ex)
-        {
-            EndLocked(ex, true);
-            return;
-        }
 
-        if (!_hasLast || !_context.ChangeSetComputor.AreEquivalentResults(_last, evaluation.Result))
+        public void End(Exception? error)
         {
-            _last = evaluation.Result;
-            _hasLast = true;
-            _output.OnNext(evaluation.Result);
-        }
-
-        if (!_ended)
-        {
-            Arm(evaluation.NextBoundary, now);
-        }
-    }
-
-    void Arm(DateTimeOffset? boundary, DateTimeOffset now)
-    {
-        if (boundary is null)
-        {
-            _timer?.Dispose();
-            _timer = null;
-            return;
-        }
-
-        _boundary = boundary.Value;
-        var due = _boundary - now;
-        if (due < TimeSpan.Zero)
-        {
-            due = TimeSpan.Zero;
-        }
-        else if (due > MaxTimerDueTime)
-        {
-            due = MaxTimerDueTime;
-        }
-
-        if (_timer is null)
-        {
-            _timer = _context.TimeProvider.CreateTimer(OnTimer, null, due, Timeout.InfiniteTimeSpan);
-        }
-        else
-        {
-            _timer.Change(due, Timeout.InfiniteTimeSpan);
-        }
-    }
-
-    void OnTimer(object? state)
-    {
-        try
-        {
-            lock (_gate)
+            if (IsDisposed)
             {
-                if (_ended || !_hasLatest)
-                {
-                    return;
-                }
-
-                var now = _context.TimeProvider.GetUtcNow();
-                if (now < _boundary)
-                {
-                    Arm(_boundary, now);
-                    return;
-                }
-
-                Evaluate();
+                return;
             }
+
+            if (error is null)
+            {
+                observer.OnCompleted();
+                return;
+            }
+
+            observer.OnError(error);
         }
-        finally
+
+        public void Dispose()
         {
-            ReleaseCancellation();
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                owner.Post(() => owner.Leave(this));
+            }
         }
     }
 
     sealed class CandidateObserver(ClockBoundarySubject<TSource, TResult> owner) : IObserver<TSource>
     {
-        public void OnNext(TSource value) => owner.OnCandidate(value);
+        public void OnNext(TSource value) => owner.Post(() => owner.Accept(value));
 
-        public void OnError(Exception error) => owner.End(error, true);
+        public void OnError(Exception error) => owner.Post(() => owner.End(error, true));
 
-        public void OnCompleted() => owner.End(null, true);
+        public void OnCompleted() => owner.Post(() => owner.End(null, true));
     }
 }

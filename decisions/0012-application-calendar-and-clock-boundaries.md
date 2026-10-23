@@ -137,8 +137,9 @@ DateTimeOffset NextLocalDateChange(TimeZoneInfo zone, DateTimeOffset instant);
   asserts that a clock epoch arrives as a stream emission, not as a one-off snapshot.
 
 - **Epochs.** On each candidate emission (a data epoch), the operator reads `TimeProvider.GetUtcNow()`, calls
-  `evaluate` with the latest candidates and emits the result. It arms a one-shot `TimeProvider.CreateTimer` for
-  `NextBoundary`; null arms nothing. When the timer fires (a clock epoch), it reads the clock again. If the instant
+  `evaluate` with the latest candidates and emits the result. It reads the clock again and arms a one-shot
+  `TimeProvider.CreateTimer` for `NextBoundary`; null arms nothing, and a boundary that passed while it evaluated is
+  evaluated again at once. When the timer fires (a clock epoch), it reads the clock again. If the instant
   is still before the boundary (early fire or the clock moved back), it re-arms and emits nothing. Otherwise it
   evaluates the last candidates at that instant, which is at least the boundary and is the current instant after a
   sleep, and arms the next boundary. Due times beyond the timer's maximum are re-armed in steps.
@@ -173,8 +174,12 @@ DateTimeOffset NextLocalDateChange(TimeZoneInfo zone, DateTimeOffset instant);
 - **Context and lifetime.** `ClockBoundaryContext` carries the tenant, the zone resolved at subscription and the
   cancellation token. The operator begins `ITenantScope` around `evaluate` explicitly. `TimeProvider.CreateTimer`
   captures the `ExecutionContext` of whichever epoch armed the timer, so relying on it would make the tenant depend
-  on that call path instead of on the subscription. It serializes data and clock epochs so `evaluate` never runs concurrently. It disposes its timer when the
-  subscription ends, errors or completes. Snapshots arm no timer.
+  on that call path instead of on the subscription. It runs every input (data and clock epochs, subscriptions,
+  unsubscriptions, cancellation and termination) one at a time through a single queue, so `evaluate` never runs
+  concurrently and an input raised during another, such as an observer pushing a candidate, waits behind it instead
+  of running nested. It holds no lock while it runs an input, so it never waits for a callback it raised. It disposes
+  its timer and its candidate subscription when the last subscription ends, the context is cancelled, or the stream
+  errors or completes. Snapshots arm no timer.
 - **Tenants.** Each subscription arms its own timers in its own tenant's zone. A shared per-zone ticker is deferred
   until measurements show a need.
 - **Calendar changes (the live record's item 9).** The zone is fixed for the subscription's lifetime. A changed

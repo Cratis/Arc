@@ -66,9 +66,11 @@ public class a_clock_boundary_subject : Specification
         _candidates.Dispose();
     }
 
-    protected void Build(TimeZoneInfo zone) =>
+    protected void Build(TimeZoneInfo zone) => Build(_candidates, zone);
+
+    protected void Build(ISubject<int> candidates, TimeZoneInfo zone) =>
         _subject = new ClockBoundarySubject<int, int>(
-            _candidates,
+            candidates,
             new ClockBoundaryContext(Tenant, zone, _time, _tenantScope, new ChangeSetComputor(new JsonSerializerOptions()), _cancellation.Token),
             Evaluate);
 
