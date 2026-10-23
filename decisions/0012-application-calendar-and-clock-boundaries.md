@@ -63,7 +63,13 @@ Checked on `origin/main` at `8330cfdbc62d4dcd98f8dd90a91a8df508cd942d`:
   (`Source/DotNET/MongoDB/MongoCollectionExtensions.cs:55-57`). Midnight alone causes no emission.
 - **Testing.** `ScenarioTimeProvider` fixes `GetUtcNow` only; timers stay real
   (`Source/DotNET/Testing/Commands/ScenarioTimeProvider.cs:9-17`;
-  `Source/DotNET/Testing/Commands/CommandScenarioGeneratedValueExtensions.cs:56`). No `Microsoft.Extensions.TimeProvider.Testing` package is
+  `Source/DotNET/Testing/Commands/CommandScenarioGeneratedValueExtensions.cs:56`).
+- **Streaming shapes.** A subscription streams only when the query result implements `ISubject<>` or
+  `IAsyncEnumerable<>`. Any other result, a plain `IObservable<>` included, is delivered once as a snapshot
+  (`Source/DotNET/Arc.Core/Queries/ObservableQueryDemultiplexer.Subscriptions.cs:106-108`, `:339-343`).
+- **Local dates can go back.** In `America/St_Johns` on 1987-10-25 the local date becomes Oct 25 at 02:30Z, returns
+  to Oct 24 at 02:31Z (local 23:01, offset −02:30 to −03:30), and becomes Oct 25 again at 03:30Z (checked with
+  Python `zoneinfo`). The local date can therefore change more than once in one night, and backwards. No `Microsoft.Extensions.TimeProvider.Testing` package is
   referenced (`Directory.Packages.props`).
 
 ## Decision
@@ -111,12 +117,19 @@ exception; it is never replaced.
 Arc provides one `TimeProvider`-driven operator for streaming query results (names not final):
 
 ```csharp
-IObservable<TResult> ReevaluateAtBoundaries<TSource, TResult>(
-    this IObservable<TSource> candidates, ClockBoundaryContext context,
+ISubject<TResult> ReevaluateAtBoundaries<TSource, TResult>(
+    this ISubject<TSource> candidates, ClockBoundaryContext context,
     Func<TSource, ClockReading, ClockEvaluation<TResult>> evaluate);
 record ClockEvaluation<TResult>(TResult Result, DateTimeOffset? NextBoundary);
-DateTimeOffset StartOfNextDate(TimeZoneInfo zone, DateTimeOffset instant);
+DateTimeOffset NextLocalDateChange(TimeZoneInfo zone, DateTimeOffset instant);
 ```
+
+- **Result shape.** The operator returns `ISubject<TResult>`, a shape that subscriptions already stream
+  (`IsStreamingResult`), so stream admission and the subscription path do not change. Its observer side forwards to
+  the candidate subject. A transport spec subscribes to a query that returns the operator
+  over each Arc transport: WebSocket and server-sent events
+  (`ObservableQueryDemultiplexer.WebSocket.cs`, `ObservableQueryDemultiplexer.Sse.cs` in `Source/DotNET/Arc.Core/Queries`). It
+  asserts that a clock epoch arrives as a stream emission, not as a one-off snapshot.
 
 - **Epochs.** On each candidate emission (a data epoch), the operator reads `TimeProvider.GetUtcNow()`, calls
   `evaluate` with the latest candidates and emits the result. It arms a one-shot `TimeProvider.CreateTimer` for
@@ -124,11 +137,25 @@ DateTimeOffset StartOfNextDate(TimeZoneInfo zone, DateTimeOffset instant);
   is still before the boundary (early fire or the clock moved back), it re-arms and emits nothing. Otherwise it
   evaluates the last candidates at that instant, which is at least the boundary and is the current instant after a
   sleep, and arms the next boundary. Due times beyond the timer's maximum are re-armed in steps.
-- **No-op suppression.** A clock epoch whose result equals the last emitted result is not emitted. Equality follows
-  `ChangeSetComputor`'s identity-then-JSON rule (`Source/DotNET/Arc.Core/Queries/ChangeSetComputor.cs:10-27`). Data epochs keep today's behaviour and are always emitted.
-- **`today`.** `StartOfNextDate` returns the first instant at or after the start of the next local date. In a gap it is
-  the first valid instant of that date. If the whole date is skipped, it is the start of the next existing date. In an
-  overlap it is the earliest instant. This is the live record's item 3.
+- **No-op suppression.** Within this operator, an epoch of either kind (data or clock) whose result equals the last
+  emitted result is not emitted. This meets the live record's item 1: "A change set is sent only when the answer
+  changed". Equality follows `ChangeSetComputor`'s identity-then-JSON rule
+  (`Source/DotNET/Arc.Core/Queries/ChangeSetComputor.cs:10-27`). The first evaluation is always emitted. Streams that
+  do not use the operator keep today's behaviour and emit every candidate emission.
+- **`today`.** `NextLocalDateChange` returns the earliest instant strictly after `instant` at which the local date in
+  `zone` differs from the local date at `instant`, forward or backward. Every zone has a next local midnight, so a
+  result always exists. It covers every local-date transition, not just the start of the next
+  date:
+  - a local midnight;
+  - a gap that skips midnight (the first valid instant of the new date);
+  - a wholly skipped date (a jump of more than one date);
+  - an offset transition that moves the local date back across midnight.
+
+  It does this by taking the earlier of the next local midnight after `instant` and the next offset transition of
+  `zone` that changes the local date; transitions that keep the date are stepped over. In the St John's vector the
+  boundaries after 02:00Z are 02:30Z, 02:31Z and 03:30Z, then the next midnight. This tightens the live record's
+  item 3, which schedules only "the start of the next local calendar date" and so would leave the answer wrong from
+  02:31Z to 03:30Z.
 - **`now`.** The operator accepts any next boundary, so next-flip support needs no new primitive. Arc does not ship
   a `now` next-flip helper (the live record's item 4 table) in the first increment. Consumers refuse live `now`
   conditions and serve them as snapshots until it exists.
@@ -168,7 +195,8 @@ defers business scheduling), per-user business zones, Stage and Screenplay rende
   identity. The optional provider keeps tenant zones opt-in.
 - **Zone from request culture, a header or a claim (rejected).** The client would control a server decision, and two
   users would see different "overdue" sets.
-- **NodaTime (rejected).** A new runtime dependency. `TimeZoneInfo` with IANA ids is enough on .NET 6+.
+- **NodaTime (rejected).** A new runtime dependency. `TimeZoneInfo` with IANA ids is enough given the platform
+  prerequisites under Consequences.
 - **Re-run the pipeline at boundaries (rejected).** It repeats binding and authorization, moves `ReceivedAt`,
   re-subscribes storage and resets delta state.
 - **Rx `Observable.Timer` (rejected).** Rx timers run on an `IScheduler`, not the DI `TimeProvider`; bridging them adds
@@ -201,15 +229,18 @@ use hand-written filters that freeze at subscription, as SoloCRM does. Nothing i
 
 Acceptance is required before Screenplay admits the calendar and live records, and before Stage renders against this
 API. Implement in one minor Arc release: options and validator, `IApplicationCalendar`, tenant provider, the operator
-and `StartOfNextDate`, specs, and documentation under `Documentation/backend/csharp/`. This record creates no issue.
+and `NextLocalDateChange`, specs, and documentation under `Documentation/backend/csharp/`. This record creates no issue.
 
 ## Verification
 
 - **Done when:** an invalid, Windows-only or offset zone stops the host; precedence and trusted-source rules hold;
-  `Read` never reads the clock; live subscriptions emit at local date starts and nowhere else, without polling or
-  events; no-op clock epochs are suppressed while data epochs are unchanged; timers are disposed with the subscription.
+  `Read` never reads the clock; live subscriptions re-evaluate at every local-date change and nowhere else, and emit only when the answer
+  changes, without polling or
+  events; unchanged epochs are suppressed only inside the operator; a
+  transport spec shows operator results stream on every transport; timers are disposed with the subscription.
 - **Verify by:** specs with `FakeTimeProvider` for UTC and a non-UTC zone. Cover a midnight in a gap, a wholly skipped
-  date (for example `Pacific/Apia`, 2011-12-30), an ambiguous midnight, early fire with a clock moved back, a sleep
+  date (for example `Pacific/Apia`, 2011-12-30), an ambiguous midnight, the backward date change in `America/St_Johns` on 1987-10-25 (boundaries
+  02:30Z, 02:31Z, 03:30Z), early fire with a clock moved back, a sleep
   across several boundaries, and the timer-maximum step. Also cover tenant scope inside the callback, serialized
   epochs, disposal on cancel, error and complete, a failing tenant provider, and `today ± N` against `now - N days`
   across a DST change. Then run the Arc release build and spec gates, and a Stage and Arc conformance vector per the
@@ -219,6 +250,18 @@ and `StartOfNextDate`, specs, and documentation under `Documentation/backend/csh
 
 The API is additive; applications that use none of it keep their behaviour and emit no new timers. Each live
 clock-dependent subscription holds one timer, and all subscriptions in a zone re-evaluate at the same instant
-(unmeasured). Images without tzdata, or Windows hosts in invariant-globalization mode, cannot resolve IANA ids and
-will fail at start; this is unverified for Cratis images. Tests gain a test-only package. This record ships no API
-and proves no implementation.
+(unmeasured). Tests gain a test-only package. This record ships no API and proves no implementation.
+
+Platform prerequisites, taken from the .NET 10 runtime sources the review cited (`TimeZoneInfo.FullGlobalizationData.cs:16-18`,
+`TimeZoneInfo.cs:654-658`) and not reproduced locally:
+
+- The default `UTC` resolves everywhere, including without tzdata and in invariant-globalization mode.
+- A non-UTC IANA id needs time-zone data. On Linux and macOS that means a tzdata database, which slim or distroless
+  images may lack. On Windows, .NET converts IANA ids through ICU, so hosts that use NLS globalization
+  (`System.Globalization.UseNls`) or invariant mode cannot resolve them.
+- The validator turns a missing prerequisite into a start-time failure that names the id.
+
+Whether Cratis images meet these prerequisites is unverified. Implementation adds a deployment test matrix: UTC and a
+non-UTC IANA id on a Linux image with tzdata, a Linux image without tzdata, a Linux image in invariant mode, Windows
+with ICU and Windows with NLS. It expects success for UTC everywhere, success for the non-UTC id where data is
+present, and a named start-time failure otherwise. The documentation lists the prerequisites.
