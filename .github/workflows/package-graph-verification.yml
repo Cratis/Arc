@@ -24,6 +24,8 @@ on:
       - "Source/DotNET/**/*.targets"
       - "Source/DotNET/*Generators*/**"
       - "Source/DotNET/*CodeAnalysis*/**"
+      # Compiled into the generators and analyzers through linked <Compile> items.
+      - "Source/DotNET/Shared/**"
       - "Source/DotNET/Cratis/**"
       - "Source/DotNET/Cratis.Testing/**"
       - "Source/DotNET/Screenplay.Embedded/**"
