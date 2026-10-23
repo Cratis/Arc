@@ -34,6 +34,9 @@ public class an_observation_with_an_opening_watch : a_server_backed_observation
             });
         var client = Substitute.For<IMongoClient>();
         client.GetDatabase(DatabaseName).Returns(database);
+
+        // The watcher opens a collection's stream with the client its database belongs to.
+        database.Client.Returns(client);
         var factory = Substitute.For<IMongoDBClientFactory>();
         factory.Create().Returns(client);
         var resolver = Substitute.For<IMongoDatabaseNameResolver>();

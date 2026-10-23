@@ -31,7 +31,7 @@ public class and_many_observations_exist : given.an_observed_collection
         Arg.Any<CancellationToken>());
 
     [Fact] void should_ask_the_watcher_for_the_collections_database() =>
-        _watcher.Received(Observations).GetChanges(DatabaseName);
+        _watcher.Received(Observations).GetChanges(_database);
 
     static Task FirstValue(IObservable<object> observable)
     {

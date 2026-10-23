@@ -340,7 +340,7 @@ public static class MongoCollectionExtensions
                 // changes on this task. What is held is collapsed while this task is busy (one change per document,
                 // or one read again), so a slow query cannot make it grow with the write rate.
                 var changes = new PendingChanges(observationContext.Paging.IsPaged);
-                var databaseChanges = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName);
+                var databaseChanges = watcher.GetChanges(collection.Database);
                 using var subscription = databaseChanges.Subscribe(
                     change =>
                     {

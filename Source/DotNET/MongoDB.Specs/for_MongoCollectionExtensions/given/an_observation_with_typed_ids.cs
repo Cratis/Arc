@@ -43,7 +43,7 @@ public sealed class an_observation_with_typed_ids<TId> : IDisposable
 
         // The observation reads the shared database stream through the watcher, so serve it this one.
         var watcher = Substitute.For<IMongoDBWatcher>();
-        watcher.GetChanges(DatabaseName).Returns(_changes);
+        watcher.GetChanges(database).Returns(_changes);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(Internals.ServiceProvider.GetRequiredService<IQueryContextManager>());

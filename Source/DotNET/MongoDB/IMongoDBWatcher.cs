@@ -32,4 +32,17 @@ public interface IMongoDBWatcher
     /// A subscriber sees only changes that arrive after it subscribed.
     /// </remarks>
     IObservable<ChangeStreamDocument<BsonDocument>> GetChanges(string databaseName);
+
+    /// <summary>
+    /// Gets the changes of the shared change stream for a database on the client it belongs to, starting the stream when
+    /// it is not already open.
+    /// </summary>
+    /// <param name="database">The <see cref="IMongoDatabase"/> whose changes to get.</param>
+    /// <returns>A hot <see cref="IObservable{T}"/> of every change in the database, across all of its collections.</returns>
+    /// <remarks>
+    /// The stream is opened with the database's own client, so a database that did not come from the application's
+    /// configured client is watched on the deployment it lives on. Every subscription to the same database on the same
+    /// deployment shares one change stream.
+    /// </remarks>
+    IObservable<ChangeStreamDocument<BsonDocument>> GetChanges(IMongoDatabase database);
 }
