@@ -53,7 +53,7 @@ Checked on `origin/main` at `8330cfdbc62d4dcd98f8dd90a91a8df508cd942d`:
   and subscribes to the returned stream (`:350`); only `ISubject<>` and `IAsyncEnumerable<>` results stream (`:106-108`).
   Every stream emission passes the emission guards (`Source/DotNET/Arc.Core/Queries/ObservableQueryDemultiplexer.Emissions.cs:111-122`) and is
   delivered with its change set; an emission with an empty change set is not dropped (`:85-95`). Ambient
-  `AsyncLocal` context does not flow into emissions, and direct transports do not serialize them
+  `AsyncLocal` context does not flow into emissions
   (`Source/DotNET/Arc.Core/Queries/ObservableQueryEmissionContext.cs:18-26`). `ITenantScope.Begin` selects a tenant
   explicitly (`Source/DotNET/Arc.Core/Tenancy/ITenantScope.cs:9-23`). Nothing in `Source/DotNET` outside specs uses
   `Observable.Interval`, `Observable.Timer`, `PeriodicTimer` or `TimeProvider.CreateTimer`.
@@ -82,7 +82,7 @@ setting the zone in code, which `PostConfigure` applies after configuration bind
 change it. A `configurable` declaration renders the declared default and lets configuration override it.
 
 A start-time validator resolves the id with `TimeZoneInfo.FindSystemTimeZoneById` and requires `HasIanaId`. An unknown
-id, a Windows-only id, or a fixed offset stops the host with a typed exception that names the id. Arc never replaces
+id or a Windows-only id stops the host with a typed exception that names the id. Arc never replaces
 an invalid zone with UTC.
 
 ### 2. Resolution
