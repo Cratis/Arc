@@ -14,7 +14,7 @@ public class when_consuming_an_xunit_executable : given.an_xunit_fixture_process
         var reportPath = Path.Combine(RepositoryRoot(), ".ai-work", "3518", $"entrypoint-fixture-{Guid.NewGuid():N}.xml");
         Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
         await RunProcess(
-            $"Source/DotNET/Screenplay.Embedded.Specs/Fixtures/XunitConsumer/bin/Release/net{Environment.Version.Major}.0/EmbeddedXunitConsumer.dll",
+            $"Source/DotNET/Screenplay.Embedded.Specs/Fixtures/XunitConsumer/bin/{Configuration}/net{Environment.Version.Major}.0/EmbeddedXunitConsumer.dll",
             "-xml",
             reportPath);
         Assert.True(_exitCode == 0, _output);

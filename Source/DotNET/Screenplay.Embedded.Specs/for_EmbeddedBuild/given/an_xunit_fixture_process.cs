@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
+using System.Reflection;
 
 namespace Cratis.Arc.Screenplay.Embedded.for_EmbeddedBuild.given;
 
@@ -9,6 +10,8 @@ public class an_xunit_fixture_process : Specification
 {
     protected int _exitCode;
     protected string _output;
+
+    protected static string Configuration => typeof(an_xunit_fixture_process).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
 
     protected static string RepositoryRoot()
     {
