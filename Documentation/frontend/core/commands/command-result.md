@@ -187,7 +187,7 @@ if (!result.isValid) {
 Each `ValidationResult` contains:
 
 - `severity`: The severity level of the validation error
-- `message`: A developer-facing message. Only meant to be shown to a user when `reason` is `rule`
+- `message`: A developer-facing message. Authored `rule` messages may be shown to a user; client-generated `rule` / `Required` messages should be mapped to your own copy
 - `members`: Array of property names that failed validation
 - `state`: Additional context, set by whoever authored the rule (FluentValidation's `WithState`)
 - `reason`: What composed the result — see below
@@ -206,6 +206,8 @@ A rejection your own rules produced and one the framework composed on your behal
 | `dependencyUnavailable` | A dependency needed to evaluate the command was unavailable                   | Do not imply the input passed or failed its rules      |
 | `malformedRequest`      | The request body or a bound value could not be read; C# supplies a normalized member when available | Correct the request; rules were not reached. Ordinary parser details stay private; explicit-offset refusals have a showable message. |
 | `frameworkFailure`      | The framework could not fulfill a command contract or complete its effects    | Use your own copy; this framework-composed message is not meant for end users |
+
+For missing required command properties, the client returns `reason: 'rule'` and `reasonDetail: 'Required'` without contacting the server. Import `ValidationResultReasonDetail` from `@cratis/arc/validation` and match `ValidationResultReasonDetail.Required` alongside `ValidationResultReason.Rule` rather than matching the message. Unlike authored rule messages, this message is framework-authored English. See [Validation Results](../validation/results.md).
 
 ### Optional Chronicle rejection handling
 
@@ -262,7 +264,7 @@ The value is the constraint's own name as Chronicle reports it on the violation 
 :::note[Treat reason values as extensible]
 `reason` is an open set, not an enum — Arc, Chronicle and your own code can all mint values. Accept unfamiliar values without an exhaustive enum assumption. Decide explicitly whether your application recognizes their messages as safe user-facing copy; otherwise use a generic fallback.
 
-Only `rule` means the message is yours to show. Everything else is Cratis-authored developer text: it is in English, it is not localized, and it describes framework state rather than the user's situation. Map those to your own copy.
+Authored `rule` messages are yours to show. The client's `rule` / `Required` results and other reasons are Cratis-authored developer text: it is in English, it is not localized, and it describes framework state rather than the user's situation. Map those to your own copy.
 :::
 
 ### Exception Details

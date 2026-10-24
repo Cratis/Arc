@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { given } from '../../../given.js';
+import { ValidationResultReason, ValidationResultReasonDetail } from '../../../validation/index.js';
 import { CommandResult } from '../../CommandResult.js';
 import { a_command } from '../given/a_command.js';
 
@@ -25,5 +26,7 @@ describe("when validating with null required property", given(class extends a_co
     it("should return invalid result", () => result.isValid.should.be.false);
     it("should have validation error", () => result.validationResults.length.should.equal(1));
     it("should have validation message for property", () => result.validationResults[0].message.should.equal('someProperty is required'));
-    it("should have validation member for property", () => result.validationResults[0].members[0].should.equal('someProperty'));
+    it("should have validation member for property", () => result.validationResults[0].members.should.deep.equal(['someProperty']));
+    it("should identify a rule rejection", () => result.validationResults[0].reason.should.equal(ValidationResultReason.Rule));
+    it("should identify a required property rejection", () => result.validationResults[0].reasonDetail!.should.equal(ValidationResultReasonDetail.Required));
 }));
