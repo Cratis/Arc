@@ -30,5 +30,6 @@ public class and_body_read_is_aborted : given.an_observable_query_demultiplexer
             default!,
             default!,
             default!,
-            default!);
+            default!,
+            Arg.Any<CancellationToken>());
 }

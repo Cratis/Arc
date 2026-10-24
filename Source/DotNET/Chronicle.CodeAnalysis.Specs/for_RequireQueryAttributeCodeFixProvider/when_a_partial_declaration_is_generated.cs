@@ -19,10 +19,10 @@ public class when_a_partial_declaration_is_generated
             .Replace("public record Order\n", "public partial record Order\n", StringComparison.Ordinal);
         var project = TestProject.CreateProject(source).AddAnalyzerReference(new GeneratedPartialReference());
         using var workspace = project.Solution.Workspace;
-        var compilation = (await project.GetCompilationAsync())!;
-        compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         compilation.GetTypeByMetadataName("TestApp.Order")!.DeclaringSyntaxReferences.Length.ShouldEqual(2);
-        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync()).Single();
+        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken)).Single();
         var actions = new List<CodeAction>();
         await new CodeFixes.RequireQueryAttributeCodeFixProvider().RegisterCodeFixesAsync(new CodeFixContext(
             project.Documents.Single(), diagnostic, (action, _) => actions.Add(action), CancellationToken.None));

@@ -45,7 +45,7 @@ public class when_resolving_an_unprotected_read_twice : Specification
     [Fact] void should_share_one_read_within_the_invocation() => ReferenceEquals(_first, _second).ShouldBeTrue();
     [Fact] void should_be_unguarded() => _first.IsProtected.ShouldBeFalse();
     [Fact] void should_release_legacy_read_model() => _readModels.Received(1).Release(Arg.Any<SomeModel>());
-    [Fact] void should_not_fold_a_protected_model() => _inner.DidNotReceiveWithAnyArgs().GetDetached<SomeModel>(_key);
+    [Fact] void should_not_fold_a_protected_model() => _inner.DidNotReceiveWithAnyArgs().GetDetached<SomeModel>(_key, Arg.Any<CancellationToken>());
 
     [Unprotected]
     public class UnprotectedCommand;

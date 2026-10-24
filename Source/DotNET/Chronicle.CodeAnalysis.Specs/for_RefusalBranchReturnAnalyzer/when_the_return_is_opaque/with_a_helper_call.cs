@@ -24,13 +24,13 @@ public class with_a_helper_call : a_refusal_callback
     [Fact]
     public async Task should_leave_other_compilations_callbacks_opaque()
     {
-        var external = (await TestProject.CreateProject("public static class External { public static object Produce(Cratis.Arc.Commands.CommandRefusal refusal) => new object(); }").GetCompilationAsync())!
+        var external = (await TestProject.CreateProject("public static class External { public static object Produce(Cratis.Arc.Commands.CommandRefusal refusal) => new object(); }").GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!
             .WithAssemblyName("ExternalCallbacks");
-        var compilation = (await TestProject.CreateProject(Callback("External.Produce")).GetCompilationAsync())!
+        var compilation = (await TestProject.CreateProject(Callback("External.Produce")).GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!
             .AddReferences(external.ToMetadataReference());
-        compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
 
-        var diagnostics = await compilation.WithAnalyzers([new RefusalBranchReturnAnalyzer()]).GetAnalyzerDiagnosticsAsync();
+        var diagnostics = await compilation.WithAnalyzers([new RefusalBranchReturnAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken);
 
         diagnostics.ShouldBeEmpty();
     }

@@ -29,6 +29,6 @@ public class with_top_level_statements : Specification
 
     void Destroy() => _directory?.Delete(recursive: true);
 
-    [Fact] void should_accept_the_same_top_level_statements_as_the_actual_build() => _compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_accept_the_same_top_level_statements_as_the_actual_build() => _compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_create_an_executable_compilation() => _compilation.Options.OutputKind.ShouldEqual(OutputKind.ConsoleApplication);
 }

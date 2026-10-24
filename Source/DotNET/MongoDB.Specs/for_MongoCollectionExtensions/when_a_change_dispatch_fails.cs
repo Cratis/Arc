@@ -34,11 +34,11 @@ public class when_a_change_dispatch_fails : given.an_observed_collection
         var completed = false;
         using var subscription = observable.Subscribe(_ => initial.TrySetResult(), exception => error.TrySetResult(exception), () => completed = true);
         _initialQueryGate.SetResult();
-        await initial.Task.WaitAsync(deadline);
+        await initial.Task.WaitAsync(deadline, global::Xunit.TestContext.Current.CancellationToken);
 
         PushChange(UpdateOf(_documents[0]));
 
-        (await error.Task.WaitAsync(deadline)).ShouldBeSame(failure);
+        (await error.Task.WaitAsync(deadline, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSame(failure);
         completed.ShouldBeFalse();
     }
 }

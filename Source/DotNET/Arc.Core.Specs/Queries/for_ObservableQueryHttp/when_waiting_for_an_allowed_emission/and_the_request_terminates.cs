@@ -30,9 +30,9 @@ public class and_the_request_terminates : given.a_request
         var response = ObservableQueryHttp.CreateResponse(_queryContext, subject, new(true, TimeSpan.FromSeconds(2)), _request);
         subject.OnNext("withheld");
         subject.OnCompleted();
-        _response = await response;
-        _response.StatusCode.ShouldEqual(HttpStatusCode.InternalServerError);
-        _response.Result.Data.ShouldBeNull();
+        var completed = await response;
+        completed.StatusCode.ShouldEqual(HttpStatusCode.InternalServerError);
+        completed.Result.Data.ShouldBeNull();
         subject.HasObservers.ShouldBeFalse();
     }
 
@@ -50,7 +50,7 @@ public class and_the_request_terminates : given.a_request
         });
         using var subject = new BehaviorSubject<string>("in-flight");
         var response = ObservableQueryHttp.CreateResponse(_queryContext, subject, new(true, TimeSpan.FromSeconds(2)), _request);
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(1), global::Xunit.TestContext.Current.CancellationToken);
         await cancellation.CancelAsync();
         response.IsCompleted.ShouldBeFalse();
         release.SetResult(["intercepted"]);

@@ -20,8 +20,8 @@ public class when_generation_cannot_be_moved_safely : given.an_inline_generation
     public async Task should_report_without_offering_a_fix(string method)
     {
         var project = TestProject.CreateProject("using System.Linq;\n" + Types + $"\n[Command] public record Allocate {{ {method} }}");
-        var compilation = (await project.GetCompilationAsync())!;
-        var diagnostics = await compilation.WithAnalyzers([new InlineGeneratedValueAnalyzer()]).GetAnalyzerDiagnosticsAsync();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        var diagnostics = await compilation.WithAnalyzers([new InlineGeneratedValueAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken);
         diagnostics.Length.ShouldEqual(1);
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(project.Documents.Single(), diagnostics.Single(), (action, _) => actions.Add(action), CancellationToken.None);

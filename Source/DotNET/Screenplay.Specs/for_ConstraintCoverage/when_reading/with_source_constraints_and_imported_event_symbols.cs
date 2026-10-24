@@ -27,7 +27,7 @@ public class with_source_constraints_and_imported_event_symbols
             """;
         var contracts = Analyzed.Project("Contracts", [], ("Library/Contracts.cs", source));
         using var stream = new MemoryStream();
-        contracts.Emit(stream).Success.ShouldBeTrue();
+        contracts.Emit(stream, cancellationToken: global::Xunit.TestContext.Current.CancellationToken).Success.ShouldBeTrue();
         var reactor = Analyzed.Project("Reactors", [MetadataReference.CreateFromImage(stream.ToArray())], ("Library/Reactors.cs", "namespace Reactors; public class Reactor;"));
         var coverage = ConstraintCoverage.Read([.. ArtifactCatalog.From(contracts).Types, .. ArtifactCatalog.From(reactor).Types], new SemanticModels([contracts, reactor]));
 

@@ -21,7 +21,7 @@ public class and_an_async_enumerable_fails : given.a_request
         _response.StatusCode.ShouldEqual(HttpStatusCode.InternalServerError);
         _response.Result.Data.ShouldBeNull();
         _response.Result.ExceptionMessages.ShouldContainOnly(exposeExceptionDetails ? SecretMessage : ExceptionDetailRedactor.RedactedMessage);
-        _response.Result.ExceptionStackTrace.ShouldEqual(exposeExceptionDetails ? failure.StackTrace! : string.Empty);
+        _response.Result.ExceptionStackTrace.ShouldEqual(exposeExceptionDetails ? failure.StackTrace : string.Empty);
         failure.StackTrace.ShouldNotBeEmpty();
         _logger.ReceivedCalls().Any(call => call.GetMethodInfo().Name == nameof(ILogger.Log) && call.GetArguments()[3] == failure).ShouldBeTrue();
     }

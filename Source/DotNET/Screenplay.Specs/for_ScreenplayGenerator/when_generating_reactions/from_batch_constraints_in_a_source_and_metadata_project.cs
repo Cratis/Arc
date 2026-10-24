@@ -36,7 +36,7 @@ public class from_batch_constraints_in_a_source_and_metadata_project : a_returne
         };
         var contracts = Analyzed.Project("Library.Contracts", [], files);
         using var stream = new MemoryStream();
-        var emitted = contracts.Emit(stream);
+        var emitted = contracts.Emit(stream, cancellationToken: global::Xunit.TestContext.Current.CancellationToken);
         Assert.True(emitted.Success, string.Join(Environment.NewLine, emitted.Diagnostics));
         var application = Analyzed.Project("Rules", [MetadataReference.CreateFromImage(stream.ToArray())], ("Library/Authors/Welcoming/Rules.cs", "using Library.Authors.Registration; namespace Library.Authors.Welcoming;" + Constraint(definition)));
         Analyzed.ErrorsIn(application).ShouldBeEmpty();

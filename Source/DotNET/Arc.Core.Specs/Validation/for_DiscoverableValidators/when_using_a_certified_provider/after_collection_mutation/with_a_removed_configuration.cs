@@ -25,11 +25,11 @@ public class with_a_removed_configuration : given.a_certified_validator
         if (warmed) _validators.TryGet(typeof(Model), _scope.ServiceProvider, out _).ShouldBeTrue();
         _services.Remove(_services.Single(binding => binding.ServiceType == typeof(ReadingValidator)));
         var graph = new ModelGraphValidator(_validators, new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance));
-        var result = (await graph.Validate(new(new Model(), _scope.ServiceProvider))).ToArray();
+        var result = (await graph.Validate(new(new Model(), _scope.ServiceProvider), global::Xunit.TestContext.Current.CancellationToken)).ToArray();
         result.Single().Message.ShouldEqual("ownership denied");
         callbacks.ShouldEqual(warmed ? 2 : 1);
         _services.AddTransient<ReadingValidator>(_ => throw new InvalidOperationException("late factory must not run"));
-        result = (await graph.Validate(new(new Model(), _scope.ServiceProvider))).ToArray();
+        result = (await graph.Validate(new(new Model(), _scope.ServiceProvider), global::Xunit.TestContext.Current.CancellationToken)).ToArray();
         result.Single().Message.ShouldEqual("ownership denied");
         callbacks.ShouldEqual(warmed ? 3 : 2);
     }

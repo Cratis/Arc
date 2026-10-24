@@ -15,15 +15,15 @@ public class when_disposing_during_watch_completion : given.a_controlled_watch
 
         // Completion of the shared stream and disposal of the observable race: both end the observation, and
         // neither may be allowed to fault the other or leave the cancellation resources disposed underneath it.
-        var completion = Task.Run(_databaseChanges.Complete);
-        var disposal = Task.Run(() => ((IDisposable)_observable).Dispose());
+        var completion = Task.Run(_databaseChanges.Complete, global::Xunit.TestContext.Current.CancellationToken);
+        var disposal = Task.Run(() => ((IDisposable)_observable).Dispose(), global::Xunit.TestContext.Current.CancellationToken);
         var error = await Catch.Exception(() => Task.WhenAll(completion, disposal).WaitAsync(Deadline));
 
         error.ShouldBeNull();
         var deadline = DateTime.UtcNow + Deadline;
         while (_databaseChanges.Subscribers > 0 && DateTime.UtcNow < deadline)
         {
-            await Task.Delay(10);
+            await Task.Delay(10, global::Xunit.TestContext.Current.CancellationToken);
         }
 
         _databaseChanges.Subscribers.ShouldEqual(0);

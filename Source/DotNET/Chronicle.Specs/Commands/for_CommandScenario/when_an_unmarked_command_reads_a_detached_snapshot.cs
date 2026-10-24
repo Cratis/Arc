@@ -32,7 +32,7 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
         var command = new UnmarkedDetachedHandler(EventSourceId.New());
 
         (await scenario.Validate(command)).ShouldBeSuccessful();
-        (await scenario.Execute(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await reader.Received(1).GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)command.EventSourceId, Arg.Any<CancellationToken>());
         Assert.Single(scenario.AppendedEvents);
     }
@@ -45,7 +45,7 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
         var command = new UnmarkedDetachedValidated(EventSourceId.New());
 
         (await scenario.Validate(command)).ShouldBeSuccessful();
-        (await scenario.Execute(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await reader.Received(2).GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)command.EventSourceId, Arg.Any<CancellationToken>());
         Assert.Single(scenario.AppendedEvents);
     }
@@ -58,7 +58,7 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
         var command = new UnprotectedDetachedHandler(EventSourceId.New());
 
         (await scenario.Validate(command)).ShouldBeSuccessful();
-        (await scenario.Execute(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await reader.Received(1).GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)command.EventSourceId, Arg.Any<CancellationToken>());
         Assert.Single(scenario.AppendedEvents);
     }
@@ -71,7 +71,7 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
         var command = new UnprotectedDetachedValidated(EventSourceId.New());
 
         (await scenario.Validate(command)).ShouldBeSuccessful();
-        (await scenario.Execute(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await reader.Received(2).GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)command.EventSourceId, Arg.Any<CancellationToken>());
         Assert.Single(scenario.AppendedEvents);
     }
@@ -81,11 +81,11 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
     {
         await using var scenario = new CommandScenario<ProtectedDetachedHandler>().UseDecisionReads();
         var reader = UseDetachedReader(scenario);
-        var result = await scenario.Execute(new ProtectedDetachedHandler(EventSourceId.New()));
+        var result = await scenario.Execute(new ProtectedDetachedHandler(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("Detached decision reads", result.ExceptionMessages.Single());
-        await reader.DidNotReceiveWithAnyArgs().GetDetached<when_using_decision_mode.DecisionState>(default!);
+        await reader.DidNotReceiveWithAnyArgs().GetDetached<when_using_decision_mode.DecisionState>(default!, Arg.Any<CancellationToken>());
         Assert.Empty(scenario.AppendedEvents);
     }
 
@@ -96,7 +96,7 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
         var command = new ConflictingProfiles(EventSourceId.New());
 
         Assert.Contains("cannot be both protected and unprotected", (await scenario.Validate(command)).ExceptionMessages.Single());
-        Assert.Contains("cannot be both protected and unprotected", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("cannot be both protected and unprotected", (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Equal(0, ConflictingProfiles.Handles);
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -192,7 +192,7 @@ public class when_an_unmarked_command_appends_with_named_tags
         await using var scenario = new CommandScenario<AppendWithNamedTags>();
         var command = new AppendWithNamedTags(EventSourceId.New());
 
-        (await scenario.Execute(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         (await scenario.EventLog.HasEventsFor(command.EventSourceId)).ShouldBeTrue();
     }
 

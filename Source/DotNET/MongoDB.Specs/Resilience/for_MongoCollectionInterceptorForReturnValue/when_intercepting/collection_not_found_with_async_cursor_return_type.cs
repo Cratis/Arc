@@ -35,6 +35,6 @@ public class collection_not_found_with_async_cursor_return_type : Specification
 
     [Fact] void should_not_be_faulted() => _returnValue.IsFaulted.ShouldBeFalse();
     [Fact] async Task should_return_empty_cursor() => (await _returnValue).ShouldNotBeNull();
-    [Fact] async Task should_have_no_documents() => (await (await _returnValue).MoveNextAsync()).ShouldBeFalse();
+    [Fact] async Task should_have_no_documents() => (await (await _returnValue).MoveNextAsync(global::Xunit.TestContext.Current.CancellationToken)).ShouldBeFalse();
     [Fact] void should_have_freed_up_semaphore() => _semaphore.CurrentCount.ShouldEqual(PoolSize);
 }

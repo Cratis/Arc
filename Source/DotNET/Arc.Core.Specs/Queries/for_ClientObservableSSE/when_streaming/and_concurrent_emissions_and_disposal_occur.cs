@@ -48,7 +48,7 @@ public class and_concurrent_emissions_and_disposal_occur
             logger);
 
         // Act & Assert: Rapid emissions followed by disposal should not throw
-        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext));
+        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext), global::Xunit.TestContext.Current.CancellationToken);
 
         // Emit several items rapidly
         for (var i = 0; i < 5; i++)
@@ -63,7 +63,7 @@ public class and_concurrent_emissions_and_disposal_occur
         subject.OnCompleted();
 
         // Connection should complete within a reasonable time
-        var timeout = Task.Delay(2000);
+        var timeout = Task.Delay(2000, global::Xunit.TestContext.Current.CancellationToken);
         var completed = await Task.WhenAny(connectionTask, timeout);
 
         if (completed == timeout)
@@ -111,21 +111,21 @@ public class and_concurrent_emissions_and_disposal_occur
             logger);
 
         // Act: Start connection
-        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext));
+        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext), global::Xunit.TestContext.Current.CancellationToken);
 
         // Emit an item but don't complete the write
         subject.OnNext(42);
-        await Task.Delay(10);
+        await Task.Delay(10, global::Xunit.TestContext.Current.CancellationToken);
 
         // Complete before the write completes
         subject.OnCompleted();
 
         // Eventually complete the write
-        await Task.Delay(50);
+        await Task.Delay(50, global::Xunit.TestContext.Current.CancellationToken);
         writeTaskSource.SetResult();
 
         // Connection should complete without hanging
-        var timeout = Task.Delay(2000);
+        var timeout = Task.Delay(2000, global::Xunit.TestContext.Current.CancellationToken);
         var completed = await Task.WhenAny(connectionTask, timeout);
 
         if (completed == timeout)
