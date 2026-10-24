@@ -99,7 +99,7 @@ public static class ProvidedDeclarations
         public void Handle(Declarations.Balance? balance) { }
     }
 
-    [ProtectedDecision]
+    [ProtectedDecision, ReadProtection(ReadProtectionMode.On)]
     public class InjectedProvideToken
     {
         public DecisionRead<Model> Provide(DecisionRead<Model> balance) => balance;
