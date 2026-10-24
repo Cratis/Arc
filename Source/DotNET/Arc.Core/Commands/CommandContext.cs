@@ -86,4 +86,9 @@ public record CommandContext(
     /// Gets whether an Unknown-severity validation failure blocks this command.
     /// </summary>
     internal bool BlockUnknownValidationSeverity { get; init; }
+
+    /// <summary>
+    /// Gets whether this command is a controller action, so commands it runs through the command pipeline own their own transaction.
+    /// </summary>
+    internal bool IsControllerAction { get; init; }
 }

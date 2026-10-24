@@ -48,6 +48,7 @@ public class CommandActionFilter(
     {
         var shouldExecute = ShouldExecute(context);
         var scopes = ResolveScopes(context, shouldExecute);
+        List<ICommandExecutionScope> begunScopes = [];
         using var decisionPolicy = shouldExecute ? CommandDecisionPolicy.Begin(commandContext.Type, commandContext.ServiceProvider) : null;
         ActionExecutedContext? result = null;
         Exception? actionException = null;
@@ -62,8 +63,12 @@ public class CommandActionFilter(
 
                 try
                 {
-                    foreach (var scope in scopes) scope.Begin(commandContext);
-                    foreach (var scope in scopes.OfType<IAsyncCommandExecutionScope>()) await scope.BeginAsync(commandContext);
+                    foreach (var scope in scopes)
+                    {
+                        begunScopes.Add(scope);
+                        scope.Begin(commandContext);
+                    }
+                    foreach (var scope in begunScopes.OfType<IAsyncCommandExecutionScope>()) await scope.BeginAsync(commandContext);
                     result = await next();
                 }
                 catch (Exception exception)
@@ -75,13 +80,13 @@ public class CommandActionFilter(
             }
 
             var commandResult = CreateResult(context, result, validationResult, actionException);
-            await CompleteScopes(commandContext, scopes, commandResult);
+            await CompleteScopes(commandContext, [.. begunScopes], commandResult);
 
             PublishResult(context, result, commandResult);
         }
         finally
         {
-            EndScopes(commandContext, scopes, scopes.Length - 1);
+            EndScopes(commandContext, [.. begunScopes], begunScopes.Count - 1);
         }
     }
 
@@ -234,7 +239,8 @@ public class CommandActionFilter(
             ServiceProvider: context.HttpContext.RequestServices,
             CancellationToken: context.HttpContext.RequestAborted)
         {
-            ReceivedAt = OperationContextScope.Current ?? default
+            ReceivedAt = OperationContextScope.Current ?? default,
+            IsControllerAction = true
         };
 
         contextModifier.SetCurrent(commandContext);
