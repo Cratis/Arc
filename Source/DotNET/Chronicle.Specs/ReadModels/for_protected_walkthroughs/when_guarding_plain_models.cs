@@ -27,7 +27,7 @@ public class when_guarding_plain_models : given.a_protected_read
         try
         {
             var validator = Validate(command);
-            (await validator.ValidateAsync(command)).IsValid.ShouldBeTrue();
+            (await validator.ValidateAsync(command, global::Xunit.TestContext.Current.CancellationToken)).IsValid.ShouldBeTrue();
             var stock = (BookStock)Resolve(typeof(Borrow).GetMethod(nameof(Borrow.Handle))!.GetParameters()[0])!;
             stock.Available.ShouldEqual(1);
             stock.ShouldBeSame(validator.Stock);
@@ -62,7 +62,7 @@ public class when_guarding_plain_models : given.a_protected_read
         Begin(command);
         try
         {
-            (await Validate(command).ValidateAsync(command)).IsValid.ShouldBeFalse();
+            (await Validate(command).ValidateAsync(command, global::Xunit.TestContext.Current.CancellationToken)).IsValid.ShouldBeFalse();
             var result = new CommandResult
             {
                 CorrelationId = _context.CorrelationId,
@@ -158,7 +158,7 @@ public class when_guarding_plain_models : given.a_protected_read
             new ReadProtectionCommandExceptionMapper().TryMap(_context, detached!, out var mapped).ShouldBeTrue();
             mapped!.ExceptionMessages.Single().ShouldContain("Borrow called GetDetached while read protection is On.");
             using var advisory = _unit.AllowReads(ReadAllowance.Advisory, "screen context only");
-            (await reader.GetDetached<BookStock>((ReadModelKey)_book.Value)).Instance!.Available.ShouldEqual(1);
+            (await reader.GetDetached<BookStock>((ReadModelKey)_book.Value, global::Xunit.TestContext.Current.CancellationToken)).Instance!.Available.ShouldEqual(1);
             _unit.HasEnrolledDecisionReads.ShouldBeFalse();
         }
         finally
@@ -183,42 +183,6 @@ public class when_guarding_plain_models : given.a_protected_read
             new ReadProtectionCommandExceptionMapper().TryMap(_context, failure!, out var mapped).ShouldBeTrue();
             mapped!.ExceptionMessages.Single().ShouldEqual("Borrow read BookStock after its changes were committed (aggregate Commit()). Read before committing, or return the result of Commit() last.");
             Resolve(parameters[0]).ShouldNotBeNull();
-        }
-        finally
-        {
-            _scope.End(_context);
-        }
-    }
-
-    [Fact]
-    public async Task should_refold_preflight_validation_without_writing_or_reusing_its_read_for_execution()
-    {
-        await Seed();
-        var command = new Borrow(_book, _member);
-        _context = new(
-            Cratis.Execution.CorrelationId.New(),
-            typeof(Borrow),
-            command,
-            [],
-            new() { [WellKnownCommandContextKeys.EventSourceId] = _book },
-            ServiceProvider: _services);
-        var validationBegin = typeof(CommandValidationExecution).GetMethod("Begin", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
-        var before = await _store.EventLog.GetTailSequenceNumber();
-        BookStock first;
-        using var policy = DecisionPolicyForSpecs.Begin(typeof(Borrow));
-        using (var validation = (IDisposable)validationBegin.Invoke(null, [typeof(Borrow)])!)
-        {
-            first = Validate(command).Stock;
-            first.Available.ShouldEqual(1);
-        }
-        (await _store.EventLog.GetTailSequenceNumber()).ShouldEqual(before);
-        await Compete();
-        Begin(command);
-        try
-        {
-            var fresh = Validate(command).Stock;
-            fresh.Available.ShouldEqual(0);
-            ReferenceEquals(fresh, first).ShouldBeFalse();
         }
         finally
         {

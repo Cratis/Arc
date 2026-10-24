@@ -3,4 +3,4 @@
 
 // These integration specs share one disposable package graph and local NuGet feed. Run the assembly sequentially
 // so fixture construction, consumer builds, code-fix hosts, and temporary cleanup cannot race one another.
-[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]

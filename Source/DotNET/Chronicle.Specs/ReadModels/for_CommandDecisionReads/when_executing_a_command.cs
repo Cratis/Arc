@@ -29,8 +29,8 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            var handle = await reader.Get<Model>((ReadModelKey)"source");
-            var provide = await reader.Get<Model>((ReadModelKey)"source");
+            var handle = await reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken);
+            var provide = await reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken);
             Assert.Same(handle, provide);
             CommandDecisionReads.VerifyProvided(provide);
             await inner.Received(1).GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
@@ -58,13 +58,13 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            Assert.Same(first, await reader.Get<Model>((ReadModelKey)"other"));
+            Assert.Same(first, await reader.Get<Model>((ReadModelKey)"other", global::Xunit.TestContext.Current.CancellationToken));
             using (DecisionPolicyForSpecs.Begin(typeof(NestedCommand)))
             {
                 CommandDecisionReads.Begin(typeof(NestedCommand));
                 try
                 {
-                    Assert.Same(nested, await reader.Get<Model>((ReadModelKey)"other"));
+                    Assert.Same(nested, await reader.Get<Model>((ReadModelKey)"other", global::Xunit.TestContext.Current.CancellationToken));
                     Assert.Throws<DecisionReadNotIssuedForInvocation>(() => CommandDecisionReads.VerifyProvided(first));
                 }
                 finally
@@ -72,7 +72,7 @@ public class when_executing_a_command
                     CommandDecisionReads.End();
                 }
             }
-            Assert.Same(first, await reader.Get<Model>((ReadModelKey)"other"));
+            Assert.Same(first, await reader.Get<Model>((ReadModelKey)"other", global::Xunit.TestContext.Current.CancellationToken));
             Assert.True(unit.HasEnrolledDecisionReads);
             await inner.Received(2).GetDetached<Model>((ReadModelKey)"other", Arg.Any<CancellationToken>());
         }
@@ -97,7 +97,7 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            Assert.Same(await firstProvider.Get<Model>((ReadModelKey)"source"), await secondProvider.Get<Model>((ReadModelKey)"source"));
+            Assert.Same(await firstProvider.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken), await secondProvider.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken));
             await inner.Received(1).GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
             Assert.True(unit.HasEnrolledDecisionReads);
         }
@@ -126,7 +126,7 @@ public class when_executing_a_command
         var (store, _, _) = DecisionFixtures.Transaction();
         var reader = new CommandDecisionReads(Substitute.For<IDecisionReads>(), store, Substitute.For<IReadModels>());
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
-        await Assert.ThrowsAsync<DecisionReadCouldNotBeAcquired>(() => reader.GetDetached<Model>((ReadModelKey)"source"));
+        await Assert.ThrowsAsync<DecisionReadCouldNotBeAcquired>(() => reader.GetDetached<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -140,8 +140,8 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            await Assert.ThrowsAsync<DecisionReadCouldNotBeAcquired>(() => reader.Get<Model>((ReadModelKey)"source"));
-            await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source");
+            await Assert.ThrowsAsync<DecisionReadCouldNotBeAcquired>(() => reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken));
+            await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
         }
         finally
         {
@@ -228,8 +228,8 @@ public class when_executing_a_command
         using (var policyForValidation = DecisionPolicyForSpecs.Begin(typeof(Command)))
         using (var validation = Assert.IsType<IDisposable>(begin.Invoke(null, [typeof(Command)]), exactMatch: false))
         {
-            Assert.Same(advisory, await reader.Get<Model>((ReadModelKey)"source"));
-            Assert.Same(advisory, await reader.Get<Model>((ReadModelKey)"source"));
+            Assert.Same(advisory, await reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken));
+            Assert.Same(advisory, await reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken));
             Assert.False(unit.HasEnrolledDecisionReads);
         }
         CommandTransaction.Current = unit;
@@ -237,7 +237,7 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            Assert.Same(protectedRead, await reader.Get<Model>((ReadModelKey)"source"));
+            Assert.Same(protectedRead, await reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken));
             Assert.True(unit.HasEnrolledDecisionReads);
             await inner.Received(2).GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
         }
@@ -314,12 +314,12 @@ public class when_executing_a_command
         using (var policyForValidation = DecisionPolicyForSpecs.Begin(typeof(UnprotectedCommand)))
         using (Assert.IsType<IDisposable>(begin.Invoke(null, [typeof(UnprotectedCommand)]), exactMatch: false))
         {
-            var read = await reader.Get<Model>((ReadModelKey)"source");
+            var read = await reader.Get<Model>((ReadModelKey)"source", global::Xunit.TestContext.Current.CancellationToken);
             Assert.False(read.IsProtected);
             Assert.Same(model, read.Instance);
         }
 
-        await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source");
+        await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
         await legacy.Received(1).GetInstanceById<Model>((ReadModelKey)"source");
     }
 

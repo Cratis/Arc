@@ -15,6 +15,8 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+        <!-- The Roslyn testing XUnit verifiers need the xunit v2 assert at runtime; keep it out of compilation so it does not clash with xunit.v3.assert. -->
+        <PackageReference Include="xunit.assert" ExcludeAssets="compile" />
         <PackageReference Include="Microsoft.Composition" />
         <PackageReference Include="System.Formats.Asn1" />
         <PackageReference Include="Cratis.Chronicle" />

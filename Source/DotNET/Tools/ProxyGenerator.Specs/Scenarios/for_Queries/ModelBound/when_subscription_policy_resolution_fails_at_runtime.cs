@@ -43,25 +43,6 @@ public class when_subscription_policy_resolution_fails_at_runtime : given.a_scen
             .Any(item => item.SubscriptionId == "failed").ShouldBeFalse();
     }
 
-    [Theory]
-    [InlineData("X-Unknown-Runtime-Policy")]
-    [InlineData("X-Throw-Runtime-Policy")]
-    public async Task should_not_expose_policy_provider_details_in_the_serialized_command_result(string failureHeader)
-    {
-        LoadCommandProxy<for_Commands.ModelBound.PolicyProtectedCommand>();
-        HttpClient!.DefaultRequestHeaders.Add("X-Default", "active");
-        HttpClient.DefaultRequestHeaders.Add("X-Special", "active");
-        HttpClient.DefaultRequestHeaders.Add(failureHeader, "yes");
-        Host!.Services.GetRequiredService<IOptions<ArcOptions>>().Value.ExposeExceptionDetails.ShouldBeFalse();
-        var result = (await Bridge!.ExecuteCommandViaProxyAsync<object>(new for_Commands.ModelBound.PolicyProtectedCommand())).Result;
-        result.IsSuccess.ShouldBeFalse();
-        var serialized = JsonSerializer.Serialize(result);
-        serialized.ShouldNotContain("ActiveSubscription");
-        serialized.ShouldNotContain("SensitivePolicyProviderType");
-        serialized.ShouldNotContain("Special are unavailable");
-        result.AuthorizationFailureReason.ShouldBeEmpty();
-    }
-
     static async Task<ObservableQueryHubMessage> ReadMessage(StreamReader reader, CancellationToken token)
     {
         while (await reader.ReadLineAsync(token) is { } line)

@@ -28,13 +28,13 @@ public class with_an_unproven_case_conversion : Specification
         Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
         var tree = compilation.SyntaxTrees.Single(tree => tree.FilePath == "Cases.cs");
         var model = compilation.GetSemanticModel(tree);
-        var declaration = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
-        var parameter = (IParameterSymbol)model.GetDeclaredSymbol(declaration.ParameterList!.Parameters.Single())!;
+        var declaration = tree.GetRoot(global::Xunit.TestContext.Current.CancellationToken).DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+        var parameter = (IParameterSymbol)model.GetDeclaredSymbol(declaration.ParameterList!.Parameters.Single(), global::Xunit.TestContext.Current.CancellationToken)!;
         var creation = declaration.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Single();
         var models = new SemanticModels([compilation]);
         var draft = new SpecificationDraft { CaseValues = new([parameter], new Dictionary<string, object?> { ["value"] = constant }) };
         var values = new SpecificationValues(new(), new GeneratedIdentities(models), models);
-        values.Read(creation, model, model.GetTypeInfo(creation).Type!, "Case", "Cases", draft).ShouldBeEmpty();
+        values.Read(creation, model, model.GetTypeInfo(creation, global::Xunit.TestContext.Current.CancellationToken).Type!, "Case", "Cases", draft).ShouldBeEmpty();
         draft.Unreadable.ShouldEqual(expected);
     }
 }

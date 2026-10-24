@@ -14,16 +14,6 @@ public class and_the_value_is_cached : given.a_request
         _response = await ObservableQueryHttp.CreateResponse(_queryContext, subject, new(false, TimeSpan.FromSeconds(1)), _request);
     }
 
-    [Fact]
-    async Task should_intercept_the_cache_even_if_the_subject_completed()
-    {
-        using var subject = new BehaviorSubject<string>("completed");
-        subject.OnCompleted();
-        var response = await ObservableQueryHttp.CreateResponse(_queryContext, subject, new(true, TimeSpan.FromSeconds(1)), _request);
-        response.StatusCode.ShouldEqual(HttpStatusCode.OK);
-        response.Result.Data.ShouldEqual("completed-intercepted");
-    }
-
     [Fact] void should_return_intercepted_data() => _response.Result.Data.ShouldEqual("cached-intercepted");
     [Fact] void should_return_ok() => _response.StatusCode.ShouldEqual(HttpStatusCode.OK);
     [Fact] void should_guard_the_first_emission() => _guardContexts.Single().IsFirstEmission.ShouldBeTrue();

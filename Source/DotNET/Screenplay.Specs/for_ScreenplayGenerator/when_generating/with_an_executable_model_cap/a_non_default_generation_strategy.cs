@@ -19,7 +19,7 @@ public class a_non_default_generation_strategy : a_generation_strategy
         Result.Source.ShouldNotContain(" generated");
         var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable);
         diagnostic.Message.ShouldContain("ESM v15");
-        diagnostic.Location!.ShouldContain(Analyzed.SlicePath);
+        diagnostic.Location.ShouldContain(Analyzed.SlicePath);
         AssertDocument();
     }
 }

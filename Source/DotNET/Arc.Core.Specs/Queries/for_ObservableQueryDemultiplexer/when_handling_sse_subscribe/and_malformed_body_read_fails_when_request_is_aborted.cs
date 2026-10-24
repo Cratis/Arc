@@ -31,5 +31,6 @@ public class and_malformed_body_read_fails_when_request_is_aborted : given.an_ob
             default!,
             default!,
             default!,
-            default!);
+            default!,
+            Arg.Any<CancellationToken>());
 }

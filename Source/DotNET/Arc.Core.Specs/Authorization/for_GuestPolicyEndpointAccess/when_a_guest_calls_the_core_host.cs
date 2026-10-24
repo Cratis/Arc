@@ -45,18 +45,18 @@ public class when_a_guest_calls_the_core_host
         RegisterArtifacts(builder.Services);
         await using var app = builder.Build();
         app.UseCratisArc();
-        await app.StartAsync();
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             using var client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(10) };
-            using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { });
+            using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { }, global::Xunit.TestContext.Current.CancellationToken);
             command.StatusCode.ShouldEqual(expected);
-            using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { });
+            using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { }, global::Xunit.TestContext.Current.CancellationToken);
             validation.StatusCode.ShouldEqual(expected);
-            using var query = await client.GetAsync($"/guest-query/{path}");
+            using var query = await client.GetAsync($"/guest-query/{path}", global::Xunit.TestContext.Current.CancellationToken);
             query.StatusCode.ShouldEqual(expected);
             using var queryRequest = new HttpRequestMessage(new HttpMethod("QUERY"), $"/guest-query/{path}") { Content = JsonContent.Create(new { }) };
-            using var bodyQuery = await client.SendAsync(queryRequest);
+            using var bodyQuery = await client.SendAsync(queryRequest, global::Xunit.TestContext.Current.CancellationToken);
             bodyQuery.StatusCode.ShouldEqual(expected);
             probe.Commands.ShouldEqual(expected == HttpStatusCode.OK ? 1 : 0);
             probe.Queries.ShouldEqual(expected == HttpStatusCode.OK ? 2 : 0);
@@ -64,7 +64,10 @@ public class when_a_guest_calls_the_core_host
         }
         finally
         {
+            // Finish host teardown even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
             await app.StopAsync();
+#pragma warning restore xUnit1051
         }
     }
 

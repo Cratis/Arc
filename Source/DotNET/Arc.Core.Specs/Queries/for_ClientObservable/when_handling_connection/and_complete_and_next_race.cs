@@ -18,7 +18,7 @@ public class and_complete_and_next_race
 
         var webSocket = Substitute.For<IWebSocket>();
         var webSocketContext = Substitute.For<IWebSocketContext>();
-        webSocketContext.AcceptWebSocket().Returns(Task.FromResult(webSocket));
+        webSocketContext.AcceptWebSocket(Arg.Is<CancellationToken>(token => token == default)).Returns(Task.FromResult(webSocket));
 
         var httpContext = Substitute.For<IHttpRequestContext>();
         httpContext.WebSockets.Returns(webSocketContext);
@@ -64,10 +64,10 @@ public class and_complete_and_next_race
             logger);
 
         // Act — run connection in background, then trigger the races
-        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext));
+        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext), global::Xunit.TestContext.Current.CancellationToken);
 
         // Wait until HandleIncomingMessages is actually being awaited
-        await handleIncomingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await handleIncomingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
 
         // Emit items and concurrently complete
         subject.OnNext(1);
@@ -76,7 +76,7 @@ public class and_complete_and_next_race
         subject.OnCompleted(); // Double-complete triggered the TrySetResult bug
 
         // Connection should terminate cleanly
-        var timeout = Task.Delay(2000);
+        var timeout = Task.Delay(2000, global::Xunit.TestContext.Current.CancellationToken);
         var completed = await Task.WhenAny(connectionTask, timeout);
 
         if (completed == timeout)
@@ -95,7 +95,7 @@ public class and_complete_and_next_race
 
         var webSocket = Substitute.For<IWebSocket>();
         var webSocketContext = Substitute.For<IWebSocketContext>();
-        webSocketContext.AcceptWebSocket().Returns(Task.FromResult(webSocket));
+        webSocketContext.AcceptWebSocket(Arg.Is<CancellationToken>(token => token == default)).Returns(Task.FromResult(webSocket));
 
         var httpContext = Substitute.For<IHttpRequestContext>();
         httpContext.WebSockets.Returns(webSocketContext);
@@ -139,15 +139,15 @@ public class and_complete_and_next_race
             Substitute.For<IObservableQueryEmissionGuards>(),
             logger);
 
-        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext));
+        var connectionTask = Task.Run(() => observable.HandleConnection(httpContext), global::Xunit.TestContext.Current.CancellationToken);
 
-        await handleStarted2.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await handleStarted2.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
 
         // Complete first, then emit — Next() should guard against CancellationToken
         subject.OnCompleted();
         subject.OnNext(42); // Must not cause exception or deadlock
 
-        var timeout = Task.Delay(2000);
+        var timeout = Task.Delay(2000, global::Xunit.TestContext.Current.CancellationToken);
         var completed = await Task.WhenAny(connectionTask, timeout);
 
         if (completed == timeout)

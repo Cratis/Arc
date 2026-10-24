@@ -21,8 +21,8 @@ public class when_classifying_time_only_comparisons : Specification
         Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
         var tree = compilation.SyntaxTrees.First();
         var model = compilation.GetSemanticModel(tree);
-        var comparison = tree.GetRoot().DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
-        DateComparisonOperands.Primitive(model.GetTypeInfo(comparison.Left).Type).ShouldBeNull();
+        var comparison = tree.GetRoot(global::Xunit.TestContext.Current.CancellationToken).DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
+        DateComparisonOperands.Primitive(model.GetTypeInfo(comparison.Left, global::Xunit.TestContext.Current.CancellationToken).Type).ShouldBeNull();
         DateConditions.Applies(comparison, model).ShouldBeFalse();
     }
 }

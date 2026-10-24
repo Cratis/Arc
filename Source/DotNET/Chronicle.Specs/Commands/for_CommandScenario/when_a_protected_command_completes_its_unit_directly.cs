@@ -26,15 +26,15 @@ public class when_a_protected_command_completes_its_unit_directly
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new when_using_decision_mode.DecisionStateChanged());
 
-        var result = await scenario.Execute(new EscapeViaAggregate(source));
+        var result = await scenario.Execute(new EscapeViaAggregate(source), global::Xunit.TestContext.Current.CancellationToken);
 
         Assert.IsType<ProtectedUnitOfWorkRequiresOwner>(EscapeViaAggregate.RollbackFailure);
         Assert.IsType<ProtectedUnitOfWorkRequiresOwner>(EscapeViaAggregate.CommitFailure);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         Assert.Empty(scenario.AppendedEvents);
         var stored = await scenario.EventLog.GetFromSequenceNumber(EventSequenceNumber.First, source);
-        Assert.Single(stored);
-        Assert.IsType<when_using_decision_mode.DecisionStateChanged>(stored[0].Content);
+        var single = Assert.Single(stored);
+        Assert.IsType<when_using_decision_mode.DecisionStateChanged>(single.Content);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class when_a_protected_command_completes_its_unit_directly
         await using var scenario = new CommandScenario<EscapeViaAggregate>().UseDecisionReads();
         var source = EventSourceId.New();
 
-        var result = await scenario.Execute(new EscapeViaAggregate(source));
+        var result = await scenario.Execute(new EscapeViaAggregate(source), global::Xunit.TestContext.Current.CancellationToken);
 
         Assert.IsType<ProtectedUnitOfWorkRequiresOwner>(EscapeViaAggregate.RollbackFailure);
         Assert.IsType<ProtectedUnitOfWorkRequiresOwner>(EscapeViaAggregate.CommitFailure);
@@ -59,7 +59,7 @@ public class when_a_protected_command_completes_its_unit_directly
         await using var scenario = new CommandScenario<FailAfterDecision>().UseDecisionReads();
         var source = EventSourceId.New();
 
-        var result = await scenario.Execute(new FailAfterDecision(source));
+        var result = await scenario.Execute(new FailAfterDecision(source), global::Xunit.TestContext.Current.CancellationToken);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("decision failed", result.ExceptionMessages.Single());

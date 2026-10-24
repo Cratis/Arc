@@ -5,9 +5,10 @@
 
 The .NET Build workflow used to run one job per ProxyGenerator.Specs 'for_' namespace (dotnet test
 --filter "FullyQualifiedName~<namespace>") and one job per spec project. It now runs a handful of shards.
-A proxy shard ORs the same per-namespace filters together and a spec shard runs dotnet test once per
-project, so the shards cover exactly what the old jobs covered as long as every unit is assigned to
-exactly one shard and no shard names a unit that does not exist. That is what 'check' enforces.
+A proxy shard ORs the same per-namespace VSTest filters together and a spec shard runs each prebuilt
+xUnit executable. The assignment covers the same namespaces and projects when every unit is assigned
+exactly once and no shard names a unit that does not exist. That is what 'check' enforces; case and
+outcome parity across runner versions requires a separate explicit identity comparison.
 
 Commands:
   check                 Discover the units and verify the assignment (run before the build).
@@ -16,6 +17,8 @@ Commands:
   projects --shard NAME Print the spec project folders of a spec shard, one per line.
   verify-trx --shard NAME --results DIR
                         Fail when a unit of the shard has no test result in its TRX file(s).
+  run --shard NAME --results DIR
+                        Run prebuilt spec shards into a new results directory and validate TRX.
   --self-test           Plant every defect the checks exist for and fail unless each one is caught.
 
 Exit codes: 0 clean, 1 defects found, 2 could not run (missing or malformed input, empty population).
@@ -29,11 +32,14 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
 
 PROXY_SPECS = Path("Source/DotNET/Tools/ProxyGenerator.Specs")
 PROXY_SPECS_PROJECT_FILE = "ProxyGenerator.Specs.csproj"
@@ -213,9 +219,136 @@ def trx_results(path: Path) -> list[tuple[str, str]]:
     ]
 
 
+def terminal_trx_counts(results: list[tuple[str, str]]) -> dict[str, int]:
+    outcomes = Counter(outcome for _, outcome in results)
+    if not results or set(outcomes) - {"Passed", "Failed", "NotExecuted"}:
+        raise ValueError("expected a positive total with complete terminal outcomes")
+    return {
+        "total": len(results),
+        "executed": outcomes["Passed"] + outcomes["Failed"],
+        "passed": outcomes["Passed"],
+        "failed": outcomes["Failed"],
+        "notExecuted": outcomes["NotExecuted"],
+    }
+
+
+def validate_trx_counters(counters: ET.Element, expected: dict[str, int]) -> None:
+    for name, count in expected.items():
+        if int(counters.get(name, "-1")) != count:
+            raise ValueError(f"TRX counter '{name}' does not match result outcomes")
+    validate_trx_nonterminal_counters(counters)
+    if expected["executed"] == 0:
+        raise ValueError("all tests were skipped")
+
+
+def validate_trx_nonterminal_counters(counters: ET.Element) -> None:
+    for name in ("error", "timeout", "aborted", "inconclusive", "passedButRunAborted",
+                 "notRunnable", "disconnected", "inProgress", "pending"):
+        if int(counters.get(name, "0")) != 0:
+            raise ValueError(f"TRX counter '{name}' is not zero")
+
+
+def validated_trx_results(path: Path) -> list[tuple[str, str]]:
+    """Require complete terminal outcomes and matching counters, not just a populated file."""
+    try:
+        root = ET.parse(path).getroot()
+        counters = root.findall(f"{TRX_NAMESPACE}ResultSummary/{TRX_NAMESPACE}Counters")
+        if root.tag != f"{TRX_NAMESPACE}TestRun" or len(counters) != 1:
+            raise ValueError("expected one TRX result summary counter")
+        results = trx_results(path)
+        validate_trx_counters(counters[0], terminal_trx_counts(results))
+        return results
+    except (OSError, ET.ParseError, ValueError) as error:
+        raise CannotRun(f"{path} is not a complete TRX result: {error}") from error
+
+
+@dataclass
+class SpecificationRunner:
+    """Prebuilt runner paths and per-invocation output configuration."""
+
+    root: Path
+    results: Path
+    configuration: str
+
+    def assembly_path(self, project: str) -> Path:
+        project_file = self.root / project / f"{Path(project).name}.csproj"
+        assemblies = ET.parse(project_file).getroot().findall("./PropertyGroup/AssemblyName")
+        if len(assemblies) != 1 or not assemblies[0].text:
+            raise ValueError(f"expected one AssemblyName in {project_file}")
+        return (project_file.parent / "bin" / self.configuration / "net10.0" / assemblies[0].text).resolve()
+
+    def command(self, project: str, namespaces: list[str] | None) -> list[str]:
+        assembly = self.assembly_path(project)
+        suffix = ".exe" if os.name == "nt" else ""
+        command = [str(assembly.with_name(f"{assembly.name}{suffix}"))]
+        if namespaces is not None:
+            assembly = assembly.with_name(f"{assembly.name}.dll")
+            if not assembly.is_file():
+                raise CannotRun(f"missing prebuilt proxy assembly: {assembly}")
+            command = ["dotnet", str(assembly), "-filterVSTest", proxy_filter(namespaces)]
+        return command + ["-noLogo", "-noColor", "-result-trx", str(self.result_file(project))]
+
+    def result_file(self, project: str) -> Path:
+        return self.results / f"{Path(project).name}.trx"
+
+    def run_project(self, project: str, namespaces: list[str] | None) -> int:
+        print(f"::group::{project}", flush=True)
+        status = 0
+        try:
+            child = subprocess.run(self.command(project, namespaces), cwd=self.root, check=False)
+            status = child.returncode if child.returncode >= 0 else 128 - child.returncode
+            if status:
+                print(f"::error title=Specs failed::{project} exited with {status}")
+            parsed = validated_trx_results(self.result_file(project))
+            print(f"  {project}: {len(parsed)} tests ({describe(parsed)})")
+            if any(outcome == "Failed" for _, outcome in parsed):
+                status = status or 1
+        except (OSError, ET.ParseError, ValueError, CannotRun) as error:
+            print(f"::error title=Specs failed::{project}: {error}")
+            status = status or 2
+        finally:
+            print("::endgroup::", flush=True)
+        return status
+
+    def prepare_results(self) -> None:
+        try:
+            self.results = self.results.resolve()
+            self.results.mkdir(parents=True, exist_ok=False)
+        except OSError as error:
+            raise CannotRun(f"results directory must be new: {self.results}: {error}") from error
+
+    def run(self, document: dict, name: str) -> int:
+        """Launch a shard without reusing any previous invocation's results."""
+        projects, namespaces = runner_selection(document, name)
+        self.prepare_results()
+        status = 0
+        for project in projects:
+            project_status = self.run_project(project, namespaces)
+            status = status or project_status
+        if namespaces is not None:
+            status = status or verify_trx(document, name, self.results)
+        return status
+
+
+def runner_selection(document: dict, name: str) -> tuple[list[str], list[str] | None]:
+    kind, shard = find_shard(document, name)
+    if kind == "specShards":
+        return shard["projects"], None
+    if not shard["namespaces"]:
+        raise CannotRun(f"'{name}' has no proxy namespaces")
+    return [str(PROXY_SPECS)], shard["namespaces"]
+
+
 def describe(results: list[tuple[str, str]]) -> str:
     outcomes = Counter(outcome for _, outcome in results)
     return ", ".join(f"{count} {outcome.lower()}" for outcome, count in sorted(outcomes.items())) or "none"
+
+
+def unexpected_proxy_results(results: list[tuple[str, str]], shard: dict) -> list[str]:
+    unexpected = [test for test, _ in results if not any(namespace in test for namespace in shard["namespaces"])]
+    if unexpected:
+        return [f"proxy shard '{shard['name']}' ran {len(unexpected)} tests outside its namespaces"]
+    return []
 
 
 def verify_trx(document: dict, name: str, results: Path) -> int:
@@ -227,6 +360,7 @@ def verify_trx(document: dict, name: str, results: Path) -> int:
         if not files:
             raise CannotRun(f"no TRX file in {results} for shard '{name}'")
         all_results = [result for path in files for result in trx_results(path)]
+        defects.extend(unexpected_proxy_results(all_results, shard))
         for namespace in shard["namespaces"]:
             matched = [result for result in all_results if namespace in result[0]]
             total += len(matched)
@@ -271,8 +405,156 @@ def trx(tests: list[tuple[str, str, str]]) -> str:
     return (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
-        f"<Results>{outcomes}</Results><TestDefinitions>{definitions}</TestDefinitions></TestRun>"
+        f"<Results>{outcomes}</Results><TestDefinitions>{definitions}</TestDefinitions>"
+        f'<ResultSummary><Counters total="{len(tests)}" '
+        f'executed="{sum(outcome != "NotExecuted" for _, _, outcome in tests)}" '
+        f'passed="{sum(outcome == "Passed" for _, _, outcome in tests)}" '
+        f'failed="{sum(outcome == "Failed" for _, _, outcome in tests)}" '
+        f'notExecuted="{sum(outcome == "NotExecuted" for _, _, outcome in tests)}" /></ResultSummary></TestRun>'
     )
+
+
+def self_test_trx_population(document: dict, results: Path, expect_status, quietly) -> None:
+    write(results / "proxy.trx", trx([("Cratis.P.for_A.when_x", "should_work", "Passed")]))
+    expect_status("proxy TRX with every namespace passes", quietly(verify_trx, document, "proxy-1", results), 0)
+    write(results / "proxy.trx", trx([("Cratis.P.Scoped.for_B.when_z", "should_skip", "NotExecuted")]))
+    expect_status("skipped-only namespace still counts as matched", quietly(verify_trx, document, "proxy-2", results), 0)
+    write(results / "proxy.trx", trx([("Cratis.P.for_A.when_x", "should_work", "Passed")]))
+    expect_status("proxy namespace without results", quietly(verify_trx, document, "proxy-2", results), 1)
+    (results / "proxy.trx").unlink()
+    expect_status("proxy shard without TRX cannot run", quietly(verify_trx, document, "proxy-1", results), 2)
+    write(results / "One.Specs.trx", trx([("Cratis.One.for_Z.when", "should", "Passed")]))
+    write(results / "Two.Specs.trx", trx([]))
+    expect_status("spec project with zero tests", quietly(verify_trx, document, "specs-1", results), 1)
+    write(results / "Two.Specs.trx", trx([("Cratis.Two.for_Z.when", "should", "Failed")]))
+    expect_status("spec projects with tests pass", quietly(verify_trx, document, "specs-1", results), 0)
+    (results / "Two.Specs.trx").unlink()
+    expect_status("spec project without TRX", quietly(verify_trx, document, "specs-1", results), 1)
+
+
+def self_test_trx_validation(results: Path, expect_status, quietly) -> None:
+    validation_file = results / "validation.trx"
+    complete = trx([("Cratis.One.for_Z.when", "should", "Passed"), ("Cratis.One.for_Z.when", "skip", "NotExecuted")])
+
+    def validate(content: str) -> int:
+        write(validation_file, content)
+        validated_trx_results(validation_file)
+        return 0
+
+    expect_status("complete TRX counters and outcomes", quietly(validate, complete), 0)
+    for label, content in (
+        ("empty TRX", trx([])),
+        ("malformed TRX", "<TestRun>"),
+        ("wrong TRX root", complete.replace("TestRun", "Other")),
+        ("missing TRX counters", complete.replace("Counters", "Missing")),
+        ("duplicate TRX counters", complete.replace("</ResultSummary>", '<Counters total="2" /></ResultSummary>')),
+        ("inconsistent total", complete.replace('total="2"', 'total="3"')),
+        ("inconsistent executed", complete.replace('executed="1"', 'executed="2"')),
+        ("inconsistent outcomes", complete.replace('passed="1"', 'passed="0"')),
+        ("missing skipped counter", complete.replace('notExecuted="1"', "")),
+        ("incomplete outcomes", complete.replace('outcome="Passed"', 'outcome="InProgress"')),
+        ("pending counter", complete.replace('total="2"', 'total="2" pending="1"')),
+        ("all skipped", trx([("Cratis.One.for_Z.when", "skip", "NotExecuted")])),
+    ):
+        expect_status(label, quietly(validate, content), 2)
+    validation_file.unlink()
+    expect_status("missing TRX", quietly(validated_trx_results, validation_file), 2)
+
+
+def self_test_ordinary_runner(root: Path, valid: dict, expect, quietly) -> None:
+    def expect_status(label, result, expected):
+        expect(label, result[0], expected, result[1])
+
+    complete = trx([("Cratis.One.for_Z.when", "should", "Passed"), ("Cratis.One.for_Z.when", "skip", "NotExecuted")])
+    runner_document = {"proxyShards": valid["proxyShards"], "specShards": [{"name": "runner", "projects": ["Source/DotNET/One.Specs"]}]}
+    write(root / SPEC_ROOT / "One.Specs" / "One.Specs.csproj", "<Project><PropertyGroup><AssemblyName>Cratis.One.Specs</AssemblyName></PropertyGroup></Project>")
+    runner_results = root / "runner-results"
+    runner = SpecificationRunner(root, runner_results, "Release")
+
+    def run_fake_child(code: int, content: str | None) -> tuple[int, str]:
+        def fake_child(command, *, cwd, check):
+            expect("runner command", command[:4], [str((root / SPEC_ROOT / "One.Specs/bin/Release/net10.0" / ("Cratis.One.Specs.exe" if os.name == "nt" else "Cratis.One.Specs")).resolve()), "-noLogo", "-noColor", "-result-trx"])
+            expect("runner working directory", cwd, root)
+            expect("runner retains child exit", check, False)
+            if content is not None:
+                write(Path(command[4]), content)
+            return subprocess.CompletedProcess(command, code)
+
+        with patch("subprocess.run", side_effect=fake_child):
+            return quietly(runner.run, runner_document, "runner")
+
+    for label, code, content, expected in (
+        ("runner success", 0, complete, 0),
+        ("runner child failure", 7, complete, 7),
+        ("runner child failure with missing TRX", 7, None, 7),
+        ("runner signal", -9, complete, 137),
+        ("runner missing TRX", 0, None, 2),
+        ("runner incomplete TRX", 0, '<TestRun />', 2),
+        ("runner zero tests", 0, trx([]), 2),
+        ("runner skipped only", 0, trx([("C", "skip", "NotExecuted")]), 2),
+        ("runner cannot hide failed tests", 0, trx([("C", "fails", "Failed")]), 1),
+    ):
+        expect_status(label, run_fake_child(code, content), expected)
+        shutil.rmtree(runner_results)
+    with patch("subprocess.run", side_effect=OSError("missing executable")):
+        expect_status("runner launch failure", quietly(runner.run, runner_document, "runner"), 2)
+    shutil.rmtree(runner_results)
+    runner_results.mkdir()
+    write(runner_results / "One.Specs.trx", complete)
+    with patch("subprocess.run") as child:
+        expect_status("runner rejects stale directory", quietly(runner.run, runner_document, "runner"), 2)
+        expect("stale results never launch a child", child.called, False)
+
+
+def self_test_proxy_runner(root: Path, valid: dict, expect, quietly) -> None:
+    def expect_status(label, result, expected):
+        expect(label, result[0], expected, result[1])
+
+    proxy = root / PROXY_SPECS
+    write(proxy / PROXY_SPECS_PROJECT_FILE, "<Project><PropertyGroup><AssemblyName>Cratis.Arc.ProxyGenerator.Specs</AssemblyName></PropertyGroup></Project>")
+    assembly = (proxy / "bin/Release/net10.0/Cratis.Arc.ProxyGenerator.Specs.dll").resolve()
+    proxy_document = json.loads(json.dumps(valid))
+    proxy_document["proxyShards"][0]["namespaces"].append("Cratis.P.Scoped.for_B")
+    proxy_results = (root / "proxy-results").resolve()
+    runner = SpecificationRunner(root, proxy_results, "Release")
+    selected = trx([("Cratis.P.for_A.when_x", "works", "Passed"), ("Cratis.P.Scoped.for_B.when_z", "works", "Passed")])
+    with patch("subprocess.run") as child:
+        expect_status("missing proxy binary", quietly(runner.run, proxy_document, "proxy-1"), 2)
+        expect("missing binary never launches", child.called, False)
+    shutil.rmtree(proxy_results)
+    write(assembly, "mock binary; never executed")
+    for label, code, content, expected in (
+        ("proxy direct success", 0, selected, 0),
+        ("proxy child failure", 7, selected, 7),
+        ("proxy failure without TRX", 7, None, 7),
+        ("proxy missing TRX", 0, None, 2),
+        ("proxy malformed TRX", 0, "<TestRun>", 2),
+        ("proxy missing namespace", 0, trx([("Cratis.P.for_A.when_x", "works", "Passed")]), 1),
+        ("proxy wrong project", 0, trx([("Cratis.One.for_Z.when", "should", "Passed"), ("Cratis.One.for_Z.when", "skip", "NotExecuted")]), 1),
+        ("proxy extra namespace", 0, trx([("Cratis.P.for_A.when_x", "works", "Passed"), ("Cratis.P.Scoped.for_B.when_z", "works", "Passed"), ("Cratis.Other.when", "works", "Passed")]), 1),
+        ("proxy signal", -9, selected, 137),
+    ):
+        def fake_proxy(command, *, cwd, check):
+            expect("proxy exact filtered command", command, ["dotnet", str(assembly), "-filterVSTest", "FullyQualifiedName~Cratis.P.for_A|FullyQualifiedName~Cratis.P.Scoped.for_B", "-noLogo", "-noColor", "-result-trx", str(proxy_results / "ProxyGenerator.Specs.trx")])
+            expect("proxy working directory", cwd, root)
+            expect("proxy child exit handling", check, False)
+            if content is not None:
+                write(Path(command[-1]), content)
+            return subprocess.CompletedProcess(command, code)
+
+        with patch("subprocess.run", side_effect=fake_proxy):
+            expect_status(label, quietly(runner.run, proxy_document, "proxy-1"), expected)
+        shutil.rmtree(proxy_results)
+    with patch("subprocess.run") as child:
+        expect_status("invalid proxy shard", quietly(runner.run, proxy_document, "missing"), 2)
+        empty_proxy = json.loads(json.dumps(valid))
+        empty_proxy["proxyShards"][0].update(namespaces=[])
+        expect_status("empty proxy selection", quietly(runner.run, empty_proxy, "proxy-1"), 2)
+        expect("invalid selection never launches an unfiltered child", child.called, False)
+        proxy_results.mkdir()
+        write(proxy_results / "ProxyGenerator.Specs.trx", selected)
+        expect_status("proxy stale results", quietly(runner.run, proxy_document, "proxy-1"), 2)
+        expect("stale proxy results never launch", child.called, False)
 
 
 def self_test() -> int:
@@ -358,22 +640,11 @@ def self_test() -> int:
         expect("filter ORs the old per-namespace filters", proxy_filter(["A.for_X", "B.for_Y"]), "FullyQualifiedName~A.for_X|FullyQualifiedName~B.for_Y")
 
         results = root / "results"
-        write(results / "proxy.trx", trx([("Cratis.P.for_A.when_x", "should_work", "Passed"), ("Cratis.P.Scoped.for_B.when_z", "should_skip", "NotExecuted")]))
         write(root / SHARDS_FILE, json.dumps(valid))
-        document = load_shards(root)
-        expect_status("proxy TRX with every namespace passes", quietly(verify_trx, document, "proxy-1", results), 0)
-        expect_status("skipped-only namespace still counts as matched", quietly(verify_trx, document, "proxy-2", results), 0)
-        write(results / "proxy.trx", trx([("Cratis.P.for_A.when_x", "should_work", "Passed")]))
-        expect_status("proxy namespace without results", quietly(verify_trx, document, "proxy-2", results), 1)
-        (results / "proxy.trx").unlink()
-        expect_status("proxy shard without TRX cannot run", quietly(verify_trx, document, "proxy-1", results), 2)
-        write(results / "One.Specs.trx", trx([("Cratis.One.for_Z.when", "should", "Passed")]))
-        write(results / "Two.Specs.trx", trx([]))
-        expect_status("spec project with zero tests", quietly(verify_trx, document, "specs-1", results), 1)
-        write(results / "Two.Specs.trx", trx([("Cratis.Two.for_Z.when", "should", "Failed")]))
-        expect_status("spec projects with tests pass", quietly(verify_trx, document, "specs-1", results), 0)
-        (results / "Two.Specs.trx").unlink()
-        expect_status("spec project without TRX", quietly(verify_trx, document, "specs-1", results), 1)
+        self_test_trx_population(load_shards(root), results, expect_status, quietly)
+        self_test_trx_validation(results, expect_status, quietly)
+        self_test_ordinary_runner(root, valid, expect, quietly)
+        self_test_proxy_runner(root, valid, expect, quietly)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -385,10 +656,11 @@ def self_test() -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", nargs="?", default="check", choices=["check", "matrix", "filter", "projects", "verify-trx"])
+    parser.add_argument("command", nargs="?", default="check", choices=["check", "matrix", "filter", "projects", "verify-trx", "run"])
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--shard")
     parser.add_argument("--results", type=Path)
+    parser.add_argument("--configuration", choices=["Debug", "Release"], default="Release")
     parser.add_argument("--root", type=Path, default=Path("."))
     arguments = parser.parse_args(argv)
     if arguments.self_test:
@@ -417,8 +689,12 @@ def main(argv: list[str]) -> int:
             print("\n".join(shard["projects"]))
             return 0
         if not arguments.results:
-            raise CannotRun("'verify-trx' needs --results")
-        return verify_trx(document, arguments.shard, arguments.results)
+            raise CannotRun(f"'{arguments.command}' needs --results")
+        handlers = {
+            "run": lambda: SpecificationRunner(arguments.root.resolve(), arguments.results, arguments.configuration).run(document, arguments.shard),
+            "verify-trx": lambda: verify_trx(document, arguments.shard, arguments.results),
+        }
+        return handlers[arguments.command]()
     except CannotRun as error:
         print(f"::error title=ci-test-shards::{error}")
         return 2

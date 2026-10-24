@@ -48,7 +48,7 @@ public class from_a_scenario_pinning_a_literal_identifier : a_generated_document
         Result.Source.ShouldNotContain("specification WhenRegisteringAndAnAuthorIsRegistered");
         var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification);
         diagnostic.Message.ShouldContain(reason);
-        diagnostic.Location!.ShouldContain("and_an_author_is_registered");
+        diagnostic.Location.ShouldContain("and_an_author_is_registered");
         AssertDocument();
     }
 

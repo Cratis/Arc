@@ -33,7 +33,7 @@ public class from_a_generation_strategy_without_a_counterpart : a_generated_docu
         diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         diagnostic.Message.ShouldContain(reason);
         diagnostic.Message.ShouldContain("Cratis/Screenplay#616");
-        diagnostic.Location!.ShouldContain(Analyzed.SlicePath);
+        diagnostic.Location.ShouldContain(Analyzed.SlicePath);
         AssertPartialDocument();
     }
 }

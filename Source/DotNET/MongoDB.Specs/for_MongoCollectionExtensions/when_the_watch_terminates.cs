@@ -16,7 +16,7 @@ public class when_the_watch_terminates : given.a_controlled_watch
         // The shared stream completes when the watcher is disposed; that is normal completion, never an error.
         _databaseChanges.Complete();
 
-        await _completed.Task.WaitAsync(Deadline);
+        await _completed.Task.WaitAsync(Deadline, global::Xunit.TestContext.Current.CancellationToken);
         _databaseChanges.Subscribers.ShouldEqual(0);
         Catch.Exception(_subscription.Dispose).ShouldBeNull();
     }

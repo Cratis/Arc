@@ -24,7 +24,7 @@ public class SqlServerFixture : IAsyncLifetime
     public string ConnectionString => _container.GetConnectionString();
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
             .WithPassword(Password)
@@ -37,7 +37,7 @@ public class SqlServerFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _container.DisposeAsync();
     }

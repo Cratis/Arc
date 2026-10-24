@@ -33,16 +33,16 @@ public class when_migrating_partial_query_methods
             project = project.AddDocument("Other.cs", SourceText.From($"using Cratis.Arc.Queries.ModelBound; namespace TestApp; public partial record Order {{ {implementation} }}")).Project;
         }
 
-        var compilation = (await project.GetCompilationAsync())!;
-        compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync()).Single();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken)).Single();
         var actions = new List<CodeAction>();
         await new CodeFixes.RequireQueryAttributeCodeFixProvider().RegisterCodeFixesAsync(new CodeFixContext(
             project.GetDocument(document.Id)!, diagnostic, (action, _) => actions.Add(action), CancellationToken.None));
         var operations = await actions.Single().GetOperationsAsync(CancellationToken.None);
         var changed = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution;
-        var output = (await changed.GetProject(project.Id)!.GetCompilationAsync())!;
-        output.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var output = (await changed.GetProject(project.Id)!.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        output.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         var method = output.GetTypeByMetadataName("TestApp.Order")!.GetMembers("ById").OfType<IMethodSymbol>().Single();
         method.GetAttributes().Select(_ => _.AttributeClass!.Name).ShouldContainOnly("PathAttribute", "QueryAttribute");
         method.PartialImplementationPart.ShouldNotBeNull();
@@ -58,9 +58,9 @@ public class when_migrating_partial_query_methods
             "\nnamespace Cratis.Arc.Queries.ModelBound { public class ReadModelAttribute : System.Attribute; }";
         var project = TestProject.CreateProject(source);
         using var workspace = project.Solution.Workspace;
-        var compilation = (await project.GetCompilationAsync())!;
-        compilation.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync()).Single();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken)).Single();
         var actions = new List<CodeAction>();
         await new CodeFixes.RequireQueryAttributeCodeFixProvider().RegisterCodeFixesAsync(new CodeFixContext(
             project.Documents.Single(), diagnostic, (action, _) => actions.Add(action), CancellationToken.None));
@@ -74,8 +74,8 @@ public class when_migrating_partial_query_methods
             "\nnamespace TestApp { public class Broken { Missing Value; } }";
         var project = TestProject.CreateProject(source);
         using var workspace = project.Solution.Workspace;
-        var compilation = (await project.GetCompilationAsync())!;
-        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync()).Single();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        var diagnostic = (await compilation.WithAnalyzers([new ReadModelCreatorAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken)).Single();
         var actions = new List<CodeAction>();
         await new CodeFixes.RequireQueryAttributeCodeFixProvider().RegisterCodeFixesAsync(new CodeFixContext(
             project.Documents.Single(), diagnostic, (action, _) => actions.Add(action), CancellationToken.None));
