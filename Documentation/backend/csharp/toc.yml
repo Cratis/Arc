@@ -22,6 +22,8 @@
   href: identity/toc.yml
 - name: Tenancy
   href: tenancy/toc.yml
+- name: Application calendar
+  href: application-calendar.md
 - name: MongoDB
   href: mongodb/toc.yml
 - name: Entity Framework

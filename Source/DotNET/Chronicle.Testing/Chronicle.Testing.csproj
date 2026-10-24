@@ -12,6 +12,9 @@
         <ProjectReference Include="../Testing/Testing.csproj" />
     </ItemGroup>
     <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="Cratis.Chronicle.Testing" />
     </ItemGroup>
 </Project>

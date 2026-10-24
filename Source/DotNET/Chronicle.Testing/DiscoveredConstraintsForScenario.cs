@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events.Constraints;
 using Cratis.Chronicle.Testing;
@@ -15,8 +16,12 @@ namespace Cratis.Arc.Chronicle.Testing;
 /// <param name="defaults">The defaults used for artifact and event type discovery.</param>
 internal sealed class DiscoveredConstraintsForScenario(Defaults defaults) : ICanProvideConstraints
 {
+    static readonly ConditionalWeakTable<Defaults, IImmutableList<IConstraintDefinition>> _definitions = new();
+
     /// <inheritdoc/>
-    public IImmutableList<IConstraintDefinition> Provide()
+    public IImmutableList<IConstraintDefinition> Provide() => _definitions.GetValue(defaults, Compute);
+
+    static IImmutableList<IConstraintDefinition> Compute(Defaults defaults)
     {
         // Chronicle's explicit-identity constructor does not discover constraints, and its discovery helper is private.
         var namingPolicy = new CamelCaseNamingPolicy();

@@ -12,6 +12,24 @@ description: Incremental writes, destructive cleanup, and barrel generation sett
 
 Use a dedicated, generated-only directory with one generation owner. Incremental mode does **not** disable orphan cleanup or guarantee preservation of a mixed source tree.
 
+## Incremental discovery
+
+The MSBuild integration defaults `CratisProxiesIncremental` to `true`. It stores `cratis-proxies.state.json` under the project's framework- and configuration-specific `$(IntermediateOutputPath)`. On an unchanged build, the executable checks a content fingerprint and the recorded outputs before loading project assemblies or discovering types. A cache hit prints `Proxies are up to date; skipping discovery` and does not change proxy bytes or timestamps.
+
+The fingerprint includes the target and every managed dependency resolved by the generator, including non-project and local-package assemblies and the resolved Fundamentals assembly, together with their adjacent XML documentation and PDB files. It also includes the dependency manifest, generator identity, resolved runtime paths, command-line settings and file-header template. Replacing a dependency's bytes invalidates the shortcut even when its package version and dependency manifest stay unchanged. Missing or unreadable inputs disable the shortcut.
+
+Every recorded proxy and managed index must still have its saved size, last-write time and SHA-256 content hash. A modified output invalidates the incremental state and reruns generation, even for a same-length edit with a preserved timestamp. Validation reads only the recorded outputs; it does not scan the source tree. Detection does **not** guarantee byte-for-byte restoration: the existing write shortcut trusts inline generated-content hashes and may leave a manual edit in place when that metadata still matches the newly generated content.
+
+Deleting the state file forces discovery on the next build. `dotnet clean` removes it too. To disable the shortcut and always run discovery:
+
+```xml
+<PropertyGroup>
+    <CratisProxiesIncremental>false</CratisProxiesIncremental>
+</PropertyGroup>
+```
+
+This does not disable the existing content-hash write shortcut described below. Full generation refreshes state only on success; a failed run never leaves a successful state for its new inputs.
+
 ## Incremental generation
 
 This fragment belongs inside your existing project:
@@ -32,6 +50,7 @@ To rebuild a **disposable output directory** from scratch:
 
 ```xml
 <PropertyGroup>
+    <CratisProxiesIncremental>false</CratisProxiesIncremental>
     <CratisProxiesSkipOutputDeletion>false</CratisProxiesSkipOutputDeletion>
 </PropertyGroup>
 ```
@@ -69,3 +88,11 @@ proxygenerator assembly.dll output-path --skip-output-deletion --skip-index-gene
 ```
 
 This retains the output directory and skips barrel updates, but still removes orphaned marked files. Use only a disposable or generator-owned `output-path`.
+
+Direct executable calls always discover types unless given `--state-file=<path>`. To opt in explicitly:
+
+```bash
+proxygenerator assembly.dll output-path --skip-output-deletion --state-file=obj/proxies.state.json
+```
+
+Choose a state file outside the generated output directory and use a separate file for each target framework, configuration and generation owner. Calls without `--state-file` keep the existing generation behavior.
