@@ -54,6 +54,8 @@ for (const direct of [true, false]) {
                     stream.onmessage?.({ data: JSON.stringify({ type: 'Connected', payload: 'connection-1' }) });
                     return JSON.parse(fetchStub.firstCall.args[1].body).queryId;
                 }
+                // The server announces itself before any subscription is sent.
+                stream.onmessage?.({ data: JSON.stringify({ type: 'Connected', payload: 'connection-1' }) });
                 return JSON.parse(stream.send.firstCall.args[0]).queryId;
             };
 
