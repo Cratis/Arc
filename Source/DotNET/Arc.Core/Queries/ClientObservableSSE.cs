@@ -49,6 +49,7 @@ public class ClientObservableSSE<T>(
         var hasDeliveredEmission = false;
         var isTerminated = false;
         using var cts = new CancellationTokenSource();
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted, cts.Token);
         var drain = new DirectObservableEmissionDrain(cts);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
@@ -62,7 +63,6 @@ public class ClientObservableSSE<T>(
         {
             telemetry.Start();
             subscription = Subject.Subscribe(Next, Error, Complete);
-            using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
             await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
             {
                 _ = drain.Cancel();
@@ -208,16 +208,43 @@ public class ClientObservableSSE<T>(
             return false;
         }
 
-        void Error(Exception error)
+        async void Error(Exception error)
         {
-            if (cts.IsCancellationRequested)
+            if (!drain.TryEnter())
             {
-                Complete();
                 return;
             }
+
             logger.ObservableAnErrorOccurred(error);
-            _ = drain.Cancel();
-            tcs.TrySetResult();
+            var gateHeld = false;
+            try
+            {
+                await emissionGate.WaitAsync(cts.Token);
+                gateHeld = true;
+                if (linkedTokenSource.IsCancellationRequested || isTerminated)
+                {
+                    return;
+                }
+
+                isTerminated = true;
+                var json = JsonSerializer.Serialize(QueryResult.Error(queryContext.CorrelationId, error.Message), arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
+                await context.Write($"data: {json}\n\n", cts.Token);
+            }
+            catch (Exception sendError)
+            {
+                logger.ObservableAnErrorOccurred(sendError);
+            }
+            finally
+            {
+                if (gateHeld)
+                {
+                    emissionGate.Release();
+                }
+
+                _ = drain.Cancel();
+                tcs.TrySetResult();
+                drain.Exit();
+            }
         }
 
         void Complete()

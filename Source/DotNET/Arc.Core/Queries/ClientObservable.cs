@@ -68,7 +68,7 @@ public class ClientObservable<T>(
         Exception? failure = null;
         Exception? terminationFailure = null;
         Exception? receiverFailure = null;
-        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted, cts.Token);
         await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
         {
             _ = drain.Cancel();
@@ -257,13 +257,45 @@ public class ClientObservable<T>(
 
             return false;
         }
-        void Error(Exception error)
+        async void Error(Exception error)
         {
-            logger.ObservableAnErrorOccurred(error);
-            if (!cts.IsCancellationRequested)
+            if (!drain.TryEnter())
             {
+                return;
+            }
+
+            logger.ObservableAnErrorOccurred(error);
+            var gateHeld = false;
+            try
+            {
+                await emissionGate.WaitAsync(cts.Token);
+                gateHeld = true;
+                if (linkedTokenSource.IsCancellationRequested || isTerminated)
+                {
+                    return;
+                }
+
+                isTerminated = true;
+                var sendError = await webSocketConnectionHandler.SendMessage(webSocket, QueryResult.Error(queryContext.CorrelationId, error.Message), writeLock, cts.Token);
+                if (sendError is not null)
+                {
+                    logger.ObservableAnErrorOccurred(sendError);
+                }
+            }
+            catch (Exception sendError)
+            {
+                logger.ObservableAnErrorOccurred(sendError);
+            }
+            finally
+            {
+                if (gateHeld)
+                {
+                    emissionGate.Release();
+                }
+
                 _ = drain.Cancel();
                 tcs.TrySetResult();
+                drain.Exit();
             }
         }
         void Complete()
