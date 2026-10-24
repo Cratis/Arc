@@ -42,6 +42,15 @@
                Runtime="NET"
                Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(MSBuildRuntimeType)' != 'Core'" />
 
+    <!-- xUnit v3 attaches its generated entry point and runner sources only before BeforeCompile, after
+         _GenerateCompileInputs. Its targets define _XunitEntryPointFileName; the props marker alone also exists
+         in projects without these targets. Check both at execution time so import order does not matter, and
+         ordinary consumers (including xUnit v2) never depend on an unavailable target. This only prepares sources,
+         not BeforeCompile or the resource pipeline, which would introduce a dependency cycle. -->
+    <Target Name="_CratisAttachXunitSourceFiles"
+            Condition="'$(XunitTestProject)' == 'true' and '$(_XunitEntryPointFileName)' != ''"
+            DependsOnTargets="_XunitAttachSourceFiles" />
+
     <!-- Skipped during a design time build: the IDE asks for the compiler inputs many times a second and never
          consumes the resources, so analyzing the whole application there would cost everything and produce
          nothing.
@@ -57,7 +66,7 @@
          ManifestResourceName, and they are neither .resx nor culture specific. -->
     <Target Name="GenerateCratisEmbeddedScreenplayDocuments"
             Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'"
-            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;PrepareResourceNames;GenerateMSBuildEditorConfigFile"
+            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;PrepareResourceNames;GenerateMSBuildEditorConfigFile;_CratisAttachXunitSourceFiles"
             BeforeTargets="_GenerateCompileInputs;CoreCompile">
 
         <!-- Resolved here rather than at evaluation time: where the targets of a package are imported from decides
