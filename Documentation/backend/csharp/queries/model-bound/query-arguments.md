@@ -77,7 +77,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Anything else is injected when the container can supply it, as with `IMongoCollection<T>` or `ILogger<T>`. A type the container does not know, such as an unregistered plain class, is not injected: Arc treats it as a query argument, which the HTTP readers cannot construct. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
+Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), a collection of primitives, concepts, or enums, or a string-keyed dictionary of those scalar values. Anything else is injected when the container can supply it, as with `IMongoCollection<T>` or `ILogger<T>`. A type the container does not know, such as an unregistered plain class, is not injected: Arc treats it as a query argument, which the HTTP readers cannot construct. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
 
 ### Collection Arguments
 
@@ -117,7 +117,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>`/`HashSet<T>` makes no difference. Everything else — a class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container when it is registered there; an unregistered type falls back to being a query argument.
+> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>`/`HashSet<T>` makes no difference — **or a dictionary with `string` keys and values of those scalar types**. Everything else — a class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container when it is registered there; an unregistered type falls back to being a query argument.
 
 ## Missing, empty, and optional values
 
@@ -145,6 +145,45 @@ Without `[Path]`, Arc derives a kebab-case path from the namespace and generated
 Use `Cratis.Arc.Queries.ModelBound.PathAttribute` for an explicit model-bound path. Method-level paths take precedence over a type-level path. Give different queries distinct paths; do not put multiple methods under one identical type-level path and expect separate endpoints.
 
 For example, a query configured with `[Path("/api/accounts/by-id")]` takes its GUID-backed `AccountId` as `/api/accounts/by-id?id=11111111-1111-1111-1111-111111111111`, not as an appended route segment. Use [controller route templates](../controller-based/route-templates.md) when you need route-value binding.
+
+### Dictionary arguments
+
+Use `Dictionary<string, V>`, `IDictionary<string, V>`, or `IReadOnlyDictionary<string, V>` for named query inputs. The key must be a string; values must be primitives, strings, concepts, or enums, including nullable values. Dictionaries of complex objects and non-string keys are not caller-supplied query arguments. Arc creates a `Dictionary<string, V>` assignable to the declared type; custom dictionary classes are not supported.
+
+The generated TypeScript proxy exposes `Record<string, V>` (using the primitive type for a concept value), not an array. Pass a plain object to the proxy. For example, this query echoes its named parts:
+
+```csharp
+using System.Collections.Generic;
+using Cratis.Arc.Queries.ModelBound;
+
+namespace Banking.Accounts;
+
+[ReadModel]
+public record NamedParts(Dictionary<string, string> Parts)
+{
+    [Path("/api/accounts/find")]
+    public static NamedParts Find(IDictionary<string, string> parts) =>
+        new(new Dictionary<string, string>(parts));
+}
+```
+
+GET carries one argument containing JSON object text, rather than repeated keys or `parts[key]` entries:
+
+```http
+GET /api/accounts/find?parts=%7B%22region%22%3A%22west%22%2C%22number%22%3A%2242%22%7D
+```
+
+QUERY carries the object directly under `arguments` in the JSON body:
+
+```json
+{
+  "arguments": {
+    "parts": { "region": "west", "number": "42" }
+  }
+}
+```
+
+Observable query subscriptions send the same JSON object text as one named argument. String values containing JSON literals (such as `"42"` or `"\"abc\""`) and commas stay strings, unchanged. Invalid JSON, a non-object argument, an invalid scalar value, or null for a non-nullable value type returns HTTP 400 with a named malformed-request validation error. An empty object is valid.
 
 ## Validation attributes
 

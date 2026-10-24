@@ -295,6 +295,7 @@ public static class QueryExtensions
         parameter.ParameterType.IsAPrimitiveType() ||
         parameter.ParameterType.IsConcept() ||
         parameter.ParameterType.IsEnum ||
+        parameter.ParameterType.IsDictionaryOfQueryArgumentValues(out _) ||
         parameter.ParameterType.IsEnumerableOfPrimitiveOrConcept();
 
     /// <summary>
@@ -334,7 +335,7 @@ public static class QueryExtensions
             paramType = paramType.GetGenericArguments()[0];
         }
 
-        var isEnumerable = paramType.IsEnumerableOfPrimitiveOrConcept();
+        var isEnumerable = !paramType.IsDictionaryOfQueryArgumentValues(out _) && paramType.IsEnumerableOfPrimitiveOrConcept();
 
         if (isEnumerable)
         {

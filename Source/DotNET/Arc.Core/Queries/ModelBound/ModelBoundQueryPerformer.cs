@@ -260,7 +260,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         serviceProviderIsService.IsService(parameter.ParameterType);
 
     static bool IsNeverADependency(Type type) =>
-        type.IsValueType || type.IsConcept() || type.IsEnumerableOfQueryArgumentElement(out _) || type.IsNestedQueryArgumentCollection();
+        type.IsValueType || type.IsConcept() || type.IsQueryArgumentCollection();
 
     static bool IsNullableOrOptional(ParameterInfo parameter)
     {

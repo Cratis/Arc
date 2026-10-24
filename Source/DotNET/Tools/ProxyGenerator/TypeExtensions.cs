@@ -473,6 +473,23 @@ public static partial class TypeExtensions
     }
 
     /// <summary>
+    /// Check if a type is a string-keyed query argument dictionary with scalar values.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <param name="valueType">The dictionary value type.</param>
+    /// <returns>True if the dictionary has convertible scalar values.</returns>
+    public static bool IsDictionaryOfQueryArgumentValues(this Type type, out Type valueType)
+    {
+        valueType = typeof(object);
+        var contract = type.GetDictionaryInterface();
+        if (contract is null || contract.GetGenericArguments()[0].FullName != typeof(string).FullName) return false;
+        valueType = contract.GetGenericArguments()[1];
+        var scalarType = valueType.IsNullable() ? valueType.GetGenericArguments()[0] : valueType;
+        return scalarType.IsConcept() || scalarType.IsEnum || scalarType.GetTypeInfo().IsPrimitive ||
+            (scalarType.FullName is not null && _queryArgumentScalarTypeNames.Contains(scalarType.FullName));
+    }
+
+    /// <summary>
     /// Check if a type is a "primitive" type.  This is not just dot net primitives but basic types like string, decimal, datetime,
     /// that are not classified as primitive types.
     /// </summary>

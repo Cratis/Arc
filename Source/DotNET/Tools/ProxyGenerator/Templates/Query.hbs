@@ -157,7 +157,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     ];
 
 {{#Parameters}}
-    {{camelcase Name}}!: {{Type}}{{#if IsEnumerable}}[]{{/if}};
+    {{camelcase Name}}!: {{{Type}}}{{#if IsEnumerable}}[]{{/if}};
 {{/Parameters}}
 
 {{#if IsEnumerable}}

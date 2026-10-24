@@ -55,6 +55,11 @@ public static class ConverterExtensions
     /// </remarks>
     public static object? ConvertTo(this object value, Type targetType)
     {
+        if (targetType.IsDictionaryOfQueryArgumentValues(out var valueType))
+        {
+            return ConvertToDictionary(value, targetType, valueType);
+        }
+
         if (targetType.IsNestedQueryArgumentCollection())
         {
             throw new InvalidCollectionQueryArgument(targetType, value);
@@ -108,7 +113,7 @@ public static class ConverterExtensions
             return null;
         }
 
-        if (targetType.IsNestedQueryArgumentCollection() || targetType.IsEnumerableOfQueryArgumentElement(out _))
+        if (targetType.IsQueryArgumentCollection())
         {
             try
             {
@@ -181,6 +186,64 @@ public static class ConverterExtensions
         TryGetEnumerableElementType(type, out var elementType) &&
         !typeof(JsonNode).IsAssignableFrom(elementType) &&
         TryGetEnumerableElementType(elementType, out _);
+
+    /// <summary>
+    /// Determines whether a type is a string-keyed dictionary with convertible scalar values.
+    /// </summary>
+    /// <param name="type">The declared dictionary type.</param>
+    /// <param name="valueType">The dictionary value type.</param>
+    /// <returns>True when the type is a supported query argument dictionary.</returns>
+    internal static bool IsDictionaryOfQueryArgumentValues(this Type type, out Type valueType)
+    {
+        valueType = typeof(object);
+        var contract = new[] { type }.Concat(type.GetInterfaces()).FirstOrDefault(candidate =>
+            candidate.IsGenericType &&
+            (candidate.GetGenericTypeDefinition() == typeof(IDictionary<,>) || candidate.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)));
+        if (contract is null || contract.GetGenericArguments()[0] != typeof(string)) return false;
+        valueType = contract.GetGenericArguments()[1];
+        var scalarType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+        return scalarType.IsEnum || scalarType.IsConcept() || IsQueryArgumentScalar(scalarType);
+    }
+
+    /// <summary>
+    /// Determines whether query binding uses collection conversion for a type.
+    /// </summary>
+    /// <param name="type">The declared argument type.</param>
+    /// <returns>True for supported dictionaries, scalar collections, and rejected nested collections.</returns>
+    internal static bool IsQueryArgumentCollection(this Type type) =>
+        type.IsDictionaryOfQueryArgumentValues(out _) || type.IsNestedQueryArgumentCollection() || type.IsEnumerableOfQueryArgumentElement(out _);
+
+    static object ConvertToDictionary(object value, Type targetType, Type valueType)
+    {
+        if (targetType.IsInstanceOfType(value)) return value;
+        try
+        {
+            using var document = JsonDocument.Parse(value?.ToString() ?? string.Empty);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidCollectionQueryArgument(targetType, value);
+            var dictionary = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(typeof(string), valueType))!;
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                dictionary[property.Name] = ConvertDictionaryValue(property.Value, valueType, targetType);
+            }
+            return targetType.IsInstanceOfType(dictionary) ? dictionary : throw new InvalidCollectionQueryArgument(targetType, value);
+        }
+        catch (JsonException)
+        {
+            throw new InvalidCollectionQueryArgument(targetType, value);
+        }
+    }
+
+    static object? ConvertDictionaryValue(JsonElement element, Type valueType, Type targetType)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+        {
+            if (valueType.IsValueType && Nullable.GetUnderlyingType(valueType) is null) throw new InvalidCollectionQueryArgument(targetType, null);
+            return null;
+        }
+        var value = element.ValueKind == JsonValueKind.String ? element.GetString()! : element.GetRawText();
+        if (!TryConvertCollectionElement(value, valueType, out var converted)) throw new InvalidCollectionQueryArgument(targetType, value);
+        return converted;
+    }
 
     static bool IsQueryArgumentScalar(Type type) =>
         type.IsPrimitive || _additionalQueryArgumentScalarTypes.Contains(type);
