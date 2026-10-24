@@ -6,8 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cratis.Arc.Commands.for_CommandActionFilter.when_executing;
 
 /// <summary>
-/// A controller-based command bypasses the command pipeline entirely, so no execution scope ever runs for it. The
-/// filter is the only place that can keep a value the action produced out of the error response body.
+/// A controller action's response must be cleared when execution fails, even without registered execution scopes.
 /// </summary>
 public class and_the_action_threw_after_producing_a_response : given.a_post_request_for_a_command_action
 {
