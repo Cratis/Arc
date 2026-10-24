@@ -134,7 +134,7 @@ public partial class ObservableQueryDemultiplexer
         switch (message.Type)
         {
             case ObservableQueryHubMessageType.Subscribe:
-                await HandleWebSocketSubscribe(message, connection, token);
+                HandleWebSocketSubscribe(message, connection, token);
                 break;
 
             case ObservableQueryHubMessageType.Unsubscribe:
@@ -147,7 +147,7 @@ public partial class ObservableQueryDemultiplexer
         }
     }
 
-    async Task HandleWebSocketSubscribe(ObservableQueryHubMessage message, WebSocketConnection connection, CancellationToken token)
+    void HandleWebSocketSubscribe(ObservableQueryHubMessage message, WebSocketConnection connection, CancellationToken token)
     {
         var context = connection.Context;
         using var receipt = OperationContextScope.Begin(context.RequestServices);
