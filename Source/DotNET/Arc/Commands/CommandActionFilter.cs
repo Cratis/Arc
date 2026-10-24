@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.Traces;
+using Cratis.Types;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -23,95 +25,145 @@ public class CommandActionFilter(
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (context.HttpContext.Request.Method == HttpMethod.Post.Method)
+        if (context.HttpContext.Request.Method != HttpMethod.Post.Method)
         {
-            using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
-            EstablishCommandContext(context);
+            await next();
+            return;
+        }
 
-            var exceptionMessages = new List<string>();
-            var exceptionStackTrace = string.Empty;
-            ActionExecutedContext? result = null;
-            object? response = null;
-            var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
-            using var span = activitySource.OnCommand(routeTemplate);
+        using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
+        var commandContext = EstablishCommandContext(context);
+        var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
+        using var span = activitySource.OnCommand(routeTemplate);
+        if (ShouldExecute(context) && context.IsAspNetResult())
+        {
+            await next();
+            return;
+        }
 
-            var ignoreValidation = context.ShouldIgnoreValidation();
-            var isValidationRequest = IsValidationRequest(context);
-            var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
-            var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
+        await ExecuteCommand(context, next, commandContext);
+    }
 
-            var validationResult = ignoreValidation ?
-                                        [] :
-                                        context.ModelState.SelectMany(_ => _.Value!.Errors.Select(e => e.ToValidationResult(_.Key))).ToList();
-
-            if ((context.ModelState.IsValid || ignoreValidation) && !isValidationRequest)
+    static async Task ExecuteCommand(ActionExecutingContext context, ActionExecutionDelegate next, CommandContext commandContext)
+    {
+        var shouldExecute = ShouldExecute(context);
+        var scopes = ResolveScopes(context, shouldExecute);
+        using var decisionPolicy = shouldExecute ? CommandDecisionPolicy.Begin(commandContext.Type, commandContext.ServiceProvider) : null;
+        ActionExecutedContext? result = null;
+        Exception? actionException = null;
+        var validationResult = context.ShouldIgnoreValidation()
+            ? []
+            : context.ModelState.SelectMany(_ => _.Value!.Errors.Select(e => e.ToValidationResult(_.Key))).ToList();
+        try
+        {
+            if (shouldExecute)
             {
                 var errorsBefore = context.ModelState.SelectMany(_ => _.Value!.Errors).ToArray();
 
-                result = await next();
+                try
+                {
+                    foreach (var scope in scopes) scope.Begin(commandContext);
+                    foreach (var scope in scopes.OfType<IAsyncCommandExecutionScope>()) await scope.BeginAsync(commandContext);
+                    result = await next();
+                }
+                catch (Exception exception)
+                {
+                    actionException = exception;
+                }
 
                 AddAdditionalValidationResultsAfterActionExecute(context, validationResult, errorsBefore);
-
-                if (context.IsAspNetResult()) return;
-
-                if (result.Exception is not null)
-                {
-                    var exception = result.Exception;
-                    exceptionStackTrace = exception.StackTrace;
-
-                    do
-                    {
-                        exceptionMessages.Add(exception.Message);
-                        exception = exception.InnerException;
-                    }
-                    while (exception is not null);
-
-                    result.Exception = null!;
-                }
-
-                if (result.Result is ObjectResult objectResult)
-                {
-                    response = objectResult.Value;
-                }
             }
 
-            var blockingValidationResults = FilterValidationResults(validationResult, treatWarningsAsErrors, ignoreWarnings);
+            var commandResult = CreateResult(context, result, validationResult, actionException);
+            await CompleteScopes(commandContext, scopes, commandResult);
 
-            var commandResult = new CommandResult<object>
-            {
-                CorrelationId = context.HttpContext.GetCorrelationId(),
-                ValidationResults = blockingValidationResults,
-                ExceptionMessages = [.. exceptionMessages],
-                ExceptionStackTrace = exceptionStackTrace ?? string.Empty,
-                Response = response
-            };
+            PublishResult(context, result, commandResult);
+        }
+        finally
+        {
+            EndScopes(commandContext, scopes, scopes.Length - 1);
+        }
+    }
 
-            // A response describes what the command produced. A controller action that threw, or whose input was
-            // rejected, produced nothing the caller may act on - so its response must never travel back in the error
-            // response body. The result itself decides what "did not succeed" means, exactly as the command pipeline
-            // does for model-bound commands, rather than this filter keeping a second copy of that predicate that
-            // would quietly disagree the moment another outcome (an unauthorized one, say) is added to it.
-            if (!commandResult.IsSuccess)
-            {
-                commandResult.Response = null;
-            }
-
-            context.HttpContext.Response.SetResponseStatusCode(commandResult);
-
-            var actualResult = new ObjectResult(commandResult);
-
-            if (result is not null)
-            {
-                result.Result = actualResult;
-            }
-            else
-            {
-                context.Result = actualResult;
-            }
+    static void PublishResult(ActionExecutingContext context, ActionExecutedContext? executed, CommandResult<object> result)
+    {
+        // Completion can refuse the command after the action produced a response.
+        if (!result.IsSuccess)
+        {
+            result.Response = null;
+        }
+        context.HttpContext.Response.SetResponseStatusCode(result);
+        var actualResult = new ObjectResult(result);
+        if (executed is not null)
+        {
+            executed.Result = actualResult;
         }
         else
         {
-            await next();
+            context.Result = actualResult;
+        }
+    }
+
+    static bool ShouldExecute(ActionExecutingContext context) =>
+        (context.ModelState.IsValid || context.ShouldIgnoreValidation()) && !IsValidationRequest(context);
+
+    static ICommandExecutionScope[] ResolveScopes(ActionExecutingContext context, bool shouldExecute)
+    {
+        if (!shouldExecute) return [];
+        var services = context.HttpContext.RequestServices;
+        var discovered = services?.GetService<IInstancesOf<ICommandExecutionScope>>();
+        return discovered is null ? [] : [.. DiscoveredInstances.ResolvedFrom(services, discovered)];
+    }
+
+    static CommandResult<object> CreateResult(ActionExecutingContext context, ActionExecutedContext? executed, List<ValidationResult> validationResults, Exception? actionException)
+    {
+        var result = new CommandResult<object>
+        {
+            CorrelationId = context.HttpContext.GetCorrelationId(),
+            ValidationResults = FilterValidationResults(validationResults, context.ShouldTreatWarningsAsErrors(), GetIgnoreWarningsFromRequest(context)),
+            Response = (executed?.Result as ObjectResult)?.Value
+        };
+        if ((actionException ?? executed?.Exception) is { } exception)
+        {
+            var messages = new List<string>();
+            result.ExceptionStackTrace = exception.StackTrace ?? string.Empty;
+            do
+            {
+                messages.Add(exception.Message);
+                exception = exception.InnerException;
+            }
+            while (exception is not null);
+            result.ExceptionMessages = [.. messages];
+            if (executed is not null) executed.Exception = null;
+        }
+        return result;
+    }
+
+    static async Task CompleteScopes(CommandContext context, ICommandExecutionScope[] scopes, CommandResult result)
+    {
+        foreach (var scope in scopes.AsEnumerable().Reverse())
+        {
+            try
+            {
+                await scope.Complete(context, result);
+            }
+            catch (Exception exception)
+            {
+                result.MergeWith(CommandResult.FromException(context.CorrelationId, exception));
+            }
+        }
+    }
+
+    static void EndScopes(CommandContext context, ICommandExecutionScope[] scopes, int index)
+    {
+        if (index < 0) return;
+        try
+        {
+            if (scopes[index] is ICommandInvocationExecutionScope scope) scope.End(context);
+        }
+        finally
+        {
+            EndScopes(context, scopes, index - 1);
         }
     }
 
@@ -142,7 +194,18 @@ public class CommandActionFilter(
         return validationResults.Where(v => v.Severity == ValidationResultSeverity.Error).ToArray();
     }
 
-    void EstablishCommandContext(ActionExecutingContext context)
+    static void AddAdditionalValidationResultsAfterActionExecute(ActionExecutingContext context, List<ValidationResult> validationResult, IEnumerable<ModelError> errorsBefore)
+    {
+        foreach (var (member, entry) in context.ModelState)
+        {
+            foreach (var error in entry.Errors.Where(_ => !errorsBefore.Contains(_)))
+            {
+                validationResult.Add(error.ToValidationResult(member));
+            }
+        }
+    }
+
+    CommandContext EstablishCommandContext(ActionExecutingContext context)
     {
         var bodyParam = context.ActionDescriptor.Parameters
             .FirstOrDefault(p => p.BindingInfo?.BindingSource == BindingSource.Body);
@@ -168,22 +231,13 @@ public class CommandActionFilter(
             command,
             [],
             values,
+            ServiceProvider: context.HttpContext.RequestServices,
             CancellationToken: context.HttpContext.RequestAborted)
         {
             ReceivedAt = OperationContextScope.Current ?? default
         };
 
         contextModifier.SetCurrent(commandContext);
-    }
-
-    void AddAdditionalValidationResultsAfterActionExecute(ActionExecutingContext context, List<ValidationResult> validationResult, IEnumerable<ModelError> errorsBefore)
-    {
-        foreach (var (member, entry) in context.ModelState)
-        {
-            foreach (var error in entry.Errors.Where(_ => !errorsBefore.Contains(_)))
-            {
-                validationResult.Add(error.ToValidationResult(member));
-            }
-        }
+        return commandContext;
     }
 }
