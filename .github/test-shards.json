@@ -43,6 +43,8 @@
       "Cratis.Arc.ProxyGenerator.for_FileMetadataScanner": 2,
       "Cratis.Arc.ProxyGenerator.for_FileNameComparer": 2,
       "Cratis.Arc.ProxyGenerator.for_GeneratedFileMetadata": 2,
+      "Cratis.Arc.ProxyGenerator.for_GenerationFingerprint": 2,
+      "Cratis.Arc.ProxyGenerator.for_GenerationState": 2,
       "Cratis.Arc.ProxyGenerator.for_Generator": 142,
       "Cratis.Arc.ProxyGenerator.for_IndexFileManager": 2,
       "Cratis.Arc.ProxyGenerator.for_MethodInfoExtensions": 2,
@@ -111,6 +113,8 @@
         "Cratis.Arc.ProxyGenerator.for_FileHeader",
         "Cratis.Arc.ProxyGenerator.for_FileMetadataScanner",
         "Cratis.Arc.ProxyGenerator.for_FileNameComparer",
+        "Cratis.Arc.ProxyGenerator.for_GenerationFingerprint",
+        "Cratis.Arc.ProxyGenerator.for_GenerationState",
         "Cratis.Arc.ProxyGenerator.for_PathHelpers",
         "Cratis.Arc.ProxyGenerator.for_StringExtensions"
       ]
