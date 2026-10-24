@@ -58,7 +58,7 @@ Under `On` this is guarded:
 
 1. Arc starts the command's unit of work and turns on read protection before the filters run.
 2. Arc constructs the validator inside that unit. Its `BookStock` parameter is a protected read: Chronicle captures the position, folds the model, and enrols the guard before the validator sees the value.
-3. The validator approves. `Handle()` returns the event. `Handle()` and the validator share the same instance and the same guard.
+3. The validator approves. `Handle()` returns the event. `Handle()` and the validator share the same instance and the same guard. The model is folded once per execution, whether the validator and `Handle()` take it as a plain parameter or as `DecisionRead<T>`.
 4. At commit, if a `CopyAdded` or `BookBorrowed` for that book arrived after the position captured in step 2, nothing is written. The caller gets a `400` with the reason `concurrencyViolation` and the detail `ReadChanged`.
 
 A validator that rejects writes nothing, so a rejection needs no guard and is never retried by Arc.
@@ -114,6 +114,8 @@ Other constructor parameters, such as `ILogger<T>`, are resolved from the contai
 ## The validate endpoint
 
 `{url}/validate` runs the filters and validators, and nothing else: no `Provide()`, no `Handle()`, no commit. Reads there are fresh, but nothing is guarded or written, because nothing commits. A successful validation does not promise that executing the command will succeed. The next execution reads again and guards again.
+
+A client that calls `/validate` and then executes therefore folds the model twice: once for the validation request and once for the execution. This is by design. The execution's guard must start from a position that execution read itself, so a fold from an earlier request is never reused. Within one execution, validators and `Handle()` share a single fold.
 
 That makes a validator the right place for early feedback: the user sees "no copies left" as soon as the form is validated, and the same rule holds when the command executes.
 
