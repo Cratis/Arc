@@ -18,7 +18,7 @@ internal static class DeclaredDecisionReadParameters
     const BindingFlags Methods = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
     /// <summary>
-    /// Finds wrapped decision reads and, under On, plain model parameters and validator dependencies.
+    /// Finds injected wrapped decision reads and, under On, plain model parameters and validator dependencies.
     /// </summary>
     /// <param name="command">The command to inspect.</param>
     /// <param name="readModels">The models recognized by Chronicle parameter resolution.</param>
@@ -34,9 +34,11 @@ internal static class DeclaredDecisionReadParameters
         }
 
         var on = (protection.Declared ? CommandDecisionPolicy.DeclaredReadProtection : CommandDecisionPolicy.ReadProtection) == ReadProtectionMode.On;
+        var provide = command.GetProvideMethod();
         var parameters = command.GetMethods(Methods)
-            .Where(_ => _.Name == "Handle" || _.Name == CommandProvideMethodExtensions.ProvideMethodName)
-            .SelectMany(_ => _.GetParameters());
+            .Where(_ => _.Name == "Handle")
+            .SelectMany(handle => InjectedHandleParameters.Of(handle, provide))
+            .Concat(provide?.GetParameters() ?? []);
         if (on)
         {
             parameters = parameters.Concat(ValidatorParameters(command, types));
