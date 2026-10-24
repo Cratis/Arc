@@ -33,7 +33,7 @@ public class when_a_validator_and_handle_take_decision_reads : given.a_protected
             var types = Substitute.For<Cratis.Types.ITypes>();
             types.FindMultiple(typeof(IDiscoverableValidator<>)).Returns([typeof(BorrowWithDecisionValidator)]);
             new DiscoverableValidators(types).TryGet(typeof(BorrowWithDecision), provider, out var validator).ShouldBeTrue();
-            (await validator!.ValidateAsync(new FluentValidation.ValidationContext<BorrowWithDecision>(command))).IsValid.ShouldBeTrue();
+            (await validator!.ValidateAsync(new FluentValidation.ValidationContext<BorrowWithDecision>(command), global::Xunit.TestContext.Current.CancellationToken)).IsValid.ShouldBeTrue();
             var parameter = typeof(BorrowWithDecision).GetMethod(nameof(BorrowWithDecision.Handle))!.GetParameters()[0];
             var handle = (DecisionRead<BookStock>)ParameterDependencyResolver.Resolve(provider, parameter, _ => new UnableToResolveReadModelFromCommandContext(typeof(BookStock)))!;
             handle.ShouldBeSame(((BorrowWithDecisionValidator)validator).Stock);
