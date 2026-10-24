@@ -36,6 +36,7 @@ Configure generation through properties and items **inside the existing `.csproj
 | `CratisProxiesSkipCommandNameInRoute` | `false` | [Routing](routing.md) |
 | `CratisProxiesSkipQueryNameInRoute` | `false` | [Routing](routing.md) |
 | `CratisProxiesApiPrefix` | `api` | [Routing](routing.md) |
+| `CratisProxiesIncremental` | `true`; skip discovery when inputs and recorded outputs match | [Output behavior](output-behavior.md) |
 | `CratisProxiesSkipIndexGeneration` | Off unless `true` | [Output behavior](output-behavior.md) |
 | `CratisProxiesSkipOutputDeletion` | `true` in MSBuild; direct executable differs | [Output behavior](output-behavior.md) |
 | `CratisProxiesSkipFileIndexTracking` | `false`; setting `true` is currently ignored by the executable | [Output behavior](output-behavior.md) |
