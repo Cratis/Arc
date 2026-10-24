@@ -32,7 +32,7 @@ public class with_policy_refusals : given.a_stream_reader
         Begin(typeof(ProtectedCommand));
         var error = await Catch.Exception(() => _reader.Get<Model>("owner", "reports", "period"));
         error.ShouldBeOfExactType<DecisionReadCouldNotBeAcquired>();
-        await _inner.DidNotReceiveWithAnyArgs().GetDetached<Model>(default!, default!, default!);
+        await _inner.DidNotReceiveWithAnyArgs().GetDetached<Model>(default!, default!, default!, cancellationToken: Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class with_policy_refusals : given.a_stream_reader
         CommandTransaction.Current = Substitute.For<IUnitOfWork>();
         var error = await Catch.Exception(() => _reader.Get<Model>("owner", "reports", "period"));
         error.ShouldBeOfExactType<DecisionReadCouldNotBeAcquired>();
-        await _inner.DidNotReceiveWithAnyArgs().GetDetached<Model>(default!, default!, default!);
+        await _inner.DidNotReceiveWithAnyArgs().GetDetached<Model>(default!, default!, default!, cancellationToken: Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -51,7 +51,7 @@ public class with_policy_refusals : given.a_stream_reader
     public async Task should_allow_advisory_detached_reads(Type commandType)
     {
         Begin(commandType);
-        var read = await _reader.GetDetached<Model>("owner", "reports", "period");
+        var read = await _reader.GetDetached<Model>("owner", "reports", "period", cancellationToken: global::Xunit.TestContext.Current.CancellationToken);
         ReferenceEquals(read, _token).ShouldBeTrue();
         _unit.HasEnrolledDecisionReads.ShouldBeFalse();
     }

@@ -54,7 +54,7 @@ public sealed class SharedScenarioWebHostFixture : IAsyncLifetime
     public string ServerUrl { get; private set; } = string.Empty;
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _current = this;
 
@@ -166,7 +166,7 @@ public sealed class SharedScenarioWebHostFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _current = null;
         if (_host is not null)

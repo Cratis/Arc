@@ -84,7 +84,7 @@ public class when_subscribing_through_the_aspnet_host
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseCratisArc();
-        await app.StartAsync();
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             var address = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single());
@@ -95,7 +95,7 @@ public class when_subscribing_through_the_aspnet_host
             }
             var json = app.Services.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
             var healthName = $"{typeof(QueryHealth).FullName}.{nameof(QueryHealth.ObserveHealth)}";
-            using var direct = await client.GetAsync("/.cratis/queries/health?waitForFirstResult=true", HttpCompletionOption.ResponseHeadersRead);
+            using var direct = await client.GetAsync("/.cratis/queries/health?waitForFirstResult=true", HttpCompletionOption.ResponseHeadersRead, global::Xunit.TestContext.Current.CancellationToken);
             var deniedStatus = useFallback && callerRole is null ? HttpStatusCode.Unauthorized : HttpStatusCode.Forbidden;
             direct.StatusCode.ShouldEqual(allowed ? HttpStatusCode.OK : deniedStatus);
             await VerifyWebSocket(address, (healthName, callerRole, allowed), json);
@@ -108,7 +108,10 @@ public class when_subscribing_through_the_aspnet_host
         }
         finally
         {
+            // Finish host teardown even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
             await app.StopAsync();
+#pragma warning restore xUnit1051
         }
     }
 

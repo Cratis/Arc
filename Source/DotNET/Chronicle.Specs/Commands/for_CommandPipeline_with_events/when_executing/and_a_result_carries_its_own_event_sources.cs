@@ -33,7 +33,7 @@ public class and_a_result_carries_its_own_event_sources : given.a_command_pipeli
         _eventLog.AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>?>())
             .Returns(AppendManyResult.Success(_correlationId, []));
 
-        var result = await _commandPipeline.Execute(command, _serviceProvider);
+        var result = await _commandPipeline.Execute(command, _serviceProvider, global::Xunit.TestContext.Current.CancellationToken);
 
         Assert.False(result.HasExceptions, string.Join(Environment.NewLine, result.ExceptionMessages));
         result.IsSuccess.ShouldBeTrue();

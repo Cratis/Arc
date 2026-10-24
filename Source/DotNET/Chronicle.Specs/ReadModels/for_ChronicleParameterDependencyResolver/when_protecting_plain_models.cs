@@ -40,5 +40,5 @@ public class when_protecting_plain_models : given.protected_plain_models
     [Fact] void should_acquire_one_fresh_fold_per_key() => _tokens.Count.ShouldEqual(2);
     [Fact] void should_never_read_the_sink() => _stored.DidNotReceiveWithAnyArgs().GetInstanceById(default!, default!);
     [Fact] void should_release_the_shared_instance_only_once() => _stored.Received(1).Release(_from);
-    [Fact] void should_never_acquire_a_detached_read() => _inner.DidNotReceiveWithAnyArgs().GetDetached<Balance>(default!);
+    [Fact] void should_never_acquire_a_detached_read() => _inner.DidNotReceiveWithAnyArgs().GetDetached<Balance>(default!, Arg.Any<CancellationToken>());
 }

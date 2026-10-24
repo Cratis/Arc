@@ -41,7 +41,7 @@ public class with_effective_compiler_features : Specification, IDisposable
         []);
 
     [Fact] void should_run_the_generator() => _generated.Compilation.SyntaxTrees.Count().ShouldEqual(2);
-    [Fact] void should_emit_intercepted_generated_source_without_errors() => _generated.Compilation.Emit(new MemoryStream()).Diagnostics.Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_emit_intercepted_generated_source_without_errors() => _generated.Compilation.Emit(new MemoryStream(), cancellationToken: global::Xunit.TestContext.Current.CancellationToken).Diagnostics.Where(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_pass_the_feature_value_to_the_generator() => _generated.Compilation.SyntaxTrees.Last().ToString().Contains("Current:forwarded", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_parse_bare_features_as_true() => Options.Features["first"].ShouldEqual("true");
     [Fact] void should_use_the_last_value_for_duplicate_features() => Options.Features["second"].ShouldEqual("last");

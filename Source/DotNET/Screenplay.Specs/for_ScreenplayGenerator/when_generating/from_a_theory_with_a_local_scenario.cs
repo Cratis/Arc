@@ -32,7 +32,7 @@ public class from_a_theory_with_a_local_scenario : a_generated_document
         var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Code == "SP0076");
         diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         diagnostic.Message.ShouldContain("with_a_caller.should_use_local_scenario");
-        diagnostic.Location!.ShouldContain("with_a_caller.should_use_local_scenario");
+        diagnostic.Location.ShouldContain("with_a_caller.should_use_local_scenario");
         Result.Source.Contains($"specification {CallerScenarioSources.ScenarioName}", StringComparison.Ordinal).ShouldEqual(keepFact);
         AssertDocument();
     }

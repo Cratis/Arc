@@ -20,7 +20,7 @@ public class when_reading_read_models_keyed_other_than_by_event_source
         await using var scenario = new CommandScenario<ReadNotesByAuthor>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new NoteFiled(Guid.NewGuid(), "filed"));
-        (await scenario.Execute(new ReadNotesByAuthor(source))).ShouldBeSuccessful();
+        (await scenario.Execute(new ReadNotesByAuthor(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await scenario.ShouldHaveAppendedEvent<ReadNotesByAuthor, NotesObserved>(source, _ => _.Summary == "filed");
     }
 
@@ -31,7 +31,7 @@ public class when_reading_read_models_keyed_other_than_by_event_source
         var author = EventSourceId.New();
         var otherSource = EventSourceId.New();
         scenario.Given.ForEventSource(otherSource).Events(new NoteFiled(Guid.Parse(author.Value), "filed"));
-        (await scenario.Execute(new ReadNotesByAuthor(author))).ShouldBeSuccessful();
+        (await scenario.Execute(new ReadNotesByAuthor(author), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await scenario.ShouldHaveAppendedEvent<ReadNotesByAuthor, NotesObserved>(author, _ => _.Summary == "absent");
     }
 
@@ -43,7 +43,7 @@ public class when_reading_read_models_keyed_other_than_by_event_source
         var itemSource = EventSourceId.New();
         scenario.Given.ForEventSource(order).Events(new OrderPlaced("order"));
         scenario.Given.ForEventSource(itemSource).Events(new ItemAdded(Guid.Parse(order.Value), Guid.NewGuid()));
-        (await scenario.Execute(new ReadOrder(order))).ShouldBeSuccessful();
+        (await scenario.Execute(new ReadOrder(order), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await scenario.ShouldHaveAppendedEvent<ReadOrder, NotesObserved>(order, _ => _.Summary == "items:0");
     }
 
@@ -53,7 +53,7 @@ public class when_reading_read_models_keyed_other_than_by_event_source
         await using var scenario = new CommandScenario<ReadNotesByAuthor>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new NoteFiled(Guid.NewGuid(), "first"), new NoteFiled(Guid.NewGuid(), "second"));
-        var result = await scenario.Execute(new ReadNotesByAuthor(source));
+        var result = await scenario.Execute(new ReadNotesByAuthor(source), global::Xunit.TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeFalse();
     }
 

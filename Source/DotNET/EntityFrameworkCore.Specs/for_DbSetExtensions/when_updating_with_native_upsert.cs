@@ -30,5 +30,5 @@ public class when_updating_with_native_upsert : given.an_upsert_database
     [Fact] void should_update_the_existing_row() => _stored.Value.ShouldEqual(_item.Value);
     [Fact] void should_persist_null() => _stored.Optional.ShouldBeNull();
     [Fact] void should_match_the_entire_composite_key_and_allow_retries() => _count.ShouldEqual(2);
-    [Fact] async Task should_leave_the_other_key_untouched() => (await _context.Items.SingleAsync(_ => _.Tenant == "another")).Value.Value.ShouldEqual("untouched");
+    [Fact] async Task should_leave_the_other_key_untouched() => (await _context.Items.SingleAsync(_ => _.Tenant == "another", global::Xunit.TestContext.Current.CancellationToken)).Value.Value.ShouldEqual("untouched");
 }

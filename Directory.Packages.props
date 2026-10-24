@@ -20,8 +20,8 @@
     <PackageVersion Include="Cratis.Chronicle" Version="19.102.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.102.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.102.0" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.26.0" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.26.0" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.26.1" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.26.1" />
     <PackageVersion Include="Cratis.Screenplay" Version="4.208.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.1" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.1" />
@@ -100,8 +100,11 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.235" />
     <!-- Specifications -->
-    <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.1.0" />
+    <PackageVersion Include="Cratis.Specifications.XUnit.v3" Version="5.0.0" />
+    <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.2" />
     <PackageVersion Include="xunit" Version="2.9.3" />
+    <!-- Required at runtime by the Roslyn testing XUnit verifiers; compile assets are excluded where referenced. -->
+    <PackageVersion Include="xunit.assert" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <!-- Held at 5.x. NSubstitute 6 deadlocks the task-returning DynamicProxy fixtures used by

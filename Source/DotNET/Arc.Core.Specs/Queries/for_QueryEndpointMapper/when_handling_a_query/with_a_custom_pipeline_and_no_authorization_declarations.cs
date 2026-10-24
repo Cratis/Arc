@@ -40,5 +40,5 @@ public class with_a_custom_pipeline_and_no_authorization_declarations : given.a_
     [Fact] void should_report_unauthorized_without_an_error() => _result!.IsAuthorized.ShouldBeFalse();
     [Fact] void should_not_report_an_exception() => _result!.HasExceptions.ShouldBeFalse();
     [Fact] void should_not_invoke_the_custom_pipeline() => _queryPipeline.DidNotReceive().Perform(
-        Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>());
+        Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Is<CancellationToken>(token => token == default));
 }

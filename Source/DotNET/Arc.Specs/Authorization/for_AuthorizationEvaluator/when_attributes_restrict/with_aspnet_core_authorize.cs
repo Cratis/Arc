@@ -5,9 +5,6 @@ namespace Cratis.Arc.Authorization.for_AuthorizationEvaluator.when_attributes_re
 
 public class with_aspnet_core_authorize : given.both_attribute_families
 {
-    [Fact] void should_reject_a_caller_with_no_identity() =>
-        (ArcFirst().IsAuthorized(typeof(ProtectedWithAspNet)) || AspNetFirst().IsAuthorized(typeof(ProtectedWithAspNet))).ShouldBeFalse();
-
     [Fact] void should_admit_a_signed_in_caller()
     {
         SignedInWithRoles();

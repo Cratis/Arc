@@ -76,7 +76,7 @@ public class and_the_change_stream_fails
         _ = watcher.Observe<BsonDocument>();
 
         // Wait for the second WatchAsync call to start — proves the loop retried
-        await secondCallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await secondCallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
 
         callCount.ShouldBeGreaterThan(1);
     }

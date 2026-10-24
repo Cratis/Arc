@@ -40,7 +40,7 @@ public class and_two_tenant_databases_observe
         _ = watcher.Observe<BsonDocument>();
         _ = watcher.Observe<BsonDocument>();
 
-        await Task.WhenAll(firstWatchStarted.Task, secondWatchStarted.Task).WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.WhenAll(firstWatchStarted.Task, secondWatchStarted.Task).WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
 
         mongoClient.Received(1).GetDatabase("testdb+a");
         mongoClient.Received(1).GetDatabase("testdb+b");
