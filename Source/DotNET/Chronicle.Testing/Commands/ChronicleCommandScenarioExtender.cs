@@ -1,14 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reflection;
 using Cratis.Arc.Chronicle.Commands;
-using Cratis.Arc.Chronicle.ReadModels;
-using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
-using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Testing.Commands;
-using Cratis.Arc.Validation;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -149,8 +144,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var scenario = new DecisionCommandScenario(eventScenario.EventLog, unitOfWorkManager, (List<AppendedEventWithResult>)context[AppendedEventsKey], captureCommands: false);
         services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(sp =>
         {
-            var types = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandExecutionScope>()
-                .Where(type => type != typeof(DecisionScenarioConcurrentAppendScope) && type != typeof(DecisionScenarioCommandCaptureScope));
+            var types = CommandDecisionDependencies.ExecutionScopeTypes();
             var scopes = types.Select(type => (ICommandExecutionScope)ActivatorUtilities.GetServiceOrCreateInstance(sp, type)).ToList();
             var ownerIndex = scopes.FindIndex(scope => scope is TransactionalCommandScope);
             if (ownerIndex < 0)
@@ -289,9 +283,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         // transactional scope completes, otherwise the assertion would be a false positive after owner commit.
         services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(sp =>
         {
-            var types = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandExecutionScope>()
-                .Where(type => type != typeof(DecisionScenarioConcurrentAppendScope) && type != typeof(DecisionScenarioCommandCaptureScope))
-                .ToArray();
+            var types = CommandDecisionDependencies.ExecutionScopeTypes();
             var scopes = types.Select(type => (ICommandExecutionScope)ActivatorUtilities.GetServiceOrCreateInstance(sp, type)).ToList();
             var ownerIndex = scopes.FindIndex(scope => scope is TransactionalCommandScope);
             if (ownerIndex < 0)
@@ -315,20 +307,8 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
             return true;
         }
 
-        var dependencies = commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
-            .Where(_ => _.Name == "Handle" || _.Name == "Provide")
-            .SelectMany(_ => _.GetParameters());
-        var validators = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple(typeof(IDiscoverableValidator<>))
-            .Where(_ => typeof(IDiscoverableValidator<>).MakeGenericType(commandType).IsAssignableFrom(_));
-        return dependencies.Concat(validators.SelectMany(_ => _.GetConstructors()).SelectMany(_ => _.GetParameters()))
-            .Any(_ => IsDecisionDependency(_.ParameterType) ||
-                _.GetCustomAttribute<GeneratedValueAttribute>()?.Freshness == GeneratedValueFreshness.Guarded);
+        return CommandDecisionDependencies.Declares(commandType);
     }
-
-    static bool IsDecisionDependency(Type type) =>
-        type == typeof(IDecisionReads) || type == typeof(IStreamReads) || type == typeof(StreamDecision) ||
-        (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>)) ||
-        PerStreamReadModelBinding.IsDeclared(type);
 
     sealed record DecisionStore(
         Defaults Defaults,
