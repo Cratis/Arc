@@ -96,7 +96,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             EnrollAsChild(previous, frame, context.Type);
         }
         _frames.Value = frame;
-        CommandDecisionReads.Begin(context.Type);
+        if (!frame.IsControllerAction)
+        {
+            CommandDecisionReads.Begin(context.Type);
+        }
         if (context.ServiceProvider is not { } serviceProvider)
         {
             return;
@@ -322,7 +325,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     static async Task CompleteFrame(CommandContext context, CommandResult result, TransactionFrame frame)
     {
         // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
-        CommandDecisionReads.End();
+        if (!frame.IsControllerAction)
+        {
+            CommandDecisionReads.End();
+        }
         var owned = frame.Owned;
 
         // Complete is async; a change to AsyncLocal.Value inside it does not propagate to its caller.
@@ -483,7 +489,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
     static void RegisterEnrollmentContributor(CommandContext context, TransactionFrame frame, IUnitOfWork unit)
     {
-        if (!HasGuardedGeneratedParameters(context))
+        if (frame.IsControllerAction || !HasGuardedGeneratedParameters(context))
         {
             return;
         }

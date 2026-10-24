@@ -46,10 +46,10 @@ public class CommandActionFilter(
 
     static async Task ExecuteCommand(ActionExecutingContext context, ActionExecutionDelegate next, CommandContext commandContext)
     {
+        // An MVC action is not a pipeline decision invocation.
         var shouldExecute = ShouldExecute(context);
         var scopes = ResolveScopes(context, shouldExecute);
         List<ICommandExecutionScope> begunScopes = [];
-        using var decisionPolicy = shouldExecute ? CommandDecisionPolicy.Begin(commandContext.Type, commandContext.ServiceProvider) : null;
         ActionExecutedContext? result = null;
         Exception? actionException = null;
         var validationResult = context.ShouldIgnoreValidation()

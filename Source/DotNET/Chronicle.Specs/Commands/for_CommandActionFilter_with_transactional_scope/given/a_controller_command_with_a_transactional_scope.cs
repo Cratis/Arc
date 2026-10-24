@@ -52,7 +52,7 @@ public class a_controller_command_with_a_transactional_scope : a_transactional_c
         _activity = new("ControllerScopeSpecs");
         activitySource.ActualSource.Returns(_activity);
         var valuesBuilder = Substitute.For<ICommandContextValuesBuilder>();
-        valuesBuilder.Build(command).Returns(new CommandContextValues());
+        valuesBuilder.Build(Arg.Any<object>()).Returns(_ => new CommandContextValues());
         _filter = new(Substitute.For<ICommandContextModifier>(), valuesBuilder, activitySource);
     }
 
