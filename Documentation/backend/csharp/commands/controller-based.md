@@ -42,7 +42,7 @@ POST controller commands run [execution scopes](./command-execution-scopes.md) b
 Model-bound tuple response handlers and command filters do not process controller results. Return the actual response DTO or value from an MVC action and use MVC's own extension points.
 
 :::note[Operation execution requires the command pipeline]
-MVC action return values do not trigger [command operations](./operations/index.md). Keep returning the action's actual response. To use operation execution and compensation, explicitly execute a model-bound command through `ICommandPipeline` and handle its result.
+MVC action return values do not trigger [command operations](./operations/index.md). Keep returning the action's actual response. To use operation execution and compensation, explicitly execute a model-bound command through `ICommandPipeline` and handle its result. That command owns its own transaction: it commits before `Execute` returns and does not join the controller's unit of work.
 :::
 
 ## Automatic validation endpoints

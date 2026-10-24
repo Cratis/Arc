@@ -132,7 +132,7 @@ sequenceDiagram
 
 Commit violations are translated to the command result, including validation details where available. An exception or validation failure rolls back **pending** enrollment, not an already completed transaction or immediate append.
 
-The scope applies to HTTP model-bound commands, direct `ICommandPipeline` execution, reactor commands, and `CommandScenario`. A controller action does not participate merely because it is an HTTP request; explicitly executing through the pipeline does. Chronicle's request-level unit-of-work middleware is a separate boundary: an Arc command starts its own transaction rather than joining that request-level unit of work.
+The scope applies to HTTP model-bound commands, POST controller commands (except `[AspNetResult]` actions), direct `ICommandPipeline` execution, reactor commands, and `CommandScenario`. Chronicle's request-level unit-of-work middleware is a separate boundary: an Arc command starts its own transaction rather than joining that request-level unit of work.
 
 ## Nested commands and aggregates
 
@@ -141,6 +141,8 @@ The nesting and explicit-commit behavior below describes ordinary Chronicle comm
 :::
 
 A nested pipeline command joins the outer command's active transaction. Only the outer owner completes it. A successful nested result reflects enrollment, not final persistence; commit-time violations arrive at outer completion. The outer command must inspect/propagate a nested failure rather than treating a failed nested call as success.
+
+A controller action is the exception. A model-bound command that a controller action executes through `ICommandPipeline` owns its own transaction: it commits before `Execute` returns, its `CommandResult` reports its own commit outcome, and nested read-protection rules do not treat it as a child of the controller. The controller's own appends stay in the controller's unit, which commits when the action completes. A failure of the inner command does not fail the controller unless the action propagates it, and a later failure of the action does not undo the inner command's commit.
 
 Aggregate mutations share this unit of work. Explicit aggregate `Commit()` finalizes **all events enrolled so far**, not just one aggregate. The command scope leaves a completed transaction alone. Do not enroll further events or do fallible work afterward while expecting rollback to undo that commit.
 
