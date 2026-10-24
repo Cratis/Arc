@@ -432,13 +432,16 @@ public partial class ObservableQueryDemultiplexer
         var requestContext = target.RequestContext;
         var principal = target.Principal;
         var queryId = target.QueryId;
+
+        // Query policy resolution belongs to subscription preparation, not the host fallback verdict.
+        // Let its failures reach CreateSubscription's error handling without admitting the query.
+        if (AllowsAnonymousQuery(queryName, requestContext.RequestServices))
+        {
+            return true;
+        }
+
         try
         {
-            if (AllowsAnonymousQuery(queryName, requestContext.RequestServices))
-            {
-                return true;
-            }
-
             var fallback = requestContext.RequestServices?.GetService<IEndpointFallbackAuthorization>() ??
                 serviceProvider.GetRequiredService<IEndpointFallbackAuthorization>();
             if (await fallback.IsAuthorized(requestContext, principal, token))

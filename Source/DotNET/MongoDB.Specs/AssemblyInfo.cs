@@ -4,4 +4,4 @@
 // Several specs configure MongoDB through process-wide static state — most notably the naming policy on
 // DatabaseExtensions and the registered convention packs. Running test classes in parallel races on that
 // shared state and produces intermittent failures, so parallelization is disabled for this assembly.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]

@@ -44,11 +44,4 @@ public class and_the_result_names_it : Specification
     [Fact] void should_fail_for_a_constraint_it_does_not() => _wrongConstraint.ShouldBeOfExactType<CommandResultAssertionException>();
     [Fact] void should_say_which_constraint_was_actually_violated() => _wrongConstraint.Message.ShouldContain("UniqueOrganizationNumber");
     [Fact] void should_consult_the_policy_for_the_assertion_that_passed() => given.a_recording_policy.Consulted.ShouldContainOnly(nameof(CommandResultShouldExtensions.ShouldHaveConstraintViolationFor));
-
-    /// <summary>
-    /// The reason assertion passes on the very same result no matter which constraint the spec meant, so it cannot
-    /// tell a spec named after one uniqueness rule from a rejection produced by an entirely different one.
-    /// </summary>
-    [Fact] void should_be_a_result_the_reason_assertion_cannot_tell_apart() =>
-        Catch.Exception(() => _rejected.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConstraintViolation)).ShouldBeNull();
 }

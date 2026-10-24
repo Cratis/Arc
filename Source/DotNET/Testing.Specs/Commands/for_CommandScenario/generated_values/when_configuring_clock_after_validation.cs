@@ -27,7 +27,7 @@ public class when_configuring_clock_after_validation : Specification
         await scenario.Validate(new());
         var error = Catch.Exception(() => scenario.Clock(instant.AddDays(1)));
         error.ShouldBeOfExactType<ScenarioClockMustBeConfiguredBeforeInitialization>();
-        var observation = ((CommandResult<given.GenerationObservation>)await scenario.Execute(new())).Response!;
+        var observation = ((CommandResult<given.GenerationObservation>)await scenario.Execute(new(), global::Xunit.TestContext.Current.CancellationToken)).Response!;
         observation.Clock.ShouldEqual(instant);
         observation.ReceivedAt.ShouldEqual(instant);
     }

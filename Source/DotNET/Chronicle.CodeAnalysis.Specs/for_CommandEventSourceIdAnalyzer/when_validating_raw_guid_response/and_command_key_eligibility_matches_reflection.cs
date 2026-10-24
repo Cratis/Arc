@@ -41,9 +41,9 @@ public class and_command_key_eligibility_matches_reflection
         var source = Preamble + baseType + "\n[Command] public record C : B { " + members + " public {|#0:(Guid, E)|} Handle() => (Guid.NewGuid(), new E()); }";
 
         // Assert against the real reflection implementation as well as the analyzer, including hiding and overrides.
-        var compilation = await TestProject.CreateProject(SourceMarker.Parse(source).Source).GetCompilationAsync();
+        var compilation = await TestProject.CreateProject(SourceMarker.Parse(source).Source).GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken);
         await using var stream = new MemoryStream();
-        var emitted = compilation!.Emit(stream);
+        var emitted = compilation!.Emit(stream, cancellationToken: global::Xunit.TestContext.Current.CancellationToken);
         if (!emitted.Success)
         {
             throw new SnippetDoesNotCompile(emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));

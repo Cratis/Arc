@@ -28,7 +28,7 @@ public class and_the_watch_cannot_start : given.an_observed_collection
         var completed = false;
         using var subscription = observable.Subscribe(_ => emissions++, exception => error.TrySetResult(exception), () => completed = true);
 
-        (await error.Task.WaitAsync(deadline)).ShouldBeSame(failure);
+        (await error.Task.WaitAsync(deadline, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSame(failure);
         emissions.ShouldEqual(0);
         completed.ShouldBeFalse();
     }

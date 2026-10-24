@@ -30,5 +30,6 @@ public class and_body_read_fails_without_request_abort : given.an_observable_que
             default!,
             default!,
             default!,
-            default!);
+            default!,
+            Arg.Any<CancellationToken>());
 }

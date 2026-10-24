@@ -18,9 +18,9 @@ public class when_handle_implements_an_interface : given.an_inline_generation_an
         var project = TestProject.CreateProject(Types + @"
             public interface IAllocator { CartId Handle(); }
             [Command] public record Allocate : IAllocator { public CartId Handle() => CartId.New(); }");
-        var compilation = (await project.GetCompilationAsync())!;
-        compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        var diagnostics = await compilation.WithAnalyzers([new InlineGeneratedValueAnalyzer()]).GetAnalyzerDiagnosticsAsync();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var diagnostics = await compilation.WithAnalyzers([new InlineGeneratedValueAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken);
         diagnostics.Length.ShouldEqual(1);
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(project.Documents.Single(), diagnostics.Single(), (action, _) => actions.Add(action), CancellationToken.None);

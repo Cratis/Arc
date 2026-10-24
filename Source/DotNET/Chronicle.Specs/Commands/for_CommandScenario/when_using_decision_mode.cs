@@ -25,7 +25,7 @@ public class when_using_decision_mode
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
         var source = EventSourceId.New();
-        var result = await scenario.Execute(new DecideAtSource(source));
+        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldBeSuccessful();
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue();
         scenario.AppendedEvents.Count.ShouldEqual(1);
@@ -37,7 +37,7 @@ public class when_using_decision_mode
         await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source));
+        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue();
@@ -49,7 +49,7 @@ public class when_using_decision_mode
         await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source));
+        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
@@ -60,7 +60,7 @@ public class when_using_decision_mode
         await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(EventSourceId.New(), new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source));
+        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
@@ -72,7 +72,7 @@ public class when_using_decision_mode
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
         scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source));
+        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
     }
@@ -84,8 +84,8 @@ public class when_using_decision_mode
         var source = EventSourceId.New();
         var other = EventSourceId.New();
         scenario.AppendConcurrently(other, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideForAnotherSource(source, other));
-        result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
+        (await scenario.Execute(new DecideForAnotherSource(source, other), global::Xunit.TestContext.Current.CancellationToken))
+            .ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeFalse();
     }
 
@@ -95,7 +95,7 @@ public class when_using_decision_mode
         await using var scenario = new CommandScenario<CheckAtSource>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new CheckAtSource(source));
+        var result = await scenario.Execute(new CheckAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
     }
@@ -105,7 +105,7 @@ public class when_using_decision_mode
     {
         await using var scenario = new CommandScenario<CheckAtSource>().UseDecisionReads();
         var source = EventSourceId.New();
-        (await scenario.Execute(new CheckAtSource(source))).ShouldBeSuccessful();
+        (await scenario.Execute(new CheckAtSource(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeFalse();
     }
 
@@ -115,7 +115,7 @@ public class when_using_decision_mode
         await using var scenario = new CommandScenario<UnprotectedDecision>().UseDecisionReads();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
-        (await scenario.Execute(new UnprotectedDecision(source))).ShouldBeSuccessful();
+        (await scenario.Execute(new UnprotectedDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
 
@@ -124,7 +124,7 @@ public class when_using_decision_mode
     {
         await using var scenario = new CommandScenario<AppendTransactionallyAfterDecision>().UseDecisionReads();
         var source = EventSourceId.New();
-        (await scenario.Execute(new AppendTransactionallyAfterDecision(source))).ShouldBeSuccessful();
+        (await scenario.Execute(new AppendTransactionallyAfterDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue();
     }
@@ -136,7 +136,7 @@ public class when_using_decision_mode
         var source = EventSourceId.New();
         var nested = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAfterNested(source, nested));
+        var result = await scenario.Execute(new DecideAfterNested(source, nested), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
         (await scenario.EventLog.HasEventsFor(nested)).ShouldBeFalse();
@@ -150,7 +150,7 @@ public class when_using_decision_mode
         var outer = EventSourceId.New();
         var nested = EventSourceId.New();
         scenario.AppendConcurrently(nested, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAfterProtectedNested(outer, nested));
+        var result = await scenario.Execute(new DecideAfterProtectedNested(outer, nested), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -161,7 +161,7 @@ public class when_using_decision_mode
         await using var scenario = new CommandScenario<DecideAfterNested>().UseDecisionReads();
         var source = EventSourceId.New();
         var nested = EventSourceId.New();
-        (await scenario.Execute(new DecideAfterNested(source, nested))).ShouldBeSuccessful();
+        (await scenario.Execute(new DecideAfterNested(source, nested), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(2);
         scenario.AppendedEvents.Any(_ => _.Event.Context.EventSourceId == source).ShouldBeTrue();
         scenario.AppendedEvents.Any(_ => _.Event.Context.EventSourceId == nested).ShouldBeTrue();
@@ -176,7 +176,7 @@ public class when_using_decision_mode
         var source = EventSourceId.New();
         var reservation = Guid.NewGuid();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideWithReservation(source, reservation));
+        var result = await scenario.Execute(new DecideWithReservation(source, reservation), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.ShouldHaveExecutedOperation<ReserveOnboardingCapacity>();
         scenario.ShouldHaveCompensatedOperation<ReserveOnboardingCapacity>();
@@ -230,7 +230,7 @@ public class when_using_decision_mode
     public async Task unmarked_read_is_refused_before_a_returned_event_can_append()
     {
         await using var scenario = new CommandScenario<UnmarkedRead>();
-        var result = await scenario.Execute(new UnmarkedRead(EventSourceId.New()));
+        var result = await scenario.Execute(new UnmarkedRead(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains("[ProtectedDecision]", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -239,7 +239,7 @@ public class when_using_decision_mode
     public async Task unmarked_explicit_key_get_is_refused_before_folding()
     {
         await using var scenario = new CommandScenario<UnmarkedExplicitRead>().UseDecisionReads();
-        var result = await scenario.Execute(new UnmarkedExplicitRead(EventSourceId.New()));
+        var result = await scenario.Execute(new UnmarkedExplicitRead(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains("[ProtectedDecision]", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -251,7 +251,7 @@ public class when_using_decision_mode
         scenario.Services.RemoveAll<ICommandProtectedDecisionSupport>();
         var command = new DecideAtSource(EventSourceId.New());
         Assert.Contains("command-aware Chronicle", (await scenario.Validate(command)).ExceptionMessages.Single());
-        Assert.Contains("command-aware Chronicle", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("command-aware Chronicle", (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
 

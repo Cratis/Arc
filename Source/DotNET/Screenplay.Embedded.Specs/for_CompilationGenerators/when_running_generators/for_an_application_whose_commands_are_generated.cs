@@ -58,7 +58,7 @@ public class for_an_application_whose_commands_are_generated : Specification, ID
             $"{given.a_generated_application.CommandNamespace}.{given.a_generated_application.CommandName}").ShouldBeNull();
 
     [Fact] void should_hand_back_a_compilation_without_errors() =>
-        _result.Compilation.GetDiagnostics().Any(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeFalse();
+        _result.Compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Any(_ => _.Severity == DiagnosticSeverity.Error).ShouldBeFalse();
 
     [Fact] void should_report_nothing_of_its_own() => _result.Diagnostics.ShouldBeEmpty();
 

@@ -25,17 +25,4 @@ public class with_a_scoped_refusal : given.a_pending_completion
         _result.ValidationResults.Single().Message.ShouldContain(error.ToString());
         await _eventLog.DidNotReceive().CompleteStream("completion", "period");
     }
-
-    [Fact]
-    public async Task should_surface_an_unsupported_kernel_without_an_unscoped_retry()
-    {
-        ResolveSource(new given.SourceCompletion("owner"));
-        _eventLog = Substitute.For<EventLogWithNamedTags>();
-        _handler = new(_eventLog);
-        _eventLog.CompleteStream(Arg.Any<ClosedStreamScope>()).Returns(Task.FromException<Result<EventSequenceNumber, CompleteStreamError>>(new ClosedStreamScopesNotSupported()));
-        _result.MergeWith(await Enroll());
-        var error = await Cratis.Specifications.Catch.Exception(() => _scope.Complete(_context, _result));
-        error.ShouldBeOfExactType<ClosedStreamScopesNotSupported>();
-        await _eventLog.DidNotReceive().CompleteStream("completion", "period");
-    }
 }

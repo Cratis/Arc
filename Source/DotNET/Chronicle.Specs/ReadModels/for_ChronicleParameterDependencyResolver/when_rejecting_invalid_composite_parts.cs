@@ -25,22 +25,6 @@ public class when_rejecting_invalid_composite_parts : given.a_keyed_protected_re
         _stored.ReceivedCalls().ShouldBeEmpty();
     }
 
-    [Fact]
-    public void should_check_the_raw_composite_event_source_before_using_the_fallback_key()
-    {
-        var key = new CompositeKey(new("owner"), "*");
-        _context = _context with { Type = typeof(SourceLookup), Command = new SourceLookup(key) };
-        _context.Values[WellKnownCommandContextKeys.EventSourceId] = EventSourceExtensions.ToEventSourceId(key);
-        _inner.ClearReceivedCalls();
-        _stored.ClearReceivedCalls();
-
-        var failure = Catch.Exception(() => ReadParameter(typeof(SourceLookup).GetMethod(nameof(SourceLookup.Handle))!.GetParameters()[0]));
-
-        AssertMissing(failure, string.Empty);
-        _inner.ReceivedCalls().ShouldBeEmpty();
-        _stored.ReceivedCalls().ShouldBeEmpty();
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

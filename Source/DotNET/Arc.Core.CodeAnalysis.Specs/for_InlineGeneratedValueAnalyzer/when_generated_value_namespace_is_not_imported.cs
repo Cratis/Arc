@@ -20,19 +20,19 @@ public class when_generated_value_namespace_is_not_imported : given.an_inline_ge
             [global::Cratis.Arc.Commands.ModelBound.Command]
             public record Allocate { public CartId Handle() => CartId.New(); }";
         var project = TestProject.CreateProject(source);
-        var compilation = (await project.GetCompilationAsync())!;
-        var diagnostics = await compilation.WithAnalyzers([new InlineGeneratedValueAnalyzer()]).GetAnalyzerDiagnosticsAsync();
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        var diagnostics = await compilation.WithAnalyzers([new InlineGeneratedValueAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken);
         var document = project.Documents.Single();
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(document, diagnostics.Single(), (action, _) => actions.Add(action), CancellationToken.None);
         await new MoveToGeneratedValueCodeFixProvider().RegisterCodeFixesAsync(context);
         var operations = await actions.Single().GetOperationsAsync(CancellationToken.None);
         var changed = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution.GetDocument(document.Id)!;
-        var root = (await changed.GetSyntaxRootAsync())!;
+        var root = (await changed.GetSyntaxRootAsync(global::Xunit.TestContext.Current.CancellationToken))!;
         root.ToString().ShouldContain("using Cratis.Arc.Commands.ModelBound;");
         var parameter = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "Handle").ParameterList.Parameters.Single();
         parameter.AttributeLists.Single().Attributes.Single().Name.ToString().ShouldEqual("GeneratedValue");
-        var output = (await changed.Project.GetCompilationAsync())!;
-        output.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var output = (await changed.Project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken))!;
+        output.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
     }
 }

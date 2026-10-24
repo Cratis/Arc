@@ -22,7 +22,7 @@ public class and_cancellation_callback_fails_during_an_emission
         var context = Substitute.For<IHttpRequestContext>();
         var webSocket = Substitute.For<IWebSocket>();
         var webSockets = Substitute.For<IWebSocketContext>();
-        webSockets.AcceptWebSocket().Returns(async _ =>
+        webSockets.AcceptWebSocket(Arg.Is<CancellationToken>(token => token == default)).Returns(async _ =>
         {
             await Task.Yield();
             return webSocket;
@@ -88,16 +88,16 @@ public class and_cancellation_callback_fails_during_an_emission
         }
         try
         {
-            await receiving.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await receiving.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             subject.OnNext(1);
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             incoming.TrySetResult();
-            await cancellationRan.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await cancellationRan.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             connection.IsCompleted.ShouldBeFalse();
             resource.Disposed.ShouldBeFalse();
             release.TrySetResult();
-            await guardExited.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var thrown = await Assert.ThrowsAsync<AggregateException>(() => requestFinished.WaitAsync(TimeSpan.FromSeconds(5)));
+            await guardExited.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
+            var thrown = await Assert.ThrowsAsync<AggregateException>(() => requestFinished.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken));
             Assert.Same(failure, Assert.Single(thrown.InnerExceptions));
             resource.Disposed.ShouldBeTrue();
         }
@@ -107,13 +107,21 @@ public class and_cancellation_callback_fails_during_an_emission
             incoming.TrySetResult();
             try
             {
-                await requestFinished.WaitAsync(TimeSpan.FromSeconds(5));
+                await DrainRequest(requestFinished);
             }
             catch (AggregateException)
             {
                 // Asserted above; ensure a failed connection has still finished disposing its request scope.
             }
         }
+    }
+
+    static async Task DrainRequest(Task requestFinished)
+    {
+        // Drain request-scope disposal even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
+        await requestFinished.WaitAsync(TimeSpan.FromSeconds(5));
+#pragma warning restore xUnit1051
     }
 
     sealed class RequestResource : IDisposable

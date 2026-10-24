@@ -23,7 +23,7 @@ public class with_legacy_resolution : for_DiscoverableValidators.when_using_a_ce
         await using var scope = root.CreateAsyncScope();
         var validator = scope.ServiceProvider.GetRequiredService<ReadingValidator>();
         var invoker = new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance);
-        var result = (await invoker.Invoke(new Model(), validator, "")).ToArray();
+        var result = (await invoker.Invoke(new Model(), validator, "", global::Xunit.TestContext.Current.CancellationToken)).ToArray();
         calls.ShouldEqual(1);
         result.Single().Message.ShouldEqual("ownership denied");
         _events.ShouldEqual(["fresh constructed", "validator constructed"]);

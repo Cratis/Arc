@@ -20,7 +20,7 @@ public class when_a_typed_source_reaches_chronicle : given.a_protected_read
         var unit = (UnitOfWork)_store.UnitOfWorkManager.Begin(Cratis.Execution.CorrelationId.New());
         var owner = unit.ClaimDecisionReadCommitOwnership();
         using var frame = unit.EnforceReadProtection();
-        await _store.GetDecisionReads().GetFor<BookStock>(unit, (ReadModelKey)_book.Value);
+        await _store.GetDecisionReads().GetFor<BookStock>(unit, (ReadModelKey)_book.Value, global::Xunit.TestContext.Current.CancellationToken);
         var source = derivedSource ? _book : new EventSourceId(_book.Value);
         unit.AddEventWithOptions(EventSequenceId.Log, source, new BookBorrowed(_member), Causation.Unknown(), new()
         {

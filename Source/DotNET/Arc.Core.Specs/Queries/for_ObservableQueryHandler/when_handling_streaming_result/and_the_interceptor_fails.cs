@@ -57,8 +57,8 @@ public class and_the_interceptor_fails : for_ObservableQueryHttp.given.a_request
         _status.ShouldEqual(500);
         _written.Data.ShouldBeNull();
         _written.ExceptionMessages.ShouldContainOnly(exposeExceptionDetails ? SecretMessage : ExceptionDetailRedactor.RedactedMessage);
-        _written.ExceptionStackTrace.ShouldEqual(exposeExceptionDetails ? failure.StackTrace! : string.Empty);
-        failure.StackTrace!.ShouldNotBeEmpty();
+        _written.ExceptionStackTrace.ShouldEqual(exposeExceptionDetails ? failure.StackTrace : string.Empty);
+        failure.StackTrace.ShouldNotBeEmpty();
         JsonSerializer.Serialize(_written).Contains(SecretMessage, StringComparison.Ordinal).ShouldEqual(exposeExceptionDetails);
         _logger.ReceivedCalls().Any(call => call.GetMethodInfo().Name == nameof(ILogger.Log) && call.GetArguments()[3] == failure).ShouldBeTrue();
     }

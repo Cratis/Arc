@@ -1,5 +1,5 @@
 {
-  "SourceRevision": "1d2716dc0c252c602002f177c6791cdff1328bf1",
+  "SourceRevision": "37db6eff5c3be233e269cc96f247722e7c8f0b2b",
   "Files": [
     {
       "Source": "agents/backend-developer.md",
@@ -219,7 +219,7 @@
     {
       "Source": "harnesses/copilot/instructions/github-actions.instructions.md",
       "Destination": "harnesses/copilot/instructions/github-actions.instructions.md",
-      "Hash": "8090BF72CE17129885C93251B034AF5CB64E57315C689C996529296B1A7040F9"
+      "Hash": "DB1D5BA4F9A608D992CC7E05622F6E702665D4205F8046575147CD152AADFC38"
     },
     {
       "Source": "harnesses/copilot/instructions/glossary.instructions.md",
@@ -234,7 +234,7 @@
     {
       "Source": "harnesses/copilot/instructions/go.instructions.md",
       "Destination": "harnesses/copilot/instructions/go.instructions.md",
-      "Hash": "065F8BEC8A606DC1DFD7D59A7F7013E717FF5302978B9BF6F31464740BE81FA1"
+      "Hash": "1D127821A58503E64744DB669021197E9990443786880E674868BA90FCF6F492"
     },
     {
       "Source": "harnesses/copilot/instructions/guards-and-fuses.instructions.md",
@@ -300,6 +300,11 @@
       "Source": "harnesses/copilot/instructions/rtk.instructions.md",
       "Destination": "harnesses/copilot/instructions/rtk.instructions.md",
       "Hash": "D44CEC3612C78D89B2AB2E7BCE2F4B35F68335007791C57FD8574400D33F7EF3"
+    },
+    {
+      "Source": "harnesses/copilot/instructions/scripting.instructions.md",
+      "Destination": "harnesses/copilot/instructions/scripting.instructions.md",
+      "Hash": "E82F40EE395FF32E6F2855FE1D6E31F7CCEFB73A21E909706DDF7453EA5325AB"
     },
     {
       "Source": "harnesses/copilot/instructions/secrets.instructions.md",
@@ -719,7 +724,7 @@
     {
       "Source": "hooks/README.md",
       "Destination": "hooks/README.md",
-      "Hash": "C41EA2A8EB53CFC5423E9BE0D3FC846B779D41A317BF17E4A6681736748E516F"
+      "Hash": "36CF423CAC137FC13183B87BBE2589FCF6C906F5D4470C776F1024586C2C4A23"
     },
     {
       "Source": "hooks/agent-stop.md",
@@ -739,7 +744,7 @@
     {
       "Source": "hooks/scripts/cratis-cleanup-worktrees.sh",
       "Destination": "hooks/scripts/cratis-cleanup-worktrees.sh",
-      "Hash": "4AA67B4CB444FB5C425C2BFC1FEB9727834EB9E3A85F1DC336B56A8CDC64105A"
+      "Hash": "D86611EBA752D2674C23FB2B43556621A40280F696A8A111804C3E510F97EAFF"
     },
     {
       "Source": "hooks/scripts/cratis-guard-pr-body.sh",
@@ -1019,7 +1024,7 @@
     {
       "Source": "rules/general.md",
       "Destination": "rules/general.md",
-      "Hash": "4BE20D935C82F08EACEA788D023CE75F42C941C2D934CB8F2AE2872E984A0F51"
+      "Hash": "97B128067BB888DF669421FC8C2DE11C2ECA6CB1CEF0615273B2980830F63423"
     },
     {
       "Source": "rules/git-commits.md",
@@ -1029,7 +1034,7 @@
     {
       "Source": "rules/github-actions.md",
       "Destination": "rules/github-actions.md",
-      "Hash": "FA56E04C0B73C66A04E0331014F81CAD99885AACB5638235A872727BCF29A16B"
+      "Hash": "E3EF486213E2F924D6D653026FE950BC5DCC0621ECAE86FF5B3E7AEE67E5CFC8"
     },
     {
       "Source": "rules/glossary.md",
@@ -1044,7 +1049,7 @@
     {
       "Source": "rules/go.md",
       "Destination": "rules/go.md",
-      "Hash": "F4467AE3697A173DA0D3E3FE8E5E4999EB103FDD1E48E50F4E948DE794A7C41D"
+      "Hash": "F85CBDAF585C17DC8A906991C638FBA1E3E412CA1E513BD0EC6E9A1348DD4E21"
     },
     {
       "Source": "rules/guards-and-fuses.md",
@@ -1095,6 +1100,11 @@
       "Source": "rules/review-reports.md",
       "Destination": "rules/review-reports.md",
       "Hash": "187117C278DC0C3D5365303615DDDB03427BDF16A659A52C5F4EF7F4B4CAADE3"
+    },
+    {
+      "Source": "rules/scripting.md",
+      "Destination": "rules/scripting.md",
+      "Hash": "2EC1F360D7062CB6B815E750C14D1EA605D586104C572D1EE02234E6D168D4F0"
     },
     {
       "Source": "rules/secrets.md",
@@ -1274,7 +1284,7 @@
     {
       "Source": "skills/cratis-ci-pipeline-performance/SKILL.md",
       "Destination": "skills/cratis-ci-pipeline-performance/SKILL.md",
-      "Hash": "C436234AFDF6ACD2AC280126E641E605CCFA418D283763893D8609DFE665C357"
+      "Hash": "3614739B24C3EC271701F81FC154E8F441149E4EEF46A576F393BD6C5AB24833"
     },
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/build-once-and-shard.md",
@@ -1284,7 +1294,7 @@
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/caching.md",
       "Destination": "skills/cratis-ci-pipeline-performance/references/caching.md",
-      "Hash": "EAA06D97BF2D9DD7807931CA5FBFC870724F1D585116EA44A8756FD5C451595E"
+      "Hash": "019A3387B4B45AE530F53B257699D2EAF2DB0A4B80DC8FB007A32833DB6F680A"
     },
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/flaky-and-hung-jobs.md",
@@ -1299,12 +1309,12 @@
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/required-checks-and-path-filters.md",
       "Destination": "skills/cratis-ci-pipeline-performance/references/required-checks-and-path-filters.md",
-      "Hash": "57134910D8930DCD699864327C7BC0DBA36CE997072D4903EE9F53E8427E83E6"
+      "Hash": "A91A9AFC0ABDCF8C683FBA295E0A3EE29A5E9875A043373A8F3D059C3A639816"
     },
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/runner-sizing-and-images.md",
       "Destination": "skills/cratis-ci-pipeline-performance/references/runner-sizing-and-images.md",
-      "Hash": "243897D6AE7F42E7E3036B483D2FB44CF36FADED01CC91A1041EA99EB790486B"
+      "Hash": "90990B03761E56769B1AFD7AAE0119F23D7EE2BC9633ADF75A8B9BC86543D802"
     },
     {
       "Source": "skills/cratis-ci-pipeline-performance/references/security-and-pinning.md",
@@ -1499,7 +1509,12 @@
     {
       "Source": "skills/cratis-engineering-local-cross-repo-verification/SKILL.md",
       "Destination": "skills/cratis-engineering-local-cross-repo-verification/SKILL.md",
-      "Hash": "BA50FC8B0CAF67663D72E033BC7A40310436EC6F01AD2823F9D6AC81920F5248"
+      "Hash": "7A20648D9EBC365B57D47464532EC1F20A745061F8F1B04F050907AF8ECE5460"
+    },
+    {
+      "Source": "skills/cratis-engineering-local-cross-repo-verification/references/dependency-map.md",
+      "Destination": "skills/cratis-engineering-local-cross-repo-verification/references/dependency-map.md",
+      "Hash": "2759E98D8D0DE51244F34799BF87C76E48C28B740FE1E8E5BEB618984C390A48"
     },
     {
       "Source": "skills/cratis-engineering-local-cross-repo-verification/references/docker-images.md",
@@ -1529,12 +1544,17 @@
     {
       "Source": "skills/cratis-engineering-local-cross-repo-verification/references/worked-examples.md",
       "Destination": "skills/cratis-engineering-local-cross-repo-verification/references/worked-examples.md",
-      "Hash": "CF6280711F09FF1E9B26CECF132226AEE1DCE1C2CB6D0A64871B00D9BA8A0003"
+      "Hash": "A1E33680C0A269B08AE3A21A742DB6FAF893EEB6ABCEE886756A6AF87A4E4C74"
     },
     {
       "Source": "skills/cratis-engineering-local-cross-repo-verification/scripts/cratis-local-packages.sh",
       "Destination": "skills/cratis-engineering-local-cross-repo-verification/scripts/cratis-local-packages.sh",
       "Hash": "D7057D3006436825A464F26E75272AD5656B74C2BBBA31A916A0EDF624921D52"
+    },
+    {
+      "Source": "skills/cratis-engineering-local-cross-repo-verification/scripts/dependency-map.tsv",
+      "Destination": "skills/cratis-engineering-local-cross-repo-verification/scripts/dependency-map.tsv",
+      "Hash": "C52B1C7314D6F2D125345B4A640AC3C07A0A6DA0D756EE8915041931BCEE8122"
     },
     {
       "Source": "skills/cratis-engineering-local-cross-repo-verification/scripts/npm-restore-check.cjs",

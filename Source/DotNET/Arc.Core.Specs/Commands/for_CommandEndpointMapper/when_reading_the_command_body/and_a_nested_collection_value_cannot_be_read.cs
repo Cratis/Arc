@@ -12,6 +12,7 @@ public class and_a_nested_collection_value_cannot_be_read : given.a_command_endp
     void Establish()
     {
         var exception = Catch.Exception(() => JsonSerializer.Deserialize<Envelope>("""{"Items":[{"Amount":1},{"Amount":2},{"Amount":"wrong"}]}"""));
+        Assert.NotNull(exception);
         _context.ReadBodyAsJson(_commandType, Arg.Any<CancellationToken>()).Returns<Task<object?>>(_ => throw exception);
     }
 

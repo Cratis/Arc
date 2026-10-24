@@ -206,25 +206,14 @@ jobs:
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
 
-      # One dotnet test per project, as before; a failing project does not stop the rest of the shard.
+      # Ordinary specs use their prebuilt xUnit executables. Proxy shards retain VSTest namespace filtering.
+      # The runner rejects existing result directories and incomplete TRX; a failing project does not stop the shard.
       - name: Test (${{ matrix.shard }})
         env:
           SHARD: ${{ matrix.shard }}
-        run: |
-          set -euo pipefail
-          projects=$(python3 scripts/ci-test-shards.py projects --shard "$SHARD")
-          failed=0
-          for project in $projects; do
-            echo "::group::$project"
-            dotnet test "$project" --no-build --configuration Release --framework net10.0 \
-              --logger "trx;LogFileName=$(basename "$project").trx" \
-              --results-directory "$RUNNER_TEMP/test-results" \
-              || { echo "::error title=Specs failed::$project"; failed=1; }
-            echo "::endgroup::"
-          done
-          exit "$failed"
+        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --results "$RUNNER_TEMP/test-results"
 
-      # A project that runs no tests passes dotnet test; this fails the shard instead and prints each project's count.
+      # Retain per-project population reporting in addition to the executable runner's strict TRX validation.
       - name: Verify every project ran tests
         if: ${{ !cancelled() }}
         env:
@@ -393,19 +382,9 @@ jobs:
       - name: Test (${{ matrix.shard }})
         env:
           SHARD: ${{ matrix.shard }}
-        run: |
-          set -euo pipefail
-          filter=$(python3 scripts/ci-test-shards.py filter --shard "$SHARD")
-          dotnet test Source/DotNET/Tools/ProxyGenerator.Specs \
-            --no-build \
-            --configuration Release \
-            --framework net10.0 \
-            --filter "$filter" \
-            --logger "console;verbosity=normal" \
-            --logger "trx;LogFileName=$SHARD.trx" \
-            --results-directory "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --results "$RUNNER_TEMP/test-results"
 
-      # A filter that matches nothing passes dotnet test; this fails the shard when any of its namespaces ran no
+      # A filter that matches nothing can pass the runner; this fails the shard when any of its namespaces ran no
       # tests and prints each namespace's count.
       - name: Verify every namespace ran tests
         if: ${{ !cancelled() }}

@@ -39,7 +39,7 @@ public class ApplicationFixture : IAsyncLifetime
         return port;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var port = GetAvailablePort();
         BaseUri = new Uri($"http://localhost:{port}/");
@@ -97,7 +97,7 @@ public class ApplicationFixture : IAsyncLifetime
         await dbContext.Database.EnsureCreatedAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _app.StopAsync();
         if (_app is IAsyncDisposable asyncDisposable)
