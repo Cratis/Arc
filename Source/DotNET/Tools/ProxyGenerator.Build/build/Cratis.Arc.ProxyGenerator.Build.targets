@@ -12,6 +12,15 @@
         <CratisProxyGeneratorAssembly>Cratis.Arc.ProxyGenerator.Build.dll</CratisProxyGeneratorAssembly>
     </PropertyGroup>
     
+    <Target Name="CratisProxyGeneratorStateFile" BeforeTargets="CratisProxyGenerator;_CleanGetCurrentAndPriorFileWrites">
+        <PropertyGroup>
+            <_CratisProxiesStateFile>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)','$(IntermediateOutputPath)','cratis-proxies.state.json'))</_CratisProxiesStateFile>
+        </PropertyGroup>
+        <ItemGroup>
+            <FileWrites Include="$(_CratisProxiesStateFile)" />
+        </ItemGroup>
+    </Target>
+
     <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != ''"> 
         <PropertyGroup>
             <CratisProxiesOutputPath>$([System.String]::Copy('$(CratisProxiesOutputPath)').TrimEnd('\'))</CratisProxiesOutputPath>
@@ -27,6 +36,7 @@
         <PropertyGroup>
             <!-- Encode before shell transport: copyright text may contain quotes, newlines, or shell syntax. -->
             <CratisProxiesEncodedFileHeader>$([MSBuild]::ConvertToBase64($(CratisProxiesFileHeader)))</CratisProxiesEncodedFileHeader>
+            <StateFileArgument Condition=" '$(CratisProxiesIncremental)' != 'false' ">--state-file=&quot;$(_CratisProxiesStateFile)&quot;</StateFileArgument>
             <LibraryMode Condition=" '$(CratisProxiesLibraryMode)' == 'true' ">--library-mode</LibraryMode>
             <SkipOutputDeletion Condition=" '$(CratisProxiesSkipOutputDeletion)' == 'true' ">--skip-output-deletion</SkipOutputDeletion>
             <SkipCommandNameInRoute Condition=" '$(CratisProxiesSkipCommandNameInRoute)' == 'true' ">--skip-command-name-in-route</SkipCommandNameInRoute>
@@ -50,7 +60,7 @@
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true"
-            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; --file-header-base64=$(CratisProxiesEncodedFileHeader) $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(EmitInterfaces) $(UseProxyFileSuffix) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings)"
+            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; --file-header-base64=$(CratisProxiesEncodedFileHeader) $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(EmitInterfaces) $(UseProxyFileSuffix) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings) $(StateFileArgument)"
             WorkingDirectory="$(CratisProxyGeneratorAssemblyDirectory)" />
     </Target>
 </Project>

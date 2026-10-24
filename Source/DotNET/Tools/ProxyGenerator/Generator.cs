@@ -11,7 +11,7 @@ namespace Cratis.Arc.ProxyGenerator;
 /// <summary>
 /// Represents the actual generator.
 /// </summary>
-public static class Generator
+public static partial class Generator
 {
     /// <summary>
     /// Generate the proxies from an input assembly and output path.
@@ -78,7 +78,8 @@ public static class Generator
         IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null,
         IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null,
         bool emitInterfaces = false,
-        bool useProxyFileSuffix = false)
+        bool useProxyFileSuffix = false,
+        ICollection<string>? producedFiles = null)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -99,26 +100,36 @@ public static class Generator
         TypeExtensions.SetNamespaceRoots(namespaceRoots ?? []);
         TypeExtensions.SetTypeMappings(typeMappings ?? []);
         GeneratedFileNames.UseProxySuffix(useProxyFileSuffix);
+        var phaseStopwatch = Stopwatch.StartNew();
         if (!TypeExtensions.TryInitializeProjectAssemblies(assemblyFile, message, errorMessage))
         {
             return false;
         }
         using var projectAssemblies = TypeExtensions.OwnProjectAssemblies();
+        message($"  Project assemblies in {phaseStopwatch.Elapsed}");
 
+        phaseStopwatch.Restart();
         var sourceFileMap = ConfigureSourceFileGrouping(useSourceFileAsOutputFile, assemblyFile);
+        message($"  Source-file map in {phaseStopwatch.Elapsed}");
 
         var commands = new List<CommandDescriptor>();
         var queries = new List<QueryDescriptor>();
 
+        phaseStopwatch.Restart();
         var controllerBasedArtifactsProvider = new ControllerBasedArtifactsProvider(message, outputPath, segmentsToSkip);
         commands.AddRange(controllerBasedArtifactsProvider.Commands);
         queries.AddRange(controllerBasedArtifactsProvider.Queries);
+        message($"  Controller discovery in {phaseStopwatch.Elapsed}");
 
+        phaseStopwatch.Restart();
         var modelBoundArtifactsProvider = new ModelBoundArtifactsProvider(message, outputPath, segmentsToSkip, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix);
         commands.AddRange(modelBoundArtifactsProvider.Commands);
         queries.AddRange(modelBoundArtifactsProvider.Queries);
+        message($"  Model-bound discovery in {phaseStopwatch.Elapsed}");
 
+        phaseStopwatch.Restart();
         var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
+        message($"  Identity discovery in {phaseStopwatch.Elapsed}");
 
         commands = commands.Where(c => !c.Type.IsExcluded()).ToList();
         queries = queries.Where(q => !q.Type.IsExcluded()).ToList();
@@ -146,6 +157,7 @@ public static class Generator
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
         await observableQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
+        phaseStopwatch.Restart();
         foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
         {
             identityDetailsType.CollectTypesInvolved(typesInvolved);
@@ -181,6 +193,7 @@ public static class Generator
         var enumSet = enums.ToHashSet();
 
         var typeDescriptors = typesInvolved.Where(_ => !enumSet.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
+        message($"  Type collection and descriptors in {phaseStopwatch.Elapsed}");
 
         // A class carries `@field` decorators so Fundamentals can reconstruct it from JSON, which means a
         // runtime dependency on `@cratis/fundamentals`. A model that is only ever built and read - never
@@ -216,6 +229,8 @@ public static class Generator
             message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
         }
 
+        message($"  Orphan cleanup in {stopwatch.Elapsed}");
+
         // Update index files intelligently
         if (!skipIndexGeneration)
         {
@@ -229,6 +244,8 @@ public static class Generator
         {
             message("  Index file generation skipped");
         }
+
+        CollectProducedFiles(producedFiles, generatedFiles, skipIndexGeneration, outputPath);
 
         message($"  Overall time: {overallStopwatch.Elapsed}");
 

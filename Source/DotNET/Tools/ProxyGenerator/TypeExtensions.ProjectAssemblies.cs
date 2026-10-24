@@ -59,12 +59,7 @@ public static partial class TypeExtensions
             dependencyContext.RuntimeLibraries.Where(_ => _.Type.Equals("project")),
             assemblyFolder,
             assemblyFile);
-        string[] requiredPaths = [.. managedAppAssemblyPaths];
-
-        if (FindFundamentalsAssemblyPath(dependencyContext) is { } fundamentalsPath)
-        {
-            requiredPaths = [.. requiredPaths, fundamentalsPath];
-        }
+        var requiredPaths = GetRequiredAssemblyPaths(dependencyContext, assemblyFolder, assemblyFile);
 
         try
         {
@@ -118,6 +113,21 @@ public static partial class TypeExtensions
         }
 
         return [.. candidates.Where(_ => _.GetName().Name is { } name && name != core && eligible.Contains(name))];
+    }
+
+    /// <summary>
+    /// Resolves the managed dependencies required for proxy generation.
+    /// </summary>
+    /// <param name="dependencyContext">The target dependency context.</param>
+    /// <param name="assemblyFolder">The target assembly directory.</param>
+    /// <param name="assemblyFile">The target assembly file.</param>
+    /// <returns>The resolved managed dependency paths.</returns>
+    internal static string[] GetRequiredAssemblyPaths(DependencyContext dependencyContext, string assemblyFolder, string assemblyFile)
+    {
+        var managedAssemblyPaths = GetManagedAssemblyPaths(dependencyContext.RuntimeLibraries, assemblyFolder, assemblyFile);
+        return FindFundamentalsAssemblyPath(dependencyContext) is { } fundamentalsPath
+            ? [.. managedAssemblyPaths, fundamentalsPath]
+            : managedAssemblyPaths;
     }
 
     static Dictionary<string, List<string>> BuildDependentsMap(Assembly[] candidates)

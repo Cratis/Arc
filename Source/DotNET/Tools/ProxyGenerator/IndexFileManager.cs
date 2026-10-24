@@ -103,10 +103,6 @@ public static partial class IndexFileManager
         // Build set of orphaned file names in this directory
         var orphanedFileNames = inDirectory.OrphanedFileNames;
 
-        // Check if we need to update: new files were written, orphans exist, or
-        // the existing index has exports pointing to files that no longer exist on disk.
-        var anyWrittenInDirectory = inDirectory.AnyWritten;
-        var hasOrphansInDirectory = orphanedFileNames.Count > 0;
         var hasStaleExports = existingExports.Exists(e =>
         {
             // A non-relative (bare/package) specifier, e.g. '@cratis/components', is never something the
@@ -120,7 +116,7 @@ public static partial class IndexFileManager
             return !ExportTargetExistsOnDisk(directory, fileName) && !generatedFiles.ContainsKey(Path.GetFullPath(Path.Combine(directory, $"{fileName}.ts")));
         });
 
-        if (!anyWrittenInDirectory && !hasOrphansInDirectory && !hasStaleExports)
+        if (!NeedsRewrite(inDirectory, hasStaleExports, indexPath))
         {
             return false;
         }
@@ -372,6 +368,16 @@ public static partial class IndexFileManager
         return Directory.Exists(childDirectory) &&
             (File.Exists(Path.Combine(childDirectory, "index.ts")) || File.Exists(Path.Combine(childDirectory, "index.tsx")));
     }
+
+    /// <summary>
+    /// Decides whether an index.ts must be rewritten.
+    /// </summary>
+    /// <param name="inDirectory">The generated and orphaned files in the index's directory.</param>
+    /// <param name="hasStaleExports">Whether the existing index exports files that no longer exist.</param>
+    /// <param name="indexPath">The path of the index.ts file.</param>
+    /// <returns><see langword="true"/> when files were written or orphaned in the directory, the index has stale exports, or the index is missing (for example a deleted index.ts).</returns>
+    static bool NeedsRewrite(DirectoryFiles inDirectory, bool hasStaleExports, string indexPath) =>
+        inDirectory.AnyWritten || inDirectory.OrphanedFileNames.Count > 0 || hasStaleExports || !File.Exists(indexPath);
 
     [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
     private static partial Regex ExportRegex();
