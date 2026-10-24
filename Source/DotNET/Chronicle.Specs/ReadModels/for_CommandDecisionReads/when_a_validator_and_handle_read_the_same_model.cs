@@ -37,8 +37,8 @@ public class when_a_validator_and_handle_read_the_same_model : Specification
         CommandDecisionReads.Begin(commandType);
         try
         {
-            var validator = await _reader.Get<Model>(_key);
-            var handle = await _reader.Get<Model>(_key);
+            var validator = await _reader.Get<Model>(_key, global::Xunit.TestContext.Current.CancellationToken);
+            var handle = await _reader.Get<Model>(_key, global::Xunit.TestContext.Current.CancellationToken);
             handle.ShouldBeSame(validator);
             if (readProtectionOn)
             {
