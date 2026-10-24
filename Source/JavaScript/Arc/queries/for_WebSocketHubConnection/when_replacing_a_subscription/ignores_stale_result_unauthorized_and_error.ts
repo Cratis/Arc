@@ -25,19 +25,15 @@ describe(
                 { queryName: 'Original' },
                 originalCallback,
             );
-            context.simulateOpen();
-            context.simulateMessage({
-                type: HubMessageType.Connected,
-                supportsSubscriptionRevisions: true,
-            });
-            const originalRevision = sentMessage(1).revision!;
+            context.simulateOpen(true);
+            const originalRevision = sentMessage(0).revision!;
 
             context.connection.subscribe(
                 queryId,
                 { queryName: 'Replacement' },
                 replacementCallback,
             );
-            const replacementRevision = sentMessage(2).revision!;
+            const replacementRevision = sentMessage(1).revision!;
 
             context.simulateMessage({
                 type: HubMessageType.QueryResult,

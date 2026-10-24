@@ -17,15 +17,10 @@ describe(
             context.setup();
             callback = sinon.stub();
             context.connection.subscribe(queryId, { queryName: 'MyQuery' }, callback);
-            context.simulateOpen();
-
-            context.simulateMessage({
-                type: HubMessageType.Connected,
-                supportsSubscriptionRevisions: true,
-            });
-            const upgradedRevision = sentMessage(1).revision;
+            context.simulateOpen(true);
+            const upgradedRevision = sentMessage(0).revision;
             if (upgradedRevision === undefined) {
-                throw new Error('Expected the upgraded subscription to carry a revision');
+                throw new Error('Expected the subscription to carry a revision');
             }
             revision = upgradedRevision;
 
@@ -44,17 +39,15 @@ describe(
 
         afterEach(() => sinon.restore());
 
-        it('should initially subscribe without a revision for older servers', () =>
-            (sentMessage(0).revision === undefined).should.equal(true));
-
-        it('should replace the legacy subscription with its current revision', () => {
-            const message = sentMessage(1);
+        it('should send the subscription once, with its revision, and not before the server has announced itself', () => {
+            context.fakeSocket.send.calledOnce.should.equal(true);
+            const message = sentMessage(0);
             message.type.should.equal(HubMessageType.Subscribe);
             (message.queryId === queryId).should.equal(true);
             revision.should.be.greaterThan(0);
         });
 
-        it('should ignore the temporary legacy result and deliver the strict result once', () => {
+        it('should ignore a result without a revision and deliver the strict result once', () => {
             callback.calledOnce.should.equal(true);
             callback.firstCall.args[0].should.deep.equal({ data: ['current'] });
         });

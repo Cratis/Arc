@@ -19,11 +19,7 @@ describe(
             callback = sinon.stub();
 
             context.connection.subscribe(queryId, { queryName: 'SecureQuery' }, callback);
-            context.simulateOpen();
-            context.simulateMessage({
-                type: HubMessageType.Connected,
-                supportsSubscriptionRevisions: true,
-            });
+            context.simulateOpen(true);
             const subscribe = getSubscribeMessage();
 
             // Server replies with Unauthorized for this exact subscription.
@@ -44,7 +40,7 @@ describe(
 
         function getSubscribeMessage(): { revision: number } {
             try {
-                return JSON.parse(context.fakeSocket.send.getCall(1).args[0]) as {
+                return JSON.parse(context.fakeSocket.send.getCall(0).args[0]) as {
                     revision: number;
                 };
             } catch (error) {
