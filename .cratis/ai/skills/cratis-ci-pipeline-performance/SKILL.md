@@ -112,11 +112,12 @@ when keyed on `github.ref` for merged `pull_request` `closed` events). A workflo
 whose release tooling aggregates since the last release may keep one pending slot,
 documented. Read `references/publish-pipelines.md`.
 
-**Runner routing.** Fits queue-bound workflows. Default: private-repository jobs
-on the organization scale set `cratis-arc` or a repository variable that falls
-back to a hosted label, hosted runners for public repositories. Pitfall: never
-route `pull_request` jobs of a public repository to self-hosted runners; that is
-fork code on our infrastructure. The rule owns the details.
+**Runner routing.** Fits queue-bound workflows. Read the
+[Infrastructure runner guide](https://github.com/Cratis/Infrastructure/blob/main/Documentation/deployment/github-runners.md)
+for the UpCloud scale sets `cratis-arc` and `cratis-arc-small`; do not copy its
+capacity numbers. The rule owns routing and public-fork safety. Read
+`references/runner-sizing-and-images.md` when choosing hosted versus self-hosted
+runners, sizing in-job parallelism or weighing fan-out against cold starts.
 
 **Publish from tested artifacts.** Fits release workflows that rebuild what the
 pull-request run already built and tested. Default: build and pack once, then
@@ -196,7 +197,7 @@ touches `permissions:`, uses `pull_request_target`, or adds a cache.
 - Read `references/publish-pipelines.md` when a release or deploy workflow queues, drops runs or rebuilds.
 - Read `references/flaky-and-hung-jobs.md` when runs fail, hang or are rerun.
 - Read `references/test-setup-cost.md` when test steps outlast reported test time, tests duplicate a dependency's suite, or compiles repeat per push.
-- Read `references/runner-sizing-and-images.md` when jobs are uniformly slow, pull images, install tools or reuse workspaces.
+- Read `references/runner-sizing-and-images.md` when choosing runners, sizing parallelism, or when jobs are uniformly slow, pull images, install tools or reuse workspaces.
 - Read `references/security-and-pinning.md` when a change touches actions, permissions, triggers or caches.
 - Read `references/sources.md` when attributing or extending the method.
 - Execute `scripts/ci-timings.sh` for every measurement; read it only to change it. Its self-test reads the synthetic inputs `scripts/fixtures/runs.json` and `scripts/fixtures/jobs/1003.json`, `scripts/fixtures/jobs/1007.json`, `scripts/fixtures/jobs/1010.json`; edit them only together with the expected lines in the script.
