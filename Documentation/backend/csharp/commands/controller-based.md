@@ -37,7 +37,9 @@ MVC authorization runs before body binding. Arc converts formatter ModelState pa
 
 By default Arc wraps controller POST results in a `CommandResult`. Use Arc's `[AspNetResult]` when you intentionally need ASP.NET's result behavior instead. See [without wrappers](../asp-net-core/without-wrappers.md) for its namespace and usage.
 
-Do not assume model-bound tuple response handlers, command filters, or execution scopes also process controller results. Return the actual response DTO or value from an MVC action and use MVC's own extension points.
+POST controller commands run [execution scopes](./command-execution-scopes.md) before publishing their command result. Scopes do not run for `[AspNetResult]` actions, validation-only requests, or requests rejected by model-state validation. With Chronicle, a refused commit returns HTTP 400 or 500 and clears the response instead of reporting success. A controller that captures `unitOfWorkManager.Current` in its constructor still holds the request unit; resolve the current unit during action execution to use the command's unit of work.
+
+Model-bound tuple response handlers and command filters do not process controller results. Return the actual response DTO or value from an MVC action and use MVC's own extension points.
 
 :::note[Operation execution requires the command pipeline]
 MVC action return values do not trigger [command operations](./operations/index.md). Keep returning the action's actual response. To use operation execution and compensation, explicitly execute a model-bound command through `ICommandPipeline` and handle its result.
