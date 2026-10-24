@@ -31,6 +31,12 @@ A `[ProtectedDecision]` command outside `On` words the message differently: `Boo
 
 ### Read-model parameters
 
+Arc checks discoverable decision-read parameter shapes after `ApplicationStarted`, in the background, using Chronicle's admission rules. A refusal logs the command, model and reason at Critical level and stops the host when that command's effective read protection is `On`. On `[ProtectedDecision]` commands outside `On`, explicit `DecisionRead<T>` parameters produce a Warning without stopping the host; plain `Off` and `Measure` parameters are not checked.
+
+`ReadProtection:StartupAdmissionCheck` accepts `Default` (the default behavior), `Log` (report without stopping) or `Off` (skip). Values are case-insensitive; missing or invalid values use `Default`. The `ReadProtection:MaximumMode` ceiling applies. Startup is not blocked: a few requests may be served before a refusal stops the host.
+
+The check skips disabled Chronicle artifact discovery (`AutoDiscoverAndRegister=false`), an unavailable event store, and hosts without Chronicle. Unexpected admission exceptions warn rather than stop the host. It never materializes a model or enrolls a guard. Runtime checks remain necessary for per-key failures and method-body `Get<T>` calls, which startup cannot discover. A host without `UseCratisChronicle` may connect earlier than before when it declares protected parameter reads; `Off` preserves lazy connection timing.
+
 | Failure | Cause | Fix |
 | --- | --- | --- |
 | `ReadCannotBeProtected` | A parameter's model has a shape Chronicle cannot guard exactly | See the reasons below |

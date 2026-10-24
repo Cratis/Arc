@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.ReadModels;
@@ -46,7 +47,7 @@ public static class DecisionReadAdmissions
         var artifacts = Defaults.Instance.ClientArtifactsProvider;
         var readModels = ReadModelServiceCollectionExtensions.DiscoverReadModelTypes(artifacts).ToHashSet();
         var reads = commandTypes
-            .SelectMany(command => DeclaredDecisionReadParameters.ReadsOf(command, readModels).Select(read => (command, read)))
+            .SelectMany(command => DeclaredDecisionReadParameters.ReadsOf(command, readModels, TypesServiceCollectionExtensions.CurrentTypeUniverse(), protection: (Declared: true, Services: null)).Select(read => (command, read)))
             .ToArray();
         if (reads.Length == 0)
         {

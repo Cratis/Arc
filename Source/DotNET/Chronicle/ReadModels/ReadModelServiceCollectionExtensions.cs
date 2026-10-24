@@ -89,6 +89,8 @@ public static class ReadModelServiceCollectionExtensions
         services.AddOptions<ProtectedReadModelKeyOptions>();
         services.TryAddSingleton<ProtectedReadModelKeyTraversal>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ProtectedReadModelKeyStartup>());
+        services.TryAddSingleton<IStartupDecisionReads, ChronicleStartupDecisionReads>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DecisionReadAdmissionStartup>());
         services.TryAddSingleton<ReadProtectionMeasureQueue>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ReadProtectionMeasureQueue>(sp => sp.GetRequiredService<ReadProtectionMeasureQueue>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());

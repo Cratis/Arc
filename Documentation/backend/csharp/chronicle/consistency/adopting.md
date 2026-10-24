@@ -73,6 +73,8 @@ Measure does not currently emit `routing_replaced` or `routing_kept_separately`:
 
 ### Fixing refused reads
 
+Arc now reports discoverable parameter-shape refusals at startup as well as when a command executes. Under effective `On`, a refusal stops the host after `ApplicationStarted`; other protected-decision modes only warn. Fix these before deploying with `On`, using a dedicated admitted model or your existing concurrency handling for that state.
+
 The `reason` of a `refused_read` is the Chronicle refusal. [Refusals](./refusals.md) has the full table. The common ones:
 
 | `reason` or API | Fix |
@@ -108,7 +110,7 @@ Switch one project at a time.
 1. Set `<CratisReadProtection>On</CratisReadProtection>` for the project.
 2. Build. Fix [ARCCHR0024](../code-analysis/ARCCHR0024.md), [ARCCHR0028](../code-analysis/ARCCHR0028.md) and [ARCCHR0033](../code-analysis/ARCCHR0033.md) warnings. [ARCCHR0011](../code-analysis/ARCCHR0011.md) no longer applies under `On`.
 3. Run the project's tests. Command scenarios automatically select the in-process log from the command's read-protection mode and dependencies; see [Test the race](./scenarios/testing.md).
-4. Exercise every command once. Refusals happen when a command runs, not at startup.
+4. Exercise every command once. Startup checks declared parameter shapes, but per-key failures and method-body reads are checked only when a command runs.
 
 Under `On`, discoverable validators with constructor dependencies must be registered by convention, which makes them transient. A validator registered by hand as scoped, singleton, a factory or an instance is refused. See [Validators](./validators.md).
 
@@ -135,6 +137,12 @@ Operations can lower the mode without a build. The cap only lowers. It never rai
 | `Off` | Commands declared `On` or `Measure` run as `Off` |
 
 At startup, Arc logs a Warning for each command whose declared mode is lowered. Measure reports a `mode_lowered` observation with the declared and effective modes. Use the cap to back out of an incident while you fix the code, and remove it afterwards: while it lowers the mode, reads run with the lower mode's behavior instead of `On`'s guards.
+
+### Control startup admission
+
+`ReadProtection:StartupAdmissionCheck` is `Default`, `Log` or `Off` (case-insensitive). Missing or invalid values use `Default`: report refused parameter shapes, stopping the host only under effective `On`. `Log` reports without stopping; `Off` skips the check. Use `Log` while adopting protection if a refused but unused command would otherwise stop the host. Neither setting bypasses runtime admission.
+
+The check runs in the background after `ApplicationStarted`, not as a readiness barrier. It honors `MaximumMode` and skips unavailable event stores or disabled artifact discovery. See [Read-model parameters](./refusals.md#read-model-parameters) for scope and connection timing.
 
 ## Where to go next
 
