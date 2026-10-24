@@ -51,6 +51,14 @@
             Condition="'$(XunitTestProject)' == 'true' and '$(_XunitEntryPointFileName)' != ''"
             DependsOnTargets="_XunitAttachSourceFiles" />
 
+    <!-- MTP attaches compiler inputs before BeforeCompile, which is later than _GenerateCompileInputs.
+         Prepare both its application helper and self-registration sources, not only xUnit's entry point.
+         These attachment targets own their generation conditions, paths and up-to-date checks. Guard by
+         MTP's imported source-name properties so mtp-off and non-test consumers never call absent targets. -->
+    <Target Name="_CratisAttachTestingPlatformSourceFiles"
+            Condition="'$(_TestingPlatformEntryPointSourceName)' != '' and '$(_SelfRegisteredExtensionsSourceName)' != ''"
+            DependsOnTargets="_IncludeGenerateTestingPlatformEntryPointIntoCompilation;_IncludeGenerateAutoRegisteredExtensionsIntoCompilation" />
+
     <!-- Skipped during a design time build: the IDE asks for the compiler inputs many times a second and never
          consumes the resources, so analyzing the whole application there would cost everything and produce
          nothing.
@@ -66,7 +74,7 @@
          ManifestResourceName, and they are neither .resx nor culture specific. -->
     <Target Name="GenerateCratisEmbeddedScreenplayDocuments"
             Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'"
-            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;PrepareResourceNames;GenerateMSBuildEditorConfigFile;_CratisAttachXunitSourceFiles"
+            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;PrepareResourceNames;GenerateMSBuildEditorConfigFile;_CratisAttachXunitSourceFiles;_CratisAttachTestingPlatformSourceFiles"
             BeforeTargets="_GenerateCompileInputs;CoreCompile">
 
         <!-- Resolved here rather than at evaluation time: where the targets of a package are imported from decides
