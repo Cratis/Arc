@@ -4,6 +4,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Cratis.Arc.Calendar;
 using Cratis.Arc.Connections;
 using Cratis.Arc.Execution;
 using Cratis.Arc.Introspection;
@@ -91,6 +92,11 @@ public class ArcOptions
 #pragma warning restore CS0618
         set => _trustForwardedIdentityHeaders = value;
     }
+
+    /// <summary>
+    /// Gets or sets the options for the application calendar, bound from <c>Cratis:Arc:Calendar</c>.
+    /// </summary>
+    public CalendarOptions Calendar { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the options for observable queries.

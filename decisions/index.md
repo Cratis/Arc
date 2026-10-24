@@ -13,4 +13,4 @@
 | [0009-additive-opt-in-query-selection](0009-additive-opt-in-query-selection.md) | Additive opt-in query selection | Accepted | Implemented | 2026-10-11 | woksin |
 | [0010-declarative-reactor-command-refusals](0010-declarative-reactor-command-refusals.md) | Handle reactor command refusals with ordered per-invocation branches | Accepted | Implemented | 2026-10-13 | woksin (via L0) |
 | [0011-aot-safe-protected-read-model-key-accessors](0011-aot-safe-protected-read-model-key-accessors.md) | Use strict composite-key accessors with a JIT compatibility fallback | Accepted | None | 2026-10-18 | woksin |
-| [0012-application-calendar-and-clock-boundaries](0012-application-calendar-and-clock-boundaries.md) | Resolve an application calendar on the server and re-evaluate live queries at clock boundaries | Proposed | None | — | — |
+| [0012-application-calendar-and-clock-boundaries](0012-application-calendar-and-clock-boundaries.md) | Resolve an application calendar on the server and re-evaluate live queries at clock boundaries | Accepted | None | 2026-10-23 | woksin (via L0) |

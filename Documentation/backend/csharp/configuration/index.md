@@ -59,6 +59,7 @@ builder.AddCratisArc(options =>
 | `Tenancy.ClaimType` | `string` | `tenant_id` | The claim used when `ResolverType` is `Claim`. |
 | `Tenancy.FixedTenantId` | `string` | `development` | The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. |
 | `Tenancy.DevelopmentTenantId` | `string` | `development` | The same value under its original name — reading or writing either key sets both. Supply only one; if both are present the binder's property order decides. |
+| `Calendar.TimeZone` | `string` | `UTC` | The IANA id of the application time zone, such as `Europe/Oslo`. Unknown, Windows-only and non-zero fixed-offset ids stop the host at startup; Arc never falls back to UTC. See [Application calendar](../application-calendar.md). |
 | `Introspection.Enabled` | `bool` | `true` | Map both command and query catalog routes. Set to `false` to remove both routes without changing identity discovery. |
 | `Introspection.IdentityDiscovery` | `bool` | `true` | Map users, tenants and the identity-details schema. Set to `false` to remove these routes without changing catalogs or `/.cratis/me`. Set both switches to `false` to remove all discovery. |
 | `Introspection.RequireAuthentication` | `bool` | unset (getter returns `false`) | Access to the discovery routes (catalogs, `/.cratis/users`, `/.cratis/tenants`, `/.cratis/identity-details/schema`). Not set: anonymous in Development, authenticated elsewhere. `true`: authenticated everywhere; requires a default ASP.NET Core authentication scheme plus `AddAuthorization()`, or an Arc.Core authentication handler. `false`: anonymous everywhere. |
@@ -173,4 +174,5 @@ Generated endpoints accept the [HTTP QUERY method](../queries/using-the-http-que
 - [Arc.Core getting started](../core/getting-started.md) — the console and worker host end to end.
 - [Tenancy](../tenancy/configuration.md) — configure how the tenant is resolved.
 - [Identity](../identity/index.md) — the identity system and providers.
+- [Application calendar](../application-calendar.md) — the application time zone and clock-boundary re-evaluation.
 - [Proxy Generation](../proxy-generation/Configuration/index.md) — the build-time `CratisProxies*` settings that must match `GeneratedApis`.
