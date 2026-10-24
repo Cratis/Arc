@@ -97,9 +97,7 @@ jobs:
 
       - name: Verify packed consumers and code-fix hosts
         run: >-
-          dotnet test
-          Source/DotNET/Arc.Core.Generators.Integration/Specs/PackageGraph.Integration.csproj
-          --no-build
-          --configuration Release
-          --framework net10.0
-          --logger "console;verbosity=normal"
+          dotnet
+          Source/DotNET/Arc.Core.Generators.Integration/Specs/bin/Release/net10.0/Cratis.Arc.Core.Generators.Integration.Specs.dll
+          -noLogo
+          -noColor
