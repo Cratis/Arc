@@ -80,9 +80,11 @@ describe('when a silent validation is overtaken', given(a_command_form_context, 
         return React.createElement('div');
     };
 
+    beforeEach(() => vi.useFakeTimers());
+
     const settle = async (milliseconds: number) => {
         await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, milliseconds));
+            await vi.advanceTimersByTimeAsync(milliseconds);
         });
     };
 
@@ -129,6 +131,7 @@ describe('when a silent validation is overtaken', given(a_command_form_context, 
         vi.restoreAllMocks();
         if (result) result.unmount();
         await settle(50);
+        vi.useRealTimers();
     });
 
     describe('and the run it overtakes is the slow one', () => {
