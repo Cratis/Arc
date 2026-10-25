@@ -1,11 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc;
+using Cratis.Arc.AspNetCore.EndpointGroups;
 using Cratis.Arc.AspNetCore.Http;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Introspection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -81,17 +85,39 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         }
     }
 
+    static void SetEndpointGroupScope(HttpContext httpContext, IHttpRequestContext context)
+    {
+        var groups = httpContext.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.EndpointGroups;
+        if (groups.HasGroups)
+        {
+            context.SetEndpointGroupScope(groups.ScopeFor(httpContext.Connection.LocalPort));
+        }
+    }
+
     void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
+        var servesEveryEndpointGroup = metadata?.ServesEveryEndpointGroup == true;
         Delegate requestHandler = async (HttpContext httpContext) =>
         {
             var context = new AspNetCoreHttpRequestContext(httpContext);
+            if (servesEveryEndpointGroup)
+            {
+                SetEndpointGroupScope(httpContext, context);
+            }
+
             var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
             using var request = HttpRequestContextAccessor.BeginRequest(accessor, context);
             await handler(context);
         };
 
         var builder = _group.MapMethods(pattern, [httpMethod], requestHandler);
+
+        // Every Arc endpoint names its group, so the matcher policy can select it by the local port. An endpoint that
+        // serves every group instead resolves its artifacts by the port, and is reachable on all of them.
+        if (!servesEveryEndpointGroup)
+        {
+            builder.WithMetadata(new EndpointGroupMetadata(metadata?.EndpointGroup));
+        }
 
         ApplyMetadata(builder, metadata);
     }

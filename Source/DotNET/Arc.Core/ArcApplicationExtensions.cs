@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Commands;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
@@ -50,6 +51,8 @@ public static class ArcApplicationExtensions
                 scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         }
+
+        RefuseEndpointGroups(app.Services);
 
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
         app.EndpointMapper.MapIntrospectionEndpoints(introspection, app.Services.GetService<ILoggerFactory>()?.CreateLogger(typeof(IntrospectionEndpointMapper).FullName!));
@@ -116,5 +119,26 @@ public static class ArcApplicationExtensions
         var tcs = new TaskCompletionSource();
         lifetime.ApplicationStopping.Register(() => tcs.TrySetResult());
         return tcs.Task;
+    }
+
+    /// <summary>
+    /// Refuses named endpoint groups, because the HTTP listener host cannot restrict an endpoint to a local port.
+    /// </summary>
+    /// <param name="services">The <see cref="IServiceProvider"/> to read <see cref="ArcOptions"/> from.</param>
+    /// <exception cref="EndpointGroupsNotSupportedByHost">Endpoint groups are configured, or a command or query belongs to a named group.</exception>
+    static void RefuseEndpointGroups(IServiceProvider services)
+    {
+        const string host = "the Arc.Core HTTP listener host";
+        if (services.GetRequiredService<IOptions<ArcOptions>>().Value.EndpointGroups.HasGroups)
+        {
+            throw new EndpointGroupsNotSupportedByHost(host);
+        }
+
+        var commandTypes = services.GetRequiredService<ICommandHandlerProviders>().Handlers.Select(_ => _.CommandType);
+        var queryTypes = services.GetRequiredService<IQueryPerformerProviders>().Performers.Select(_ => _.Type);
+        if (commandTypes.Concat(queryTypes).Any(_ => EndpointGroup.For(_) is not null))
+        {
+            throw new EndpointGroupsNotSupportedByHost(host);
+        }
     }
 }

@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Xml.Linq;
 using Cratis.Arc.Commands;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries;
 using Cratis.DependencyInjection;
@@ -57,7 +58,7 @@ public class IntrospectionService : IIntrospectionService
             h => h.Location,
             options.SegmentsToSkipForRoute);
 
-        return providers.Handlers.Where(handler => !handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true)).Select(handler =>
+        return providers.Handlers.Where(handler => !handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true) && EndpointGroup.For(handler.CommandType) is null).Select(handler =>
         {
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
             var includeCommandName = EndpointRouteHelper.ShouldIncludeNameInRoute(
@@ -84,7 +85,7 @@ public class IntrospectionService : IIntrospectionService
             p => p.Location,
             options.SegmentsToSkipForRoute);
 
-        return providers.Performers.Where(performer => !performer.IsExcludedFromDiscovery()).Select(performer =>
+        return providers.Performers.Where(performer => !performer.IsExcludedFromDiscovery() && EndpointGroup.For(performer.Type) is null).Select(performer =>
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
             var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(

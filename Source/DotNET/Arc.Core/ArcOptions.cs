@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Calendar;
 using Cratis.Arc.Connections;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Execution;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
@@ -112,6 +113,15 @@ public class ArcOptions
     /// Gets or sets the hosting options for Arc, only used by Arc.Core.
     /// </summary>
     public HostingOptions Hosting { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the local ports each named endpoint group is served on.
+    /// </summary>
+    /// <remarks>
+    /// Commands and queries tagged with <see cref="EndpointGroupAttribute"/> are reachable only on the ports
+    /// assigned to their group. Untagged commands and queries are not affected.
+    /// </remarks>
+    public EndpointGroupsOptions EndpointGroups { get; set; } = new();
 
     /// <summary>
     /// Gets or sets a value indicating whether exception detail (messages and stack traces) is exposed

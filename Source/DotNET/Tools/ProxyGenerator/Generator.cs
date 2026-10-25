@@ -79,7 +79,8 @@ public static partial class Generator
         IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null,
         bool emitInterfaces = false,
         bool useProxyFileSuffix = false,
-        ICollection<string>? producedFiles = null)
+        ICollection<string>? producedFiles = null,
+        string? endpointGroup = null)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -122,7 +123,7 @@ public static partial class Generator
         message($"  Controller discovery in {phaseStopwatch.Elapsed}");
 
         phaseStopwatch.Restart();
-        var modelBoundArtifactsProvider = new ModelBoundArtifactsProvider(message, outputPath, segmentsToSkip, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix);
+        var modelBoundArtifactsProvider = new ModelBoundArtifactsProvider(message, outputPath, segmentsToSkip, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix, endpointGroup);
         commands.AddRange(modelBoundArtifactsProvider.Commands);
         queries.AddRange(modelBoundArtifactsProvider.Queries);
         message($"  Model-bound discovery in {phaseStopwatch.Elapsed}");

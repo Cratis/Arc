@@ -20,22 +20,24 @@ public class ModelBoundArtifactsProvider : IArtifactsProvider
     /// <param name="skipCommandNameInRoute">True if the command name should be skipped in the route, false if not.</param>
     /// <param name="skipQueryNameInRoute">True if the query name should be skipped in the route, false if not.</param>
     /// <param name="apiPrefix">The API prefix to use in the route.</param>
+    /// <param name="endpointGroup">The endpoint group to generate for, or <see langword="null"/> for the default group.</param>
     public ModelBoundArtifactsProvider(
         Action<string> message,
         string outputPath,
         int segmentsToSkip,
         bool skipCommandNameInRoute,
         bool skipQueryNameInRoute,
-        string apiPrefix)
+        string apiPrefix,
+        string? endpointGroup = null)
     {
         message($"  Discover model based commands and queries from {TypeExtensions.Assemblies.Count()} assemblies");
 
         var commands = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsCommand()).ToArray();
-        Commands = commands.Select(_ => _.ToCommandDescriptor(outputPath, segmentsToSkip, skipCommandNameInRoute, apiPrefix, commands)).ToArray();
+        Commands = commands.Where(_ => _.IsInEndpointGroup(endpointGroup)).Select(_ => _.ToCommandDescriptor(outputPath, segmentsToSkip, skipCommandNameInRoute, apiPrefix, commands)).ToArray();
 
         using var attributes = new MetadataQueryAttributes();
         var queries = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsQuery(attributes.Find)).ToArray();
-        Queries = queries.SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries, attributes.Find)).ToArray();
+        Queries = queries.Where(_ => _.IsInEndpointGroup(endpointGroup)).SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries, attributes.Find)).ToArray();
     }
 
     /// <inheritdoc/>
