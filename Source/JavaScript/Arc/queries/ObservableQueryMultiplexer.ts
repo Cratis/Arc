@@ -7,6 +7,7 @@ import { DataReceived } from './ObservableQueryConnection.js';
 import { SubscriptionRequest } from './WebSocketHubConnection.js';
 import { Globals } from '../Globals.js';
 import { MultiplexerConnectionState } from './ObservableQueryDiagnosticsSnapshot.js';
+import { formatObjectQueryValue } from '../UrlHelpers.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -128,7 +129,7 @@ export class ObservableQueryMultiplexer {
         for (const [key, value] of Object.entries(a)) {
             if (pagingAndSortingKeys.has(key)) continue;
             if (value === undefined || value === null) continue;
-            remaining[key] = String(value);
+            remaining[key] = formatObjectQueryValue(value);
             hasRemaining = true;
         }
 

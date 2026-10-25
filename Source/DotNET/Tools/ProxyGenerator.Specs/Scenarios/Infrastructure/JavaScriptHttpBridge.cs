@@ -540,14 +540,17 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         // Make the actual HTTP request
         HttpResponseMessage response;
-        if (method.Equals("POST", StringComparison.OrdinalIgnoreCase))
+        if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
         {
-            var content = new StringContent(bodyJson ?? "{}", Encoding.UTF8, "application/json");
-            response = await HttpClient.PostAsync(url, content);
+            response = await HttpClient.GetAsync(url);
         }
         else
         {
-            response = await HttpClient.GetAsync(url);
+            using var request = new HttpRequestMessage(new HttpMethod(method.ToUpperInvariant()), url)
+            {
+                Content = new StringContent(bodyJson ?? "{}", Encoding.UTF8, "application/json")
+            };
+            response = await HttpClient.SendAsync(request);
         }
 
         var responseContent = await response.Content.ReadAsStringAsync();
