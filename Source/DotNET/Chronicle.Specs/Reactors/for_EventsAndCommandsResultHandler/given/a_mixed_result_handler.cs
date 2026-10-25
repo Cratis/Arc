@@ -28,7 +28,7 @@ public class a_mixed_result_handler : Specification
     {
         _executor = Substitute.For<ICommandSideEffectExecutor>();
         _store = Substitute.For<IEventStore>();
-        _eventLog = Substitute.For<IEventLog>();
+        _eventLog = CreateEventLog();
         _store.EventLog.Returns(_eventLog);
         _store.EventTypes.HasFor(typeof(TestEvent)).Returns(true);
         _store.EventTypes.HasFor(typeof(AmbiguousCommand)).Returns(true);
@@ -56,6 +56,8 @@ public class a_mixed_result_handler : Specification
             return Result.Success<ReactorSideEffectFailure>();
         });
     }
+
+    protected virtual IEventLog CreateEventLog() => Substitute.For<IEventLog>();
 
     public record TestEvent(string Name);
 
