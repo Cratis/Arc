@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Calendar;
 using Cratis.Arc.Connections;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Execution;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
@@ -120,7 +121,7 @@ public class ArcOptions
     /// Commands and queries tagged with <see cref="EndpointGroupAttribute"/> are reachable only on the ports
     /// assigned to their group. Untagged commands and queries are not affected.
     /// </remarks>
-    public EndpointGroups.EndpointGroupsOptions EndpointGroups { get; set; } = new();
+    public EndpointGroupsOptions EndpointGroups { get; set; } = new();
 
     /// <summary>
     /// Gets or sets a value indicating whether exception detail (messages and stack traces) is exposed
