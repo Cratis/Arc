@@ -66,4 +66,10 @@ internal static partial class ObservableQueryDemultiplexerLogMessages
 
     [LoggerMessage(LogLevel.Warning, "Observable query '{QueryName}' (subscription '{QueryId}') sends full collection snapshots without change sets because its items have no Id property; delta transfer requires a stable identity (Id) on each item")]
     internal static partial void CollectionWithoutIdentity(this ILogger<ObservableQueryDemultiplexer> logger, string queryId, string queryName);
+
+    [LoggerMessage(LogLevel.Warning, "SSE control request for connection {ConnectionId} arrived on a port serving other endpoint groups than the connection — rejecting it")]
+    internal static partial void SseConnectionInOtherEndpointGroups(this ILogger<ObservableQueryDemultiplexer> logger, string connectionId);
+
+    [LoggerMessage(LogLevel.Warning, "Subscription to query '{QueryName}' (id '{QueryId}') arrived on a port that does not serve its endpoint group — rejecting it")]
+    internal static partial void QueryNotInEndpointGroupScope(this ILogger<ObservableQueryDemultiplexer> logger, string queryName, string queryId);
 }

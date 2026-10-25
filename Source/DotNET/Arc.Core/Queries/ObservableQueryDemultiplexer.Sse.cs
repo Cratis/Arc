@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Queries;
@@ -25,7 +26,7 @@ public partial class ObservableQueryDemultiplexer
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
-        var state = new SSEConnectionState(context, linkedCts, ObservableQueryCaller.CapturedFrom(context));
+        var state = new SSEConnectionState(context, linkedCts, ObservableQueryCaller.CapturedFrom(context), context.GetEndpointGroupScope());
         _sseConnections[connectionId] = state;
 
 #pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
@@ -274,13 +275,22 @@ public partial class ObservableQueryDemultiplexer
             return null;
         }
 
+        // A connection is bound to the endpoint groups of the port it was opened on. A control request from a
+        // port serving other groups is rejected the same way as an unknown connection, with no fallback.
+        if (!state.EndpointGroupScope.IsSameAs(context.GetEndpointGroupScope()))
+        {
+            logger.SseConnectionInOtherEndpointGroups(connectionId);
+            return null;
+        }
+
         return state;
     }
 
     sealed record SSEConnectionState(
         IHttpRequestContext Context,
         CancellationTokenSource CancellationTokenSource,
-        ObservableQueryCaller Caller)
+        ObservableQueryCaller Caller,
+        EndpointGroupScope EndpointGroupScope)
     {
         public ObservableQuerySubscriptionStates Subscriptions { get; } = new();
         public CancellationToken CancellationToken { get; } = CancellationTokenSource.Token;

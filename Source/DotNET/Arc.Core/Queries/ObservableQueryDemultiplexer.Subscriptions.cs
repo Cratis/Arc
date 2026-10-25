@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
@@ -48,6 +49,18 @@ public partial class ObservableQueryDemultiplexer
         {
             throw new InvalidAuthorizationConfiguration($"Query '{fullyQualifiedName}' requires an Arc pipeline that prepares authorization before subscription.");
         }
+    }
+
+    static bool IsServedOnRequestPort(FullyQualifiedQueryName queryName, IHttpRequestContext requestContext)
+    {
+        var catalog = requestContext.RequestServices.GetService<IQueryPerformerProviders>();
+        if (catalog is null || !catalog.TryGetPerformersFor(queryName, out var performer))
+        {
+            // An unknown query is left to the pipeline, which reports it the same way on every port.
+            return true;
+        }
+
+        return requestContext.GetEndpointGroupScope().Serves(EndpointGroup.For(performer.Type));
     }
 
     static (IQueryPerformer Performer, AuthorizationDeclarations Declarations)? FindQueryAuthorization(FullyQualifiedQueryName fullyQualifiedName, IServiceProvider queryServiceProvider)
@@ -305,6 +318,13 @@ public partial class ObservableQueryDemultiplexer
             BuildQueryArguments(request.Arguments),
             BuildPaging(request),
             BuildSorting(request));
+
+        if (!IsServedOnRequestPort(query.Name, requestContext))
+        {
+            logger.QueryNotInEndpointGroupScope(query.Name.Value, queryId);
+            await NotifyAndComplete(callbacks, () => callbacks.OnError(queryId, "An error occurred while preparing the subscription.", token));
+            return null;
+        }
 
         if (!await AdmitHostFallback(query.Name, target, callbacks, token))
         {
