@@ -22,6 +22,8 @@ var skipCommandNameInRoute = args.Any(_ => _ == "--skip-command-name-in-route");
 var skipQueryNameInRoute = args.Any(_ => _ == "--skip-query-name-in-route");
 var apiPrefixArg = args.FirstOrDefault(_ => _.StartsWith("--api-prefix="));
 var apiPrefix = apiPrefixArg is null ? "api" : apiPrefixArg.Split('=')[^1];
+var endpointGroupArg = args.FirstOrDefault(_ => _.StartsWith("--endpoint-group=", StringComparison.Ordinal))?["--endpoint-group=".Length..];
+var endpointGroup = string.IsNullOrWhiteSpace(endpointGroupArg) ? null : endpointGroupArg;
 var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
 var emitInterfaces = args.Any(_ => _ == "--emit-interfaces");
@@ -97,6 +99,7 @@ Console.WriteLine($"Skip output deletion: {skipOutputDeletion}");
 Console.WriteLine($"Skip command name in route: {skipCommandNameInRoute}");
 Console.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
 Console.WriteLine($"API prefix: {apiPrefix}");
+Console.WriteLine($"Endpoint group: {endpointGroup ?? "(default)"}");
 Console.WriteLine($"Skip index generation: {skipIndexGeneration}");
 Console.WriteLine($"Use source file as output file: {useSourceFileAsOutputFile}");
 Console.WriteLine($"Use proxy file suffix: {useProxyFileSuffix}");
@@ -179,7 +182,8 @@ var result = await Generator.GenerateWithFileHeader(
     typeMappings,
     emitInterfaces,
     useProxyFileSuffix,
-    producedFiles);
+    producedFiles,
+    endpointGroup);
 if (result && !hadErrors && fingerprint is not null && stateFile is not null)
 {
     GenerationState.Save(stateFile, fingerprint, producedFiles!);
