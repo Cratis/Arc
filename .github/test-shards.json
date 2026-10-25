@@ -84,6 +84,7 @@
       "name": "proxy-1",
       "namespaces": [
         "Cratis.Arc.ProxyGenerator.ControllerBased.for_QueryExtensions",
+        "Cratis.Arc.ProxyGenerator.ModelBound.for_EndpointGroupExtensions",
         "Cratis.Arc.ProxyGenerator.ModelBound.for_MetadataQueryAttributes",
         "Cratis.Arc.ProxyGenerator.ModelBound.for_QueryExtensions",
         "Cratis.Arc.ProxyGenerator.Scenarios.for_Identity",
