@@ -6,7 +6,9 @@ namespace Cratis.Arc.EndpointGroups;
 /// <summary>
 /// Represents the endpoint groups served on the local port a request arrived on.
 /// </summary>
-public sealed class EndpointGroupScope
+/// <param name="includesDefault">Whether the default group is served.</param>
+/// <param name="groups">The named groups that are served.</param>
+public sealed class EndpointGroupScope(bool includesDefault, IEnumerable<string> groups)
 {
     /// <summary>
     /// The scope of a port that is not assigned to any group: it serves the default group only.
@@ -14,25 +16,14 @@ public sealed class EndpointGroupScope
     public static readonly EndpointGroupScope Default = new(true, []);
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="EndpointGroupScope"/> class.
-    /// </summary>
-    /// <param name="includesDefault">Whether the default group is served.</param>
-    /// <param name="groups">The named groups that are served.</param>
-    public EndpointGroupScope(bool includesDefault, IEnumerable<string> groups)
-    {
-        IncludesDefault = includesDefault;
-        Groups = new HashSet<string>(groups, StringComparer.Ordinal);
-    }
-
-    /// <summary>
     /// Gets a value indicating whether the default group is served.
     /// </summary>
-    public bool IncludesDefault { get; }
+    public bool IncludesDefault { get; } = includesDefault;
 
     /// <summary>
     /// Gets the named groups that are served.
     /// </summary>
-    public IReadOnlySet<string> Groups { get; }
+    public IReadOnlySet<string> Groups { get; } = new HashSet<string>(groups, StringComparer.Ordinal);
 
     /// <summary>
     /// Checks whether a group is served.
