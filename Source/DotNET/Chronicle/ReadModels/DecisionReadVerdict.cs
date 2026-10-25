@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Reflection;
-using System.Runtime.ExceptionServices;
 using Cratis.Chronicle.ReadModels;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
@@ -12,8 +10,6 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// </summary>
 internal static class DecisionReadVerdict
 {
-    static readonly MethodInfo _refusal = typeof(DecisionReadVerdict).GetMethod(nameof(Refusal), BindingFlags.NonPublic | BindingFlags.Static)!;
-
     /// <summary>
     /// Checks a discovered model without materializing it or enrolling a read.
     /// </summary>
@@ -21,18 +17,8 @@ internal static class DecisionReadVerdict
     /// <param name="model">The declared model type.</param>
     /// <param name="streamScoped">Whether the parameter supplies stream scope.</param>
     /// <returns>The refusal, when the shape is not admitted.</returns>
-    internal static DecisionReadRefusalReason? For(IDecisionReads reads, Type model, bool streamScoped)
-    {
-        try
-        {
-            return (DecisionReadRefusalReason?)_refusal.MakeGenericMethod(model).Invoke(null, [reads, streamScoped]);
-        }
-        catch (TargetInvocationException exception) when (exception.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-            throw;
-        }
-    }
+    internal static DecisionReadRefusalReason? For(IDecisionReads reads, Type model, bool streamScoped) =>
+        ReadModelDispatch.For(model).Refusal(reads, streamScoped);
 
     /// <summary>
     /// Checks a closed read-model declaration.

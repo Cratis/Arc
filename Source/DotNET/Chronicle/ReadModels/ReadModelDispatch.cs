@@ -32,7 +32,8 @@ public static class ReadModelDispatch
             new ReadModelDispatchEntry(
                 ChronicleParameterDependencyResolver.ResolveModel<TModel>,
                 PerStreamReadModelBinding.ResolveModel<TModel>,
-                reads => reads.Describe<TModel>()));
+                reads => reads.Describe<TModel>(),
+                DecisionReadVerdict.Refusal<TModel>));
 
     /// <summary>
     /// Gets the dispatch for a read model.
