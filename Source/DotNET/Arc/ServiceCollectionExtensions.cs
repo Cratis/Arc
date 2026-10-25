@@ -119,6 +119,7 @@ public static class ServiceCollectionExtensions
                 options.AddValidation(discoverableValidators);
                 options.AddCQRS();
                 options.Conventions.Add(new ExcludeFromDiscoveryConvention());
+                options.Conventions.Add(new EndpointGroupControllerConvention());
             });
 
         services.AddSingleton<IPostConfigureOptions<JsonOptions>, ConfigureJsonOptionsFromArcOptions>();
