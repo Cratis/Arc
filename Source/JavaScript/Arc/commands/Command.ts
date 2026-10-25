@@ -12,6 +12,8 @@ import { GetHttpHeaders } from '../GetHttpHeaders.js';
 import { PropertyDescriptor } from '../reflection/PropertyDescriptor.js';
 import { ValidationResult } from '../validation/ValidationResult.js';
 import { ValidationResultSeverity } from '../validation/ValidationResultSeverity.js';
+import { ValidationResultReason } from '../validation/ValidationResultReason.js';
+import { ValidationResultReasonDetail } from '../validation/ValidationResultReasonDetail.js';
 
 type Callback = {
     callback: WeakRef<PropertyChanged>;
@@ -20,6 +22,8 @@ type Callback = {
 
 /**
  * Represents an implementation of {@link ICommand} that works with HTTP fetch.
+ * Missing required properties produce a {@link ValidationResultReason.Rule} result with
+ * {@link ValidationResultReasonDetail.Required}, without contacting the server.
  */
 export abstract class Command<TCommandContent = object, TCommandResponse = object> implements ICommand<TCommandContent, TCommandResponse> {
     private _microservice: string;
@@ -175,7 +179,9 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
                         ValidationResultSeverity.Error,
                         `${propertyDescriptor.name} is required`,
                         [propertyDescriptor.name],
-                        null
+                        null,
+                        ValidationResultReason.Rule,
+                        ValidationResultReasonDetail.Required
                     ));
                 }
             }
