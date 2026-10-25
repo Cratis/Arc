@@ -96,4 +96,12 @@ Arc refuses to start rather than expose a group by mistake:
 
 Grouped commands and queries are left out of [OpenAPI](open-api/index.md) and [introspection](introspection/index.md).
 
-The proxy generator emits the default group only. To generate proxies for a group instead, pass `--endpoint-group=<name>` to the generator.
+The proxy generator emits the default group only. To generate the proxies of a named group instead, set the `CratisProxiesEndpointGroup` MSBuild property in the project that generates them:
+
+```xml
+<PropertyGroup>
+    <CratisProxiesEndpointGroup>internal</CratisProxiesEndpointGroup>
+</PropertyGroup>
+```
+
+When you run the generator yourself, pass `--endpoint-group=<name>` instead.
