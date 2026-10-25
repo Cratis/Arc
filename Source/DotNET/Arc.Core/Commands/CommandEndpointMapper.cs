@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
@@ -43,6 +44,8 @@ public static class CommandEndpointMapper
             var url = CommandRoute.CustomRoute(handler) ??
                 EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
+            var endpointGroup = EndpointGroup.EnsureServed(handler.CommandType, arcOptions.EndpointGroups);
+            var excludeFromApiDescription = endpointGroup is not null || handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true);
             var allowAnonymous = handler.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForCommand(handler.CommandType, serviceProvider);
 
             MapCommandEndpoint(
@@ -53,7 +56,8 @@ public static class CommandEndpointMapper
                 handler.CommandType,
                 location,
                 allowAnonymous,
-                excludeFromApiDescription: handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true));
+                endpointGroup,
+                excludeFromApiDescription: excludeFromApiDescription);
 
             MapCommandEndpoint(
                 mapper,
@@ -63,8 +67,9 @@ public static class CommandEndpointMapper
                 handler.CommandType,
                 location,
                 allowAnonymous,
+                endpointGroup,
                 validateOnly: true,
-                excludeFromApiDescription: handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true));
+                excludeFromApiDescription: excludeFromApiDescription);
         }
     }
 
@@ -118,6 +123,7 @@ public static class CommandEndpointMapper
         Type commandType,
         IEnumerable<string> location,
         bool allowAnonymous,
+        string? endpointGroup,
         bool validateOnly = false,
         bool excludeFromApiDescription = false)
     {
@@ -133,7 +139,10 @@ public static class CommandEndpointMapper
             allowAnonymous,
             RequestBodyType: commandType,
             ResponseType: typeof(CommandResult),
-            ExcludeFromApiDescription: excludeFromApiDescription);
+            ExcludeFromApiDescription: excludeFromApiDescription)
+        {
+            EndpointGroup = endpointGroup
+        };
 
         mapper.MapPost(
             url,

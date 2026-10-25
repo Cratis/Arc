@@ -114,6 +114,15 @@ public class ArcOptions
     public HostingOptions Hosting { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the local ports each named endpoint group is served on.
+    /// </summary>
+    /// <remarks>
+    /// Commands and queries tagged with <see cref="EndpointGroupAttribute"/> are reachable only on the ports
+    /// assigned to their group. Untagged commands and queries are not affected.
+    /// </remarks>
+    public EndpointGroups.EndpointGroupsOptions EndpointGroups { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets a value indicating whether exception detail (messages and stack traces) is exposed
     /// to clients in serialized <see cref="Commands.CommandResult"/> and <see cref="Queries.QueryResult"/> responses.
     /// </summary>

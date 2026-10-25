@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc;
+using Cratis.Arc.AspNetCore.EndpointGroups;
 using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Commands;
 using Cratis.Arc.ModelBinding;
@@ -15,6 +16,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using Microsoft.AspNetCore.Routing.Matching;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -65,6 +69,11 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
         services.AddTransient<HttpRequestContextMiddleware>();
         services.AddCorrelationId();
+
+        // Endpoint groups are selected by the local port before an endpoint is chosen, and refuse a setup where a
+        // group port is the only listener.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<MatcherPolicy, EndpointGroupMatcherPolicy>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EndpointGroupListenerValidation>());
 
         // Arc's authorization policy runtime and introspection guard depend on IAuthorizationPolicyProvider and
         // IAuthorizationService, and UseAuthentication on IAuthenticationService, which AddControllers used to

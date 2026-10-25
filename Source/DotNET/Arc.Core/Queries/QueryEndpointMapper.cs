@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
 using Cratis.Execution;
@@ -69,17 +70,19 @@ public static class QueryEndpointMapper
                 locationForTag = location;
             }
 
+            var endpointGroup = EndpointGroup.EnsureServed(performer.Type, arcOptions.EndpointGroups);
             if (!registeredUrls.Add(url)) continue;
 
             foreach (var reader in readers)
             {
-                MapForReader(mapper, reader, performer, url, locationForTag, serviceProvider);
+                MapForReader(mapper, reader, performer, new(url, locationForTag, endpointGroup), serviceProvider);
             }
         }
     }
 
-    static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, string url, IEnumerable<string> locationForTag, IServiceProvider services)
+    static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, QueryEndpointPlacement placement, IServiceProvider services)
     {
+        var (url, locationForTag, endpointGroup) = placement;
         var endpointName = $"{reader.EndpointNamePrefix}{performer.FullyQualifiedName}";
         if (mapper.EndpointExists(endpointName))
         {
@@ -93,7 +96,10 @@ public static class QueryEndpointMapper
             QueryEndpointAccess.AllowsAnonymous(performer, services),
             RequestBodyType: reader.RequestBodyType,
             ResponseType: typeof(QueryResult),
-            ExcludeFromApiDescription: !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery());
+            ExcludeFromApiDescription: endpointGroup is not null || !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery())
+        {
+            EndpointGroup = endpointGroup
+        };
 
         mapper.MapMethod(
             reader.HttpMethod,
@@ -277,4 +283,6 @@ public static class QueryEndpointMapper
     }
 
     static bool IsGet(IQueryRequestReader reader) => reader.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase);
+
+    readonly record struct QueryEndpointPlacement(string Url, IEnumerable<string> LocationForTag, string? EndpointGroup);
 }

@@ -31,4 +31,18 @@ public record EndpointMetadata(
     /// Gets comma-separated roles, any one of which grants access to an authenticated caller.
     /// </summary>
     public string? Roles { get; init; }
+
+    /// <summary>
+    /// Gets the named endpoint group the endpoint belongs to, or <see langword="null"/> for the default group.
+    /// </summary>
+    /// <remarks>
+    /// A host that supports endpoint groups serves the endpoint only on the local ports assigned to its group.
+    /// </remarks>
+    public string? EndpointGroup { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the endpoint is reachable on every port and resolves the artifacts it serves by
+    /// the endpoint groups of the port the request arrived on, rather than belonging to one group itself.
+    /// </summary>
+    public bool ServesEveryEndpointGroup { get; init; }
 }
