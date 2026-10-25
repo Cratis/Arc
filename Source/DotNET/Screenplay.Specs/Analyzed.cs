@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Model;
@@ -39,12 +40,14 @@ public static class Analyzed
     /// </remarks>
     public static readonly (string Path, string Text) Root = ("Library/Program.cs", "namespace Library;");
 
-    static readonly MetadataReference[] _references =
-    [
-        .. ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
+    static readonly CSharpParseOptions _parseOptions = new(documentationMode: DocumentationMode.Parse);
+    static readonly CSharpCompilation _baseCompilation = CSharpCompilation.Create(
+        AssemblyName,
+        references: ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Select(_ => MetadataReference.CreateFromFile(_))
-    ];
+            .Select(_ => MetadataReference.CreateFromFile(_)),
+        options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+    static readonly ConcurrentDictionary<(string Name, string Text), Lazy<PortableExecutableReference>> _packages = new();
 
     /// <summary>
     /// Compiles source and recovers the model it describes, with nothing sitting alongside it.
@@ -76,23 +79,8 @@ public static class Analyzed
     /// metadata with no syntax tree behind it - which is the whole reason nothing in the compilation declares what it
     /// holds.
     /// </remarks>
-    public static MetadataReference Package(string name, string text)
-    {
-        var compilation = CSharpCompilation.Create(
-            name,
-            [CSharpSyntaxTree.ParseText(text, new CSharpParseOptions(documentationMode: DocumentationMode.Parse))],
-            _references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
-
-        using var stream = new MemoryStream();
-        var emitted = compilation.Emit(stream);
-        if (!emitted.Success)
-        {
-            throw new InvalidOperationException($"The package '{name}' did not compile - {emitted.Diagnostics.First(_ => _.Severity == DiagnosticSeverity.Error)}");
-        }
-
-        return MetadataReference.CreateFromImage(stream.ToArray());
-    }
+    public static MetadataReference Package(string name, string text) =>
+        _packages.GetOrAdd((name, text), static key => new Lazy<PortableExecutableReference>(() => EmitPackage(key.Name, key.Text))).Value;
 
     /// <summary>
     /// Compiles source and recovers the model it describes.
@@ -136,14 +124,9 @@ public static class Analyzed
     /// <param name="sources">The source files, keyed by the path each one is compiled as.</param>
     /// <returns>The <see cref="Compilation"/>.</returns>
     public static Compilation Compile(IEnumerable<MetadataReference> packages, params (string Path, string Text)[] sources) =>
-        CSharpCompilation.Create(
-            AssemblyName,
-            sources.Append(Root).Select(_ => CSharpSyntaxTree.ParseText(
-                _.Text,
-                new CSharpParseOptions(documentationMode: DocumentationMode.Parse),
-                path: _.Path)),
-            _references.Concat(packages),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        _baseCompilation
+            .AddReferences(packages)
+            .AddSyntaxTrees(sources.Append(Root).Select(_ => CSharpSyntaxTree.ParseText(_.Text, _parseOptions, path: _.Path)));
 
     /// <summary>
     /// Compiles source into one project of an application written as several.
@@ -162,14 +145,10 @@ public static class Analyzed
         string name,
         IEnumerable<MetadataReference> references,
         params (string Path, string Text)[] sources) =>
-        CSharpCompilation.Create(
-            name,
-            sources.Select(_ => CSharpSyntaxTree.ParseText(
-                _.Text,
-                new CSharpParseOptions(documentationMode: DocumentationMode.Parse),
-                path: _.Path)),
-            _references.Concat(references),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        _baseCompilation
+            .WithAssemblyName(name)
+            .AddReferences(references)
+            .AddSyntaxTrees(sources.Select(_ => CSharpSyntaxTree.ParseText(_.Text, _parseOptions, path: _.Path)));
 
     /// <summary>
     /// Recovers the model the projects of an application describe together.
@@ -229,4 +208,20 @@ public static class Analyzed
     /// <param name="analysis">The analysis to read.</param>
     /// <returns>The slice.</returns>
     public static SliceModel Slice(this ApplicationModelAnalysis analysis) => analysis.Model.Slices.First();
+
+    static PortableExecutableReference EmitPackage(string name, string text)
+    {
+        var compilation = _baseCompilation
+            .WithAssemblyName(name)
+            .AddSyntaxTrees(CSharpSyntaxTree.ParseText(text, _parseOptions));
+
+        using var stream = new MemoryStream();
+        var emitted = compilation.Emit(stream);
+        if (!emitted.Success)
+        {
+            throw new InvalidOperationException($"The package '{name}' did not compile - {emitted.Diagnostics.First(_ => _.Severity == DiagnosticSeverity.Error)}");
+        }
+
+        return MetadataReference.CreateFromImage(stream.ToArray());
+    }
 }
