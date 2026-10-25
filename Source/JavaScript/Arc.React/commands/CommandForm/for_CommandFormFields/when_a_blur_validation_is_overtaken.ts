@@ -85,9 +85,11 @@ describe('when a blur validation is overtaken', given(a_command_form_fields_cont
         return React.createElement('div');
     };
 
+    beforeEach(() => vi.useFakeTimers());
+
     const settle = async (milliseconds = 0) => {
         await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, milliseconds));
+            await vi.advanceTimersByTimeAsync(milliseconds);
         });
     };
 
@@ -152,6 +154,7 @@ describe('when a blur validation is overtaken', given(a_command_form_fields_cont
         vi.restoreAllMocks();
         if (result) result.unmount();
         await settle(20);
+        vi.useRealTimers();
     });
 
     describe('and a keystroke is answered while the request is in flight', () => {

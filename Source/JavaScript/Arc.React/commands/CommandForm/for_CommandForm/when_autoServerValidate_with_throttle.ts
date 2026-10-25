@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { CommandForm } from '../CommandForm.js';
 import { asCommandFormField } from '../asCommandFormField.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
@@ -64,8 +64,9 @@ const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: un
 );
 
 const waitForUpdates = async (milliseconds: number) => {
+    await act(async () => {});
     await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, milliseconds));
+        await vi.advanceTimersByTimeAsync(milliseconds);
     });
 };
 
@@ -73,6 +74,7 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
     let result: ReturnType<typeof render>;
 
     beforeEach(() => {
+        vi.useFakeTimers();
         // Mock fetch to track validation calls
         vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
             const urlString = url.toString();
@@ -94,6 +96,7 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
         }
         // Wait for any pending async operations to complete
         await waitForUpdates(100);
+        vi.useRealTimers();
     });
 
     describe('and throttle is set to 300ms', () => {
@@ -133,9 +136,8 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
             
             // Wait for throttle to complete
-            await waitFor(() => {
-                expect(serverValidateCallCount).toBeGreaterThan(0);
-            }, { timeout: 1000 });
+            await waitForUpdates(300);
+            expect(serverValidateCallCount).toBeGreaterThan(0);
             
             expect(serverValidateCallCount).toBe(1);
         });
@@ -155,9 +157,8 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             fireEvent.change(nameInput, { target: { value: 'Jane Smith' } });
             
             // Wait for throttle from second change to complete
-            await waitFor(() => {
-                expect(serverValidateCallCount).toBeGreaterThan(0);
-            }, { timeout: 1000 });
+            await waitForUpdates(300);
+            expect(serverValidateCallCount).toBeGreaterThan(0);
             
             // Should have minimal calls (throttle effect reduces unnecessary calls)
             // Note: With fetch mocking, we detect the actual behavior which may include
@@ -229,10 +230,9 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             fireEvent.change(nameInput, { target: { value: 'John Doe' } });
             fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
             
-            // Should call very quickly (within React's async behavior)
-            await waitFor(() => {
-                expect(serverValidateCallCount).toBeGreaterThan(0);
-            }, { timeout: 100 });
+            // Flush React's async behavior without advancing the clock
+            await waitForUpdates(0);
+            expect(serverValidateCallCount).toBeGreaterThan(0);
         });
     });
 
@@ -272,10 +272,9 @@ describe("when autoServerValidate with throttle", given(a_command_form_context, 
             fireEvent.change(nameInput, { target: { value: 'John Doe' } });
             fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
             
-            // Wait for server validation to complete (should be ~500ms)
-            await waitFor(() => {
-                expect(serverValidateCallCount).toBe(1);
-            }, { timeout: 1500 });
+            // Wait for the default throttle to complete
+            await waitForUpdates(500);
+            expect(serverValidateCallCount).toBe(1);
         });
     });
 }));
