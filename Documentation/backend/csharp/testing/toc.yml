@@ -12,6 +12,8 @@
   href: event-sourced-commands.md
 - name: Command Scenarios
   href: command-scenario.md
+- name: Slice testing API
+  href: slice.md
 - name: Pin generated values
   href: generated-values.md
 - name: Query Scenarios
