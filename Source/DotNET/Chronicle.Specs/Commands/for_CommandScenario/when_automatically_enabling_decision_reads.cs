@@ -24,7 +24,7 @@ public class when_automatically_enabling_decision_reads
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         scenario.AppendConcurrently(id, new DecisionStateChanged());
-        var result = await scenario.Execute(new(id));
+        var result = await scenario.Execute(new(id), global::Xunit.TestContext.Current.CancellationToken);
         Assert.False(result.HasExceptions, string.Join(Environment.NewLine, result.ExceptionMessages));
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         result.ValidationResults.Single().ReasonDetail.ShouldEqual("ReadChanged");
@@ -38,7 +38,7 @@ public class when_automatically_enabling_decision_reads
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         scenario.AppendConcurrently(id, new DecisionStateChanged());
-        var result = await scenario.Execute(new(id));
+        var result = await scenario.Execute(new(id), global::Xunit.TestContext.Current.CancellationToken);
         Assert.False(result.HasExceptions, string.Join(Environment.NewLine, result.ExceptionMessages));
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         result.ValidationResults.Single().ReasonDetail.ShouldEqual("ReadChanged");
@@ -52,7 +52,7 @@ public class when_automatically_enabling_decision_reads
         var id = new AccountId("automatic-stream");
         var route = scenario.EventRoutes.For<BankAccount>("Transactions").WithStreamId("2026-10");
         scenario.Given.ForEventSource(id).OnRoute(route).Events(new MoneyWithdrawn(500));
-        (await scenario.Execute(new(id, "2026-10"))).ShouldBeSuccessful();
+        (await scenario.Execute(new(id, "2026-10"), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await scenario.ShouldHaveAppendedEvent<OffStreamRead, MoneyWithdrawn>(id, fact => fact.Amount == 500);
     }
 
@@ -63,7 +63,7 @@ public class when_automatically_enabling_decision_reads
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         scenario.AppendConcurrently(id, new DecisionStateChanged());
-        (await scenario.Execute(new(id))).ShouldBeSuccessful();
+        (await scenario.Execute(new(id), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         await scenario.ShouldHaveAppendedEvent<AutomaticMeasure, DecisionFinished>(id, fact => fact.WasPresent);
     }
 
@@ -75,7 +75,7 @@ public class when_automatically_enabling_decision_reads
         scenario.EventScenario.ShouldNotBeNull();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         (await scenario.EventLog.HasEventsFor(id)).ShouldBeFalse();
-        (await scenario.Execute(new(id))).ShouldBeSuccessful();
+        (await scenario.Execute(new(id), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
 
@@ -86,7 +86,7 @@ public class when_automatically_enabling_decision_reads
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         (await scenario.EventLog.HasEventsFor(id)).ShouldBeTrue();
-        (await scenario.Execute(new(id))).ShouldBeSuccessful();
+        (await scenario.Execute(new(id), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class when_automatically_enabling_decision_reads
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         scenario.AppendConcurrently(id, new DecisionStateChanged());
-        (await scenario.Execute(new(id))).ShouldBeSuccessful();
+        (await scenario.Execute(new(id), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
 

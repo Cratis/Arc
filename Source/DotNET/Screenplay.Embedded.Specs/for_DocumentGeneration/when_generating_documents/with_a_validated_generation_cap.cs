@@ -38,10 +38,10 @@ public class with_a_validated_generation_cap : Specification
             .Select(path => MetadataReference.CreateFromFile(path));
         var compilation = CSharpCompilation.Create(
             "Library",
-            [CSharpSyntaxTree.ParseText(source, path: "Library/Receipt.cs")],
+            [CSharpSyntaxTree.ParseText(source, path: "Library/Receipt.cs", cancellationToken: global::Xunit.TestContext.Current.CancellationToken)],
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         var version = cap == 19 ? SemanticVersion.V19 : cap == 20 ? SemanticVersion.V20 : (SemanticVersion?)null;
         var result = new EmbeddedDocumentGenerator(new ApplicationModelAnalyzer(), new ScreenplayEmitter(), new ScreenplayVerifier())
             .Generate(compilation, new("Library") { AuthoringOnlyConstructs = authoring, MaximumExecutableModelVersion = version });

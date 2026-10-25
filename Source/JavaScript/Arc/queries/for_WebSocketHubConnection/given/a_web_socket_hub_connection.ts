@@ -65,7 +65,20 @@ export class a_web_socket_hub_connection {
         );
     }
 
-    simulateOpen(): void {
+    /**
+     * Opens the socket and has the server announce itself, as a real server does straight after accepting it.
+     * Subscriptions are only sent once that announcement arrives.
+     * @param supportsSubscriptionRevisions Whether the announcing server supports revision-aware subscriptions.
+     */
+    simulateOpen(supportsSubscriptionRevisions = false): void {
+        this.simulateOpenWithoutAnnouncement();
+        this.simulateMessage({
+            type: 'Connected',
+            ...(supportsSubscriptionRevisions ? { supportsSubscriptionRevisions: true } : {}),
+        });
+    }
+
+    simulateOpenWithoutAnnouncement(): void {
         this.fakeSocket.readyState = 1; // OPEN
         this.fakeSocket.onopen?.();
     }

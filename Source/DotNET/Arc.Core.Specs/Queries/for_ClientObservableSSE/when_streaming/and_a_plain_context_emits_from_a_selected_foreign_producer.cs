@@ -71,26 +71,25 @@ public class and_a_plain_context_emits_from_a_selected_foreign_producer
         var producerTask = Task.Run(async () =>
         {
             requestAccessor.Current = foreign;
-            using (principalAccessor.UseAuthorizationPrincipal(producer, services))
-            using (tenants.Begin("tenant-C"))
-            {
-                subject.OnNext("payload");
-                await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            }
-        });
+            using var principalScope = principalAccessor.UseAuthorizationPrincipal(producer, services);
+            using var tenantScope = tenants.Begin("tenant-C");
+            subject.OnNext("payload");
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        },
+        global::Xunit.TestContext.Current.CancellationToken);
         try
         {
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             subject.OnCompleted();
             connection.IsCompleted.ShouldBeFalse();
             release.TrySetResult();
-            var emission = await observed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var emission = await observed.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             emission.Principal.ShouldEqual("A");
             emission.Tenant.ShouldEqual("tenant-A");
             emission.Context.ShouldEqual(context);
             emission.GuardPrincipal.ShouldEqual("A");
             emission.GuardTenant.ShouldEqual("tenant-A");
-            await connection.WaitAsync(TimeSpan.FromSeconds(5));
+            await connection.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             await producerTask;
         }
         finally

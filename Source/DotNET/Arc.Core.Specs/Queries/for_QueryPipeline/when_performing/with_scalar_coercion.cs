@@ -36,7 +36,7 @@ public class with_scalar_coercion : given.a_query_pipeline
     async Task should_reject_invalid_values_without_invoking_the_performer(string name, Type type, string value)
     {
         Configure(name, type);
-        var result = await _pipeline.Perform("Rates.ByValue", new QueryArguments { [name] = value }, Paging.NotPaged, Sorting.None, _serviceProvider);
+        var result = await _pipeline.Perform("Rates.ByValue", new QueryArguments { [name] = value }, Paging.NotPaged, Sorting.None, _serviceProvider, global::Xunit.TestContext.Current.CancellationToken);
         result.IsValid.ShouldBeFalse();
         result.ValidationResults.Single().Members.ShouldContainOnly(name);
         result.ValidationResults.Single().Reason.ShouldEqual(ValidationResultReason.MalformedRequest);
@@ -49,7 +49,7 @@ public class with_scalar_coercion : given.a_query_pipeline
     {
         Configure("count", typeof(int));
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromResult<object?>(null));
-        var result = await _pipeline.Perform("Rates.ByValue", new QueryArguments { ["count"] = "42" }, Paging.NotPaged, Sorting.None, _serviceProvider);
+        var result = await _pipeline.Perform("Rates.ByValue", new QueryArguments { ["count"] = "42" }, Paging.NotPaged, Sorting.None, _serviceProvider, global::Xunit.TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldBeTrue();
         await _queryPerformer.Received(1).Perform(Arg.Is<QueryContext>(context => (int)context.Arguments["count"] == 42));
     }

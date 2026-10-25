@@ -80,6 +80,9 @@ interface ActiveSubscription {
  * revision-aware operations when the server advertises support in a Connected message.
  */
 export class WebSocketHubConnection {
+    /** How long to wait for the server's Connected message before subscribing the way older servers expect. */
+    static readonly ConnectedGraceMs = 1000;
+
     private _socket?: WebSocket;
     private _disconnected = false;
     private _subscriptions: Map<string, ActiveSubscription> = new Map();
@@ -90,6 +93,8 @@ export class WebSocketHubConnection {
     private _nextRevision = 0;
     private _supportsSubscriptionRevisions = false;
     private _reconnectPending = false;
+    private _subscriptionsReleased = false;
+    private _releaseTimer?: ReturnType<typeof setTimeout>;
 
     /**
      * Initializes a new instance of {@link WebSocketHubConnection}.
@@ -162,10 +167,10 @@ export class WebSocketHubConnection {
         this._subscriptions.set(queryId, subscription);
         this.ensureConnected();
 
-        if (this._socket?.readyState === WebSocket.OPEN) {
+        if (this._socket?.readyState === WebSocket.OPEN && this._subscriptionsReleased) {
             this.sendSubscribeMessage(queryId, subscription);
         }
-        // If not yet open, sendAllSubscriptions will fire in onopen.
+        // Until the server has said what it supports, subscriptions are held back and sent once, by releaseSubscriptions.
     }
 
     /**
@@ -176,7 +181,7 @@ export class WebSocketHubConnection {
         const subscription = this._subscriptions.get(queryId);
         this._subscriptions.delete(queryId);
 
-        if (this._socket?.readyState === WebSocket.OPEN && subscription) {
+        if (this._socket?.readyState === WebSocket.OPEN && this._subscriptionsReleased && subscription) {
             const message: HubMessage = {
                 type: HubMessageType.Unsubscribe,
                 queryId,
@@ -227,6 +232,7 @@ export class WebSocketHubConnection {
         this._keepAlive.stop();
         this._policy.cancel();
         this._reconnectPending = false;
+        this.resetSubscriptionRelease();
         const socket = this._socket;
         this._socket = undefined;
         this._supportsSubscriptionRevisions = false;
@@ -251,6 +257,7 @@ export class WebSocketHubConnection {
         }
 
         this._supportsSubscriptionRevisions = false;
+        this.resetSubscriptionRelease();
 
         let url = this._url;
         if (this._microservice?.length > 0) {
@@ -267,7 +274,17 @@ export class WebSocketHubConnection {
             this.cancelPendingReconnect();
             this._policy.reset();
             this._keepAlive.start();
-            this.sendAllSubscriptions();
+
+            // A capable server announces itself with a Connected message straight after accepting the socket. Sending
+            // the subscriptions before that would mean sending them twice (once without a revision, once with), and the
+            // server would run every query twice and cancel the first run. Wait for it, and only fall back to the
+            // revision-less form for a server that never says anything.
+            this._releaseTimer = setTimeout(() => {
+                this._releaseTimer = undefined;
+                if (this._socket === socket && !this._disconnected) {
+                    this.releaseSubscriptions();
+                }
+            }, WebSocketHubConnection.ConnectedGraceMs);
         };
 
         socket.onclose = () => {
@@ -275,6 +292,7 @@ export class WebSocketHubConnection {
             console.log('Hub connection closed', url);
             this._socket = undefined;
             this._supportsSubscriptionRevisions = false;
+            this.resetSubscriptionRelease();
             this._keepAlive.stop();
             if (this._subscriptions.size === 0) return;
             this._reconnectPending = true;
@@ -315,6 +333,24 @@ export class WebSocketHubConnection {
         socket.onerror = null;
         socket.onmessage = null;
         socket.close();
+    }
+
+    private resetSubscriptionRelease(): void {
+        this._subscriptionsReleased = false;
+        if (this._releaseTimer !== undefined) {
+            clearTimeout(this._releaseTimer);
+            this._releaseTimer = undefined;
+        }
+    }
+
+    private releaseSubscriptions(): void {
+        if (this._subscriptionsReleased) return;
+        this._subscriptionsReleased = true;
+        if (this._releaseTimer !== undefined) {
+            clearTimeout(this._releaseTimer);
+            this._releaseTimer = undefined;
+        }
+        this.sendAllSubscriptions();
     }
 
     private sendAllSubscriptions(): void {
@@ -382,18 +418,11 @@ export class WebSocketHubConnection {
     }
 
     private handleConnected(message: HubMessage): void {
-        if (
-            message.supportsSubscriptionRevisions !== true ||
-            this._supportsSubscriptionRevisions
-        ) {
-            return;
-        }
+        if (this._subscriptionsReleased) return;
 
-        this._supportsSubscriptionRevisions = true;
-
-        // The legacy subscriptions sent on socket open keep this client compatible with older servers.
-        // Ordered WebSocket delivery means these revision-aware replacements are processed afterwards.
-        this.sendAllSubscriptions();
+        // Capability is known before anything is sent, so every subscription goes out exactly once, in its final form.
+        this._supportsSubscriptionRevisions = message.supportsSubscriptionRevisions === true;
+        this.releaseSubscriptions();
     }
 
     private handleQueryResult(message: HubMessage): void {

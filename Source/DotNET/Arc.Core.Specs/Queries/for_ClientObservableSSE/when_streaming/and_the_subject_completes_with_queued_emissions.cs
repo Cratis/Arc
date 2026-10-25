@@ -53,14 +53,14 @@ public class and_the_subject_completes_with_queued_emissions
             Substitute.For<ILogger<ClientObservableSSE<int>>>());
         var connection = observable.HandleConnection(context);
         subject.OnNext(1);
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
         subject.OnNext(2);
         subject.OnCompleted();
         try
         {
             connection.IsCompleted.ShouldBeFalse();
             release.TrySetResult();
-            await connection.WaitAsync(TimeSpan.FromSeconds(5));
+            await connection.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             writes.ShouldContainOnly([1, 2]);
             writes[0].ShouldEqual(1);
             writes[1].ShouldEqual(2);

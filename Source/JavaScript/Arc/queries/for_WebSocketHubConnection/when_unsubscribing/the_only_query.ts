@@ -14,11 +14,7 @@ describe(
         beforeEach(() => {
             context.setup();
             context.connection.subscribe(queryId, { queryName: 'MyQuery' }, sinon.stub());
-            context.simulateOpen();
-            context.simulateMessage({
-                type: HubMessageType.Connected,
-                supportsSubscriptionRevisions: true,
-            });
+            context.simulateOpen(true);
             context.fakeSocket.send.reset();
             context.connection.unsubscribe(queryId);
         });

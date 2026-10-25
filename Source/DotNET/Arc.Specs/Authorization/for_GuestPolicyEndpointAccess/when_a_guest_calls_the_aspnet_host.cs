@@ -61,7 +61,7 @@ public class when_a_guest_calls_the_aspnet_host
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseCratisArc();
-        await app.StartAsync();
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
@@ -76,14 +76,14 @@ public class when_a_guest_calls_the_aspnet_host
                 var queriesBefore = probe.Queries;
                 var nativeBefore = probe.NativePolicyCalls;
                 var aspBefore = probe.AspPolicyCalls;
-                using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { });
+                using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { }, global::Xunit.TestContext.Current.CancellationToken);
                 command.StatusCode.ShouldEqual(expected);
-                using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { });
+                using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { }, global::Xunit.TestContext.Current.CancellationToken);
                 validation.StatusCode.ShouldEqual(expected);
-                using var query = await client.GetAsync($"/guest-query/{path}");
+                using var query = await client.GetAsync($"/guest-query/{path}", global::Xunit.TestContext.Current.CancellationToken);
                 query.StatusCode.ShouldEqual(expected);
                 using var queryRequest = new HttpRequestMessage(new HttpMethod("QUERY"), $"/guest-query/{path}") { Content = JsonContent.Create(new { }) };
-                using var bodyQuery = await client.SendAsync(queryRequest);
+                using var bodyQuery = await client.SendAsync(queryRequest, global::Xunit.TestContext.Current.CancellationToken);
                 bodyQuery.StatusCode.ShouldEqual(expected);
                 probe.Commands.ShouldEqual(commandsBefore + (expected == HttpStatusCode.OK ? 1 : 0));
                 probe.Queries.ShouldEqual(queriesBefore + (expected == HttpStatusCode.OK ? 2 : 0));
@@ -93,8 +93,16 @@ public class when_a_guest_calls_the_aspnet_host
         }
         finally
         {
-            await app.StopAsync();
+            await StopHost(app);
         }
+    }
+
+    static async Task StopHost(WebApplication app)
+    {
+        // Finish host teardown even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
+        await app.StopAsync();
+#pragma warning restore xUnit1051
     }
 
     static void RegisterArtifacts(IServiceCollection services)

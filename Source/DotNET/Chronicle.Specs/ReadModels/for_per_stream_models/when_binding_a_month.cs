@@ -26,7 +26,7 @@ public class when_binding_a_month : given.a_monthly_account
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Withdraw));
         Begin(command);
         var validator = Validate();
-        (await validator.ValidateAsync(command)).IsValid.ShouldBeTrue();
+        (await validator.ValidateAsync(command, global::Xunit.TestContext.Current.CancellationToken)).IsValid.ShouldBeTrue();
         validator.Month!.Total.ShouldEqual(500);
         Resolve().ShouldBeSame(validator.Month);
         _services.GetRequiredService<MonthlyWithdrawals>().ShouldBeSame(validator.Month);
@@ -51,7 +51,7 @@ public class when_binding_a_month : given.a_monthly_account
         var command = new Withdraw(_account, "2026-10", 100);
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Withdraw));
         Begin(command);
-        (await Validate().ValidateAsync(command)).Errors.Single().ErrorMessage.ShouldEqual("Monthly limit reached");
+        (await Validate().ValidateAsync(command, global::Xunit.TestContext.Current.CancellationToken)).Errors.Single().ErrorMessage.ShouldEqual("Monthly limit reached");
         _unit.HasEnrolledDecisionReads.ShouldBeTrue();
     }
 
@@ -191,11 +191,11 @@ public class when_binding_a_month : given.a_monthly_account
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Withdraw));
         Begin(new Withdraw(_account, "2026-10", 100));
         var reads = _services.GetRequiredService<IDecisionReads>();
-        var october = await reads.Get<MonthlyWithdrawals>(_account, "Transactions", "2026-10", "BankAccount");
-        var november = await reads.Get<MonthlyWithdrawals>(_account, "Transactions", "2026-11", "BankAccount");
+        var october = await reads.Get<MonthlyWithdrawals>(_account, "Transactions", "2026-10", "BankAccount", global::Xunit.TestContext.Current.CancellationToken);
+        var november = await reads.Get<MonthlyWithdrawals>(_account, "Transactions", "2026-11", "BankAccount", global::Xunit.TestContext.Current.CancellationToken);
         october.Instance!.Total.ShouldEqual(500);
         november.Instance!.Total.ShouldEqual(8000);
-        (await reads.Get<MonthlyWithdrawals>(_account, "Transactions", "2026-10", "BankAccount")).ShouldBeSame(october);
+        (await reads.Get<MonthlyWithdrawals>(_account, "Transactions", "2026-10", "BankAccount", global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSame(october);
         var failure = await Catch.Exception(async () => await reads.Get<MonthlyWithdrawals>((ReadModelKey)_account.Value));
         failure.ShouldBeOfExactType<DecisionReadRefused>();
         ((DecisionReadRefused)failure!).Reason.ShouldEqual(DecisionReadRefusalReason.ReadModelRequiresStreamScope);

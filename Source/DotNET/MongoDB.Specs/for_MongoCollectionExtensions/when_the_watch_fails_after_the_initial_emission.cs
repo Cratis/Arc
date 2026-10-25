@@ -26,7 +26,7 @@ public class when_the_watch_fails_after_the_initial_emission : given.a_controlle
 
         _databaseChanges.Fail(failure);
 
-        (await error.Task.WaitAsync(Deadline)).ShouldBeSame(failure);
+        (await error.Task.WaitAsync(Deadline, global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSame(failure);
         notifications.ShouldEqual(["next", "error"]);
     }
 }

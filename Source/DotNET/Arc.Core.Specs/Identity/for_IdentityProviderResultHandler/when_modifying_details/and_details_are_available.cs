@@ -29,7 +29,7 @@ public class and_details_are_available : given.an_identity_provider_result_handl
     [Fact] void should_vary_on_cookie() => _httpRequestContext.Received(1).SetResponseHeader("Vary", "Cookie");
 
     [Fact] void should_call_write_with_modified_details() =>
-        _httpRequestContext.Received(1).Write(Arg.Is<string>(json => json.Contains("Marketing") && json.Contains("Manager")));
+        _httpRequestContext.Received(1).Write(Arg.Is<string>(json => json.Contains("Marketing") && json.Contains("Manager")), Arg.Is<CancellationToken>(token => token == default));
 
     [Fact] void should_not_write_an_identity_cookie() => _httpRequestContext.DidNotReceive().AppendCookie(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CookieOptions>());
 

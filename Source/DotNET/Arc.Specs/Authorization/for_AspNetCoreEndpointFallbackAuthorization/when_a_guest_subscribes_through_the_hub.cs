@@ -50,7 +50,7 @@ public class when_a_guest_subscribes_through_the_hub
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseCratisArc();
-        await app.StartAsync();
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
@@ -60,7 +60,7 @@ public class when_a_guest_subscribes_through_the_hub
             {
                 var allowed = name != nameof(HubReadModel.Plain) || !useFallbackPolicy;
                 var before = probe.Queries;
-                using var direct = await client.GetAsync($"/hub-fallback/{name}");
+                using var direct = await client.GetAsync($"/hub-fallback/{name}", global::Xunit.TestContext.Current.CancellationToken);
                 direct.StatusCode.ShouldEqual(allowed ? HttpStatusCode.OK : HttpStatusCode.Unauthorized);
                 await VerifyWebSocket(address, name, allowed, json);
                 await VerifySse(client, name, allowed, json);
@@ -69,7 +69,10 @@ public class when_a_guest_subscribes_through_the_hub
         }
         finally
         {
+            // Finish host teardown even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
             await app.StopAsync();
+#pragma warning restore xUnit1051
         }
     }
 

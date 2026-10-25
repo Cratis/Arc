@@ -55,10 +55,12 @@ public partial class ObservableQueryDemultiplexer
         {
             await linkedCts.CancelAsync();
             await keepAliveTask;
+            await connection.WhenIdle();
             subscriptions.Dispose();
 
             healthTracker.RemoveConnection(connectionId);
             writeLock.Dispose();
+            connection.Concurrency.Dispose();
 
             logger.WebSocketClientDisconnected();
         }
@@ -132,7 +134,7 @@ public partial class ObservableQueryDemultiplexer
         switch (message.Type)
         {
             case ObservableQueryHubMessageType.Subscribe:
-                await HandleWebSocketSubscribe(message, connection, token);
+                HandleWebSocketSubscribe(message, connection, token);
                 break;
 
             case ObservableQueryHubMessageType.Unsubscribe:
@@ -145,7 +147,7 @@ public partial class ObservableQueryDemultiplexer
         }
     }
 
-    async Task HandleWebSocketSubscribe(ObservableQueryHubMessage message, WebSocketConnection connection, CancellationToken token)
+    void HandleWebSocketSubscribe(ObservableQueryHubMessage message, WebSocketConnection connection, CancellationToken token)
     {
         var context = connection.Context;
         using var receipt = OperationContextScope.Begin(context.RequestServices);
@@ -182,7 +184,42 @@ public partial class ObservableQueryDemultiplexer
             Protocol = "WebSocket",
             Send = (outgoing, operationToken) => SendWebSocketMessage(connection, outgoing, operationToken)
         };
-        await EstablishSubscription(session, context);
+
+        // Establishing a subscription runs the whole query pipeline. Doing that inline would stop this connection from
+        // reading anything else until it finished: every other subscribe, an unsubscribe, even a ping. A page opens
+        // dozens of queries at once on its one connection, so they would run strictly one after the other and the
+        // slowest query would hold up everything queued behind it. The revision was reserved above, in arrival order,
+        // so running them side by side cannot reorder a replacement.
+        connection.Track(EstablishWithinLimit(connection, session, context));
+    }
+
+    async Task EstablishWithinLimit(WebSocketConnection connection, SubscriptionSession session, IHttpRequestContext context)
+    {
+        var operation = session.Operation;
+        try
+        {
+            await connection.Concurrency.WaitAsync(operation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Replaced or disconnected while waiting for a turn; EstablishSubscription never ran to release it.
+            TerminateSubscription(session.Subscriptions, session.QueryId, operation);
+            operation.CompleteCreation();
+            return;
+        }
+
+        try
+        {
+            await EstablishSubscription(session, context);
+        }
+        catch (Exception ex) when (!IsFatal(ex))
+        {
+            logger.ErrorProcessingMessage(ex);
+        }
+        finally
+        {
+            connection.Concurrency.Release();
+        }
     }
 
     void HandleWebSocketUnsubscribe(
@@ -272,5 +309,23 @@ public partial class ObservableQueryDemultiplexer
         IHttpRequestContext Context,
         string ConnectionId,
         KeepAliveTracker KeepAliveTracker,
-        SemaphoreSlim WriteLock);
+        SemaphoreSlim WriteLock)
+    {
+        readonly System.Collections.Concurrent.ConcurrentDictionary<Task, byte> _inFlight = new();
+
+        /// <summary>Gets the limit on subscriptions being established at the same time on this connection.</summary>
+        public SemaphoreSlim Concurrency { get; } = new(MaxConcurrentSubscriptionsPerConnection, MaxConcurrentSubscriptionsPerConnection);
+
+        /// <summary>Remembers a subscription being established so the connection can wait for it before it is torn down.</summary>
+        /// <param name="work">The work to track.</param>
+        public void Track(Task work)
+        {
+            _inFlight[work] = 0;
+            _ = work.ContinueWith(finished => _inFlight.TryRemove(finished, out _), TaskScheduler.Default);
+        }
+
+        /// <summary>Waits for every subscription still being established.</summary>
+        /// <returns>A task that completes when none is left.</returns>
+        public Task WhenIdle() => Task.WhenAll(_inFlight.Keys);
+    }
 }

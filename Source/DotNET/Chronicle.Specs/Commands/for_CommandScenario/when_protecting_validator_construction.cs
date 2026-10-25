@@ -35,7 +35,7 @@ public class when_protecting_validator_construction
         var command = new ScopedCommand(key);
         Assert.Contains("Discoverable validator", (await scenario.Validate(command)).ExceptionMessages.Single());
         scenario.AppendConcurrently(key, new when_using_decision_mode.DecisionStateChanged());
-        Assert.Contains("Discoverable validator", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Equal(0, constructions);
         Assert.Equal(0, ScopedCommand.Handles);
         Assert.Empty(scenario.AppendedEvents);
@@ -54,7 +54,7 @@ public class when_protecting_validator_construction
         });
         var key = EventSourceId.New();
         Assert.Contains("Discoverable validator", (await factoryScenario.Validate(new FactoryCommand(key))).ExceptionMessages.Single());
-        Assert.Contains("Discoverable validator", (await factoryScenario.Execute(new FactoryCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await factoryScenario.Execute(new FactoryCommand(key), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Equal(0, factoryCalls);
         Assert.Empty(factoryScenario.AppendedEvents);
 
@@ -63,7 +63,7 @@ public class when_protecting_validator_construction
             (ReadModelKey)"old", null)));
         prebuiltScenario.Services.AddSingleton(prebuilt);
         Assert.Contains("Discoverable validator", (await prebuiltScenario.Validate(new PrebuiltCommand(key))).ExceptionMessages.Single());
-        Assert.Contains("Discoverable validator", (await prebuiltScenario.Execute(new PrebuiltCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await prebuiltScenario.Execute(new PrebuiltCommand(key), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(prebuiltScenario.AppendedEvents);
     }
 
@@ -79,7 +79,7 @@ public class when_protecting_validator_construction
             validator.RuleFor(command => command.EventSourceId).Must(_ => false).WithMessage("ownership denied");
             return validator;
         });
-        var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()));
+        var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains("instance Arc did not construct", result.ExceptionMessages.Single());
         Assert.Equal(1, factories);
         Assert.Equal(0, OwnershipCommand.Handles);
@@ -98,7 +98,7 @@ public class when_protecting_validator_construction
             validator.RuleFor(command => command.EventSourceId).Must(_ => false).WithMessage("ownership denied");
             return validator;
         });
-        var result = await scenario.Execute(new LegacyOwnershipCommand(EventSourceId.New()));
+        var result = await scenario.Execute(new LegacyOwnershipCommand(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains(result.ValidationResults, _ => _.Message == "ownership denied");
         Assert.Equal(1, factories);
         Assert.Equal(0, LegacyOwnershipCommand.Handles);
@@ -112,7 +112,7 @@ public class when_protecting_validator_construction
         scenario.Services.AddSingleton(new DirectValidator(
             DecisionRead<when_using_decision_mode.DecisionState>.Unprotected((ReadModelKey)"old", null)));
         DirectValidator.Seen.Clear();
-        Assert.Contains("Discoverable validator", (await scenario.Execute(new DirectCommand(EventSourceId.New()))).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(new DirectCommand(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(DirectValidator.Seen);
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -151,7 +151,7 @@ public class when_protecting_validator_construction
             factories++;
             throw new InvalidOperationException("Second factory must not run.");
         });
-        Assert.Contains("Discoverable validator", (await scenario.Execute(new DirectCommand(EventSourceId.New()))).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(new DirectCommand(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Equal(0, factories);
     }
 
@@ -209,7 +209,7 @@ public class when_protecting_validator_construction
         NestedConceptCommand.Handles = 0;
         var command = new NestedConceptCommand(EventSourceId.New(), new NestedConcept(string.Empty));
         Assert.Contains((await scenario.Validate(command)).ValidationResults, _ => _.Message == "nested concept is required");
-        var result = await scenario.Execute(command);
+        var result = await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken);
         Assert.Empty(result.ExceptionMessages);
         Assert.Contains(result.ValidationResults, _ => _.Message == "nested concept is required");
         Assert.Equal(0, NestedConceptCommand.Handles);
@@ -221,7 +221,7 @@ public class when_protecting_validator_construction
     {
         await using var scenario = new CommandScenario<NestedConceptCommand>().UseDecisionReads();
         NestedConceptCommand.Handles = 0;
-        var result = await scenario.Execute(new NestedConceptCommand(EventSourceId.New(), new NestedConcept("value")));
+        var result = await scenario.Execute(new NestedConceptCommand(EventSourceId.New(), new NestedConcept("value")), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldBeSuccessful();
         Assert.Equal(1, NestedConceptCommand.Handles);
         Assert.Single(scenario.AppendedEvents);
@@ -231,7 +231,7 @@ public class when_protecting_validator_construction
     public async Task convention_bound_parameterless_validator_is_resolved_through_arc_and_runs()
     {
         await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
-        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null));
+        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null), global::Xunit.TestContext.Current.CancellationToken);
         Assert.DoesNotContain(scenario.Services, descriptor => !descriptor.IsKeyedService &&
             descriptor.ServiceType == typeof(NullConceptValidator) && descriptor.ImplementationType == typeof(NullConceptValidator));
         Assert.Contains(scenario.Services, descriptor => descriptor.ServiceType == typeof(NullConceptValidator) && descriptor.ImplementationFactory is not null);
@@ -250,7 +250,7 @@ public class when_protecting_validator_construction
         });
         var key = EventSourceId.New();
         Assert.Contains("Discoverable validator", (await scenario.Validate(new OpaqueCommand(key))).ExceptionMessages.Single());
-        Assert.Contains("Discoverable validator", (await scenario.Execute(new OpaqueCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(new OpaqueCommand(key), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Equal(0, dependencies);
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -264,7 +264,7 @@ public class when_protecting_validator_construction
         Assert.Contains("Discoverable validator", (await scenario.Validate(command)).ExceptionMessages.Single());
         Assert.Contains(scenario.Services, descriptor => descriptor.ServiceType == typeof(DirectValidator) &&
             descriptor.ImplementationType == typeof(DirectValidator));
-        Assert.Contains("Discoverable validator", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(DirectValidator.Seen);
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -276,7 +276,7 @@ public class when_protecting_validator_construction
         scenario.Services.AddTransient<DecisionRead<when_using_decision_mode.DecisionState>>(_ => null!);
         var command = new NullableValidatorCommand(EventSourceId.New());
         Assert.Contains("Discoverable validator", (await scenario.Validate(command)).ExceptionMessages.Single());
-        Assert.Contains("Discoverable validator", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
 
@@ -286,12 +286,12 @@ public class when_protecting_validator_construction
         await using var handlerScenario = new CommandScenario<NullableHandlerCommand>().UseDecisionReads();
         handlerScenario.Services.AddTransient<DecisionRead<when_using_decision_mode.DecisionState>>(_ => null!);
         var key = EventSourceId.New();
-        Assert.Contains("directly issued DecisionRead", (await handlerScenario.Execute(new NullableHandlerCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("directly issued DecisionRead", (await handlerScenario.Execute(new NullableHandlerCommand(key), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(handlerScenario.AppendedEvents);
 
         await using var provideScenario = new CommandScenario<NullableProvideCommand>().UseDecisionReads();
         provideScenario.Services.AddTransient<DecisionRead<when_using_decision_mode.DecisionState>>(_ => null!);
-        Assert.Contains("directly issued DecisionRead", (await provideScenario.Execute(new NullableProvideCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("directly issued DecisionRead", (await provideScenario.Execute(new NullableProvideCommand(key), global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Empty(provideScenario.AppendedEvents);
     }
 
@@ -300,7 +300,7 @@ public class when_protecting_validator_construction
     {
         await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
         NullConceptCommand.Handles = 0;
-        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null));
+        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Empty(result.ExceptionMessages);
         Assert.Contains(result.ValidationResults, _ => _.Message == "name is required");
         Assert.Equal(0, NullConceptCommand.Handles);
@@ -312,7 +312,7 @@ public class when_protecting_validator_construction
     {
         await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
         NullConceptCommand.Handles = 0;
-        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), new ConceptName("name")));
+        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), new ConceptName("name")), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldBeSuccessful();
         Assert.Equal(1, NullConceptCommand.Handles);
         Assert.Single(scenario.AppendedEvents);
@@ -323,7 +323,7 @@ public class when_protecting_validator_construction
     {
         await using var scenario = new CommandScenario<OwnershipCommand>().UseDecisionReads();
         scenario.Services.AddSingleton(new OwnershipValidator());
-        var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()));
+        var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains("instance Arc did not construct", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -332,7 +332,7 @@ public class when_protecting_validator_construction
     public async Task handler_must_not_accept_a_foreign_reader_returned_by_provide()
     {
         await using var scenario = new CommandScenario<ProvidedForeignReaderCommand>().UseDecisionReads();
-        var result = await scenario.Execute(new ProvidedForeignReaderCommand(EventSourceId.New()));
+        var result = await scenario.Execute(new ProvidedForeignReaderCommand(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains("command-aware IDecisionReads", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -401,7 +401,7 @@ public class when_protecting_validator_construction
         await using var scenario = new CommandScenario<ReaderCommand>().UseDecisionReads();
         var command = new ReaderCommand(EventSourceId.New());
         Assert.Contains("Discoverable validator", (await scenario.Validate(command)).ExceptionMessages.Single());
-        Assert.Contains("Discoverable validator", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("Discoverable validator", (await scenario.Execute(command, global::Xunit.TestContext.Current.CancellationToken)).ExceptionMessages.Single());
         Assert.Equal(0, ReaderValidator.Constructions);
         Assert.Empty(scenario.AppendedEvents);
     }

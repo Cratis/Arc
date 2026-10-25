@@ -12,5 +12,5 @@ public class when_upserting_with_a_cancelled_token : given.an_upsert_database
     async Task Because() => _exception = await Catch.Exception(() => _context.Items.UpsertAsync(_item, new CancellationToken(true)));
 
     [Fact] void should_honor_cancellation() => _exception.ShouldBeOfExactType<OperationCanceledException>();
-    [Fact] async Task should_not_insert() => (await _context.Items.CountAsync()).ShouldEqual(0);
+    [Fact] async Task should_not_insert() => (await _context.Items.CountAsync(global::Xunit.TestContext.Current.CancellationToken)).ShouldEqual(0);
 }

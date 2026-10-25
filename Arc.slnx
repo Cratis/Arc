@@ -45,6 +45,9 @@
         <Project Path="Source/DotNET/Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Screenplay.Embedded.Specs.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/Consumer/Consumer.csproj" />
+        <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/Interceptors.Generator/Interceptors.Generator.csproj" />
+        <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/XunitConsumer/XunitConsumer.csproj" />
+        <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/XunitMtpConsumer/XunitMtpConsumer.csproj" />
         <Project Path="Source\DotNET\Screenplay.EndToEnd\Screenplay.EndToEnd.csproj" />
         <Project Path="Source\DotNET\Screenplay.Specs\Screenplay.Specs.csproj" />
     </Folder>

@@ -76,6 +76,7 @@ public partial class ObservableQueryDemultiplexer(
     ILogger<ObservableQueryDemultiplexer> logger) : IObservableQueryDemultiplexer
 {
     const int WebSocketBufferSize = 1024 * 4;
+    const int MaxConcurrentSubscriptionsPerConnection = 8;
 
     readonly ConcurrentDictionary<string, SSEConnectionState> _sseConnections = new();
     readonly ConcurrentDictionary<FullyQualifiedQueryName, bool> _anonymousQueries = new();

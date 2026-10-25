@@ -62,8 +62,9 @@ describe(
             socket.readyState = 1;
             socket.onopen?.();
 
-            // An older Arc server sends no Connected capability message, so this fixture intentionally
+            // An older Arc server announces itself without the revision capability, so this fixture intentionally
             // remains in legacy mode and accepts only result frames without a revision.
+            socket.onmessage?.({ data: JSON.stringify({ type: HubMessageType.Connected, payload: 'connection-1' }) });
             let subscribeMessage: { queryId: string };
             try {
                 subscribeMessage = JSON.parse(socket.send.firstCall.args[0]);

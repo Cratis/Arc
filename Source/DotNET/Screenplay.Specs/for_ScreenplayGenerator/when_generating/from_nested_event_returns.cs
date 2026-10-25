@@ -50,7 +50,7 @@ public class from_nested_event_returns : a_generated_document
         Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
         var tree = compilation.SyntaxTrees.Single(tree => tree.FilePath == Analyzed.SlicePath);
         var model = compilation.GetSemanticModel(tree);
-        var body = tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "Handle").Body!;
+        var body = tree.GetRoot(global::Xunit.TestContext.Current.CancellationToken).DescendantNodes().OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "Handle").Body!;
         var creation = body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>().Single(node => model.GetTypeInfo(node).Type?.Name == "AuthorRegistered");
 
         ProductionDestinations.ThroughCommandContext(creation, body, model, aggregate: false, generatedIdentity: true).ShouldBeFalse();

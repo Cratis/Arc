@@ -17,11 +17,7 @@ describe(
             callbackStub = sinon.stub();
             context.setup();
             context.connection.subscribe(queryId, { queryName: 'MyQuery' }, callbackStub);
-            context.simulateOpen();
-            context.simulateMessage({
-                type: HubMessageType.Connected,
-                supportsSubscriptionRevisions: true,
-            });
+            context.simulateOpen(true);
 
             // Simulate drop and policy-driven reconnect
             context.simulateClose();
@@ -32,25 +28,15 @@ describe(
             (context.policy.reset as sinon.SinonStub).reset();
             reconnectCallback();
 
-            // The new socket opens in legacy mode, then upgrades when the new handshake arrives.
-            context.simulateOpen();
-            context.simulateMessage({
-                type: HubMessageType.Connected,
-                supportsSubscriptionRevisions: true,
-            });
+            // The new socket announces itself again, and only then are the subscriptions sent.
+            context.simulateOpen(true);
         });
 
         afterEach(() => sinon.restore());
 
-        it('should reset to a legacy subscription on the new socket', () => {
+        it('should resubscribe once, in revision-aware form, on the new socket', () => {
+            context.fakeSocket.send.calledOnce.should.equal(true);
             const msg = getSentMessage(0);
-            msg.type.should.equal(HubMessageType.Subscribe);
-            msg.queryId.should.equal(queryId);
-            (msg.revision === undefined).should.equal(true);
-        });
-
-        it('should upgrade the reconnect subscription after the new handshake', () => {
-            const msg = getSentMessage(1);
             msg.type.should.equal(HubMessageType.Subscribe);
             msg.queryId.should.equal(queryId);
             (msg.revision ?? 0).should.be.greaterThan(0);

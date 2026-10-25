@@ -25,7 +25,8 @@ public class and_concurrent_emissions_occur
             }
 
             subject.OnCompleted();
-        });
+        },
+        global::Xunit.TestContext.Current.CancellationToken);
 
         var consumeTask = Task.Run(async () =>
         {
@@ -33,7 +34,8 @@ public class and_concurrent_emissions_occur
             {
                 collectedItems.Add(enumerator.Current);
             }
-        });
+        },
+        global::Xunit.TestContext.Current.CancellationToken);
 
         await Task.WhenAll(emitTask, consumeTask);
         await enumerator.DisposeAsync();
@@ -53,7 +55,7 @@ public class and_concurrent_emissions_occur
         var moveNextTask = enumerator.MoveNextAsync().AsTask();
 
         // Give time for the task to enter the wait
-        await Task.Delay(100);
+        await Task.Delay(100, global::Xunit.TestContext.Current.CancellationToken);
 
         // Dispose while waiting
         var disposeTask = enumerator.DisposeAsync().AsTask();
@@ -62,7 +64,7 @@ public class and_concurrent_emissions_occur
         subject.OnNext(42);
 
         // This should complete without deadlock
-        var timeout = Task.Delay(2000);
+        var timeout = Task.Delay(2000, global::Xunit.TestContext.Current.CancellationToken);
         var firstCompleted = await Task.WhenAny(moveNextTask, disposeTask, timeout);
 
         // Assert: Should not timeout

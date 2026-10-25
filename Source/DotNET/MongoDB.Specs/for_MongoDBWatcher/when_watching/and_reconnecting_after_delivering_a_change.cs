@@ -75,7 +75,7 @@ public class and_reconnecting_after_delivering_a_change
 
         _ = watcher.Observe<BsonDocument>();
 
-        await secondWatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await secondWatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), global::Xunit.TestContext.Current.CancellationToken);
 
         capturedOptions.Count.ShouldBeGreaterThan(1);
         capturedOptions[1].ResumeAfter.ShouldEqual(resumeToken);

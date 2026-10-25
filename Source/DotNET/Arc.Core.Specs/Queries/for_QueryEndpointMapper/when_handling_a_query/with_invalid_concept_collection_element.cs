@@ -56,7 +56,8 @@ public class with_invalid_concept_collection_element : given.a_query_endpoint_ma
         Arg.Any<QueryArguments>(),
         Arg.Any<Paging>(),
         Arg.Any<Sorting>(),
-        Arg.Any<IServiceProvider>());
+        Arg.Any<IServiceProvider>(),
+        Arg.Is<CancellationToken>(token => token == default));
 
     public record Rate(decimal Value) : ConceptAs<decimal>(Value);
 

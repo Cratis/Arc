@@ -23,7 +23,7 @@ public class when_reading_a_stream_decision
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).OnRoute(new EventRoute("reports", "approval", "period")).Events(new PeriodValueChanged(10));
         scenario.Given.ForEventSource(id).OnRoute(new EventRoute("reports", "approval", "other")).Events(new PeriodValueChanged(20));
-        var result = await scenario.Execute(new(id, "period"));
+        var result = await scenario.Execute(new(id, "period"), global::Xunit.TestContext.Current.CancellationToken);
         result.ShouldBeSuccessful();
         await scenario.ShouldHaveAppendedEvent<DecideWithinPeriod, PeriodValueDecided>(id, fact => fact.Value == 10);
     }
@@ -36,7 +36,7 @@ public class when_reading_a_stream_decision
         await using var scenario = new CommandScenario<DecideWithinPeriod>();
         var id = EventSourceId.New();
         scenario.AppendConcurrently(id, new EventRoute("reports", "approval", competingPeriod), new PeriodValueChanged(30));
-        var result = await scenario.Execute(new(id, "period"));
+        var result = await scenario.Execute(new(id, "period"), global::Xunit.TestContext.Current.CancellationToken);
         result.IsSuccess.ShouldEqual(succeeds);
         if (!succeeds)
         {

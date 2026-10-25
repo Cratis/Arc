@@ -78,13 +78,13 @@ public class and_unsubscription_fails_during_an_emission
         {
             observer.ShouldNotBeNull();
             observer.OnNext(1);
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
             observer.OnCompleted();
             connection.IsCompleted.ShouldBeFalse();
             resource.Disposed.ShouldBeFalse();
             release.TrySetResult();
-            await guardExited.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => requestFinished.WaitAsync(TimeSpan.FromSeconds(5)));
+            await guardExited.Task.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken);
+            var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => requestFinished.WaitAsync(TimeSpan.FromSeconds(5), global::Xunit.TestContext.Current.CancellationToken));
             Assert.Same(failure, thrown);
             resource.Disposed.ShouldBeTrue();
         }
@@ -93,7 +93,10 @@ public class and_unsubscription_fails_during_an_emission
             release.TrySetResult();
             try
             {
+                // Drain request-scope disposal even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
                 await requestFinished.WaitAsync(TimeSpan.FromSeconds(5));
+#pragma warning restore xUnit1051
             }
             catch (InvalidOperationException)
             {

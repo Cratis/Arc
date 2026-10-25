@@ -14,6 +14,7 @@ public class and_an_explicit_offset_is_missing : given.a_command_endpoint_mapper
     void Establish()
     {
         var exception = Catch.Exception(() => JsonSerializer.Deserialize<date_inputs.OffsetInput>("""{"from":"2026-10-16T12:30"}""", new JsonSerializerOptions().ConfigureArcDefaults()));
+        Assert.NotNull(exception);
         _context.ReadBodyAsJson(_commandType, Arg.Any<CancellationToken>()).Returns<Task<object?>>(_ => throw exception);
     }
 

@@ -933,6 +933,7 @@ def generate_project(sources: list[Path]) -> str:
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
+        <OutputType>Exe</OutputType>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
         <RunAnalyzers>false</RunAnalyzers>
         <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
@@ -965,9 +966,9 @@ def generate_project(sources: list[Path]) -> str:
     <!-- Versions come from the repository's central package management, so validating the
          docs cannot pin a version of its own. -->
     <ItemGroup>
-        <PackageReference Include="Cratis.Specifications.XUnit" />
+        <PackageReference Include="Cratis.Specifications.XUnit.v3" />
         <PackageReference Include="NSubstitute" />
-        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.v3.mtp-off" />
     </ItemGroup>
 </Project>
 """
@@ -1134,7 +1135,7 @@ def run(self_test: bool) -> int:
         return exit_code
 
     print(
-        f"Compiled {len(compilable)} C# Arc client snippet(s) against Arc source successfully"
+        f"Compiled {len(compilable)} C# Arc client snippet(s) in {len(projects)} project(s) against Arc source successfully"
         f"{f', skipped {len(unsupported)} unsupported marker(s)' if unsupported else ''}.")
     for snippet in compilable:
         print(f"  - {snippet.identifier}")

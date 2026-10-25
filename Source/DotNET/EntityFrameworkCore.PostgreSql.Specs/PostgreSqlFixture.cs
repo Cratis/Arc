@@ -25,7 +25,7 @@ public class PostgreSqlFixture : IAsyncLifetime
     public string ConnectionString => _container.GetConnectionString();
 
     /// <inheritdoc/>
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _container = new PostgreSqlBuilder("postgres:16-alpine")
             .WithPassword(Password)
@@ -37,7 +37,7 @@ public class PostgreSqlFixture : IAsyncLifetime
     }
 
     /// <inheritdoc/>
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _container.DisposeAsync();
     }

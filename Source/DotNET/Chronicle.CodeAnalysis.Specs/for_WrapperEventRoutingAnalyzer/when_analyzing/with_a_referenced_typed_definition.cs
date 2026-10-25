@@ -25,9 +25,9 @@ public class Reactor
     };
 }
 ").AddMetadataReference(MetadataReference.CreateFromFile(typeof(ReferencedSource).Assembly.Location));
-        var compilation = await project.GetCompilationAsync();
-        compilation!.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        var diagnostics = await compilation.WithAnalyzers([new WrapperEventRoutingAnalyzer()]).GetAnalyzerDiagnosticsAsync();
+        var compilation = await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken);
+        compilation!.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var diagnostics = await compilation.WithAnalyzers([new WrapperEventRoutingAnalyzer()]).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken);
         diagnostics.Select(diagnostic => diagnostic.Id).ShouldContainOnly("ARCCHR0020");
         diagnostics[0].GetMessage().ShouldContain("ReferencedSource");
     }
