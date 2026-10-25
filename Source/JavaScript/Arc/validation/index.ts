@@ -4,6 +4,7 @@
 export * from './Validator.js';
 export * from './ValidationResult.js';
 export * from './ValidationResultReason.js';
+export * from './ValidationResultReasonDetail.js';
 export * from './ValidationResultSeverity.js';
 export * from './IValidationRule.js';
 export * from './PropertyValidator.js';

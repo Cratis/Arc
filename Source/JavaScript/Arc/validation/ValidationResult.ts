@@ -8,12 +8,15 @@ import { ValidationResultSeverity } from './ValidationResultSeverity.js';
 
 /**
  * Represents a validation error with a message for one or more members.
+ * Client-generated missing required properties use `rule` with `ValidationResultReasonDetail.Required`.
+ * Their messages are framework diagnostics, not application-authored user-facing copy.
  */
 export class ValidationResult {
     /**
      * Initializes a new instance of the {@link ValidationResult} class.
      * @param severity The severity of the result.
-     * @param message The message. A developer diagnostic when {@link reason} is anything but `rule`.
+     * @param message The message. A developer diagnostic when {@link reason} is anything but `rule`,
+     * or when the client supplies the `Required` reasonDetail.
      * @param members The members the result is attributed to.
      * @param state State associated with the result - the rule author's, carried straight through.
      * @param reason What composed the result. Defaults to `rule`, meaning an authored rule rejected the input.

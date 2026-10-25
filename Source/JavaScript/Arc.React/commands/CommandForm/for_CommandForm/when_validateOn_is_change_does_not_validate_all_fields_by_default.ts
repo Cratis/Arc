@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
 import { CommandForm } from '../CommandForm.js';
 import { asCommandFormField } from '../asCommandFormField.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
@@ -88,12 +88,11 @@ describe("when validateOn is change does not validate all fields by default", gi
         // Type invalid value in name field
         fireEvent.change(nameInput, { target: { value: 'ab' } });
         
-        // Wait for validation
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         // Name error should appear
-        const nameError = result.queryByText(/at least 3 characters/i);
-        expect(nameError).not.toBeNull();
+        await waitFor(() => {
+            const nameError = result.queryByText(/at least 3 characters/i);
+            expect(nameError).not.toBeNull();
+        });
         
         // Email error should NOT appear (email field not touched)
         const emailEmptyError = result.queryByText(/cannot be empty/i);
@@ -106,22 +105,26 @@ describe("when validateOn is change does not validate all fields by default", gi
         
         // Type invalid value in name field
         fireEvent.change(nameInput, { target: { value: 'ab' } });
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitFor(() => {
+            expect(result.queryByText(/at least 3 characters/i)).not.toBeNull();
+        });
         
         // Type invalid value in email field
         fireEvent.change(emailInput, { target: { value: 'invalid' } });
-        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Both errors should be present
-        expect(result.queryByText(/at least 3 characters/i)).not.toBeNull();
-        expect(result.queryByText(/valid email/i)).not.toBeNull();
+        await waitFor(() => {
+            expect(result.queryByText(/at least 3 characters/i)).not.toBeNull();
+            expect(result.queryByText(/valid email/i)).not.toBeNull();
+        });
         
         // Fix name field
         fireEvent.change(nameInput, { target: { value: 'Valid Name' } });
-        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Name error should be gone
-        expect(result.queryByText(/at least 3 characters/i)).toBeNull();
+        await waitFor(() => {
+            expect(result.queryByText(/at least 3 characters/i)).toBeNull();
+        });
         
         // Email error should still be present
         expect(result.queryByText(/valid email/i)).not.toBeNull();
@@ -132,16 +135,18 @@ describe("when validateOn is change does not validate all fields by default", gi
         
         // Type invalid value
         fireEvent.change(nameInput, { target: { value: 'ab' } });
-        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Error should appear 
-        expect(result.queryByText(/at least 3 characters/i)).not.toBeNull();
+        await waitFor(() => {
+            expect(result.queryByText(/at least 3 characters/i)).not.toBeNull();
+        });
         
         // Fix the value
         fireEvent.change(nameInput, { target: { value: 'Valid Name' } });
-        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Error should disappear
-        expect(result.queryByText(/at least 3 characters/i)).toBeNull();
+        await waitFor(() => {
+            expect(result.queryByText(/at least 3 characters/i)).toBeNull();
+        });
     });
 }));

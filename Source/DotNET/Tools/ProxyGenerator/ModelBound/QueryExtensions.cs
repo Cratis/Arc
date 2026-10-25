@@ -128,8 +128,9 @@ public static class QueryExtensions
         var parameters = method.GetQueryParameterDescriptors();
         var properties = responseModel.Type.GetPropertyDescriptors();
 
-        var parameterWithComplexTypes = parameters.Where(_ => !_.OriginalType.IsKnownType());
-        typesInvolved.AddRange(parameterWithComplexTypes.Select(_ => _.OriginalType));
+        var parameterTypes = parameters.Select(parameter => GetParameterDependencyType(parameter.OriginalType)).ToArray();
+        var parameterWithComplexTypes = parameterTypes.Where(type => !type.IsKnownType());
+        typesInvolved.AddRange(parameterWithComplexTypes);
 
         var location = readModelType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
@@ -175,8 +176,7 @@ public static class QueryExtensions
             parameter.CollectTypesInvolved(additionalTypesInvolved);
         }
 
-        var parametersNeedingImportStatements = parameters.Where(_ => _.OriginalType.HasModule()).ToList();
-        imports.AddRange(parametersNeedingImportStatements.Select(_ => _.OriginalType.GetImportStatement(targetPath, relativePath, segmentsToSkip)));
+        imports.AddRange(parameterTypes.Where(type => type.HasModule()).Select(type => type.GetImportStatement(targetPath, relativePath, segmentsToSkip)));
 
         foreach (var property in properties)
         {
@@ -295,6 +295,7 @@ public static class QueryExtensions
         parameter.ParameterType.IsAPrimitiveType() ||
         parameter.ParameterType.IsConcept() ||
         parameter.ParameterType.IsEnum ||
+        parameter.ParameterType.IsDictionaryOfQueryArgumentValues(out _) ||
         parameter.ParameterType.IsEnumerableOfPrimitiveOrConcept();
 
     /// <summary>
@@ -307,6 +308,11 @@ public static class QueryExtensions
         // Everything that is not a query argument is assumed to be a dependency.
         return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToQueryRequestParameterDescriptor());
     }
+
+    static Type GetParameterDependencyType(Type type) =>
+        type.IsDictionaryOfQueryArgumentValues(out var valueType)
+            ? valueType.GetDictionaryEffectiveValueType()
+            : type;
 
     /// <summary>
     /// Convert a <see cref="ParameterInfo"/> to a <see cref="RequestParameterDescriptor"/> for queries.
@@ -334,7 +340,7 @@ public static class QueryExtensions
             paramType = paramType.GetGenericArguments()[0];
         }
 
-        var isEnumerable = paramType.IsEnumerableOfPrimitiveOrConcept();
+        var isEnumerable = !paramType.IsDictionaryOfQueryArgumentValues(out _) && paramType.IsEnumerableOfPrimitiveOrConcept();
 
         if (isEnumerable)
         {

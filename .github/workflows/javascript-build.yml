@@ -27,6 +27,8 @@ on:
       - "scripts/workspace-publish-order.cjs"
       - "scripts/workspace-version-is-published.cjs"
       - "scripts/workspace-publish-retry.test.cjs"
+      - "scripts/wait-for-npm-visibility.cjs"
+      - "scripts/wait-for-npm-visibility.test.cjs"
       - "scripts/run-task-on-workspaces.test.cjs"
       - "scripts/rollup-node-externals.test.mjs"
       - "scripts/fixtures/workspace-runner.cjs"
@@ -72,6 +74,9 @@ jobs:
 
       - name: Verify workspace publishing
         run: node --test scripts/run-task-on-workspaces.test.cjs
+
+      - name: Verify npm visibility polling
+        run: node --test scripts/wait-for-npm-visibility.test.cjs
 
       - name: Build JS/TS
         run: |

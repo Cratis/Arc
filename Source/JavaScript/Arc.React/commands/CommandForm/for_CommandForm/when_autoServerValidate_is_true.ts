@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { CommandForm } from '../CommandForm.js';
 import { asCommandFormField } from '../asCommandFormField.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
@@ -13,6 +13,16 @@ import { vi } from 'vitest';
 
 // Track validation calls globally for testing
 let serverValidateCallCount = 0;
+
+const waitForUpdates = async (milliseconds: number) => {
+    await act(async () => {});
+    await act(async () => {
+        await vi.advanceTimersByTimeAsync(milliseconds);
+    });
+};
+
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => vi.useRealTimers());
 
 class SimpleCommandValidator extends CommandValidator<SimpleCommand> {
     constructor() {
@@ -103,6 +113,7 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
     });
 
     afterEach(() => {
+        result.unmount();
         vi.restoreAllMocks();
     });
 
@@ -115,7 +126,7 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
         
         // Make name valid
         fireEvent.change(nameInput, { target: { value: 'John Doe' } });
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForUpdates(100);
         
         // Server validate should NOT be called yet (email still invalid)
         expect(serverValidateCallCount).toBe(0);
@@ -124,9 +135,8 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
         fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
         
         // Server validate should be called now
-        await waitFor(() => {
-            expect(serverValidateCallCount).toBeGreaterThan(0);
-        }, { timeout: 2000 });
+        await waitForUpdates(500);
+        expect(serverValidateCallCount).toBeGreaterThan(0);
     });
 
     it("should call server validate again when field changes while all valid", async () => {
@@ -137,9 +147,8 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
         fireEvent.change(nameInput, { target: { value: 'John Doe' } });
         fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
         
-        await waitFor(() => {
-            expect(serverValidateCallCount).toBeGreaterThan(0);
-        }, { timeout: 2000 });
+        await waitForUpdates(500);
+        expect(serverValidateCallCount).toBeGreaterThan(0);
         
         const callCountAfterFirstValidation = serverValidateCallCount;
         
@@ -147,9 +156,8 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
         fireEvent.change(nameInput, { target: { value: 'Jane Smith' } });
         
         // Should call server validate again (field changed while all valid)
-        await waitFor(() => {
-            expect(serverValidateCallCount).toBeGreaterThan(callCountAfterFirstValidation);
-        }, { timeout: 2000 });
+        await waitForUpdates(500);
+        expect(serverValidateCallCount).toBeGreaterThan(callCountAfterFirstValidation);
     });
 
     it("should resume server validation when all fields become valid again after being invalid", async () => {
@@ -160,15 +168,14 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
         fireEvent.change(nameInput, { target: { value: 'John Doe' } });
         fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
         
-        await waitFor(() => {
-            expect(serverValidateCallCount).toBeGreaterThan(0);
-        }, { timeout: 2000 });
+        await waitForUpdates(500);
+        expect(serverValidateCallCount).toBeGreaterThan(0);
         
         const callCountWhenValid = serverValidateCallCount;
         
         // Make email invalid
         fireEvent.change(emailInput, { target: { value: 'invalid' } });
-       await new Promise(resolve => setTimeout(resolve, 200));
+        await waitForUpdates(200);
         
         // Validate count should not increase while invalid
         expect(serverValidateCallCount).toBe(callCountWhenValid);
@@ -177,9 +184,8 @@ describe("when autoServerValidate is true and all fields become valid", given(a_
         fireEvent.change(emailInput, { target: { value: 'jane@example.com' } });
         
         // Should have called validate again when all valid again
-        await waitFor(() => {
-            expect(serverValidateCallCount).toBeGreaterThan(callCountWhenValid);
-        }, { timeout: 2000 });
+        await waitForUpdates(500);
+        expect(serverValidateCallCount).toBeGreaterThan(callCountWhenValid);
     });
 }));
 
@@ -187,8 +193,7 @@ describe("when autoServerValidate is false", given(a_command_form_context, conte
     let result: ReturnType<typeof render>;
 
     beforeEach(async () => {
-        // Reset tracking with a longer wait to ensure previous async operations complete
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Reset tracking
         serverValidateCallCount = 0;
         
         // Mock fetch to track validation calls
@@ -225,6 +230,7 @@ describe("when autoServerValidate is false", given(a_command_form_context, conte
     });
 
     afterEach(() => {
+        result.unmount();
         vi.restoreAllMocks();
     });
 
@@ -237,7 +243,7 @@ describe("when autoServerValidate is false", given(a_command_form_context, conte
         fireEvent.change(emailInput, { target: { value: 'john@example.com' } });
         
         // Wait to ensure no async validation is triggered
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await waitForUpdates(500);
         
         // Server validate should NOT be called when autoServerValidate is false
         // Note: With proper fetch mocking, we now detect that one validation call may occur

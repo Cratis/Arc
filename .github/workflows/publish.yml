@@ -161,7 +161,7 @@ jobs:
   publish-npm-packages:
     if: needs.release.outputs.publish == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     needs: [release]
     permissions:
       contents: read
@@ -225,6 +225,9 @@ jobs:
           echo "---"
           yarn build
           yarn publish-version ${{ needs.release.outputs.version }}
+
+      - name: Wait until every package is visible on npm
+        run: node scripts/wait-for-npm-visibility.cjs ${{ needs.release.outputs.version }}
 
       - name: Git reset (package.json files changed)
         run: |

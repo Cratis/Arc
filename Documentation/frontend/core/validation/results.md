@@ -36,7 +36,9 @@ This is a structural reference fragment, not a replacement for importing `Valida
 
 `frameworkFailure` means the framework could not fulfill a command contract or complete its effects. It is framework-composed, and its message is not meant for end users.
 
-Show authored rule messages only when suitable for your audience; map framework diagnostics to your own user-facing copy. `state` is application-authored metadata and must not contain secrets.
+When a required command property is `undefined` or `null`, the client returns `reason: 'rule'` with `reasonDetail: 'Required'` before contacting the server. Request parameters and optional properties are excluded. Import `ValidationResultReasonDetail` from `@cratis/arc/validation` and compare `reasonDetail` with `ValidationResultReasonDetail.Required` alongside `reason === ValidationResultReason.Rule` to supply your own copy. The message remains `<propertyName> is required`, and `members` contains the property name. This detail identifies the client check; server-side required-value validators do not currently supply it.
+
+Show authored rule messages only when suitable for your audience; map framework diagnostics, including the client's `rule` / `Required` results, to your own user-facing copy. `state` is application-authored metadata and must not contain secrets.
 
 ## Severity Levels
 

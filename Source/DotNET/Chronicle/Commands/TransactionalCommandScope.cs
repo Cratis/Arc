@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
@@ -86,37 +87,24 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         {
             ReadProtectionTelemetry.Record(context.Type, "mode_lowered", reason: $"{CommandDecisionPolicy.DeclaredReadProtection} → {CommandDecisionPolicy.ReadProtection}");
         }
-        var previous = ActiveFrame();
         var readProtected = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On;
-        var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type, readProtected) { Services = context.ServiceProvider };
+        var frame = CreateFrame(context, readProtected);
+        var previous = frame.Previous;
+        var controller = frame.Controller;
         if (previous is not null)
         {
-            lock (previous)
-            {
-                // Every live sibling is checked: a sibling that ended earlier must not hide one that is still running.
-                foreach (var sibling in previous.Children)
-                {
-                    // The owner boundary belongs to every command declaring On, not only to an enforcing outer unit.
-                    if (previous.Protection is not null || sibling.ReadProtected || readProtected)
-                    {
-                        throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, sibling.CommandType, context.Type);
-                    }
-                }
-                if (previous.Children.Count > 0 && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
-                {
-                    ReadProtectionTelemetry.Record(context.Type, "nested_concurrent");
-                }
-                previous.Children.Add(frame);
-            }
+            EnrollAsChild(previous, frame, context.Type);
         }
         _frames.Value = frame;
-        CommandDecisionReads.Begin(context.Type);
+        if (!frame.IsControllerAction)
+        {
+            CommandDecisionReads.Begin(context.Type);
+        }
         if (context.ServiceProvider is not { } serviceProvider)
         {
             return;
         }
-        var inheritedUnit = previous?.Protection?.UnitOfWork;
-        if (inheritedUnit is not null || CommandTransaction.TryGetActive(out inheritedUnit))
+        if (TryInheritUnit(frame, out var inheritedUnit))
         {
             // An enforcing unit is retained even after early completion; a nested invocation cannot replace it.
             frame.UnitOfWork = inheritedUnit;
@@ -135,6 +123,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
 
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
+        frame.SuspendedUnit = controller?.UnitOfWork;
+        frame.UnitOfWorkManager = unitOfWorkManager;
         var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
 
         // The refusal frame owns keyed completion, including commands with protected reads.
@@ -152,7 +142,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
                 // result) is treated as this command's when it was made from inside this command's own flow; the
                 // log is shared by the whole process, so one made by another writer is not (Cratis/Arc#3493).
                 var ownFlow = IsWithin(frame);
-                var attributable = appended.Where(_ => _.Result.CorrelationId == context.CorrelationId || (_.Result.CorrelationId == CorrelationId.NotSet && ownFlow)).ToArray();
+                var attributable = appended.Where(_ => IsAttributable(frame, _.Result.CorrelationId, context.CorrelationId, ownFlow)).ToArray();
                 failedAppends.AddRange(attributable.Where(_ => !_.Result.IsSuccess));
                 lock (observation)
                 {
@@ -236,7 +226,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
                     previous.Children.Remove(frame);
                 }
             }
-            _frames.Value = frame.Previous;
+            _frames.Value = frame.Previous ?? frame.Controller;
+            ResumeController(frame);
         }
     }
 
@@ -334,7 +325,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     static async Task CompleteFrame(CommandContext context, CommandResult result, TransactionFrame frame)
     {
         // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
-        CommandDecisionReads.End();
+        if (!frame.IsControllerAction)
+        {
+            CommandDecisionReads.End();
+        }
         var owned = frame.Owned;
 
         // Complete is async; a change to AsyncLocal.Value inside it does not propagate to its caller.
@@ -495,7 +489,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
     static void RegisterEnrollmentContributor(CommandContext context, TransactionFrame frame, IUnitOfWork unit)
     {
-        if (!HasGuardedGeneratedParameters(context))
+        if (frame.IsControllerAction || !HasGuardedGeneratedParameters(context))
         {
             return;
         }
@@ -579,6 +573,89 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         return frame;
     }
 
+    static TransactionFrame CreateFrame(CommandContext context, bool readProtected)
+    {
+        var active = ActiveFrame();
+        var controller = ControllerFrameOf(active);
+        var previous = controller is null ? active : null;
+        return new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type, readProtected)
+        {
+            Services = context.ServiceProvider,
+            IsControllerAction = context.IsControllerAction,
+            Controller = controller,
+            OwnFlowOnly = InheritsOwnFlowOnly(context, controller, previous)
+        };
+    }
+
+    static void ResumeController(TransactionFrame frame)
+    {
+        if (frame.Controller is null)
+        {
+            return;
+        }
+
+        CommandTransaction.Current = frame.SuspendedUnit;
+        if (frame.SuspendedUnit is { IsCompleted: false } suspended)
+        {
+            // Begin replaces Chronicle's correlation lookup; inner completion removes it again.
+            // Restore both that lookup and the ambient unit before the controller resumes appending.
+            frame.UnitOfWorkManager?.SetCurrent(suspended);
+        }
+    }
+
+    static bool InheritsOwnFlowOnly(CommandContext context, TransactionFrame? controller, TransactionFrame? previous) =>
+        context.IsControllerAction || controller is not null || previous?.OwnFlowOnly == true;
+
+    static void EnrollAsChild(TransactionFrame previous, TransactionFrame frame, Type commandType)
+    {
+        lock (previous)
+        {
+            // Every live sibling is checked: a sibling that ended earlier must not hide one that is still running.
+            foreach (var sibling in previous.Children)
+            {
+                // The owner boundary belongs to every command declaring On, not only to an enforcing outer unit.
+                if (previous.Protection is not null || sibling.ReadProtected || frame.ReadProtected)
+                {
+                    throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, sibling.CommandType, commandType);
+                }
+            }
+            if (previous.Children.Count > 0 && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
+            {
+                ReadProtectionTelemetry.Record(commandType, "nested_concurrent");
+            }
+            previous.Children.Add(frame);
+        }
+    }
+
+    static bool TryInheritUnit(TransactionFrame frame, [NotNullWhen(true)] out IUnitOfWork? inheritedUnit)
+    {
+        inheritedUnit = frame.Previous?.Protection?.UnitOfWork;
+        if (inheritedUnit is not null)
+        {
+            return true;
+        }
+
+        // A pipeline command run from a controller action never joins the controller's unit.
+        return frame.Controller is null && CommandTransaction.TryGetActive(out inheritedUnit);
+    }
+
+    static bool IsAttributable(TransactionFrame frame, CorrelationId appendCorrelation, CorrelationId commandCorrelation, bool ownFlow)
+    {
+        if (frame.OwnFlowOnly && !ownFlow)
+        {
+            return false;
+        }
+
+        return appendCorrelation == commandCorrelation || (appendCorrelation == CorrelationId.NotSet && ownFlow);
+    }
+
+    /// <summary>
+    /// Gets the active frame when it belongs to a controller action. A pipeline command run from a controller action owns its own transaction, so the controller frame is suspended rather than inherited.
+    /// </summary>
+    /// <param name="active">The active frame, if any.</param>
+    /// <returns>The controller frame, or <see langword="null"/>.</returns>
+    static TransactionFrame? ControllerFrameOf(TransactionFrame? active) => active?.IsControllerAction == true ? active : null;
+
     sealed class CommitObservation(IUnitOfWork unitOfWork)
     {
         public IUnitOfWork UnitOfWork { get; } = unitOfWork;
@@ -591,6 +668,11 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers, Type commandType, bool readProtected)
     {
         public Type CommandType { get; } = commandType;
+        public bool IsControllerAction { get; init; }
+        public bool OwnFlowOnly { get; init; }
+        public TransactionFrame? Controller { get; init; }
+        public IUnitOfWork? SuspendedUnit { get; set; }
+        public IUnitOfWorkManager? UnitOfWorkManager { get; set; }
         public IServiceProvider? Services { get; init; }
         public bool ReadProtected { get; } = readProtected;
         public ReadProtectionFrame? Protection { get; set; }

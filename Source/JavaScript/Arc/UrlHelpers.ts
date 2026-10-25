@@ -13,6 +13,25 @@ function formatQueryValue(value: unknown): string {
     return String(value);
 }
 
+function formatHttpQueryValue(value: unknown): string {
+    return value instanceof Date ? formatQueryValue(value) : formatObjectQueryValue(value);
+}
+
+function isPlainObject(value: unknown): boolean {
+    if (value === null || typeof value !== 'object') return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Serialize plain query argument objects as JSON while retaining JS coercion for other values.
+ * @param {unknown} value The argument value.
+ * @returns {string} The serialized value.
+ */
+export function formatObjectQueryValue(value: unknown): string {
+    return isPlainObject(value) ? JSON.stringify(value) : String(value);
+}
+
 export class UrlHelpers {
     /**
      * Creates a URL from the given origin, API base path, and route.
@@ -81,7 +100,7 @@ export class UrlHelpers {
                         queryParams.append(key, formatQueryValue(item));
                     }
                 } else {
-                    queryParams.set(key, formatQueryValue(value));
+                    queryParams.set(key, formatHttpQueryValue(value));
                 }
             }
         }

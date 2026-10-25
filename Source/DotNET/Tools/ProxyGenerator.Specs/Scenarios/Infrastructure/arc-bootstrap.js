@@ -86,6 +86,27 @@
         };
     }
 
+    // Headers API shim (required by the RFC QUERY method request builder)
+    if (!globalThis.Headers) {
+        globalThis.Headers = class Headers {
+            constructor(init) {
+                this._values = {};
+                if (!init) return;
+                const entries = typeof init.forEach === 'function' && !Array.isArray(init)
+                    ? (() => { const collected = []; init.forEach((value, name) => collected.push([name, value])); return collected; })()
+                    : Array.isArray(init) ? init : Object.entries(init);
+                for (const [name, value] of entries) this.set(name, value);
+            }
+            has(name) { return Object.prototype.hasOwnProperty.call(this._values, String(name).toLowerCase()); }
+            get(name) { return this.has(name) ? this._values[String(name).toLowerCase()] : null; }
+            set(name, value) { this._values[String(name).toLowerCase()] = String(value); }
+            append(name, value) { const existing = this.get(name); this.set(name, existing === null ? value : `${existing}, ${value}`); }
+            delete(name) { delete this._values[String(name).toLowerCase()]; }
+            forEach(callback) { for (const [name, value] of Object.entries(this._values)) callback(value, name, this); }
+            entries() { return Object.entries(this._values)[Symbol.iterator](); }
+        };
+    }
+
     // AbortController API shim (required by fetch for cancellation)
     if (!globalThis.AbortController) {
         globalThis.AbortController = class AbortController {

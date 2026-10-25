@@ -10,7 +10,7 @@ namespace Cratis.Arc.EntityFrameworkCore.SqlServer.Observe.for_DbSetObserveExten
 /// <summary>
 /// Verifies that two observers on different SQL Server schemas are fully isolated:
 /// an external insert into schema_a fires only the schema_a observer,
-/// leaving the schema_b observer unaffected.
+/// leaving the schema_b observer unaffected until its own positive-control insert.
 /// </summary>
 /// <param name="fixture">The SQL Server fixture.</param>
 [Collection(SqlServerCollection.Name)]
@@ -23,6 +23,8 @@ public class and_two_schemas_are_segregated(SqlServerFixture fixture) : a_sql_se
     ManualResetEventSlim _initialAReceived;
     ManualResetEventSlim _initialBReceived;
     ManualResetEventSlim _insertIntoAReceived;
+    ManualResetEventSlim _insertIntoBReceived;
+    int _schemaBUpdatesBeforeInsert;
 
     void Establish()
     {
@@ -34,6 +36,7 @@ public class and_two_schemas_are_segregated(SqlServerFixture fixture) : a_sql_se
         _initialAReceived = new ManualResetEventSlim(false);
         _initialBReceived = new ManualResetEventSlim(false);
         _insertIntoAReceived = new ManualResetEventSlim(false);
+        _insertIntoBReceived = new ManualResetEventSlim(false);
     }
 
     void Because()
@@ -64,6 +67,10 @@ public class and_two_schemas_are_segregated(SqlServerFixture fixture) : a_sql_se
             {
                 _initialBReceived.Set();
             }
+            else if (_initialBReceived.IsSet && list.Exists(entity => entity.Name == "NewEntityB"))
+            {
+                _insertIntoBReceived.Set();
+            }
         });
 
         _initialAReceived.Wait(TimeSpan.FromSeconds(10));
@@ -75,12 +82,23 @@ public class and_two_schemas_are_segregated(SqlServerFixture fixture) : a_sql_se
 
         _insertIntoAReceived.Wait(TimeSpan.FromSeconds(30));
 
-        // Give schema_b observer extra time to fire if cross-notification were to occur
-        Thread.Sleep(2000);
+        _schemaBUpdatesBeforeInsert = _updatesB.Count;
+
+        // A positive-control insert proves schema_b's observer has delivered a later notification.
+        InsertIntoSchemaB(new SchemaEntityB { Name = "NewEntityB", IsActive = true });
+        _insertIntoBReceived.Wait(TimeSpan.FromSeconds(30)).ShouldBeTrue();
+    }
+
+    void Destroy()
+    {
+        _subjectA?.OnCompleted();
+        _subjectB?.OnCompleted();
     }
 
     [Fact] void should_notify_observer_for_schema_a() => _updatesA.Count.ShouldBeGreaterThan(1);
     [Fact] void should_detect_inserted_entity_in_schema_a() => _updatesA[^1].ShouldContain(e => e.Name == "NewEntityA");
-    [Fact] void should_not_notify_observer_for_schema_b() => _updatesB.Count.ShouldEqual(1);
+    [Fact] void should_not_notify_observer_for_schema_b() => _schemaBUpdatesBeforeInsert.ShouldEqual(1);
     [Fact] void should_keep_initial_entity_in_schema_b() => _updatesB[^1].ShouldContain(e => e.Name == "InitialB");
+    [Fact] void should_only_notify_schema_b_for_its_own_insert() => _updatesB.Count.ShouldEqual(2);
+    [Fact] void should_detect_inserted_entity_in_schema_b() => _updatesB[^1].ShouldContain(e => e.Name == "NewEntityB");
 }

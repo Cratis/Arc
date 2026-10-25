@@ -67,9 +67,11 @@ describe('when typing into a field with autoServerValidate', given(a_command_for
     let result: ReturnType<typeof render>;
     let validateRequests: number;
 
+    beforeEach(() => vi.useFakeTimers());
+
     const settle = async (milliseconds: number) => {
         await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, milliseconds));
+            await vi.advanceTimersByTimeAsync(milliseconds);
         });
     };
 
@@ -103,6 +105,7 @@ describe('when typing into a field with autoServerValidate', given(a_command_for
         vi.restoreAllMocks();
         if (result) result.unmount();
         await settle(50);
+        vi.useRealTimers();
     });
 
     describe('and the throttle is left at its default', () => {
