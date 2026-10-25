@@ -35,18 +35,22 @@ public class EndpointGroupsOptions
     /// <param name="group">The name of the group.</param>
     /// <param name="ports">The local ports the group is served on.</param>
     /// <returns>The <see cref="EndpointGroupsOptions"/> for continuation.</returns>
+    /// <exception cref="InvalidEndpointGroupAssignment">The group has no name, no port is given, or a port is out of range.</exception>
     public EndpointGroupsOptions Assign(string group, params int[] ports)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(group);
-        if (ports.Length == 0)
+        if (string.IsNullOrWhiteSpace(group))
         {
-            throw new ArgumentException("At least one port must be assigned to an endpoint group.", nameof(ports));
+            throw new InvalidEndpointGroupAssignment("An endpoint group must have a name.");
         }
 
-        foreach (var port in ports)
+        if (ports.Length == 0)
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(port, 1, nameof(ports));
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535, nameof(ports));
+            throw new InvalidEndpointGroupAssignment($"At least one port must be assigned to endpoint group '{group}'.");
+        }
+
+        if (ports.Any(_ => _ is < 1 or > 65535))
+        {
+            throw new InvalidEndpointGroupAssignment($"Endpoint group '{group}' is assigned a port outside 1-65535.");
         }
 
         if (!Ports.TryGetValue(group, out var assigned))

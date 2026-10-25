@@ -20,9 +20,14 @@ public sealed class EndpointGroupAttribute : Attribute
     /// Initializes a new instance of the <see cref="EndpointGroupAttribute"/> class.
     /// </summary>
     /// <param name="name">The name of the endpoint group.</param>
+    /// <exception cref="EndpointGroups.InvalidEndpointGroupAssignment">The name is empty.</exception>
     public EndpointGroupAttribute(string name)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new EndpointGroups.InvalidEndpointGroupAssignment("An endpoint group must have a name.");
+        }
+
         Name = name;
     }
 
