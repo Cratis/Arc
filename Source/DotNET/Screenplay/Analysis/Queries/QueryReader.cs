@@ -113,15 +113,19 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         var required = parameters.Find(_ => !_.HasExplicitDefaultValue);
         var collection = false;
         var returned = UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection));
-        var key = required is not null && returned.DeclaredProperties().Any(property =>
-            string.Equals(_naming.ToPropertyName(property.Name), _naming.ToPropertyName(required.Name), StringComparison.Ordinal))
-            ? required
-            : null;
+        var keyProperty = required is null ? null : returned.DeclaredProperties().FirstOrDefault(property =>
+            string.Equals(_naming.ToPropertyName(property.Name), _naming.ToPropertyName(required.Name), StringComparison.Ordinal));
+        var key = keyProperty is null ? null : required;
+        var keyType = key?.Type;
+        if (keyType.Is(WellKnownTypeNames.EventSourceId) && IsPrimitiveKeyType(keyProperty?.Type))
+        {
+            keyType = keyProperty?.Type;
+        }
 
         return new(
             method.Name,
             returnType,
-            key is null ? null : ToParameter(key),
+            key is null ? null : ToParameter(key, keyType),
             new QueryFilterReader(types, Models, diagnostics).Read(method, key, location).ToList(),
             AuthorizationReader.Read(method, declaring),
             QueryReturnTypes.IsObservable(method.ReturnType))
@@ -143,6 +147,13 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
 
         return UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection)).ToDisplayString();
     }
+
+    /// <summary>
+    /// Determines whether a property's type is a primitive key carried by an event source identifier.
+    /// </summary>
+    /// <param name="type">The property's type.</param>
+    /// <returns>True when the type is string or Guid.</returns>
+    static bool IsPrimitiveKeyType(ITypeSymbol? type) => type?.SpecialType == SpecialType.System_String || type.Is("System.Guid");
 
     /// <summary>
     /// Reports what a query says about how it is served, which the document does not describe.
@@ -263,10 +274,11 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// Converts a parameter of the query.
     /// </summary>
     /// <param name="parameter">The parameter to convert.</param>
+    /// <param name="keyType">The recovered key type.</param>
     /// <returns>The <see cref="PropertyModel"/>.</returns>
-    PropertyModel ToParameter(IParameterSymbol parameter)
+    PropertyModel ToParameter(IParameterSymbol parameter, ITypeSymbol? keyType)
     {
-        var type = types.ResolveCarried(parameter.Type);
+        var type = types.ResolveCarried(keyType ?? parameter.Type);
 
         return new(parameter.Name, type with { IsOptional = parameter.HasExplicitDefaultValue || type.IsOptional });
     }
