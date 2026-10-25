@@ -125,6 +125,7 @@ public static class ArcApplicationExtensions
     /// Refuses named endpoint groups, because the HTTP listener host cannot restrict an endpoint to a local port.
     /// </summary>
     /// <param name="services">The <see cref="IServiceProvider"/> to read <see cref="ArcOptions"/> from.</param>
+    /// <exception cref="EndpointGroupsNotSupportedByHost">Endpoint groups are configured, or a command or query belongs to a named group.</exception>
     static void RefuseEndpointGroups(IServiceProvider services)
     {
         const string host = "the Arc.Core HTTP listener host";
