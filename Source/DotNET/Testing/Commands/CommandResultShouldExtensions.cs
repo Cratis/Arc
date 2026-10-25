@@ -75,20 +75,10 @@ public static class CommandResultShouldExtensions
     /// </remarks>
     public static void ShouldHaveValidationErrors(this CommandResult result)
     {
-        if (result.IsValid)
-        {
-            throw new CommandResultAssertionException("Expected command to have validation errors, but it had none.");
-        }
-
-        if (result.ValidationResults.All(_ => _.Reason == ValidationResultReason.DependencyUnavailable))
-        {
-            var messages = string.Join(", ", result.ValidationResults.Select(_ => _.Message));
-            throw new CommandResultAssertionException(
-                "Expected command to have validation errors, and it was rejected — but only because a dependency could not be resolved, " +
-                $"so no rule ever ran: {messages} Register the read models the validator's constructor asks for, or assert this case " +
-                $"explicitly with {nameof(ShouldHaveValidationErrorBecauseOf)}(ValidationResultReason.DependencyUnavailable).");
-        }
-
+        RequireRejection(
+            result,
+            "Expected command to have validation errors, but it had none.",
+            "Expected command to have validation errors, and it was rejected");
         CommandResultAssertionPolicies.Apply(result);
     }
 
@@ -223,6 +213,74 @@ public static class CommandResultShouldExtensions
         }
 
         CommandResultAssertionPolicies.Apply(result);
+    }
+
+    /// <summary>
+    /// Asserts that the command was rejected by validation rather than only an unresolved dependency.
+    /// </summary>
+    /// <param name="result">The command result to assert.</param>
+    /// <exception cref="CommandResultAssertionException">The command was not rejected, or only a dependency rejected it.</exception>
+    public static void ShouldBeRejected(this CommandResult result)
+    {
+        RequireRejection(
+            result,
+            "Expected command to be rejected, but it was not.",
+            "Expected command to be rejected, and it was");
+        CommandResultAssertionPolicies.Apply(result);
+    }
+
+    /// <summary>
+    /// Asserts that a validation message exactly matches the specified rejection reason.
+    /// </summary>
+    /// <param name="result">The command result to assert.</param>
+    /// <param name="reason">The exact validation message to match, using ordinal comparison.</param>
+    /// <exception cref="CommandResultAssertionException">No validation message matches the reason.</exception>
+    public static void ShouldBeRejected(this CommandResult result, string reason)
+    {
+        if (!result.ValidationResults.Any(_ => string.Equals(_.Message, reason, StringComparison.Ordinal)))
+        {
+            throw MissingRejectionReason(result, reason);
+        }
+
+        CommandResultAssertionPolicies.Apply(result);
+    }
+
+    /// <summary>
+    /// Asserts that the command was denied authorization.
+    /// </summary>
+    /// <param name="result">The command result to assert.</param>
+    /// <exception cref="CommandResultAssertionException">The command was authorized.</exception>
+    public static void ShouldBeDenied(this CommandResult result)
+    {
+        if (result.IsAuthorized)
+        {
+            throw new CommandResultAssertionException("Expected command to be denied, but it was authorized.");
+        }
+
+        CommandResultAssertionPolicies.Apply(result);
+    }
+
+    static CommandResultAssertionException MissingRejectionReason(CommandResult result, string reason)
+    {
+        var actual = string.Join(", ", result.ValidationResults.Select(_ => $"{_.Reason}/{_.ReasonDetail ?? "<no detail>"} ('{_.Message}')"));
+        return new($"Expected command to be rejected because of '{reason}', but no rejection carried it. Actual: {(actual.Length > 0 ? actual : "no validation errors at all")}");
+    }
+
+    static void RequireRejection(CommandResult result, string notRejected, string dependencyRejection)
+    {
+        if (result.IsValid)
+        {
+            throw new CommandResultAssertionException(notRejected);
+        }
+
+        if (result.ValidationResults.All(_ => _.Reason == ValidationResultReason.DependencyUnavailable))
+        {
+            var messages = string.Join(", ", result.ValidationResults.Select(_ => _.Message));
+            throw new CommandResultAssertionException(
+                $"{dependencyRejection} — but only because a dependency could not be resolved, " +
+                $"so no rule ever ran: {messages} Register the read models the validator's constructor asks for, or assert this case " +
+                $"explicitly with {nameof(ShouldHaveValidationErrorBecauseOf)}(ValidationResultReason.DependencyUnavailable).");
+        }
     }
 
     static string BuildFailureReasons(CommandResult result)
