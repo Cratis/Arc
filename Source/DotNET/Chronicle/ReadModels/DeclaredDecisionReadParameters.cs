@@ -53,7 +53,9 @@ internal static class DeclaredDecisionReadParameters
 
     static IEnumerable<ParameterInfo> ValidatorParameters(Type command, ITypes types) =>
         types.FindMultiple(typeof(IDiscoverableValidator<>))
-            .Where(_ => typeof(IDiscoverableValidator<>).MakeGenericType(command).IsAssignableFrom(_))
+            .Where(_ => _.GetInterfaces().Any(contract =>
+                contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>) &&
+                contract.GetGenericArguments()[0] == command))
             .Select(_ => _.GetConstructors().OrderByDescending(constructor => constructor.GetParameters().Length).FirstOrDefault())
             .OfType<ConstructorInfo>()
             .SelectMany(_ => _.GetParameters());
