@@ -149,7 +149,7 @@ A protected decision read always folds the log and never sees a pinned instance.
 
 ### Check that Chronicle admits the decision reads
 
-Chronicle admits flat, event-source-keyed projections and unfiltered reducers with no constructor dependencies except `ILogger<T>`; self-reducing models are exempt from that constructor restriction. A protected read whose model has children or nested objects, a join, unsupported reducer dependencies or filters, more than one projection, or routing by an event property compiles, but the command fails each time it executes. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
+Chronicle admits flat, event-source-keyed projections and unfiltered reducers with no constructor dependencies except `ILogger<T>`; self-reducing models are exempt from that constructor restriction. A protected read whose model has children or nested objects, a join, unsupported reducer dependencies or filters, more than one projection, or routing by an event property compiles, but is refused. Arc's background startup check reports discoverable parameter-shape refusals and stops the host under effective `On`, unless `ReadProtection:StartupAdmissionCheck` is `Log` or `Off`. It applies the runtime cap; the test helper checks the declared policy before deployment, regardless of the cap. Method-body `Get<T>` calls still need explicit admission checks or scenarios. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
 
 ```csharp
 public class when_checking_decision_read_admission

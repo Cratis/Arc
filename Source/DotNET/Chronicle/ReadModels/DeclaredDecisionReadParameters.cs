@@ -2,43 +2,46 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.ReadModels;
-using Microsoft.Extensions.DependencyInjection;
+using Cratis.Types;
 
-namespace Cratis.Arc.Chronicle.Testing.Commands;
+namespace Cratis.Arc.Chronicle.ReadModels;
 
 /// <summary>
-/// Discovers parameter reads using the declared policy, without the operational runtime cap.
+/// Discovers parameter reads using either the declared or effective protection policy.
 /// </summary>
 internal static class DeclaredDecisionReadParameters
 {
     const BindingFlags Methods = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
     /// <summary>
-    /// Finds wrapped decision reads and, under On, plain model parameters and validator dependencies.
+    /// Finds injected wrapped decision reads and, under On, plain model parameters and validator dependencies.
     /// </summary>
     /// <param name="command">The command to inspect.</param>
     /// <param name="readModels">The models recognized by Chronicle parameter resolution.</param>
+    /// <param name="types">The types containing discoverable validators.</param>
+    /// <param name="protection">Whether to use the declared policy, and the services supplying the runtime cap.</param>
     /// <returns>The distinct models and whether each parameter supplies stream scope.</returns>
-    internal static IEnumerable<(Type Model, bool StreamScoped)> ReadsOf(Type command, IReadOnlySet<Type> readModels)
+    internal static IEnumerable<(Type Model, bool StreamScoped)> ReadsOf(Type command, IReadOnlySet<Type> readModels, ITypes types, (bool Declared, IServiceProvider? Services) protection = default)
     {
-        using var policy = CommandDecisionPolicy.Begin(command);
+        using var policy = CommandDecisionPolicy.Begin(command, protection.Services);
         if (!CommandDecisionPolicy.IsProtected)
         {
             return [];
         }
 
-        var on = CommandDecisionPolicy.DeclaredReadProtection == ReadProtectionMode.On;
+        var on = (protection.Declared ? CommandDecisionPolicy.DeclaredReadProtection : CommandDecisionPolicy.ReadProtection) == ReadProtectionMode.On;
+        var provide = command.GetProvideMethod();
         var parameters = command.GetMethods(Methods)
-            .Where(_ => _.Name == "Handle" || _.Name == CommandProvideMethodExtensions.ProvideMethodName)
-            .SelectMany(_ => _.GetParameters());
+            .Where(_ => _.Name == "Handle")
+            .SelectMany(handle => InjectedHandleParameters.Of(handle, provide))
+            .Concat(provide?.GetParameters() ?? []);
         if (on)
         {
-            parameters = parameters.Concat(ValidatorParameters(command));
+            parameters = parameters.Concat(ValidatorParameters(command, types));
         }
 
         return parameters.Select(parameter => ReadOf(parameter, on, readModels))
@@ -48,8 +51,8 @@ internal static class DeclaredDecisionReadParameters
             .ToArray();
     }
 
-    static IEnumerable<ParameterInfo> ValidatorParameters(Type command) =>
-        TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple(typeof(IDiscoverableValidator<>))
+    static IEnumerable<ParameterInfo> ValidatorParameters(Type command, ITypes types) =>
+        types.FindMultiple(typeof(IDiscoverableValidator<>))
             .Where(_ => typeof(IDiscoverableValidator<>).MakeGenericType(command).IsAssignableFrom(_))
             .Select(_ => _.GetConstructors().OrderByDescending(constructor => constructor.GetParameters().Length).FirstOrDefault())
             .OfType<ConstructorInfo>()
