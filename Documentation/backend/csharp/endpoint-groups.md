@@ -76,7 +76,9 @@ The decision is made while routing chooses an endpoint, from the local port of t
 
 The default group is not served on group ports. Set `options.EndpointGroups.ServeDefaultGroupOnGroupPorts = true` if internal callers should also reach the default endpoints on the group port.
 
-Endpoints Arc does not map, such as your own minimal API endpoints and MVC controllers, are not affected by endpoint groups.
+MVC controllers follow the same rule: put `[EndpointGroup]` on the controller class or its assembly, and every action of the controller is served only on the ports of that group. A controller whose group has no port assigned is served on no port.
+
+Endpoints you map yourself, such as minimal API endpoints, are not affected by endpoint groups.
 
 ## Observable queries
 
@@ -94,7 +96,7 @@ Arc refuses to start rather than expose a group by mistake:
 
 ## Discovery and proxies
 
-Grouped commands and queries are left out of [OpenAPI](open-api/index.md) and [introspection](introspection/index.md).
+Grouped commands, queries and controllers are left out of [OpenAPI](open-api/index.md) and [introspection](introspection/index.md).
 
 The proxy generator emits the default group only. To generate the proxies of a named group instead, set the `CratisProxiesEndpointGroup` MSBuild property in the project that generates them:
 
