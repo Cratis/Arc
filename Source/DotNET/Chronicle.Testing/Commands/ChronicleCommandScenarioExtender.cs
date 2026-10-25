@@ -121,6 +121,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[EventSerializerRegistrationKey] = eventSerializerRegistration;
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
+        context[nameof(AppendedEventsExecutionCheck)] = new AppendedEventsExecutionCheck(context);
         context[ReadModelsKey] = readModels;
         context[nameof(GeneratedIdentifierCollisionScenarioCheck)] = new GeneratedIdentifierCollisionScenarioCheck(context, readModels);
     }
@@ -232,6 +233,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[EventStoreNamespaceKey] = namespaceName;
         context[EventSerializerRegistrationKey] = eventSerializerRegistration;
         context[AppendedEventsKey] = decision.CommandEvents;
+        context[nameof(AppendedEventsExecutionCheck)] = new AppendedEventsExecutionCheck(context);
         context[ReadModelsKey] = decision.ReadModels;
         context[nameof(GeneratedIdentifierCollisionScenarioCheck)] = new GeneratedIdentifierCollisionScenarioCheck(context, decision.ReadModels);
         context[DecisionScenarioKey] = decision.Scenario;
