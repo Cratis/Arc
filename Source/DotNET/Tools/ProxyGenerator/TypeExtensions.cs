@@ -397,20 +397,36 @@ public static partial class TypeExtensions
     /// The TypeScript type string: <c>T[]</c> when the value type is an enumerable collection,
     /// or the plain target type name when the value type is a scalar.
     /// </returns>
-    public static string GetDictionaryValueTypeString(this Type valueType) =>
-        valueType.GetDictionaryEffectiveValueType().GetTargetType().Type + (valueType.IsEnumerable() && !valueType.IsDictionary() ? "[]" : string.Empty);
+    public static string GetDictionaryValueTypeString(this Type valueType)
+    {
+        var targetType = valueType.GetDictionaryEffectiveValueType().GetTargetType().Type;
+        if (valueType.IsEnumerable() && !valueType.IsDictionary())
+        {
+            return valueType.GetEnumerableElementType().IsNullable() ? $"({targetType} | null)[]" : $"{targetType}[]";
+        }
+
+        return valueType.IsNullable() ? $"{targetType} | null" : targetType;
+    }
 
     /// <summary>
     /// Resolve the effective element type for the value of a dictionary, unwrapping one level of collection
     /// when the value type is an enumerable (e.g., <c>IList&lt;T&gt;</c> → <c>T</c>).
-    /// Non-collection value types are returned unchanged.
+    /// Nullable value types and concepts are resolved to their underlying types.
     /// </summary>
     /// <param name="valueType">The dictionary value type.</param>
     /// <returns>The effective element type to use for proxy generation and type collection.</returns>
-    public static Type GetDictionaryEffectiveValueType(this Type valueType) =>
-        valueType.IsEnumerable() && !valueType.IsDictionary()
+    public static Type GetDictionaryEffectiveValueType(this Type valueType)
+    {
+        var effectiveType = valueType.IsEnumerable() && !valueType.IsDictionary()
             ? valueType.GetEnumerableElementType() ?? valueType
             : valueType;
+        if (effectiveType.IsNullable())
+        {
+            effectiveType = effectiveType.GetGenericArguments()[0];
+        }
+
+        return effectiveType.IsConcept() ? effectiveType.GetConceptValueType() : effectiveType;
+    }
 
     /// <summary>
     /// Check if a type is a System type (i.e., its namespace is "System" or starts with "System.").
