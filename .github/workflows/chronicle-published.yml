@@ -226,7 +226,9 @@ jobs:
           python3 scripts/ci-test-shards.py check
           failed=0
           # ProxyGenerator.Specs is covered by the proxy shards, not the spec shards.
-          for shard in specs-1 specs-2 specs-3 proxy-1 proxy-2 proxy-3; do
+          # Read the shard names from the assignment so this loop cannot drift from it.
+          shards=$(python3 -c "import json; d = json.load(open('.github/test-shards.json')); print(' '.join(s['name'] for kind in ('specShards', 'proxyShards') for s in d[kind]))")
+          for shard in $shards; do
             if ! python3 scripts/ci-test-shards.py run --shard "$shard" --configuration Release --results "$RUNNER_TEMP/test-results/$shard"; then
               failed=1
             fi
