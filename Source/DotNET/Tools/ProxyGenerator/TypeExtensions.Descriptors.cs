@@ -202,8 +202,7 @@ public static partial class TypeExtensions
             return ResolveNamespaceRootPath(SliceNamespace.SegmentsBelowRoot(ns, matchingRoot), folder);
         }
 
-        var stripped = ns.Replace(Globals.NamespacePrefix, string.Empty);
-        var path = string.Join(Path.DirectorySeparatorChar, SliceNamespace.SegmentsAfterSkipping(stripped, segmentsToSkip));
+        var path = string.Join(Path.DirectorySeparatorChar, SliceNamespace.SegmentsAfterSkipping(SliceNamespace.StripApiNamespacePrefix(ns), segmentsToSkip));
         if (string.IsNullOrEmpty(path))
         {
             path = $"{Path.DirectorySeparatorChar}";

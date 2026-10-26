@@ -70,7 +70,8 @@ public record CommandContext(
     /// </summary>
     /// <remarks>
     /// Resolved from <see cref="Type"/> unless set explicitly; controller actions set it from the controller type,
-    /// matching the proxy generator.
+    /// matching the proxy generator. Resolving lazily means every context, including one constructed by hand or by
+    /// a test, reports the location of its command type without the caller setting it; resolutions are cached per type.
     /// </remarks>
     public SliceLocation SliceLocation
     {

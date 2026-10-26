@@ -62,11 +62,6 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
     }
 
     /** @inheritdoc */
-    get sliceLocation(): SliceLocation {
-        return SliceLocation.of(this);
-    }
-
-    /** @inheritdoc */
     setMicroservice(microservice: string) {
         this._microservice = microservice;
     }

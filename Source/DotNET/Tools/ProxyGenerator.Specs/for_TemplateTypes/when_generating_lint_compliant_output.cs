@@ -189,6 +189,53 @@ public class when_generating_lint_compliant_output : Specification
                 TreatWarningsAsErrors = false
             }));
         }
+
+        // A command property or query parameter named SliceLocation becomes an instance member named sliceLocation;
+        // it must type-check beside the static slice location every proxy carries.
+        contents.Add(TemplateTypes.Command(new
+        {
+            Name = "CommandWithSliceLocationProperty",
+            Route = "api/slice-location-property",
+            HasResponse = false,
+            SliceLocation = new { Module = "Usher", Feature = "Locations", Slice = "Move" },
+            Properties = new[] { new { Name = "SliceLocation", Type = "string", Constructor = "String", IsNullable = false, IsEnumerable = false } },
+            Parameters = Array.Empty<object>(),
+            Imports = Array.Empty<object>(),
+            Roles = Array.Empty<string>(),
+            TreatWarningsAsErrorsForPolicy = false
+        }));
+        foreach (var (name, template) in new (string, HandlebarsDotNet.HandlebarsTemplate<object, object>)[] { ("QueryWithSliceLocationParameter", TemplateTypes.Query), ("ObservableQueryWithSliceLocationParameter", TemplateTypes.ObservableQuery) })
+        {
+            contents.Add(template(new
+            {
+                Name = name,
+                Route = "api/slice-location-parameter",
+                Type = typeof(string),
+                Method = typeof(string).GetMethod(nameof(string.Clone)),
+                Model = "string",
+                Constructor = "String",
+                IsEnumerable = false,
+                SliceLocation = new { Module = "Usher", Feature = "Locations", Slice = "Find" },
+                Properties = Array.Empty<object>(),
+                Parameters = new[] { new { Name = "SliceLocation", Type = "string", Constructor = "String", IsEnumerable = false, IsOptional = false } },
+                RequiredParameters = new[] { new { Name = "SliceLocation" } },
+                Imports = Array.Empty<object>(),
+                Roles = Array.Empty<string>(),
+                TreatWarningsAsErrors = false
+            }));
+        }
+        contents.Add(string.Join<string>('\n',
+        [
+            "export function useSliceLocationMembers(): string[] {",
+            "    const command = new CommandWithSliceLocationProperty();",
+            "    command.sliceLocation = 'user-value';",
+            "    const query = new QueryWithSliceLocationParameter();",
+            "    query.sliceLocation = 'user-value';",
+            "    const observable = new ObservableQueryWithSliceLocationParameter();",
+            "    observable.sliceLocation = 'user-value';",
+            "    return [command.sliceLocation, query.sliceLocation, observable.sliceLocation, CommandWithSliceLocationProperty.sliceLocation.slice, QueryWithSliceLocationParameter.sliceLocation.slice, ObservableQueryWithSliceLocationParameter.sliceLocation.slice];",
+            "}"
+        ]));
         contents.Add(string.Join<string>('\n',
         [
             "export function useBothSliceLocations(): string[] {",

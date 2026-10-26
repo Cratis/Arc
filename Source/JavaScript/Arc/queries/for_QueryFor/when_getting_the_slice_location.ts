@@ -28,8 +28,8 @@ describe('when getting the slice location', () => {
 
     beforeEach(() => {
         const query: IQuery = new AllInvoices();
-        declared = query.sliceLocation;
-        undeclared = new TestQueryFor().sliceLocation;
+        declared = SliceLocation.of(query);
+        undeclared = SliceLocation.of(new TestQueryFor());
     });
 
     it('should return the static slice location of the proxy class', () => declared!.should.equal(AllInvoices.sliceLocation));
