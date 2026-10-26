@@ -13,6 +13,18 @@ namespace Cratis.Arc.Slices;
 internal static class SliceNamespace
 {
     /// <summary>
+    /// The namespace prefix removed before skipping segments, so it never becomes part of a folder or a slice location.
+    /// </summary>
+    internal const string ApiNamespacePrefix = "Cratis.API";
+
+    /// <summary>
+    /// Removes the <see cref="ApiNamespacePrefix"/> from a namespace.
+    /// </summary>
+    /// <param name="ns">The namespace to remove from.</param>
+    /// <returns>The namespace without the prefix.</returns>
+    internal static string StripApiNamespacePrefix(string ns) => ns.Replace(ApiNamespacePrefix, string.Empty, StringComparison.Ordinal);
+
+    /// <summary>
     /// Finds the longest namespace root that the namespace equals or is nested under.
     /// </summary>
     /// <param name="ns">The namespace to find a root for.</param>
@@ -43,14 +55,16 @@ internal static class SliceNamespace
         [.. ns.Split('.').Skip(segmentsToSkip)];
 
     /// <summary>
-    /// Resolves the namespace segments that locate a type: below the matching root, or after skipping segments.
+    /// Resolves the namespace segments that locate a type: below the matching root, or after removing the
+    /// <see cref="ApiNamespacePrefix"/> and skipping segments. This is the same mapping that decides the folder a proxy is
+    /// generated to, so the folder and the slice location never differ.
     /// </summary>
     /// <param name="ns">The namespace of the type.</param>
     /// <param name="roots">The configured namespace roots.</param>
     /// <param name="segmentsToSkip">The number of leading segments to skip when no root matches.</param>
     /// <returns>The segments that locate the type.</returns>
     internal static string[] Resolve(string ns, IEnumerable<string> roots, int segmentsToSkip) =>
-        FindRoot(ns, roots) is { } root ? SegmentsBelowRoot(ns, root) : SegmentsAfterSkipping(ns, segmentsToSkip);
+        FindRoot(ns, roots) is { } root ? SegmentsBelowRoot(ns, root) : SegmentsAfterSkipping(StripApiNamespacePrefix(ns), segmentsToSkip);
 
     /// <summary>
     /// Splits the segments that locate a type into module, feature and slice.
