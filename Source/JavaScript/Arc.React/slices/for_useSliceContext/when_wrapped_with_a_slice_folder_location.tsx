@@ -10,16 +10,18 @@ import { ArcContext } from '../../ArcContext.js';
 import { ReportButton } from './ReportButton.js';
 import { PayInvoice } from './PayInvoice.js';
 
-const folder = new SliceLocation('', 'Billing', 'Invoices');
+const folder = new SliceLocation('Billing', 'Invoices', '');
 
 const Pay = () => {
     useCommand(PayInvoice);
     return null;
 };
 
-const FeaturePage = (props: { withPay: boolean }) => withSliceLocation(folder, <>{props.withPay && <Pay />}<ReportButton /></>);
+const FeaturePage = withSliceLocation((props: { withPay: boolean }) => <>{props.withPay && <Pay />}<ReportButton /></>, folder);
 
-const OtherFolderPage = () => withSliceLocation(new SliceLocation('Sales', 'Orders', 'Place'), <><Pay /><ReportButton /></>);
+const OtherFolderPage = withSliceLocation(() => <><Pay /><ReportButton /></>, new SliceLocation('Sales', 'Orders', 'Place'));
+
+const ArchivePage = withSliceLocation(() => <Slice slice="Archive"><ReportButton /></Slice>, folder);
 
 const renderLocation = (element: JSX.Element) => {
     const result = render(<ArcContext.Provider value={{ microservice: '' }}>{element}</ArcContext.Provider>);
@@ -33,5 +35,5 @@ describe('when wrapped with a slice folder location', () => {
     it('should be refined by a command below the folder', () => renderLocation(<FeaturePage withPay={true} />).should.equal('Billing/Invoices/Pay'));
     it('should not be refined by a command outside the folder', () => renderLocation(<OtherFolderPage />).should.equal('Sales/Orders/Place'));
     it('should lose to an enclosing explicit override', () => renderLocation(<Slice module="Support" feature="Reports"><FeaturePage withPay={true} /></Slice>).should.equal('Support/Reports'));
-    it('should lose to an explicit override within it', () => renderLocation(withSliceLocation(folder, <Slice slice="Archive"><ReportButton /></Slice>)).should.equal('Archive'));
+    it('should lose to an explicit override within it', () => renderLocation(<ArchivePage />).should.equal('Archive'));
 });

@@ -163,13 +163,20 @@ function commonLocationOf(locations: SliceLocation[]): SliceLocation | undefined
 }
 
 /**
- * Checks whether a location is the same as, or nested below, another when both are read as paths.
+ * Checks whether a location is the same as, or below, a folder location, part by part from the module down.
+ * @remarks
+ * Folder locations are filled from the module down, so the parts of the path that are set must equal those of the
+ * location, and the location may add parts where the path is empty. A feature is compared as a whole; a path with the
+ * feature `Invoices` does not contain the feature `Invoices.Recurring`.
  * @param location The location to check.
  * @param path The location it must lie on.
  * @returns True when it lies on the path, false otherwise.
  */
 function liesOnPath(location: SliceLocation, path: SliceLocation): boolean {
-    const locationPath = location.toString();
-    const pathAsString = path.toString();
-    return locationPath === pathAsString || locationPath.startsWith(`${pathAsString}/`);
+    const pathParts = [path.module, path.feature, path.slice];
+    const locationParts = [location.module, location.feature, location.slice];
+    const firstEmpty = pathParts.indexOf('');
+    const setParts = firstEmpty === -1 ? pathParts.length : firstEmpty;
+    const restIsEmpty = pathParts.slice(setParts).every(part => part === '');
+    return restIsEmpty && pathParts.slice(0, setParts).every((part, index) => part === locationParts[index]);
 }
