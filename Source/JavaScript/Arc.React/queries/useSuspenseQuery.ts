@@ -54,7 +54,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
-    useRegisterSliceLocation(SliceLocation.ofType(query));
+    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const commandScope = useCommandScope();
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);

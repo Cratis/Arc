@@ -196,7 +196,7 @@ function useObservableQueryInternal<
         sorting ?? Sorting.none,
     );
     const arc = useContext(ArcContext);
-    useRegisterSliceLocation(SliceLocation.ofType(query));
+    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const queryCache = useContext(QueryInstanceCacheContext);
     const queryScope = useQueryScope();
     const ownerRef = useRef<string | undefined>(owner);

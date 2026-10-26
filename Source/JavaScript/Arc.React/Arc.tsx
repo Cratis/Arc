@@ -95,7 +95,7 @@ export interface ArcProps {
 export const Arc = (props: ArcProps) => {
     const [queryVersion, setQueryVersion] = useState(0);
     const messenger = useRef(new Messenger());
-    const sliceScope = useRef(new SliceScope());
+    const [sliceScope] = useState(() => new SliceScope());
 
     // The cache is application-scoped — create once per Arc mount.
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
@@ -164,7 +164,7 @@ export const Arc = (props: ArcProps) => {
                 <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
                     <IdentityProvider httpHeadersCallback={props.httpHeadersCallback} detailsType={props.detailsType}>
                         <CommandScope>
-                            <SliceScopeContext.Provider value={sliceScope.current}>
+                            <SliceScopeContext.Provider value={sliceScope}>
                                 {props.children}
                             </SliceScopeContext.Provider>
                         </CommandScope>

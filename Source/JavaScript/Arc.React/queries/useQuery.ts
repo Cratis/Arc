@@ -121,7 +121,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
-    useRegisterSliceLocation(SliceLocation.ofType(query));
+    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const commandScope = useCommandScope();
     const queryScope = useQueryScope();
     const queryCache = useContext(QueryInstanceCacheContext);

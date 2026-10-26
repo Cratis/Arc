@@ -245,7 +245,7 @@ function useSuspenseObservableQueryInternal<
     isEnabled: boolean = true,
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
-    useRegisterSliceLocation(SliceLocation.ofType(query));
+    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const [currentSorting, setCurrentSorting] = useState<Sorting>(
         sorting ?? Sorting.none,
     );
