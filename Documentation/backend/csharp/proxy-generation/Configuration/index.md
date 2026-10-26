@@ -13,6 +13,7 @@ Configure generation through properties and items **inside the existing `.csproj
 - [Proxy file suffix](proxy-file-suffix.md): name generated files `Name.proxy.ts` to tell them apart from hand-written TypeScript.
 - [Type exclusions](type-exclusions.md): omit types or namespace patterns.
 - [Namespace roots](namespace-roots.md): remap output folders without changing API routes.
+- [Slice location](slice-location.md): the module, feature and slice of each command and query, on the backend and on generated proxies.
 - [Assembly-to-package mappings](assembly-package-mappings.md): import shared model packages.
 - [Type mapping](../type-mapping.md): primitive mappings and `TypeToTsType` overrides.
 - [Routing](routing.md): conventional model-bound route options and runtime alignment.
