@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <!-- A consumer of Arc.Core that sets the proxy generator's namespace mapping through MSBuild, the way an
+         application does. The Arc.Core build targets must turn it into slice namespace assembly attributes. -->
+    <PropertyGroup>
+        <AssemblyName>SliceLocationConsumer</AssemblyName>
+        <RootNamespace>Company.Product</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <CratisProxiesSegmentsToSkip> 2 </CratisProxiesSegmentsToSkip>
+    </PropertyGroup>
+    <ItemGroup>
+        <NamespaceRoot Include="Features" Namespace="Company.Product.Features" Folder="features" />
+        <NamespaceRoot Include="Admin" Namespace="Company.Product.Admin" Folder="admin" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+    <Import Project="../../../Arc.Core/build/Cratis.Arc.Core.targets" />
+</Project>
