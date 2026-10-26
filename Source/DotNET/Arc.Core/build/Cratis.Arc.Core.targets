@@ -13,6 +13,24 @@
         <Error Text="CratisReadProtection must be Off, Measure, or On." />
     </Target>
 
+    <!-- Emits the namespace mapping the proxy generator uses for output folders (NamespaceRoot items and
+         CratisProxiesSegmentsToSkip) as assembly attributes, so Arc resolves the same slice location for a command or
+         query at runtime as the generator writes into its proxy. -->
+    <Target Name="_CratisArcSliceLocationAttributes"
+            BeforeTargets="GetAssemblyAttributes"
+            Condition="'$(GenerateAssemblyInfo)' != 'false'">
+        <ItemGroup>
+            <AssemblyAttribute Include="Cratis.Arc.Slices.SliceNamespaceRootAttribute" Condition="'%(NamespaceRoot.Namespace)' != ''">
+                <_Parameter1>%(NamespaceRoot.Namespace)</_Parameter1>
+            </AssemblyAttribute>
+            <AssemblyAttribute Include="Cratis.Arc.Slices.SliceNamespaceSegmentsToSkipAttribute"
+                               Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(CratisProxiesSegmentsToSkip)', '^\s*\d+\s*$'))">
+                <_Parameter1>$(CratisProxiesSegmentsToSkip.Trim())</_Parameter1>
+                <_Parameter1_IsLiteral>true</_Parameter1_IsLiteral>
+            </AssemblyAttribute>
+        </ItemGroup>
+    </Target>
+
     <!-- Reports the project references of the compilation to the ProjectReferenceModulesGenerator in
          Cratis.Arc.Core, which emits code into an executable that runs the module initializers of each of them. Those
          register the metadata generated for them, and without this the runtime can only find them through the

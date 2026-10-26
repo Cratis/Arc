@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
 using Cratis.Strings;
 using Cratis.Traces;
@@ -38,7 +39,7 @@ public class QueryActionFilter(
             context.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
         {
             using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
-            var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", queryContextManager);
+            var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", controllerActionDescriptor.ControllerTypeInfo, queryContextManager);
             var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
             var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
             var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
@@ -148,7 +149,7 @@ public class QueryActionFilter(
         return responseType;
     }
 
-    QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, IQueryContextManager queryContextManager)
+    QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, Type? controllerType, IQueryContextManager queryContextManager)
     {
         var sorting = httpContext.GetSortingInfo();
         var paging = httpContext.GetPagingInfo();
@@ -156,7 +157,8 @@ public class QueryActionFilter(
 
         var queryContext = new QueryContext(queryName, correlationId, paging, sorting)
         {
-            ReceivedAt = OperationContextScope.Current ?? default
+            ReceivedAt = OperationContextScope.Current ?? default,
+            SliceLocation = controllerType is null ? SliceLocation.NotSet : SliceLocation.For(controllerType)
         };
         queryContextManager.Set(queryContext);
         return queryContext;

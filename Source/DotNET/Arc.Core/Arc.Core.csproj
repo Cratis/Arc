@@ -72,5 +72,6 @@
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/ModelBoundQueryMethod.cs" Link="Queries/ModelBound/ModelBoundQueryMethod.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/AttributePrecedencePolicy.cs" Link="Commands/AttributePrecedencePolicy.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/SliceNamespace.cs" Link="Slices/SliceNamespace.cs" />
     </ItemGroup>
 </Project>
