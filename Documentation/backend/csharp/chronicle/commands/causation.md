@@ -16,6 +16,8 @@ When you execute a command inside `ISystemExecution.As(principal)` without an HT
 
 An active HTTP request keeps Chronicle's existing HTTP identity resolution; `ISystemExecution.As` does not replace its user. Outside HTTP, an explicitly selected non-System Chronicle identity still takes precedence. In a reactor, `ISystemExecution.As(principal)` replaces the System identity with the authenticated principal while preserving the triggering event's `OnBehalfOf` chain. Without an override scope, an explicitly selected System identity stays System; clearing it resumes principal resolution. Without an authenticated principal, Chronicle's identity stays unchanged.
 
+When the principal is acted on behalf of, as in an AuthProxy on-behalf session, the recorded identity is a chain: the actor first, then the represented user as its `OnBehalfOf`. Chronicle reports such an event's initiator as an agent acting on behalf of that user. This applies inside an HTTP request too, unless code has set an identity explicitly. See [Acting on behalf of a user](../../asp-net-core/acting-on-behalf-of.md).
+
 ## What gets recorded
 
 For a command like this:

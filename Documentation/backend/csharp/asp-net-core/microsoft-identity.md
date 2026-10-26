@@ -143,6 +143,10 @@ that widened set returns the forgery.
 > need a durable provider key, read the claim the ingress publishes for that purpose — `urn:cratis:identity:provider-key`
 > in an AuthProxy deployment — rather than this one. Arc copies such ingress-authored claims through untouched.
 
+## Acting on behalf of a user
+
+When Cratis AuthProxy forwards a session in which a support person or an agent acts on behalf of a user, it adds an `x-cratis-on-behalf-actor` header. The principal stays the represented user, and the actor is attached to it. Arc rejects that header unless the forward is trusted. See [Acting on behalf of a user](acting-on-behalf-of.md) for the header contract and how to read the actor.
+
 ## Identity Details
 
 For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity/index.md).
