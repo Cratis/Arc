@@ -15,4 +15,7 @@ internal static partial class UntrustedForwardedIdentityHeadersLogMessages
 
     [LoggerMessage(LogLevel.Warning, "The Microsoft Identity Platform authentication scheme is registered, but this host does not trust forwarded identity headers (x-ms-client-principal*), so every request is anonymous and endpoints that require authentication return 401. If every request reaches this host through an ingress that strips and sets these headers (Azure App Service or Container Apps authentication, or Cratis AuthProxy), opt in with options.TrustForwardedIdentityHeaders = true or Cratis:Arc:TrustForwardedIdentityHeaders=true. See https://github.com/Cratis/Arc/blob/main/Documentation/upgrading/secure-defaults.md.")]
     internal static partial void ForwardedIdentityHeadersNotTrustedAtStartup(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "A request carried an on-behalf actor header (x-cratis-on-behalf-actor), but this host does not trust forwarded identity headers, so the request was rejected. On-behalf sessions are only accepted from a trusted Cratis AuthProxy forward.")]
+    internal static partial void UntrustedOnBehalfOfForwardRejected(this ILogger logger);
 }

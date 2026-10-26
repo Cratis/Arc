@@ -15,7 +15,9 @@ namespace Cratis.Arc.Identity;
 /// <remarks>
 /// The forwarded identity headers are not signed. The handler ignores them and returns no result, so the request stays
 /// anonymous, unless <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled because the host runs behind a
-/// trusted ingress.
+/// trusted ingress. A request carrying <see cref="OnBehalfOfHeaders.ActorHeader"/> fails authentication unless it
+/// is a trusted forward of the represented user; when accepted, the actor becomes the <see cref="ClaimsIdentity.Actor"/>
+/// of the principal.
 /// </remarks>
 public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
@@ -67,8 +69,15 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
+        var onBehalfOf = ForwardedActor.IsPresent(Request.Headers.ContainsKey);
         if (arcOptions?.CurrentValue.TrustForwardedIdentityHeaders != true)
         {
+            if (onBehalfOf)
+            {
+                _logger.UntrustedOnBehalfOfForwardRejected();
+                return Task.FromResult(AuthenticateResult.Fail(ForwardedActor.UntrustedForward));
+            }
+
             if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
             {
                 UntrustedForwardedIdentityHeaders.Report(_logger);
@@ -79,7 +88,7 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
 
         if (!Request.IsValidIdentityRequest())
         {
-            return Task.FromResult(AuthenticateResult.Fail("Not authenticated - headers missing"));
+            return Task.FromResult(AuthenticateResult.Fail(onBehalfOf ? ForwardedActor.MissingRepresentedUser : "Not authenticated - headers missing"));
         }
 
         ClientPrincipal? clientPrincipal = null;
@@ -97,24 +106,21 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
             return Task.FromResult(AuthenticateResult.Fail("Not authenticated - invalid representation of ClientPrincipal"));
         }
 
-        var claims = clientPrincipal.GetClaims().ToList();
-
-        claims.RemoveAll(claim =>
-            claim.Type == ClaimTypes.NameIdentifier ||
-            claim.Type == "sub" ||
-            claim.Type.Equals(MicrosoftIdentityPlatformClaims.IdentityProvider, StringComparison.OrdinalIgnoreCase));
-        claims.Add(new Claim(ClaimTypes.Name, clientPrincipal.UserDetails));
-        claims.Add(new Claim(ClaimTypes.NameIdentifier, Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString()));
-        claims.Add(new Claim("sub", Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString()));
-
-        if (!string.IsNullOrWhiteSpace(clientPrincipal.IdentityProvider))
+        var claims = ForwardedIdentityClaims.From(clientPrincipal, Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString());
+        var identity = new ClaimsIdentity(claims, Scheme.Name);
+        if (onBehalfOf)
         {
-            claims.Add(new Claim(MicrosoftIdentityPlatformClaims.IdentityProvider, clientPrincipal.IdentityProvider));
+            var failure = ForwardedActor.Attach(
+                Request.Headers[OnBehalfOfHeaders.ActorHeader].ToString(),
+                identity,
+                Scheme.Name,
+                arcOptions.CurrentValue.JsonSerializerOptions);
+            if (failure is not null)
+            {
+                return Task.FromResult(AuthenticateResult.Fail(failure));
+            }
         }
 
-        claims.AddRange(clientPrincipal.UserRoles.Select(_ => new Claim(ClaimTypes.Role, _)));
-
-        var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 

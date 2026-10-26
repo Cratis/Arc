@@ -39,12 +39,26 @@ public class a_handler : Specification
     /// <param name="identityProvider">The value of the <c>identityProvider</c> field, or null to omit the field entirely.</param>
     /// <param name="claims">The claims to put in the serialized principal.</param>
     /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
-    protected async Task<AuthenticateResult> Authenticate(string? identityProvider, params (string Type, string Value)[] claims)
+    protected Task<AuthenticateResult> Authenticate(string? identityProvider, params (string Type, string Value)[] claims) =>
+        Authenticate(new Dictionary<string, string>
+        {
+            [MicrosoftIdentityPlatformHeaders.IdentityIdHeader] = IdentityIdFromHeader,
+            [MicrosoftIdentityPlatformHeaders.IdentityNameHeader] = IdentityNameFromHeader,
+            [MicrosoftIdentityPlatformHeaders.PrincipalHeader] = PrincipalHeaderValue(identityProvider, claims)
+        });
+
+    /// <summary>
+    /// Runs one authentication through a freshly initialized handler with exactly the given request headers.
+    /// </summary>
+    /// <param name="headers">The request headers.</param>
+    /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
+    protected async Task<AuthenticateResult> Authenticate(IDictionary<string, string> headers)
     {
         var httpContext = new DefaultHttpContext { RequestServices = _services };
-        httpContext.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader] = IdentityIdFromHeader;
-        httpContext.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityNameHeader] = IdentityNameFromHeader;
-        httpContext.Request.Headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader] = PrincipalHeaderValue(identityProvider, claims);
+        foreach (var (name, value) in headers)
+        {
+            httpContext.Request.Headers[name] = value;
+        }
 
         var schemeOptions = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
         schemeOptions.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions());
