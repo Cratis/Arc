@@ -18,8 +18,8 @@ public class and_the_actor_is_malformed : given.an_on_behalf_forward
         _withoutUserId = await _handler.HandleAuthentication(ContextForOnBehalfOf(ActorHeaderValue(string.Empty)));
     }
 
-    [Fact] void should_reject_an_actor_that_is_not_base64() => _notBase64.Failure!.Reason.Value.ShouldEqual(ForwardedActor.InvalidActor);
-    [Fact] void should_reject_an_actor_that_is_not_json() => _notJson.Failure!.Reason.Value.ShouldEqual(ForwardedActor.InvalidActor);
-    [Fact] void should_reject_an_actor_without_a_user_id() => _withoutUserId.Failure!.Reason.Value.ShouldEqual(ForwardedActor.InvalidActor);
+    [Fact] void should_reject_an_actor_that_is_not_base64() => _notBase64.Failure!.Reason.Value.ShouldEqual(OnBehalfOfFailures.InvalidActor);
+    [Fact] void should_reject_an_actor_that_is_not_json() => _notJson.Failure!.Reason.Value.ShouldEqual(OnBehalfOfFailures.InvalidActor);
+    [Fact] void should_reject_an_actor_without_a_user_id() => _withoutUserId.Failure!.Reason.Value.ShouldEqual(OnBehalfOfFailures.InvalidActor);
     [Fact] void should_not_authenticate_any_of_them() => new[] { _notBase64, _notJson, _withoutUserId }.Any(_ => _.IsAuthenticated).ShouldBeFalse();
 }

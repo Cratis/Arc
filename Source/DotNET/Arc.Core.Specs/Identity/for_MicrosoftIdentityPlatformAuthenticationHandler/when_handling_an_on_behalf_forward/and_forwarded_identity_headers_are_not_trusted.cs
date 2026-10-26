@@ -19,5 +19,5 @@ public class and_forwarded_identity_headers_are_not_trusted : given.an_on_behalf
 
     [Fact] void should_not_authenticate_the_request() => _result.IsAuthenticated.ShouldBeFalse();
     [Fact] void should_reject_the_request_instead_of_treating_it_as_anonymous() => _result.Failure.ShouldNotBeNull();
-    [Fact] void should_say_the_forward_is_not_trusted() => _result.Failure!.Reason.Value.ShouldEqual(ForwardedActor.UntrustedForward);
+    [Fact] void should_say_the_forward_is_not_trusted() => _result.Failure!.Reason.Value.ShouldEqual(OnBehalfOfFailures.UntrustedForward);
 }

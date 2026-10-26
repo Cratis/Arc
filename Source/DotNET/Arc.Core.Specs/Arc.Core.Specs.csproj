@@ -11,4 +11,7 @@
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <Compile Include="../Specs.Shared/OnBehalfOfAssertionsForSpecs.cs" Link="Identity/OnBehalfOfAssertionsForSpecs.cs" />
+    </ItemGroup>
 </Project>

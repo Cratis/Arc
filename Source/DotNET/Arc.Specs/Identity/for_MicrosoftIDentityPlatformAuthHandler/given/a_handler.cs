@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 
 namespace Cratis.Arc.Identity.for_MicrosoftIDentityPlatformAuthHandler.given;
 
@@ -52,9 +53,21 @@ public class a_handler : Specification
     /// </summary>
     /// <param name="headers">The request headers.</param>
     /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
-    protected async Task<AuthenticateResult> Authenticate(IDictionary<string, string> headers)
+    protected Task<AuthenticateResult> Authenticate(IDictionary<string, string> headers) =>
+        Authenticate(headers.ToDictionary(_ => _.Key, _ => new StringValues(_.Value)));
+
+    /// <summary>
+    /// Runs one authentication through a freshly initialized handler with exactly the given request headers, each of
+    /// which may carry several values.
+    /// </summary>
+    /// <param name="headers">The request headers.</param>
+    /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
+    protected async Task<AuthenticateResult> Authenticate(IDictionary<string, StringValues> headers)
     {
         var httpContext = new DefaultHttpContext { RequestServices = _services };
+        httpContext.Request.Method = "POST";
+        httpContext.Request.Host = new HostString("app.example.com");
+        httpContext.Request.Path = "/api/tickets/close";
         foreach (var (name, value) in headers)
         {
             httpContext.Request.Headers[name] = value;

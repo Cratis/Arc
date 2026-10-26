@@ -12,5 +12,5 @@ public class and_the_actor_is_the_represented_user : given.an_on_behalf_forward
     async Task Because() => _result = await _handler.HandleAuthentication(ContextForOnBehalfOf(ActorHeaderValue(IdentityIdFromHeader)));
 
     [Fact] void should_not_authenticate_the_request() => _result.IsAuthenticated.ShouldBeFalse();
-    [Fact] void should_reject_the_forward() => _result.Failure!.Reason.Value.ShouldEqual(ForwardedActor.ActorIsRepresentedUser);
+    [Fact] void should_reject_the_forward() => _result.Failure!.Reason.Value.ShouldEqual(OnBehalfOfFailures.ActorIsRepresentedUser);
 }

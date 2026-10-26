@@ -15,9 +15,10 @@ namespace Cratis.Arc.Identity;
 /// <remarks>
 /// The forwarded identity headers are not signed. The handler ignores them and returns no result, so the request stays
 /// anonymous, unless <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled because the host runs behind a
-/// trusted ingress. A request carrying <see cref="OnBehalfOfHeaders.ActorHeader"/> fails authentication unless it
-/// is a trusted forward of the represented user; when accepted, the actor becomes the <see cref="ClaimsIdentity.Actor"/>
-/// of the principal.
+/// trusted ingress. A request carrying <see cref="OnBehalfOfHeaders.ActorHeader"/> or
+/// <see cref="OnBehalfOfHeaders.AssertionHeader"/> fails authentication unless <see cref="OnBehalfOfOptions.Enabled"/> is
+/// set and its signed assertion verifies; when accepted, the actor becomes the <see cref="ClaimsIdentity.Actor"/> of the
+/// principal.
 /// </remarks>
 public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
@@ -70,14 +71,13 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
     {
         var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
         var onBehalfOf = ForwardedActor.IsPresent(Request.Headers.ContainsKey);
+        if (onBehalfOf && ForwardedActor.Admit(arcOptions?.CurrentValue) is { } rejection)
+        {
+            return Reject(rejection);
+        }
+
         if (arcOptions?.CurrentValue.TrustForwardedIdentityHeaders != true)
         {
-            if (onBehalfOf)
-            {
-                _logger.UntrustedOnBehalfOfForwardRejected();
-                return Task.FromResult(AuthenticateResult.Fail(ForwardedActor.UntrustedForward));
-            }
-
             if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
             {
                 UntrustedForwardedIdentityHeaders.Report(_logger);
@@ -88,7 +88,7 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
 
         if (!Request.IsValidIdentityRequest())
         {
-            return Task.FromResult(AuthenticateResult.Fail(onBehalfOf ? ForwardedActor.MissingRepresentedUser : "Not authenticated - headers missing"));
+            return onBehalfOf ? Reject(OnBehalfOfFailures.MissingRepresentedUser) : Task.FromResult(AuthenticateResult.Fail("Not authenticated - headers missing"));
         }
 
         ClientPrincipal? clientPrincipal = null;
@@ -103,7 +103,8 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
 
         if (clientPrincipal == null)
         {
-            return Task.FromResult(AuthenticateResult.Fail("Not authenticated - invalid representation of ClientPrincipal"));
+            const string invalidPrincipal = "Not authenticated - invalid representation of ClientPrincipal";
+            return onBehalfOf ? Reject(invalidPrincipal) : Task.FromResult(AuthenticateResult.Fail(invalidPrincipal));
         }
 
         var claims = ForwardedIdentityClaims.From(clientPrincipal, Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString());
@@ -111,13 +112,16 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         if (onBehalfOf)
         {
             var failure = ForwardedActor.Attach(
-                Request.Headers[OnBehalfOfHeaders.ActorHeader].ToString(),
+                ForwardFrom(arcOptions.CurrentValue),
+                clientPrincipal,
                 identity,
                 Scheme.Name,
-                arcOptions.CurrentValue.JsonSerializerOptions);
+                arcOptions.CurrentValue,
+                TimeProvider.System,
+                OnBehalfOfReplayCache.Shared);
             if (failure is not null)
             {
-                return Task.FromResult(AuthenticateResult.Fail(failure));
+                return Reject(failure);
             }
         }
 
@@ -125,5 +129,23 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+
+    OnBehalfOfForward ForwardFrom(ArcOptions options) => new(
+        Request.Headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader].ToString(),
+        Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString(),
+        HeaderOrNull(OnBehalfOfHeaders.ActorHeader),
+        HeaderOrNull(OnBehalfOfHeaders.AssertionHeader),
+        options.Tenancy?.HttpHeader is { Length: > 0 } tenantHeader ? HeaderOrNull(tenantHeader) : null,
+        Request.Method,
+        Request.Host.Host,
+        $"{Request.PathBase}{Request.Path}");
+
+    string? HeaderOrNull(string name) => Request.Headers.TryGetValue(name, out var value) ? value.ToString() : null;
+
+    Task<AuthenticateResult> Reject(string reason)
+    {
+        RejectedOnBehalfOfForwards.Report(_logger, reason);
+        return Task.FromResult(AuthenticateResult.Fail(reason));
     }
 }

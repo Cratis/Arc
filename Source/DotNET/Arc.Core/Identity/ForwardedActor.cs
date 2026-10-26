@@ -7,70 +7,126 @@ using System.Text.Json;
 namespace Cratis.Arc.Identity;
 
 /// <summary>
-/// Reads the acting identity of an on-behalf forward from <see cref="OnBehalfOfHeaders.ActorHeader"/>.
+/// Verifies an on-behalf forward and attaches its actor to the represented user's identity.
 /// </summary>
+/// <remarks>
+/// Shared by the ASP.NET Core scheme and the <c>Cratis.Arc.Core</c> authentication handler, so both apply the same rules.
+/// </remarks>
 internal static class ForwardedActor
 {
     /// <summary>
-    /// The failure reason when an on-behalf forward arrives at a host that does not trust forwarded identity.
-    /// </summary>
-    internal const string UntrustedForward = "Not authenticated - on-behalf forwarding is only accepted from a trusted AuthProxy forward";
-
-    /// <summary>
-    /// The failure reason when the actor header arrives without the represented user.
-    /// </summary>
-    internal const string MissingRepresentedUser = "Not authenticated - on-behalf forward does not identify the represented user";
-
-    /// <summary>
-    /// The failure reason when the actor header does not hold a valid client principal.
-    /// </summary>
-    internal const string InvalidActor = "Not authenticated - invalid representation of the on-behalf actor";
-
-    /// <summary>
-    /// The failure reason when the actor and the represented user are the same identity.
-    /// </summary>
-    internal const string ActorIsRepresentedUser = "Not authenticated - an identity cannot act on behalf of itself";
-
-    /// <summary>
-    /// Checks whether the request carries the actor header.
+    /// Checks whether the request carries the actor or the assertion header.
     /// </summary>
     /// <param name="hasHeader">Checks whether the request has a header with the given name.</param>
-    /// <returns>True if the actor header is present.</returns>
-    internal static bool IsPresent(Func<string, bool> hasHeader) => hasHeader(OnBehalfOfHeaders.ActorHeader);
+    /// <returns>True if either on-behalf header is present.</returns>
+    internal static bool IsPresent(Func<string, bool> hasHeader) =>
+        hasHeader(OnBehalfOfHeaders.ActorHeader) || hasHeader(OnBehalfOfHeaders.AssertionHeader);
 
     /// <summary>
-    /// Resolves the actor and attaches it to the represented user's identity as <see cref="ClaimsIdentity.Actor"/>.
+    /// Decides whether the host accepts on-behalf forwards at all.
     /// </summary>
-    /// <param name="headerValue">The raw value of the actor header.</param>
-    /// <param name="represented">The represented user's identity.</param>
-    /// <param name="authenticationType">The authentication type for the actor identity.</param>
-    /// <param name="serializerOptions">The <see cref="JsonSerializerOptions"/> to read the client principal with.</param>
-    /// <returns>The failure reason, or <see langword="null"/> when the actor was attached.</returns>
-    internal static string? Attach(string? headerValue, ClaimsIdentity represented, string authenticationType, JsonSerializerOptions serializerOptions)
+    /// <param name="options">The <see cref="ArcOptions"/>, or <see langword="null"/> when the host has none.</param>
+    /// <returns>The failure reason, or <see langword="null"/> when on-behalf forwards may be verified.</returns>
+    internal static string? Admit(ArcOptions? options)
     {
-        var actor = Read(headerValue, serializerOptions);
+        if (options?.TrustForwardedIdentityHeaders != true)
+        {
+            return OnBehalfOfFailures.UntrustedForward;
+        }
+
+        return options.OnBehalfOf?.Enabled == true ? null : OnBehalfOfFailures.NotEnabled;
+    }
+
+    /// <summary>
+    /// Verifies the forward and attaches the actor to the represented user's identity as <see cref="ClaimsIdentity.Actor"/>.
+    /// </summary>
+    /// <param name="forward">The <see cref="OnBehalfOfForward"/> values of the request.</param>
+    /// <param name="represented">The represented user's <see cref="ClientPrincipal"/>.</param>
+    /// <param name="identity">The represented user's identity.</param>
+    /// <param name="authenticationType">The authentication type for the actor identity.</param>
+    /// <param name="options">The <see cref="ArcOptions"/>.</param>
+    /// <param name="time">The <see cref="TimeProvider"/> to check the assertion lifetime with.</param>
+    /// <param name="replays">The <see cref="OnBehalfOfReplayCache"/> that refuses a reused assertion.</param>
+    /// <returns>The failure reason, or <see langword="null"/> when the actor was attached.</returns>
+    internal static string? Attach(
+        OnBehalfOfForward forward,
+        ClientPrincipal represented,
+        ClaimsIdentity identity,
+        string authenticationType,
+        ArcOptions options,
+        TimeProvider time,
+        OnBehalfOfReplayCache replays)
+    {
+        var admission = Admit(options);
+        if (admission is not null)
+        {
+            return admission;
+        }
+
+        if (IsRepeated(forward.Actor) || IsRepeated(forward.Assertion))
+        {
+            return OnBehalfOfFailures.RepeatedHeader;
+        }
+
+        if (string.IsNullOrWhiteSpace(forward.Actor))
+        {
+            return OnBehalfOfFailures.MissingActor;
+        }
+
+        if (string.IsNullOrWhiteSpace(forward.Assertion))
+        {
+            return OnBehalfOfFailures.MissingAssertion;
+        }
+
+        var keys = OnBehalfOfSigningKeys.For(options.OnBehalfOf);
+        if (keys.Problem is not null)
+        {
+            return $"{OnBehalfOfFailures.Misconfigured}: {keys.Problem}";
+        }
+
+        var now = time.GetUtcNow();
+        var failure = OnBehalfOfAssertionVerifier.Verify(forward.Assertion, keys, options.OnBehalfOf, now, out var assertion) ??
+            OnBehalfOfForwardBinding.Check(assertion!, forward, represented);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        var actor = Read(forward.Actor, options.JsonSerializerOptions);
         if (actor is null || string.IsNullOrWhiteSpace(actor.UserId))
         {
-            return InvalidActor;
+            return OnBehalfOfFailures.InvalidActor;
         }
 
-        var representedId = represented.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.Equals(actor.UserId, representedId, StringComparison.Ordinal))
+        if (!string.Equals(actor.UserId, assertion!.ActorSubject, StringComparison.Ordinal))
         {
-            return ActorIsRepresentedUser;
+            return OnBehalfOfFailures.ActorMismatch;
         }
 
-        represented.Actor = new ClaimsIdentity(ForwardedIdentityClaims.From(actor, actor.UserId), authenticationType);
+        if (string.Equals(actor.UserId, identity.FindFirst(ClaimTypes.NameIdentifier)?.Value, StringComparison.Ordinal))
+        {
+            return OnBehalfOfFailures.ActorIsRepresentedUser;
+        }
+
+        if (!replays.TryRecord(assertion.TokenId, assertion.Expires + options.OnBehalfOf.ClockSkew, now))
+        {
+            return OnBehalfOfFailures.Replayed;
+        }
+
+        identity.Actor = new ClaimsIdentity(ForwardedIdentityClaims.From(actor, actor.UserId), authenticationType);
         return null;
     }
 
-    static ClientPrincipal? Read(string? headerValue, JsonSerializerOptions serializerOptions)
-    {
-        if (string.IsNullOrWhiteSpace(headerValue))
-        {
-            return null;
-        }
+    /// <summary>
+    /// Checks whether a header was repeated. A repeated header arrives joined by a comma, which neither base64 nor a
+    /// compact JWS contains.
+    /// </summary>
+    /// <param name="value">The header value.</param>
+    /// <returns>True when the header was repeated.</returns>
+    static bool IsRepeated(string? value) => value?.Contains(',') == true;
 
+    static ClientPrincipal? Read(string headerValue, JsonSerializerOptions serializerOptions)
+    {
         try
         {
             return JsonSerializer.Deserialize(Convert.FromBase64String(headerValue), serializerOptions.ResolveTypeInfo<ClientPrincipal>());

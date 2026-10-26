@@ -16,6 +16,6 @@ public class and_the_actor_is_invalid : given.an_on_behalf_forward
         _self = await AuthenticateOnBehalfOf(ActorHeaderValue(IdentityIdFromHeader));
     }
 
-    [Fact] void should_reject_a_malformed_actor() => _malformed.Failure!.Message.ShouldEqual(ForwardedActor.InvalidActor);
-    [Fact] void should_reject_an_actor_acting_on_behalf_of_itself() => _self.Failure!.Message.ShouldEqual(ForwardedActor.ActorIsRepresentedUser);
+    [Fact] void should_reject_a_malformed_actor() => _malformed.Failure!.Message.ShouldEqual(OnBehalfOfFailures.InvalidActor);
+    [Fact] void should_reject_an_actor_acting_on_behalf_of_itself() => _self.Failure!.Message.ShouldEqual(OnBehalfOfFailures.ActorIsRepresentedUser);
 }

@@ -18,5 +18,5 @@ public class and_the_represented_user_is_missing : given.an_on_behalf_forward
     }
 
     [Fact] void should_not_authenticate_the_request() => _result.IsAuthenticated.ShouldBeFalse();
-    [Fact] void should_reject_the_forward_instead_of_treating_it_as_anonymous() => _result.Failure!.Reason.Value.ShouldEqual(ForwardedActor.MissingRepresentedUser);
+    [Fact] void should_reject_the_forward_instead_of_treating_it_as_anonymous() => _result.Failure!.Reason.Value.ShouldEqual(OnBehalfOfFailures.MissingRepresentedUser);
 }
