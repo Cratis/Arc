@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Chronicle.Identities;
+using static Cratis.Arc.Identity.OnBehalfOfPrincipalExtensions;
 
 using ChronicleIdentity = Cratis.Chronicle.Identities.Identity;
 
@@ -19,7 +20,9 @@ namespace Cratis.Arc.Chronicle.Identities;
 /// <para>
 /// When the current principal is acted on behalf of (<see cref="ClaimsIdentity.Actor"/> is set), the identity is a
 /// chain: the actor first, then the represented user as <see cref="ChronicleIdentity.OnBehalfOf"/>. Chronicle
-/// reports such a head as an agent acting on behalf of the represented user.
+/// reports such a head as an agent acting on behalf of the represented user. This is a deliberate contract for every
+/// authentication scheme, not only AuthProxy on-behalf forwards: a bearer token whose <c>act</c> claim the handler maps
+/// to <see cref="ClaimsIdentity.Actor"/> is recorded the same way.
 /// </para>
 /// <para>
 /// Explicit identity tracking covers calls through this decorator only; calls directly to the wrapped provider
@@ -40,7 +43,7 @@ internal class ArcIdentityProvider(
         var principal = principals.Current;
         if (hasHttpRequest())
         {
-            return !_explicitIdentity.Value && principal is not null && Arc.Identity.OnBehalfOfPrincipalExtensions.IsActedOnBehalfOf(principal)
+            return !_explicitIdentity.Value && principal?.IsActedOnBehalfOf() == true
                 ? FromPrincipal(principal)
                 : identity;
         }
@@ -88,7 +91,7 @@ internal class ArcIdentityProvider(
     /// </remarks>
     internal static ChronicleIdentity FromPrincipal(ClaimsPrincipal principal)
     {
-        var actor = Arc.Identity.OnBehalfOfPrincipalExtensions.GetActor(principal);
+        var actor = principal.GetActor();
         if (actor is null)
         {
             return FromClaims(principal);
