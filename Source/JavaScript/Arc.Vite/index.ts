@@ -3,6 +3,3 @@
 
 export * from './AddQueryStringToReferences.js';
 export * from './EmitMetadataPlugin.js';
-export * from './SliceLocationPlugin.js';
-export * from './resolveSliceLocation.js';
-export * from './addSliceLocation.js';

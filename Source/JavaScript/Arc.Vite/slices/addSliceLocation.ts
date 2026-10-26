@@ -4,7 +4,7 @@
 import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
 import { SliceLocationParts } from './resolveSliceLocation.js';
-import { componentsExportedFrom, AstNode, isFunction, childrenOf } from './exportedComponents.js';
+import { componentsExportedFrom, AstNode, ComponentDeclaration } from './exportedComponents.js';
 
 /**
  * Represents transformed code with its source map.
@@ -19,42 +19,6 @@ const locationConstant = '__cratisSliceLocation';
 const locationType = '__CratisSliceLocation';
 
 /**
- * Collects the expressions a function returns, without looking into functions or classes nested in it.
- * @param node The node to search.
- * @param returned The list to add returned expressions to.
- */
-function collectReturnedExpressions(node: AstNode, returned: AstNode[]): void {
-    for (const child of childrenOf(node)) {
-        if (isFunction(child) || child.type === 'ClassDeclaration' || child.type === 'ClassExpression') {
-            continue;
-        }
-        if (child.type === 'ReturnStatement') {
-            const argument = child.argument as AstNode | null;
-            if (argument) {
-                returned.push(argument);
-            }
-            continue;
-        }
-        collectReturnedExpressions(child, returned);
-    }
-}
-
-/**
- * Gets the expressions a component function renders.
- * @param component The component function.
- * @returns The rendered expressions.
- */
-function renderedExpressionsOf(component: AstNode): AstNode[] {
-    const body = component.body as AstNode;
-    if (body.type !== 'BlockStatement') {
-        return [body];
-    }
-    const returned: AstNode[] = [];
-    collectReturnedExpressions(body, returned);
-    return returned;
-}
-
-/**
  * Gets where to put the slice location declarations: after any directives such as `'use client'`.
  * @param program The parsed program.
  * @returns The position to insert at.
@@ -66,12 +30,47 @@ function insertionPointOf(program: AstNode): number {
 }
 
 /**
- * Makes what the exported components of a module render carry the slice location of its folder.
+ * Wraps one component declaration with `withSliceLocation`.
  * @remarks
- * Every expression an exported component returns is wrapped with `withSliceLocation` from `@cratis/arc.react/slices`,
- * so the subtree the component renders resolves the slice location of the folder through `useSliceContext()`.
- * Components are exported functions, or functions passed to an exported call such as `memo(...)` or
- * `withViewModel(...)`, that render JSX. Named exports must start with an uppercase letter.
+ * The component goes first and the location second, so React Fast Refresh, which only looks into the first argument
+ * of a call, still registers the component function inside the call.
+ * @param magic The code being changed.
+ * @param component The component declaration to wrap.
+ */
+function wrap(magic: MagicString, component: ComponentDeclaration): void {
+    const { node } = component;
+    const suffix = component.name ? `, ${locationConstant}, ${JSON.stringify(component.name)})` : `, ${locationConstant})`;
+
+    if (component.kind === 'expression') {
+        magic.appendLeft(node.start, `${wrapper}(`);
+        magic.prependRight(node.end, suffix);
+        return;
+    }
+
+    const exportStatement = component.exportStatement;
+    if (exportStatement?.type === 'ExportDefaultDeclaration') {
+        if (component.name) {
+            magic.overwrite(exportStatement.start, node.start, `const ${component.name} = ${wrapper}(`);
+            magic.prependRight(node.end, `${suffix};\nexport default ${component.name};`);
+        } else {
+            magic.overwrite(exportStatement.start, node.start, `export default ${wrapper}(`);
+            magic.prependRight(node.end, `${suffix};`);
+        }
+        return;
+    }
+
+    magic.appendLeft(node.start, `const ${component.name} = ${wrapper}(`);
+    magic.prependRight(node.end, `${suffix};`);
+}
+
+/**
+ * Makes the exported components of a module render within a slice scope for the folder the module lives in.
+ * @remarks
+ * Every exported component is wrapped at its declaration with `withSliceLocation` from `@cratis/arc.react/slices`:
+ * `export const Pay = __cratisWithSliceLocation(function Pay() { ... }, __cratisSliceLocation)`. The component itself,
+ * and everything it renders, then resolves the folder location through `useSliceContext()`, and its own command and
+ * query hooks register within the folder scope. Exported function declarations become constants, so they are no longer
+ * hoisted. Components are judged by what they return; see `isComponentFunction`.
  * @param code The source code of the module.
  * @param file The path of the module, used to pick the parser language.
  * @param location The slice location of the folder the module lives in.
@@ -89,17 +88,12 @@ export function addSliceLocation(code: string, file: string, location: SliceLoca
     }
 
     const program = parsed.program as unknown as AstNode;
-    const rendered = componentsExportedFrom(program).flatMap(renderedExpressionsOf);
-    if (rendered.length === 0) {
+    const components = componentsExportedFrom(program);
+    if (components.length === 0) {
         return undefined;
     }
 
     const magic = new MagicString(code);
-    for (const expression of rendered) {
-        magic.appendLeft(expression.start, `${wrapper}(${locationConstant}, (`);
-        magic.prependRight(expression.end, '))');
-    }
-
     const parts = [location.module, location.feature, location.slice].map(part => JSON.stringify(part)).join(', ');
     const declarations =
         `import { withSliceLocation as ${wrapper}, SliceLocation as ${locationType} } from ${JSON.stringify(importFrom)};\n` +
@@ -107,6 +101,10 @@ export function addSliceLocation(code: string, file: string, location: SliceLoca
 
     const insertionPoint = insertionPointOf(program);
     magic.appendLeft(insertionPoint, insertionPoint === 0 ? declarations : `\n${declarations}`);
+
+    for (const component of components) {
+        wrap(magic, component);
+    }
 
     return {
         code: magic.toString(),

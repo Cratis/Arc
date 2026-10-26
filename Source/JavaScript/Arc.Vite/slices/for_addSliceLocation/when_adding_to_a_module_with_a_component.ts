@@ -13,4 +13,6 @@ describe('when adding to a module with a component', () => {
     it('should keep the original imports', () => code.should.contain('import { useState } from "react";'));
     it('should put the declarations after directives', () =>
         transform('\'use client\';\nexport const Pay = () => <div />;')!.startsWith('\'use client\';\nimport { withSliceLocation')!.should.be.true);
+    it('should put the declarations before a component declared first in the module', () =>
+        transform('function Pay() { return <div />; }\nexport { Pay };')!.startsWith('import { withSliceLocation')!.should.be.true);
 });

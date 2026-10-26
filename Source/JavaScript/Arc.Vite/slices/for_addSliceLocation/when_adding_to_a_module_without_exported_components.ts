@@ -12,4 +12,14 @@ describe('when adding to a module without exported components', () => {
     it('should leave an exported class alone', () => isUntouched('export class Pay { render() { return <div />; } }'));
     it('should leave a module that does not parse alone', () => isUntouched('export const Pay = () => <div>;'));
     it('should leave a module it already changed alone', () => isUntouched(transform('export const Pay = () => <div />;')!));
+    it('should leave a store whose state holds a function rendering JSX alone', () =>
+        isUntouched('export const Store = create((set) => ({ render: () => <div />, count: 0 }));'));
+    it('should leave a function returning columns with JSX renderers alone', () =>
+        isUntouched('export function Columns() {\n    return [{ field: \'a\', body: (row) => <span>{row.a}</span> }];\n}'));
+    it('should leave a function that returns JSX only from a nested function alone', () =>
+        isUntouched('export function Renderer() {\n    const render = () => <div />;\n    return render;\n}'));
+    it('should leave a function returning JSX and something else alone', () =>
+        isUntouched('export function Format(props: { raw: boolean }) {\n    if (props.raw) return \'text\';\n    return <span />;\n}'));
+    it('should leave an async function returning JSX alone', () => isUntouched('export async function Load() { return <div />; }'));
+    it('should leave a function returning only null alone', () => isUntouched('export function Nothing() { return null; }'));
 });

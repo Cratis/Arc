@@ -43,17 +43,21 @@ const isWithin = (folder: string, root: string) => {
 };
 
 /**
- * Splits the segments that locate a folder into module, feature and slice, the same way the proxy generator splits
- * namespace segments: the first is the module, the last the slice and those between the feature, joined with a period.
- * With fewer than three segments the deepest parts are filled and the rest are empty.
+ * Splits the segments that locate a folder into module, feature and slice: the first is the module, the last the slice
+ * and those between the feature, joined with a period.
+ * @remarks
+ * With fewer than three segments the parts are filled from the module down and the rest are empty, never null: a
+ * folder one level below a root is a module, two levels down a feature. This differs from namespaces on the backend,
+ * where the deepest parts are filled, because a component in a module or feature folder belongs to that module or
+ * feature, not to a slice; a namespace that shallow belongs to a command or query, which always lives in a slice.
  * @param segments The segments that locate the folder.
  * @returns The slice location parts.
  */
 export function toSliceLocationParts(segments: string[]): SliceLocationParts {
     switch (segments.length) {
         case 0: return { module: '', feature: '', slice: '' };
-        case 1: return { module: '', feature: '', slice: segments[0] };
-        case 2: return { module: '', feature: segments[0], slice: segments[1] };
+        case 1: return { module: segments[0], feature: '', slice: '' };
+        case 2: return { module: segments[0], feature: segments[1], slice: '' };
         default: return {
             module: segments[0],
             feature: segments.slice(1, -1).join('.'),
