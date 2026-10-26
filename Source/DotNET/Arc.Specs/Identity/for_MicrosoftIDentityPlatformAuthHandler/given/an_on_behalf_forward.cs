@@ -30,6 +30,19 @@ public class an_on_behalf_forward : a_handler
         AuthenticateOnBehalfOf(actorHeader, OnBehalfOfAssertionsForSpecs.Sign(ClaimsFor(actorHeader)));
 
     /// <summary>
+    /// Authenticates an on-behalf forward whose assertion claims are changed before signing.
+    /// </summary>
+    /// <param name="actorHeader">The raw actor header value.</param>
+    /// <param name="customize">Changes the assertion claims before signing.</param>
+    /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
+    protected Task<AuthenticateResult> AuthenticateOnBehalfOf(string actorHeader, Action<Dictionary<string, object?>> customize)
+    {
+        var claims = ClaimsFor(actorHeader);
+        customize(claims);
+        return AuthenticateOnBehalfOf(actorHeader, OnBehalfOfAssertionsForSpecs.Sign(claims));
+    }
+
+    /// <summary>
     /// Authenticates an on-behalf forward with exact actor and assertion header values.
     /// </summary>
     /// <param name="actorHeader">The actor header values.</param>

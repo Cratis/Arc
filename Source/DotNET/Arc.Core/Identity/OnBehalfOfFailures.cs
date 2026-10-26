@@ -29,6 +29,7 @@ internal static class OnBehalfOfFailures
     internal const string NotYetValid = "Not authenticated - the on-behalf assertion is not yet valid";
     internal const string Expired = "Not authenticated - the on-behalf assertion has expired";
     internal const string LifetimeTooLong = "Not authenticated - the on-behalf assertion lives longer than five minutes";
+    internal const string ServiceMismatch = "Not authenticated - the on-behalf assertion is for another service";
     internal const string WrongPurpose = "Not authenticated - the on-behalf assertion is not for a forwarded request";
     internal const string MissingTokenId = "Not authenticated - the on-behalf assertion has no jti";
     internal const string PrincipalMismatch = "Not authenticated - the on-behalf assertion does not match the represented user's headers";

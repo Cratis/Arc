@@ -16,7 +16,6 @@ public class an_on_behalf_forward : a_handler
     protected const string ActorRole = "support";
     protected const string Tenant = "tenant-42";
     protected const string Method = "POST";
-    protected const string Host = "app.example.com";
     protected const string Path = "/api/tickets/close";
 
     protected static readonly string RepresentedPrincipalHeaderValue =
@@ -86,7 +85,6 @@ public class an_on_behalf_forward : a_handler
         context.Items.Returns(new Dictionary<object, object?>());
         context.Headers.Returns(headers);
         context.Method.Returns(Method);
-        context.Host.Returns(Host);
         context.Path.Returns(Path);
         return context;
     }

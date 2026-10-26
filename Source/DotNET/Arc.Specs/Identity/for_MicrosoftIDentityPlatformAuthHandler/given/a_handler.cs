@@ -24,6 +24,8 @@ public class a_handler : Specification
 
     protected IServiceProvider _services;
     protected ArcOptions _arcOptions;
+    protected PathString _pathBase = PathString.Empty;
+    protected PathString _path = "/api/tickets/close";
 
     void Establish()
     {
@@ -67,7 +69,8 @@ public class a_handler : Specification
         var httpContext = new DefaultHttpContext { RequestServices = _services };
         httpContext.Request.Method = "POST";
         httpContext.Request.Host = new HostString("app.example.com");
-        httpContext.Request.Path = "/api/tickets/close";
+        httpContext.Request.PathBase = _pathBase;
+        httpContext.Request.Path = _path;
         foreach (var (name, value) in headers)
         {
             httpContext.Request.Headers[name] = value;

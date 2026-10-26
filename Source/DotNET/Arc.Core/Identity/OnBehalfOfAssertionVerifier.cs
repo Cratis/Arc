@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace Cratis.Arc.Identity;
 
 /// <summary>
-/// Verifies the signature, issuer, audience, lifetime and purpose of an on-behalf assertion.
+/// Verifies the signature, issuer, audience, lifetime, purpose and service of an on-behalf assertion.
 /// </summary>
 /// <remarks>
 /// The assertion is a compact RS256 JWS. Only RS256 is accepted, the key is selected by <c>kid</c> from the pinned
@@ -113,6 +113,11 @@ internal static class OnBehalfOfAssertionVerifier
         if (OnBehalfOfClaims.String(payload, "purpose") != ForwardPurpose)
         {
             return OnBehalfOfFailures.WrongPurpose;
+        }
+
+        if (!string.IsNullOrEmpty(options.Service) && OnBehalfOfClaims.String(payload, "svc") != options.Service)
+        {
+            return OnBehalfOfFailures.ServiceMismatch;
         }
 
         var tokenId = OnBehalfOfClaims.String(payload, "jti");

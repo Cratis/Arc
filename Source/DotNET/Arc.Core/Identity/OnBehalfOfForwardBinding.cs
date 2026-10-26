@@ -21,17 +21,19 @@ internal static class OnBehalfOfForwardBinding
     /// <remarks>
     /// <list type="bullet">
     /// <item><c>principal_hash</c> must be the SHA-256 of the exact principal header, <c>sub</c> must be its <c>userId</c>,
-    /// and the principal id header must be that same <c>userId</c>.</item>
+    /// and the principal id header, decoded from AuthProxy's RFC 8187 transport form when it carries one, must be that
+    /// same <c>userId</c>.</item>
     /// <item><c>actor_hash</c> must be the SHA-256 of the exact actor header.</item>
     /// <item>When the request carries the configured tenant header, <c>tenant</c> must equal it.</item>
-    /// <item>When present, <c>htm</c> must equal the request method and <c>htu</c> the request host name and path.</item>
+    /// <item>When present, <c>htm</c> must equal the request method and <c>htu</c> the request path - path base and path,
+    /// without scheme, host or query - compared after <see cref="OnBehalfOfRequestPath.Normalize"/>.</item>
     /// </list>
     /// </remarks>
     internal static string? Check(OnBehalfOfAssertion assertion, OnBehalfOfForward forward, ClientPrincipal represented)
     {
         if (!HashMatches(assertion.PrincipalHash, forward.Principal) ||
             !string.Equals(assertion.Subject, represented.UserId, StringComparison.Ordinal) ||
-            !string.Equals(forward.PrincipalId, represented.UserId, StringComparison.Ordinal))
+            !string.Equals(ForwardedHeaderValue.Decode(forward.PrincipalId), represented.UserId, StringComparison.Ordinal))
         {
             return OnBehalfOfFailures.PrincipalMismatch;
         }
@@ -60,7 +62,8 @@ internal static class OnBehalfOfForwardBinding
             Encoding.ASCII.GetBytes(OnBehalfOfBase64Url.Sha256Of(headerValue)));
 
     static bool TargetMatches(string target, OnBehalfOfForward forward) =>
-        Uri.TryCreate(target, UriKind.Absolute, out var uri) &&
-        string.Equals(uri.Host, forward.Host, StringComparison.OrdinalIgnoreCase) &&
-        string.Equals(Uri.UnescapeDataString(uri.AbsolutePath), Uri.UnescapeDataString(forward.Path), StringComparison.Ordinal);
+        target.StartsWith('/') &&
+        OnBehalfOfRequestPath.Normalize(target) is { } signed &&
+        OnBehalfOfRequestPath.Normalize(forward.Path) is { } received &&
+        string.Equals(signed, received, StringComparison.Ordinal);
 }

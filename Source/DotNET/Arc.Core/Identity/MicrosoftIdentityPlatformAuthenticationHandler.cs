@@ -107,7 +107,6 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
         context.Headers.GetValueOrDefault(OnBehalfOfHeaders.AssertionHeader),
         options.Value.Tenancy?.HttpHeader is { Length: > 0 } tenantHeader ? context.Headers.GetValueOrDefault(tenantHeader) : null,
         context.Method,
-        context.Host,
         context.Path);
 
     Task<AuthenticationResult> Reject(string reason)

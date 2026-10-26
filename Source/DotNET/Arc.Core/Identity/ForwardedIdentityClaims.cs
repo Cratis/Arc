@@ -14,7 +14,8 @@ internal static class ForwardedIdentityClaims
     /// Builds the claims for a forwarded principal.
     /// </summary>
     /// <param name="principal">The forwarded <see cref="ClientPrincipal"/>.</param>
-    /// <param name="identityId">The identity id the forward asserts for the principal.</param>
+    /// <param name="identityId">The identity id the forward asserts for the principal, as it arrived on the header; an RFC 8187
+    /// <c>ext-value</c> is decoded.</param>
     /// <returns>The claims of the principal.</returns>
     /// <remarks>
     /// Serialized subject and identity provider claims are replaced, so an identity provider cannot supply a claim
@@ -22,6 +23,7 @@ internal static class ForwardedIdentityClaims
     /// </remarks>
     internal static List<Claim> From(ClientPrincipal principal, string identityId)
     {
+        identityId = ForwardedHeaderValue.Decode(identityId) ?? identityId;
         var claims = principal.Claims.Select(claim => new Claim(claim.typ, claim.val)).ToList();
 
         claims.RemoveAll(claim =>

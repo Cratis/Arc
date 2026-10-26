@@ -12,8 +12,7 @@ namespace Cratis.Arc.Identity;
 /// <param name="Assertion">The exact value of <see cref="OnBehalfOfHeaders.AssertionHeader"/>, repeated values joined by a comma.</param>
 /// <param name="Tenant">The value of the configured tenant header, or <see langword="null"/> when the request has none.</param>
 /// <param name="Method">The HTTP method of the request.</param>
-/// <param name="Host">The host name of the request, without the port.</param>
-/// <param name="Path">The full path of the request, without the query.</param>
+/// <param name="Path">The percent-encoded absolute path of the request as the host received it - path base and path, without the query.</param>
 internal sealed record OnBehalfOfForward(
     string Principal,
     string PrincipalId,
@@ -21,5 +20,4 @@ internal sealed record OnBehalfOfForward(
     string? Assertion,
     string? Tenant,
     string Method,
-    string Host,
     string Path);

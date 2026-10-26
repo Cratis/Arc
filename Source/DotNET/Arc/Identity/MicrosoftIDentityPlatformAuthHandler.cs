@@ -138,8 +138,7 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         HeaderOrNull(OnBehalfOfHeaders.AssertionHeader),
         options.Tenancy?.HttpHeader is { Length: > 0 } tenantHeader ? HeaderOrNull(tenantHeader) : null,
         Request.Method,
-        Request.Host.Host,
-        $"{Request.PathBase}{Request.Path}");
+        Request.PathBase.Add(Request.Path).ToUriComponent());
 
     string? HeaderOrNull(string name) => Request.Headers.TryGetValue(name, out var value) ? value.ToString() : null;
 
