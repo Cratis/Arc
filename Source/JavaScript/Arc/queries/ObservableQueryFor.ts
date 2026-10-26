@@ -81,11 +81,6 @@ export abstract class ObservableQueryFor<
     }
 
     /** @inheritdoc */
-    get sliceLocation(): SliceLocation {
-        return SliceLocation.of(this);
-    }
-
-    /** @inheritdoc */
     setMicroservice(microservice: string) {
         this._microservice = microservice;
     }

@@ -4,7 +4,6 @@
 import { ICanBeConfigured } from '../ICanBeConfigured.js';
 import { CommandResult } from './CommandResult.js';
 import { PropertyDescriptor } from '../reflection/PropertyDescriptor.js';
-import { SliceLocation } from '../reflection/SliceLocation.js';
 import { ValidationResultSeverity } from '../validation/ValidationResultSeverity.js';
 
 /**
@@ -30,14 +29,6 @@ export interface ICommand<TCommandContent = object, TCommandResponse = object> e
      * Gets the property descriptors for the command.
      */
     readonly propertyDescriptors: PropertyDescriptor[];
-
-    /**
-     * Gets the {@link SliceLocation} of the command, as declared by the static `sliceLocation` member of a generated proxy.
-     * @remarks
-     * Optional so implementations that predate it keep compiling; the Arc base classes always provide it.
-     * Use {@link SliceLocation.of} to read it from any instance with a fallback to {@link SliceLocation.empty}.
-     */
-    readonly sliceLocation?: SliceLocation;
 
     /**
      * Execute the {@link ICommand}.

@@ -12,8 +12,8 @@ describe('when getting the slice location', () => {
 
     beforeEach(() => {
         const command: ICommand = new PayInvoice();
-        declared = command.sliceLocation;
-        undeclared = new SomeCommand().sliceLocation;
+        declared = SliceLocation.of(command);
+        undeclared = SliceLocation.of(new SomeCommand());
     });
 
     it('should return the static slice location of the proxy class', () => declared!.should.equal(PayInvoice.sliceLocation));
