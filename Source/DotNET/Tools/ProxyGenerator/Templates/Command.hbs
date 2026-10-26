@@ -1,7 +1,7 @@
 // **DO NOT EDIT** - This file is an automatically generated file.
 import { Command{{#if HasValidationRules}}, CommandValidator{{/if}} } from '@cratis/arc/commands';
 import { ClearCommandValues, SetCommandValues, useCommand } from '@cratis/arc.react/commands';
-import { PropertyDescriptor } from '@cratis/arc/reflection';
+import { PropertyDescriptor, SliceLocation } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
@@ -50,6 +50,7 @@ export class {{Name}} extends Command<I{{Name}}, {{{ResponseType.Name}}}{{#if Re
 {{else}}
 export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{/if}}
+    static readonly sliceLocation: SliceLocation = new SliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
     readonly route: string = '{{{Route}}}';
 {{#if HasValidationRules}}
     readonly validation: CommandValidator = new {{Name}}Validator();

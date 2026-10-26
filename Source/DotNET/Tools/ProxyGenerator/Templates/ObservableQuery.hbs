@@ -10,7 +10,7 @@ import { ObservableQueryWhen, SetPage, SetPageSize, SetSorting, useChangeStream,
 import { ObservableQueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
 import { ObservableQueryWhen, useObservableQuery, useSuspenseObservableQuery } from '@cratis/arc.react/queries';
 {{/if}}
-import { ParameterDescriptor } from '@cratis/arc/reflection';
+import { ParameterDescriptor, SliceLocation } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
@@ -117,6 +117,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}[]> {
 export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
+    static readonly sliceLocation: SliceLocation = new SliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
     readonly route: string = '{{{Route}}}';
     readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
 {{#if HasValidationRules}}
