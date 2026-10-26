@@ -5,11 +5,20 @@ import { ICanBeConfigured } from '../ICanBeConfigured.js';
 import { Paging } from './Paging.js';
 import { Sorting } from './Sorting.js';
 import { QueryHttpMethod } from './QueryHttpMethod.js';
+import { SliceLocation } from '../reflection/SliceLocation.js';
 
 /**
  * Defines the commonalities between all query types.
  */
 export interface IQuery extends ICanBeConfigured {
+    /**
+     * Gets the {@link SliceLocation} of the query, as declared by the static `sliceLocation` member of a generated proxy.
+     * @remarks
+     * Optional so implementations that predate it keep compiling; the Arc base classes always provide it.
+     * Use {@link SliceLocation.of} to read it from any instance with a fallback to {@link SliceLocation.empty}.
+     */
+    readonly sliceLocation?: SliceLocation;
+
     /**
      * Set the HTTP method used to perform the query, overriding the global default.
      * @param method The {@link QueryHttpMethod} to use.

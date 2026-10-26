@@ -12,6 +12,7 @@ import { Sorting } from './Sorting.js';
 import { GetHttpHeaders } from '../GetHttpHeaders.js';
 import { ParameterDescriptor } from '../reflection/ParameterDescriptor.js';
 import { ParametersHelper } from '../reflection/ParametersHelper.js';
+import { SliceLocation } from '../reflection/SliceLocation.js';
 import { QueryHttpMethod } from './QueryHttpMethod.js';
 import { executeQueryHttpRequest } from './QueryHttpRequest.js';
 import { isAbortError } from './isAbortError.js';
@@ -21,6 +22,11 @@ import { isAbortError } from './isAbortError.js';
  * @template TDataType Type of data returned by the query.
  */
 export abstract class QueryFor<TDataType, TParameters = object> implements IQueryFor<TDataType, TParameters> {
+    /**
+     * Gets the {@link SliceLocation} of the query. Generated proxies override it with the location resolved from the backend namespace.
+     */
+    static readonly sliceLocation: SliceLocation = SliceLocation.empty;
+
     private _microservice: string;
     private _apiBasePath: string;
     private _origin: string;
@@ -53,6 +59,11 @@ export abstract class QueryFor<TDataType, TParameters = object> implements IQuer
         this._apiBasePath = Globals.apiBasePath ?? '';
         this._origin = Globals.origin ?? '';
         this._httpHeadersCallback = () => ({});
+    }
+
+    /** @inheritdoc */
+    get sliceLocation(): SliceLocation {
+        return SliceLocation.of(this);
     }
 
     /** @inheritdoc */
