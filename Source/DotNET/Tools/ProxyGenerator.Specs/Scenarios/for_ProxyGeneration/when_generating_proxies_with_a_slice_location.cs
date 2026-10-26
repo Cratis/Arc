@@ -10,7 +10,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration;
 [Collection(AssemblyPackageMappingCollectionDefinition.Name)]
 public class when_generating_proxies_with_a_slice_location : Specification, IDisposable
 {
-    const string ExpectedSliceLocation = "static readonly sliceLocation: SliceLocation = new SliceLocation('Scenarios', 'for_ProxyGeneration', 'Generated');";
+    const string ExpectedSliceLocation = "static readonly sliceLocation: ArcSliceLocation = new ArcSliceLocation('Scenarios', 'for_ProxyGeneration', 'Generated');";
 
     JavaScriptRuntime _runtime = null!;
     CommandDescriptor _command = null!;
@@ -42,10 +42,10 @@ public class when_generating_proxies_with_a_slice_location : Specification, IDis
     [Fact] void should_resolve_the_command_slice_location_from_its_namespace() =>
         _command.SliceLocation.ShouldEqual(new SliceLocationDescriptor(string.Empty, "Scenarios", "for_ProxyGeneration"));
     [Fact] void should_emit_the_slice_location_on_the_command() => _commandCode.ShouldContain(ExpectedSliceLocation);
-    [Fact] void should_import_the_slice_location_type_for_the_command() => _commandCode.ShouldContain("import { PropertyDescriptor, SliceLocation } from '@cratis/arc/reflection';");
+    [Fact] void should_import_the_slice_location_type_for_the_command() => _commandCode.ShouldContain("import { SliceLocation as ArcSliceLocation, PropertyDescriptor } from '@cratis/arc/reflection';");
     [Fact] void should_generate_valid_typescript_for_the_command() => _commandIsValid.ShouldBeTrue();
     [Fact] void should_emit_the_slice_location_on_the_query() => _queryCode.ShouldContain(ExpectedSliceLocation);
-    [Fact] void should_import_the_slice_location_type_for_the_query() => _queryCode.ShouldContain("import { ParameterDescriptor, SliceLocation } from '@cratis/arc/reflection';");
+    [Fact] void should_import_the_slice_location_type_for_the_query() => _queryCode.ShouldContain("import { SliceLocation as ArcSliceLocation, ParameterDescriptor } from '@cratis/arc/reflection';");
     [Fact] void should_emit_the_slice_location_on_the_observable_query() => _observableQueryCode.ShouldContain(ExpectedSliceLocation);
 
     public void Dispose()

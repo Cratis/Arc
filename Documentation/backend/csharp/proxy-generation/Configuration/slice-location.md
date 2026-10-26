@@ -69,14 +69,16 @@ public class SliceLocationTracingFilter : ICommandFilter
 Every generated command and query proxy declares its location as a static member, resolved when the proxy was generated:
 
 ```typescript
-import { PropertyDescriptor, SliceLocation } from '@cratis/arc/reflection';
+import { SliceLocation as ArcSliceLocation, PropertyDescriptor } from '@cratis/arc/reflection';
 
 export class PayInvoice extends Command<IPayInvoice> implements IPayInvoice {
-    static readonly sliceLocation: SliceLocation = new SliceLocation('Billing', 'Invoices', 'Pay');
+    static readonly sliceLocation: ArcSliceLocation = new ArcSliceLocation('Billing', 'Invoices', 'Pay');
     readonly route: string = '/api/billing/invoices/pay';
     // ...
 }
 ```
+
+The generated proxy imports Arc's type under the `ArcSliceLocation` alias, so a type of your own named `SliceLocation` can be used by the same proxy without a duplicate identifier.
 
 Read it from the class, or from any instance through the `sliceLocation` property that `Command`, `QueryFor` and `ObservableQueryFor` provide:
 
