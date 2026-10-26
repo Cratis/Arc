@@ -6,6 +6,14 @@
  */
 export type SliceLocationDeclaringType = abstract new (...args: never[]) => unknown;
 
+function isSliceLocationShaped(value: unknown): value is { module: string, feature: string, slice: string } {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+    const candidate = value as Record<string, unknown>;
+    return typeof candidate.module === 'string' && typeof candidate.feature === 'string' && typeof candidate.slice === 'string';
+}
+
 /**
  * Represents where a command or query lives: the module, feature and slice resolved from its backend namespace.
  * @remarks
@@ -48,7 +56,16 @@ export class SliceLocation {
      */
     static ofType(type: SliceLocationDeclaringType): SliceLocation {
         const declared = (type as { sliceLocation?: unknown }).sliceLocation;
-        return declared instanceof SliceLocation ? declared : SliceLocation.empty;
+        if (declared instanceof SliceLocation) {
+            return declared;
+        }
+
+        // A proxy compiled against another copy of @cratis/arc carries an instance of that copy's class.
+        if (isSliceLocationShaped(declared)) {
+            return new SliceLocation(declared.module, declared.feature, declared.slice);
+        }
+
+        return SliceLocation.empty;
     }
 
     /**

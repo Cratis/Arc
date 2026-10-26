@@ -10,6 +10,10 @@ abstract class Declaring {
 class NotDeclaring {
 }
 
+class DeclaringOneFromAnotherCopy {
+    static readonly sliceLocation = { module: 'Billing', feature: 'Invoices', slice: 'Refund' };
+}
+
 class DeclaringSomethingElse {
     static readonly sliceLocation = 'Billing/Invoices/Pay';
 }
@@ -18,14 +22,17 @@ describe('when getting it of a type', () => {
     let declared: SliceLocation;
     let undeclared: SliceLocation;
     let notASliceLocation: SliceLocation;
+    let fromAnotherCopy: SliceLocation;
 
     beforeEach(() => {
         declared = SliceLocation.ofType(Declaring);
         undeclared = SliceLocation.ofType(NotDeclaring);
         notASliceLocation = SliceLocation.ofType(DeclaringSomethingElse);
+        fromAnotherCopy = SliceLocation.ofType(DeclaringOneFromAnotherCopy);
     });
 
     it('should return the declared slice location', () => declared.should.equal(Declaring.sliceLocation));
     it('should return the empty slice location when the type declares none', () => undeclared.should.equal(SliceLocation.empty));
+    it('should return a slice location with the parts declared by another copy of the class', () => fromAnotherCopy.should.deep.equal(new SliceLocation('Billing', 'Invoices', 'Refund')));
     it('should return the empty slice location when the static member is not a slice location', () => notASliceLocation.should.equal(SliceLocation.empty));
 });
