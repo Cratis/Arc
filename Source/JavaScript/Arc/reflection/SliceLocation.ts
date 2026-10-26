@@ -29,7 +29,33 @@ export class SliceLocation {
      * @returns The declared {@link SliceLocation}, or {@link SliceLocation.empty} when the class declares none.
      */
     static of(instance: object): SliceLocation {
-        return (instance.constructor as { sliceLocation?: SliceLocation }).sliceLocation ?? SliceLocation.empty;
+        return SliceLocation.ofType(instance.constructor);
+    }
+
+    /**
+     * Gets the slice location a class declares through its static `sliceLocation` member, such as a generated command
+     * or query proxy class.
+     * @param type The class to get for.
+     * @returns The declared {@link SliceLocation}, or {@link SliceLocation.empty} when the class declares none.
+     */
+    static ofType(type: object): SliceLocation {
+        return (type as { sliceLocation?: SliceLocation }).sliceLocation ?? SliceLocation.empty;
+    }
+
+    /**
+     * Gets whether every part is empty, meaning nothing is known about where something lives.
+     */
+    get isEmpty(): boolean {
+        return this.module.length === 0 && this.feature.length === 0 && this.slice.length === 0;
+    }
+
+    /**
+     * Checks whether another slice location has the same module, feature and slice.
+     * @param other The slice location to compare with.
+     * @returns True when all parts are equal, false otherwise.
+     */
+    equals(other: SliceLocation): boolean {
+        return this.module === other.module && this.feature === other.feature && this.slice === other.slice;
     }
 
     /**
