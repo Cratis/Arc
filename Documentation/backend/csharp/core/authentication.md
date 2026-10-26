@@ -76,7 +76,7 @@ Core already supplies `Cratis.Arc.Identity.MicrosoftIdentityPlatformAuthenticati
 
 | Header | Purpose |
 | --- | --- |
-| `x-ms-client-principal-id` | User ID |
+| `x-ms-client-principal-id` | User ID, decoded when it carries the RFC 8187 `UTF-8''` form |
 | `x-ms-client-principal-name` | Display name |
 | `x-ms-client-principal` | Base64 JSON principal containing roles and claims |
 

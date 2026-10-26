@@ -14,7 +14,7 @@ Internally, it is based on the following HTTP headers to be present.
 | Header                     | Description                                                                                                                                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | x-ms-client-principal      | The unsigned principal payload holding the details, base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
-| x-ms-client-principal-id   | The unique identifier from the identity provider for the identity                                                                                                                                                           |
+| x-ms-client-principal-id   | The unique identifier from the identity provider for the identity. A value in the RFC 8187 form `UTF-8''` followed by percent-encoded UTF-8, which AuthProxy uses for an identifier that is not printable US-ASCII, is decoded |
 | x-ms-client-principal-name | The name of the identity, typically resolved from claims within the token                                                                                                                                                   |
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend

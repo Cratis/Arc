@@ -17,7 +17,7 @@ AuthProxy forwards an on-behalf session with the usual [Microsoft identity heade
 | Header                         | Carries                         | Encoding                                                                                                                                                         |
 | ------------------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `x-ms-client-principal`        | The represented user            | Base64 (standard alphabet, padded) of the UTF-8 JSON [client principal](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
-| `x-ms-client-principal-id`     | The represented user            | The user's identifier, as plain text. Must equal the `userId` of `x-ms-client-principal`                                                                         |
+| `x-ms-client-principal-id`     | The represented user            | The user's identifier: plain text when it is printable US-ASCII, otherwise the RFC 8187 form `UTF-8''` followed by percent-encoded UTF-8. Once decoded, must equal the `userId` of `x-ms-client-principal` |
 | `x-ms-client-principal-name`   | The represented user            | The user's name, as plain text                                                                                                                                    |
 | `x-cratis-on-behalf-actor`     | The actor                       | Base64 (standard alphabet, padded) of the UTF-8 JSON client principal of the actor, in the same shape as `x-ms-client-principal`                                  |
 | `x-cratis-on-behalf-assertion` | The signed binding of the above | A compact RS256 JWS, described in [What Arc verifies](#what-arc-verifies)                                                                                         |
@@ -54,6 +54,7 @@ On-behalf forwarding is off by default. Until you turn it on, a request carrying
         "Enabled": true,
         "Issuer": "https://authproxy.example.com",
         "Audience": "https://app.example.com",
+        "Service": "portal",
         "ClockSkew": "00:00:30",
         "SigningKeys": [
           {
@@ -80,12 +81,13 @@ builder.AddCratisArc(options =>
         Enabled = true,
         Issuer = "https://authproxy.example.com",
         Audience = "https://app.example.com",
+        Service = "portal",
         SigningKeys = [new OnBehalfOfSigningKey { KeyId = "authproxy-2026", PublicKeyPem = authProxyPublicKeyPem }]
     };
 });
 ```
 
-`Issuer` and `Audience` are AuthProxy's `OnBehalf:Attestation:Issuer` and `OnBehalf:Attestation:Audience`, and each signing key pairs AuthProxy's key identifier with its public key. `ClockSkew` defaults to 30 seconds.
+`Issuer` and `Audience` are AuthProxy's `OnBehalf:Attestation:Issuer` and `OnBehalf:Attestation:Audience`, and each signing key pairs AuthProxy's key identifier with its public key. `Service` is the name AuthProxy knows this application by, as written in AuthProxy's `Services` configuration. It is optional: leave it empty and Arc does not check which service an assertion was issued for. Set it when AuthProxy fronts more than one service with the same signing keys, issuer and audience, so an assertion issued for a request to another service is refused here. `ClockSkew` defaults to 30 seconds.
 
 Every signing key must be an RSA public key of at least 2048 bits in PEM form. Arc refuses a private key, so the signing secret never ends up in the application's configuration. Configure several keys to rotate: add the new public key before AuthProxy signs with it, and remove the old one once AuthProxy no longer does. When the configuration cannot be used (no issuer, audience or keys, a blank or duplicate key identifier, a private, short or unreadable key), every on-behalf forward fails, and an ASP.NET Core host that registers the Microsoft Identity Platform scheme logs an error naming the problem at startup.
 
@@ -98,17 +100,18 @@ Arc accepts an on-behalf forward only when the `x-cratis-on-behalf-assertion` to
 3. `iss` equals `Issuer` and `aud` equals, or contains, `Audience`.
 4. `nbf` and `exp` are present, the current time is within them allowing for `ClockSkew`, and the token lives at most five minutes (`exp` minus `nbf`, or minus `iat` when that is earlier).
 5. `purpose` is `on-behalf-forward`.
-6. `principal_hash` is the unpadded base64url SHA-256 of the exact `x-ms-client-principal` value, `sub` is that principal's `userId`, and `x-ms-client-principal-id` is the same `userId`.
-7. `actor_hash` is the unpadded base64url SHA-256 of the exact `x-cratis-on-behalf-actor` value, and `act.sub` is the actor's `userId`.
-8. When the request carries the tenant header Arc is configured to read (`Cratis:Arc:Tenancy:HttpHeader`, `x-cratis-tenant-id` by default), `tenant` equals it.
-9. When the token carries `htm`, it equals the request method. When it carries `htu`, its host name and path equal the request's host name and path; scheme, port and query are not compared.
-10. `jti` is present and has not been accepted before within the token's lifetime.
+6. When `Service` is configured, `svc` equals it.
+7. `principal_hash` is the unpadded base64url SHA-256 of the exact `x-ms-client-principal` value, `sub` is that principal's `userId`, and `x-ms-client-principal-id`, decoded from its `UTF-8''` form when it carries one, is the same `userId`.
+8. `actor_hash` is the unpadded base64url SHA-256 of the exact `x-cratis-on-behalf-actor` value, and `act.sub` is the actor's `userId`.
+9. When the request carries the tenant header Arc is configured to read (`Cratis:Arc:Tenancy:HttpHeader`, `x-cratis-tenant-id` by default), `tenant` equals it.
+10. When the token carries `htm`, it equals the request method. When it carries `htu`, it is an absolute path equal to the path the application received: its path base and path, without scheme, host or query. Both sides are compared after percent-decoding, except that `%2F` stays encoded, so `/a%2Fb` and `/a/b` remain different paths. A `htu` holding a full URL is refused. The host is not part of the binding because the application sees AuthProxy's internal address for itself, not the public one.
+11. `jti` is present and has not been accepted before within the token's lifetime.
 
 The actor must also be a valid client principal with a `userId` that differs from the represented user's.
 
 ### What this guarantees
 
-A forward that passes was issued by the holder of a configured private key, for this application, within the last five minutes, for exactly these identity headers, in the tenant the request names, and is used once per application instance. A caller who can reach the application directly cannot add an actor to their own request, swap the actor or the represented user on a captured forward, or move a forward to another tenant.
+A forward that passes was issued by the holder of a configured private key, for this application, within the last five minutes, for exactly these identity headers, in the tenant the request names (and, with `Service` configured, for this service), and is used once per application instance. A caller who can reach the application directly cannot add an actor to their own request, swap the actor or the represented user on a captured forward, or move a forward to another tenant.
 
 It does not guarantee more than that:
 
