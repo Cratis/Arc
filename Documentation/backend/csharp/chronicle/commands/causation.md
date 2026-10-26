@@ -16,7 +16,11 @@ When you execute a command inside `ISystemExecution.As(principal)` without an HT
 
 An active HTTP request keeps Chronicle's existing HTTP identity resolution; `ISystemExecution.As` does not replace its user. Outside HTTP, an explicitly selected non-System Chronicle identity still takes precedence. In a reactor, `ISystemExecution.As(principal)` replaces the System identity with the authenticated principal while preserving the triggering event's `OnBehalfOf` chain. Without an override scope, an explicitly selected System identity stays System; clearing it resumes principal resolution. Without an authenticated principal, Chronicle's identity stays unchanged.
 
-When the principal is acted on behalf of, as in an AuthProxy on-behalf session, the recorded identity is a chain: the actor first, then the represented user as its `OnBehalfOf`. Chronicle reports such an event's initiator as an agent acting on behalf of that user. This applies inside an HTTP request too, unless code has set an identity explicitly. See [Acting on behalf of a user](../../asp-net-core/acting-on-behalf-of.md).
+### When someone acts on behalf of the principal
+
+When the principal's identity has an actor (`ClaimsIdentity.Actor` is set), the recorded identity is a chain: the actor first, then the principal as its `OnBehalfOf`. Chronicle reports such an event's initiator as an agent acting on behalf of that user. This applies inside an HTTP request too, unless code has set an identity explicitly.
+
+This is a deliberate contract for every authentication scheme, not only [AuthProxy on-behalf sessions](../../asp-net-core/acting-on-behalf-of.md). A bearer token whose RFC 8693 `act` claim the JWT handler maps to `ClaimsIdentity.Actor` (for example a service exchanging a user's token) records the service as `causedBy`, on behalf of the token's subject. If a scheme in your application sets `ClaimsIdentity.Actor` for another purpose, the actor it sets is what the event log records as the cause.
 
 ## What gets recorded
 

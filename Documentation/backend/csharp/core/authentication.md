@@ -99,7 +99,7 @@ The handler ignores the forwarded headers, and returns `AuthenticationResult.Ano
 
 The first request that carries the headers while they are not trusted logs a warning that names this setting.
 
-A request carrying the on-behalf actor header, `x-cratis-on-behalf-actor`, is different: it fails authentication when the headers are not trusted, rather than running anonymously. A trusted on-behalf forward authenticates as the represented user with the actor as `ClaimsIdentity.Actor`; see [Acting on behalf of a user](../asp-net-core/acting-on-behalf-of.md).
+A request carrying an on-behalf header, `x-cratis-on-behalf-actor` or `x-cratis-on-behalf-assertion`, is different: it fails authentication unless the headers are trusted, `Cratis:Arc:OnBehalfOf:Enabled` is on and its signed assertion verifies. A verified on-behalf forward authenticates as the represented user with the actor as `ClaimsIdentity.Actor`; see [Acting on behalf of a user](../asp-net-core/acting-on-behalf-of.md).
 
 Arc cannot detect a custom handler that reads forwarded headers. If yours does, check the same option through `IOptions<ArcOptions>` and return `AuthenticationResult.Anonymous` when `TrustForwardedIdentityHeaders` is `false`.
 

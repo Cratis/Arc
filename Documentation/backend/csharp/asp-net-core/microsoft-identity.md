@@ -145,7 +145,7 @@ that widened set returns the forgery.
 
 ## Acting on behalf of a user
 
-When Cratis AuthProxy forwards a session in which a support person or an agent acts on behalf of a user, it adds an `x-cratis-on-behalf-actor` header. The principal stays the represented user, and the actor is attached to it. Arc rejects that header unless the forward is trusted. See [Acting on behalf of a user](acting-on-behalf-of.md) for the header contract and how to read the actor.
+When Cratis AuthProxy forwards a session in which a support person or an agent acts on behalf of a user, it adds an `x-cratis-on-behalf-actor` header and a signed `x-cratis-on-behalf-assertion`. The principal stays the represented user, and the actor is attached to it. Arc rejects both headers unless on-behalf forwarding is turned on and the assertion verifies. See [Acting on behalf of a user](acting-on-behalf-of.md) for the configuration, the verification rules and how to read the actor.
 
 ## Identity Details
 
