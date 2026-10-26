@@ -10,7 +10,7 @@ class Declaring {
 class NotDeclaring {
 }
 
-describe('when getting it of a type', () => {
+describe('when reading it from a type', () => {
     it('should return the location the type declares', () => SliceLocation.ofType(Declaring).should.equal(Declaring.sliceLocation));
     it('should return the empty location when the type declares none', () => SliceLocation.ofType(NotDeclaring).should.equal(SliceLocation.empty));
 });
