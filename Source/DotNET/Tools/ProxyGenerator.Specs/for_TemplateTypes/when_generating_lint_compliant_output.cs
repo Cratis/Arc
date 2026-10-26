@@ -106,6 +106,7 @@ public class when_generating_lint_compliant_output : Specification
     [Fact] void should_supply_the_command_response_generic() => _contents.ShouldContain(content => content.Contains("useCommand<Sample, ISample, number>", StringComparison.Ordinal));
     [Fact] void should_use_ecmascript_private_fields_for_command_properties() => _contents.ShouldContain(content => content.Contains("#origin!: string;", StringComparison.Ordinal));
     [Fact] void should_preserve_empty_interfaces() => _contents.ShouldContain(content => content.Contains("export interface ISample {", StringComparison.Ordinal));
+    [Fact] void should_alias_the_arc_slice_location_beside_a_user_slice_location() => _contents[^1].ShouldContain("SliceLocation as ArcSliceLocation");
     [Fact] void should_preserve_metadata_recognition() => Directory.GetFiles(_directory).All(file => GeneratedFileMetadata.IsGeneratedFile(file, out _)).ShouldBeTrue();
 
     static string ResponseHooks()
@@ -153,6 +154,49 @@ public class when_generating_lint_compliant_output : Specification
             Roles = Array.Empty<string>(),
             TreatWarningsAsErrorsForPolicy = false
         }));
+
+        // A consumer type named SliceLocation must coexist with the slice location Arc imports for every proxy.
+        contents.Add(TemplateTypes.Type(new { Name = "SliceLocation", Properties = new[] { new { Name = "Name", Type = "string", Constructor = "String", IsNullable = false } }, Imports = Array.Empty<object>() }));
+        contents.Add(TemplateTypes.Command(new
+        {
+            Name = "CommandWithUserSliceLocation",
+            Route = "api/user-slice-location",
+            HasResponse = false,
+            SliceLocation = new { Module = "Usher", Feature = "Locations", Slice = "Register" },
+            Properties = new[] { new { Name = "Location", Type = "SliceLocation", Constructor = "SliceLocation", IsNullable = false, IsEnumerable = false } },
+            Parameters = Array.Empty<object>(),
+            Imports = Array.Empty<object>(),
+            Roles = Array.Empty<string>(),
+            TreatWarningsAsErrorsForPolicy = false
+        }));
+        foreach (var (template, name) in new[] { (TemplateTypes.Query, "QueryForUserSliceLocation"), (TemplateTypes.ObservableQuery, "ObservableQueryForUserSliceLocation") })
+        {
+            contents.Add(template(new
+            {
+                Name = name,
+                Route = "api/user-slice-location",
+                Type = typeof(string),
+                Method = typeof(string).GetMethod(nameof(string.Clone)),
+                Model = "SliceLocation",
+                Constructor = "SliceLocation",
+                IsEnumerable = false,
+                SliceLocation = new { Module = "Usher", Feature = "Locations", Slice = "Listing" },
+                Properties = Array.Empty<object>(),
+                Parameters = Array.Empty<object>(),
+                RequiredParameters = Array.Empty<object>(),
+                Imports = Array.Empty<object>(),
+                Roles = Array.Empty<string>(),
+                TreatWarningsAsErrors = false
+            }));
+        }
+        contents.Add(string.Join<string>('\n',
+        [
+            "export function useBothSliceLocations(): string[] {",
+            "    const command = new CommandWithUserSliceLocation();",
+            "    command.location = new SliceLocation();",
+            "    return [command.location.name, CommandWithUserSliceLocation.sliceLocation.toString(), QueryForUserSliceLocation.sliceLocation.toString(), ObservableQueryForUserSliceLocation.sliceLocation.toString()];",
+            "}"
+        ]));
         contents.Add(string.Join<string>('\n',
         [
             "// Existing public empty interfaces remain augmentable and accept non-nullish primitives.",
