@@ -16,6 +16,8 @@ import type { SetSorting } from './SetSorting.js';
 import type { SetPage } from './SetPage.js';
 import type { SetPageSize } from './SetPageSize.js';
 import { ArcContext } from '../ArcContext.js';
+import { SliceLocation } from '@cratis/arc/reflection';
+import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
@@ -194,6 +196,7 @@ function useObservableQueryInternal<
         sorting ?? Sorting.none,
     );
     const arc = useContext(ArcContext);
+    useRegisterSliceLocation(SliceLocation.ofType(query));
     const queryCache = useContext(QueryInstanceCacheContext);
     const queryScope = useQueryScope();
     const ownerRef = useRef<string | undefined>(owner);

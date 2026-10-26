@@ -14,6 +14,8 @@ import type { SetSorting } from './SetSorting.js';
 import type { SetPage } from './SetPage.js';
 import type { SetPageSize } from './SetPageSize.js';
 import { ArcContext } from '../ArcContext.js';
+import { SliceLocation } from '@cratis/arc/reflection';
+import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { QueryFailed } from './QueryFailed.js';
 import { QueryUnauthorized } from './QueryUnauthorized.js';
 
@@ -243,6 +245,7 @@ function useSuspenseObservableQueryInternal<
     isEnabled: boolean = true,
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
+    useRegisterSliceLocation(SliceLocation.ofType(query));
     const [currentSorting, setCurrentSorting] = useState<Sorting>(
         sorting ?? Sorting.none,
     );

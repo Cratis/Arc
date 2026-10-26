@@ -13,6 +13,8 @@ import { ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/qu
 import { Messenger } from '@cratis/arc/messaging';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext.js';
 import { MessengerScopeContext } from './messaging/MessengerScopeContext.js';
+import { SliceScope } from './slices/SliceScope.js';
+import { SliceScopeContext } from './slices/SliceScopeContext.js';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**
@@ -93,6 +95,7 @@ export interface ArcProps {
 export const Arc = (props: ArcProps) => {
     const [queryVersion, setQueryVersion] = useState(0);
     const messenger = useRef(new Messenger());
+    const sliceScope = useRef(new SliceScope());
 
     // The cache is application-scoped — create once per Arc mount.
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
@@ -161,7 +164,9 @@ export const Arc = (props: ArcProps) => {
                 <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
                     <IdentityProvider httpHeadersCallback={props.httpHeadersCallback} detailsType={props.detailsType}>
                         <CommandScope>
-                            {props.children}
+                            <SliceScopeContext.Provider value={sliceScope.current}>
+                                {props.children}
+                            </SliceScopeContext.Provider>
                         </CommandScope>
                     </IdentityProvider>
                 </QueryInstanceCacheContext.Provider>
