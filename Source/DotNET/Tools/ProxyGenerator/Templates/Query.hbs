@@ -10,7 +10,7 @@ import { PerformQuery, QueryWhen, SetPage, SetPageSize, SetSorting, useQuery, us
 import { QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
 import { PerformQuery, QueryWhen, SetSorting, useQuery, useSuspenseQuery } from '@cratis/arc.react/queries';
 {{/if}}
-import { ParameterDescriptor } from '@cratis/arc/reflection';
+import { SliceLocation as ArcSliceLocation, ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
@@ -117,6 +117,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}[]> {
 export class {{Name}} extends QueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
+    static readonly sliceLocation: ArcSliceLocation = new ArcSliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
     readonly route: string = '{{{Route}}}';
     readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
 {{#if HasValidationRules}}

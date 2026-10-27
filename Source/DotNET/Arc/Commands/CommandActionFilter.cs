@@ -2,10 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
 using Cratis.Traces;
 using Cratis.Types;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -229,6 +231,11 @@ public class CommandActionFilter(
             commandType = typeof(object);
         }
 
+        // The proxy generator places a controller's commands by the controller's namespace, so the slice location follows it.
+        var sliceLocation = context.ActionDescriptor is ControllerActionDescriptor { ControllerTypeInfo: { } controllerType }
+            ? SliceLocation.For(controllerType)
+            : SliceLocation.For(commandType);
+
         var values = contextValuesBuilder.Build(command);
         var commandContext = new CommandContext(
             context.HttpContext.GetCorrelationId(),
@@ -240,7 +247,8 @@ public class CommandActionFilter(
             CancellationToken: context.HttpContext.RequestAborted)
         {
             ReceivedAt = OperationContextScope.Current ?? default,
-            IsControllerAction = true
+            IsControllerAction = true,
+            SliceLocation = sliceLocation
         };
 
         contextModifier.SetCurrent(commandContext);

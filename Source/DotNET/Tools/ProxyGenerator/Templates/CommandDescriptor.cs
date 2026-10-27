@@ -49,6 +49,11 @@ public record CommandDescriptor(
     public bool HasValidationRules => ValidationRules.Any();
 
     /// <summary>
+    /// Gets the slice location resolved from the same namespace mapping as the proxy's output folder.
+    /// </summary>
+    public SliceLocationDescriptor SliceLocation { get; init; } = SliceLocationDescriptor.Empty;
+
+    /// <summary>
     /// Gets the inclusive severity at which the model-bound command blocks validation failures, if declared.
     /// </summary>
     public int? BlockOnValidationSeverity { get; init; }

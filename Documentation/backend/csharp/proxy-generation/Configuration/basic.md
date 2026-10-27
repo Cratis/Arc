@@ -41,7 +41,7 @@ With skipping:
 MyFeature/
 ```
 
-For more control over namespace-to-folder mapping, see [Namespace Roots](namespace-roots.md).
+For more control over namespace-to-folder mapping, see [Namespace Roots](namespace-roots.md). The same mapping decides the [slice location](slice-location.md) of commands and queries.
 
 ## Source file as output file
 

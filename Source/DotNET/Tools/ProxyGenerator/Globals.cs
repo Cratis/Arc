@@ -11,5 +11,5 @@ public static class Globals
     /// <summary>
     /// Gets the namespace prefix to use as base for all types.
     /// </summary>
-    public const string NamespacePrefix = "Cratis.API";
+    public const string NamespacePrefix = Slices.SliceNamespace.ApiNamespacePrefix;
 }

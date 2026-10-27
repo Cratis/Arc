@@ -99,7 +99,8 @@ public static partial class TypeScriptContentCombiner
         foreach (var modulePath in moduleOrder)
         {
             // Sort bindings, not modules: changing module order can change evaluation in an import cycle.
-            var names = namedImportsByModule[modulePath].Order(StringComparer.Ordinal);
+            // Bindings sort by their local name, so an aliased binding ('X as Y') sorts as 'Y'.
+            var names = namedImportsByModule[modulePath].OrderBy(LocalNameOf, StringComparer.Ordinal);
             importLines.Add($"import {{ {string.Join(", ", names)} }} from '{modulePath}';");
         }
         importLines.AddRange(otherImportLines);
@@ -134,6 +135,12 @@ public static partial class TypeScriptContentCombiner
           .AppendLine();
 
         return sb.ToString();
+    }
+
+    static string LocalNameOf(string binding)
+    {
+        var aliasIndex = binding.LastIndexOf(" as ", StringComparison.Ordinal);
+        return aliasIndex < 0 ? binding : binding[(aliasIndex + 4)..].Trim();
     }
 
     static ParsedContent ParseContent(string content)

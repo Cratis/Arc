@@ -46,7 +46,7 @@ You can declare multiple roots. The longest matching namespace wins:
 
 Namespace roots **only take effect for types whose namespace matches the root**. Types that do not match any configured root fall back to `CratisProxiesSegmentsToSkip` as normal.
 
-These XML blocks belong inside the existing project's `Project` element. Namespace roots affect **output folders only**, not conventional API routes.
+These XML blocks belong inside the existing project's `Project` element. Namespace roots affect output folders and the [slice location](slice-location.md) of commands and queries, not conventional API routes.
 
 ## CLI
 

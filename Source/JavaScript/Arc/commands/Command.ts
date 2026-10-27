@@ -10,6 +10,7 @@ import { joinPaths } from '../joinPaths.js';
 import { UrlHelpers } from '../UrlHelpers.js';
 import { GetHttpHeaders } from '../GetHttpHeaders.js';
 import { PropertyDescriptor } from '../reflection/PropertyDescriptor.js';
+import { SliceLocation } from '../reflection/SliceLocation.js';
 import { ValidationResult } from '../validation/ValidationResult.js';
 import { ValidationResultSeverity } from '../validation/ValidationResultSeverity.js';
 import { ValidationResultReason } from '../validation/ValidationResultReason.js';
@@ -26,6 +27,11 @@ type Callback = {
  * {@link ValidationResultReasonDetail.Required}, without contacting the server.
  */
 export abstract class Command<TCommandContent = object, TCommandResponse = object> implements ICommand<TCommandContent, TCommandResponse> {
+    /**
+     * Gets the {@link SliceLocation} of the command. Generated proxies override it with the location resolved from the backend namespace.
+     */
+    static readonly sliceLocation: SliceLocation = SliceLocation.empty;
+
     private _microservice: string;
     private _apiBasePath: string;
     private _origin: string;

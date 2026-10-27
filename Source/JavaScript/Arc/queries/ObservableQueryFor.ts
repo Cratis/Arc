@@ -19,6 +19,7 @@ import { UrlHelpers } from '../UrlHelpers.js';
 import type { GetHttpHeaders } from '../GetHttpHeaders.js';
 import type { ParameterDescriptor } from '../reflection/ParameterDescriptor.js';
 import { ParametersHelper } from '../reflection/ParametersHelper.js';
+import { SliceLocation } from '../reflection/SliceLocation.js';
 import type { QueryHttpMethod } from './QueryHttpMethod.js';
 import { executeQueryHttpRequest } from './QueryHttpRequest.js';
 
@@ -32,6 +33,11 @@ export abstract class ObservableQueryFor<
     TDataType,
     TParameters = object,
 > implements IObservableQueryFor<TDataType, TParameters> {
+    /**
+     * Gets the {@link SliceLocation} of the query. Generated proxies override it with the location resolved from the backend namespace.
+     */
+    static readonly sliceLocation: SliceLocation = SliceLocation.empty;
+
     private _microservice: string;
     private _apiBasePath: string;
     private _origin: string;
