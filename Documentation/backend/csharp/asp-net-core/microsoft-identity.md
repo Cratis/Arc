@@ -14,7 +14,7 @@ Internally, it is based on the following HTTP headers to be present.
 | Header                     | Description                                                                                                                                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | x-ms-client-principal      | The unsigned principal payload holding the details, base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
-| x-ms-client-principal-id   | The unique identifier from the identity provider for the identity                                                                                                                                                           |
+| x-ms-client-principal-id   | The unique identifier from the identity provider for the identity. A value in the RFC 8187 form `UTF-8''` followed by percent-encoded UTF-8, which AuthProxy uses for an identifier that is not printable US-ASCII, is decoded |
 | x-ms-client-principal-name | The name of the identity, typically resolved from claims within the token                                                                                                                                                   |
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
@@ -142,6 +142,10 @@ that widened set returns the forgery.
 > neither**, so use this claim for telling federations apart, for diagnostics, and for provider-aware behavior. If you
 > need a durable provider key, read the claim the ingress publishes for that purpose — `urn:cratis:identity:provider-key`
 > in an AuthProxy deployment — rather than this one. Arc copies such ingress-authored claims through untouched.
+
+## Acting on behalf of a user
+
+When Cratis AuthProxy forwards a session in which a support person or an agent acts on behalf of a user, it adds an `x-cratis-on-behalf-actor` header and a signed `x-cratis-on-behalf-assertion`. The principal stays the represented user, and the actor is attached to it. Arc rejects both headers unless on-behalf forwarding is turned on and the assertion verifies. See [Acting on behalf of a user](acting-on-behalf-of.md) for the configuration, the verification rules and how to read the actor.
 
 ## Identity Details
 

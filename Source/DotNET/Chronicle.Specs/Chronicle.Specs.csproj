@@ -18,4 +18,7 @@
         <ProjectReference Include="../MongoDB/MongoDB.csproj" />
         <ProjectReference Include="../Chronicle.Testing/Chronicle.Testing.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <Compile Include="../Specs.Shared/OnBehalfOfAssertionsForSpecs.cs" Link="Identity/OnBehalfOfAssertionsForSpecs.cs" />
+    </ItemGroup>
 </Project>

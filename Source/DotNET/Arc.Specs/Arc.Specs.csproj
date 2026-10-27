@@ -10,4 +10,7 @@
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
         <ProjectReference Include="../Arc/Arc.csproj" />
     </ItemGroup>
+    <ItemGroup>
+        <Compile Include="../Specs.Shared/OnBehalfOfAssertionsForSpecs.cs" Link="Identity/OnBehalfOfAssertionsForSpecs.cs" />
+    </ItemGroup>
 </Project>

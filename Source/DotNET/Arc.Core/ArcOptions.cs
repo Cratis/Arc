@@ -8,6 +8,7 @@ using Cratis.Arc.Calendar;
 using Cratis.Arc.Connections;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Execution;
+using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
@@ -93,6 +94,12 @@ public class ArcOptions
 #pragma warning restore CS0618
         set => _trustForwardedIdentityHeaders = value;
     }
+
+    /// <summary>
+    /// Gets or sets the options for accepting on-behalf forwards from Cratis AuthProxy, bound from
+    /// <c>Cratis:Arc:OnBehalfOf</c>. Off by default.
+    /// </summary>
+    public OnBehalfOfOptions OnBehalfOf { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the options for the application calendar, bound from <c>Cratis:Arc:Calendar</c>.

@@ -6,6 +6,8 @@
   href: authorization.md
 - name: Microsoft Identity
   href: microsoft-identity.md
+- name: Acting on behalf of a user
+  href: acting-on-behalf-of.md
 - name: FromRequest Attribute
   href: from-request.md
 - name: Swagger
