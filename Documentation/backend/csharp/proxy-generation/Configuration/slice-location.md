@@ -14,7 +14,7 @@ The location comes from the namespace of the type that owns the command or query
 3. Without a matching root, the `Cratis.API` namespace prefix is removed before skipping, exactly as for the output folder, so the folder and the slice location never differ.
 4. Of the segments that remain, the first is the **module**, the last is the **slice**, and those in between are the **feature**, joined with a period.
 
-When fewer than three segments remain, the deepest parts are filled and the rest are empty strings, never null.
+When fewer than three segments remain, the deepest parts are filled and the rest are empty strings, never null. A command or query always lives in a slice, so a short namespace still names its slice. React components resolved from their folders fill from the module down instead; see [slice context](../../../../frontend/react/slice-context.md#folders-map-from-the-module-down).
 
 With the namespace root `MyApp.Features`:
 
@@ -96,7 +96,9 @@ const fromInstance = SliceLocation.of(new PayInvoice());
 console.log(fromClass.toString()); // Billing/Invoices/Pay
 ```
 
-`SliceLocation.of(instance)` and `SliceLocation.ofType(type)` read the static member and return `SliceLocation.empty` when the class declares none. Instances have no `sliceLocation` member: a command with a property named `SliceLocation`, or a query with a parameter of that name, gets a generated `sliceLocation` accessor of its own, and an inherited member of the same name would not compile.
+`SliceLocation.of(instance)` and `SliceLocation.ofType(type)` read the static member and return `SliceLocation.empty` when the class declares none. `isEmpty` tells whether any part is known, and `equals(other)` compares two locations part by part. Instances have no `sliceLocation` member: a command with a property named `SliceLocation`, or a query with a parameter of that name, gets a generated `sliceLocation` accessor of its own, and an inherited member of the same name would not compile.
+
+In React, components read the slice they are rendered in with `useSliceContext()`. See [slice context](../../../../frontend/react/slice-context.md).
 
 ## Upgrading
 

@@ -8,6 +8,8 @@ import { SetSorting } from './SetSorting.js';
 import { SetPage } from './SetPage.js';
 import { SetPageSize } from './SetPageSize.js';
 import { ArcContext, type ArcConfiguration } from '../ArcContext.js';
+import { SliceLocation } from '@cratis/arc/reflection';
+import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { useCommandScope } from '../commands/useCommandScope.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
@@ -119,6 +121,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const arc = useContext(ArcContext);
+    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const commandScope = useCommandScope();
     const queryScope = useQueryScope();
     const queryCache = useContext(QueryInstanceCacheContext);

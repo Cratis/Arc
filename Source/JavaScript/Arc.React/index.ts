@@ -6,6 +6,7 @@ import * as dialogs from './dialogs/index.js';
 import * as identity from './identity/index.js';
 import * as messaging from './messaging/index.js';
 import * as queries from './queries/index.js';
+import * as slices from './slices/index.js';
 import * as stories from './stories/index.js';
 
 export * from './Arc.js';
@@ -18,5 +19,6 @@ export {
     identity,
     messaging,
     queries,
+    slices,
     stories
 };

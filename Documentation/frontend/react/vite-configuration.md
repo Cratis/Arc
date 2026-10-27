@@ -62,3 +62,7 @@ server: {
 ```
 
 Neither rule needs `changeOrigin: true` when the backend is on the same machine.
+
+## Slice locations from component folders
+
+`SliceLocationPlugin` from `@cratis/arc.vite/slices` lets components in slice folders tell `useSliceContext()` which module, feature and slice they belong to. See [resolve from slice folders at build time](./slice-context.md#resolve-from-slice-folders-at-build-time) for its options and what it changes in your components. It is a separate entry point, so importing the plugins above does not load its parser.

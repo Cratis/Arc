@@ -65,6 +65,16 @@
                 "default": "./dist/cjs/queries/index.js"
             }
         },
+        "./slices": {
+            "import": {
+                "types": "./dist/esm/slices/index.d.ts",
+                "default": "./dist/esm/slices/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/slices/index.d.ts",
+                "default": "./dist/cjs/slices/index.js"
+            }
+        },
         "./dialogs": {
             "import": {
                 "types": "./dist/esm/dialogs/index.d.ts",

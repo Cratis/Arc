@@ -6,6 +6,8 @@ import { useState, useCallback, useContext, useRef, useMemo, useEffect } from 'r
 import { Command } from '@cratis/arc/commands';
 import { CommandScopeContext } from './CommandScope.js';
 import { ArcContext } from '../ArcContext.js';
+import { SliceLocation } from '@cratis/arc/reflection';
+import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 
 export type SetCommandValues<TCommandContent> = (command: TCommandContent) => void;
 export type ClearCommandValues = () => void;
@@ -28,6 +30,7 @@ export function useCommand<
     const [hasChanges, setHasChanges] = useState(false);
     const [, setVersion] = useState(0);
     const arc = useContext(ArcContext);
+    useRegisterSliceLocation(SliceLocation.ofType(commandType));
 
     const propertyChangedCallback = useCallback(() => {
         if (command.current?.hasChanges !== hasChanges) {
