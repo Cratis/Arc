@@ -27,6 +27,8 @@ public class from_unsupported_slice_rejections : a_generated_document
     [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "_slice = new(new RegisterAuthor(\"\")) { };", "Slice<RegisterAuthor> _slice = null!; SliceOutcome<RegisterAuthor> _outcome = null!;")]
     [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "", SliceRejectionSources.Members + " object InspectSlice() => _slice;")]
     [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "", SliceRejectionSources.Members + " object InspectOutcome() => _outcome;")]
+    [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "", SliceRejectionSources.Members + " async Task Destroy() { _ = _slice.Then; await _slice.DisposeAsync(); }")]
+    [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "", SliceRejectionSources.Members + " async Task Destroy() { await _slice.DisposeAsync(); _ = _outcome; }")]
     public void should_withhold_the_whole_scenario(string action, string assertion, string setup, string members)
     {
         var sources = SliceRejectionSources.With(action, assertion, setup, members);

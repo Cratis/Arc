@@ -13,6 +13,8 @@ public class from_a_slice_rejection : a_generated_document
     [InlineData("_outcome = await _slice.Run()", "_slice.Then.ShouldBeRejected()", "_slice = new(new RegisterAuthor(\"\"));", "Slice<RegisterAuthor> _slice = null!; SliceOutcome<RegisterAuthor> _outcome = null!;")]
     [InlineData("this._outcome = await this._slice.Run()", "this._outcome.ShouldBeRejected()", "this._slice = new(new RegisterAuthor(\"\"));", "Slice<RegisterAuthor> _slice = null!; SliceOutcome<RegisterAuthor> _outcome = null!;")]
     [InlineData("await this._slice.Run()", "this._slice.Then.ShouldBeRejected()", "", SliceRejectionSources.Members)]
+    [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "", SliceRejectionSources.Members + " async Task Destroy() => await _slice.DisposeAsync();")]
+    [InlineData("_outcome = await _slice.Run()", "_outcome.ShouldBeRejected()", "", SliceRejectionSources.Members + " async Task Destroy() { await this._slice.DisposeAsync(); }")]
     public void should_preserve_the_own_command_and_unnamed_rejection(string action, string assertion, string setup, string members)
     {
         var sources = SliceRejectionSources.With(action, assertion, setup, members);
