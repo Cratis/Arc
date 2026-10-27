@@ -93,10 +93,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var draft = new SpecificationDraft { EventSources = new(models, _held), CaseValues = caseValues };
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models), models), _held);
-        reader.ReadWhen(steps, draft, name, location);
-        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
-        new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
+        ReadSteps(type, draft, name, stated);
 
         if (readModel is INamedTypeSymbol namedReadModel && draft.When is null)
         {
@@ -224,6 +221,23 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         var state = new SpecificationStateModel(readModel.Name, SpecificationStateKind.ReadModel, values);
         draft.AddThen(state, readModel, source);
+    }
+
+    void ReadSteps(INamedTypeSymbol type, SpecificationDraft draft, string name, ScreenplayDiagnostics stated)
+    {
+        var steps = SpecificationMembers.StepsOf(type);
+        var location = type.ToDisplayString();
+        var values = new SpecificationValues(stated, new GeneratedIdentities(models), models);
+        if (SliceSpecificationReader.CommandOf(steps) is not null)
+        {
+            new SliceSpecificationReader(models, _held, values).Read(type, draft, name, location);
+            return;
+        }
+
+        var reader = new SpecificationStepReader(models, values, _held);
+        reader.ReadWhen(steps, draft, name, location);
+        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: SpecificationMembers.ReadModelOf(steps) is not null);
+        new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
     }
 
     /// <summary>

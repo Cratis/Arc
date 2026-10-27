@@ -87,7 +87,8 @@ public static class SpecificationMembers
     /// exactly why it is asked: a specification that holds a scenario and issues its command through a helper is one
     /// this cannot read, and saying so is the difference between a known gap and a silent one.
     /// </remarks>
-    public static bool HoldsAScenario(INamedTypeSymbol type) => Holds(type, WellKnownTypeNames.CommandScenario) is not null;
+    public static bool HoldsAScenario(INamedTypeSymbol type) =>
+        Holds(type, WellKnownTypeNames.CommandScenario) is not null || SliceSpecificationReader.CommandOf(type) is not null;
 
     /// <summary>
     /// Determines whether a type holds an event append scenario.
@@ -104,7 +105,7 @@ public static class SpecificationMembers
     public static ITypeSymbol? CommandOf(INamedTypeSymbol type) =>
         Holds(type, WellKnownTypeNames.CommandScenario) is INamedTypeSymbol { TypeArguments.Length: 1 } scenario
             ? scenario.TypeArguments[0]
-            : null;
+            : SliceSpecificationReader.CommandOf(type);
 
     /// <summary>
     /// Gets the read model a type is written as a scenario of.

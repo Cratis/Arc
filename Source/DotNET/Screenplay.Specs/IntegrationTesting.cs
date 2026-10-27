@@ -26,6 +26,45 @@ public static class IntegrationTesting
     public const string Path = "Library/Testing/IntegrationTesting.cs";
 
     /// <summary>
+    /// The shipped slice signatures used by the bounded rejection recognition specifications.
+    /// </summary>
+    public const string Slices = """
+        using System;
+        using System.Security.Claims;
+        using System.Threading.Tasks;
+        using Cratis.Chronicle.Events;
+
+        namespace Cratis.Arc.Commands
+        {
+            public class CommandResult;
+        }
+
+        namespace Cratis.Arc.Chronicle.Testing.Slices
+        {
+            public sealed class Slice<TCommand>(TCommand command) : IAsyncDisposable where TCommand : class
+            {
+                public TCommand Command { get; } = command;
+                public Cratis.Arc.Testing.Commands.CommandScenario<TCommand> Scenario { get; } = new();
+                public SliceOutcome<TCommand> Then => null!;
+                public Slice<TCommand> GivenCaller(ClaimsPrincipal caller) => this;
+                public Task<SliceOutcome<TCommand>> Run() => Task.FromResult<SliceOutcome<TCommand>>(null!);
+                public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+            }
+
+            public sealed class SliceOutcome<TCommand>(Cratis.Arc.Commands.CommandResult result, Cratis.Arc.Testing.Commands.CommandScenario<TCommand> scenario)
+                where TCommand : class
+            {
+                public Cratis.Arc.Commands.CommandResult Result { get; } = result;
+                public Cratis.Arc.Testing.Commands.CommandScenario<TCommand> Scenario { get; } = scenario;
+                public void ShouldBeRejected() { }
+                public void ShouldBeRejected(string reason) { }
+                public void ShouldBeDenied() { }
+                public Task ShouldHaveAppendedEvent<TEvent>(EventSourceId eventSourceId) => Task.CompletedTask;
+            }
+        }
+        """;
+
+    /// <summary>
     /// The source of the surface.
     /// </summary>
     public const string Source = """
