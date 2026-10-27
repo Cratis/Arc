@@ -14,6 +14,9 @@ const tsconfigPath = path.join(import.meta.dirname, "tsconfig.json");
 
 const config = rollup(cjsPath, esmPath, tsconfigPath, pkg);
 
+// The slice location plugin is its own entry, so importing the package root does not load the native oxc parser.
+config.input = ['index.ts', 'slices/index.ts'];
+
 // This Vite plugin runs in Node; its built-ins are provided by the host, not bundled.
 config.external.push(...builtinModules.flatMap(name => [name, `node:${name}`]));
 

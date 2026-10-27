@@ -31,6 +31,8 @@ import { DialogComponentsContext, DialogContextContent, IDialogComponents, useDi
 import { ICommandScope, useCommandScope } from '@cratis/arc.react/commands';
 import { IQueryScope, useQueryScope } from '@cratis/arc.react/queries';
 import { IMessenger } from '@cratis/arc/messaging';
+import { SliceLocation } from '@cratis/arc/reflection';
+import { useRegisterSliceLocations } from './useRegisterSliceLocations.js';
 
 interface IViewModel extends IViewModelDetached {
     __childContainer: DependencyContainer;
@@ -104,6 +106,8 @@ export function withViewModel<TViewModel extends object, TProps extends object =
         const [, setInitialRender] = useState(true);
         const parentDialogMediator = useDialogMediator();
         const dialogContext = useDialogContext();
+        const [sliceLocations, setSliceLocations] = useState<SliceLocation[]>([]);
+        useRegisterSliceLocations(sliceLocations);
 
         const routeParamsType = (viewModelType as unknown as Record<string, Constructor>)[routeParamsTypeKey] as Constructor | undefined;
         const queryParamsType = (viewModelType as unknown as Record<string, Constructor>)[queryParamsTypeKey] as Constructor | undefined;
@@ -133,6 +137,8 @@ export function withViewModel<TViewModel extends object, TProps extends object =
             child.registerInstance(IMessenger as Constructor<IMessenger>, messenger);
 
             const originalResolve = child.resolve;
+            const resolvedSliceLocations: SliceLocation[] = [];
+            let isConstructingViewModel = true;
 
             child.resolve = function <T>(type: Constructor<T>) {
                 // eslint-disable-next-line prefer-rest-params
@@ -145,6 +151,14 @@ export function withViewModel<TViewModel extends object, TProps extends object =
                     query.setMicroservice(applicationContext.microservice);
                     query.setApiBasePath(applicationContext.apiBasePath ?? '');
                     query.setOrigin(applicationContext.origin ?? '');
+
+                    const location = SliceLocation.ofType(type);
+                    if (!location.isEmpty && !resolvedSliceLocations.some(resolved => resolved.equals(location))) {
+                        resolvedSliceLocations.push(location);
+                        if (!isConstructingViewModel) {
+                            setSliceLocations([...resolvedSliceLocations]);
+                        }
+                    }
                 }
 
                 return instance;
@@ -156,6 +170,8 @@ export function withViewModel<TViewModel extends object, TProps extends object =
             makeAutoObservable(viewModel);
             viewModel.__childContainer = child;
             currentViewModel.current = viewModel as TViewModel;
+            isConstructingViewModel = false;
+            setSliceLocations([...resolvedSliceLocations]);
 
             setInitialRender(false);
             handleProps(viewModel, props);

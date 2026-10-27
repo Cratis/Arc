@@ -5,3 +5,4 @@ export * from './IHaveParameters.js';
 export * from './ParameterDescriptor.js';
 export * from './ParametersHelper.js';
 export * from './PropertyDescriptor.js';
+export * from './SliceLocation.js';

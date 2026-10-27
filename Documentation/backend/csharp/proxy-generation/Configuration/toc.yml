@@ -12,6 +12,8 @@
   href: type-exclusions.md
 - name: Namespace Roots
   href: namespace-roots.md
+- name: Slice Location
+  href: slice-location.md
 - name: Assembly-to-Package Mappings
   href: assembly-package-mappings.md
 - name: Routing

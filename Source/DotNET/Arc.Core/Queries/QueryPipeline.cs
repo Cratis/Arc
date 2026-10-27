@@ -10,6 +10,7 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
@@ -98,6 +99,14 @@ public class QueryPipeline(
             throw;
         }
     }
+
+    /// <summary>
+    /// Gets the slice location of the query a performer performs.
+    /// </summary>
+    /// <param name="performer">The <see cref="IQueryPerformer"/> performing the query.</param>
+    /// <returns>The <see cref="SliceLocation"/>; <see cref="SliceLocation.NotSet"/> for a performer without a type, such as a substitute, so it never fails the query.</returns>
+    static SliceLocation SliceLocationFor(IQueryPerformer performer) =>
+        performer.Type is { } type ? SliceLocation.For(type) : SliceLocation.NotSet;
 
     static bool IsObservable(Type dataType) =>
         _observableDataTypes.GetOrAdd(dataType, static type => type.ImplementsOpenGeneric(typeof(ISubject<>)) || type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)));
@@ -332,7 +341,8 @@ public class QueryPipeline(
             var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, ServiceProvider: serviceProvider, CancellationToken: cancellationToken)
             {
                 PreparedAuthorization = prepared,
-                ReceivedAt = OperationContextScope.Current ?? default
+                ReceivedAt = OperationContextScope.Current ?? default,
+                SliceLocation = SliceLocationFor(queryPerformer)
             };
 
             // Install the prepared identity before any filter is discovered or constructed. Filter constructors can

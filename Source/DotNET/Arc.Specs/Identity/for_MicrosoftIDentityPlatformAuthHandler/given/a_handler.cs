@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 
 namespace Cratis.Arc.Identity.for_MicrosoftIDentityPlatformAuthHandler.given;
 
@@ -23,6 +24,8 @@ public class a_handler : Specification
 
     protected IServiceProvider _services;
     protected ArcOptions _arcOptions;
+    protected PathString _pathBase = PathString.Empty;
+    protected PathString _path = "/api/tickets/close";
 
     void Establish()
     {
@@ -39,12 +42,39 @@ public class a_handler : Specification
     /// <param name="identityProvider">The value of the <c>identityProvider</c> field, or null to omit the field entirely.</param>
     /// <param name="claims">The claims to put in the serialized principal.</param>
     /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
-    protected async Task<AuthenticateResult> Authenticate(string? identityProvider, params (string Type, string Value)[] claims)
+    protected Task<AuthenticateResult> Authenticate(string? identityProvider, params (string Type, string Value)[] claims) =>
+        Authenticate(new Dictionary<string, string>
+        {
+            [MicrosoftIdentityPlatformHeaders.IdentityIdHeader] = IdentityIdFromHeader,
+            [MicrosoftIdentityPlatformHeaders.IdentityNameHeader] = IdentityNameFromHeader,
+            [MicrosoftIdentityPlatformHeaders.PrincipalHeader] = PrincipalHeaderValue(identityProvider, claims)
+        });
+
+    /// <summary>
+    /// Runs one authentication through a freshly initialized handler with exactly the given request headers.
+    /// </summary>
+    /// <param name="headers">The request headers.</param>
+    /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
+    protected Task<AuthenticateResult> Authenticate(IDictionary<string, string> headers) =>
+        Authenticate(headers.ToDictionary(_ => _.Key, _ => new StringValues(_.Value)));
+
+    /// <summary>
+    /// Runs one authentication through a freshly initialized handler with exactly the given request headers, each of
+    /// which may carry several values.
+    /// </summary>
+    /// <param name="headers">The request headers.</param>
+    /// <returns>The <see cref="AuthenticateResult"/> from the handler.</returns>
+    protected async Task<AuthenticateResult> Authenticate(IDictionary<string, StringValues> headers)
     {
         var httpContext = new DefaultHttpContext { RequestServices = _services };
-        httpContext.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader] = IdentityIdFromHeader;
-        httpContext.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityNameHeader] = IdentityNameFromHeader;
-        httpContext.Request.Headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader] = PrincipalHeaderValue(identityProvider, claims);
+        httpContext.Request.Method = "POST";
+        httpContext.Request.Host = new HostString("app.example.com");
+        httpContext.Request.PathBase = _pathBase;
+        httpContext.Request.Path = _path;
+        foreach (var (name, value) in headers)
+        {
+            httpContext.Request.Headers[name] = value;
+        }
 
         var schemeOptions = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
         schemeOptions.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions());

@@ -76,7 +76,7 @@ Core already supplies `Cratis.Arc.Identity.MicrosoftIdentityPlatformAuthenticati
 
 | Header | Purpose |
 | --- | --- |
-| `x-ms-client-principal-id` | User ID |
+| `x-ms-client-principal-id` | User ID, decoded when it carries the RFC 8187 `UTF-8''` form |
 | `x-ms-client-principal-name` | Display name |
 | `x-ms-client-principal` | Base64 JSON principal containing roles and claims |
 
@@ -98,6 +98,8 @@ The handler ignores the forwarded headers, and returns `AuthenticationResult.Ano
 ```
 
 The first request that carries the headers while they are not trusted logs a warning that names this setting.
+
+A request carrying an on-behalf header, `x-cratis-on-behalf-actor` or `x-cratis-on-behalf-assertion`, is different: it fails authentication unless the headers are trusted, `Cratis:Arc:OnBehalfOf:Enabled` is on and its signed assertion verifies. A verified on-behalf forward authenticates as the represented user with the actor as `ClaimsIdentity.Actor`; see [Acting on behalf of a user](../asp-net-core/acting-on-behalf-of.md).
 
 Arc cannot detect a custom handler that reads forwarded headers. If yours does, check the same option through `IOptions<ArcOptions>` and return `AuthenticationResult.Anonymous` when `TrustForwardedIdentityHeaders` is `false`.
 

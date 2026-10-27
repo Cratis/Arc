@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
 using Cratis.Execution;
 
@@ -32,6 +33,18 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
+    /// Gets the <see cref="Slices.SliceLocation"/> of the query, resolved from the same namespace mapping as its generated proxy.
+    /// </summary>
+    /// <remarks>
+    /// Arc sets it from the read model type for model-bound queries and from the controller type for controller
+    /// actions. A hand-constructed context has <see cref="SliceLocation.NotSet"/> unless the caller sets it.
+    /// Unlike <see cref="Commands.CommandContext"/>, which carries the command type and resolves its location lazily,
+    /// a query context carries only the query name; the type that owns the query is known to the pipeline and the
+    /// action filter, so they resolve the location and set it here.
+    /// </remarks>
+    public SliceLocation SliceLocation { get; init; } = SliceLocation.NotSet;
 
     /// <summary>
     /// Gets or sets the total number of items in the query.

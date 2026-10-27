@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -31,6 +32,8 @@ public record CommandContext(
     IServiceProvider? ServiceProvider = default,
     CancellationToken CancellationToken = default)
 {
+    readonly SliceLocation? _sliceLocation;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="CommandContext"/> record.
     /// </summary>
@@ -61,6 +64,20 @@ public record CommandContext(
     /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
+    /// Gets the <see cref="Slices.SliceLocation"/> of the command, resolved from the same namespace mapping as its generated proxy.
+    /// </summary>
+    /// <remarks>
+    /// Resolved from <see cref="Type"/> unless set explicitly; controller actions set it from the controller type,
+    /// matching the proxy generator. Resolving lazily means every context, including one constructed by hand or by
+    /// a test, reports the location of its command type without the caller setting it; resolutions are cached per type.
+    /// </remarks>
+    public SliceLocation SliceLocation
+    {
+        get => _sliceLocation ?? SliceLocation.For(Type);
+        init => _sliceLocation = value;
+    }
 
     /// <summary>
     /// Gets the validated generated values captured in resolution order. Values must not be logged or traced.

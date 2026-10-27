@@ -135,6 +135,9 @@ public static class CommandExtensions
             documentation,
             rules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
-            roles);
+            roles)
+        {
+            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
+        };
     }
 }

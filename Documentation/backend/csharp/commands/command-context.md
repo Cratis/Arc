@@ -18,6 +18,7 @@ When several pipeline extensions need the same invocation metadata, carry it in 
 | `ServiceProvider` | The provider for this invocation's service scope, when supplied. |
 | `CancellationToken` | The execution cancellation token. |
 | `ReceivedAt` | `DateTimeOffset` captured once when Arc receives this operation. |
+| `SliceLocation` | The module, feature and slice of the command, resolved like its proxy's output folder. See [slice location](../proxy-generation/Configuration/slice-location.md). |
 
 `ReceivedAt` is Arc receipt time, not network arrival or a timestamp before application middleware. Model-bound HTTP dispatch captures it before body/argument binding and authorization preparation; direct pipeline calls capture it on entry. A hub captures a new value for each subscribe operation, not for the connection. MVC contexts are established by action filters after MVC binding. The value stays fixed through authorization, validation, handler execution, and any Arc-owned replacement service scope. During a decorated transport dispatch, sibling public pipeline calls (such as `Validate` followed by `Execute`, or a query followed by a command) share the transport receipt. A pipeline call started from inside another pipeline entry captures a new receipt and restores the outer value afterward. The offer ends with the dispatch: work that starts a pipeline after the dispatch finishes captures a fresh receipt, even if its execution context was created during dispatch.
 

@@ -257,7 +257,10 @@ public static class QueryExtensions
             validationRules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
             roles,
-            httpMethod);
+            httpMethod)
+        {
+            SliceLocation = readModelType.ResolveSliceLocation(segmentsToSkip)
+        };
     }
 
     /// <summary>

@@ -155,6 +155,9 @@ public static class QueryExtensions
             validationRules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
             roles,
-            HttpMethod: null);
+            HttpMethod: null)
+        {
+            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
+        };
     }
 }

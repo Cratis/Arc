@@ -4,6 +4,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Cratis.Arc.ProxyGenerator.Templates;
+using Cratis.Arc.Slices;
 
 namespace Cratis.Arc.ProxyGenerator;
 
@@ -195,19 +196,13 @@ public static partial class TypeExtensions
     {
         var ns = type.Namespace ?? string.Empty;
 
-        var matchingRoot = _namespaceRoots
-            .Where(root => ns == root.Namespace || ns.StartsWith(root.Namespace + ".", StringComparison.Ordinal))
-            .OrderByDescending(r => r.Namespace.Length)
-            .Cast<(string Namespace, string Folder)?>()
-            .FirstOrDefault();
-
-        if (matchingRoot is not null)
+        if (SliceNamespace.FindRoot(ns, _namespaceRoots.Select(root => root.Namespace)) is { } matchingRoot)
         {
-            return ResolveNamespaceRootPath(ns, matchingRoot.Value);
+            var folder = _namespaceRoots.First(root => root.Namespace == matchingRoot).Folder;
+            return ResolveNamespaceRootPath(SliceNamespace.SegmentsBelowRoot(ns, matchingRoot), folder);
         }
 
-        var stripped = ns.Replace(Globals.NamespacePrefix, string.Empty);
-        var path = string.Join(Path.DirectorySeparatorChar, stripped.Split('.').Skip(segmentsToSkip));
+        var path = string.Join(Path.DirectorySeparatorChar, SliceNamespace.SegmentsAfterSkipping(SliceNamespace.StripApiNamespacePrefix(ns), segmentsToSkip));
         if (string.IsNullOrEmpty(path))
         {
             path = $"{Path.DirectorySeparatorChar}";
@@ -494,13 +489,9 @@ public static partial class TypeExtensions
         }
     }
 
-    static string ResolveNamespaceRootPath(string ns, (string Namespace, string Folder) root)
+    static string ResolveNamespaceRootPath(string[] segmentsBelowRoot, string folder)
     {
-        var (rootNs, folder) = root;
-        var remainder = ns == rootNs ? string.Empty : ns[(rootNs.Length + 1)..];
-        var subPath = string.IsNullOrEmpty(remainder)
-            ? string.Empty
-            : string.Join(Path.DirectorySeparatorChar, remainder.Split('.'));
+        var subPath = string.Join(Path.DirectorySeparatorChar, segmentsBelowRoot);
 
         if (string.IsNullOrEmpty(folder))
         {
