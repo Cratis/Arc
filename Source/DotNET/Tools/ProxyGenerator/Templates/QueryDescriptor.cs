@@ -57,6 +57,11 @@ public record QueryDescriptor(
     public bool HasValidationRules => ValidationRules.Any();
 
     /// <summary>
+    /// Gets whether a generated sorting accessor collides with the query constructor parameter property.
+    /// </summary>
+    public bool HasQuerySortProperty => Properties.Any(_ => _.Name.ToCamelCase() == "query");
+
+    /// <summary>
     /// Gets the slice location resolved from the same namespace mapping as the proxy's output folder.
     /// </summary>
     public SliceLocationDescriptor SliceLocation { get; init; } = SliceLocationDescriptor.Empty;
