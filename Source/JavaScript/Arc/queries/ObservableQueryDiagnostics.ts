@@ -50,13 +50,13 @@ export class ObservableQueryDiagnostics implements IObservableQueryDiagnostics {
     /** @inheritdoc */
     beginTracking(cacheKey: string, owner: string): void {
         this._ownersByKey.set(cacheKey, owner);
-        this._publishSnapshot(this._createSnapshot());
+        this._publishSnapshotWhenObserved();
     }
 
     /** @inheritdoc */
     endTracking(cacheKey: string): void {
         this._ownersByKey.delete(cacheKey);
-        this._publishSnapshot(this._createSnapshot());
+        this._publishSnapshotWhenObserved();
     }
 
     private _buildMultiplexerDiagnostics(): MultiplexerDiagnostics {
@@ -115,6 +115,12 @@ export class ObservableQueryDiagnostics implements IObservableQueryDiagnostics {
             ownership,
             timestamp: new Date().toISOString(),
         };
+    }
+
+    private _publishSnapshotWhenObserved(): void {
+        if (this._snapshots.observed) {
+            this._publishSnapshot(this._createSnapshot());
+        }
     }
 
     private _publishSnapshot(snapshot: ObservableQueryDiagnosticsSnapshot): void {
