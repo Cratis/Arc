@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Reflection;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Validation;
 
@@ -35,9 +36,7 @@ static class CommandValidationResults
                 }
             }
 
-            return CommandAttributePolicy.ResolveCommand(type).ReadProtection == (int)ReadProtectionMode.On
-                ? (true, ValidationResultSeverity.Error)
-                : (false, ValidationResultSeverity.Unknown);
+            return ResolveDefaultPolicy(type);
         });
         if (!policy.HasPolicy)
         {
@@ -81,4 +80,16 @@ static class CommandValidationResults
         !result.IsAuthorized ||
         result.HasExceptions ||
         Blocking(result.ValidationResults, allowedSeverity, blockUnknown).Any();
+
+    static (bool HasPolicy, ValidationResultSeverity Severity) ResolveDefaultPolicy(Type type)
+    {
+        if (type.Assembly.GetCustomAttribute<BlockOnValidationSeverityAttribute>() is { } assemblyPolicy)
+        {
+            return (true, assemblyPolicy.Severity);
+        }
+
+        return CommandAttributePolicy.ResolveCommand(type).ReadProtection == (int)ReadProtectionMode.On
+            ? (true, ValidationResultSeverity.Error)
+            : (false, ValidationResultSeverity.Unknown);
+    }
 }

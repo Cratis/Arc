@@ -50,7 +50,9 @@ builder.AddCratisArc(options =>
 
 | Option | Type | Default | What it controls |
 | --- | --- | --- | --- |
-| `ExposeExceptionDetails` | `bool` | `RuntimeEnvironment.IsDevelopment` | Expose exception messages and stack traces in serialized command/query results only in Development by default. Full detail remains in server logs when responses are redacted. Keep disabled in public production environments. |
+| `ExposeExceptionDetails` | `bool` | `RuntimeEnvironment.IsDevelopment` | Expose exception messages and stack traces in serialized command/query results (model-bound and controller-based) and observable query errors only in Development by default. Full detail remains in server logs when responses are redacted. Keep disabled in public production environments. |
+| `Command.MaximumCallerAllowedSeverity` | `ValidationResultSeverity` | `Warning` | Default maximum for the model-bound HTTP caller severity header; names and numbers are accepted. A command opt-in replaces this maximum. |
+| `Command.IgnoreCallerAllowedSeverity` | `bool` | `false` | Ignore the caller severity header, even on commands with an opt-in. |
 | `CorrelationId.HttpHeader` | `string` | `X-Correlation-ID` | The header carrying the correlation ID. |
 | `Tenancy.ResolverType` | `TenantResolverType` | `Header` | How the tenant is resolved: `Header`, `Query`, `Claim`, `Subdomain`, `Development`, or `Fixed`. |
 | `Tenancy.HttpHeader` | `string` | `x-cratis-tenant-id` | The header used when `ResolverType` is `Header`, and the fallback header when it is `Subdomain`. |

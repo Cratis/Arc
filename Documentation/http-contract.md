@@ -16,7 +16,7 @@ A third implementation, [Arc for TypeScript](/arc/backend/typescript/) on Node.j
 source preview. The statements on this page are verified for the C# and JVM implementations.
 Arc for TypeScript follows this contract for the capabilities it implements, and a paired
 suite checks a bounded set of routes against a C# host. Where it differs, for example by
-capping `X-Allowed-Severity` at Warning or by answering 401 rather than 403 to an anonymous
+answering 401 rather than 403 to an anonymous
 caller on a protected operation when authentication handlers are configured, its
 [HTTP contract reference](/arc/backend/typescript/reference/http-contract/) and
 [capability reference](/arc/backend/typescript/reference/capabilities/#deliberate-differences)
@@ -64,7 +64,7 @@ observable ones, and can be switched off so query routes accept GET only.
 | Header | Behavior |
 | --- | --- |
 | `X-Correlation-ID` | The correlation header, configurable. A valid UUID is reused; a missing or invalid value is replaced. The effective UUID is echoed on the response under the configured name. See [Correlation](#correlation). |
-| `X-Allowed-Severity` | The maximum nonblocking validation severity for the request. See [the divergence note](#x-allowed-severity-parsing-and-reach) before relying on it. |
+| `X-Allowed-Severity` | The maximum nonblocking validation severity for the request. C# caps it at `Warning` by default; commands or the host can explicitly opt in to a higher maximum. See [the divergence note](#x-allowed-severity-parsing-and-reach) before relying on it. |
 | `x-cratis-tenant-id` | The tenant header, configurable. See [Tenant resolution](#tenant-resolution). |
 
 Header lookup is case-insensitive, as HTTP requires.
@@ -522,7 +522,10 @@ fields the query declares.
 
 - **C#**: the header is read on the command route only, and only as an integer. A
   non-numeric value such as `Warning` is silently ignored, and so is an out-of-range
-  number.
+  number. C# caps valid values at `Warning` by default before execution and validation.
+  `[AllowCallerValidationSeverity]` replaces the host maximum for a command;
+  `Command.IgnoreCallerAllowedSeverity` ignores the header even with an opt-in.
+  Blocking policies and the read-protection-On floor still apply in the built-in pipeline.
 - **JVM**: the header is accepted as a case-insensitive severity name or as the numeric
   wire value, on commands, queries, and hub subscriptions. A value that parses as neither
   is rejected as `malformedRequest`.

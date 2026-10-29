@@ -107,6 +107,12 @@ public class ArcOptions
     public CalendarOptions Calendar { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the command options, bound from <c>Cratis:Arc:Command</c>.
+    /// Severity values can be configured by name or number.
+    /// </summary>
+    public Commands.CommandOptions Command { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the options for observable queries.
     /// </summary>
     public QueryOptions Query { get; set; } = new();

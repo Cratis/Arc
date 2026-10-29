@@ -58,7 +58,7 @@ public class an_observable_query_demultiplexer : Specification
             .AddSingleton(_performers)
             .BuildServiceProvider();
 
-        _arcOptions = Options.Create(new ArcOptions());
+        _arcOptions = Options.Create(new ArcOptions { ExposeExceptionDetails = true });
 
         // No guards by default — HasGuards is false on a fresh substitute, which is the opt-in-by-presence fast
         // path every existing spec runs on. Specs that exercise a guard configure this substitute in their own

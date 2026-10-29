@@ -8,6 +8,7 @@ using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries.for_ClientObservable.when_handling_connection.given;
 
@@ -51,6 +52,7 @@ public class a_guarded_client_observable : Specification
         _context = Substitute.For<IHttpRequestContext>();
         _context.WebSockets.Returns(webSocketContext);
         _context.RequestServices.Returns(Substitute.For<IServiceProvider>());
+        _context.RequestServices.GetService(typeof(IOptions<ArcOptions>)).Returns(Options.Create(new ArcOptions { ExposeExceptionDetails = true }));
         _context.User.Returns(_principal);
 
         _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
