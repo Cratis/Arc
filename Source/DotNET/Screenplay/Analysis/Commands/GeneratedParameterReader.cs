@@ -152,7 +152,9 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
         return AggregateRootBehaviors.ReachedFrom(body, model).Any() ? null : identity;
     }
 
-    /// <summary>Reads a unique generated wrapper identity beside a non-identity tuple response.</summary>
+    /// <summary>
+    /// Reads a unique generated wrapper identity beside a non-identity tuple response, unless plain sibling events retain command context.
+    /// </summary>
     /// <param name="returned">The directly returned expression.</param>
     /// <param name="body">The handler body.</param>
     /// <param name="model">The model binding the tuple and its effects.</param>
@@ -162,6 +164,12 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
     {
         var tuple = ReturnedProductionShape.TupleOf(returned, model);
         if (tuple is null || !HasResponse(tuple, model))
+        {
+            return null;
+        }
+
+        // Wrappers do not update command context; promotion would retarget plain sibling events.
+        if (HasPlainSiblingEvent(tuple, model))
         {
             return null;
         }
@@ -178,6 +186,18 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
 
         return AggregateRootBehaviors.ReachedFrom(body, model).Any() ? null : identity;
     }
+
+    static bool HasPlainSiblingEvent(TupleExpressionSyntax tuple, SemanticModel model) => tuple.DescendantNodes()
+        .OfType<BaseObjectCreationExpressionSyntax>()
+        .Any(creation =>
+        {
+            var type = model.GetTypeInfo(creation).Type;
+            if (type is null || !EventReader.IsEvent(type))
+            {
+                return false;
+            }
+            return ReturnedProductionShape.Reaches(creation, tuple, model);
+        });
 
     static bool HasResponse(TupleExpressionSyntax tuple, SemanticModel model) => tuple.Arguments.Any(argument =>
     {

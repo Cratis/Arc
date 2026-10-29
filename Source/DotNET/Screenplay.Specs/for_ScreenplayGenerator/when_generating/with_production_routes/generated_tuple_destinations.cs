@@ -34,4 +34,38 @@ public class generated_tuple_destinations : a_generated_document
             AssertDocument();
         }
     }
+
+    [Theory]
+    [InlineData("(string, EventForEventSourceId, EventForEventSourceId)", "(Name, WRAPPER, AUDIT)", "")]
+    [InlineData("(string, EventForEventSourceId[])", "(Name, [WRAPPER, AUDIT])", "")]
+    [InlineData("(string, EventForEventSourceId[])", "(Name, [WRAPPER, AUDIT])", "[Key] AuthorId Id, ")]
+    public void should_keep_a_shared_generated_destination_for_wrapper_only_siblings(string signature, string returned, string key)
+    {
+        foreach (var authoring in new[] { false, true })
+        {
+            var expression = returned
+                .Replace("WRAPPER", "new EventForEventSourceId(authorId, new AuthorRegistered(Name))", StringComparison.Ordinal)
+                .Replace("AUDIT", "new EventForEventSourceId(authorId, new AuthorAudited(Name))", StringComparison.Ordinal);
+            var source = "global using Cratis.Chronicle.EventSequences;\n" + GeneratedValueSources.With($$"""
+                [EventType] public record AuthorAudited(string Name);
+                [Command] public record RegisterAuthor({{key}}string Name)
+                {
+                    public {{signature}} Handle([GeneratedValue("author", Freshness = Cratis.Arc.Commands.GeneratedValueFreshness.Unguarded)] AuthorId authorId) => {{expression}};
+                }
+                """);
+            Generate(new ScreenplayOptions { AuthoringOnlyConstructs = authoring }, (Analyzed.SlicePath, source));
+            var command = Result.Model.Slices.SelectMany(slice => slice.Commands).Single();
+            command.Identifier.ShouldEqual(key.Length == 0 ? null : "Id");
+            command.Authoring!.Identifier.ShouldEqual("author");
+            command.Produces.Count().ShouldEqual(2);
+            command.Produces.ShouldEachConformTo(production => production.UsesCommandContext);
+            Result.Source.ShouldContain("author AuthorId generated identifier");
+            Result.Source.ShouldContain("produces event AuthorRegistered");
+            Result.Source.ShouldContain("produces event AuthorAudited");
+            Result.Source.ShouldContain("for author");
+            Result.Source.ShouldContain("returns name");
+            Result.Diagnostics.ShouldBeEmpty();
+            AssertDocument();
+        }
+    }
 }
