@@ -4,7 +4,9 @@
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
 
@@ -59,6 +61,21 @@ public static class ExceptionDetailRedactor
         result.ExceptionMessages = [RedactedMessage];
         result.ExceptionStackTrace = string.Empty;
     }
+
+    /// <summary>
+    /// Resolves whether exception detail may be exposed by the request's host.
+    /// </summary>
+    /// <param name="services">The request services.</param>
+    /// <returns>Whether the host explicitly exposes exception detail.</returns>
+    internal static bool ExposeFor(IServiceProvider? services) => services?.GetService<IOptions<ArcOptions>>()?.Value.ExposeExceptionDetails ?? false;
+
+    /// <summary>
+    /// Gets the message to send for an observable query failure.
+    /// </summary>
+    /// <param name="error">The failure already logged on the server.</param>
+    /// <param name="exposeExceptionDetails">Whether to expose its message.</param>
+    /// <returns>The message to send.</returns>
+    internal static string MessageFor(Exception error, bool exposeExceptionDetails) => exposeExceptionDetails ? error.Message : RedactedMessage;
 
     static void LogFullDetail(ILogger logger, CorrelationId correlationId, IEnumerable<string> messages, string stackTrace) =>
         logger.RedactedExceptionDetail(correlationId.ToString(), string.Join("; ", messages), stackTrace);

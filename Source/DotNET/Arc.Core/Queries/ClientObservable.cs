@@ -276,7 +276,7 @@ public class ClientObservable<T>(
                 }
 
                 isTerminated = true;
-                var sendError = await webSocketConnectionHandler.SendMessage(webSocket, QueryResult.Error(queryContext.CorrelationId, error.Message), writeLock, cts.Token);
+                var sendError = await webSocketConnectionHandler.SendMessage(webSocket, QueryResult.Error(queryContext.CorrelationId, ExceptionDetailRedactor.MessageFor(error, ExceptionDetailRedactor.ExposeFor(context.RequestServices))), writeLock, cts.Token);
                 if (sendError is not null)
                 {
                     logger.ObservableAnErrorOccurred(sendError);

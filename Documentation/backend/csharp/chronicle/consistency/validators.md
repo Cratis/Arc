@@ -67,7 +67,7 @@ The message reaches the client the same way as any validator message. The same r
 
 ## Caller severity cannot skip errors under declared On
 
-Declared read protection `On` supplies an `Error` blocking floor unless the command declares `[BlockOnValidationSeverity(...)]`. Validator errors and `Unknown` results block even when the caller sends `X-Allowed-Severity: 3`; warnings and information remain caller-filterable. The floor also applies to `Provide()` control results. A `Result<TEvent, ValidationResult>` error returned by `Handle()` remains a rejection.
+HTTP caller severity is capped at `Warning` by default. Even when a command or host opts in to relaxing errors, declared read protection `On` supplies an `Error` blocking floor unless the command declares `[BlockOnValidationSeverity(...)]`. Validator errors and `Unknown` results block even when the caller sends `X-Allowed-Severity: 3`; warnings and information remain caller-filterable. The floor also applies to `Provide()` control results. A `Result<TEvent, ValidationResult>` error returned by `Handle()` remains a rejection.
 
 The command's read-protection attribute takes precedence over its own assembly's attribute. Lowering the operational `ReadProtection:MaximumMode` does not remove this declared floor, although it can remove the read's guard. An explicit blocking-severity attribute takes precedence. Under `Off` or `Measure`, callers can skip validator errors unless you declare `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]`. See [Validation severity filtering](../../commands/validation-severity-filtering.md).
 

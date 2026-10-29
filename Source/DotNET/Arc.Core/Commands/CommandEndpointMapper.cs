@@ -5,7 +5,6 @@ using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
-using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -156,12 +155,7 @@ public static class CommandEndpointMapper
 
                 context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
-                ValidationResultSeverity? allowedSeverity = default;
-                if (context.Headers.TryGetValue("X-Allowed-Severity", out var severityHeader) &&
-                    int.TryParse(severityHeader, out var severityValue))
-                {
-                    allowedSeverity = (ValidationResultSeverity)severityValue;
-                }
+                var allowedSeverity = CallerValidationSeverity.Cap(commandType, CallerValidationSeverity.FromHeaders(context.Headers), arcOptions.Command);
 
                 CommandResult commandResult;
                 try

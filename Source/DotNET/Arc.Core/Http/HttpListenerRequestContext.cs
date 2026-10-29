@@ -4,6 +4,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -81,6 +82,11 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)
     {
+        if (context.Request.HasEntityBody && !IsJsonContentType(context.Request.ContentType))
+        {
+            throw new InvalidOperationException($"Unable to read the request as JSON because the request content type '{context.Request.ContentType}' is not a known JSON content type.");
+        }
+
         using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
         var json = await reader.ReadToEndAsync(cancellationToken);
         if (string.IsNullOrEmpty(json))
@@ -232,4 +238,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
 
         return builder.ToString();
     }
+
+    static bool IsJsonContentType(string? contentType) =>
+        MediaTypeHeaderValue.TryParse(contentType, out var parsed) && parsed.MediaType is { } mediaType &&
+        (mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
+            (mediaType.StartsWith("application/", StringComparison.OrdinalIgnoreCase) && mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase)));
 }

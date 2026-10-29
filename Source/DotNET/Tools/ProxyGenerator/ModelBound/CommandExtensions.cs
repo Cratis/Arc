@@ -56,17 +56,7 @@ public static class CommandExtensions
         // Extract validation rules for the command type
         var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
 
-        CustomAttributeData? severityAttribute = null;
-        for (Type? current = commandType; current is not null; current = current.BaseType)
-        {
-            severityAttribute = current.GetCustomAttributesData().FirstOrDefault(attribute =>
-                attribute.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverityAttribute");
-            if (severityAttribute is not null)
-            {
-                break;
-            }
-        }
-
+        var severityAttribute = ResolveBlockingSeverity(commandType);
         int? severity = severityAttribute is null ? null : Convert.ToInt32(severityAttribute.ConstructorArguments[0].Value);
 
         // The generator does not reference Arc.Core; its wire values run from Unknown (0) through Error (3).
@@ -79,5 +69,21 @@ public static class CommandExtensions
         {
             BlockOnValidationSeverity = severity
         };
+    }
+
+    static CustomAttributeData? ResolveBlockingSeverity(TypeInfo commandType)
+    {
+        for (Type? current = commandType; current is not null; current = current.BaseType)
+        {
+            var attribute = current.GetCustomAttributesData().FirstOrDefault(candidate =>
+                candidate.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverityAttribute");
+            if (attribute is not null)
+            {
+                return attribute;
+            }
+        }
+
+        return commandType.Assembly.GetCustomAttributesData().FirstOrDefault(attribute =>
+            attribute.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverityAttribute");
     }
 }

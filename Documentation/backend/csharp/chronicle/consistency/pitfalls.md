@@ -11,7 +11,7 @@ Use this page when a rule holds in every test and still breaks in production. Th
 | --- | --- | --- |
 | [A uniqueness check instead of a constraint](#a-uniqueness-check-instead-of-a-constraint) | Nothing | Constraint |
 | [A read that is not protected](#a-read-that-is-not-protected) | [ARCCHR0011](../code-analysis/ARCCHR0011.md) (Info, `Off`) | Turn read protection `On` |
-| [Caller-skipped validator errors under Off](#caller-skipped-validator-errors-under-off) | Nothing | Declare a blocking severity policy |
+| [Caller-relaxed validator errors](#caller-relaxed-validator-errors) | Nothing | Keep the default cap or declare a blocking severity policy |
 | [An immediate append under Off](#an-immediate-append-under-off) | [ARCCHR0007](../code-analysis/ARCCHR0007.md) | Return the events |
 | [An aggregate commit whose result is ignored](#an-aggregate-commit-whose-result-is-ignored) | Nothing | Return `Commit()` |
 | [No event source id, or two candidates](#no-event-source-id-or-two-candidates) | [ARCCHR0002](../code-analysis/ARCCHR0002.md) for two candidates | `EventSourceId` or `ICanProvideEventSourceId` |
@@ -122,9 +122,9 @@ dotnet_diagnostic.ARCCHR0011.severity = warning
 dotnet_diagnostic.ARCCHR0012.severity = warning
 ```
 
-## Caller-skipped validator errors under Off
+## Caller-relaxed validator errors
 
-Under `Off` or `Measure`, a caller sending `X-Allowed-Severity: 3` can skip validator errors and let `Handle()` run unless the command declares a blocking policy. If you rely on validators under `Off`, use `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]` from `Cratis.Arc.Commands.ModelBound`. This keeps errors blocking; it does not guard the read or close the gap before append.
+HTTP caller severity is capped at `Warning` by default, so validator errors block under `Off` and `Measure` too. A command's `[AllowCallerValidationSeverity(ValidationResultSeverity.Error)]` or a host maximum of `Error` can explicitly allow callers to relax errors. Use `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]` from `Cratis.Arc.Commands.ModelBound` when errors must always block, including for in-process execution. This does not guard the read or close the gap before append.
 
 Commands declaring `On` get this Error floor implicitly, including when an operational cap lowers read protection. An explicit blocking-severity attribute takes precedence. See [Validation severity filtering](../../commands/validation-severity-filtering.md).
 

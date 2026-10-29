@@ -92,6 +92,7 @@ public static class HostBuilderExtensions
         services.TryAddSingleton<IOperationContextAccessor, OperationContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, IntrospectionOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, CommandOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, CalendarOptionsValidator>());
 
         services.AddSingleton<CurrentPrincipalAccessor>();

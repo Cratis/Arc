@@ -21,7 +21,7 @@ For commands without an explicit blocking policy and without declared read prote
 - `Unknown` blocks information, warnings, and errors.
 - `Error` allows all currently defined severities, including errors.
 
-`ICommandPipeline.Execute` and `Validate` accept the threshold in both scope-free and scope-explicit forms. Model-bound HTTP endpoints read its integer value from `X-Allowed-Severity`. Controller actions use their own MVC validation path; do not assume this header configures MVC.
+`ICommandPipeline.Execute` and `Validate` accept the threshold in both scope-free and scope-explicit forms. Model-bound HTTP endpoints read its integer value from `X-Allowed-Severity` and cap it at `Warning` by default. Non-numeric and out-of-range values are ignored. In-process calls keep their existing threshold semantics. Controller actions use their own MVC validation path; do not assume this header configures MVC.
 
 ## Declare a blocking policy on a model-bound command
 
@@ -41,7 +41,13 @@ public record SubmitApplication(string Name)
 
 The attribute names the **lowest severity that blocks**: `Information` blocks information, warnings, and errors; `Warning` blocks warnings and errors. `Unknown` results also block any command with the attribute, because an unclassified failure must not become a successful command. The rejected result retains its original message and severity. The declared policy is inherited by derived command types and applies to command filters, `Provide()`, `Validate`, and in-process execution as well as HTTP, when commands run through Arc's built-in `CommandPipeline`. It does not apply to controller-action DTOs, which use the MVC validation path, or to custom `ICommandPipeline` implementations unless they implement the policy themselves. Generated TypeScript proxies carry the threshold for local validation and treat warnings as errors when the declared severity is `Warning` or stricter, but the server remains authoritative.
 
-The effective threshold is the stricter of the declared policy and the caller's `allowedSeverity` or `X-Allowed-Severity`. A caller can demand *more* blocking, never less: passing `Error` or a larger integer does not permit a declared warning or information failure. This deliberately differs from the caller opt-out for controller actions in #21. Commands without the attribute retain caller-controlled filtering unless they declare read protection `On`.
+The effective threshold is the stricter of the declared policy and the caller's `allowedSeverity` or capped `X-Allowed-Severity`. A caller can demand *more* blocking, never less. This deliberately differs from the caller opt-out for controller actions in #21. Without a command or inherited declaration, the command's own assembly can supply the policy:
+
+```csharp
+[assembly: Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverity(Cratis.Arc.Validation.ValidationResultSeverity.Error)]
+```
+
+The command or base-type declaration takes precedence over the assembly policy. Generated TypeScript proxies carry the resolved assembly policy too.
 
 ## Read protection On supplies an Error floor
 
@@ -49,7 +55,37 @@ A command declaring read protection `On` gets an `Error` blocking floor unless i
 
 Arc resolves the command's inherited read-protection attribute before the attribute on the command's own assembly. A command-level `[Unprotected]` opts out. The floor follows the **declared** mode: lowering `ReadProtection:MaximumMode` does not remove it. An explicit, possibly inherited, `[BlockOnValidationSeverity(...)]` takes precedence over the implicit floor.
 
-`Off` and `Measure` keep caller-controlled filtering. Without an explicit blocking policy, `X-Allowed-Severity: 3` can skip validator errors and let `Handle()` run. If you rely on validators under `Off`, declare `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]`; this prevents severity filtering from dropping errors, but does not guard stale reads.
+Under `Off` and `Measure`, validator errors remain blocking over HTTP by default because caller severity is capped at `Warning`. An explicit opt-in can relax them. Declare `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]` when errors must always block, including for in-process callers; it does not guard stale reads.
+
+## Allow callers to relax errors
+
+A command can explicitly allow a higher HTTP caller threshold:
+
+```csharp
+[Command]
+[AllowCallerValidationSeverity(ValidationResultSeverity.Error)]
+public record AcknowledgeAdvice(string Name)
+{
+    public void Handle() { }
+}
+```
+
+The opt-in is inherited. It replaces the host maximum, whether higher or lower. Configure the host under `Cratis:Arc:Command` (enum names or numbers are accepted):
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "Command": {
+        "MaximumCallerAllowedSeverity": "Warning",
+        "IgnoreCallerAllowedSeverity": false
+      }
+    }
+  }
+}
+```
+
+Precedence is host `IgnoreCallerAllowedSeverity` > command opt-in > host `MaximumCallerAllowedSeverity`. Ignoring the header yields the normal no-header behavior even on opted-in commands. The host maximum defaults to `Warning`; setting it to `Error` restores permissive caller filtering for commands without an opt-in. `[BlockOnValidationSeverity]` and the declared read-protection-On floor still win in the built-in pipeline. Out-of-range maxima fail startup validation; undefined command opt-in values fail the command rather than relaxing it.
 
 ## Create a warning
 
@@ -115,8 +151,7 @@ Authorization filters run first; ordinary filters continue after non-blocking va
 
 ## Security considerations
 
-> [!WARNING]
-> The model-bound HTTP endpoint currently accepts any parsable integer in `X-Allowed-Severity`, including `3` and larger. For commands under `Off` or `Measure` without an explicit blocking policy, a caller can therefore remove Error-severity results from the filtered stages. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
+The default HTTP cap keeps errors blocking unless the command or host explicitly opts in. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
 
 Return an actual authorization verdict from an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace). `CommandResult.Unauthorized` is independent of severity filtering. Check permissions before performing work, and enforce atomic state invariants in the service or storage operation that owns the change.
 

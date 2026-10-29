@@ -68,6 +68,8 @@ public class QueryActionFilter(
                 queryProviders,
                 context.HttpContext.RequestServices);
 
+            ExceptionDetailRedactor.Redact(queryResult, ExceptionDetailRedactor.ExposeFor(context.HttpContext.RequestServices), logger);
+
             if (await ControllerQueryValidationRejection.TryWrite(context.HttpContext, queryResult))
             {
                 SetMvcResult(context, callResult.Result, new EmptyResult());

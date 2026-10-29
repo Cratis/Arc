@@ -284,7 +284,7 @@ if (result.hasExceptions) {
 }
 ```
 
-For model-bound commands, exception detail is exposed only when `ArcOptions.ExposeExceptionDetails` is `true`, which is the default in Development only. Elsewhere the server replaces the messages with a generic message, leaves `exceptionStackTrace` empty, and logs the full detail server-side; use `correlationId` to find it in the logs. Controller-based commands currently return exception messages and stack traces without that redaction, so do not rely on it for controller endpoints. See the [command result envelope](../../../http-contract.md#command-result-envelope).
+For model-bound and controller-based commands, exception detail is exposed only when `ArcOptions.ExposeExceptionDetails` is `true`, which is the default in Development only. Elsewhere the server replaces the messages with a generic message, leaves `exceptionStackTrace` empty, and logs the full detail server-side; use `correlationId` to find it in the logs. See the [command result envelope](../../../http-contract.md#command-result-envelope).
 
 ## Chaining Callbacks
 
