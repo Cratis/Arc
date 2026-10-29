@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Analysis.Validation;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Policies;
 
@@ -21,6 +22,9 @@ public static class PolicyRegistrations
     /// The name of the call registering a policy.
     /// </summary>
     public const string AddPolicy = "AddPolicy";
+
+    const string ArcRegistration = "AddArcAuthorizationPolicy";
+    const string ArcRegistrations = "Cratis.Arc.Authorization.AuthorizationPolicyServiceCollectionExtensions";
 
     /// <summary>
     /// Finds every policy a compilation registers.
@@ -80,11 +84,10 @@ public static class PolicyRegistrations
                 continue;
             }
 
-            registrations[name] = new(
-                name,
-                InvocationChain.ArgumentOf(invocation, 1),
-                semanticModel,
-                tree.FilePath);
+            var method = (IMethodSymbol)semanticModel.GetSymbolInfo(invocation).Symbol!;
+            registrations[name] = IsArcRegistration(method)
+                ? new ArcPolicyRegistration(name, method.TypeArguments[0], semanticModel, tree.FilePath)
+                : new PolicyRegistration(name, InvocationChain.ArgumentOf(invocation, 1), semanticModel, tree.FilePath);
         }
     }
 
@@ -95,8 +98,14 @@ public static class PolicyRegistrations
     /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
     /// <returns>True when the call registers a policy.</returns>
     static bool IsRegistration(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
-        string.Equals(InvocationChain.NameOf(invocation), AddPolicy, StringComparison.Ordinal) &&
         semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
+        (IsArcRegistration(method) || IsAspNetRegistration(method));
+
+    static bool IsArcRegistration(IMethodSymbol method) =>
+        method.Name == ArcRegistration && method.ContainingType.Is(ArcRegistrations);
+
+    static bool IsAspNetRegistration(IMethodSymbol method) =>
+        method.Name == AddPolicy &&
         (method.ContainingType.Is(WellKnownTypeNames.AuthorizationOptions) ||
          method.ContainingType.Is(WellKnownTypeNames.AuthorizationBuilder));
 
@@ -108,7 +117,11 @@ public static class PolicyRegistrations
     /// <returns>The name, or <see langword="null"/> when it is not a constant.</returns>
     static string? NameOf(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
-        if (InvocationChain.ArgumentOf(invocation) is not { } argument)
+        var expression = semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && IsArcRegistration(method)
+            ? (semanticModel.GetOperation(invocation) as IInvocationOperation)?.Arguments
+                .FirstOrDefault(item => item.Parameter?.Name == "name")?.Value.Syntax as ExpressionSyntax
+            : InvocationChain.ArgumentOf(invocation);
+        if (expression is not { } argument)
         {
             return null;
         }
