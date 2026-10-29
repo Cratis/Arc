@@ -9,10 +9,9 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// Infers the Event Modeling kind of a slice from what it contains.
 /// </summary>
 /// <remarks>
-/// A reactor that turns an event into further events or commands is adapting one part of the model into another, so
-/// it yields <see cref="SliceKind.Translate"/> rather than <see cref="SliceKind.Automation"/>. A reactor that only
-/// causes an effect outside the system is an automation, and it decides the kind even when the slice also holds a
-/// command - the reaction is what the slice is about.
+/// A reactor implies <see cref="SliceKind.Automation"/>, including when it produces events or invokes commands.
+/// These effects do not prove translation from external vocabulary. The reaction decides the kind even when the
+/// slice also holds a command.
 /// </remarks>
 public static class SliceKindInference
 {
@@ -35,11 +34,6 @@ public static class SliceKindInference
     {
         var declaredReactors = reactors as IReadOnlyCollection<ReactorModel> ?? [.. reactors];
 
-        if (declaredReactors.Any(_ => _.IsTranslating))
-        {
-            return SliceKind.Translate;
-        }
-
         if (declaredReactors.Count > 0)
         {
             return SliceKind.Automation;
@@ -54,11 +48,8 @@ public static class SliceKindInference
     /// <param name="kinds">The kind each part was inferred to be.</param>
     /// <returns>The inferred <see cref="SliceKind"/>.</returns>
     /// <remarks>
-    /// This is <see cref="Infer"/> applied to everything the parts hold together, said in terms of the kinds rather
-    /// than of the contents, and it answers identically. A part is a translation exactly when it holds a translating
-    /// reactor, an automation exactly when it holds a reactor and no translating one, and a state change exactly when
-    /// it holds a command or an aggregate root and no reactor at all - so taking the first of those that any part is
-    /// is the same first match the joined contents would have produced.
+    /// Explicit translations retain precedence. Otherwise a part containing a reactor makes the combined slice an
+    /// automation, and a command or aggregate root makes it a state change only when no part contains a reactor.
     /// </remarks>
     public static SliceKind Combine(IEnumerable<SliceKind> kinds)
     {

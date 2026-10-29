@@ -21,7 +21,7 @@ class {{Name}}SortBy {
     private _{{camelCase Name}}: SortingActionsForQuery<{{{../Model}}}[]>;
 {{/Properties}}
 
-    constructor(readonly query: {{Name}}) {
+    constructor({{#unless HasQuerySortProperty}}readonly {{/unless}}query: {{Name}}) {
 {{#Properties}}
         this._{{camelCase Name}} = new SortingActionsForQuery<{{{../Model}}}[]>('{{camelCase Name}}', query);
 {{/Properties}}

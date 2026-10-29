@@ -7,8 +7,7 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// Returning an event rather than nothing is the other way a reactor translates, and it needs no body reading at all
-/// - the signature already says the reaction produces something.
+/// Returning an event preserves the side-effect compatibility flag without implying external translation.
 /// </summary>
 public class a_reactor_returning_further_events : Specification
 {
@@ -38,6 +37,6 @@ public class a_reactor_returning_further_events : Specification
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_call_it_translating() => _analysis.Slice().Reactors.Single().IsTranslating.ShouldBeTrue();
-    [Fact] void should_infer_a_translate_slice() => _analysis.Slice().Kind.ShouldEqual(SliceKind.Translate);
+    [Fact] void should_infer_an_automation_slice() => _analysis.Slice().Kind.ShouldEqual(SliceKind.Automation);
     [Fact] void should_observe_the_event_it_reacts_to() => _analysis.Slice().Reactors.Single().ObservedEvents.ShouldContainOnly(["BookReserved"]);
 }
