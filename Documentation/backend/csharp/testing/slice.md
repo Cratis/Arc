@@ -78,4 +78,4 @@ Keep execution through `slice.Run()` when using the facade. Calling `Scenario.Ex
 - `Run()` permits only one execution request. A second call throws `SliceAlreadyRun`, including concurrent calls or a retry after the first execution throws. Create a new slice for another execution.
 - Dispose the slice with `await using` or `await slice.DisposeAsync()` to release the underlying scenario and its resources. In a Specification, dispose it in `Destroy()`.
 
-Screenplay does not yet recognize `Slice` tests. Use the facade for executable command tests; do not rely on it to populate Screenplay specification discovery.
+Screenplay recognizes a `Slice` test that expects its own command to be rejected without a named reason. Constructing the slice in a field initializer or `Establish()`, running it in `Because()`, asserting `ShouldBeRejected()` and disposing it in `Destroy()` is read as a rejection scenario. Any other setup, write or assertion on the slice makes Screenplay report the specification as unreadable instead of guessing.
