@@ -17,7 +17,7 @@ Warnings are useful only if the UI knows whether they block the write. Arc's def
 | `Unknown` | Information, Warning, and Error |
 | `ignoreWarnings: true` | Error only; overrides the severity choice |
 
-The numeric enum is `Unknown = 0`, `Information = 1`, `Warning = 2`, `Error = 3`. Explicit severity retains results **greater than** the allowed level. Do not pass Error as an override: it can filter all client errors. Mandatory business, integrity, and security requirements must remain server-enforced and non-overridable. Authorization is a separate pipeline decision, not merely a warning.
+The numeric enum is `Unknown = 0`, `Information = 1`, `Warning = 2`, `Error = 3`. Explicit severity retains results **greater than** the allowed level. Do not pass Error as an override: it can filter all client errors, while the C# HTTP endpoint caps caller severity at Warning unless the command or host explicitly opts in. Mandatory business, integrity, and security requirements must remain server-enforced and non-overridable. Authorization is a separate pipeline decision, not merely a warning.
 
 ## Warning confirmation workflow
 
@@ -57,6 +57,6 @@ If the user must confirm **every** write, ask before the first execution, regard
 
 ## Server behavior and boundaries
 
-The generated endpoint reads the severity headers and the command pipeline applies its blocking-result policy. Server policies and projected client rules can differ; always inspect the final result. A successful earlier preflight or confirmed warning does not reserve state or guarantee later execution success.
+The generated C# endpoint caps the caller severity header at Warning by default, unless the command or host explicitly opts in. The command pipeline then applies its blocking-result policy; the opt-in cannot remove a declared blocking policy or the read-protection-On floor. Server policies and projected client rules can differ; always inspect the final result. A successful earlier preflight or confirmed warning does not reserve state or guarantee later execution success.
 
 Use warnings only for genuinely overridable advice, not data integrity, access control, or regulatory requirements. See [backend severity filtering](../../../backend/csharp/commands/validation-severity-filtering.md) for the authoritative pipeline behavior and [command filters](../../../backend/csharp/commands/command-filters.md) for application-owned checks.
