@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandActionFilter_with_transactional_scope.given;
 
@@ -19,6 +20,7 @@ public class a_controller_command_with_a_transactional_scope : a_transactional_c
     protected CommandActionFilter _filter;
     protected ActionExecutingContext _executing;
     protected ActionExecutedContext _executed;
+    protected ArcOptions _options;
     ActivitySource _activity;
 
     protected CommandResult<object> Result => (CommandResult<object>)((ObjectResult)_executed.Result!).Value!;
@@ -28,6 +30,8 @@ public class a_controller_command_with_a_transactional_scope : a_transactional_c
         var scopes = Substitute.For<IInstancesOf<ICommandExecutionScope>>();
         scopes.GetEnumerator().Returns(_ => new ICommandExecutionScope[] { _scope }.AsEnumerable().GetEnumerator());
         _serviceProvider.GetService(typeof(IInstancesOf<ICommandExecutionScope>)).Returns(scopes);
+        _options = new ArcOptions { ExposeExceptionDetails = true };
+        _serviceProvider.GetService(typeof(IOptions<ArcOptions>)).Returns(Options.Create(_options));
         var http = new DefaultHttpContext { RequestServices = _serviceProvider };
         http.Request.Method = HttpMethod.Post.Method;
         var command = new ControllerCommand("value");
