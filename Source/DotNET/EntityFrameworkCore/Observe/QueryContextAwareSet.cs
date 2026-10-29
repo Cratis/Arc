@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
@@ -14,7 +15,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Observe;
 /// </summary>
 /// <remarks>This list is not mutated in a thread-safe way.</remarks>
 /// <typeparam name="TEntity">The type of the entity.</typeparam>
-internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
+internal sealed class QueryContextAwareSet<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity> : IEnumerable<TEntity>
 {
     readonly IEqualityComparer _idEqualityComparer;
     readonly Func<TEntity, object> _getId;
