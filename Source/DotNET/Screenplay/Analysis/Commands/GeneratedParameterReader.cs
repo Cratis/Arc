@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
+using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -150,6 +151,39 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
 
         return AggregateRootBehaviors.ReachedFrom(body, model).Any() ? null : identity;
     }
+
+    /// <summary>Reads a unique generated wrapper identity beside a non-identity tuple response.</summary>
+    /// <param name="returned">The directly returned expression.</param>
+    /// <param name="body">The handler body.</param>
+    /// <param name="model">The model binding the tuple and its effects.</param>
+    /// <param name="generated">The proven generated properties.</param>
+    /// <returns>The unambiguous generated identity, or null.</returns>
+    internal string? TupleWrapperIdentifier(ExpressionSyntax returned, SyntaxNode body, SemanticModel model, IReadOnlyList<PropertyModel> generated)
+    {
+        var tuple = ReturnedProductionShape.TupleOf(returned, model);
+        if (tuple is null || !HasResponse(tuple, model))
+        {
+            return null;
+        }
+        var identities = tuple.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>()
+            .Where(wrapper => ReturnedProductionShape.Reaches(wrapper, tuple, model))
+            .Select(wrapper => ExplicitEventDestination.Read(wrapper, model))
+            .OfType<ExplicitEventDestination>()
+            .Select(envelope => Sources.ReadGeneratedPath(envelope.Destination, model))
+            .OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
+        if (identities is not [var identity] || !generated.Any(property => property.Name == identity))
+        {
+            return null;
+        }
+
+        return AggregateRootBehaviors.ReachedFrom(body, model).Any() ? null : identity;
+    }
+
+    static bool HasResponse(TupleExpressionSyntax tuple, SemanticModel model) => tuple.Arguments.Any(argument =>
+    {
+        var type = model.GetTypeInfo(argument.Expression).ConvertedType ?? model.GetTypeInfo(argument.Expression).Type;
+        return !ReturnedProductionShape.IsEffect(type) && !ReturnedProductionShape.IsIdentity(type);
+    });
 
     static AttributeData AttributeOf(IParameterSymbol parameter) => parameter.GetAttributes().First(attribute => attribute.AttributeClass.Is(WellKnownTypeNames.GeneratedValueAttribute));
 
