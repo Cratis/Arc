@@ -39,10 +39,7 @@ public class CommandIdentifierReader(SemanticModels models, ScreenplayDiagnostic
             var expression = declaration?.ExpressionBody?.Expression ??
                 (declaration?.Body?.Statements is [ReturnStatementSyntax returned] ? returned.Expression : null);
             var model = expression is null ? null : models.For(expression.SyntaxTree);
-            while (expression is ParenthesizedExpressionSyntax parenthesized)
-            {
-                expression = parenthesized.Expression;
-            }
+            expression = IdentifierExpressions.Read(expression, model);
 
             if (expression is IdentifierNameSyntax or MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax } &&
                 model?.GetSymbolInfo(expression).Symbol is IPropertySymbol property &&
