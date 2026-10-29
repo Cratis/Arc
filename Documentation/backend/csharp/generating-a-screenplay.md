@@ -663,6 +663,8 @@ Reaction batch admission remains separate from constraint emission. A constraint
 
 Every reactor becomes a `reaction` with one `when` trigger per event it handles. What happens under each trigger depends on the handler.
 
+A slice containing a reactor is inferred as an automation, including when the reaction produces events, invokes commands, runs as the system, or returns a public event. These effects and observing a non-default event sequence do not prove translation between external and internal vocabularies. An explicitly supplied `Translate` model remains a translation; the generator does not infer one from those reactor shapes.
+
 A handler whose only effect is the value it returns is stated as what that value sets off, so specifications can run it:
 
 ```csharp

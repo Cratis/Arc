@@ -7,9 +7,7 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// A reactor that turns what happened into something else that happens is translating. Reading the actual call into
-/// the command pipeline is what tells that apart from a reactor that merely holds one, which is the distinction a
-/// dependency-based guess cannot make.
+/// An actual command pipeline call preserves the side-effect compatibility flag, but remains an automation.
 /// </summary>
 public class a_reactor_executing_a_command : Specification
 {
@@ -46,5 +44,5 @@ public class a_reactor_executing_a_command : Specification
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_call_it_translating() => _analysis.Slice().Reactors.Single().IsTranslating.ShouldBeTrue();
-    [Fact] void should_infer_a_translate_slice() => _analysis.Slice().Kind.ShouldEqual(SliceKind.Translate);
+    [Fact] void should_infer_an_automation_slice() => _analysis.Slice().Kind.ShouldEqual(SliceKind.Automation);
 }

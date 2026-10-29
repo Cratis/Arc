@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.Model;
 /// </summary>
 /// <param name="Name">The name of the reactor.</param>
 /// <param name="ObservedEvents">The names of the events the reactor observes.</param>
-/// <param name="IsTranslating">Whether the reactor turns events into further events or commands.</param>
+/// <param name="IsTranslating">The compatibility flag for event/command side effects or non-default sequence observation; it does not determine the slice kind.</param>
 /// <param name="SourceFilePath">The path of the file implementing the reactor, if it is known.</param>
 /// <param name="EventSource">The event source definition and stream the reactor is filtered to, if it declares one.</param>
 public record ReactorModel(
@@ -23,7 +23,7 @@ public record ReactorModel(
     /// </summary>
     /// <param name="name">The name of the reactor.</param>
     /// <param name="observedEvents">The names of the events the reactor observes.</param>
-    /// <param name="isTranslating">Whether the reactor turns events into further events or commands.</param>
+    /// <param name="isTranslating">The compatibility flag for event/command side effects or non-default sequence observation; it does not determine the slice kind.</param>
     /// <param name="sourceFilePath">The path of the file implementing the reactor, if it is known.</param>
     public ReactorModel(string name, IEnumerable<string> observedEvents, bool isTranslating, string? sourceFilePath)
         : this(name, observedEvents, isTranslating, sourceFilePath, null)
@@ -91,7 +91,7 @@ public record ReactorModel(
     /// </summary>
     /// <param name="name">The name of the reactor.</param>
     /// <param name="observedEvents">The names of the events the reactor observes.</param>
-    /// <param name="isTranslating">Whether the reactor turns events into further events or commands.</param>
+    /// <param name="isTranslating">The compatibility flag for event/command side effects or non-default sequence observation; it does not determine the slice kind.</param>
     /// <param name="sourceFilePath">The path of the file implementing the reactor, if it is known.</param>
     public void Deconstruct(out string name, out IEnumerable<string> observedEvents, out bool isTranslating, out string? sourceFilePath)
     {
