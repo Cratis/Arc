@@ -227,7 +227,7 @@ public class ClientObservableSSE<T>(
                 }
 
                 isTerminated = true;
-                var json = JsonSerializer.Serialize(QueryResult.Error(queryContext.CorrelationId, error.Message), arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
+                var json = JsonSerializer.Serialize(QueryResult.Error(queryContext.CorrelationId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails)), arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
                 await context.Write($"data: {json}\n\n", cts.Token);
             }
             catch (Exception sendError)

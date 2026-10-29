@@ -304,7 +304,7 @@ public partial class ObservableQueryDemultiplexer
         catch (Exception exception)
         {
             logger.ErrorProcessingMessage(exception);
-            await NotifyAndComplete(callbacks, () => callbacks.OnError(queryId, "An error occurred while preparing the subscription.", token));
+            await NotifyAndComplete(callbacks, () => callbacks.OnError(queryId, arcOptions.Value.ExposeExceptionDetails ? "An error occurred while preparing the subscription." : ExceptionDetailRedactor.RedactedMessage, token));
             return null;
         }
     }
@@ -411,6 +411,7 @@ public partial class ObservableQueryDemultiplexer
 
         if (!queryResult.IsSuccess)
         {
+            ExceptionDetailRedactor.Redact(queryResult, arcOptions.Value.ExposeExceptionDetails, logger);
             var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
             await callbacks.OnError(target.QueryId, errorMsg, token);
             return false;

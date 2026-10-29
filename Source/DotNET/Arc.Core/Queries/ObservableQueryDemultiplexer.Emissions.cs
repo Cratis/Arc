@@ -201,7 +201,7 @@ public partial class ObservableQueryDemultiplexer
     {
         try
         {
-            await onError(queryId, error.Message, token);
+            await onError(queryId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails), token);
         }
         catch (Exception callbackError) when (IsDisconnect(callbackError, token))
         {

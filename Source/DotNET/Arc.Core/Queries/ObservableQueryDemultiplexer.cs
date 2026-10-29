@@ -358,7 +358,7 @@ public partial class ObservableQueryDemultiplexer(
                 }
 
                 logger.SubscriptionError(queryId, error);
-                await onError(queryId, error.Message, subscriptionToken);
+                await onError(queryId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails), subscriptionToken);
             }
             catch (Exception callbackError) when (IsDisconnect(callbackError, subscriptionToken))
             {

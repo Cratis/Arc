@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Commands.for_CommandActionFilter.when_executing;
 
@@ -15,6 +17,8 @@ public class and_the_action_threw_after_producing_a_response : given.a_post_requ
 
     void Establish()
     {
+        _actionContext.HttpContext.RequestServices = new ServiceCollection()
+            .AddSingleton(Options.Create(new ArcOptions { ExposeExceptionDetails = true })).BuildServiceProvider();
         _response = "Forty two";
         _failure = new Exception("Something went wrong");
         _executedContext.Result = new ObjectResult(_response);

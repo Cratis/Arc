@@ -39,7 +39,7 @@ public class a_guarded_client_observable_sse : Specification
         _messages = [];
         _principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "the-caller")], "test"));
         _queryContext = new QueryContext(QueryName, CorrelationId.New(), Paging.NotPaged, Sorting.None, new QueryArguments { ["id"] = 42 });
-        _arcOptions = Options.Create(new ArcOptions());
+        _arcOptions = Options.Create(new ArcOptions { ExposeExceptionDetails = true });
 
         _context = Substitute.For<IHttpRequestContext>();
         _context.RequestAborted.Returns(CancellationToken.None);

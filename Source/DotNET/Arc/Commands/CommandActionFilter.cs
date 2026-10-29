@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cratis.Arc.Commands;
 
@@ -84,6 +86,9 @@ public class CommandActionFilter(
             var commandResult = CreateResult(context, result, validationResult, actionException);
             await CompleteScopes(commandContext, [.. begunScopes], commandResult);
 
+            var logger = context.HttpContext.RequestServices?.GetService<ILoggerFactory>()?.CreateLogger<CommandActionFilter>()
+                ?? NullLogger<CommandActionFilter>.Instance;
+            ExceptionDetailRedactor.Redact(commandResult, ExceptionDetailRedactor.ExposeFor(context.HttpContext.RequestServices), logger);
             PublishResult(context, result, commandResult);
         }
         finally

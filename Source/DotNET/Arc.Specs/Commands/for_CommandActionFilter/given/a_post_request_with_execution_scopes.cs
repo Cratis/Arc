@@ -3,6 +3,7 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Commands.for_CommandActionFilter.given;
 
@@ -13,6 +14,7 @@ public class a_post_request_with_execution_scopes : a_post_request_for_a_command
     protected List<string> _calls;
     protected CommandContext _scopeContext;
     protected CommandResult _completedResult;
+    protected ArcOptions _options;
     protected AsyncLocal<string> _ambient;
     ServiceProvider _services;
 
@@ -31,7 +33,8 @@ public class a_post_request_with_execution_scopes : a_post_request_for_a_command
         });
         var instances = Substitute.For<IInstancesOf<ICommandExecutionScope>>();
         instances.GetEnumerator().Returns(_ => new ICommandExecutionScope[] { _first, _second }.AsEnumerable().GetEnumerator());
-        _services = new ServiceCollection().AddSingleton(instances).BuildServiceProvider();
+        _options = new ArcOptions { ExposeExceptionDetails = true };
+        _services = new ServiceCollection().AddSingleton(instances).AddSingleton(Options.Create(_options)).BuildServiceProvider();
         _actionContext.HttpContext.RequestServices = _services;
         _executedContext.Result = new ObjectResult("response");
     }
