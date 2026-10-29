@@ -37,7 +37,7 @@ internal class ReturnedEventDestinations(SemanticModel model, SyntaxNode body, A
         {
             return false;
         }
-        if (!model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId"))
+        if (!model.GetTypeInfo(wrapper).Type.Is(EventWrapperType.MetadataName))
         {
             return false;
         }

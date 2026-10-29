@@ -33,7 +33,7 @@ internal record ExplicitEventDestination(
     {
         if (wrapper.ArgumentList?.Arguments.Count != 2 ||
             model.GetOperation(wrapper) is not IObjectCreationOperation { Type: INamedTypeSymbol type } operation ||
-            !type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") ||
+            !type.Is(EventWrapperType.MetadataName) ||
             ArgumentAt(operation, 0) is not { } destination ||
             ArgumentAt(operation, 1) is not { } payload ||
             payload is not BaseObjectCreationExpressionSyntax creation ||

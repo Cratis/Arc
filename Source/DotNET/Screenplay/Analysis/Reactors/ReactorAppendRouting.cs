@@ -15,8 +15,6 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 /// <param name="models">The semantic models used to resolve literal results.</param>
 internal class ReactorAppendRouting(SemanticModels models)
 {
-    const string ExplicitEvent = "Cratis.Chronicle.EventSequences.EventForEventSourceId";
-
     /// <summary>
     /// Checks whether any handler may return an event using the context route.
     /// </summary>
@@ -33,7 +31,7 @@ internal class ReactorAppendRouting(SemanticModels models)
     static bool HasKnownAlternatives(INamedTypeSymbol type) => type.IsTupleType ||
         type.OriginalDefinition.FullMetadataName().StartsWith("Cratis.Monads.Result`", StringComparison.Ordinal);
 
-    static bool HasOwnDestination(ITypeSymbol type) => type.Is(ExplicitEvent) || CommandReader.IsCommand(type) || IsOutcomeFree(type);
+    static bool HasOwnDestination(ITypeSymbol type) => type.Is(EventWrapperType.MetadataName) || CommandReader.IsCommand(type) || IsOutcomeFree(type);
 
     static bool HasIndependentDestination(ITypeSymbol type) => HasIndependentDestination(type, new(SymbolEqualityComparer.Default));
 

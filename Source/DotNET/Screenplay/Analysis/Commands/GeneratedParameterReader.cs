@@ -138,7 +138,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
     public string? WrapperIdentifier(ExpressionSyntax returned, SyntaxNode body, SemanticModel model, IReadOnlyList<PropertyModel> generated)
     {
         if (returned is not BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var destination, ..] } wrapper ||
-            !model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId"))
+            !model.GetTypeInfo(wrapper).Type.Is(EventWrapperType.MetadataName))
         {
             return null;
         }

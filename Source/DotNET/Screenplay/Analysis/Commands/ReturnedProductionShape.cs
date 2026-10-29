@@ -169,7 +169,7 @@ internal static class ReturnedProductionShape
     }
 
     static bool IsEffect(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) ||
-        type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") ||
+        type.Is(EventWrapperType.MetadataName) ||
         (type is IArrayTypeSymbol array && IsEffect(array.ElementType)) ||
         (type is INamedTypeSymbol named && (named.Is("System.Collections.Generic.List`1") || named.Is("System.Collections.Generic.IEnumerable`1")) && IsEffect(named.TypeArguments[0])));
 }

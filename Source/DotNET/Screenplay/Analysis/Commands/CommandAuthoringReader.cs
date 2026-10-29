@@ -386,12 +386,14 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var optional = false;
         var collectionType = false;
         var underlying = type is null ? null : UnderlyingTypes.Of(type, ref optional, ref collectionType);
-        return (underlying is not null && EventReader.IsEvent(underlying)) ||
+        return IsAppendedEvent(underlying) ||
             (unwrapped is ConditionalExpressionSyntax conditional && OnlyEvents(conditional.WhenTrue, model) && OnlyEvents(conditional.WhenFalse, model)) ||
             (unwrapped is CollectionExpressionSyntax collection && collection.Elements.All(element => element is ExpressionElementSyntax item && OnlyEvents(item.Expression, model))) ||
             (unwrapped is ArrayCreationExpressionSyntax { Initializer: { } initializer } && initializer.Expressions.All(item => OnlyEvents(item, model))) ||
             (unwrapped is ImplicitArrayCreationExpressionSyntax array && array.Initializer.Expressions.All(item => OnlyEvents(item, model)));
     }
+
+    static bool IsAppendedEvent(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) || type.Is(EventWrapperType.MetadataName));
 
     static ITypeSymbol? ResponseValueType(ITypeSymbol? type)
     {
