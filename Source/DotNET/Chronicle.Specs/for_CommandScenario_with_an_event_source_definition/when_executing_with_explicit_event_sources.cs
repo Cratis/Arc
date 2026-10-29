@@ -14,6 +14,7 @@ public class when_executing_with_explicit_event_sources : given.a_routed_command
 {
     IEventSources _eventSources;
     CommandResult _result;
+    int _commandDefinitionCalls;
 
     void Establish()
     {
@@ -22,9 +23,15 @@ public class when_executing_with_explicit_event_sources : given.a_routed_command
         _scenario.Services.AddSingleton(_eventSources);
     }
 
-    async Task Because() => _result = await _scenario.Execute(_command);
+    async Task Because()
+    {
+        _result = await _scenario.Execute(_command);
+        _commandDefinitionCalls = _eventSources.ReceivedCalls().Count(call =>
+            call.GetMethodInfo().Name == nameof(IEventSources.GetFor) &&
+            call.GetArguments() is [Type type] && type == typeof(ScenarioLedger));
+    }
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
-    [Fact] void should_use_the_explicit_definitions_for_the_command() => _eventSources.Received(1).GetFor(typeof(ScenarioLedger));
+    [Fact] void should_use_the_explicit_definitions_for_the_command() => _commandDefinitionCalls.ShouldEqual(1);
     [Fact] void should_use_the_explicit_definition_for_routes() => _scenario.EventRoutes.For<ScenarioLedger>("entries").EventSourceType.ShouldEqual(new EventSourceType("explicit-ledger"));
 }
