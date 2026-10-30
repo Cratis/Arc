@@ -44,3 +44,23 @@ AspNetCore's explicit endpoint remains unmapped outside Development. Chronicle's
 - `Shared` holds artifacts reused by the ASP.NET Core, Arc.Core, and MAUI applications.
 - `Layered` and `Layered.Contracts` are multi-project source-analysis examples.
 - [MAUI](Maui/README.md) demonstrates desktop embedding and requires the appropriate platform workload.
+
+### Publishing ArcCore trimmed or NativeAOT
+
+`CratisSamplePublish` selects a publish variant with reflection-based JSON disabled. From the repository root:
+
+```bash
+dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r osx-arm64 -p:CratisSamplePublish=Untrimmed -o .ai-work/2859/publish/untrimmed
+dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r osx-arm64 -p:CratisSamplePublish=Trimmed -o .ai-work/2859/publish/trimmed
+dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r osx-arm64 -p:CratisSamplePublish=NativeAot -o .ai-work/2859/publish/nativeaot
+```
+
+Build the acceptance runner with `dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net10.0`. Set `CRATIS_ARC_PUBLISHED_ARCCORE` to the absolute executable path and, optionally, `CRATIS_ARC_PUBLISHED_ARCCORE_LOG` to a file for captured server output. Run each variant separately:
+
+```bash
+CRATIS_ARC_PUBLISHED_ARCCORE="$PWD/.ai-work/2859/publish/untrimmed/ArcCore" \
+CRATIS_ARC_PUBLISHED_ARCCORE_LOG="$PWD/.ai-work/2859/untrimmed-app.log" \
+Samples/ArcCore.Specs/bin/Release/net10.0/Cratis.Arc.Samples.ArcCore.Specs -noLogo -noColor -result-trx "$PWD/.ai-work/2859/untrimmed.trx"
+```
+
+This is not a CI gate yet; see [#2859](https://github.com/Cratis/Arc/issues/2859). Trimmed and NativeAOT runs may expose library incompatibilities; the untrimmed variant is the control.
