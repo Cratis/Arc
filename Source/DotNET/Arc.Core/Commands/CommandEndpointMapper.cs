@@ -42,7 +42,7 @@ public static class CommandEndpointMapper
                 location,
                 handlersByNamespace);
             var url = CommandRoute.CustomRoute(handler) ??
-                EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName, arcOptions.EndpointGroups.RoutePrefixFor(endpointGroup, options.RoutePrefix));
+                EndpointRouteHelper.BuildRouteUrl(arcOptions.EndpointGroups.RoutePrefixFor(endpointGroup, options.RoutePrefix), handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
             var excludeFromApiDescription = endpointGroup is not null || handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true);
             var allowAnonymous = handler.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForCommand(handler.CommandType, serviceProvider);

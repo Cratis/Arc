@@ -67,7 +67,7 @@ public static class QueryEndpointMapper
                     options.IncludeQueryNameInRoute,
                     location,
                     performersByNamespace);
-                url = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName, arcOptions.EndpointGroups.RoutePrefixFor(endpointGroup, options.RoutePrefix));
+                url = EndpointRouteHelper.BuildRouteUrl(arcOptions.EndpointGroups.RoutePrefixFor(endpointGroup, options.RoutePrefix), performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
                 locationForTag = location;
             }
 
