@@ -17,7 +17,7 @@ public class when_executing_generated_commands : given.a_published_arc_core
     {
         using var content = new StringContent("""{"author":"published-harness","text":"from a published executable"}""", Encoding.UTF8, "application/json");
         _response = await _arcCore.Client.PostAsync("api/features/live-feed", content);
-        _responseText = await _response.Content.ReadAsStringAsync();
+        _responseText = await _arcCore.ReadResponse(_response);
         using var document = JsonDocument.Parse(_responseText);
         _body = document.RootElement.Clone();
     }

@@ -95,6 +95,18 @@ public sealed class PublishedArcCore
         }
     }
 
+    /// <summary>
+    /// Reads and records a response before its body is parsed by an acceptance spec.
+    /// </summary>
+    /// <param name="response">The response from the published application.</param>
+    /// <returns>The response body.</returns>
+    public async Task<string> ReadResponse(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        _output.Enqueue($"HTTP {(int)response.StatusCode} ({response.StatusCode}) {response.RequestMessage?.RequestUri}{Environment.NewLine}{body}");
+        return body;
+    }
+
     static string GetAvailableUrl()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

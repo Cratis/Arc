@@ -15,7 +15,7 @@ public class when_executing_generated_queries : given.a_published_arc_core
     async Task Because()
     {
         _response = await _arcCore.Client.GetAsync("api/features/query-showcase/by-id?id=7");
-        _responseText = await _response.Content.ReadAsStringAsync();
+        _responseText = await _arcCore.ReadResponse(_response);
         using var document = JsonDocument.Parse(_responseText);
         _body = document.RootElement.Clone();
     }
