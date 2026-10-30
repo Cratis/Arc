@@ -22,7 +22,27 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
     /// <inheritdoc/>
     public bool TryResolve(IServiceProvider serviceProvider, ParameterInfo parameter, out object? dependency)
     {
-        dependency = null;
+        var isReadModel = _readModelTypes.Contains(parameter.ParameterType);
+        if (!OwnsSynchronousParameter(parameter, isReadModel))
+        {
+            ReadProtectionMeasurement.Current?.Parameter(parameter, isReadModel);
+            dependency = null;
+            return false;
+        }
+        var result = TryResolveAsync(serviceProvider, parameter).GetAwaiter().GetResult();
+        dependency = result.Dependency;
+        return result.Resolved;
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask<(bool Resolved, object? Dependency)> TryResolveAsync(IServiceProvider serviceProvider, ParameterInfo parameter)
+    {
+        if (parameter.ParameterType.IsGenericType && parameter.ParameterType.GetGenericTypeDefinition() == typeof(DecisionRead<>))
+        {
+            var commandContext = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
+            return (true, await ReadModelServiceCollectionExtensions.ResolveDecisionReadAsync(parameter.ParameterType, commandContext, serviceProvider));
+        }
+
         var isReadModel = _readModelTypes.Contains(parameter.ParameterType);
         ReadProtectionMeasurement.Current?.Parameter(parameter, isReadModel);
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && IsChronicleCollection(parameter.ParameterType))
@@ -30,25 +50,36 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             var model = parameter.ParameterType.GetGenericArguments()[0];
             throw new ReadCannotBeProtected(serviceProvider.GetRequiredService<ICommandContextAccessor>().Current.Type, parameter.Name!, model, "through IMongoCollection", $"inject {model.Name}");
         }
-        if (isReadModel && PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
+        if (!isReadModel)
         {
-            var commandContext = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-            dependency = PerStreamReadModelBinding.Resolve(parameter.ParameterType, commandContext, serviceProvider, parameter);
-            return true;
-        }
-        if (!isReadModel ||
-            (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On &&
-             !Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any()))
-        {
-            return false;
+            return (false, null);
         }
 
         var context = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
+        return (true, await ResolveReadModelAsync(serviceProvider, context, parameter));
+    }
+
+    bool OwnsSynchronousParameter(ParameterInfo parameter, bool isReadModel)
+    {
+        if (!isReadModel) return IsChronicleCollection(parameter.ParameterType);
+        if (PerStreamReadModelBinding.IsDeclared(parameter.ParameterType)) return true;
+        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On) return true;
+        return Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any();
+    }
+
+    static async Task<object?> ResolveReadModelAsync(IServiceProvider serviceProvider, CommandContext context, ParameterInfo parameter)
+    {
+        if (PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
+        {
+            return await PerStreamReadModelBinding.ResolveAsync(parameter.ParameterType, context, serviceProvider, parameter);
+        }
+
+        object? dependency;
         var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, ProtectedReadModelKeys.Traversal(serviceProvider), out var keyText);
         var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
         {
-            dependency = ProtectedReadModelKeys.RequireInstance(ResolveProtected(serviceProvider, context, parameter, key, keyText), parameter, keyText);
+            dependency = ProtectedReadModelKeys.RequireInstance(await ResolveProtected(serviceProvider, context, parameter, key, keyText), parameter, keyText);
         }
         else
         {
@@ -59,10 +90,10 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             {
                 ReadProtectionTelemetry.Record(context.Type, "advisory_read", parameter.ParameterType, advisory.Reason ?? "Declared advisory");
             }
-            dependency = ReadModelServiceCollectionExtensions.ResolveReadModel(parameter.ParameterType, context, serviceProvider.GetRequiredService<IReadModels>(), key);
+            dependency = await ReadModelServiceCollectionExtensions.ResolveReadModelAsync(parameter.ParameterType, context, serviceProvider.GetRequiredService<IReadModels>(), key);
         }
 
-        return true;
+        return dependency;
     }
 
     /// <summary>
@@ -75,7 +106,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
     /// <returns>The model, or null when it does not exist.</returns>
     /// <exception cref="ProtectedCommandRequiresCommandAwareReader">The reader is not command aware.</exception>
     /// <exception cref="DecisionReadRefused">The read cannot be protected.</exception>
-    internal static T? ResolveModel<T>(IServiceProvider services, CommandContext context, ReadModelKey key)
+    internal static async Task<T?> ResolveModel<T>(IServiceProvider services, CommandContext context, ReadModelKey key)
         where T : class
     {
         var reader = services.GetRequiredService<IDecisionReads>() as CommandDecisionReads ?? throw new ProtectedCommandRequiresCommandAwareReader();
@@ -86,14 +117,14 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             throw new DecisionReadRefused(reason, typeof(T));
         }
 
-        return reader.GetInstance<T>(key, context.CancellationToken).GetAwaiter().GetResult();
+        return await reader.GetInstance<T>(key, context.CancellationToken);
     }
 
-    static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
+    static async Task<object?> ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
     {
         try
         {
-            return ReadModelDispatch.For(parameter.ParameterType).ResolveProtected(services, context, key);
+            return await ReadModelDispatch.For(parameter.ParameterType).ResolveProtected(services, context, key);
         }
         catch (ProtectedReadModelDoesNotExist)
         {

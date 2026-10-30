@@ -152,6 +152,35 @@ public static class ReadModelServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Resolves and releases a stored model without blocking command parameter binding.
+    /// </summary>
+    /// <param name="readModelType">The model type.</param>
+    /// <param name="commandContext">The command invocation.</param>
+    /// <param name="readModels">The stored model reader.</param>
+    /// <param name="key">The parameter key.</param>
+    /// <returns>The released model, or null.</returns>
+    internal static async Task<object?> ResolveReadModelAsync(Type readModelType, CommandContext commandContext, IReadModels readModels, ReadModelKey? key = null)
+    {
+        var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
+        if (eventSourceId == EventSourceId.Unspecified)
+        {
+            throw new UnableToResolveReadModelFromCommandContext(readModelType);
+        }
+        ReadProtectionMeasurement.Current?.StoredRead(readModelType, (ReadModelKey)eventSourceId);
+        return await ReadModelDispatch.For(readModelType).ResolveStored(readModels, (ReadModelKey)eventSourceId);
+    }
+
+    /// <summary>
+    /// Resolves a decision wrapper through typed asynchronous dispatch.
+    /// </summary>
+    /// <param name="readModelType">The wrapper type.</param>
+    /// <param name="commandContext">The command invocation.</param>
+    /// <param name="services">The invocation services.</param>
+    /// <returns>The decision read.</returns>
+    internal static Task<object?> ResolveDecisionReadAsync(Type readModelType, CommandContext commandContext, IServiceProvider services) =>
+        ReadModelDispatch.For(readModelType.GetGenericArguments()[0]).ResolveDecisionRead(services, commandContext);
+
+    /// <summary>
     /// Discovers the same Chronicle-backed models for parameter resolution and admission checks.
     /// </summary>
     /// <param name="artifacts">The discovered client artifacts.</param>
@@ -209,13 +238,22 @@ public static class ReadModelServiceCollectionExtensions
     }
 
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
+        where T : class => ResolveDecisionReadAsync<T>(services, services.GetRequiredService<ICommandContextAccessor>().Current).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Resolves a typed wrapper, preserving source and stream routing.
+    /// </summary>
+    /// <typeparam name="T">The read model type.</typeparam>
+    /// <param name="services">The invocation services.</param>
+    /// <param name="context">The command invocation.</param>
+    /// <returns>The decision read.</returns>
+    internal static async Task<DecisionRead<T>> ResolveDecisionReadAsync<T>(IServiceProvider services, CommandContext context)
         where T : class
     {
-        var context = services.GetRequiredService<ICommandContextAccessor>().Current;
         if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
         {
             var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
-            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+            return await services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken);
         }
         var key = context.GetEventSourceId();
         if (key == EventSourceId.Unspecified)
@@ -223,7 +261,7 @@ public static class ReadModelServiceCollectionExtensions
             throw new UnableToResolveReadModelFromCommandContext(typeof(T));
         }
 
-        return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken).GetAwaiter().GetResult();
+        return await services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken);
     }
 
     /// <summary>

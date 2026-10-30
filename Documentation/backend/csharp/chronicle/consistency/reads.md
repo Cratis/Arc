@@ -5,6 +5,10 @@ description: "Learn which command reads are protected, advisory, refused or ungu
 
 Use this page when you want to know what a read in a command becomes under `On`, how to mark one as advisory, or how to choose which key a parameter reads. Under `Off`, plain read-model parameters remain unguarded; explicit `[ProtectedDecision]` commands with `DecisionRead<T>` still guard their declared decision reads.
 
+Arc awaits read-model and `DecisionRead<T>` parameters of `Provide()` and `Handle()`, including stream-bound models and compliance release. A protected read is still enrolled before your code receives it, and repeated parameters in the invocation still share the same read. Required missing models fail validation; nullable missing models remain guarded absences.
+
+This does not make constructor injection asynchronous. Read models resolved through DI, including validator constructor parameters, retain their synchronous compatibility path. Custom parameter resolvers can override `ICanResolveParameterDependency.TryResolveAsync` to await I/O; existing synchronous implementations continue to work through the default adapter.
+
 ## Four classes of read
 
 | Class | What it is | Under `On` |

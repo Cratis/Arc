@@ -30,8 +30,14 @@ public static class ReadModelDispatch
         where TModel : class => _entries.TryAdd(
             typeof(TModel),
             new ReadModelDispatchEntry(
-                ChronicleParameterDependencyResolver.ResolveModel<TModel>,
-                PerStreamReadModelBinding.ResolveModel<TModel>,
+                async (services, context, key) => await ChronicleParameterDependencyResolver.ResolveModel<TModel>(services, context, key),
+                async (context, services, parameter) => await PerStreamReadModelBinding.ResolveModel<TModel>(context, services, parameter),
+                async (services, context) => await ReadModelServiceCollectionExtensions.ResolveDecisionReadAsync<TModel>(services, context),
+                async (models, key) =>
+                {
+                    var instance = await models.GetInstanceById<TModel>(key);
+                    return instance is null ? null : await models.Release(instance);
+                },
                 reads => reads.Describe<TModel>(),
                 DecisionReadVerdict.Refusal<TModel>));
 

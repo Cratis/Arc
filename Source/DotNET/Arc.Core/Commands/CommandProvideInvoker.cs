@@ -56,7 +56,7 @@ public class CommandProvideInvoker : ICommandProvideInvoker
             : OperationActivity.StartCommandChild(_activitySource, WellKnownTelemetryNames.CommandProvideSpan, context.Type);
         try
         {
-            var arguments = ResolveArguments(context, provideMethod, serviceProvider);
+            var arguments = await ResolveArguments(context, provideMethod, serviceProvider);
             using var body = serviceProvider.GetService<ICommandProtectedDecisionSupport>()?.BeginMethodBody(provideMethod);
             var invocationResult = Invoke(provideMethod, context.Command, arguments);
             var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
@@ -69,18 +69,25 @@ public class CommandProvideInvoker : ICommandProvideInvoker
         }
     }
 
-    static object?[]? ResolveArguments(CommandContext context, MethodInfo provideMethod, IServiceProvider serviceProvider)
+    static async ValueTask<object?[]?> ResolveArguments(CommandContext context, MethodInfo provideMethod, IServiceProvider serviceProvider)
     {
         var parameters = provideMethod.GetParameters();
-        return parameters.Length == 0
-            ? null
-            : parameters.Select(parameter => ResolveArgument(context, serviceProvider, parameter)).ToArray();
+        if (parameters.Length == 0)
+        {
+            return null;
+        }
+        var arguments = new object?[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            arguments[i] = await ResolveArgument(context, serviceProvider, parameters[i]);
+        }
+        return arguments;
     }
 
-    static object? ResolveArgument(CommandContext context, IServiceProvider serviceProvider, ParameterInfo parameter) =>
+    static async ValueTask<object?> ResolveArgument(CommandContext context, IServiceProvider serviceProvider, ParameterInfo parameter) =>
         parameter.ParameterType == typeof(CancellationToken)
             ? context.CancellationToken
-            : ParameterDependencyResolver.Resolve(
+            : await ParameterDependencyResolver.ResolveAsync(
                 serviceProvider,
                 parameter,
                 _ => new CannotResolveCommandDependency(parameter));

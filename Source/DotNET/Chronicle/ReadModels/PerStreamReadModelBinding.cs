@@ -35,11 +35,22 @@ internal static class PerStreamReadModelBinding
     /// <param name="parameter">The parameter, when resolving a parameter dependency.</param>
     /// <returns>The model, or null for an absent stream.</returns>
     /// <exception cref="ReadCannotBeProtected">The model cannot be protected.</exception>
-    internal static object? Resolve(Type model, CommandContext context, IServiceProvider services, ParameterInfo? parameter = null)
+    internal static object? Resolve(Type model, CommandContext context, IServiceProvider services, ParameterInfo? parameter = null) =>
+        ResolveAsync(model, context, services, parameter).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Resolves a stream parameter without blocking its acquisition or compliance release.
+    /// </summary>
+    /// <param name="model">The model type.</param>
+    /// <param name="context">The command invocation.</param>
+    /// <param name="services">The command services.</param>
+    /// <param name="parameter">The dependency declaration.</param>
+    /// <returns>The released stream model, or null.</returns>
+    internal static async Task<object?> ResolveAsync(Type model, CommandContext context, IServiceProvider services, ParameterInfo? parameter = null)
     {
         try
         {
-            return ReadModelDispatch.For(model).ResolveStream(context, services, parameter);
+            return await ReadModelDispatch.For(model).ResolveStream(context, services, parameter);
         }
         catch (DecisionReadRefused refused) when (parameter is not null)
         {
@@ -104,7 +115,7 @@ internal static class PerStreamReadModelBinding
     /// <param name="parameter">The parameter, when resolving a parameter dependency.</param>
     /// <returns>The model, or null for an absent stream.</returns>
     /// <exception cref="ProtectedCommandRequiresCommandAwareReader">The reader is not command aware.</exception>
-    internal static T? ResolveModel<T>(CommandContext context, IServiceProvider services, ParameterInfo? parameter)
+    internal static async Task<T?> ResolveModel<T>(CommandContext context, IServiceProvider services, ParameterInfo? parameter)
         where T : class
     {
         var advisory = parameter?.GetCustomAttribute<UnprotectedAttribute>() ?? typeof(T).GetCustomAttribute<UnprotectedAttribute>();
@@ -122,7 +133,7 @@ internal static class PerStreamReadModelBinding
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
         {
             var commandReader = reader as CommandDecisionReads ?? throw new ProtectedCommandRequiresCommandAwareReader();
-            var protectedInstance = commandReader.GetStreamInstance<T>(source, route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+            var protectedInstance = await commandReader.GetStreamInstance<T>(source, route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken);
             return parameter is null ? protectedInstance : (T?)ProtectedReadModelKeys.RequireInstance(protectedInstance, parameter, keyText);
         }
         using var allowance = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && TransactionalCommandScope.CurrentProtectedUnit is { } unit
@@ -133,8 +144,8 @@ internal static class PerStreamReadModelBinding
         }
         ReadProtectionMeasurement.Current?.StreamRead<T>(reader, source, route.EventStreamType, route.EventStreamId, route.EventSourceType, advisory is not null);
         var models = services.GetRequiredService<IReadModels>();
-        var instance = models.GetInstanceById<T>(source, route.EventStreamId).GetAwaiter().GetResult();
-        return instance is null ? null : models.Release(instance).GetAwaiter().GetResult();
+        var instance = await models.GetInstanceById<T>(source, route.EventStreamId);
+        return instance is null ? null : await models.Release(instance);
     }
 
     static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>

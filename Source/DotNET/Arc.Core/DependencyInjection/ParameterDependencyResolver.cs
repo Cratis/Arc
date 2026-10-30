@@ -36,6 +36,50 @@ static class ParameterDependencyResolver
             throw new CannotResolveDependency(parameter, failure);
         }
 
+        return Validate(serviceProvider, parameter, dependency, createException);
+    }
+
+    /// <summary>
+    /// Resolves a parameter without blocking asynchronous dependency resolvers.
+    /// </summary>
+    /// <param name="serviceProvider">The invocation's services.</param>
+    /// <param name="parameter">The parameter to resolve.</param>
+    /// <param name="createException">Creates the failure for an unresolved required parameter.</param>
+    /// <returns>The resolved dependency.</returns>
+    public static async ValueTask<object?> ResolveAsync(IServiceProvider serviceProvider, ParameterInfo parameter, Func<ParameterInfo, Exception> createException)
+    {
+        object? dependency;
+        try
+        {
+            dependency = await ResolveParameterAsync(serviceProvider, parameter);
+        }
+        catch (InvalidOperationException failure)
+        {
+            throw new CannotResolveDependency(parameter, failure);
+        }
+
+        return Validate(serviceProvider, parameter, dependency, createException);
+    }
+
+    /// <summary>
+    /// Resolves parameters asynchronously in declaration order.
+    /// </summary>
+    /// <param name="serviceProvider">The invocation's services.</param>
+    /// <param name="parameters">The parameters to resolve.</param>
+    /// <param name="createException">Creates the failure for an unresolved required parameter.</param>
+    /// <returns>The dependencies in parameter order.</returns>
+    public static async ValueTask<object?[]> ResolveAsync(IServiceProvider serviceProvider, ParameterInfo[] parameters, Func<ParameterInfo, Exception> createException)
+    {
+        var dependencies = new object?[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            dependencies[i] = await ResolveAsync(serviceProvider, parameters[i], createException);
+        }
+        return dependencies;
+    }
+
+    static object? Validate(IServiceProvider serviceProvider, ParameterInfo parameter, object? dependency, Func<ParameterInfo, Exception> createException)
+    {
         // A protected decision dependency must never use nullable binding as an escape hatch: even a
         // registered factory returning null is a missing guard, not an optional dependency.
         if (CommandDecisionPolicy.IsProtected)
@@ -84,19 +128,33 @@ static class ParameterDependencyResolver
 
     static object? ResolveParameter(IServiceProvider serviceProvider, ParameterInfo parameter)
     {
-        if (serviceProvider.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers)
+        foreach (var resolver in ParameterResolvers(serviceProvider))
         {
-            foreach (var resolver in resolvers)
+            if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
             {
-                if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
-                {
-                    return dependency;
-                }
+                return dependency;
             }
         }
 
         return serviceProvider.GetService(parameter.ParameterType);
     }
+
+    static async ValueTask<object?> ResolveParameterAsync(IServiceProvider serviceProvider, ParameterInfo parameter)
+    {
+        foreach (var resolver in ParameterResolvers(serviceProvider))
+        {
+            var (resolved, dependency) = await resolver.TryResolveAsync(serviceProvider, parameter);
+            if (resolved)
+            {
+                return dependency;
+            }
+        }
+
+        return serviceProvider.GetService(parameter.ParameterType);
+    }
+
+    static IEnumerable<ICanResolveParameterDependency> ParameterResolvers(IServiceProvider services) =>
+        services.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers ? resolvers : [];
 
     static bool IsNullable(ParameterInfo parameter) =>
         new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
