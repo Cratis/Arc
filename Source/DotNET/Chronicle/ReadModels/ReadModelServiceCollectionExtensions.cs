@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -183,6 +184,26 @@ public static class ReadModelServiceCollectionExtensions
         }
     }
 
+#if NET9_0_OR_GREATER
+    /// <summary>
+    /// Releases a read model without closing a generic method through reflection over dynamic code.
+    /// </summary>
+    /// <param name="readModels">The <see cref="IReadModels"/> to release with.</param>
+    /// <param name="readModelType">The type of read model.</param>
+    /// <param name="readModel">The read model instance.</param>
+    /// <returns>The released read model.</returns>
+    internal static object ReleaseReadModelWithoutDynamicCode(IReadModels readModels, Type readModelType, object readModel)
+    {
+        // The helper closes over a reference type only, which the runtime shares code for, so it needs no dynamic code.
+        var task = (Task<object>)typeof(ReadModelServiceCollectionExtensions)
+            .GetMethod(nameof(ReleaseAsObject), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(readModelType)
+            .Invoke(null, [readModels, readModel])!;
+
+        return task.GetAwaiter().GetResult();
+    }
+#endif
+
     static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes) =>
         typeof(ReadModelServiceCollectionExtensions)
             .GetMethod(nameof(RegisterReadModelOf), BindingFlags.NonPublic | BindingFlags.Static)!
@@ -245,18 +266,40 @@ public static class ReadModelServiceCollectionExtensions
     {
         try
         {
-            var task = (Task)_releaseMethod
-                .MakeGenericMethod(readModelType)
-                .Invoke(readModels, [readModel])!;
+#if NET9_0_OR_GREATER
+            if (!RuntimeFeature.IsDynamicCodeSupported)
+            {
+                return ReleaseReadModelWithoutDynamicCode(readModels, readModelType, readModel);
+            }
+#endif
 
-            task.GetAwaiter().GetResult();
-
-            return task.GetType().GetProperty("Result")!.GetValue(task)!;
+            return ReleaseReadModelThroughReflection(readModels, readModelType, readModel);
         }
         catch (Exception exception)
         {
             throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}'.", exception);
         }
+    }
+
+#if NET9_0_OR_GREATER
+    static Task<object> ReleaseAsObject<TReadModel>(IReadModels readModels, object readModel)
+        where TReadModel : class =>
+        AsObject(readModels.Release((TReadModel)readModel));
+
+    static async Task<object> AsObject<T>(Task<T> task)
+        where T : class => await task;
+#endif
+
+    [RequiresDynamicCode("Closes IReadModels.Release over a read model type only known at runtime.")]
+    static object ReleaseReadModelThroughReflection(IReadModels readModels, Type readModelType, object readModel)
+    {
+        var task = (Task)_releaseMethod
+            .MakeGenericMethod(readModelType)
+            .Invoke(readModels, [readModel])!;
+
+        task.GetAwaiter().GetResult();
+
+        return task.GetType().GetProperty("Result")!.GetValue(task)!;
     }
 
     sealed class ReadModelDiscovery

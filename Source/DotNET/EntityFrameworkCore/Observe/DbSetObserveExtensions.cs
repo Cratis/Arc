@@ -5,6 +5,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
+#if NET9_0_OR_GREATER
+using System.Runtime.CompilerServices;
+#endif
 using Cratis.Arc;
 using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Arc.EntityFrameworkCore.Observe;
@@ -164,6 +167,35 @@ public static class DbSetObserveExtensions
         return dbSet.ObserveSingleCore(lambda, configure, ignoreQueryContext);
     }
 
+#if NET9_0_OR_GREATER
+    /// <summary>
+    /// Sorts a query without closing a generic method through reflection over dynamic code.
+    /// </summary>
+    /// <typeparam name="TEntity">The entity type.</typeparam>
+    /// <param name="query">The <see cref="IQueryable{T}"/> to sort.</param>
+    /// <param name="propertyAccess">The <see cref="Expression"/> reading the property to sort on.</param>
+    /// <param name="parameter">The <see cref="ParameterExpression"/> of the entity.</param>
+    /// <param name="direction">The <see cref="SortDirection"/>.</param>
+    /// <returns>The sorted <see cref="IQueryable{T}"/>.</returns>
+    /// <exception cref="MissingQueryableSortKey">Thrown when the property type is not registered and cannot be closed without dynamic code.</exception>
+    /// <exception cref="TargetInvocationException">Thrown when building the sort fails, with the failure as inner exception.</exception>
+    internal static IQueryable<TEntity> OrderByWithoutDynamicCode<TEntity>(IQueryable<TEntity> query, Expression propertyAccess, ParameterExpression parameter, SortDirection direction)
+        where TEntity : class
+    {
+        var keyType = QueryableKeyTypes.For(typeof(TEntity), propertyAccess.Type);
+
+        try
+        {
+            return keyType.OrderBy(query, propertyAccess, parameter, direction);
+        }
+        catch (Exception ex)
+        {
+            // Reproduces the exception that invoking the sort through reflection throws, so callers see the same type and message.
+            throw new TargetInvocationException(ex);
+        }
+    }
+#endif
+
     /// <summary>
     /// Observes a single entity matching a filter, backed by the shared observation pipeline.
     /// </summary>
@@ -188,7 +220,7 @@ public static class DbSetObserveExtensions
         bool ignoreQueryContext)
         where TEntity : class
     {
-        return dbSet.ObserveCore<TEntity, TEntity>(
+        return dbSet.ObserveCore(
             filter,
             configure,
             ignoreQueryContext,
@@ -518,22 +550,42 @@ public static class DbSetObserveExtensions
                 var propertyAccess = property is not null
                     ? (Expression)Expression.Property(parameter, property)
                     : Expression.Call(typeof(EF), nameof(EF.Property), [indexerProperty!.ClrType], parameter, Expression.Constant(indexerProperty.Name));
-                var lambda = Expression.Lambda(propertyAccess, parameter);
-
-                var methodName = queryContext.Sorting.Direction == SortDirection.Ascending
-                    ? "OrderBy"
-                    : "OrderByDescending";
-
-                var orderByMethod = typeof(Queryable)
-                    .GetMethods()
-                    .First(m => m.Name == methodName && m.GetParameters().Length == 2)
-                    .MakeGenericMethod(typeof(TEntity), propertyAccess.Type);
-
-                query = (IQueryable<TEntity>)orderByMethod.Invoke(null, [query, lambda])!;
+                query = ApplyOrder(query, propertyAccess, parameter, queryContext.Sorting.Direction);
             }
         }
 
         return query;
+    }
+
+    static IQueryable<TEntity> ApplyOrder<TEntity>(IQueryable<TEntity> query, Expression propertyAccess, ParameterExpression parameter, SortDirection direction)
+        where TEntity : class
+    {
+#if NET9_0_OR_GREATER
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return OrderByWithoutDynamicCode(query, propertyAccess, parameter, direction);
+        }
+#endif
+
+        return OrderByThroughReflection(query, propertyAccess, parameter, direction);
+    }
+
+    [RequiresDynamicCode("Closes Queryable.OrderBy over a property type only known at runtime.")]
+    static IQueryable<TEntity> OrderByThroughReflection<TEntity>(IQueryable<TEntity> query, Expression propertyAccess, ParameterExpression parameter, SortDirection direction)
+        where TEntity : class
+    {
+        var lambda = Expression.Lambda(propertyAccess, parameter);
+
+        var methodName = direction == SortDirection.Ascending
+            ? "OrderBy"
+            : "OrderByDescending";
+
+        var orderByMethod = typeof(Queryable)
+            .GetMethods()
+            .First(m => m.Name == methodName && m.GetParameters().Length == 2)
+            .MakeGenericMethod(typeof(TEntity), propertyAccess.Type);
+
+        return (IQueryable<TEntity>)orderByMethod.Invoke(null, [query, lambda])!;
     }
 
     static DbContext GetDbContext<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet)
