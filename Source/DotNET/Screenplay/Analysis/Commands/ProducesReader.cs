@@ -58,6 +58,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     public IEnumerable<ProducesModel> Read(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, string location, AuthoringSources? sources = null, bool generatedIdentity = false)
     {
         var produces = new List<ProducesModel>();
+        var withholding = new UnrepresentableProductions(diagnostics);
         var identifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, location);
 
         foreach (var handler in handlers)
@@ -95,9 +96,10 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             {
                 ReportEventSourceIdResult(command, handler, location);
             }
+            withholding.Apply(handler, produces, firstProduction, location);
         }
 
-        return produces.Count > 0 ? Deduplicate(produces) : ProducedBySignature.Of(handlers, location, diagnostics);
+        return produces.Count > 0 ? Deduplicate(produces) : withholding.ReadSignature(handlers, location);
     }
 
     /// <summary>

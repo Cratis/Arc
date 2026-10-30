@@ -29,6 +29,9 @@ public static class QueryableElementTypes
     /// </summary>
     /// <typeparam name="TElement">The element type of a queryable query result.</typeparam>
     /// <typeparam name="TKey">The type of a property of the element type that the result can be sorted on.</typeparam>
-    public static void RegisterSortKey<TElement, TKey>() =>
+    public static void RegisterSortKey<TElement, TKey>()
+    {
         QueryableExtensions.RegisterSortKey(typeof(TElement), typeof(TKey), new QueryableSortKeyFor<TElement, TKey>());
+        QueryableKeyTypes.Register<TKey>();
+    }
 }

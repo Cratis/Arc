@@ -15,6 +15,7 @@ internal sealed class LifetimeAwareSubject<T>(ISubject<T> inner, Action onNoSubs
 {
     int _subscriberCount;
     int _stopped;
+    int _terminated;
 
     /// <summary>
     /// Creates a new <see cref="LifetimeAwareSubject{T}"/> backed by a <see cref="ReplaySubject{T}"/> holding the
@@ -37,6 +38,7 @@ internal sealed class LifetimeAwareSubject<T>(ISubject<T> inner, Action onNoSubs
     /// <inheritdoc/>
     public void OnCompleted()
     {
+        Volatile.Write(ref _terminated, 1);
         try
         {
             inner.OnCompleted();
@@ -50,6 +52,7 @@ internal sealed class LifetimeAwareSubject<T>(ISubject<T> inner, Action onNoSubs
     /// <inheritdoc/>
     public void OnError(Exception error)
     {
+        Volatile.Write(ref _terminated, 1);
         try
         {
             inner.OnError(error);
@@ -75,7 +78,10 @@ internal sealed class LifetimeAwareSubject<T>(ISubject<T> inner, Action onNoSubs
     public void Dispose()
     {
         Stop();
-        if (inner is IDisposable disposable)
+
+        // A terminated subject keeps its terminal notification so a subscriber arriving later still receives it
+        // instead of an ObjectDisposedException. Stop() above has already released what the producer held.
+        if (Volatile.Read(ref _terminated) == 0 && inner is IDisposable disposable)
         {
             disposable.Dispose();
         }
