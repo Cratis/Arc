@@ -3,6 +3,7 @@
 
 import { GetHttpHeaders } from './GetHttpHeaders.js';
 import { EventSourceFactory } from './EventSourceFactory.js';
+import { PollingOptions } from './queries/PollingOptions.js';
 import { QueryTransportMethod } from './queries/QueryTransportMethod.js';
 import { QueryHttpMethod } from './queries/QueryHttpMethod.js';
 import { QueryHttpMethodResolver } from './queries/QueryHttpMethodResolver.js';
@@ -32,6 +33,8 @@ export interface IGlobals {
     microserviceHttpHeader: string;
     microserviceWSQueryArgument: string;
     queryTransportMethod: QueryTransportMethod;
+    /** Optional timing overrides for HTTP polling. Resolved when a connection is created. */
+    queryPollingOptions: PollingOptions;
     /**
      * The HTTP method used to perform non-streaming queries. Defaults to {@link QueryHttpMethod.Get}.
      * Set to {@link QueryHttpMethod.Query} to carry arguments in a JSON request body (RFC 10008)
@@ -96,6 +99,13 @@ export const Globals: IGlobals = {
     microserviceHttpHeader: 'x-cratis-microservice',
     microserviceWSQueryArgument: 'x-cratis-microservice',
     queryTransportMethod: QueryTransportMethod.WebSocket,
+    queryPollingOptions: {
+        intervalMs: 5_000,
+        minIntervalMs: 1_000,
+        maxIntervalMs: 60_000,
+        backoffMultiplier: 2,
+        jitterRatio: 0.2,
+    },
     queryHttpMethod: QueryHttpMethod.Get,
     queryConnectionCount: 1,
     queryDirectMode: false,

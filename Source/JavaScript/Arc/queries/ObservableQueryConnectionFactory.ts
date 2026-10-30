@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import { GetHttpHeaders } from '../GetHttpHeaders.js';
+import { PollingOptions } from './PollingOptions.js';
+import { PollingQueryConnection } from './PollingQueryConnection.js';
 import { Globals } from '../Globals.js';
 import { joinPaths } from '../joinPaths.js';
 import { UrlHelpers } from '../UrlHelpers.js';
@@ -40,12 +43,17 @@ export interface QueryConnectionDescriptor {
     microservice: string;
     /** Route/query arguments for the current subscription. */
     args?: object;
+    /** Per-query custom headers used by HTTP polling. */
+    httpHeadersCallback?: GetHttpHeaders;
+    /** Per-query timing overrides for HTTP polling. */
+    pollingOptions?: Partial<PollingOptions>;
 }
 
 /**
  * Single entry-point for creating observable query connections.
  *
- * The transport is chosen as a 2x2 matrix of (direct | hub) x (WebSocket | SSE):
+ * Polling always uses each query's HTTP route. Persistent transports use a
+ * 2x2 matrix of (direct | hub) x (WebSocket | SSE):
  *
  * |                | Direct (per-query URL)         | Hub (centralized endpoint)    |
  * |----------------|-------------------------------|-------------------------------|
@@ -58,6 +66,13 @@ export interface QueryConnectionDescriptor {
  * {@link ObservableQueryFor} never needs to know which transport is in use.
  */
 export function createObservableQueryConnection<TDataType>(descriptor: QueryConnectionDescriptor): IObservableQueryConnection<TDataType> {
+    if (Globals.queryTransportMethod === QueryTransportMethod.Polling) {
+        return new PollingQueryConnection<TDataType>(
+            buildDirectUrl(descriptor), descriptor.httpHeadersCallback ?? (() => ({})),
+            descriptor.microservice, { ...Globals.queryPollingOptions, ...descriptor.pollingOptions }
+        );
+    }
+
     const isSSE = Globals.queryTransportMethod === QueryTransportMethod.ServerSentEvents;
 
     if (Globals.queryDirectMode) {
@@ -67,6 +82,14 @@ export function createObservableQueryConnection<TDataType>(descriptor: QueryConn
     }
 
     return createMultiplexedConnection<TDataType>(descriptor, isSSE);
+}
+
+/**
+ * Determines whether the selected transport connects to each query's own route rather than a hub.
+ * @returns True for direct mode or HTTP polling.
+ */
+export function connectsToQueryRoute(): boolean {
+    return Globals.queryDirectMode || Globals.queryTransportMethod === QueryTransportMethod.Polling;
 }
 
 // ---- Direct mode: one connection per query, hitting the query's own URL ----

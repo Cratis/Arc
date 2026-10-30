@@ -13,12 +13,13 @@ By default, observable queries connect through centralized hub endpoints. Two pr
 
 ### `queryTransportMethod`
 
-Selects the transport protocol used for the hub connection.
+Selects the transport protocol used for observable queries.
 
 | Value | Description |
 | ------- | ------------- |
 | `QueryTransportMethod.ServerSentEvents` | Shared SSE hub at `/.cratis/queries/sse`, with subscribe/unsubscribe POSTs (React default). |
 | `QueryTransportMethod.WebSocket` | WebSocket hub transport. |
+| `QueryTransportMethod.Polling` | Repeated HTTP GET snapshots from each query's own URL, without a hub. |
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
@@ -33,6 +34,8 @@ export const App = () => (
     </Arc>
 );
 ```
+
+For polling, pass `queryTransportMethod={QueryTransportMethod.Polling}` to `<Arc>` and set `Globals.queryPollingOptions` before rendering. `queryDirectMode` has no effect on polling. See [polling configuration, backoff and limits](../../core/queries/configuration.md#polling-transport).
 
 ### `queryDirectMode`
 

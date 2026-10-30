@@ -7,7 +7,8 @@ import { ValidateRequestArguments } from './ValidateRequestArguments.js';
 import type { QueryValidator } from './QueryValidator.js';
 import type { IObservableQueryConnection } from './IObservableQueryConnection.js';
 import { NullObservableQueryConnection } from './NullObservableQueryConnection.js';
-import { createObservableQueryConnection } from './ObservableQueryConnectionFactory.js';
+import { PollingOptions } from './PollingOptions.js';
+import { createObservableQueryConnection, connectsToQueryRoute } from './ObservableQueryConnectionFactory.js';
 import type { Constructor } from '@cratis/fundamentals';
 import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel.js';
 import { QueryResult } from './QueryResult.js';
@@ -44,6 +45,7 @@ export abstract class ObservableQueryFor<
     private _connection?: IObservableQueryConnection<TDataType>;
     private _httpHeadersCallback: GetHttpHeaders;
     private _httpMethod?: QueryHttpMethod;
+    private _pollingOptions?: Partial<PollingOptions>;
 
     abstract readonly route: string;
     abstract readonly defaultValue: TDataType;
@@ -100,6 +102,14 @@ export abstract class ObservableQueryFor<
         this._httpHeadersCallback = callback;
     }
 
+    /**
+     * Overrides {@link Globals.queryPollingOptions} for this query instance on its next subscription.
+     * @param options The polling timing overrides to apply on the next subscribe.
+     */
+    setPollingOptions(options: Partial<PollingOptions>): void {
+        this._pollingOptions = options;
+    }
+
     /** @inheritdoc */
     setHttpMethod(method: QueryHttpMethod): void {
         this._httpMethod = method;
@@ -131,6 +141,8 @@ export abstract class ObservableQueryFor<
                 apiBasePath: this._apiBasePath,
                 microservice: this._microservice,
                 args: args as object,
+                httpHeadersCallback: this._httpHeadersCallback,
+                pollingOptions: this._pollingOptions,
             });
         } else {
             this._connection = new NullObservableQueryConnection(this.defaultValue);
@@ -140,7 +152,7 @@ export abstract class ObservableQueryFor<
         // must take precedence over any stale instance property values. Spread parameterValues
         // first so that the caller-supplied args can override them.
         //
-        // In direct mode the route arguments are already embedded in the URL path, so only
+        // In direct mode or polling the route arguments are already embedded in the URL path, so only
         // the unused (non-route) parameters are appended as additional query arguments.
         // In multiplexed mode ALL arguments — including route-derived ones — must be included
         // in the subscribe payload so the server can execute the query correctly.
@@ -151,7 +163,7 @@ export abstract class ObservableQueryFor<
         );
         const connectionQueryArguments: any = {
             ...parameterValues,
-            ...(Globals.queryDirectMode ? unusedParameters : (args as object) || {}),
+            ...(connectsToQueryRoute() ? unusedParameters : (args as object) || {}),
             ...this.buildQueryArguments(),
         };
 
