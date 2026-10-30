@@ -64,7 +64,7 @@ public class EndpointGroupsOptions
     /// <param name="defaultPrefix">The global route prefix.</param>
     /// <returns>The prefix for generated routes.</returns>
     public string RoutePrefixFor(string? group, string defaultPrefix) =>
-        group is not null && RoutePrefixes.TryGetValue(group, out var prefix) ? prefix : defaultPrefix;
+        group is not null && RoutePrefixes.TryGetValue(group, out var prefix) && !string.IsNullOrWhiteSpace(prefix) ? prefix : defaultPrefix;
 
     /// <summary>
     /// Assigns one or more local ports to a named group.

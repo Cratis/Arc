@@ -31,17 +31,18 @@ public static class QueryPerformerEndpointGroupExtensions
 
         var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
             .Where(method => method.Name == performer.Name.Value).ToArray();
-        if (methods.Length == 1)
+        if (methods.Length == 0)
         {
-            return EndpointGroup.For(methods[0], type);
+            return EndpointGroup.For(type);
         }
 
-        if (methods.Select(method => EndpointGroup.For(method, type)).Distinct().Skip(1).Any())
+        var groups = methods.Select(method => EndpointGroup.For(method, type)).Distinct().ToArray();
+        if (groups.Length > 1)
         {
             throw new AmbiguousQueryEndpointGroup(performer.FullyQualifiedName);
         }
 
-        return EndpointGroup.For(type);
+        return groups[0];
     }
 
     /// <summary>
