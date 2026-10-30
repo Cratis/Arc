@@ -19,7 +19,8 @@ describe('when subscribing with polling transport and unauthorized response', gi
     beforeEach(async () => {
         originalTransport = Globals.queryTransportMethod;
         Globals.queryTransportMethod = QueryTransportMethod.Polling;
-        clock = sinon.useFakeTimers();
+        // Keep Response body microtasks native; faking them stalls Node 23's body reader.
+        clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
         sinon.stub(console, 'warn');
         fetchStub = fetchHelper.stubFetch();
         fetchStub.callsFake(async () => new Response('Unauthorized', { status: 401 }));
