@@ -4,7 +4,7 @@
 import { given } from '../../../given.js';
 import { a_polling_query_connection } from '../given/a_polling_query_connection.js';
 
-for (const hint of ['abc', '-1', 'Infinity']) {
+for (const hint of ['abc', '-1', 'Infinity', '5abc', '', ' ']) {
     describe(`when receiving a poll hint that is invalid: ${hint}`, given(a_polling_query_connection, context => {
         let beforeNextPoll: number;
         beforeEach(async () => {

@@ -72,7 +72,10 @@ export class PollingQueryConnection<TDataType> implements IObservableQueryConnec
         const started = performance.now();
         let delay: number;
         try {
-            const headers = new Headers(this._httpHeadersCallback());
+            const headers = new Headers({
+                ...Object.fromEntries(new Headers(Globals.httpHeadersCallback?.())),
+                ...Object.fromEntries(new Headers(this._httpHeadersCallback()))
+            });
             headers.set('Accept', 'application/json');
             headers.set('Content-Type', 'application/json');
             if (this._microservice) headers.set(Globals.microserviceHttpHeader, this._microservice);
@@ -112,7 +115,8 @@ export class PollingQueryConnection<TDataType> implements IObservableQueryConnec
         if (result && (success || response.status >= 500)) this.emitChanged(result, body, dataReceived);
         if (success) this._failures = 0;
         const delay = success ? this.clamp(this._options.intervalMs) : this.backoff();
-        const seconds = parseFloat(response.headers.get(QUERY_POLL_AFTER_HEADER) ?? '');
+        const hint = response.headers.get(QUERY_POLL_AFTER_HEADER);
+        const seconds = hint?.trim() ? Number(hint) : NaN;
         return Number.isFinite(seconds) && seconds >= 0 ? this.clamp(seconds * 1000) : delay;
     }
 
