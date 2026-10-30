@@ -176,13 +176,62 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             return null;
         }
 
+        var hasCollectionQuery =
+            CanBeQueryableElementType(typeSymbol, context.SemanticModel.Compilation) &&
+            queryMethods.Exists(method => IsCollectionOfType(UnwrapTask(method.ReturnType), typeSymbol));
+
         return new AnnotatedReadModel(
             new ReadModelInfo(
                 typeSymbol.ToDisplayString(),
                 queryMethods.ConvertAll(method => method.Name),
-                queryMethods.Select(GetObservableElementTypeName).OfType<string>().Distinct(StringComparer.Ordinal).ToList()),
+                queryMethods.Select(GetObservableElementTypeName).OfType<string>().Distinct(StringComparer.Ordinal).ToList(),
+                hasCollectionQuery,
+                hasCollectionQuery ? GetSortKeyTypeNames(typeSymbol, context.SemanticModel.Compilation) : []),
             string.Join("\n", queryMethods.Select(method => DataAnnotationMemberTypes.ForQuery(typeSymbol, method, context.SemanticModel.Compilation)).Where(registration => registration.Length > 0)));
     }
+
+    static bool CanBeQueryableElementType(INamedTypeSymbol readModel, Compilation compilation) =>
+        !readModel.IsRefLikeType &&
+        !readModel.IsStatic &&
+        !readModel.IsGenericType &&
+        compilation.IsSymbolAccessibleWithin(readModel, compilation.Assembly);
+
+    static List<string> GetSortKeyTypeNames(INamedTypeSymbol readModel, Compilation compilation)
+    {
+        var keyTypes = new HashSet<string>(StringComparer.Ordinal);
+
+        // Mirrors Type.GetProperty(string): public declared static and instance properties, plus public instance properties of base classes.
+        for (var type = readModel; type is not null && type.SpecialType is not SpecialType.System_Object and not SpecialType.System_ValueType; type = type.BaseType)
+        {
+            var isDeclared = SymbolEqualityComparer.Default.Equals(type, readModel);
+            foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (property.DeclaredAccessibility == Accessibility.Public &&
+                    !property.IsIndexer &&
+                    property.RefKind == RefKind.None &&
+                    (isDeclared || !property.IsStatic) &&
+                    IsRegistrableKeyType(property.Type, compilation))
+                {
+                    keyTypes.Add(property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                }
+            }
+        }
+
+        return [.. keyTypes.OrderBy(_ => _, StringComparer.Ordinal)];
+    }
+
+    static bool IsRegistrableKeyType(ITypeSymbol type, Compilation compilation) =>
+        !type.IsRefLikeType &&
+        IsUsableTypeArgument(type) &&
+        compilation.IsSymbolAccessibleWithin(type, compilation.Assembly);
+
+    static bool IsUsableTypeArgument(ITypeSymbol type) => type switch
+    {
+        IPointerTypeSymbol or IFunctionPointerTypeSymbol or ITypeParameterSymbol => false,
+        IArrayTypeSymbol array => IsUsableTypeArgument(array.ElementType),
+        INamedTypeSymbol named => named.TypeKind != TypeKind.Error && !named.IsRefLikeType && named.TypeArguments.All(IsUsableTypeArgument),
+        _ => type.TypeKind != TypeKind.Error
+    };
 
     static bool HasReadModelAttribute(INamedTypeSymbol typeSymbol) =>
         typeSymbol.GetAttributes().Any(a =>
@@ -243,6 +292,27 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             sb.Append("        global::Cratis.Arc.Queries.ObservableQueryElementTypes.Register<")
               .Append(elementType)
               .AppendLine(">();");
+        }
+
+        foreach (var readModel in readModels
+            .Select(_ => _.Metadata)
+            .Where(_ => _.HasCollectionQuery)
+            .GroupBy(_ => _.FullyQualifiedTypeName, StringComparer.Ordinal)
+            .Select(_ => _.First())
+            .OrderBy(_ => _.FullyQualifiedTypeName, StringComparer.Ordinal))
+        {
+            sb.Append("        global::Cratis.Arc.Queries.QueryableElementTypes.Register<global::")
+              .Append(readModel.FullyQualifiedTypeName)
+              .AppendLine(">();");
+
+            foreach (var keyType in readModel.SortKeyTypeNames)
+            {
+                sb.Append("        global::Cratis.Arc.Queries.QueryableElementTypes.RegisterSortKey<global::")
+                  .Append(readModel.FullyQualifiedTypeName)
+                  .Append(", ")
+                  .Append(keyType)
+                  .AppendLine(">();");
+            }
         }
 
         sb.AppendLine("    }")

@@ -67,6 +67,7 @@
     <Folder Name="/Samples/">
         <Project Path="Samples\AspNetCore\AspNetCore.csproj" />
         <Project Path="Samples\ArcCore\ArcCore.csproj" />
+        <Project Path="Samples\ArcCore.Specs\ArcCore.Specs.csproj" />
         <Project Path="Samples\Core\Core.csproj" />
         <Project Path="Samples\Chronicle\Chronicle.csproj" />
         <Project Path="Samples\Layered\Layered.csproj" />

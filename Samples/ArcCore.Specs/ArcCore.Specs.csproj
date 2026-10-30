@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Samples.ArcCore.Specs</AssemblyName>
+        <RootNamespace>Samples.ArcCore.Specs</RootNamespace>
+        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <OutputType>Exe</OutputType>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <WarningsAsErrors>$(WarningsAsErrors);CRSPEC0008</WarningsAsErrors>
+        <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005;IDE1006;MA0101;RCS1266;xUnit1031</NoWarn>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <MSBuildTreatWarningsAsErrors>true</MSBuildTreatWarningsAsErrors>
+        <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Cratis.Specifications.XUnit.v3" />
+        <PackageReference Include="xunit.v3.mtp-off" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    </ItemGroup>
+</Project>

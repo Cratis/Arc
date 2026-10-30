@@ -45,5 +45,6 @@ public class and_read_model_has_observable_queries : Specification
     [Fact] void should_register_the_read_model_once() => _readModelRegistrations.ShouldEqual(1);
     [Fact] void should_register_the_enumerable_element_type() => _generatedSource.ShouldContain("ObservableQueryElementTypes.Register<global::System.Collections.Generic.IEnumerable<global::TestApp.MyReadModel>>();");
     [Fact] void should_register_the_array_element_type() => _generatedSource.ShouldContain("ObservableQueryElementTypes.Register<global::TestApp.MyReadModel[]>();");
+    [Fact] void should_not_register_queryable_element_types() => _generatedSource.ShouldNotContain("QueryableElementTypes");
     [Fact] void should_compile() => _errors.ShouldBeEmpty();
 }
