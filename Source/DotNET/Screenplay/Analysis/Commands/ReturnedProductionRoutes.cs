@@ -37,7 +37,7 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
         var identifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, command.Name);
         var fallback = new CommandRouteReader(models, types, new ScreenplayDiagnostics(), true).Read(command, identifier, command.Name);
         if (creation.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault(candidate =>
-            model.GetTypeInfo(candidate).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId")) is { } wrapper)
+            model.GetTypeInfo(candidate).Type.Is(EventWrapperType.MetadataName)) is { } wrapper)
         {
             var usesCommandContext = production.UsesCommandContext;
             production = production with

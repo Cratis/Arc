@@ -171,7 +171,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         var parts = ReadReturnedParts(command, returned, model, location);
         var responses = parts.Responses;
-        result = result with { Operations = parts.Operations };
+        result = result with { Operations = parts.Operations, Identifier = parameters.TupleWrapperIdentifier(returned, body, model, generated) };
         if (responses.Count > 1)
         {
             Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "Several response values are returned without a response record; no response was inferred", location);
@@ -216,7 +216,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         {
             var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType) &&
                 !AggregateRootBehaviors.ReachedFrom(body, model).Any();
-            return result with { Response = source, Identifier = generatedIdentifier ? source : null, ResponseType = ResponseTypes.NameOf(responseType) };
+            return result with { Response = source, Identifier = generatedIdentifier ? source : result.Identifier, ResponseType = ResponseTypes.NameOf(responseType) };
         }
 
         if (response is BaseObjectCreationExpressionSyntax creation && model.GetTypeInfo(creation).Type is INamedTypeSymbol { IsRecord: true } record &&
@@ -386,12 +386,14 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var optional = false;
         var collectionType = false;
         var underlying = type is null ? null : UnderlyingTypes.Of(type, ref optional, ref collectionType);
-        return (underlying is not null && EventReader.IsEvent(underlying)) ||
+        return IsAppendedEvent(underlying) ||
             (unwrapped is ConditionalExpressionSyntax conditional && OnlyEvents(conditional.WhenTrue, model) && OnlyEvents(conditional.WhenFalse, model)) ||
             (unwrapped is CollectionExpressionSyntax collection && collection.Elements.All(element => element is ExpressionElementSyntax item && OnlyEvents(item.Expression, model))) ||
             (unwrapped is ArrayCreationExpressionSyntax { Initializer: { } initializer } && initializer.Expressions.All(item => OnlyEvents(item, model))) ||
             (unwrapped is ImplicitArrayCreationExpressionSyntax array && array.Initializer.Expressions.All(item => OnlyEvents(item, model)));
     }
+
+    static bool IsAppendedEvent(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) || type.Is(EventWrapperType.MetadataName));
 
     static ITypeSymbol? ResponseValueType(ITypeSymbol? type)
     {
@@ -404,6 +406,17 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             type.Is("System.Threading.Tasks.Task") || type.Is("System.Threading.Tasks.ValueTask") ||
             type.Is("Cratis.Chronicle.EventSequences.IAppendResult") || type.Is("Cratis.Chronicle.EventSequences.AppendResult") ||
             type.AllInterfaces.Any(contract => contract.Is("Cratis.Chronicle.EventSequences.IAppendResult")) ? null : type;
+    }
+
+    static IEnumerable<ExpressionSyntax> ResponseExpressions(ExpressionSyntax returned, SemanticModel model)
+    {
+        if (ReturnedProductionShape.TupleOf(returned, model) is not { } tuple)
+        {
+            return ReturnedExpressions(returned);
+        }
+
+        return tuple.Arguments.Select(argument => argument.Expression)
+            .Where(expression => !ReturnedProductionShape.IsEffect(model.GetTypeInfo(expression).ConvertedType ?? model.GetTypeInfo(expression).Type));
     }
 
     bool SupportsResponse(ITypeSymbol type)
@@ -420,7 +433,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var responses = new List<ExpressionSyntax>();
         var operations = new List<OperationModel>();
         var operationReader = new CommandOperationReader(types, paths, diagnostics);
-        var parts = ReturnedExpressions(returned)
+        var parts = ResponseExpressions(returned, model)
             .Select(part => (Part: part, Type: ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType)))
             .Where(_ => _.Type is not null && !OnlyEvents(_.Part, model))
             .ToList();

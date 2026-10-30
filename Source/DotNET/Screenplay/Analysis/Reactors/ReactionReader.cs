@@ -288,7 +288,7 @@ public class ReactionReader(SemanticModels models)
         return IsHandedOverSequence(result, events);
     }
 
-    static bool IsEventEffect(ITypeSymbol type) => EventReader.IsEvent(type) || type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId");
+    static bool IsEventEffect(ITypeSymbol type) => EventReader.IsEvent(type) || type.Is(EventWrapperType.MetadataName);
 
     static bool IsHandedOverSequence(ITypeSymbol result, bool events)
     {

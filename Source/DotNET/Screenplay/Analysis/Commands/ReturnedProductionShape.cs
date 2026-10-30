@@ -45,6 +45,14 @@ internal static class ReturnedProductionShape
         return false;
     }
 
+    /// <summary>Finds an inline tuple whose entire effect set reaches the returned expression.</summary>
+    /// <param name="returned">The handler's directly returned expression.</param>
+    /// <param name="model">The model binding its supported return envelopes.</param>
+    /// <returns>The proven tuple, or null for non-tuple or unsupported returns.</returns>
+    internal static TupleExpressionSyntax? TupleOf(ExpressionSyntax returned, SemanticModel model) =>
+        returned.DescendantNodesAndSelf().OfType<TupleExpressionSyntax>()
+            .FirstOrDefault(tuple => Reaches(tuple, returned, model));
+
     /// <summary>
     /// Checks the exact Chronicle identity types that update tuple command context.
     /// </summary>
@@ -76,6 +84,19 @@ internal static class ReturnedProductionShape
     internal static bool UsesCommandContext(TupleExpressionSyntax tuple, SemanticModel model) =>
         IdentityOf(tuple, model) is null && SupportedTuple(tuple, model);
 
+    /// <summary>
+    /// Classifies effect slots; object-array contents must also pass the inline effect proof.
+    /// </summary>
+    /// <param name="type">The contextual slot type.</param>
+    /// <returns>Whether the slot can contain returned effects.</returns>
+    internal static bool IsEffect(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) ||
+        type.Is(EventWrapperType.MetadataName) ||
+        (type is IArrayTypeSymbol array && IsEffectArray(array)) ||
+        (type is INamedTypeSymbol named && (named.Is("System.Collections.Generic.List`1") || named.Is("System.Collections.Generic.IEnumerable`1")) && IsEffect(named.TypeArguments[0])));
+
+    static bool IsEffectArray(IArrayTypeSymbol array) =>
+        array.ElementType.SpecialType == SpecialType.System_Object || IsEffect(array.ElementType);
+
     static bool SupportedAncestor(SyntaxNode node, ExpressionSyntax returned, SemanticModel model) => node switch
     {
         ReturnStatementSyntax or ArrowExpressionClauseSyntax or ParenthesizedExpressionSyntax or ArgumentSyntax or ArgumentListSyntax or ExpressionElementSyntax => true,
@@ -105,10 +126,21 @@ internal static class ReturnedProductionShape
             return false;
         }
 
-        return EventResponseTuples.UsesCommandContext(type) || type.TupleElements.All(element => IsEffect(element.Type)) ||
-            (type.TupleElements.Length == 2 && type.TupleElements.Count(element => IsIdentity(element.Type)) == 1 &&
-             type.TupleElements.Count(element => IsEffect(element.Type)) == 1);
+        var effects = type.TupleElements.Count(element => IsEffect(element.Type));
+        if (type.TupleElements.Any(element => IsIdentity(element.Type)))
+        {
+            return SupportedIdentityTuple(type, effects);
+        }
+        return effects > 0 && type.TupleElements.Length - effects <= 1 && SupportedResponses(tuple, type, model);
     }
+
+    static bool SupportedIdentityTuple(INamedTypeSymbol type, int effects) =>
+        type.TupleElements.Length == 2 && effects == 1 && type.TupleElements.Count(element => IsIdentity(element.Type)) == 1;
+
+    static bool SupportedResponses(TupleExpressionSyntax tuple, INamedTypeSymbol type, SemanticModel model) =>
+        type.TupleElements.Zip(tuple.Arguments).Where(pair => !IsEffect(pair.First.Type))
+            .All(pair => TupleResponseIdentity.CannotOverrideIdentity(pair.First.Type) &&
+                ValueConversions.Preserves(pair.Second.Expression, model, _ => false));
 
     static INamedTypeSymbol? TupleType(TupleExpressionSyntax tuple, SemanticModel model)
     {
@@ -167,9 +199,4 @@ internal static class ReturnedProductionShape
 
         return EventReader.IsEvent(type) ? InlineProductionShape.IsSupported(creation, model) : ExplicitEventDestination.Read(creation, model) is not null;
     }
-
-    static bool IsEffect(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) ||
-        type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") ||
-        (type is IArrayTypeSymbol array && IsEffect(array.ElementType)) ||
-        (type is INamedTypeSymbol named && (named.Is("System.Collections.Generic.List`1") || named.Is("System.Collections.Generic.IEnumerable`1")) && IsEffect(named.TypeArguments[0])));
 }

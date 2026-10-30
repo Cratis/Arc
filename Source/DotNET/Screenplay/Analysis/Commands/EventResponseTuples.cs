@@ -39,34 +39,5 @@ public static class EventResponseTuples
         return events.Length == 1 && responses is [var response] && CannotOverrideIdentity(response.Type);
     }
 
-    static bool CannotOverrideIdentity(ITypeSymbol type) => CannotOverrideIdentity(type, new(SymbolEqualityComparer.Default));
-
-    static bool CannotOverrideIdentity(ITypeSymbol type, HashSet<ITypeSymbol> visited)
-    {
-        if (!visited.Add(type) || type is not INamedTypeSymbol named || named.TypeKind is TypeKind.Interface or TypeKind.Error ||
-            named.SpecialType == SpecialType.System_Object || named.IsTupleType || named.Is(WellKnownTypeNames.ConceptAs))
-        {
-            return false;
-        }
-
-        for (var current = named; current is not null; current = current.BaseType)
-        {
-            if (current.Is("Cratis.Chronicle.Events.EventSourceId") || current.Is("Cratis.Chronicle.Events.EventSourceId`1"))
-            {
-                return false;
-            }
-
-            var namespaceName = current.ContainingNamespace.ToDisplayString();
-            if ((string.Equals(namespaceName, "OneOf", StringComparison.Ordinal) &&
-                 (string.Equals(current.Name, "OneOf", StringComparison.Ordinal) || string.Equals(current.Name, "OneOfBase", StringComparison.Ordinal))) ||
-                (string.Equals(namespaceName, "Cratis.Monads", StringComparison.Ordinal) && string.Equals(current.Name, "Result", StringComparison.Ordinal)))
-            {
-                return current.TypeArguments.Length > 0 && current.TypeArguments.All(branch =>
-                    CannotOverrideIdentity(branch, new HashSet<ITypeSymbol>(visited, SymbolEqualityComparer.Default)));
-            }
-        }
-
-        // An arbitrary IOneOf implementation need not expose its possible branches as type arguments.
-        return !named.AllInterfaces.Any(contract => contract.Is("OneOf.IOneOf"));
-    }
+    static bool CannotOverrideIdentity(ITypeSymbol type) => TupleResponseIdentity.CannotOverrideIdentity(type);
 }

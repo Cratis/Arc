@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
@@ -29,7 +30,7 @@ public static class DbSetObserveExtensions
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a collection of the type for the DbSet.</returns>
-    public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
+    public static ISubject<IEnumerable<TEntity>> Observe<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
@@ -42,7 +43,7 @@ public static class DbSetObserveExtensions
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns>The observable entities.</returns>
-    public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
+    public static ISubject<IEnumerable<TEntity>> Observe<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter,
         bool ignoreQueryContext,
@@ -64,7 +65,7 @@ public static class DbSetObserveExtensions
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns>The observable entities.</returns>
-    public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
+    public static ISubject<IEnumerable<TEntity>> Observe<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         bool ignoreQueryContext,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
@@ -82,7 +83,7 @@ public static class DbSetObserveExtensions
     /// no entity matches — after the observed entity is deleted, after an update moves it out of the filter,
     /// or when the initial query finds none.
     /// </returns>
-    public static ISubject<TEntity> ObserveSingle<TEntity>(
+    public static ISubject<TEntity> ObserveSingle<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
@@ -95,7 +96,7 @@ public static class DbSetObserveExtensions
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns>The observable entity.</returns>
-    public static ISubject<TEntity> ObserveSingle<TEntity>(
+    public static ISubject<TEntity> ObserveSingle<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter,
         bool ignoreQueryContext,
@@ -112,7 +113,7 @@ public static class DbSetObserveExtensions
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns>The observable entity.</returns>
-    public static ISubject<TEntity> ObserveSingle<TEntity>(
+    public static ISubject<TEntity> ObserveSingle<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         bool ignoreQueryContext,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
@@ -131,7 +132,7 @@ public static class DbSetObserveExtensions
     /// entity matches — after the observed entity is deleted, or when the initial query finds none.
     /// </returns>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the entity type does not have an Id property.</exception>
-    public static ISubject<TEntity> ObserveById<TEntity, TId>(
+    public static ISubject<TEntity> ObserveById<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity, TId>(
         this DbSet<TEntity> dbSet,
         TId id,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
@@ -146,7 +147,7 @@ public static class DbSetObserveExtensions
     /// <typeparam name="TId">Type of id - key.</typeparam>
     /// <returns>The observable entity.</returns>
     /// <exception cref="InvalidOperationException">The exception that is thrown when the entity type does not have an Id property.</exception>
-    public static ISubject<TEntity> ObserveById<TEntity, TId>(
+    public static ISubject<TEntity> ObserveById<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity, TId>(
         this DbSet<TEntity> dbSet,
         TId id,
         bool ignoreQueryContext,
@@ -180,7 +181,7 @@ public static class DbSetObserveExtensions
     /// finds nothing, so a subscriber attaching after the fact still replays the current "no such entity"
     /// state instead of receiving nothing until the next change.
     /// </remarks>
-    static ISubject<TEntity> ObserveSingleCore<TEntity>(
+    static ISubject<TEntity> ObserveSingleCore<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>> filter,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
@@ -195,7 +196,7 @@ public static class DbSetObserveExtensions
             (entities, observable) => observable.OnNext(entities.FirstOrDefault()!));
     }
 
-    static ISubject<TResult> ObserveCore<TEntity, TResult>(
+    static ISubject<TResult> ObserveCore<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity, TResult>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>> filter,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
@@ -457,7 +458,7 @@ public static class DbSetObserveExtensions
         }
     }
 
-    static IProperty GetIdProperty<TEntity>(DbSet<TEntity> dbSet)
+    static IProperty GetIdProperty<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(DbSet<TEntity> dbSet)
         where TEntity : class
     {
         var entityType = dbSet.EntityType;
@@ -482,7 +483,7 @@ public static class DbSetObserveExtensions
         return property?.PropertyInfo?.GetMethod?.IsPublic == true ? property : null;
     }
 
-    static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
+    static IQueryable<TEntity> BuildQuery<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
         where TEntity : class
     {
         query = AddSorting(query, queryContext, entityType);
@@ -490,7 +491,7 @@ public static class DbSetObserveExtensions
         return query;
     }
 
-    static IQueryable<TEntity> AddPaging<TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
+    static IQueryable<TEntity> AddPaging<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
         where TEntity : class
     {
         if (queryContext.Paging.IsPaged)
@@ -503,7 +504,7 @@ public static class DbSetObserveExtensions
         return query;
     }
 
-    static IQueryable<TEntity> AddSorting<TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
+    static IQueryable<TEntity> AddSorting<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
         where TEntity : class
     {
         if (queryContext.Sorting != Sorting.None)
@@ -535,7 +536,7 @@ public static class DbSetObserveExtensions
         return query;
     }
 
-    static DbContext GetDbContext<TEntity>(this DbSet<TEntity> dbSet)
+    static DbContext GetDbContext<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet)
         where TEntity : class
     {
         // Use IInfrastructure to get the service provider from DbSet
@@ -546,7 +547,7 @@ public static class DbSetObserveExtensions
         return serviceProvider.GetRequiredService<ICurrentDbContext>().Context;
     }
 
-    static IQueryable<TEntity> ApplyConfigure<TEntity>(DbSet<TEntity> dbSet, Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
+    static IQueryable<TEntity> ApplyConfigure<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(DbSet<TEntity> dbSet, Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
         where TEntity : class =>
         configure is not null ? configure(dbSet) : dbSet;
 
