@@ -141,6 +141,11 @@ public class QueryPipeline(
         {
             throw;
         }
+        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        {
+            OperationActivity.RecordException(activity, exception);
+            return QueryResult.Unauthorized(GetCorrelationId());
+        }
         catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
             OperationActivity.RecordException(activity, exception);
@@ -473,6 +478,11 @@ public class QueryPipeline(
         {
             OperationActivity.RecordException(activity, ex);
             return QueryResult.Unauthorized(correlationId);
+        }
+        catch (Exception ex) when (TenantMembershipDenied.IsCauseOf(ex))
+        {
+            OperationActivity.RecordException(activity, ex);
+            result.MergeWith(QueryResult.Unauthorized(correlationId));
         }
         catch (InvalidAuthorizationConfiguration ex)
         {

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Slices;
+using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.Strings;
 using Cratis.Traces;
@@ -46,6 +47,13 @@ public class QueryActionFilter(
             using var span = activitySource.OnQuery(routeTemplate);
 
             var callResult = await CallNextAndHandleValidationAndExceptions(context, next);
+            if (callResult.MembershipDenied)
+            {
+                var denied = QueryResult.Unauthorized(queryContext.CorrelationId);
+                context.HttpContext.Response.SetResponseStatusCode(denied);
+                SetMvcResult(context, callResult.Result, new ObjectResult(denied));
+                return;
+            }
             if (context.IsAspNetResult()) return;
 
             if (callResult.Result?.Result is ObjectResult objectResult && objectResult.IsStreamingResult())
@@ -222,7 +230,7 @@ public class QueryActionFilter(
         return intercepted.First();
     }
 
-    async Task<(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response)> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)
+    async Task<(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response, bool MembershipDenied)> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var exceptionMessages = new List<string>();
         var exceptionStackTrace = string.Empty;
@@ -231,11 +239,24 @@ public class QueryActionFilter(
 
         if (context.ModelState.IsValid || context.ShouldIgnoreValidation())
         {
-            result = await next();
+            try
+            {
+                result = await next();
+            }
+            catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+            {
+                return (null, exceptionMessages, exceptionStackTrace, null, true);
+            }
+
+            if (TenantMembershipDenied.IsCauseOf(result.Exception))
+            {
+                result.Exception = null;
+                return (result, exceptionMessages, exceptionStackTrace, null, true);
+            }
 
             if (context.IsAspNetResult())
             {
-                return (null, exceptionMessages, exceptionStackTrace, response);
+                return (null, exceptionMessages, exceptionStackTrace, response, false);
             }
 
             if (result.Exception is not null)
@@ -259,6 +280,6 @@ public class QueryActionFilter(
             }
         }
 
-        return (result, exceptionMessages, exceptionStackTrace, response);
+        return (result, exceptionMessages, exceptionStackTrace, response, false);
     }
 }

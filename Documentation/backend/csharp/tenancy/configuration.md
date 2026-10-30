@@ -37,6 +37,12 @@ builder.AddCratisArc(options =>
 }
 ```
 
+## Membership and trusted ingress
+
+Register an application-owned [`ITenantMembership`](membership.md) when Arc must verify that the effective caller may use a request-selected tenant. There is no default implementation. Without a hook, header, query and subdomain resolution behaves as before and logs one startup warning. Claim, fixed, development and custom resolvers do not produce this warning.
+
+If Cratis AuthProxy or another trusted ingress already verifies membership, set `Cratis:Arc:Tenancy:IngressValidatesTenant` to `true` (the default is `false`). This setting only suppresses the startup diagnostic; it does not change resolution or bypass a registered hook. See [tenant membership](membership.md) for registration, synchronous execution and default-tenant handling.
+
 ## Resolver-specific settings
 
 The following JSON fragments belong inside `Cratis:Arc`, not at the root of `appsettings.json`. The [complete options tree](../configuration/index.md) lists defaults. Resolver configuration selects a tenant; [membership authorization and storage isolation](index.md) remain separate responsibilities.

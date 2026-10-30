@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Observability;
+using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -361,6 +362,11 @@ public class CommandPipeline(
 
     static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
     {
+        if (TenantMembershipDenied.IsCauseOf(exception))
+        {
+            return CommandResult.Unauthorized(correlationId);
+        }
+
         try
         {
             if (context?.ServiceProvider?.GetService<IInstancesOf<ICommandExceptionMapper>>() is { } mappers)
@@ -477,6 +483,11 @@ public class CommandPipeline(
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             throw;
+        }
+        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        {
+            OperationActivity.RecordException(activity, exception);
+            return (null, CommandResult.Unauthorized(GetCorrelationId()));
         }
         catch (InvalidAuthorizationConfiguration exception)
         {

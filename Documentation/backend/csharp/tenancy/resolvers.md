@@ -9,7 +9,7 @@ Arc resolves tenant IDs through pluggable strategies. Each request is evaluated 
 
 Code below is configuration fragments for an existing `ArcApplicationBuilder` or `WebApplicationBuilder`; import `Cratis.Arc` and `Cratis.Arc.Tenancy`. Register before `Build()` and activate the resulting app with `UseCratisArc()`. The separate `IHostBuilder.AddCratisArcCore(...)` overload is for generic-host wiring, not these builders.
 
-All resolvers **select**, rather than authorize, a tenant. Validate membership against the authenticated principal and authoritative data before using tenant-scoped storage. Caller-controlled headers, query strings, and hosts are not membership evidence; claim-based selection is only as trustworthy as the authentication that supplied the claim.
+All resolvers **select**, rather than authorize, a tenant. Validate membership against the authenticated principal and authoritative data before using tenant-scoped storage. Caller-controlled headers, query strings, and hosts are not membership evidence; claim-based selection is only as trustworthy as the authentication that supplied the claim. Use Cratis AuthProxy or register [`ITenantMembership`](membership.md) to check request candidates against the effective principal. Without a hook, the header, query and subdomain resolvers retain their behavior and produce a startup warning unless `IngressValidatesTenant` acknowledges an upstream membership check.
 
 ### Header Resolver (Default)
 
