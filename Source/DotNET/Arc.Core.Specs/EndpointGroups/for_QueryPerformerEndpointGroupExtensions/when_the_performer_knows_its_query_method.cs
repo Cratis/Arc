@@ -14,7 +14,7 @@ public class when_the_performer_knows_its_query_method : Specification
     {
         _performer = Substitute.For<IQueryPerformer, IAuthorizationQueryTarget>();
         _performer.Type.Returns(typeof(Model));
-        ((IAuthorizationQueryTarget)_performer).AuthorizationMethod.Returns(typeof(Model).GetMethod(nameof(Model.Query))!);
+        ((IAuthorizationQueryTarget)_performer).AuthorizationMethod.Returns(typeof(Model).GetMethod(nameof(Model.Query)));
     }
 
     void Because() => _result = _performer.GetEndpointGroup();

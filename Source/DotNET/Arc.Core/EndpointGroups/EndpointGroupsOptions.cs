@@ -25,6 +25,16 @@ public class EndpointGroupsOptions
     public IDictionary<string, string> RoutePrefixes { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
+    /// Gets or sets a value indicating whether the default group is also served on group ports. Defaults to false.
+    /// </summary>
+    public bool ServeDefaultGroupOnGroupPorts { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether any named group has a port assigned.
+    /// </summary>
+    public bool HasGroups => Ports.Any(_ => _.Value.Count > 0);
+
+    /// <summary>
     /// Sets the prefix for a named group's generated command and query routes.
     /// </summary>
     /// <param name="group">The name of the group.</param>
@@ -55,16 +65,6 @@ public class EndpointGroupsOptions
     /// <returns>The prefix for generated routes.</returns>
     public string RoutePrefixFor(string? group, string defaultPrefix) =>
         group is not null && RoutePrefixes.TryGetValue(group, out var prefix) ? prefix : defaultPrefix;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the default group is also served on group ports. Defaults to false.
-    /// </summary>
-    public bool ServeDefaultGroupOnGroupPorts { get; set; }
-
-    /// <summary>
-    /// Gets a value indicating whether any named group has a port assigned.
-    /// </summary>
-    public bool HasGroups => Ports.Any(_ => _.Value.Count > 0);
 
     /// <summary>
     /// Assigns one or more local ports to a named group.
