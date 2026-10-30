@@ -55,7 +55,7 @@ dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r osx-arm64
 dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r osx-arm64 -p:CratisSamplePublish=NativeAot -o .ai-work/2859/publish/nativeaot
 ```
 
-Build the acceptance runner with `dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net10.0`. Set `CRATIS_ARC_PUBLISHED_ARCCORE` to the absolute executable path and, optionally, `CRATIS_ARC_PUBLISHED_ARCCORE_LOG` to a file for captured server output. Run each variant separately:
+Build the acceptance runner with `dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net10.0`. When `CRATIS_ARC_PUBLISHED_ARCCORE` is unset, all 12 acceptance facts are skipped, including during solution-wide test runs. Setting it to a missing or invalid executable makes the facts fail rather than skip. Set it to the absolute executable path and, optionally, set `CRATIS_ARC_PUBLISHED_ARCCORE_LOG` to a file for captured server output. Run each variant separately:
 
 ```bash
 CRATIS_ARC_PUBLISHED_ARCCORE="$PWD/.ai-work/2859/publish/untrimmed/ArcCore" \

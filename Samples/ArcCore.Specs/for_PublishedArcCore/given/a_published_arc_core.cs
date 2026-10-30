@@ -9,7 +9,13 @@ public class a_published_arc_core : Specification
 {
     protected PublishedArcCore _arcCore;
 
-    async Task Establish() => _arcCore = await PublishedArcCore.Start();
+    async Task Establish()
+    {
+        if (Environment.GetEnvironmentVariable("CRATIS_ARC_PUBLISHED_ARCCORE") is not null)
+        {
+            _arcCore = await PublishedArcCore.Start();
+        }
+    }
 
     async Task Destroy()
     {

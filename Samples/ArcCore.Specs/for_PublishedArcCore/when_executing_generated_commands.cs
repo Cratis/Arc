@@ -15,6 +15,11 @@ public class when_executing_generated_commands : given.a_published_arc_core
 
     async Task Because()
     {
+        if (_arcCore is null)
+        {
+            return;
+        }
+
         using var content = new StringContent("""{"author":"published-harness","text":"from a published executable"}""", Encoding.UTF8, "application/json");
         _response = await _arcCore.Client.PostAsync("api/features/live-feed", content);
         _responseText = await _arcCore.ReadResponse(_response);
@@ -22,12 +27,12 @@ public class when_executing_generated_commands : given.a_published_arc_core
         _body = document.RootElement.Clone();
     }
 
-    [Fact] void should_respond_with_ok() => Assert.True(_response.StatusCode == HttpStatusCode.OK, $"HTTP {(int)_response.StatusCode} ({_response.StatusCode}){Environment.NewLine}{_responseText}{Environment.NewLine}{_arcCore.Output}");
-    [Fact] void should_report_success() => _body.GetProperty("isSuccess").GetBoolean().ShouldBeTrue();
-    [Fact] void should_return_the_author_in_the_response() => _body.GetProperty("response").GetProperty("author").GetString().ShouldEqual("published-harness");
-    [Fact] void should_return_the_text_in_the_response() => _body.GetProperty("response").GetProperty("text").GetString().ShouldEqual("from a published executable");
-    [Fact] void should_serialize_the_posted_at_as_a_timestamp() => DateTimeOffset.TryParse(_body.GetProperty("response").GetProperty("postedAt").GetString(), out _).ShouldBeTrue();
-    [Fact] void should_use_camel_case_property_names() => (_body.GetProperty("response").TryGetProperty("postedAt", out _) && !_body.GetProperty("response").TryGetProperty("PostedAt", out _)).ShouldBeTrue();
+    [PublishedArcCoreFact] void should_respond_with_ok() => Assert.True(_response.StatusCode == HttpStatusCode.OK, $"HTTP {(int)_response.StatusCode} ({_response.StatusCode}){Environment.NewLine}{_responseText}{Environment.NewLine}{_arcCore.Output}");
+    [PublishedArcCoreFact] void should_report_success() => _body.GetProperty("isSuccess").GetBoolean().ShouldBeTrue();
+    [PublishedArcCoreFact] void should_return_the_author_in_the_response() => _body.GetProperty("response").GetProperty("author").GetString().ShouldEqual("published-harness");
+    [PublishedArcCoreFact] void should_return_the_text_in_the_response() => _body.GetProperty("response").GetProperty("text").GetString().ShouldEqual("from a published executable");
+    [PublishedArcCoreFact] void should_serialize_the_posted_at_as_a_timestamp() => DateTimeOffset.TryParse(_body.GetProperty("response").GetProperty("postedAt").GetString(), out _).ShouldBeTrue();
+    [PublishedArcCoreFact] void should_use_camel_case_property_names() => (_body.GetProperty("response").TryGetProperty("postedAt", out _) && !_body.GetProperty("response").TryGetProperty("PostedAt", out _)).ShouldBeTrue();
 
     void Destroy() => _response?.Dispose();
 }

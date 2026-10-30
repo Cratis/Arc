@@ -15,6 +15,7 @@ public sealed class PublishedArcCore
 {
     readonly Process _process;
     int? _exitCode;
+    bool _started;
     readonly ConcurrentQueue<string> _output = new();
     readonly TaskCompletionSource<string> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -52,24 +53,23 @@ public sealed class PublishedArcCore
 
         var requestedUrl = GetAvailableUrl();
         var arcCore = new PublishedArcCore(CreateStartInfo(executable, requestedUrl));
-        arcCore._process.Start();
-        arcCore._process.BeginOutputReadLine();
-        arcCore._process.BeginErrorReadLine();
         try
         {
-            var reportedUrl = await arcCore._ready.Task.WaitAsync(TimeSpan.FromSeconds(30));
-            if (!string.Equals(requestedUrl, reportedUrl, StringComparison.Ordinal))
-            {
-                arcCore._output.Enqueue($"ApplicationUrl binding mismatch: requested {requestedUrl}, reported {reportedUrl}");
-            }
-
-            arcCore.Client = new HttpClient { BaseAddress = new Uri(reportedUrl) };
+            arcCore._started = arcCore._process.Start();
+            arcCore._process.BeginOutputReadLine();
+            arcCore._process.BeginErrorReadLine();
+            await arcCore.WaitForReadiness(requestedUrl);
             return arcCore;
         }
-        catch (Exception error) when (error is TimeoutException or PublishedArcCoreDidNotStart)
+        catch (Exception error)
         {
             await arcCore.Stop();
-            throw new PublishedArcCoreDidNotStart(arcCore._exitCode, arcCore.Output);
+            if (error is TimeoutException or PublishedArcCoreDidNotStart)
+            {
+                throw new PublishedArcCoreDidNotStart(arcCore._exitCode, arcCore.Output);
+            }
+
+            throw;
         }
     }
 
@@ -79,15 +79,19 @@ public sealed class PublishedArcCore
     /// <returns>A task that completes after process cleanup.</returns>
     public async Task Stop()
     {
-        if (!_process.HasExited)
+        try
         {
-            _process.Kill(entireProcessTree: true);
+            if (_started)
+            {
+                await StopProcess();
+            }
+        }
+        finally
+        {
+            _process.Dispose();
+            Client?.Dispose();
         }
 
-        await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
-        _exitCode = _process.ExitCode;
-        _process.Dispose();
-        Client?.Dispose();
         var logPath = Environment.GetEnvironmentVariable("CRATIS_ARC_PUBLISHED_ARCCORE_LOG");
         if (!string.IsNullOrWhiteSpace(logPath))
         {
@@ -105,6 +109,28 @@ public sealed class PublishedArcCore
         var body = await response.Content.ReadAsStringAsync();
         _output.Enqueue($"HTTP {(int)response.StatusCode} ({response.StatusCode}) {response.RequestMessage?.RequestUri}{Environment.NewLine}{body}");
         return body;
+    }
+
+    async Task WaitForReadiness(string requestedUrl)
+    {
+        var reportedUrl = await _ready.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        if (!string.Equals(requestedUrl, reportedUrl, StringComparison.Ordinal))
+        {
+            _output.Enqueue($"ApplicationUrl binding mismatch: requested {requestedUrl}, reported {reportedUrl}");
+        }
+
+        Client = new HttpClient { BaseAddress = new Uri(reportedUrl) };
+    }
+
+    async Task StopProcess()
+    {
+        if (!_process.HasExited)
+        {
+            _process.Kill(entireProcessTree: true);
+        }
+
+        await _process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        _exitCode = _process.ExitCode;
     }
 
     static string GetAvailableUrl()
