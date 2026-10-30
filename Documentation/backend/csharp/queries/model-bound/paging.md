@@ -50,6 +50,10 @@ Use valid nonnegative page indices and positive, bounded sizes. With no paging r
 
 These are context keys, **not method parameters** in model-bound GET. Do not declare `int page` or `int pageSize` and expect normal binding. See [reserved keys](query-arguments.md#reserved-keys).
 
+## Ahead-of-time compilation
+
+The Arc source generator registers every read model that has a query returning a collection of it, together with the type of each public property, so counting, paging and sorting its `IQueryable` results run through statically typed operations. Under the JIT, other element and property types use reflection. When dynamic code is unavailable, they fail with `MissingQueryableElementType` or `MissingQueryableSortKey`, naming the types. This registration alone does not make the whole application NativeAOT-compatible.
+
 ## Result metadata
 
 The response `paging` object contains `page`, `size`, `totalItems`, and computed `totalPages`. It does not contain `pageSize`, `hasNext`, or `hasPrevious`. See the complete [query result contract](../query-pipeline.md#query-result-metadata).

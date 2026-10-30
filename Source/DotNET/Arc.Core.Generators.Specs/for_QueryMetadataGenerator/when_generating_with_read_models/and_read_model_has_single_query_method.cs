@@ -37,4 +37,5 @@ public class and_read_model_has_single_query_method : Specification
     [Fact] void should_include_query_key() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
     [Fact] void should_include_read_model_type() => _generatedSource.ShouldContain("typeof(global::TestApp.MyReadModel)");
     [Fact] void should_not_register_observable_element_types() => _generatedSource.ShouldNotContain("ObservableQueryElementTypes");
+    [Fact] void should_not_register_queryable_element_types() => _generatedSource.ShouldNotContain("QueryableElementTypes");
 }
