@@ -3,11 +3,27 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
         <NoWarn>$(NoWarn);SA0001;SA1600;IDE0005</NoWarn>
         <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <!-- Keep publish settings local: command-line PublishAot would also affect referenced libraries. -->
+    <!-- CratisSamplePublish selects reflection-free Untrimmed, Trimmed or NativeAot output. -->
+    <PropertyGroup Condition="'$(CratisSamplePublish)' != ''">
+        <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+        <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(CratisSamplePublish)' == 'Untrimmed'">
+        <SelfContained>false</SelfContained>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(CratisSamplePublish)' == 'Trimmed'">
+        <PublishTrimmed>true</PublishTrimmed>
+        <SelfContained>true</SelfContained>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(CratisSamplePublish)' == 'NativeAot'">
+        <PublishAot>true</PublishAot>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />

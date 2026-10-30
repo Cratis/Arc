@@ -4,6 +4,7 @@
 using Cratis.Arc;
 using Cratis.Arc.Authentication;
 using Microsoft.Extensions.DependencyInjection;
+using Samples;
 using Samples.Authentication;
 using Samples.Features.QueryShowcase;
 
@@ -14,6 +15,7 @@ _ = typeof(ShowcaseItem);
 builder
     .AddCratisArc(configureOptions: options =>
     {
+        options.AddJsonTypeInfoResolver(SamplesJsonSerializerContext.Default);
         options.GeneratedApis.RoutePrefix = "api";
         options.GeneratedApis.IncludeCommandNameInRoute = false;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
