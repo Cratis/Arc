@@ -40,8 +40,9 @@ internal static class ReactionEffects
 
     static ReactionEffect? ReadWrapper(BaseObjectCreationExpressionSyntax wrapper, SemanticModel model, IMethodSymbol handler)
     {
-        if (wrapper.Initializer is not null || ExplicitEventDestination.Read(wrapper, model) is not { } envelope ||
-            ReactionMappings.Destination(envelope.Destination, model, handler) is not { } destination)
+        if (ExplicitEventDestination.Read(wrapper, model) is not { } envelope ||
+            ReactionMappings.Destination(envelope.Destination, model, handler) is not { } destination ||
+            !ReactionEnvelopeInitializers.IsRepresented(envelope, model, handler))
         {
             return null;
         }
