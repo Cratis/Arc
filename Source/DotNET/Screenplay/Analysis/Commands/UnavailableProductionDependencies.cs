@@ -53,7 +53,7 @@ internal static class UnavailableProductionDependencies
         }
 
         foreach (var wrapper in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>().Where(wrapper =>
-            model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId")))
+            model.GetTypeInfo(wrapper).Type.Is(EventWrapperType.MetadataName)))
         {
             if (model.GetOperation(wrapper) is not IObjectCreationOperation operation ||
                 operation.Arguments.FirstOrDefault(argument => argument.Parameter?.Ordinal == 1)?.Syntax is not ArgumentSyntax payload ||

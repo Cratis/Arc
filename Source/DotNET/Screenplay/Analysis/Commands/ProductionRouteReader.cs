@@ -42,7 +42,7 @@ internal class ProductionRouteReader(SemanticModels models, TypeRegistry types)
         var assignments = wrapper.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>().ToList() ?? [];
         if ((wrapper.Initializer is { } initializer && assignments.Count != initializer.Expressions.Count) ||
             assignments.Exists(assignment => model.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol property ||
-                !property.ContainingType.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") ||
+                !property.ContainingType.Is(EventWrapperType.MetadataName) ||
                 property.Name is not ("EventSource" or "EventStream" or "EventSourceType" or "EventStreamType" or "EventStreamId")))
         {
             return null;

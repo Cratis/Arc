@@ -30,7 +30,7 @@ internal static class ReactionEffects
         {
             return null;
         }
-        if (!type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId"))
+        if (!type.Is(EventWrapperType.MetadataName))
         {
             return InlineProductionShape.IsSupported(creation, model) ? new(creation, type, type, null) : null;
         }

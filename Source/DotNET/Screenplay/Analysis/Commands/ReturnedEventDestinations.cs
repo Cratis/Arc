@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Events;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -33,25 +34,16 @@ internal class ReturnedEventDestinations(SemanticModel model, SyntaxNode body, A
 
     bool ThroughGeneratedWrapper(BaseObjectCreationExpressionSyntax creation)
     {
-        if (creation.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault() is not { ArgumentList.Arguments: [var destination, var payload] } wrapper)
+        var wrapper = creation.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault();
+        if (wrapper is null || ExplicitEventDestination.Read(wrapper, model) is not { } envelope)
         {
             return false;
         }
-        if (!model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId"))
-        {
-            return false;
-        }
-        if (sources?.ReadPath(destination.Expression, model) is null || MappingSourceReader.Unwrap(payload.Expression) != creation)
+        if (envelope.Event != creation || sources?.ReadGeneratedPath(envelope.Destination, model) is null)
         {
             return false;
         }
 
-        return IsDirectReturn(wrapper);
+        return ReturnedProductionShape.Reaches(wrapper, body, model);
     }
-
-    bool IsDirectReturn(BaseObjectCreationExpressionSyntax wrapper) => wrapper.Parent switch
-    {
-        ReturnStatementSyntax statement => ReferenceEquals(wrapper, body) || ReferenceEquals(statement.Parent, body),
-        _ => ReferenceEquals(wrapper, body)
-    };
 }

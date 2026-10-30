@@ -70,18 +70,15 @@ internal static class ProductionValues
 
         return type.NullableAnnotation != NullableAnnotation.Annotated &&
             (scalar.SpecialType == SpecialType.System_String || scalar.Is("System.Guid") ||
-                (backing is not null && scalar.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64));
+                scalar.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64);
     }
 
     static ExpressionSyntax? Unwrap(ExpressionSyntax expression, SemanticModel model)
     {
+        expression = IdentifierExpressions.UnwrapSyntax(expression);
         if (!ValueConversions.Preserves(expression, model, method => FrameworkScalar(method.ContainingType)))
         {
             return null;
-        }
-        if (expression is ParenthesizedExpressionSyntax parentheses)
-        {
-            return Unwrap(parentheses.Expression, model);
         }
         if (expression is CastExpressionSyntax cast)
         {
@@ -90,7 +87,7 @@ internal static class ProductionValues
                 ? Unwrap(cast.Expression, model) : null;
         }
         if (expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member } invocation &&
-            model.GetSymbolInfo(invocation).Symbol is IMethodSymbol formatter && ScalarText(formatter, invocation, model))
+            model.GetSymbolInfo(invocation).Symbol is IMethodSymbol formatter && IdentifierExpressions.ScalarText(formatter, invocation, model))
         {
             return Unwrap(member.Expression, model);
         }
@@ -100,28 +97,6 @@ internal static class ProductionValues
         }
 
         return expression;
-    }
-
-    static bool ScalarText(IMethodSymbol method, InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        if (method.Name != "ToString")
-        {
-            return false;
-        }
-        if (method.ContainingType.Is("System.Guid"))
-        {
-            return invocation.ArgumentList.Arguments.Count == 0 ||
-                (invocation.ArgumentList.Arguments is [var format] && model.GetConstantValue(format.Expression) is { HasValue: true, Value: string text } && text == "D");
-        }
-        if (method.ContainingType.SpecialType == SpecialType.System_String)
-        {
-            return invocation.ArgumentList.Arguments.Count == 0;
-        }
-
-        return method.ContainingType.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64 &&
-            invocation.ArgumentList.Arguments is [var provider] &&
-            model.GetSymbolInfo(provider.Expression).Symbol is IPropertySymbol { IsStatic: true } culture && culture.Name == "InvariantCulture" &&
-            culture.ContainingType.Is("System.Globalization.CultureInfo");
     }
 
     static bool FrameworkScalar(ITypeSymbol type) => type.Is("Cratis.Chronicle.Events.EventSourceId") ||

@@ -46,6 +46,17 @@ public class PolicyRequirementReader(ScreenplayDiagnostics diagnostics)
     /// <returns>The requirement, or <see langword="null"/> when nothing could be recovered.</returns>
     public PolicyRequirementModel? Read(PolicyRegistration registration)
     {
+        if (registration is ArcPolicyRegistration arc)
+        {
+            var (requirement, reason) = new ArcPolicyConditionReader(Compilations ?? [registration.SemanticModel.Compilation]).Read(arc);
+            if (reason is not null)
+            {
+                Report(registration, reason);
+            }
+
+            return requirement;
+        }
+
         if (registration.Configure is not AnonymousFunctionExpressionSyntax configure)
         {
             Report(registration, "it is registered from a policy built in code rather than configured inline");
