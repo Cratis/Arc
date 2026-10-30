@@ -9,11 +9,15 @@ public class and_the_type_is_already_registered : Specification
 {
     IMongoDBBuilder _builder;
     Exception _exception;
-    string _elementName;
+    string _discriminator;
 
     void Establish()
     {
-        BsonClassMap.RegisterClassMap<RegisteredDocument>(_ => _.MapProperty(d => d.Name).SetElementName("first_registration"));
+        if (!BsonClassMap.IsClassMapRegistered(typeof(RegisteredDocument)))
+        {
+            BsonClassMap.RegisterClassMap<RegisteredDocument>(_ => _.SetDiscriminator("first_registration"));
+        }
+
         _builder = Substitute.For<IMongoDBBuilder>();
         _builder.ClassMaps.Returns([typeof(RegisteredDocumentClassMap)]);
     }
@@ -21,11 +25,11 @@ public class and_the_type_is_already_registered : Specification
     void Because()
     {
         _exception = Catch.Exception(() => MongoDBDefaults.RegisterClassMaps(_builder));
-        _elementName = BsonClassMap.LookupClassMap(typeof(RegisteredDocument)).GetMemberMap(nameof(RegisteredDocument.Name)).ElementName;
+        _discriminator = BsonClassMap.LookupClassMap(typeof(RegisteredDocument)).Discriminator;
     }
 
     [Fact] void should_not_throw() => _exception.ShouldBeNull();
-    [Fact] void should_keep_the_first_registration() => _elementName.ShouldEqual("first_registration");
+    [Fact] void should_keep_the_first_registration() => _discriminator.ShouldEqual("first_registration");
 
     public class RegisteredDocument
     {
@@ -34,6 +38,6 @@ public class and_the_type_is_already_registered : Specification
 
     public class RegisteredDocumentClassMap : IBsonClassMapFor<RegisteredDocument>
     {
-        public void Configure(BsonClassMap<RegisteredDocument> classMap) => classMap.MapProperty(_ => _.Name).SetElementName("second_registration");
+        public void Configure(BsonClassMap<RegisteredDocument> classMap) => classMap.SetDiscriminator("second_registration");
     }
 }
