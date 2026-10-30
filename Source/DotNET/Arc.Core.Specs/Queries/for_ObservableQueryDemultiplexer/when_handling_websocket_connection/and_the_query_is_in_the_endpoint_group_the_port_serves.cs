@@ -10,6 +10,7 @@ public class and_the_query_is_in_the_endpoint_group_the_port_serves : given.a_gu
     void Establish()
     {
         _performer.Type.Returns(typeof(InternalReadModel));
+        _performer.Name.Returns(new QueryName("AllItems"));
         _context.Items.Returns(new Dictionary<object, object?>());
         _context.SetEndpointGroupScope(new EndpointGroupScope(false, ["internal"]));
         _streamingData = new[] { "snapshot" };

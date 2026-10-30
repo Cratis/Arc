@@ -37,7 +37,9 @@ public class ModelBoundArtifactsProvider : IArtifactsProvider
 
         using var attributes = new MetadataQueryAttributes();
         var queries = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsQuery(attributes.Find)).ToArray();
-        Queries = queries.Where(_ => _.IsInEndpointGroup(endpointGroup)).SelectMany(_ => _.ToQueryDescriptors(outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries, attributes.Find)).ToArray();
+        Queries = queries.SelectMany(type => type.GetQueryMethods(attributes.Find)
+            .Where(method => method.IsInEndpointGroup(type, endpointGroup))
+            .Select(method => method.ToQueryDescriptor(type, outputPath, segmentsToSkip, skipQueryNameInRoute, apiPrefix, queries, attributes.Find))).ToArray();
     }
 
     /// <inheritdoc/>

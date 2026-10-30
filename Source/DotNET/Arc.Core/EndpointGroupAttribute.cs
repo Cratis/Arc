@@ -8,12 +8,13 @@ namespace Cratis.Arc;
 /// local ports the application assigns to that group.
 /// </summary>
 /// <remarks>
-/// Put it on a command type, a read model type, or an assembly. An attribute on the type wins over one on its
-/// assembly. Artifacts without the attribute stay in the default group and are served exactly as before.
+/// Put it on a command type, a read model type, an assembly, a query method or a controller action.
+/// A method attribute wins over its type, and a type attribute wins over its assembly. On any other method
+/// it has no effect. Artifacts without the attribute stay in the default group and are served exactly as before.
 /// A named group must be assigned at least one port through <see cref="EndpointGroups.EndpointGroupsOptions"/>,
 /// otherwise the application refuses to start.
 /// </remarks>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Assembly, AllowMultiple = false, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Assembly | AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 public sealed class EndpointGroupAttribute : Attribute
 {
     /// <summary>
