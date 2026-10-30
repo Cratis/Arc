@@ -19,7 +19,8 @@ export class a_polling_query_connection {
         const fetchHelper = createFetchHelper();
         const originalOptions = Globals.queryPollingOptions;
         beforeEach(() => {
-            this.clock = sinon.useFakeTimers();
+            // Keep Response body microtasks native; faking them stalls Node 23's body reader.
+            this.clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
             this.random = sinon.stub(Math, 'random').returns(0.5);
             sinon.stub(console, 'warn');
             this.responses = [

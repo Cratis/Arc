@@ -27,7 +27,8 @@ describe('when subscribing with polling transport', given(an_observable_query_fo
         Globals.queryDirectMode = false;
         Globals.queryTransportMethod = QueryTransportMethod.Polling;
         Globals.queryPollingOptions = { ...Globals.queryPollingOptions, minIntervalMs: 100 };
-        clock = sinon.useFakeTimers();
+        // Keep Response body microtasks native; faking them stalls Node 23's body reader.
+        clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
         fetchStub = fetchHelper.stubFetch();
         fetchStub.callsFake(async () => new Response(JSON.stringify({
             data: 'value', isSuccess: true, isAuthorized: true, isValid: true,
@@ -86,7 +87,7 @@ describe('when subscribing with polling transport and invalid arguments', given(
     beforeEach(async () => {
         originalTransport = Globals.queryTransportMethod;
         Globals.queryTransportMethod = QueryTransportMethod.Polling;
-        clock = sinon.useFakeTimers();
+        clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
         fetchStub = fetchHelper.stubFetch();
         fetchStub.callsFake(async () => new Response(JSON.stringify({
             data: '', isSuccess: false, isAuthorized: true, isValid: false,
