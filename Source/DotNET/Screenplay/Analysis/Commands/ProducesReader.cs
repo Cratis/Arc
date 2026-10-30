@@ -58,6 +58,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     public IEnumerable<ProducesModel> Read(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, string location, AuthoringSources? sources = null, bool generatedIdentity = false)
     {
         var produces = new List<ProducesModel>();
+        var withheld = false;
         var identifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, location);
 
         foreach (var handler in handlers)
@@ -95,10 +96,22 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             {
                 ReportEventSourceIdResult(command, handler, location);
             }
+            if (WithholdUnrepresentable(handler, produces, firstProduction, location))
+            {
+                withheld = true;
+            }
+        }
+
+        if (withheld && produces.Count == 0)
+        {
+            return [];
         }
 
         return produces.Count > 0 ? Deduplicate(produces) : ProducedBySignature.Of(handlers, location, diagnostics);
     }
+
+    static bool IsUnrepresentable(ProducesModel production) => !production.UsesCommandContext && production.Destination is null &&
+        production.UnavailableDestination is null && production.UnavailableCondition is null && production.DestinationDependencies.Count > 0;
 
     /// <summary>
     /// Removes productions the source declared more than once, conservatively merging their eligibility flags.
@@ -145,6 +158,31 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         left.EventTypeIdentity == right.EventTypeIdentity &&
         Equals(left.UnavailableCondition, right.UnavailableCondition) &&
         Equals(left.UnavailableDestination, right.UnavailableDestination);
+
+    /// <summary>
+    /// Withholds every production of a handler with generated inputs when any of them has no representable destination.
+    /// </summary>
+    /// <param name="handler">The handler whose productions were read.</param>
+    /// <param name="produces">The productions collected so far.</param>
+    /// <param name="first">Where the handler's productions start.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <returns>Whether the productions were withheld.</returns>
+    bool WithholdUnrepresentable(IMethodSymbol handler, List<ProducesModel> produces, int first, string location)
+    {
+        if (!handler.Parameters.Any(parameter => parameter.HasAttribute(WellKnownTypeNames.GeneratedValueAttribute)) ||
+            !produces.Skip(first).Any(IsUnrepresentable))
+        {
+            return false;
+        }
+
+        produces.RemoveRange(first, produces.Count - first);
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
+            "A production of the command is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and no production of the command is stated",
+            location);
+
+        return true;
+    }
 
     /// <summary>
     /// Reads every event constructed within one handler body.
