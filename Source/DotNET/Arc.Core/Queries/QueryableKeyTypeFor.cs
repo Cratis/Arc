@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Linq.Expressions;
 
 namespace Cratis.Arc.Queries;
 
@@ -16,4 +17,13 @@ internal sealed class QueryableKeyTypeFor<TKey> : QueryableKeyType
 
     /// <inheritdoc/>
     public override IComparer Comparer => Comparer<TKey>.Default;
+
+    /// <inheritdoc/>
+    public override IQueryable<TElement> OrderBy<TElement>(IQueryable<TElement> queryable, Expression keyBody, ParameterExpression parameter, SortDirection direction)
+    {
+        var keySelector = Expression.Lambda<Func<TElement, TKey>>(keyBody, parameter);
+        return direction == SortDirection.Ascending
+            ? queryable.OrderBy(keySelector)
+            : queryable.OrderByDescending(keySelector);
+    }
 }
