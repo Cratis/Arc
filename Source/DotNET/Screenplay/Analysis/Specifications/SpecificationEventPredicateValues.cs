@@ -168,7 +168,13 @@ static class SpecificationEventPredicateValues
             return true;
         }
 
-        if (semanticModel.GetConstantValue(valueExpression) is not { HasValue: true } constant)
+        var constant = semanticModel.GetConstantValue(valueExpression);
+        if (!constant.HasValue && draft.RenderedCommand?.EnumInitializer(valueExpression, property.Type, semanticModel) is { } enumValue)
+        {
+            constant = semanticModel.GetConstantValue(enumValue);
+        }
+
+        if (!constant.HasValue)
         {
             return false;
         }

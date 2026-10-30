@@ -29,6 +29,25 @@ public static class EndpointGroupExtensions
     public static bool IsInEndpointGroup(this Type type, string? endpointGroup) =>
         string.Equals(type.GetEndpointGroup(), endpointGroup, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Gets a query method's group, falling back to its read model and assembly.
+    /// </summary>
+    /// <param name="method">The query method.</param>
+    /// <param name="owner">The read model type.</param>
+    /// <returns>The group name, or null for the default group.</returns>
+    public static string? GetEndpointGroup(this MethodInfo method, Type owner) =>
+        NameFrom(method.GetCustomAttributesData()) ?? owner.GetEndpointGroup();
+
+    /// <summary>
+    /// Checks whether a query method belongs to the group proxies are generated for.
+    /// </summary>
+    /// <param name="method">The query method.</param>
+    /// <param name="owner">The read model type.</param>
+    /// <param name="endpointGroup">The selected group, or null for the default group.</param>
+    /// <returns>True if the query belongs to the selected group.</returns>
+    public static bool IsInEndpointGroup(this MethodInfo method, Type owner, string? endpointGroup) =>
+        string.Equals(method.GetEndpointGroup(owner), endpointGroup, StringComparison.Ordinal);
+
     static string? NameFrom(IEnumerable<CustomAttributeData> attributes) =>
         attributes
             .FirstOrDefault(_ => _.AttributeType.FullName == EndpointGroupAttributeName)?

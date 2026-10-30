@@ -11,13 +11,13 @@ namespace Cratis.Arc.AspNetCore.EndpointGroups;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A controller is in a named group when it, or its assembly, carries an <see cref="EndpointGroupAttribute"/>.
-/// Every action of such a controller gets <see cref="EndpointGroupMetadata"/> on its endpoints, so
+/// An action's <see cref="EndpointGroupAttribute"/> wins over one on its controller or assembly.
+/// Every grouped action gets <see cref="EndpointGroupMetadata"/> on its endpoints, so
 /// <see cref="EndpointGroupMatcherPolicy"/> serves it only on the ports assigned to the group, and is hidden from
 /// API descriptions, so OpenAPI omits it.
 /// </para>
 /// <para>
-/// Controllers in the default group are left as they are. A group without an assigned port is served on no port.
+/// Actions in the default group are left as they are. A group without an assigned port stops startup.
 /// </para>
 /// </remarks>
 internal sealed class EndpointGroupControllerConvention : IApplicationModelConvention
@@ -27,15 +27,15 @@ internal sealed class EndpointGroupControllerConvention : IApplicationModelConve
     {
         foreach (var controller in application.Controllers)
         {
-            var group = EndpointGroup.For(controller.ControllerType);
-            if (group is null)
-            {
-                continue;
-            }
-
-            var metadata = new EndpointGroupMetadata(group);
             foreach (var action in controller.Actions)
             {
+                var group = EndpointGroup.For(action.ActionMethod, controller.ControllerType);
+                if (group is null)
+                {
+                    continue;
+                }
+
+                var metadata = new EndpointGroupMetadata(group);
                 action.ApiExplorer.IsVisible = false;
                 foreach (var selector in action.Selectors)
                 {

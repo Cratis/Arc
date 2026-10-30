@@ -267,6 +267,10 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
             }
 
             literal ??= _sources.Read(expression, semanticModel, type, location) as LiteralSource;
+            if (literal is null && localProperty is not null && draft.RenderedCommand?.IsCommand(type) == true)
+            {
+                literal = draft.RenderedCommand.ReadLiteral(expression, localProperty.Type, _sources, semanticModel);
+            }
         }
         if (literal is { Value: null } && localProperty is not null && !queryValues && !CanStateNull(type, localProperty))
         {

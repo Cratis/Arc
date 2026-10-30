@@ -20,6 +20,11 @@ public class EndpointGroupsOptions
     public IDictionary<string, IList<int>> Ports { get; set; } = new Dictionary<string, IList<int>>(StringComparer.Ordinal);
 
     /// <summary>
+    /// Gets or sets the route prefix overrides for named groups.
+    /// </summary>
+    public IDictionary<string, string> RoutePrefixes { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Gets or sets a value indicating whether the default group is also served on group ports. Defaults to false.
     /// </summary>
     public bool ServeDefaultGroupOnGroupPorts { get; set; }
@@ -28,6 +33,38 @@ public class EndpointGroupsOptions
     /// Gets a value indicating whether any named group has a port assigned.
     /// </summary>
     public bool HasGroups => Ports.Any(_ => _.Value.Count > 0);
+
+    /// <summary>
+    /// Sets the prefix for a named group's generated command and query routes.
+    /// </summary>
+    /// <param name="group">The name of the group.</param>
+    /// <param name="prefix">The route prefix, without surrounding slashes.</param>
+    /// <returns>The <see cref="EndpointGroupsOptions"/> for continuation.</returns>
+    /// <exception cref="InvalidEndpointGroupAssignment">The group or prefix is blank.</exception>
+    public EndpointGroupsOptions SetRoutePrefix(string group, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(group))
+        {
+            throw new InvalidEndpointGroupAssignment("An endpoint group must have a name.");
+        }
+
+        if (string.IsNullOrWhiteSpace(prefix) || string.IsNullOrWhiteSpace(prefix.Trim('/')))
+        {
+            throw new InvalidEndpointGroupAssignment($"Endpoint group '{group}' must have a non-empty route prefix.");
+        }
+
+        RoutePrefixes[group] = prefix.Trim('/');
+        return this;
+    }
+
+    /// <summary>
+    /// Resolves a group's route prefix, falling back to the global prefix.
+    /// </summary>
+    /// <param name="group">The group, or null for the default group.</param>
+    /// <param name="defaultPrefix">The global route prefix.</param>
+    /// <returns>The prefix for generated routes.</returns>
+    public string RoutePrefixFor(string? group, string defaultPrefix) =>
+        group is not null && RoutePrefixes.TryGetValue(group, out var prefix) && !string.IsNullOrWhiteSpace(prefix) ? prefix : defaultPrefix;
 
     /// <summary>
     /// Assigns one or more local ports to a named group.

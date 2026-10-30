@@ -60,7 +60,7 @@ public partial class ObservableQueryDemultiplexer
             return true;
         }
 
-        return requestContext.GetEndpointGroupScope().Serves(EndpointGroup.For(performer.Type));
+        return requestContext.GetEndpointGroupScope().Serves(performer.GetEndpointGroup());
     }
 
     static (IQueryPerformer Performer, AuthorizationDeclarations Declarations)? FindQueryAuthorization(FullyQualifiedQueryName fullyQualifiedName, IServiceProvider queryServiceProvider)
