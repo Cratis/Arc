@@ -28,6 +28,6 @@ public class and_the_renderer_throws : given.query_renderers
 
     void Because() => _exception = Catch.Exception(() => _renderers.Render("Test Query", new Query(), _serviceProvider));
 
-    [Fact] void should_wrap_in_target_invocation_exception() => _exception.ShouldBeOfExactType<TargetInvocationException>();
-    [Fact] void should_carry_the_thrown_exception_as_inner() => _exception.InnerException.ShouldBeSame(QueryRenderer.Failure);
+    [Fact] void should_throw_the_exception_of_the_renderer() => _exception.ShouldBeSame(QueryRenderer.Failure);
+    [Fact] void should_not_wrap_in_target_invocation_exception() => (_exception is TargetInvocationException).ShouldBeFalse();
 }
