@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.EndpointGroups;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Hosting;
@@ -9,13 +10,13 @@ using Microsoft.Extensions.Options;
 namespace Cratis.Arc.AspNetCore.EndpointGroups;
 
 /// <summary>
-/// Refuses to keep running when every listener port is assigned to a named endpoint group.
+/// Refuses to keep running when a grouped endpoint has no port or every listener belongs to a named group.
 /// </summary>
 /// <param name="services">The <see cref="IServiceProvider"/> to resolve the server from.</param>
 /// <param name="options">The <see cref="ArcOptions"/> holding the port assignments.</param>
 /// <remarks>
 /// It runs after the server has started, when the addresses it listens on are known. Hosts that report no
-/// addresses, such as the in-memory test server, are not checked.
+/// addresses, such as the in-memory test server, are checked only for unassigned endpoint groups.
 /// </remarks>
 public sealed class EndpointGroupListenerValidation(IServiceProvider services, IOptions<ArcOptions> options) : IHostedLifecycleService
 {
@@ -23,6 +24,14 @@ public sealed class EndpointGroupListenerValidation(IServiceProvider services, I
     public Task StartedAsync(CancellationToken cancellationToken)
     {
         var groups = options.Value.EndpointGroups;
+        var unserved = services.GetService<EndpointDataSource>()?.Endpoints.FirstOrDefault(endpoint =>
+            endpoint.Metadata.GetMetadata<EndpointGroupMetadata>()?.Name is { } name && !groups.PortsFor(name).Any());
+        if (unserved is not null)
+        {
+            var name = unserved.Metadata.GetMetadata<EndpointGroupMetadata>()!.Name!;
+            throw new EndpointGroupHasNoPort(name, unserved.DisplayName ?? name);
+        }
+
         if (!groups.HasGroups)
         {
             return Task.CompletedTask;
