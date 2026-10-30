@@ -135,8 +135,8 @@ public static class ArcApplicationExtensions
         }
 
         var commandTypes = services.GetRequiredService<ICommandHandlerProviders>().Handlers.Select(_ => _.CommandType);
-        var queryTypes = services.GetRequiredService<IQueryPerformerProviders>().Performers.Select(_ => _.Type);
-        if (commandTypes.Concat(queryTypes).Any(_ => EndpointGroup.For(_) is not null))
+        var queries = services.GetRequiredService<IQueryPerformerProviders>().Performers;
+        if (commandTypes.Any(_ => EndpointGroup.For(_) is not null) || queries.Any(_ => _.GetEndpointGroup() is not null))
         {
             throw new EndpointGroupsNotSupportedByHost(host);
         }

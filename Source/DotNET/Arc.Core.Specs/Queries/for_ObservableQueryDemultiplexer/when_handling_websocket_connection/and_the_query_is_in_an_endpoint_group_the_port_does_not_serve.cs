@@ -10,6 +10,7 @@ public class and_the_query_is_in_an_endpoint_group_the_port_does_not_serve : giv
     void Establish()
     {
         _performer.Type.Returns(typeof(InternalReadModel));
+        _performer.Name.Returns(new QueryName("AllItems"));
         _context.Items.Returns(new Dictionary<object, object?>());
         _context.SetEndpointGroupScope(EndpointGroupScope.Default);
     }

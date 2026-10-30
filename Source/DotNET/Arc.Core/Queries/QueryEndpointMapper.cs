@@ -50,6 +50,7 @@ public static class QueryEndpointMapper
 
         foreach (var performer in orderedPerformers)
         {
+            var endpointGroup = performer.EnsureEndpointGroupServed(arcOptions.EndpointGroups);
             string url;
             IEnumerable<string> locationForTag;
             if (!string.IsNullOrEmpty(performer.CustomRoute))
@@ -66,11 +67,10 @@ public static class QueryEndpointMapper
                     options.IncludeQueryNameInRoute,
                     location,
                     performersByNamespace);
-                url = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
+                url = EndpointRouteHelper.BuildRouteUrl(arcOptions.EndpointGroups.RoutePrefixFor(endpointGroup, options.RoutePrefix), performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
                 locationForTag = location;
             }
 
-            var endpointGroup = EndpointGroup.EnsureServed(performer.Type, arcOptions.EndpointGroups);
             if (!registeredUrls.Add(url)) continue;
 
             foreach (var reader in readers)

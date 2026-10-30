@@ -25,9 +25,27 @@ public static class EndpointRouteHelper
         IEnumerable<string> location,
         int segmentsToSkip,
         string endpointName,
+        bool includeNameInRoute) => BuildRouteUrl(options.RoutePrefix, location, segmentsToSkip, endpointName, includeNameInRoute);
+#pragma warning restore CA1055 // URI-like return values should not be strings
+
+    /// <summary>
+    /// Builds a sanitized route URL with an explicit route prefix.
+    /// </summary>
+    /// <param name="routePrefix">The route prefix.</param>
+    /// <param name="location">The namespace segments for the endpoint.</param>
+    /// <param name="segmentsToSkip">The number of leading namespace segments to skip.</param>
+    /// <param name="endpointName">The name of the endpoint (command type name or query name).</param>
+    /// <param name="includeNameInRoute">Whether to include the endpoint name as the last route segment.</param>
+    /// <returns>A sanitized, kebab-cased, lowercase route URL.</returns>
+#pragma warning disable CA1055 // URI-like return values should not be strings
+    public static string BuildRouteUrl(
+        string routePrefix,
+        IEnumerable<string> location,
+        int segmentsToSkip,
+        string endpointName,
         bool includeNameInRoute)
     {
-        var prefix = options.RoutePrefix.Trim('/');
+        var prefix = routePrefix.Trim('/');
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{prefix}/{string.Join('/', segments)}";
 

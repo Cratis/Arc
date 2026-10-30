@@ -85,7 +85,7 @@ public class IntrospectionService : IIntrospectionService
             p => p.Location,
             options.SegmentsToSkipForRoute);
 
-        return providers.Performers.Where(performer => !performer.IsExcludedFromDiscovery() && EndpointGroup.For(performer.Type) is null).Select(performer =>
+        return providers.Performers.Where(performer => !performer.IsExcludedFromDiscovery() && performer.GetEndpointGroup() is null).Select(performer =>
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
             var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
