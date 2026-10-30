@@ -9,7 +9,7 @@ namespace Cratis.Arc.Tenancy;
 
 internal static partial class TenantMembershipLogMessages
 {
-    [LoggerMessage(LogLevel.Warning, "Tenancy uses the {Resolver} resolver, which takes the tenant from the request, and no ITenantMembership is registered. Arc does not verify that callers belong to the tenant they select. Put Cratis AuthProxy in front and set Cratis:Arc:Tenancy:IngressValidatesTenant, use the Claim resolver, or register an ITenantMembership. See https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/tenancy/membership.md")]
+    [LoggerMessage(LogLevel.Warning, "Tenancy uses the {Resolver} resolver, which takes the tenant from the request, and no ITenantMembership is registered. Arc does not verify that callers belong to the tenant they select. Register an ITenantMembership, use an authorized tenant claim, or configure a trusted ingress that enforces caller membership and prevents direct backend access before setting Cratis:Arc:Tenancy:IngressValidatesTenant. AuthProxy tenant-existence verification alone does not enforce membership. See https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/tenancy/membership.md")]
     internal static partial void MembershipNotConfigured(this ILogger<TenantMembershipStartupWarning> logger, string resolver);
 
     [LoggerMessage(LogLevel.Information, "Tenant membership denied by {MembershipType}.")]
