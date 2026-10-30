@@ -41,6 +41,26 @@ public static class GeneratorTestHelper
     }
 
     /// <summary>
+    /// Runs the <see cref="QueryMetadataGenerator"/> against the supplied source text and returns the compilation errors
+    /// of the compilation that includes the generated source.
+    /// </summary>
+    /// <param name="source">C# source code to compile and pass to the generator.</param>
+    /// <returns>The error <see cref="Diagnostic"/>s.</returns>
+    public static ImmutableArray<Diagnostic> CompileErrors(string source)
+    {
+        var compilation = CSharpCompilation.Create(
+            "TestAssembly",
+            [CSharpSyntaxTree.ParseText(source)],
+            GetMetadataReferences(),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        CSharpGeneratorDriver.Create(new QueryMetadataGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+
+        return [.. output.GetDiagnostics().Where(_ => _.Severity == DiagnosticSeverity.Error)];
+    }
+
+    /// <summary>
     /// Gets generated source text for a file with a specific hint name.
     /// </summary>
     /// <param name="result">The generator run result.</param>

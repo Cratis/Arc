@@ -2,8 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Subjects;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Cratis.Arc.Queries;
 
@@ -15,7 +17,9 @@ namespace Cratis.Arc.Queries;
 /// <see cref="IAsyncEnumerable{T}"/> as an <see cref="object"/>, so its element type is only known at runtime. Rather
 /// than building a generic method call through reflection at every site that handles such a result, the operations
 /// are closed over the element type once, here, and cached per element type. Everything past this point is statically
-/// typed, which keeps trimming and NativeAOT analysis to this one place.
+/// typed, which keeps trimming and NativeAOT analysis to this one place. Element types registered by the Arc source
+/// generator are used first; under the JIT any other element type is closed through reflection, which is not
+/// supported in ahead-of-time compiled code.
 /// </remarks>
 internal abstract class ObservableQueryElementOperations
 {
@@ -26,13 +30,21 @@ internal abstract class ObservableQueryElementOperations
     /// </summary>
     /// <param name="elementType">The element type of the observable query result.</param>
     /// <returns>The <see cref="ObservableQueryElementOperations"/> for the element type.</returns>
-    public static ObservableQueryElementOperations For(Type elementType) =>
-        _operationsByElementType.GetOrAdd(
-            elementType,
-            static type => (ObservableQueryElementOperations)typeof(ObservableQueryElementOperations)
-                .GetMethod(nameof(CreateOperations), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(type)
-                .Invoke(null, null)!);
+    /// <exception cref="MissingObservableQueryElementType">Thrown when the element type is not registered and dynamic code is not supported.</exception>
+    public static ObservableQueryElementOperations For(Type elementType)
+    {
+        if (_operationsByElementType.TryGetValue(elementType, out var operations))
+        {
+            return operations;
+        }
+
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            throw new MissingObservableQueryElementType(elementType);
+        }
+
+        return _operationsByElementType.GetOrAdd(elementType, CreateThroughReflection);
+    }
 
     /// <summary>
     /// Finds the type argument of a single-parameter open generic interface that a type is or implements.
@@ -114,6 +126,21 @@ internal abstract class ObservableQueryElementOperations
         ObservableQuerySubscriptionContext subscription,
         object enumerable,
         IServiceProvider? guardServiceProvider);
+
+    /// <summary>
+    /// Registers the operations for an element type, keeping the first registration.
+    /// </summary>
+    /// <param name="elementType">The element type of the observable query result.</param>
+    /// <param name="operations">The <see cref="ObservableQueryElementOperations"/> for the element type.</param>
+    internal static void Register(Type elementType, ObservableQueryElementOperations operations) =>
+        _operationsByElementType.TryAdd(elementType, operations);
+
+    [RequiresDynamicCode("Closes the observable query operations over an element type only known at runtime.")]
+    static ObservableQueryElementOperations CreateThroughReflection(Type type) =>
+        (ObservableQueryElementOperations)typeof(ObservableQueryElementOperations)
+            .GetMethod(nameof(CreateOperations), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(type)
+            .Invoke(null, null)!;
 
     static ObservableQueryElementOperationsFor<TElement> CreateOperations<TElement>() => new();
 }

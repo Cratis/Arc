@@ -61,16 +61,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
     /// <returns>Whether the method can be a query of the read model.</returns>
     internal static bool IsValidQueryMethod(IMethodSymbol method, INamedTypeSymbol readModelType)
     {
-        var returnType = method.ReturnType;
-
-        // Unwrap Task<T>
-        if (returnType is INamedTypeSymbol taskType &&
-            string.Equals(taskType.Name, "Task", StringComparison.Ordinal) &&
-            taskType.TypeArguments.Length == 1 &&
-            string.Equals(taskType.ContainingNamespace.ToDisplayString(), "System.Threading.Tasks", StringComparison.Ordinal))
-        {
-            returnType = taskType.TypeArguments[0];
-        }
+        var returnType = UnwrapTask(method.ReturnType);
 
         if (SymbolEqualityComparer.Default.Equals(returnType, readModelType))
         {
@@ -104,6 +95,38 @@ public class QueryMetadataGenerator : IIncrementalGenerator
 
         return false;
     }
+
+    static ITypeSymbol UnwrapTask(ITypeSymbol returnType) =>
+        returnType is INamedTypeSymbol taskType &&
+        string.Equals(taskType.Name, "Task", StringComparison.Ordinal) &&
+        taskType.TypeArguments.Length == 1 &&
+        string.Equals(taskType.ContainingNamespace.ToDisplayString(), "System.Threading.Tasks", StringComparison.Ordinal)
+            ? taskType.TypeArguments[0]
+            : returnType;
+
+    static string? GetObservableElementTypeName(IMethodSymbol method)
+    {
+        if (UnwrapTask(method.ReturnType) is not INamedTypeSymbol observable ||
+            observable.TypeArguments.Length != 1 ||
+            !(string.Equals(observable.Name, "ISubject", StringComparison.Ordinal) ||
+              string.Equals(observable.Name, "IAsyncEnumerable", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        var element = observable.TypeArguments[0];
+        return element.TypeKind == TypeKind.Error || ContainsTypeParameter(element)
+            ? null
+            : element.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+    }
+
+    static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol => true,
+        IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
+        INamedTypeSymbol named => named.TypeArguments.Any(ContainsTypeParameter),
+        _ => false
+    };
 
     static bool IsCollectionOfType(ITypeSymbol type, INamedTypeSymbol elementType)
     {
@@ -154,7 +177,10 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         }
 
         return new AnnotatedReadModel(
-            new ReadModelInfo(typeSymbol.ToDisplayString(), queryMethods.ConvertAll(method => method.Name)),
+            new ReadModelInfo(
+                typeSymbol.ToDisplayString(),
+                queryMethods.ConvertAll(method => method.Name),
+                queryMethods.Select(GetObservableElementTypeName).OfType<string>().Distinct(StringComparer.Ordinal).ToList()),
             string.Join("\n", queryMethods.Select(method => DataAnnotationMemberTypes.ForQuery(typeSymbol, method, context.SemanticModel.Compilation)).Where(registration => registration.Length > 0)));
     }
 
@@ -207,6 +233,16 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             {
                 sb.AppendLine(readModel.Annotations);
             }
+        }
+
+        foreach (var elementType in readModels
+            .SelectMany(_ => _.Metadata.ObservableElementTypeNames)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(_ => _, StringComparer.Ordinal))
+        {
+            sb.Append("        global::Cratis.Arc.Queries.ObservableQueryElementTypes.Register<")
+              .Append(elementType)
+              .AppendLine(">();");
         }
 
         sb.AppendLine("    }")
