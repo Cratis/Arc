@@ -28,7 +28,7 @@ public class from_a_class_level_unique_event_in_a_returned_batch : a_returned_ev
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void should_withhold_unrepresented_class_level_uniqueness_even_with_atomic_batches(bool repeated, bool authoring)
+    public void should_withhold_unrepresented_class_level_uniqueness_and_run_the_registration_specification_on_its_own_slice(bool repeated, bool authoring)
     {
         var events = repeated
             ? "new AuthorFiled(@event.Country), new AuthorFiled(@event.Country)"
@@ -51,8 +51,10 @@ public class from_a_class_level_unique_event_in_a_returned_batch : a_returned_ev
         Result.Source.ShouldNotContain("reaction batches atomic");
         Result.Diagnostics.Single(report => report.Code == "SP0070").Message.ShouldContain("class-level uniqueness constraint on 'AuthorFiled' is not represented in the document");
         var run = Run("WhenRegisteringAndANameIsSupplied");
-        run.Passed.ShouldBeFalse();
-        var unsupported = Assert.IsType<SemanticUnsupported>(run.Execution);
-        unsupported.Details.ShouldContain("Reaction 'Welcomer' has an opaque body");
+
+        // Screenplay decision 0115: a specification runs its own slice only, so another slice's opaque reaction no longer makes it Unsupported.
+        run.Passed.ShouldBeTrue();
+        var accepted = Assert.IsType<SemanticAccepted>(run.Execution);
+        accepted.Facts.Length.ShouldEqual(1); // Only the AuthorRegistered fact; no AuthorWelcomed or AuthorFiled from the Welcoming slice.
     }
 }
