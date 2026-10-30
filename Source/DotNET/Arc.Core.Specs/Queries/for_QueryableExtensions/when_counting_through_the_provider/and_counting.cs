@@ -30,8 +30,9 @@ public class and_counting : Specification
     void Because() => _result = _queryable.Count();
 
     [Fact] void should_return_the_provider_result() => _result.ShouldEqual(5);
-    [Fact] void should_execute_a_count_call() => ((MethodCallExpression)_provider.ReceivedCalls().Single(_ => _.GetMethodInfo().Name == nameof(IQueryProvider.Execute)).GetArguments()[0]!)
-        .Method.GetGenericMethodDefinition().ShouldEqual(Queryables.CountDefinition());
-    [Fact] void should_count_the_source_expression() => ((MethodCallExpression)_provider.ReceivedCalls().Single(_ => _.GetMethodInfo().Name == nameof(IQueryProvider.Execute)).GetArguments()[0]!)
-        .Arguments[0].ShouldBeSame(_source);
+    [Fact] void should_execute_a_count_call() => ExecutedExpression().Method.GetGenericMethodDefinition().ShouldEqual(Queryables.CountDefinition());
+    [Fact] void should_count_the_source_expression() => ExecutedExpression().Arguments[0].ShouldBeSame(_source);
+
+    MethodCallExpression ExecutedExpression() =>
+        (MethodCallExpression)_provider.ReceivedCalls().Single(_ => _.GetMethodInfo().Name == nameof(IQueryProvider.Execute)).GetArguments()[0]!;
 }
