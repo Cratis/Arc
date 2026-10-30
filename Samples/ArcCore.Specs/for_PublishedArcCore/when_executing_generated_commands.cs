@@ -22,7 +22,7 @@ public class when_executing_generated_commands : given.a_published_arc_core
         _body = document.RootElement.Clone();
     }
 
-    [Fact] void should_respond_with_ok() => Assert.True(_response.StatusCode == HttpStatusCode.OK, $"{_responseText}{Environment.NewLine}{_arcCore.Output}");
+    [Fact] void should_respond_with_ok() => Assert.True(_response.StatusCode == HttpStatusCode.OK, $"HTTP {(int)_response.StatusCode} ({_response.StatusCode}){Environment.NewLine}{_responseText}{Environment.NewLine}{_arcCore.Output}");
     [Fact] void should_report_success() => _body.GetProperty("isSuccess").GetBoolean().ShouldBeTrue();
     [Fact] void should_return_the_author_in_the_response() => _body.GetProperty("response").GetProperty("author").GetString().ShouldEqual("published-harness");
     [Fact] void should_return_the_text_in_the_response() => _body.GetProperty("response").GetProperty("text").GetString().ShouldEqual("from a published executable");

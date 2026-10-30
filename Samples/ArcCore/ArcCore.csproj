@@ -14,6 +14,9 @@
     <PropertyGroup Condition="'$(CratisSamplePublish)' != ''">
         <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
         <TrimmerSingleWarn>false</TrimmerSingleWarn>
+        <!-- Runtimeconfig, apphost and their incremental caches must not cross publish variants. -->
+        <OutputPath>bin/$(Configuration)/$(CratisSamplePublish)/</OutputPath>
+        <IntermediateOutputPath>obj/$(Configuration)/$(CratisSamplePublish)/</IntermediateOutputPath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(CratisSamplePublish)' == 'Untrimmed'">
         <SelfContained>false</SelfContained>
