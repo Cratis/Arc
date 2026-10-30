@@ -58,6 +58,14 @@ public class QueryActionFilter(
 
             if (callResult.Result?.Result is ObjectResult objectResult && objectResult.IsStreamingResult())
             {
+                if (!AdmitTenant(context.HttpContext.RequestServices))
+                {
+                    var denied = QueryResult.Unauthorized(queryContext.CorrelationId);
+                    context.HttpContext.Response.SetResponseStatusCode(denied);
+                    SetMvcResult(context, callResult.Result, new ObjectResult(denied));
+                    return;
+                }
+
                 // Handle streaming results - both WebSocket and HTTP JSON streaming
                 await controllerAdapter.HandleControllerStreamingResult(context, callResult.Result, objectResult);
                 return; // Early return to avoid processing as regular query result
@@ -91,6 +99,22 @@ public class QueryActionFilter(
         else
         {
             await next();
+        }
+    }
+
+    static bool AdmitTenant(IServiceProvider services)
+    {
+        try
+        {
+            if ((services.GetService(typeof(IEnumerable<ITenantMembership>)) as IEnumerable<ITenantMembership>)?.Any() == true)
+            {
+                _ = services.GetRequiredService<TenantIdAccessor>().Current;
+            }
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

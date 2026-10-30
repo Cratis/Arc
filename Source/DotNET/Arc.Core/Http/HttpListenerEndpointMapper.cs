@@ -370,7 +370,12 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
         {
             try
             {
-                return await next(context);
+                var handled = await next(context);
+                if (context.Request.IsWebSocketRequest && context.Response.StatusCode == 403)
+                {
+                    context.Response.Close();
+                }
+                return handled;
             }
             catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
             {
@@ -378,6 +383,10 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
                 {
                     // Set the status before HttpRequestPipeline closes the response.
                     context.Response.StatusCode = 403;
+                    if (context.Request.IsWebSocketRequest)
+                    {
+                        context.Response.Close();
+                    }
                 }
                 catch (InvalidOperationException)
                 {

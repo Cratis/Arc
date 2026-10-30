@@ -5,6 +5,7 @@ using System.Diagnostics.Metrics;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Calendar;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Observability;
@@ -19,6 +20,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
@@ -98,7 +101,10 @@ public static class HostBuilderExtensions
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
         services.AddSingleton<ICurrentPrincipalOverride>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
-        services.AddSingleton<TenantMembershipVerification>();
+        services.AddSingleton(sp => new TenantMembershipVerification(
+            sp.GetRequiredService<IHttpRequestContextAccessor>(),
+            sp.GetRequiredService<ICurrentPrincipalAccessor>(),
+            sp.GetService<ILogger<TenantMembershipVerification>>() ?? NullLogger<TenantMembershipVerification>.Instance));
         services.AddSingleton(sp => new TenantIdAccessor(
             sp.GetRequiredService<ITenantIdResolver>(),
             sp.GetRequiredService<TenantMembershipVerification>()));
