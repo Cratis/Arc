@@ -12,5 +12,5 @@ public class and_the_caller_is_not_a_member : given.a_tenant_membership_verifica
     void Because() => _exception = Catch.Exception(() => _verification.Verify(_tenant));
     [Fact] void should_deny_membership() => _exception.ShouldBeOfExactType<TenantMembershipDenied>();
     [Fact] void should_log_an_information_diagnostic() => _logger.ReceivedCalls().Single(call => call.GetMethodInfo().Name == "Log").GetArguments()[0].ShouldEqual(LogLevel.Information);
-    [Fact] void should_not_log_the_candidate() => _logger.ReceivedCalls().Single(call => call.GetMethodInfo().Name == "Log").GetArguments()[2]!.ToString()!.Contains(_tenant.Value, StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_not_log_the_candidate() => _logger.ReceivedCalls().Single(call => call.GetMethodInfo().Name == "Log").GetArguments()[2].ToString().Contains(_tenant.Value, StringComparison.Ordinal).ShouldBeFalse();
 }

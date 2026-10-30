@@ -227,7 +227,7 @@ public class QueryPipeline(
         var target = QueryAuthorizationTarget.For(performer, declarations);
         var declaration = target switch
         {
-            System.Reflection.MethodInfo method => declarations.For(method),
+            MethodInfo method => declarations.For(method),
             Type type => declarations.For(type),
             _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
         };
@@ -469,7 +469,7 @@ public class QueryPipeline(
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
         }
-        catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
+        catch (Exception ex) when (ex is IValidationFailure)
         {
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.FromException(correlationId, ex));

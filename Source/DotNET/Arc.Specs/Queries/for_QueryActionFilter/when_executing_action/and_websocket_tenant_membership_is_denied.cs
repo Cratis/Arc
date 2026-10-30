@@ -12,5 +12,5 @@ public class and_websocket_tenant_membership_is_denied : given.a_controller_stre
 
     [Fact] void should_respond_forbidden() => _httpContext.Response.StatusCode.ShouldEqual(StatusCodes.Status403Forbidden);
     [Fact] void should_not_upgrade() => _transportEvents.ShouldBeEmpty();
-    [Fact] void should_return_an_unauthorized_result() => ((QueryResult)((ObjectResult)(_actionContext.Result ?? _executed.Result)!).Value!).IsAuthorized.ShouldBeFalse();
+    [Fact] void should_return_an_unauthorized_result() => ((QueryResult)((ObjectResult)(_actionContext.Result ?? _executed.Result)).Value).IsAuthorized.ShouldBeFalse();
 }

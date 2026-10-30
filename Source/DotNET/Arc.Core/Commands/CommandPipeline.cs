@@ -673,7 +673,7 @@ public class CommandPipeline(
                 }
 
                 frame.Validate(scopes);
-                var operationDeclarations = values.SelectMany<object, ICommandOperation>(value => value switch
+                var operationDeclarations = values.SelectMany(value => value switch
                 {
                     ICommandOperation operation => [operation],
                     CommandOperations batch => batch,

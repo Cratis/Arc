@@ -19,7 +19,7 @@ public class and_the_action_denies_tenant_membership : given.a_controller_query_
     async Task Because()
     {
         await _filter.OnActionExecutionAsync(_actionContext, _next);
-        _result = (QueryResult)((ObjectResult)(_actionContext.Result ?? _executed.Result)!).Value!;
+        _result = (QueryResult)((ObjectResult)(_actionContext.Result ?? _executed.Result)).Value;
     }
     [Fact] void should_respond_forbidden() => _httpContext.Response.StatusCode.ShouldEqual(StatusCodes.Status403Forbidden);
     [Fact] void should_be_unauthorized() => _result.IsAuthorized.ShouldBeFalse();

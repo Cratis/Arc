@@ -13,5 +13,5 @@ public class and_sse_tenant_membership_is_denied : given.a_controller_stream_wit
     [Fact] void should_respond_forbidden() => _httpContext.Response.StatusCode.ShouldEqual(StatusCodes.Status403Forbidden);
     [Fact] void should_not_write_a_stream() => ResponseBody().ShouldEqual(string.Empty);
     [Fact] void should_not_set_sse_content_type() => _httpContext.Response.ContentType.ShouldBeNull();
-    [Fact] void should_return_an_unauthorized_result() => ((QueryResult)((ObjectResult)(_actionContext.Result ?? _executed.Result)!).Value!).IsAuthorized.ShouldBeFalse();
+    [Fact] void should_return_an_unauthorized_result() => ((QueryResult)((ObjectResult)(_actionContext.Result ?? _executed.Result)).Value).IsAuthorized.ShouldBeFalse();
 }
