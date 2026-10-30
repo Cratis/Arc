@@ -40,7 +40,7 @@ A validator resolved from the query's service provider can inject `Cratis.Arc.IO
 
 `QueryableQueryRenderer` handles runtime `IQueryable` values: it counts the filtered query, applies sorting, then `Skip`/`Take`. The provider controls database execution. Lists and arrays do not gain automatic slicing. See [model-bound paging](model-bound/paging.md) or [controller paging](controller-based/paging.md).
 
-Custom renderers implement `IQueryRendererFor<T>` with `QueryRendererResult Execute(T query, QueryContext queryContext)`. They return total count plus data. Do not use an unverified renderer-order assumption as a security boundary; put access filtering before counting and paging so neither rows nor counts disclose unauthorized data.
+Custom renderers implement `IQueryRendererFor<T>` with `QueryRendererResult Execute(T query, QueryContext queryContext)`. They return total count plus data. Arc calls the renderer directly, so an exception it throws reaches the pipeline as itself: an `IValidationFailure` exception becomes a validation error and any other exception an error result. Implement `IQueryRendererFor<T>` for one query type only. Do not use an unverified renderer-order assumption as a security boundary; put access filtering before counting and paging so neither rows nor counts disclose unauthorized data.
 
 ## Query filters
 
