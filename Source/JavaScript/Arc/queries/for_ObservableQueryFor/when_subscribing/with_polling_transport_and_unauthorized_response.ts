@@ -19,7 +19,9 @@ describe('when subscribing with polling transport and unauthorized response', gi
     beforeEach(async () => {
         originalTransport = Globals.queryTransportMethod;
         Globals.queryTransportMethod = QueryTransportMethod.Polling;
-        clock = sinon.useFakeTimers();
+        // Only setTimeout/clearTimeout/Date need faking here. Faking queueMicrotask/nextTick/setImmediate
+        // breaks Node's native fetch (undici), whose body-stream consumption relies on them internally.
+        clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
         sinon.stub(console, 'warn');
         fetchStub = fetchHelper.stubFetch();
         fetchStub.callsFake(async () => new Response('Unauthorized', { status: 401 }));

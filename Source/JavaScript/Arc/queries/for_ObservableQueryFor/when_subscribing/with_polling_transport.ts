@@ -27,7 +27,9 @@ describe('when subscribing with polling transport', given(an_observable_query_fo
         Globals.queryDirectMode = false;
         Globals.queryTransportMethod = QueryTransportMethod.Polling;
         Globals.queryPollingOptions = { ...Globals.queryPollingOptions, minIntervalMs: 100 };
-        clock = sinon.useFakeTimers();
+        // Only setTimeout/clearTimeout/Date need faking here. Faking queueMicrotask/nextTick/setImmediate
+        // breaks Node's native fetch (undici), whose body-stream consumption relies on them internally.
+        clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
         fetchStub = fetchHelper.stubFetch();
         fetchStub.callsFake(async () => new Response(JSON.stringify({
             data: 'value', isSuccess: true, isAuthorized: true, isValid: true,
@@ -86,7 +88,9 @@ describe('when subscribing with polling transport and invalid arguments', given(
     beforeEach(async () => {
         originalTransport = Globals.queryTransportMethod;
         Globals.queryTransportMethod = QueryTransportMethod.Polling;
-        clock = sinon.useFakeTimers();
+        // Only setTimeout/clearTimeout/Date need faking here. Faking queueMicrotask/nextTick/setImmediate
+        // breaks Node's native fetch (undici), whose body-stream consumption relies on them internally.
+        clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
         fetchStub = fetchHelper.stubFetch();
         fetchStub.callsFake(async () => new Response(JSON.stringify({
             data: '', isSuccess: false, isAuthorized: true, isValid: false,

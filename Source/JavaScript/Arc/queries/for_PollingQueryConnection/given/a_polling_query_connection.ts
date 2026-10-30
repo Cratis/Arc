@@ -19,7 +19,9 @@ export class a_polling_query_connection {
         const fetchHelper = createFetchHelper();
         const originalOptions = Globals.queryPollingOptions;
         beforeEach(() => {
-            this.clock = sinon.useFakeTimers();
+            // Only setTimeout/clearTimeout/Date need faking here. Faking queueMicrotask/nextTick/setImmediate
+            // breaks Node's native fetch (undici), whose body-stream consumption relies on them internally.
+            this.clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
             this.random = sinon.stub(Math, 'random').returns(0.5);
             sinon.stub(console, 'warn');
             this.responses = [
