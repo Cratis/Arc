@@ -35,15 +35,15 @@ public static class CommandEndpointMapper
 
         foreach (var handler in commandHandlerProviders.Handlers)
         {
+            var endpointGroup = EndpointGroup.EnsureServed(handler.CommandType, arcOptions.EndpointGroups);
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
             var includeCommandName = EndpointRouteHelper.ShouldIncludeNameInRoute(
                 options.IncludeCommandNameInRoute,
                 location,
                 handlersByNamespace);
             var url = CommandRoute.CustomRoute(handler) ??
-                EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
+                EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName, arcOptions.EndpointGroups.RoutePrefixFor(endpointGroup, options.RoutePrefix));
 
-            var endpointGroup = EndpointGroup.EnsureServed(handler.CommandType, arcOptions.EndpointGroups);
             var excludeFromApiDescription = endpointGroup is not null || handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true);
             var allowAnonymous = handler.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForCommand(handler.CommandType, serviceProvider);
 
