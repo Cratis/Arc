@@ -88,30 +88,24 @@ internal static class AuthorizationPrincipalIdentity
     }
 
     static string Fingerprint(ClaimsPrincipal? principal) =>
-        JsonSerializer.Serialize(principal?.Identities.Select(IdentityContent));
+        JsonSerializer.Serialize(principal?.Identities.Select(IdentityContent), PrincipalIdentityJsonSerializerContext.Default.Identities);
 
-    static object IdentityContent(ClaimsIdentity identity) => new
-    {
-        IdentityType = identity.GetType().FullName,
+    static PrincipalIdentityContent IdentityContent(ClaimsIdentity identity) => new(
+        identity.GetType().FullName,
         identity.AuthenticationType,
         identity.NameClaimType,
         identity.RoleClaimType,
         identity.Label,
-        BootstrapContext = new
-        {
-            IsOpaque = identity.BootstrapContext is not null and not string,
-            Value = identity.BootstrapContext as string
-        },
-        Actor = identity.Actor is null ? null : IdentityContent(identity.Actor),
-        Claims = identity.Claims.Select(claim => new
-        {
+        new PrincipalBootstrapContent(
+            identity.BootstrapContext is not null and not string,
+            identity.BootstrapContext as string),
+        identity.Actor is null ? null : IdentityContent(identity.Actor),
+        identity.Claims.Select(claim => new PrincipalClaimContent(
             claim.Type,
             claim.Value,
             claim.ValueType,
             claim.Issuer,
             claim.OriginalIssuer,
-            Properties = claim.Properties.OrderBy(property => property.Key, StringComparer.Ordinal)
-                .Select(property => new { property.Key, property.Value })
-        })
-    };
+            claim.Properties.OrderBy(property => property.Key, StringComparer.Ordinal)
+                .Select(property => new PrincipalClaimProperty(property.Key, property.Value)))));
 }
