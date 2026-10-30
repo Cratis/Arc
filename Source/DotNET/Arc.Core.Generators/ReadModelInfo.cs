@@ -13,8 +13,10 @@ internal sealed class ReadModelInfo
     /// </summary>
     /// <param name="fullyQualifiedTypeName">The fully qualified type name of the read model.</param>
     /// <param name="queryMethodNames">The names of the valid query methods on the read model.</param>
-    internal ReadModelInfo(string fullyQualifiedTypeName, List<string> queryMethodNames)
+    /// <param name="observableElementTypeNames">The fully qualified element type names of the observable query results.</param>
+    internal ReadModelInfo(string fullyQualifiedTypeName, List<string> queryMethodNames, List<string> observableElementTypeNames)
     {
+        ObservableElementTypeNames = observableElementTypeNames;
         FullyQualifiedTypeName = fullyQualifiedTypeName;
         QueryMethodNames = queryMethodNames;
     }
@@ -28,4 +30,9 @@ internal sealed class ReadModelInfo
     /// Gets the names of the valid query methods on the read model.
     /// </summary>
     internal List<string> QueryMethodNames { get; }
+
+    /// <summary>
+    /// Gets the fully qualified element type names of the observable query results.
+    /// </summary>
+    internal List<string> ObservableElementTypeNames { get; }
 }
