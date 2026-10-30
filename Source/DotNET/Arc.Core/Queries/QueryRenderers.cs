@@ -3,6 +3,7 @@
 
 using Cratis.Execution;
 using Cratis.Types;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
 
@@ -30,8 +31,7 @@ public class QueryRenderers(
             return new(queryContext.TotalItems, query);
         }
 
-        var queryProvider = serviceProvider.GetService(queryProviderType);
-        var method = queryProviderType.GetMethod(nameof(IQueryRendererFor<object>.Execute))!;
-        return (method.Invoke(queryProvider, [query, queryContextManager.Current]) as QueryRendererResult)!;
+        var queryProvider = (IQueryRenderer)serviceProvider.GetRequiredService(queryProviderType);
+        return queryProvider.Execute(query, queryContextManager.Current);
     }
 }

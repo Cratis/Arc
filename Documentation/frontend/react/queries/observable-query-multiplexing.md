@@ -7,7 +7,7 @@ A screen with many live queries does not need one persistent connection per quer
 
 ## How it works
 
-The two configuration choices are independent:
+For streaming transports, the two configuration choices are independent. Polling always bypasses the hub:
 
 | `queryTransportMethod` | `queryDirectMode` | Connection and subscription path |
 | --- | --- | --- |
@@ -15,6 +15,7 @@ The two configuration choices are independent:
 | `WebSocket` | `false` | Shared WebSocket hub at `/.cratis/queries/ws`; subscribe/unsubscribe through socket messages |
 | `ServerSentEvents` | `true` | EventSource to each query's own URL |
 | `WebSocket` | `true` | WebSocket to each query's own URL |
+| `Polling` | either | Repeated GET to each query's own URL; no hub |
 
 Paths above are relative to the configured origin/API base path. `<Arc>` defaults to SSE hub mode with one connection slot. The core `Globals` transport default, before React bindings initialize it, is WebSocket.
 

@@ -7,7 +7,7 @@ namespace Cratis.Arc.Queries;
 /// Defines a paging adorner for a query.
 /// </summary>
 /// <typeparam name="TQueryType">Type of query.</typeparam>
-public interface IQueryRendererFor<TQueryType>
+public interface IQueryRendererFor<TQueryType> : IQueryRenderer
 {
     /// <summary>
     /// Adorn the query with paging.
@@ -16,4 +16,7 @@ public interface IQueryRendererFor<TQueryType>
     /// <param name="queryContext">Context of the query.</param>
     /// <returns>The adorned query.</returns>
     QueryRendererResult Execute(TQueryType query, QueryContext queryContext);
+
+    /// <inheritdoc/>
+    QueryRendererResult IQueryRenderer.Execute(object query, QueryContext queryContext) => Execute((TQueryType)query, queryContext);
 }

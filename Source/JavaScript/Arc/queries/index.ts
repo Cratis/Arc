@@ -34,6 +34,8 @@ export * from './ObservableQueryMultiplexer.js';
 export * from './ObservableQuerySubscription.js';
 export * from './WebSocketMessage.js';
 export * from './QueryTransportMethod.js';
+export * from './PollingOptions.js';
+export * from './PollingQueryConnection.js';
 export * from './QueryInstanceCache.js';
 export * from './reconcileQueryData.js';
 export * from './deserializeQueryModel.js';
