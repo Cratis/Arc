@@ -14,8 +14,12 @@ internal sealed class ReadModelInfo
     /// <param name="fullyQualifiedTypeName">The fully qualified type name of the read model.</param>
     /// <param name="queryMethodNames">The names of the valid query methods on the read model.</param>
     /// <param name="observableElementTypeNames">The fully qualified element type names of the observable query results.</param>
-    internal ReadModelInfo(string fullyQualifiedTypeName, List<string> queryMethodNames, List<string> observableElementTypeNames)
+    /// <param name="hasCollectionQuery">Whether the read model has a query returning a collection of it.</param>
+    /// <param name="sortKeyTypeNames">The fully qualified names of the types of the properties a collection result can be sorted on.</param>
+    internal ReadModelInfo(string fullyQualifiedTypeName, List<string> queryMethodNames, List<string> observableElementTypeNames, bool hasCollectionQuery, List<string> sortKeyTypeNames)
     {
+        HasCollectionQuery = hasCollectionQuery;
+        SortKeyTypeNames = sortKeyTypeNames;
         ObservableElementTypeNames = observableElementTypeNames;
         FullyQualifiedTypeName = fullyQualifiedTypeName;
         QueryMethodNames = queryMethodNames;
@@ -35,4 +39,14 @@ internal sealed class ReadModelInfo
     /// Gets the fully qualified element type names of the observable query results.
     /// </summary>
     internal List<string> ObservableElementTypeNames { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the read model has a query returning a collection of it.
+    /// </summary>
+    internal bool HasCollectionQuery { get; }
+
+    /// <summary>
+    /// Gets the fully qualified names of the types of the properties a collection result can be sorted on.
+    /// </summary>
+    internal List<string> SortKeyTypeNames { get; }
 }
