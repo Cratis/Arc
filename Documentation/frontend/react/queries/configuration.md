@@ -12,7 +12,7 @@ Configure query behavior centrally through the `<Arc />` component instead of pe
 | `microservice` | `string` | `''` | Routes query requests to a named microservice in shared-ingress environments. |
 | `apiBasePath` | `string` | `''` | Prepends a base API path to query requests. |
 | `httpHeadersCallback` | `() => HeadersInit` | `undefined` | Adds headers to ordinary fetches and SSE control POSTs, not native stream handshakes. |
-| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Selects SSE or WebSocket transport for observable query connections. |
+| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Selects SSE, WebSocket, or HTTP polling transport for observable queries. |
 | `queryDirectMode` | `boolean` | `false` | Bypasses centralized hubs and connects observable queries directly per query URL. |
 | `queryConnectionCount` | `number` | `1` | Number of observable query hub connection slots. |
 | `observableQueryTransferMode` | `ObservableQueryTransferMode` | `Delta` | Selects shared-hub server full/delta emissions and `useChangeStream()` fallback processing. |

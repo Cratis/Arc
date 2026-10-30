@@ -14,4 +14,7 @@ export enum QueryTransportMethod {
      * Use Server-Sent Events (SSE) for real-time data streaming.
      */
     ServerSentEvents = 'serverSentEvents',
+
+    /** Use HTTP GET snapshots for observable queries. */
+    Polling = 'polling',
 }
