@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Cratis.Arc.AspNetCore.EndpointGroups.for_EndpointGroupListenerValidation.given;
 
+[NonController]
 [ApiController]
 [Route("endpoint-group-startup")]
 public class ActionGroupedController : ControllerBase

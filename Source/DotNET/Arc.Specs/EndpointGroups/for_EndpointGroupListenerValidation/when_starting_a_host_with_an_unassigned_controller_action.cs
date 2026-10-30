@@ -24,7 +24,8 @@ public class when_starting_a_host_with_an_unassigned_controller_action : Specifi
         builder.Services.AddOptions<ArcOptions>();
         builder.Services.AddSingleton<IHostedService, EndpointGroupListenerValidation>();
         builder.Services.AddControllers(options => options.Conventions.Add(new EndpointGroupControllerConvention()))
-            .AddApplicationPart(typeof(given.ActionGroupedController).Assembly);
+            .AddApplicationPart(typeof(given.ActionGroupedController).Assembly)
+            .ConfigureApplicationPartManager(manager => manager.FeatureProviders.Add(new given.a_grouped_action_feature()));
         _app = builder.Build();
         _app.MapControllers();
     }
