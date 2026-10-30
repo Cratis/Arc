@@ -101,10 +101,10 @@ public class from_the_source_of_an_application_using_known_components : Specific
     [Fact] void should_produce_a_document_without_warnings_or_errors() => _compiled.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_write_the_title_of_the_data_page() => SaysInSequence("data Author[] via query AllAuthors", "title \"Authors\"").ShouldBeTrue();
-    [Fact] void should_write_a_table_of_the_read_model_the_query_returns() => SaysInSequence("table Author", "column name label \"Name\"", "column id", "action Registration.RegisterAuthor").ShouldBeTrue();
+    [Fact] void should_write_a_table_of_the_read_model_the_query_returns() => SaysInSequence("table Author", "column name label \"Name\"", "column id", "action Registration.RegisterAuthor for screen").ShouldBeTrue();
     [Fact] void should_leave_out_a_column_that_names_no_field() => Says("Initials").ShouldBeFalse();
     [Fact] void should_leave_out_a_column_that_is_commented_out() => Says("column retired").ShouldBeFalse();
-    [Fact] void should_write_the_command_a_dialog_runs() => SaysInSequence("action RegisterAuthor").ShouldBeTrue();
+    [Fact] void should_write_the_command_a_dialog_runs() => SaysInSequence("action RegisterAuthor for screen").ShouldBeTrue();
     [Fact] void should_write_the_action_only_on_the_screen_of_the_slice_declaring_the_command() => _result.Source.Split("action RegisterAuthor").Length.ShouldEqual(2);
     [Fact] void should_never_write_a_navigation() => Says("navigate to").ShouldBeFalse();
     [Fact] void should_report_the_computed_header() => Reports("heads the column 'id' in the table of 'Author' with 'strings.identifier'").ShouldBeTrue();

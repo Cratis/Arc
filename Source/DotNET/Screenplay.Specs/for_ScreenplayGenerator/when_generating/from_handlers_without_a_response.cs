@@ -50,7 +50,7 @@ public class from_handlers_without_a_response : a_generated_document
             RoundTrip.IsStable.ShouldBeTrue();
             RoundTrip.Errors.ShouldBeEmpty();
             Bound.Success.ShouldBeFalse();
-            Bound.Diagnostics.Any(diagnostic => diagnostic.Code == "PLAY0268").ShouldBeTrue();
+            Bound.Diagnostics.Any(diagnostic => diagnostic.Code == "PLAY0800").ShouldBeTrue();
         }
         else
         {

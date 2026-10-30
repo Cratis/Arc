@@ -29,7 +29,7 @@ public class from_a_data_page_whose_menu_item_opens_a_dialog_of_its_slice : give
     [Fact] void should_reprint_identically() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_not_invent_navigation() => Says("navigate to").ShouldBeFalse();
 
-    [Fact] void should_write_the_toolbar_item_and_label() => Says("toolbar actions\n          item retireAuthor action RetireAuthor\n            label \"Retire\"").ShouldBeTrue();
+    [Fact] void should_write_the_toolbar_item_and_label() => Says("toolbar actions\n          item retireAuthor action RetireAuthor for screen\n            label \"Retire\"").ShouldBeTrue();
     [Fact] void should_keep_the_title_and_table() => Says("table Author\n          column name label \"Name\"").ShouldBeTrue();
     [Fact] void should_not_repeat_the_claimed_dialog_as_a_screen_action() => Says("\n        action RetireAuthor").ShouldBeFalse();
     [Fact] void should_report_selection_enablement() => Reports("SP0077", "enablement is not stated").ShouldBeTrue();

@@ -33,7 +33,7 @@ public class from_code_only_commands : a_generated_document
         RoundTrip.IsStable.ShouldBeTrue();
         RoundTrip.Errors.ShouldBeEmpty();
         Bound.Success.ShouldBeFalse();
-        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
+        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0800"]);
 
         var authoring = new ScreenplayEmitter().Emit(Result.Model, new() { AuthoringOnlyConstructs = true });
         authoring.Source.ShouldContain("command RegisterAuthor");

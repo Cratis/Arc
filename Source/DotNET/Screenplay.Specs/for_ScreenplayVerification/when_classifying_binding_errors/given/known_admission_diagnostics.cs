@@ -16,7 +16,7 @@ public class known_admission_diagnostics : Specification
     void Establish()
     {
         _catalog = CompilerContractCatalog.Diagnostics.Where(fact => ExpectedBindingDiagnostics.AcceptedCodes.Contains(fact.Code)).ToArray();
-        var handler = Diagnostic.Error("PLAY0268", "Command 'Register' handler requires a constrained implementation attachment.", SourceLocation.Start);
+        var handler = Diagnostic.Error("PLAY0800", "Command 'Register' handler requires a constrained implementation attachment.", SourceLocation.Start);
         var concurrency = Diagnostic.Error("PLAY0271", "Command 'Register' concurrency metadata keeps its legacy meaning and cannot bind to ESM v1.", SourceLocation.Start);
         var operations = Diagnostic.Error("PLAY0268", "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301).", SourceLocation.Start);
         var reads = Diagnostic.Error("PLAY0271", "Command 'Register' reads 'Author' with legacy semantics that cannot imply decision consistency.", SourceLocation.Start);
