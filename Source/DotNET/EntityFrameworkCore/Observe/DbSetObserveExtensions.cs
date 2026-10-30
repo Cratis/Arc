@@ -220,7 +220,7 @@ public static class DbSetObserveExtensions
         bool ignoreQueryContext)
         where TEntity : class
     {
-        return dbSet.ObserveCore<TEntity, TEntity>(
+        return dbSet.ObserveCore(
             filter,
             configure,
             ignoreQueryContext,

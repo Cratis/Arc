@@ -65,7 +65,7 @@ public static class AggregateRootServiceCollectionExtensions
     /// <param name="aggregateRootFactory">The <see cref="IAggregateRootFactory"/> to get it from.</param>
     /// <param name="eventSourceId">The <see cref="EventSourceId"/> of the aggregate root.</param>
     /// <returns>The aggregate root.</returns>
-    /// <exception cref="System.Reflection.TargetInvocationException">Thrown when the factory throws before it returns a task, with the failure as inner exception.</exception>
+    /// <exception cref="TargetInvocationException">Thrown when the factory throws before it returns a task, with the failure as inner exception.</exception>
     internal static object GetAggregateRootWithoutDynamicCode(Type aggregateRootType, IAggregateRootFactory aggregateRootFactory, EventSourceId eventSourceId)
     {
         // The helper closes over a reference type only, which the runtime shares code for, so it needs no dynamic code. Invoking it

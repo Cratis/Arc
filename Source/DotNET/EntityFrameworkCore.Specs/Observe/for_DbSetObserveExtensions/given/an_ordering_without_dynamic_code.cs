@@ -28,7 +28,7 @@ public abstract class an_ordering_without_dynamic_code : Specification
     protected IQueryable<OrderingItem> OrderBy(string property, SortDirection direction, IQueryable<OrderingItem>? source = null)
     {
         var parameter = Expression.Parameter(typeof(OrderingItem), "x");
-        var access = Expression.Property(parameter, typeof(OrderingItem).GetProperty(property)!);
+        var access = Expression.Property(parameter, typeof(OrderingItem).GetProperty(property));
         return Microsoft.EntityFrameworkCore.DbSetObserveExtensions.OrderByWithoutDynamicCode(source ?? _items.AsQueryable(), access, parameter, direction);
     }
 }
