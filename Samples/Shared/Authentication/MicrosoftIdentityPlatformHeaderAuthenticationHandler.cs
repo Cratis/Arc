@@ -29,7 +29,7 @@ public class MicrosoftIdentityPlatformHeaderAuthenticationHandler : IAuthenticat
         try
         {
             var token = Convert.FromBase64String(principalHeader);
-            clientPrincipal = JsonSerializer.Deserialize<ClientPrincipal>(token);
+            clientPrincipal = JsonSerializer.Deserialize(token, SamplesJsonSerializerContext.Default.ClientPrincipal);
         }
         catch
         {

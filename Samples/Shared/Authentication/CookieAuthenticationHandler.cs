@@ -35,7 +35,7 @@ public class CookieAuthenticationHandler : IAuthenticationHandler
         try
         {
             var token = Convert.FromBase64String(cookieValue);
-            clientPrincipal = JsonSerializer.Deserialize<ClientPrincipal>(token);
+            clientPrincipal = JsonSerializer.Deserialize(token, SamplesJsonSerializerContext.Default.ClientPrincipal);
         }
         catch
         {
