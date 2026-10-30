@@ -23,7 +23,7 @@ public class from_dialog_success_navigating_to_a_parameterized_route : given.a_s
     void Because() => GenerateNavigation();
 
     [Fact] void should_round_trip_and_bind() => AssertDocument();
-    [Fact] void should_emit_navigation_after_the_action() => Result.Source.ShouldContain("action RetireAuthor\n");
+    [Fact] void should_emit_navigation_after_the_action() => Result.Source.ShouldContain("action RetireAuthor for screen\n");
     [Fact] void should_qualify_the_destination() => Result.Source.ShouldContain("navigate to Details.AuthorDetails");
     [Fact] void should_preserve_the_route_table_pattern() => Result.Source.ShouldContain("route \"/authors/:id\"");
     [Fact] void should_not_replace_the_pattern_with_the_gesture_destination() => Result.Source.Contains("route \"/authors/42\"", StringComparison.Ordinal).ShouldBeFalse();

@@ -9,7 +9,6 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayVerification.when_classifying_bind
 public class known_admission_limits : Specification
 {
     [Theory]
-    [InlineData("Command 'Register' handler requires a constrained implementation attachment.")]
     [InlineData("Concept 'AuthorName' compliance attributes require portable data-subject semantics.")]
     [InlineData("Read model 'Author' must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes.")]
     [InlineData("Query 'All' uses filtering, scope, or implementation behavior outside the admitted ESM query shapes.")]
@@ -21,6 +20,14 @@ public class known_admission_limits : Specification
     void should_accept_the_known_fallback_in_both_modes(string message)
     {
         var verified = WithError("PLAY0268", message);
+        verified.UnexpectedBindingErrors().ShouldBeEmpty();
+        verified.UnexpectedBindingErrors(true).ShouldBeEmpty();
+    }
+
+    [Fact]
+    void should_accept_the_unextended_handler_attachment_refusal_in_both_modes()
+    {
+        var verified = WithError("PLAY0800", "Command 'Register' handler requires a constrained implementation attachment.");
         verified.UnexpectedBindingErrors().ShouldBeEmpty();
         verified.UnexpectedBindingErrors(true).ShouldBeEmpty();
     }

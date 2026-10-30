@@ -13,12 +13,16 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// <remarks>
 /// Screenplay 4.146.0 reports malformed bindings under PLAY0268 too. Its compiler contract lists codes, titles and
 /// severities, not structured reasons, so these exact message shapes follow SemanticModelBinder.Commands, ReadModels,
-/// Concepts, and CommandProductions at that version. A changed or unknown message, or a code that is no longer an active
-/// error in the loaded compiler's contract, fails closed as SP0056 rather than silently acquiring an exemption.
+/// Concepts, and CommandProductions at that version. Screenplay 4.256 reports the command handler attachment refusal
+/// under PLAY0800 (DescribedCommandAdmission.AttachmentRefusalMessage). Arc never writes `produces` beside a handler
+/// (CommandSyntaxBuilder.ToHandler, CommandAuthoringSyntaxBuilder), so only the unextended text can be an admission limit;
+/// the extended texts mean malformed output and fail closed. A changed or unknown message, or a code that is no longer an
+/// active error in the loaded compiler's contract, fails closed as SP0056 rather than silently acquiring an exemption.
 /// </remarks>
 public static class ExpectedBindingDiagnostics
 {
     const string AdmissionLimitCode = "PLAY0268";
+    const string AttachmentRefusalCode = "PLAY0800";
     const string LegacyConsistencyCode = "PLAY0271";
 
     static readonly FrozenSet<string> _activeErrorCodes = ActiveErrorCodes(CompilerContractCatalog.Diagnostics);
@@ -26,7 +30,7 @@ public static class ExpectedBindingDiagnostics
     /// <summary>
     /// Gets the codes with known admission or legacy-consistency message shapes.
     /// </summary>
-    internal static IReadOnlyList<string> AcceptedCodes { get; } = [AdmissionLimitCode, LegacyConsistencyCode];
+    internal static IReadOnlyList<string> AcceptedCodes { get; } = [AdmissionLimitCode, AttachmentRefusalCode, LegacyConsistencyCode];
 
     /// <summary>
     /// Determines whether a binding diagnostic describes a known admission limit rather than malformed output.
@@ -65,6 +69,11 @@ public static class ExpectedBindingDiagnostics
                 (authoringOnlyConstructs && command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
         }
 
+        if (diagnostic.Code == AttachmentRefusalCode)
+        {
+            return Reason(message, "Command") == " handler requires a constrained implementation attachment.";
+        }
+
         if (diagnostic.Code != AdmissionLimitCode)
         {
             return false;
@@ -79,8 +88,7 @@ public static class ExpectedBindingDiagnostics
 
         var query = Reason(message, "Query");
 
-        return Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
-            Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
+        return Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
             Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
             IsKnownQueryReason(query);
     }

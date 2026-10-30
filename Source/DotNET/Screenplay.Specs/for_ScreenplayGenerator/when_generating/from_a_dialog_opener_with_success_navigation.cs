@@ -25,6 +25,6 @@ public class from_a_dialog_opener_with_success_navigation : given.a_screen_with_
 
     [Fact] void should_round_trip_and_bind() => AssertDocument();
     [Fact] void should_keep_the_item_as_a_command_input_opener() => Result.Source.ShouldContain("item retireAuthor action RetireAuthor");
-    [Fact] void should_attach_navigation_to_the_separate_command_action() => Result.Source.ShouldContain("action RetireAuthor\n");
+    [Fact] void should_attach_navigation_to_the_separate_command_action() => Result.Source.ShouldContain("action RetireAuthor for screen\n");
     [Fact] void should_preserve_the_success_route() => Result.Source.ShouldContain("route \"/authors\"");
 }

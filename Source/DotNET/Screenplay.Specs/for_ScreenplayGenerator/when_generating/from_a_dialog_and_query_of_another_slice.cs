@@ -33,6 +33,7 @@ public class from_a_dialog_and_query_of_another_slice : given.a_generated_docume
 
     [Fact] void should_bind_and_round_trip_the_document() => AssertDocument();
     [Fact] void should_write_the_qualified_action() => Says("action Registration.RegisterAuthor").ShouldBeTrue();
+    [Fact] void should_state_the_screen_subject_of_the_action() => Says("action Registration.RegisterAuthor for screen").ShouldBeTrue();
     [Fact] void should_disambiguate_the_query_by_feature() => Says("via query Authors.Registration.All").ShouldBeTrue();
     [Fact] void should_keep_the_own_query_bare() => Says("data Author[] via query All").ShouldBeTrue();
     [Fact] void should_not_report_the_read_bindings() => Result.Diagnostics.Where(_ => _.Code == "SP0028" || _.Code == "SP0036").ShouldBeEmpty();

@@ -23,8 +23,8 @@ public class from_a_data_page_with_two_independent_dialog_openers : given.a_scre
 
     void Because() => Generate();
 
-    [Fact] void should_state_the_add_opener() => Says("item retireAuthor action RetireAuthor\n            label \"Add\"").ShouldBeTrue();
-    [Fact] void should_state_the_edit_opener() => Says("item retireAuthor2 action RetireAuthor\n            label \"Edit\"").ShouldBeTrue();
+    [Fact] void should_state_the_add_opener() => Says("item retireAuthor action RetireAuthor for screen\n            label \"Add\"").ShouldBeTrue();
+    [Fact] void should_state_the_edit_opener() => Says("item retireAuthor2 action RetireAuthor for screen\n            label \"Edit\"").ShouldBeTrue();
     [Fact] void should_claim_both_dialogs() => Says("\n        action RetireAuthor").ShouldBeFalse();
     [Fact] void should_not_report_either_opener_as_unread() => Count("SP0028").ShouldEqual(0);
     [Fact] void should_compile_the_document() => _compiled.Success.ShouldBeTrue();

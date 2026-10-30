@@ -18,6 +18,7 @@ public class from_a_command_dialog_navigating_after_success : given.a_screen_usi
     [Fact] void should_not_invent_navigation() => Says("navigate to").ShouldBeFalse();
 
     [Fact] void should_keep_the_dialog_action() => Says("action RetireAuthor").ShouldBeTrue();
+    [Fact] void should_state_the_screen_subject_of_the_action() => Says("action RetireAuthor for screen").ShouldBeTrue();
     [Fact] void should_report_the_post_success_callback() => Reports("SP0028", "after success").ShouldBeTrue();
     [Fact] void should_report_only_the_post_success_callback() => Count("SP0028").ShouldEqual(1);
 }

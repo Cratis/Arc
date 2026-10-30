@@ -18,7 +18,7 @@ public class and_the_document_has_authoring_binding_errors : given.a_printed_doc
         authoringOnlyConstructs: true);
 
     [Fact] void should_compile() => Assert.True(Verified.Compiles, string.Join(Environment.NewLine, Verified.Errors.Select(diagnostic => diagnostic.Message)));
-    [Fact] void should_have_admission_errors() => Verified.BindingDiagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
+    [Fact] void should_have_admission_errors() => Verified.BindingDiagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0800"]);
     [Fact] void should_accept_admission_errors_when_enabled() => Verified.UnexpectedBindingErrors().ShouldBeEmpty();
     [Fact] void should_report_no_binding_defect() => Result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);
 

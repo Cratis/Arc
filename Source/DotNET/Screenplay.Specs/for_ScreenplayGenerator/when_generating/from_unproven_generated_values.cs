@@ -192,6 +192,6 @@ public class from_unproven_generated_values : a_generated_document
         RoundTrip.Errors.ShouldBeEmpty();
         RoundTrip.IsStable.ShouldBeTrue();
         Bound.Success.ShouldBeFalse();
-        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
+        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0800"]);
     }
 }

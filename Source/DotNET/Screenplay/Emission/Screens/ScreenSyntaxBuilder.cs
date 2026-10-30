@@ -35,6 +35,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
     /// <param name="namespace">The namespace of the slice the screen belongs to.</param>
     /// <returns>The <see cref="ScreenSyntax"/>.</returns>
     /// <remarks>
+    /// Generated openers pass no row, so each action states its `for screen` subject rather than leaving it to inference (Screenplay decision 0110).
     /// A screen with neither a file nor a directive has an empty body, so a path is always resolved - falling back
     /// to where the vertical slice convention would put the file when the model carries none.
     /// </remarks>
@@ -49,7 +50,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             .. screen.Titles.Select(_ => new ScreenTitleSyntax(_, SourceLocation.Start)),
             .. screen.Toolbars.Select(Toolbar),
             .. screen.Tables.Select(Table),
-            .. screen.Actions.Select(_ => new ScreenActionSyntax(Reference(_), null, screen.AfterSuccess.TryGetValue(_, out var destination) ? Navigate(destination) : null, SourceLocation.Start))
+            .. screen.Actions.Select(_ => new ScreenActionSyntax(Reference(_), null, screen.AfterSuccess.TryGetValue(_, out var destination) ? Navigate(destination) : null, SourceLocation.Start) { Subject = ScreenActionSubjectKind.Screen })
         ];
 
         return new(name, new FileReferenceSyntax(path, SourceLocation.Start), directives, SourceLocation.Start);
@@ -105,6 +106,9 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
     /// </summary>
     /// <param name="item">The recovered item.</param>
     /// <returns>The toolbar item syntax.</returns>
+    /// <remarks>
+    /// Generated openers pass no row, so an action item states its `for screen` subject rather than leaving it to inference (Screenplay decision 0110).
+    /// </remarks>
     ToolbarItemSyntax ToolbarItem(ScreenToolbarItemModel item) =>
         new(
             naming.ToPropertyName(item.Name),
@@ -113,6 +117,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             SourceLocation.Start)
         {
             Label = item.Label,
+            Subject = item.Navigation is null ? ScreenActionSubjectKind.Screen : null,
             Parameters = item.Navigation is { } destination ? ScreenNavigationSyntax.Parameters(destination) : []
         };
 
