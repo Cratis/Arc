@@ -90,7 +90,9 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
         var readModel = SpecificationMembers.ReadModelOf(steps);
-        var draft = new SpecificationDraft { EventSources = new(models, _held), CaseValues = caseValues };
+        var rendered = caseValues is null ? RenderedCommandSpecification.Describe(type, models) : null;
+        name = rendered?.Name ?? name;
+        var draft = new SpecificationDraft { EventSources = new(models, _held), CaseValues = caseValues, RenderedCommand = rendered };
         var stated = new ScreenplayDiagnostics();
 
         ReadSteps(type, draft, name, stated);

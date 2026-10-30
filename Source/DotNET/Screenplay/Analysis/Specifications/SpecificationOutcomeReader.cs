@@ -122,6 +122,11 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
         SemanticModel semanticModel,
         SpecificationDraft draft)
     {
+        if (draft.RenderedCommand?.IsRedundant(invocation) == true)
+        {
+            return;
+        }
+
         if (!EventReader.IsEvent(appended))
         {
             draft.CannotRead($"it expects '{appended.Name}' to follow, which is not declared as an event");
@@ -151,7 +156,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
         var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values)
         {
             For = draft.When is not null
-                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft, requireLiteral: draft.RenderedCommand is not null)
                 : null
         };
         if (!SpecificationEventCompleteness.StatesEveryValue(state, appended, draft))

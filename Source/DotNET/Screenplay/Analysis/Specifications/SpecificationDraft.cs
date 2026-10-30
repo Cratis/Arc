@@ -72,6 +72,11 @@ public class SpecificationDraft
     internal SpecificationCaseValues? CaseValues { get; init; }
 
     /// <summary>
+    /// Gets the proof of the bounded rendered command shape, when present.
+    /// </summary>
+    internal RenderedCommandSpecification? RenderedCommand { get; init; }
+
+    /// <summary>
     /// Records why a scenario cannot be read.
     /// </summary>
     /// <param name="reason">What made it unreadable.</param>
