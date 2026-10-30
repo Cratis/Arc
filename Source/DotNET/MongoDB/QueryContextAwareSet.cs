@@ -2,7 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+#if NET9_0_OR_GREATER
+using System.Runtime.CompilerServices;
+#endif
 using Cratis.Arc.Queries;
 using Cratis.Strings;
 
@@ -31,11 +35,7 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
     /// <param name="idProperty">The id property.</param>
     public QueryContextAwareSet(QueryContext queryContext, PropertyInfo idProperty)
     {
-        _idEqualityComparer = (typeof(EqualityComparer<>)
-                .MakeGenericType(idProperty.PropertyType)
-                .GetProperty(nameof(EqualityComparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
-                .GetValue(null)
-            as IEqualityComparer)!;
+        _idEqualityComparer = IdEqualityComparerFor(idProperty.PropertyType);
         ArgumentNullException.ThrowIfNull(_idEqualityComparer);
         _getId = document =>
         {
@@ -170,6 +170,46 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+    static IEqualityComparer IdEqualityComparerFor(Type idType)
+    {
+#if NET9_0_OR_GREATER
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return QueryableKeyTypes.For(typeof(TDocument), idType).EqualityComparer;
+        }
+#endif
+
+        return IdEqualityComparerThroughReflection(idType);
+    }
+
+    static IComparer SortingFieldComparerFor(Type sortingFieldType)
+    {
+#if NET9_0_OR_GREATER
+        if (!RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return QueryableKeyTypes.For(typeof(TDocument), sortingFieldType).Comparer;
+        }
+#endif
+
+        return SortingFieldComparerThroughReflection(sortingFieldType);
+    }
+
+    [RequiresDynamicCode("Closes EqualityComparer<T> over an id type only known at runtime.")]
+    static IEqualityComparer IdEqualityComparerThroughReflection(Type idType) =>
+        (typeof(EqualityComparer<>)
+            .MakeGenericType(idType)
+            .GetProperty(nameof(EqualityComparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
+            .GetValue(null)
+        as IEqualityComparer)!;
+
+    [RequiresDynamicCode("Closes Comparer<T> over a property type only known at runtime.")]
+    static IComparer SortingFieldComparerThroughReflection(Type sortingFieldType) =>
+        (typeof(Comparer<>)
+            .MakeGenericType(sortingFieldType)
+            .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
+            .GetValue(null)
+        as IComparer)!;
+
     void Initialize(QueryContext newQueryContext)
     {
         var oldQueryContext = _queryContext;
@@ -200,11 +240,7 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
             if (sortingFieldProperty is not null)
             {
                 _hasSortingField = true;
-                _sortingFieldComparer = (typeof(Comparer<>)
-                    .MakeGenericType(sortingFieldProperty.PropertyType)
-                    .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
-                    .GetValue(null)
-                    as IComparer)!;
+                _sortingFieldComparer = SortingFieldComparerFor(sortingFieldProperty.PropertyType);
                 _getSortingField = document =>
                 {
                     try
