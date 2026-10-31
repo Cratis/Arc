@@ -141,6 +141,11 @@ public class QueryPipeline(
         {
             throw;
         }
+        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        {
+            OperationActivity.RecordException(activity, exception);
+            return QueryResult.Unauthorized(GetCorrelationId());
+        }
         catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
             OperationActivity.RecordException(activity, exception);
@@ -222,7 +227,7 @@ public class QueryPipeline(
         var target = QueryAuthorizationTarget.For(performer, declarations);
         var declaration = target switch
         {
-            System.Reflection.MethodInfo method => declarations.For(method),
+            MethodInfo method => declarations.For(method),
             Type type => declarations.For(type),
             _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
         };
@@ -464,7 +469,7 @@ public class QueryPipeline(
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
         }
-        catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
+        catch (Exception ex) when (ex is IValidationFailure)
         {
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.FromException(correlationId, ex));
@@ -473,6 +478,11 @@ public class QueryPipeline(
         {
             OperationActivity.RecordException(activity, ex);
             return QueryResult.Unauthorized(correlationId);
+        }
+        catch (Exception ex) when (TenantMembershipDenied.IsCauseOf(ex))
+        {
+            OperationActivity.RecordException(activity, ex);
+            result.MergeWith(QueryResult.Unauthorized(correlationId));
         }
         catch (InvalidAuthorizationConfiguration ex)
         {

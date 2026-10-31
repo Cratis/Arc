@@ -154,7 +154,7 @@ public static class QueryEndpointMapper
                         return;
                     }
 
-                    context.SetStatusCode((int)HttpStatusCode.BadRequest);
+                    context.SetStatusCode((int)(TenantMembershipDenied.IsCauseOf(ex) ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest));
                     await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
                     return;
                 }
@@ -195,7 +195,17 @@ public static class QueryEndpointMapper
         {
             // The pipeline has restored the outer request identity. A direct stream lives beyond that lease,
             // so keep its subscriber identity, selected tenant and owned provider until the transport finishes.
-            var tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
+            TenantId tenant;
+            try
+            {
+                tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
+            }
+            catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+            {
+                context.SetStatusCode((int)HttpStatusCode.Forbidden);
+                await context.WriteResponseAsJson(QueryResult.Unauthorized(queryResult.CorrelationId), typeof(QueryResult), context.RequestAborted);
+                return;
+            }
             var manager = context.RequestServices.GetRequiredService<IQueryContextManager>();
             var previousQueryContext = manager.Current;
             var queryContext = queryResult.AuthorizedQueryContext ?? previousQueryContext;

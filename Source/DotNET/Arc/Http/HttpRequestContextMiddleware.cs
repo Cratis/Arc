@@ -29,6 +29,13 @@ public class HttpRequestContextMiddleware(IHttpRequestContextAccessor httpReques
     {
         using var tenantBoundary = TenantIdAccessor.Independent.BeginRequest();
         using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, new AspNetCoreHttpRequestContext(context));
-        await next(context);
+        try
+        {
+            await next(context);
+        }
+        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception) && !context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        }
     }
 }

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Http;
@@ -24,6 +25,10 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
         try
         {
             var handled = await BuildPipeline(0)(context);
+            if (context.Request.IsWebSocketRequest && context.Response.StatusCode == 403)
+            {
+                context.Response.Close();
+            }
 
             if (!handled)
             {
@@ -31,6 +36,22 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
                 context.Response.StatusCode = 404;
                 var buffer = System.Text.Encoding.UTF8.GetBytes("Not Found");
                 await context.Response.OutputStream.WriteAsync(buffer);
+            }
+        }
+        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        {
+            try
+            {
+                // Set the status before closing the response.
+                context.Response.StatusCode = 403;
+                if (context.Request.IsWebSocketRequest)
+                {
+                    context.Response.Close();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // A committed or disconnected response cannot be replaced.
             }
         }
         finally

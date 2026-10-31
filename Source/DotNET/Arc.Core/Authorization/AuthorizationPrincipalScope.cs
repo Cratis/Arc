@@ -42,8 +42,7 @@ public class AuthorizationPrincipalScope(
             }
             else
             {
-                var resolved = tenantResolver.Resolve();
-                var selectedTenant = string.IsNullOrEmpty(resolved) ? TenantId.NotSet : new TenantId(resolved);
+                var selectedTenant = tenantIds.ResolveVerified(tenantResolver);
                 tenantScope = tenantIds.UseAuthorizedTenant(selectedTenant);
             }
             return new CombinedScope(arcScope, hostScope, tenantScope);
