@@ -17,6 +17,7 @@ public class a_signed_handler : Specification
     protected DefaultHttpContext _context;
     protected Dictionary<string, string> _headers;
     protected TimeProvider _clock;
+    readonly ForwardedIdentityReplayCache _replays = new();
 
     void Establish() => ResetRequest();
 
@@ -50,8 +51,14 @@ public class a_signed_handler : Specification
         schemeOptions.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions { TimeProvider = _clock });
         var arcOptions = Substitute.For<IOptionsMonitor<ArcOptions>>();
         arcOptions.CurrentValue.Returns(_options);
-        var handler = new MicrosoftIDentityPlatformAuthHandler(schemeOptions, arcOptions, NullLoggerFactory.Instance, UrlEncoder.Default);
+        var handler = new IsolatedHandler(schemeOptions, arcOptions, _replays);
         await handler.InitializeAsync(new AuthenticationScheme(MicrosoftIDentityPlatformAuthHandler.SchemeName, null, typeof(MicrosoftIDentityPlatformAuthHandler)), _context);
         return await handler.AuthenticateAsync();
+    }
+
+    sealed class IsolatedHandler(IOptionsMonitor<AuthenticationSchemeOptions> schemeOptions, IOptionsMonitor<ArcOptions> arcOptions, ForwardedIdentityReplayCache replays)
+        : MicrosoftIDentityPlatformAuthHandler(schemeOptions, arcOptions, NullLoggerFactory.Instance, UrlEncoder.Default)
+    {
+        internal override ForwardedIdentityReplayCache ForwardedIdentityReplays => replays;
     }
 }

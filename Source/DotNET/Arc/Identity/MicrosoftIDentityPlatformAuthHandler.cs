@@ -66,26 +66,18 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         _logger = loggerFactory.CreateLogger<MicrosoftIDentityPlatformAuthHandler>();
     }
 
+    /// <summary>
+    /// Gets the process-local replay cache, overridable internally for isolated verification clocks in specs.
+    /// </summary>
+    internal virtual ForwardedIdentityReplayCache ForwardedIdentityReplays => ForwardedIdentityReplayCache.Shared;
+
     /// <inheritdoc/>
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
         if (arcOptions?.CurrentValue.ForwardedIdentity?.Enabled == true)
         {
-            var signed = ForwardedIdentityAuthentication.Authenticate(
-                new AspNetCore.Http.AspNetCoreHttpRequestContext(Context),
-                arcOptions.CurrentValue,
-                Scheme.Name,
-                Request.PathBase.Add(Request.Path).ToUriComponent(),
-                TimeProvider);
-            if (signed.Failure is { } failure)
-            {
-                ForwardedIdentityLogMessages.Rejected(_logger, failure);
-                return Task.FromResult(AuthenticateResult.Fail(failure));
-            }
-            return Task.FromResult(signed.Principal is { } signedPrincipal
-                ? AuthenticateResult.Success(new AuthenticationTicket(signedPrincipal, Scheme.Name))
-                : AuthenticateResult.NoResult());
+            return AuthenticateSigned(arcOptions.CurrentValue);
         }
         var onBehalfOf = ForwardedActor.IsPresent(Request.Headers.ContainsKey);
         if (onBehalfOf && ForwardedActor.Admit(arcOptions?.CurrentValue) is { } rejection)
@@ -146,6 +138,25 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+
+    Task<AuthenticateResult> AuthenticateSigned(ArcOptions options)
+    {
+        var signed = ForwardedIdentityAuthentication.Authenticate(
+            new AspNetCore.Http.AspNetCoreHttpRequestContext(Context),
+            options,
+            Scheme.Name,
+            Request.PathBase.Add(Request.Path).ToUriComponent(),
+            TimeProvider,
+            ForwardedIdentityReplays);
+        if (signed.Failure is { } failure)
+        {
+            ForwardedIdentityLogMessages.Rejected(_logger, failure);
+            return Task.FromResult(AuthenticateResult.Fail(failure));
+        }
+        return Task.FromResult(signed.Principal is { } signedPrincipal
+            ? AuthenticateResult.Success(new AuthenticationTicket(signedPrincipal, Scheme.Name))
+            : AuthenticateResult.NoResult());
     }
 
     OnBehalfOfForward ForwardFrom(ArcOptions options) => new(
