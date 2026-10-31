@@ -512,5 +512,18 @@ static class DiagnosticDescriptors
         description: "Under Measure or On, a whole-source read on the command source, a read on another stream, or effective declared Concurrency without both stream dimensions can widen a stream read guard. Widening causes extra conflicts, not missed changes.",
         helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0038/");
 
+    /// <summary>
+    /// ARCCHR0039: A handler exposes decision acquisition instead of plain state.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0039_NonIdiomaticDecisionParameter = new(
+        id: "ARCCHR0039",
+        title: "Prefer plain read-model parameters in Handle",
+        messageFormat: "Command '{0}' takes '{1}' in Handle. Take the read model as a plain parameter, use LookUpBy for a command property key, or a per-stream model for the command route. Only keys no parameter can express belong in Provide(IDecisionReads), returning plain values to Handle.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Decision reader and token parameters remain supported, but application handlers should decide from plain state. This signature advice applies in Off, Measure and On and does not change runtime guard behavior.",
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0039/");
+
     const string Category = "Arc.Chronicle";
 }

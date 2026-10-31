@@ -38,6 +38,7 @@ ARCCHR0035|Arc.Chronicle|Warning|Aggregate Commit in nested command or before la
 ARCCHR0036|Arc.Chronicle|Warning|Exact scope coverage of same-source protected read is not proven
 ARCCHR0037|Arc.Chronicle|Error|Per-stream read model does not match the command route
 ARCCHR0038|Arc.Chronicle|Info|Per-stream read guard widens to the whole source
+ARCCHR0039|Arc.Chronicle|Info|Prefer plain read-model parameters over decision readers or tokens in Handle
 ARC0026|Arc|Error|Invalid explicit query declaration
 ARC0030|Arc|Info|Composite key requires accessor registration
 ARC0031|Arc|Info|Command key properties are read through reflection
