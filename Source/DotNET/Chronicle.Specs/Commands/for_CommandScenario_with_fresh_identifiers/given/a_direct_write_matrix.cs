@@ -23,7 +23,9 @@ public class a_direct_write_matrix : Specification
             await using var scenario = new CommandScenario<DirectWrite>();
             if (decisionReads)
             {
+#pragma warning disable CS0618 // This matrix deliberately covers the legacy explicit switch.
                 scenario.UseDecisionReads();
+#pragma warning restore CS0618
             }
             scenario.PinGeneratedValue("id", _id);
             if (occupied)

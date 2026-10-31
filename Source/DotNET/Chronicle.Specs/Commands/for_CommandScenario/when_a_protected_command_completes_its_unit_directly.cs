@@ -22,7 +22,7 @@ public class when_a_protected_command_completes_its_unit_directly
     public async Task rollback_followed_by_an_aggregate_commit_cannot_bypass_the_decision_guard()
     {
         EscapeViaAggregate.Reset();
-        await using var scenario = new CommandScenario<EscapeViaAggregate>().UseDecisionReads();
+        await using var scenario = new CommandScenario<EscapeViaAggregate>();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new when_using_decision_mode.DecisionStateChanged());
 
@@ -41,7 +41,7 @@ public class when_a_protected_command_completes_its_unit_directly
     public async Task direct_commit_of_the_unit_is_refused_and_the_owner_still_commits_without_a_conflict()
     {
         EscapeViaAggregate.Reset();
-        await using var scenario = new CommandScenario<EscapeViaAggregate>().UseDecisionReads();
+        await using var scenario = new CommandScenario<EscapeViaAggregate>();
         var source = EventSourceId.New();
 
         var result = await scenario.Execute(new EscapeViaAggregate(source), global::Xunit.TestContext.Current.CancellationToken);
@@ -56,7 +56,7 @@ public class when_a_protected_command_completes_its_unit_directly
     public async Task failed_protected_command_rolls_back_its_unit_as_the_owner()
     {
         FailAfterDecision.Reset();
-        await using var scenario = new CommandScenario<FailAfterDecision>().UseDecisionReads();
+        await using var scenario = new CommandScenario<FailAfterDecision>();
         var source = EventSourceId.New();
 
         var result = await scenario.Execute(new FailAfterDecision(source), global::Xunit.TestContext.Current.CancellationToken);

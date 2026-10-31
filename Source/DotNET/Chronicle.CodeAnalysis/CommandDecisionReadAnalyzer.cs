@@ -14,7 +14,7 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 /// Advises on recognizable unguarded Chronicle reads and immediate appends in event-producing commands.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
+public sealed partial class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 {
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
     const string ChronicleReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
@@ -27,7 +27,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
-        DiagnosticDescriptors.ARCCHR0012_ImmediateAppendAfterDecisionRead
+        DiagnosticDescriptors.ARCCHR0012_ImmediateAppendAfterDecisionRead,
+        DiagnosticDescriptors.ARCCHR0039_NonIdiomaticDecisionParameter
     ];
 
     /// <inheritdoc/>
@@ -53,7 +54,13 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         // Lambda and local function parameters (for example the x in RuleFor(x => ...)) inject nothing.
         if (syntax.Parent?.Parent is not BaseMethodDeclarationSyntax and not TypeDeclarationSyntax ||
             context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol parameter ||
-            parameter.ContainingSymbol is not IMethodSymbol method || !InDecision(method, out var command))
+            parameter.ContainingSymbol is not IMethodSymbol method)
+        {
+            return;
+        }
+
+        AnalyzeHandlerParameter(context, syntax, parameter, method);
+        if (!InDecision(method, out var command))
         {
             return;
         }

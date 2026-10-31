@@ -122,6 +122,28 @@ public record LendBook(BookId Book, MemberId Member) : ICanProvideEventSourceId
 
 Take the model as a parameter instead: a validator with `BookStock?`, as in [one entity](./single-entity.md). If the read is deliberately a hint, mark the method `[Unprotected("why")]` and enforce the rule elsewhere.
 
+## Reading decision state in Handle()
+
+`Handle(IDecisionReads reads)` and `Handle(DecisionRead<T> read)` expose acquisition and guard tokens to the decision. They remain supported for explicit advanced needs, but are not recommended for application code. Take the state as a plain parameter instead:
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Validation;
+using Cratis.Monads;
+
+[Command, ReadProtection(ReadProtectionMode.On)]
+public record BorrowAvailableBook(BookId Book, MemberId Member)
+{
+    public Result<BookBorrowed, ValidationResult> Handle(BookStock? stock) =>
+        stock is not { Available: > 0 }
+            ? ValidationResult.Error("No copies of this book are available.")
+            : new BookBorrowed(Member);
+}
+```
+
+Use `[LookUpBy]` for a command property key, or a per-stream model for the command route. Only when neither can express the key should `Provide(IDecisionReads)` acquire plain state for `Handle()`. Application specs call `Handle(state)` directly or give that state to `CommandScenario`; they never configure decision reads or simulate concurrent appends. Arc does not add application test support for non-recommended handler patterns.
+
 ## The earlier form: [ProtectedDecision] and DecisionRead
 
 Before read protection had modes, a command opted in one at a time with `[ProtectedDecision]` and took `DecisionRead<T>`. That form still works. Under `On` you can use plain read-model parameters instead; `On` also enables protected validator constructor reads.
@@ -147,7 +169,7 @@ public record BorrowBookDecision(BookId Book, MemberId Member) : ICanProvideEven
 }
 ```
 
-Use it when a project stays `Off` and one command needs a guard now. Move to a plain parameter and a validator when you turn the project `On`: a `[ProtectedDecision]` command outside `On` refuses validators with constructor dependencies, and a validator is where the rule belongs. See [Validators](../validators.md#commands-marked-protecteddecision).
+This is a before example for existing code, not a recommendation for new commands. Move to a plain parameter under `On` and a validator: a `[ProtectedDecision]` command outside `On` refuses validators with constructor dependencies, and a validator is where the rule belongs. See [Validators](../validators.md#commands-marked-protecteddecision).
 
 ## Several event sources
 

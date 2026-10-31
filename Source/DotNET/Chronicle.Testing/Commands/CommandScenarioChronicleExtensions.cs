@@ -95,6 +95,7 @@ public static class CommandScenarioChronicleExtensions
         /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
         /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        [Obsolete("The scenario selects decision reads from the command's declarations. Remove this call.")]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public CommandScenario<TCommand> UseDecisionReads()
         {
@@ -122,22 +123,26 @@ public static class CommandScenarioChronicleExtensions
 
         /// <summary>
         /// Queues routed competing facts after the handler reads and before its owner commits, with or without decision mode.
+        /// Verifies the framework's concurrency handling; not part of recommended application testing. Use only for a specific, explicit need.
         /// </summary>
         /// <param name="eventSourceId">The source changed by the competitor.</param>
         /// <param name="route">The competitor's route.</param>
         /// <param name="events">The competing facts.</param>
         /// <exception cref="CompetingEventsMustBeQueuedBeforeExecution">The scenario cannot configure competing appends after initialization or during execution.</exception>
         /// <exception cref="ConcurrentAppendsCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public void AppendConcurrently(EventSourceId eventSourceId, EventRoute route, params object[] events) =>
             CompetingScenario(scenario).QueueCompetingAppend(eventSourceId, events, route);
 
         /// <summary>
         /// Queues competing facts to append after the handler reads and before its owner commits, with or without decision mode.
+        /// Verifies the framework's concurrency handling; not part of recommended application testing. Use only for a specific, explicit need.
         /// </summary>
         /// <param name="eventSourceId">The source being changed by a competitor.</param>
         /// <param name="events">The competing events.</param>
         /// <exception cref="CompetingEventsMustBeQueuedBeforeExecution">The scenario cannot configure competing appends after initialization or during execution.</exception>
         /// <exception cref="ConcurrentAppendsCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public void AppendConcurrently(EventSourceId eventSourceId, params object[] events) =>
             CompetingScenario(scenario).QueueCompetingAppend(eventSourceId, events);
     }

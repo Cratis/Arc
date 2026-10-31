@@ -21,7 +21,6 @@ public class with_model_bound_children_in_decision_mode : Specification
 
     void Establish()
     {
-        _commands.UseDecisionReads();
         foreach (var resource in _scenario.Context.Values.Distinct().OfType<IDisposable>())
         {
             resource.Dispose();

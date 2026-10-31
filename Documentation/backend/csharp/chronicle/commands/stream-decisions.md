@@ -77,7 +77,7 @@ Exact scopes replace automatic concurrency capture. Remove `concurrency: true` f
 
 ## Seed and interfere on the same route
 
-The command's stream-decision dependency automatically selects one in-process event log before seeding. This excerpt uses `ApproveReport` and `ReportApproved` from the first example:
+Application specs give state and assert outcomes; they do not simulate competing writers. The command's stream-decision dependency automatically selects one in-process event log before seeding. This excerpt uses `ApproveReport` and `ReportApproved` from the first example:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
@@ -87,11 +87,10 @@ await using var scenario = new CommandScenario<ApproveReport>();
 var id = EventSourceId.New();
 var route = new EventRoute("reports", "approval", "owner:2026-10");
 scenario.Given.ForEventSource(id).OnRoute(route).Events(new ReportApproved());
-scenario.AppendConcurrently(id, route, new ReportApproved());
 ```
 
 For a definition, use `scenario.EventRoutes.For<ReportSource>("approval").WithStreamId(...)`. Routed seeding in the legacy read-model mode is refused with `RoutedEventSeedingRequiresDecisionReads` because that mode cannot retain stream routing.
 
 [Scenarios for each stream shape](./event-source-definition-scenarios.md#decide-against-the-stream) show a stream decision on a definition-routed command, and [how routing works](./event-source-definition-routing.md#the-concurrency-scope-arc-passes) explains the scope it passes.
 
-A nonempty decision append conflicts with a matching queued competitor; a competitor on another stream id succeeds for `Stream()` and conflicts for `StreamType()`. Execute a command that produces a new fact to test that guard: the identical-retry branch deliberately returns no scope.
+A nonempty decision append is guarded by its declared scope; the identical-retry branch deliberately returns no scope. Arc's framework specs prove conflict handling. For a specific, explicit framework-verification need, see the [advanced concurrency note](../../testing/chronicle.md#protected-decision-scenarios).

@@ -22,7 +22,7 @@ public class a_generated_aggregate_scenario : Specification
     void Establish()
     {
         _id = new(new Guid(0xcf055c76, 0x77e0, 0x4389, 0x98, 0x4c, 0xab, 0x87, 0x00, 0xe3, 0x3e, 0x0a));
-        _scenario = new CommandScenario<CreateAggregate>().UseDecisionReads();
+        _scenario = new CommandScenario<CreateAggregate>();
         _scenario.PinGeneratedValue("id", _id);
         _command = new(false);
     }

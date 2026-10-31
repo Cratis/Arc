@@ -16,7 +16,6 @@ public class with_a_seeded_guarded_pin_and_decision_reads : given.a_default_mode
 
     async Task Establish()
     {
-        _scenario.UseDecisionReads();
         _scenario.Given.ForEventSource(_id).Events(new Created("existing"));
         _tailBefore = await _scenario.EventLog.GetTailSequenceNumber();
     }

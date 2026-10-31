@@ -9,7 +9,6 @@ public class and_decision_reads_are_enabled : given.an_appended_event_assertion
 {
     void Establish()
     {
-        _scenario.UseDecisionReads();
         _scenario.Given.ForEventSource(_source).Events(Event("seed"));
     }
 

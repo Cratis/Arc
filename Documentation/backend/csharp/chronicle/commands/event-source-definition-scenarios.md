@@ -132,7 +132,7 @@ What this guards:
 
 The scope covers every event in the stream, not only `ReportApproved`, and the whole stream crosses the wire on each command. Keep these streams short and cohesive: a period is a good stream, the life of the company is not. See [stream decisions](./stream-decisions.md) for the exact-scope rules and [how a stream decision differs from a decision read](../consistency/faq.md#event-source-definitions-and-stream-decisions).
 
-Test the guard by resolving the route the definition produces and letting a competitor append to it before the command commits. The command must produce a new fact for the guard to apply, so do not seed `ReportApproved`: that takes the identical-retry branch, which carries no scope. This excerpt assumes the definition and command above:
+Application specs give state and assert outcomes, not concurrency simulations. Resolve the definition's route when giving prior facts; Arc's framework specs prove the scope's conflict handling. This excerpt assumes the definition and command above:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
@@ -142,7 +142,7 @@ using Cratis.Chronicle.Events;
 await using var scenario = new CommandScenario<ApproveReportOnce>();
 var id = EventSourceId.New();
 var route = scenario.EventRoutes.For<ReportEventSource>("Approval").WithStreamId("acme:2026-10-01");
-scenario.AppendConcurrently(id, route, new ReportApproved());
+scenario.Given.ForEventSource(id).OnRoute(route).Events(new ReportApproved());
 ```
 
 ### Per-stream approval state

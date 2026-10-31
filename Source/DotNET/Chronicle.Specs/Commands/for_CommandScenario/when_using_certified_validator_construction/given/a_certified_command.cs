@@ -25,7 +25,7 @@ public class a_certified_command : Specification
 
     async Task Establish()
     {
-        _scenario = new CommandScenario<CertifiedCommand>().UseDecisionReads();
+        _scenario = new CommandScenario<CertifiedCommand>();
         _command = new(EventSourceId.New());
 
         // Initialize the existing scenario unchanged. Its ordinary provider still refuses the new capability.

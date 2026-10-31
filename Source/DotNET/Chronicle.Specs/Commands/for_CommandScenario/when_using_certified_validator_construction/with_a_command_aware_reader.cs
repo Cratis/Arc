@@ -24,7 +24,7 @@ public class with_a_command_aware_reader : Specification
 
     async Task Establish()
     {
-        _scenario = new CommandScenario<ReadInRule>().UseDecisionReads();
+        _scenario = new CommandScenario<ReadInRule>();
         _command = new(EventSourceId.New());
         await _scenario.Validate(_command);
         _scenario.AppendConcurrently(_command.EventSourceId, new when_using_decision_mode.DecisionStateChanged());

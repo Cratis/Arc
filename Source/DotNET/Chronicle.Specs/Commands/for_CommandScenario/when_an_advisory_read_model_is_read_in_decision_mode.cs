@@ -12,7 +12,9 @@ public class when_an_advisory_read_model_is_read_in_decision_mode : given.an_adv
 
     async Task Establish()
     {
+#pragma warning disable CS0618 // Framework compatibility: advisory revisions in the legacy single-log opt-in.
         _scenario = new CommandScenario<ReadAdvisoryRevision>().UseDecisionReads();
+#pragma warning restore CS0618
         await Seed(_scenario);
     }
 
