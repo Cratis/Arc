@@ -54,7 +54,7 @@ internal static class ForwardedIdentityVerification
         {
             var bytes = Convert.FromBase64String(header);
             var json = new UTF8Encoding(false, true).GetString(bytes);
-            var principal = JsonSerializer.Deserialize<ClientPrincipal>(json, options);
+            var principal = JsonSerializer.Deserialize(json, options.ResolveTypeInfo<ClientPrincipal>());
             return principal is not null && !string.IsNullOrWhiteSpace(principal.UserId) && principal.UserDetails is not null &&
                 principal.Claims is not null && principal.UserRoles is not null &&
                 principal.Claims.All(claim => !string.IsNullOrEmpty(claim?.typ) && claim.val is not null) &&
