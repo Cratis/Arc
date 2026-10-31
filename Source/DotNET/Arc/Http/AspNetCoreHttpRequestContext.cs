@@ -13,7 +13,7 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// ASP.NET Core implementation of <see cref="IHttpRequestContext"/>.
 /// </summary>
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
-public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext
+public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest
 {
     readonly AsyncLocal<Selection?> _selected = new();
     JsonSerializerOptions? _jsonOptions;
@@ -44,6 +44,12 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
 
     /// <inheritdoc/>
     public string Path => httpContext.Request.Path;
+
+    /// <inheritdoc/>
+    public IEnumerable<string> HeaderNames => httpContext.Request.Headers.Keys;
+
+    /// <inheritdoc/>
+    public string? RawTarget => httpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()?.RawTarget;
 
     /// <inheritdoc/>
     public string Method => httpContext.Request.Method;
@@ -95,6 +101,9 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     }
 
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= httpContext.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<string> GetHeaderValues(string name) => httpContext.Request.Headers[name].Select(value => value ?? string.Empty).ToArray();
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)

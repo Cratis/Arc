@@ -15,5 +15,6 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="../Specs.Shared/OnBehalfOfAssertionsForSpecs.cs" Link="Identity/OnBehalfOfAssertionsForSpecs.cs" />
+        <Compile Include="../Specs.Shared/ForwardedIdentityForSpecs.cs" Link="Identity/ForwardedIdentityForSpecs.cs" />
     </ItemGroup>
 </Project>
