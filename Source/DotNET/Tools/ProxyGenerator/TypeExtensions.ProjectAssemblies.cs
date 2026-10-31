@@ -45,6 +45,11 @@ public static partial class TypeExtensions
             return false;
         }
 
+        // Validator activation runs application code; resolve its dependencies the way the application would.
+        // Removed again in DetachProjectAssemblies, so it lives exactly as long as this generation session.
+        _applicationAssemblyResolveHandler = new ApplicationRuntimeDependencies(assemblyFile).Resolve;
+        AppDomain.CurrentDomain.AssemblyResolve += _applicationAssemblyResolveHandler;
+
         var root = RuntimeEnvironment.GetRuntimeDirectory();
         root = Path.GetDirectoryName(root)!;
         var aspNetCoreAppPath = GetAspNetCoreAppPath(root);
@@ -221,6 +226,12 @@ public static partial class TypeExtensions
         {
             AssemblyLoadContext.Default.Resolving -= _assemblyResolvingHandler;
             _assemblyResolvingHandler = null;
+        }
+
+        if (_applicationAssemblyResolveHandler is not null)
+        {
+            AppDomain.CurrentDomain.AssemblyResolve -= _applicationAssemblyResolveHandler;
+            _applicationAssemblyResolveHandler = null;
         }
 
         _metadataLoadContext = null;
