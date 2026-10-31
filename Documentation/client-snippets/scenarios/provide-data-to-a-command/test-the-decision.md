@@ -5,13 +5,4 @@
         .ShouldBeOfExactType<LoanAssessment>();
 ```
 
-For a Chronicle-backed decision, the pipeline spec gives the model its state as well. This illustrative fragment assumes an application-owned `AssessExistingLoan` command with a plain `LoanApplication` parameter, including under read protection `On`:
-
-```csharp
-await using var scenario = new CommandScenario<AssessExistingLoan>();
-scenario.Given.ForEventSource(loanId).ReadModel(application);
-var result = await scenario.Execute(new AssessExistingLoan(loanId));
-result.ShouldBeSuccessful();
-```
-
-Application specs give state and assert outcomes; they do not configure decision reads or simulate concurrent writers.
+For a Chronicle-backed decision, keep `Handle` about plain state as well. A pipeline spec uses `CommandScenario<TCommand>` and `Given.ForEventSource(id).ReadModel(state)`, including for a protected plain read-model parameter. Application specs give state and assert outcomes; they do not configure decision reads or simulate concurrent writers.
