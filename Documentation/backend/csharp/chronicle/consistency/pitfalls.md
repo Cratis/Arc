@@ -371,7 +371,7 @@ The guard also does not protect a writer that decides without one. A guard detec
 
 ## Tests without the in-process log
 
-`new CommandScenario<T>()` automatically selects the in-process log when the command declares read protection or decision dependencies. That setup does not protect an `Off` command by itself. `AppendConcurrently` queues a competing writer before the command commits, so test a command whose declaration and reads actually enroll a guard. Pinned read models cannot supply a guard; seed real events instead. See [Test the race](./scenarios/testing.md).
+`new CommandScenario<T>()` selects its read path from the command's declarations. Give a plain read model with `Given.ForEventSource(id).ReadModel(state)`, including under `On`: the protected read is still issued before the pin supplies its value. Application specs give state and assert outcomes; they do not configure decision reads or simulate concurrency. Arc and Chronicle prove guard handling in their own specs. See [Specify a state-dependent rule](./scenarios/testing.md).
 
 ## Where to go next
 

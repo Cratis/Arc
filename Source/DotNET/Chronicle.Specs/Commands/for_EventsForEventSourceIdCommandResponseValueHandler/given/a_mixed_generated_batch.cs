@@ -19,7 +19,7 @@ public class a_mixed_generated_batch : Commands.given.a_generated_target
 
     void Establish()
     {
-        _scenario = new CommandScenario<for_CommandScenario_with_fresh_identifiers.given.a_fresh_identifier_scenario.CreateSource>().UseDecisionReads();
+        _scenario = new CommandScenario<for_CommandScenario_with_fresh_identifiers.given.a_fresh_identifier_scenario.CreateSource>();
         _eventLog = _scenario.EventLog;
         _other = new("existing-target");
         _handler = new(_eventLog, _eventTypes, _strategies, _eventSources);

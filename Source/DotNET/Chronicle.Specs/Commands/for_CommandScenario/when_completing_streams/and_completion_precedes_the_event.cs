@@ -7,7 +7,6 @@ namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario.when_completing_stre
 
 public class and_completion_precedes_the_event : given.a_period_completion
 {
-    void Establish() => _scenario.UseDecisionReads();
     async Task Because() => _result = await _scenario.Execute(new(_id, CompletionFirst: true));
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();

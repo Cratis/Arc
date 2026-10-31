@@ -154,7 +154,7 @@ A uniqueness check without a constraint, reads under `Off`, `Measure`, `[Unprote
 
 ### How do I test that a rule holds under concurrency?
 
-Use `new CommandScenario<T>()`, seed real events with `Given`, and queue a competing event with `AppendConcurrently(...)`. See [Test the race](./scenarios/testing.md).
+Arc and Chronicle prove concurrency handling in their framework specs. Application specs give state and assert the rule's outcome: call `Handle(state)` directly or use `CommandScenario<T>` with a pinned plain read model. They never configure decision reads or simulate competing appends. See [Specify a state-dependent rule](./scenarios/testing.md).
 
 ## Event source definitions and stream decisions
 

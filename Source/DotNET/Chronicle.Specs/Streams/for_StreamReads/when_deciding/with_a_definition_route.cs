@@ -16,7 +16,7 @@ public class with_a_definition_route : given.a_stream_decision
 
     void Establish()
     {
-        _definitionScenario = new CommandScenario<DecideDefinition>().UseDecisionReads();
+        _definitionScenario = new CommandScenario<DecideDefinition>();
         _command = new(_id, new("owner"), "month");
         _resolved = _definitionScenario.EventRoutes.For<ReportSource>("approval").WithStreamId(EventStreamIdTemplate.ResolveFor(_command)!);
         _definitionScenario.Given.ForEventSource(_id).OnRoute(_resolved).Events(new PriorFact("prior"));

@@ -17,7 +17,7 @@ public class when_materializing_a_read_model_after_caches_are_warm : Specificati
     {
         await using var warmup = new CommandScenario<AutomaticRead>();
         (await warmup.Validate(new AutomaticRead(EventSourceId.New()))).IsSuccess.ShouldBeTrue();
-        _scenario = new CommandScenario<SettleLedger>().UseDecisionReads();
+        _scenario = new CommandScenario<SettleLedger>();
         _source = EventSourceId.New();
         _scenario.Given.ForEventSource(_source).Events(new LedgerCredited(10m), new LedgerDebited(3m), new LedgerCredited(5m));
     }

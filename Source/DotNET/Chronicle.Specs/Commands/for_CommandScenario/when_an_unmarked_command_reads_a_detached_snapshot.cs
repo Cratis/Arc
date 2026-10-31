@@ -79,7 +79,7 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
     [Fact]
     public async Task protected_command_is_still_refused_a_detached_read()
     {
-        await using var scenario = new CommandScenario<ProtectedDetachedHandler>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ProtectedDetachedHandler>();
         var reader = UseDetachedReader(scenario);
         var result = await scenario.Execute(new ProtectedDetachedHandler(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
 

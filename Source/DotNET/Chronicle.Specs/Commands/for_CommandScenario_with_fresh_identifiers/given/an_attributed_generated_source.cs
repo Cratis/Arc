@@ -22,7 +22,7 @@ public class an_attributed_generated_source<TCommand> : Specification
     {
         _id = new(new Guid(0xa21121b7, 0xfa8a, 0x4f8c, 0xb2, 0xba, 0x19, 0xd2, 0xaf, 0xd8, 0x13, 0xf7));
         _command = new();
-        _scenario = new CommandScenario<TCommand>().UseDecisionReads();
+        _scenario = new CommandScenario<TCommand>();
         _scenario.PinGeneratedValue("id", _id);
     }
 

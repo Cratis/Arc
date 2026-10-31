@@ -34,7 +34,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task competing_creation_rejects_absent_decision_without_committing_owner_event()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAtSource>();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
         var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
@@ -46,7 +46,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task seeded_state_is_read_from_the_same_log()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAtSource>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
         var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
@@ -57,7 +57,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task irrelevant_competitor_does_not_conflict()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAtSource>();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(EventSourceId.New(), new DecisionStateChanged());
         var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
@@ -80,7 +80,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task cross_source_decision_conflicts_even_when_command_appends_to_another_source()
     {
-        await using var scenario = new CommandScenario<DecideForAnotherSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideForAnotherSource>();
         var source = EventSourceId.New();
         var other = EventSourceId.New();
         scenario.AppendConcurrently(other, new DecisionStateChanged());
@@ -92,7 +92,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task validate_only_conflicts_without_appending_any_owner_event()
     {
-        await using var scenario = new CommandScenario<CheckAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<CheckAtSource>();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
         var result = await scenario.Execute(new CheckAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
@@ -103,7 +103,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task validate_only_succeeds_if_nothing_changed()
     {
-        await using var scenario = new CommandScenario<CheckAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<CheckAtSource>();
         var source = EventSourceId.New();
         (await scenario.Execute(new CheckAtSource(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeFalse();
@@ -112,7 +112,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task explicit_unprotected_command_does_not_enroll_a_guard()
     {
-        await using var scenario = new CommandScenario<UnprotectedDecision>().UseDecisionReads();
+        await using var scenario = new CommandScenario<UnprotectedDecision>();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
         (await scenario.Execute(new UnprotectedDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -122,7 +122,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task transactional_append_uses_the_decision_store_unit_of_work_manager()
     {
-        await using var scenario = new CommandScenario<AppendTransactionallyAfterDecision>().UseDecisionReads();
+        await using var scenario = new CommandScenario<AppendTransactionallyAfterDecision>();
         var source = EventSourceId.New();
         (await scenario.Execute(new AppendTransactionallyAfterDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
@@ -132,7 +132,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task nested_command_does_not_drain_competitor_before_outer_read()
     {
-        await using var scenario = new CommandScenario<DecideAfterNested>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAfterNested>();
         var source = EventSourceId.New();
         var nested = EventSourceId.New();
         scenario.AppendConcurrently(source, new DecisionStateChanged());
@@ -146,7 +146,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task protected_nested_command_enrolls_its_own_decision_in_the_outer_transaction()
     {
-        await using var scenario = new CommandScenario<DecideAfterProtectedNested>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAfterProtectedNested>();
         var outer = EventSourceId.New();
         var nested = EventSourceId.New();
         scenario.AppendConcurrently(nested, new DecisionStateChanged());
@@ -158,7 +158,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task nested_completion_keeps_capturing_outer_commit()
     {
-        await using var scenario = new CommandScenario<DecideAfterNested>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAfterNested>();
         var source = EventSourceId.New();
         var nested = EventSourceId.New();
         (await scenario.Execute(new DecideAfterNested(source, nested), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -170,7 +170,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task competitor_conflict_compensates_operations_when_owner_did_not_commit()
     {
-        await using var scenario = new CommandScenario<DecideWithReservation>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideWithReservation>();
         var reservations = Substitute.For<IOnboardingReservations>();
         scenario.Services.AddSingleton(reservations);
         var source = EventSourceId.New();
@@ -189,12 +189,13 @@ public class when_using_decision_mode
     }
 
     [Fact]
-    public void pinned_model_is_refused_in_decision_mode()
+    public void pinned_model_is_refused_for_a_decision_token()
     {
-        using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        using var scenario = new CommandScenario<DecideAtSource>();
         Assert.Throws<PinnedReadModelCannotProvideDecisionToken>(() => scenario.Given.ForEventSource(EventSourceId.New()).ReadModel(new DecisionState(Guid.NewGuid())));
     }
 
+#pragma warning disable CS0618 // These compatibility specs deliberately exercise the obsolete switch.
     [Fact]
     public void legacy_events_cannot_be_silently_transferred_to_decision_mode()
     {
@@ -211,13 +212,16 @@ public class when_using_decision_mode
         Assert.Throws<DecisionReadsMustBeEnabledBeforeSeeding>(scenario.UseDecisionReads);
     }
 
+#pragma warning restore CS0618
+
     [Fact]
     public void decision_scenario_does_not_expose_a_second_event_scenario()
     {
-        using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        using var scenario = new CommandScenario<DecideAtSource>();
         Assert.Throws<EventScenarioUnavailableInDecisionMode>(() => scenario.EventScenario);
     }
 
+#pragma warning disable CS0618 // This compatibility spec deliberately exercises the obsolete switch.
     [Fact]
     public void custom_execution_scope_is_refused_instead_of_silently_dropped()
     {
@@ -225,6 +229,8 @@ public class when_using_decision_mode
         scenario.Services.AddSingleton<ICommandExecutionScope>(new DecisionScenarioConcurrentAppendScope());
         Assert.Throws<DecisionScenarioCannotOrderCustomExecutionScopes>(scenario.UseDecisionReads);
     }
+
+#pragma warning restore CS0618
 
     [Fact]
     public async Task unmarked_read_is_refused_before_a_returned_event_can_append()
@@ -238,7 +244,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task unmarked_explicit_key_get_is_refused_before_folding()
     {
-        await using var scenario = new CommandScenario<UnmarkedExplicitRead>().UseDecisionReads();
+        await using var scenario = new CommandScenario<UnmarkedExplicitRead>();
         var result = await scenario.Execute(new UnmarkedExplicitRead(EventSourceId.New()), global::Xunit.TestContext.Current.CancellationToken);
         Assert.Contains("[ProtectedDecision]", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
@@ -247,7 +253,7 @@ public class when_using_decision_mode
     [Fact]
     public async Task supplied_provider_without_guard_refuses_before_validation_or_handler_work()
     {
-        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        await using var scenario = new CommandScenario<DecideAtSource>();
         scenario.Services.RemoveAll<ICommandProtectedDecisionSupport>();
         var command = new DecideAtSource(EventSourceId.New());
         Assert.Contains("command-aware Chronicle", (await scenario.Validate(command)).ExceptionMessages.Single());

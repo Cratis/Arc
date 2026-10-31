@@ -16,7 +16,9 @@ public class when_executing_an_aggregate_command_in_decision_mode : given.a_rout
     async Task Establish()
     {
         _aggregateScenario = new();
+#pragma warning disable CS0618 // Framework compatibility: aggregate capture in the legacy single-log opt-in.
         _aggregateScenario.UseDecisionReads();
+#pragma warning restore CS0618
         var result = await _aggregateScenario.EventSequence.Append(
             _command.Id,
             new EntryRecorded("Existing entry"),

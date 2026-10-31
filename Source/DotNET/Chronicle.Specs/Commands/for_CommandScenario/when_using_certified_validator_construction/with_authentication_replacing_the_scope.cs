@@ -27,7 +27,7 @@ public class with_authentication_replacing_the_scope : Specification
 
     async Task Establish()
     {
-        _scenario = new CommandScenario<AuthenticatedCommand>().UseDecisionReads();
+        _scenario = new CommandScenario<AuthenticatedCommand>();
         await _scenario.Validate(new(EventSourceId.New()));
         given.a_certified_command.RegisterDecisionState(_scenario.Services);
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "selected")], "scheme"));

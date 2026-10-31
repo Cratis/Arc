@@ -73,6 +73,8 @@ public class ParcelWeightValidator : ConceptValidator<ParcelWeight>
 
 ## Specify the decision directly
 
+For a state-dependent decision, call the command's `Handle(readModel)` directly with the state it needs. To prove pipeline behavior, use `CommandScenario<TCommand>` and `Given.ForEventSource(id).ReadModel(state)`, including for a protected plain read-model parameter. Specs give state and assert outcomes; they never configure decision reads or simulate competing appends. Arc and Chronicle prove concurrency handling in their own specs. See [Give a protected read model its state](./chronicle.md#give-a-protected-read-model-its-state).
+
 Create `Shipping.Specs/for_QuoteShipping/when_quoting_shipping_directly.cs`:
 
 ```csharp

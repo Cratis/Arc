@@ -53,7 +53,7 @@ public class when_a_protected_command_with_a_validator_that_takes_dependencies_i
     static async Task Post(bool exposeExceptionDetails, bool validateOnly, Action<int, CommandResult, CommandScenario<ProtectedWithValidator>> assert)
     {
         ProtectedWithValidator.Handles = 0;
-        await using var scenario = new CommandScenario<ProtectedWithValidator>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ProtectedWithValidator>();
         scenario.Services.Configure<ArcOptions>(options => options.ExposeExceptionDetails = exposeExceptionDetails);
         var command = new ProtectedWithValidator(EventSourceId.New());
 

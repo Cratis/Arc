@@ -9,7 +9,7 @@ Use this when one rule depends on the state of two entities: a member's loan lim
 | --- | --- |
 | Rule | A member may hold three loans, and a book cannot be borrowed when no copy is left |
 | Mechanism | Two validator constructor parameters, each with `[LookUpBy]`, and one event for each entity in one atomic batch |
-| Alternatives | `IDecisionReads` in `Provide()` when the second key is computed. `Handle()` returning a `Result` when the rule needs a value computed there. Explicit scopes in one batch (Chronicle used directly) |
+| Alternatives | Plain `Handle` parameters, then `[LookUpBy]` for command keys, then per-stream models for the command route. Only keys no parameter can express use `IDecisionReads` in `Provide()`, returning plain state. `Handle()` can return a `Result` for a rule computed there |
 | Not | Two aggregates, each guarding only its own source. One model that folds both entities: it is refused |
 
 ## A member and a book

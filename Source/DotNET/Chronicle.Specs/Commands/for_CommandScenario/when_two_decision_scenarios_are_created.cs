@@ -30,7 +30,9 @@ public class when_two_decision_scenarios_are_created : Specification
 
     async Task Because()
     {
+#pragma warning disable CS0618 // Switching a legacy scenario must preserve its store identity.
         _firstScenario.UseDecisionReads();
+#pragma warning restore CS0618
         _secondScenario = new();
         _firstStore = (IEventStore)_firstScenario.Services.Single(_ => _.ServiceType == typeof(IEventStore)).ImplementationInstance!;
         _secondStore = (IEventStore)_secondScenario.Services.Single(_ => _.ServiceType == typeof(IEventStore)).ImplementationInstance!;

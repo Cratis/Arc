@@ -15,8 +15,6 @@ public class when_enabling_decision_reads : given.a_routed_command_scenario
 {
     CommandResult _result;
 
-    void Establish() => _scenario.UseDecisionReads();
-
     async Task Because() => _result = await _scenario.Execute(_command);
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
