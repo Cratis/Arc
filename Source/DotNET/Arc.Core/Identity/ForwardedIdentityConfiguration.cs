@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Cratis.Arc.Identity;
@@ -52,7 +53,7 @@ internal sealed record ForwardedIdentityConfiguration(IReadOnlyDictionary<string
             {
                 return null;
             }
-            snapshot.Append(ForwardedIdentityCanonicalization.Frame(key.KeyId)).Append(ForwardedIdentityCanonicalization.Frame(key.SecretBase64));
+            snapshot.Append(ForwardedIdentityCanonicalization.Frame(key.KeyId)).Append(ForwardedIdentityCanonicalization.Frame(Convert.ToHexString(SHA256.HashData(bytes))));
         }
         snapshot.Append(ForwardedIdentityCanonicalization.Frame(options.OnBehalfOf.SigningKeys.Count.ToString(CultureInfo.InvariantCulture)));
         foreach (var key in options.OnBehalfOf.SigningKeys)
