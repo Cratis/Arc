@@ -110,6 +110,7 @@ public static partial class TypeExtensions
     static CanonicalAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
     static Func<AssemblyLoadContext, AssemblyName, Assembly?>? _assemblyResolvingHandler;
+    static ResolveEventHandler? _applicationAssemblyResolveHandler;
     static HashSet<string>? _serverHandledCommandResponseValueTypeNames;
     static HashSet<string>? _serverHandledCommandResponseValueAttributeTypeNames;
     static HashSet<string>? _serverHandledCommandResponseValueEnumerableAttributeTypeNames;

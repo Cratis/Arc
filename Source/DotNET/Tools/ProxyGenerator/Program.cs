@@ -157,33 +157,42 @@ if (stateFile is not null)
 
 var hadErrors = false;
 var producedFiles = stateFile is null ? null : new List<string>();
-var result = await Generator.GenerateWithFileHeader(
-    fileHeaderTemplate,
-    assemblyFile,
-    outputPath,
-    segmentsToSkip,
-    Console.WriteLine,
-    error =>
-    {
-        hadErrors = true;
-        Console.Error.WriteLine(error);
-    },
-    libraryMode,
-    skipOutputDeletion,
-    skipCommandNameInRoute,
-    skipQueryNameInRoute,
-    apiPrefix,
-    skipIndexGeneration,
-    useSourceFileAsOutputFile,
-    assemblyPackageMappings,
-    excludedTypeNames,
-    excludedNamespacePatterns,
-    namespaceRoots,
-    typeMappings,
-    emitInterfaces,
-    useProxyFileSuffix,
-    producedFiles,
-    endpointGroup);
+bool result;
+try
+{
+    result = await Generator.GenerateWithFileHeader(
+        fileHeaderTemplate,
+        assemblyFile,
+        outputPath,
+        segmentsToSkip,
+        Console.WriteLine,
+        error =>
+        {
+            hadErrors = true;
+            Console.Error.WriteLine(error);
+        },
+        libraryMode,
+        skipOutputDeletion,
+        skipCommandNameInRoute,
+        skipQueryNameInRoute,
+        apiPrefix,
+        skipIndexGeneration,
+        useSourceFileAsOutputFile,
+        assemblyPackageMappings,
+        excludedTypeNames,
+        excludedNamespacePatterns,
+        namespaceRoots,
+        typeMappings,
+        emitInterfaces,
+        useProxyFileSuffix,
+        producedFiles,
+        endpointGroup);
+}
+catch (Exception exception) when (exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
+{
+    await Console.Error.WriteLineAsync($"error: {exception.Message}");
+    return 1;
+}
 if (result && !hadErrors && fingerprint is not null && stateFile is not null)
 {
     GenerationState.Save(stateFile, fingerprint, producedFiles!);
