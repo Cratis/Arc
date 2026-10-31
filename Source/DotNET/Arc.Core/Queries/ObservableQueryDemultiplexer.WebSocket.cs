@@ -4,6 +4,8 @@
 using System.Net.WebSockets;
 using System.Text.Json;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
 
@@ -15,6 +17,10 @@ public partial class ObservableQueryDemultiplexer
         logger.WebSocketClientConnected();
 
         using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, context);
+        if (!AdmitTenant(context))
+        {
+            return;
+        }
 
         var connectionId = $"ws-{Interlocked.Increment(ref _nextConnectionId)}";
         var webSocket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
@@ -63,6 +69,24 @@ public partial class ObservableQueryDemultiplexer
             connection.Concurrency.Dispose();
 
             logger.WebSocketClientDisconnected();
+        }
+    }
+
+    static bool AdmitTenant(IHttpRequestContext context)
+    {
+        try
+        {
+            if (context.RequestServices.GetService<TenantMembershipVerification>()?.HasMembership == true)
+            {
+                _ = context.RequestServices.GetRequiredService<TenantIdAccessor>().ResolveVerified(context.RequestServices.GetRequiredService<ITenantIdResolver>());
+            }
+
+            return true;
+        }
+        catch
+        {
+            context.SetStatusCode(403);
+            return false;
         }
     }
 

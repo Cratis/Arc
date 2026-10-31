@@ -5,6 +5,7 @@ using System.Diagnostics.Metrics;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Calendar;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Observability;
@@ -19,6 +20,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
@@ -87,7 +90,7 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
-        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton(TimeProvider.System);
         services.AddConnectionResolution();
         services.TryAddSingleton<IOperationContextAccessor, OperationContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
@@ -98,7 +101,14 @@ public static class HostBuilderExtensions
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
         services.AddSingleton<ICurrentPrincipalOverride>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
-        services.AddSingleton<TenantIdAccessor>();
+        services.AddSingleton(sp => new TenantMembershipVerification(
+            sp.GetRequiredService<IHttpRequestContextAccessor>(),
+            sp.GetRequiredService<ICurrentPrincipalAccessor>(),
+            sp.GetService<ILogger<TenantMembershipVerification>>() ?? NullLogger<TenantMembershipVerification>.Instance));
+        services.AddSingleton(sp => new TenantIdAccessor(
+            sp.GetRequiredService<ITenantIdResolver>(),
+            sp.GetRequiredService<TenantMembershipVerification>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TenantMembershipStartupWarning>());
         services.TryAddSingleton<ITenantIdAccessor>(sp => sp.GetRequiredService<TenantIdAccessor>());
         services.TryAddSingleton<ITenantScope>(sp => sp.GetRequiredService<ITenantIdAccessor>() is TenantIdAccessor accessor && accessor.GetType() == typeof(TenantIdAccessor)
             ? accessor

@@ -4,6 +4,8 @@
   href: end-to-end.md
 - name: Resolving Tenant IDs
   href: resolvers.md
+- name: Tenant Membership
+  href: membership.md
 - name: Configuration
   href: configuration.md
 - name: Tenant Context Access

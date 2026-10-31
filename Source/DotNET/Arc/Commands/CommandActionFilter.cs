@@ -3,6 +3,7 @@
 
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Slices;
+using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.Traces;
 using Cratis.Types;
@@ -129,6 +130,16 @@ public class CommandActionFilter(
 
     static CommandResult<object> CreateResult(ActionExecutingContext context, ActionExecutedContext? executed, List<ValidationResult> validationResults, Exception? actionException)
     {
+        if (TenantMembershipDenied.IsCauseOf(actionException ?? executed?.Exception))
+        {
+            if (executed is not null) executed.Exception = null;
+            return new CommandResult<object>
+            {
+                CorrelationId = context.HttpContext.GetCorrelationId(),
+                IsAuthorized = false
+            };
+        }
+
         var result = new CommandResult<object>
         {
             CorrelationId = context.HttpContext.GetCorrelationId(),

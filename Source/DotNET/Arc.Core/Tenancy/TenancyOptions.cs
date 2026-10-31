@@ -14,6 +14,12 @@ public class TenancyOptions
     public TenantResolverType ResolverType { get; set; } = TenantResolverType.Header;
 
     /// <summary>
+    /// Gets or sets whether an ingress such as Cratis AuthProxy verifies the tenant before requests reach the app.
+    /// Only suppresses the startup warning; it does not change request handling.
+    /// </summary>
+    public bool IngressValidatesTenant { get; set; }
+
+    /// <summary>
     /// Gets or sets the HTTP header to use for the tenant ID when using <see cref="TenantResolverType.Header"/>.
     /// </summary>
     public string HttpHeader { get; set; } = Constants.DefaultTenantIdHeader;
