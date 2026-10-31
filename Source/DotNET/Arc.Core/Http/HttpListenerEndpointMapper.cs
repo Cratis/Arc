@@ -185,7 +185,6 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
         // Build the pipeline
         var middlewares = new List<IHttpRequestMiddleware>
         {
-            new TenantMembershipBoundary(),
             _wellKnownRoutesMiddleware,
             _staticFilesMiddleware,
             _fallbackMiddleware
@@ -361,40 +360,5 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     }
 
     record PendingRoute(string Method, string Pattern, Func<IHttpRequestContext, Task> Handler, EndpointMetadata? Metadata);
-
-    [Cratis.DependencyInjection.IgnoreConvention]
-    sealed class TenantMembershipBoundary : IHttpRequestMiddleware
-    {
-        /// <inheritdoc/>
-        public async Task<bool> InvokeAsync(HttpListenerContext context, HttpRequestDelegate next)
-        {
-            try
-            {
-                var handled = await next(context);
-                if (context.Request.IsWebSocketRequest && context.Response.StatusCode == 403)
-                {
-                    context.Response.Close();
-                }
-                return handled;
-            }
-            catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
-            {
-                try
-                {
-                    // Set the status before HttpRequestPipeline closes the response.
-                    context.Response.StatusCode = 403;
-                    if (context.Request.IsWebSocketRequest)
-                    {
-                        context.Response.Close();
-                    }
-                }
-                catch (InvalidOperationException)
-                {
-                    // A committed or disconnected response cannot be replaced.
-                }
-                return true;
-            }
-        }
-    }
 }
 
