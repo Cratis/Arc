@@ -1,7 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+#if NET9_0_OR_GREATER
+using System.Runtime.CompilerServices;
+#endif
 using Cratis.Arc.Queries.ModelBound;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -92,6 +96,35 @@ public static class MongoDBDefaults
         }
     }
 
+    /// <summary>
+    /// Registers the class maps of an <see cref="IMongoDBBuilder"/>.
+    /// </summary>
+    /// <param name="builder">The <see cref="IMongoDBBuilder"/> holding the class map providers.</param>
+    internal static void RegisterClassMaps(IMongoDBBuilder builder)
+    {
+        foreach (var classMapType in builder.ClassMaps)
+        {
+            var classMapProvider = Activator.CreateInstance(classMapType);
+            foreach (var type in classMapType.GetInterfaces().Where(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IBsonClassMapFor<>)))
+            {
+                RegisterClassMap(type.GenericTypeArguments[0], classMapProvider);
+            }
+        }
+    }
+
+#if NET9_0_OR_GREATER
+    /// <summary>
+    /// Registers a class map without closing a generic method through reflection over dynamic code.
+    /// </summary>
+    /// <param name="mappedType">The type the class map is for.</param>
+    /// <param name="classMapProvider">The <see cref="IBsonClassMapFor{T}"/> provider for the type.</param>
+    internal static void RegisterClassMapWithoutDynamicCode(Type mappedType, object? classMapProvider) =>
+        typeof(MongoDBDefaults)
+            .GetMethod(nameof(RegisterReferenceClassMap), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(mappedType)
+            .Invoke(null, [classMapProvider]);
+#endif
+
     static void RegisterDerivedTypeDiscriminatorConventions()
     {
         var derivedTypes = Internals.DerivedTypesOrDefault;
@@ -130,29 +163,31 @@ public static class MongoDBDefaults
         }
     }
 
-    static void RegisterClassMaps(IMongoDBBuilder builder)
+    static void RegisterClassMap(Type mappedType, object? classMapProvider)
     {
-        foreach (var classMapType in builder.ClassMaps)
+#if NET9_0_OR_GREATER
+        if (!RuntimeFeature.IsDynamicCodeSupported)
         {
-            var classMapProvider = Activator.CreateInstance(classMapType);
-            var typeInterfaces = classMapType.GetInterfaces().Where(_ =>
-            {
-                var args = _.GetGenericArguments();
-                if (args.Length == 1)
-                {
-                    return _ == typeof(IBsonClassMapFor<>).MakeGenericType(args[0]);
-                }
-                return false;
-            });
-
-            var method = typeof(MongoDBDefaults).GetMethod(nameof(Register), BindingFlags.Static | BindingFlags.NonPublic)!;
-            foreach (var type in typeInterfaces)
-            {
-                var genericMethod = method.MakeGenericMethod(type.GenericTypeArguments[0]);
-                genericMethod.Invoke(null, [classMapProvider]);
-            }
+            RegisterClassMapWithoutDynamicCode(mappedType, classMapProvider);
+            return;
         }
+#endif
+
+        RegisterClassMapThroughReflection(mappedType, classMapProvider);
     }
+
+    [RequiresDynamicCode("Closes the class map registration over a type only known at runtime.")]
+    static void RegisterClassMapThroughReflection(Type mappedType, object? classMapProvider)
+    {
+        var method = typeof(MongoDBDefaults).GetMethod(nameof(Register), BindingFlags.Static | BindingFlags.NonPublic)!;
+        var genericMethod = method.MakeGenericMethod(mappedType);
+        genericMethod.Invoke(null, [classMapProvider]);
+    }
+
+#if NET9_0_OR_GREATER
+    static void RegisterReferenceClassMap<T>(object? classMapProvider)
+        where T : class => Register((IBsonClassMapFor<T>)classMapProvider!);
+#endif
 
     static void Register<T>(IBsonClassMapFor<T> classMapProvider)
     {
