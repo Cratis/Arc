@@ -5,5 +5,5 @@ namespace Cratis.Arc.ProxyGenerator.Specs.RuntimeDependencyLibrary;
 
 public static class RuntimeDependencyMarker
 {
-    public static string Describe() => "runtime dependency";
+    public static int MaximumNameLength => 64;
 }

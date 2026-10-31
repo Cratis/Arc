@@ -14,6 +14,7 @@ public class when_generating_a_command_whose_validator_activation_needs_an_outpu
     }
 
     [Fact] void should_generate_successfully() => ExitCode.ShouldEqual(0);
+    [Fact] void should_resolve_the_dependency_from_the_application() => StandardError.ShouldNotContain("Could not load file or assembly");
     [Fact] void should_emit_the_validator() => _command.ShouldContain("export class CreateApplicationValidator extends CommandValidator<ICreateApplication>");
     [Fact] void should_emit_the_required_rule() => _command.ShouldContain("this.ruleFor(c => c.name).notEmpty()");
     [Fact] void should_emit_the_required_message() => _command.ShouldContain("Application name is required");

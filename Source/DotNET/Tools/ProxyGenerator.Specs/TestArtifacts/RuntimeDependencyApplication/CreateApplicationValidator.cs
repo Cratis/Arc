@@ -8,5 +8,9 @@ namespace Cratis.Arc.ProxyGenerator.Specs.RuntimeDependencyApplication;
 
 public class CreateApplicationValidator : CommandValidator<CreateApplication>
 {
-    public CreateApplicationValidator() => RuleFor(c => c.Name).NotEmpty().WithMessage("Application name is required").MaximumLength(64);
+    public CreateApplicationValidator(IApplicationCatalog catalog)
+    {
+        _ = catalog;
+        RuleFor(c => c.Name).NotEmpty().WithMessage("Application name is required").MaximumLength(ApplicationNameRules.MaximumLength());
+    }
 }
