@@ -64,6 +64,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         foreach (var handler in handlers)
         {
             var firstProduction = produces.Count;
+            var unsafeReturnedTupleWrapper = false;
             foreach (var body in HandlerBodies.Of(handler))
             {
                 if (models.For(body.SyntaxTree) is not { } semanticModel)
@@ -73,7 +74,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
 
                 var usesCommandContext = generatedIdentity || !HandlerBodies.YieldsEventSourceId(handler.ReturnType) ||
                     EventResponseTuples.UsesCommandContext(handler.ReturnType);
-                ReadBody(command, body, semanticModel, location, produces, null, usesCommandContext, sources, generatedIdentity);
+                unsafeReturnedTupleWrapper |= ReadBody(command, body, semanticModel, location, produces, null, usesCommandContext, sources, generatedIdentity);
 
                 foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, semanticModel))
                 {
@@ -96,7 +97,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             {
                 ReportEventSourceIdResult(command, handler, location);
             }
-            withholding.Apply(handler, produces, firstProduction, location);
+            withholding.Apply(handler, produces, (firstProduction, unsafeReturnedTupleWrapper), location);
         }
 
         return produces.Count > 0 ? Deduplicate(produces) : withholding.ReadSignature(handlers, location);
@@ -173,7 +174,8 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <param name="usesCommandContext">Whether the handler or aggregate uses the command's event source context.</param>
     /// <param name="sources">The proven authoring mapping sources.</param>
     /// <param name="generatedIdentity">Whether the returned tuple supplies a proven generated identity.</param>
-    void ReadBody(
+    /// <returns>Whether a supported returned tuple has an explicitly unrepresentable wrapper.</returns>
+    bool ReadBody(
         INamedTypeSymbol command,
         SyntaxNode body,
         SemanticModel semanticModel,
@@ -185,6 +187,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         bool generatedIdentity = false)
     {
         var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot) { ConsumedGuards = sources?.ConsumedGuards };
+        var unsafeReturnedTupleWrapper = false;
 
         foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
         {
@@ -208,10 +211,14 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
             };
-            produces.Add(behavior is null && Types is not null
+            var routed = behavior is null && Types is not null
                 ? new ReturnedProductionRoutes(models, Types) { Definitions = Definitions }.Apply(production, creation, body, semanticModel, command, sources, generatedIdentity)
-                : production);
+                : (Production: production, UnsafeReturnedTupleWrapper: false);
+            produces.Add(routed.Production);
+            unsafeReturnedTupleWrapper |= routed.UnsafeReturnedTupleWrapper;
         }
+
+        return unsafeReturnedTupleWrapper;
     }
 
     /// <summary>
