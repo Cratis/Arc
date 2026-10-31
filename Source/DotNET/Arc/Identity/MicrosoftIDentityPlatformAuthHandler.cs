@@ -70,6 +70,23 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
+        if (arcOptions?.CurrentValue.ForwardedIdentity?.Enabled == true)
+        {
+            var signed = ForwardedIdentityAuthentication.Authenticate(
+                new AspNetCore.Http.AspNetCoreHttpRequestContext(Context),
+                arcOptions.CurrentValue,
+                Scheme.Name,
+                Request.PathBase.Add(Request.Path).ToUriComponent(),
+                TimeProvider);
+            if (signed.Failure is { } failure)
+            {
+                ForwardedIdentityLogMessages.Rejected(_logger, failure);
+                return Task.FromResult(AuthenticateResult.Fail(failure));
+            }
+            return Task.FromResult(signed.Principal is { } signedPrincipal
+                ? AuthenticateResult.Success(new AuthenticationTicket(signedPrincipal, Scheme.Name))
+                : AuthenticateResult.NoResult());
+        }
         var onBehalfOf = ForwardedActor.IsPresent(Request.Headers.ContainsKey);
         if (onBehalfOf && ForwardedActor.Admit(arcOptions?.CurrentValue) is { } rejection)
         {
