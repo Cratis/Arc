@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Runtime.Loader;
 
 namespace Cratis.Arc.ProxyGenerator;
 
@@ -23,7 +24,7 @@ namespace Cratis.Arc.ProxyGenerator;
 /// </remarks>
 public static class RuntimeValidatorAssemblies
 {
-    static readonly Dictionary<string, Assembly?> _assembliesByLocation = [];
+    static readonly Dictionary<string, Assembly> _assembliesByLocation = [];
 
     /// <summary>
     /// Guards the cache. Deliberately an <see cref="object"/> rather than <c>System.Threading.Lock</c>, which the
@@ -44,28 +45,13 @@ public static class RuntimeValidatorAssemblies
             return null;
         }
 
-        lock (_lock)
+        try
         {
-            if (_assembliesByLocation.TryGetValue(location, out var loaded))
-            {
-                return loaded;
-            }
-
-            try
-            {
-                // Resolves to the already-loaded instance when there is one, so an assembly is never duplicated.
-                loaded = Assembly.LoadFrom(location);
-            }
-            catch (Exception)
-            {
-                // A project whose dependencies cannot be loaded simply contributes no rules, exactly as before.
-                // Failing generation over it would be worse than generating clients that validate less than the
-                // server.
-                loaded = null;
-            }
-
-            _assembliesByLocation[location] = loaded;
-            return loaded;
+            return LoadRequired(assembly, location);
+        }
+        catch (ValidatorRuntimeCouldNotBeLoaded)
+        {
+            return null;
         }
     }
 
@@ -88,6 +74,72 @@ public static class RuntimeValidatorAssemblies
         catch (Exception)
         {
             return type;
+        }
+    }
+
+    /// <summary>
+    /// Clears executable counterparts owned by the current generation.
+    /// </summary>
+    internal static void ClearCache()
+    {
+        lock (_lock)
+        {
+            _assembliesByLocation.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Gets an executable assembly without hiding load failures from generation.
+    /// </summary>
+    /// <param name="assembly">The assembly being translated.</param>
+    /// <returns>The executable assembly.</returns>
+    /// <exception cref="ValidatorRuntimeCouldNotBeLoaded">The executable assembly cannot be loaded.</exception>
+    internal static Assembly RequiredForGeneration(Assembly assembly)
+    {
+        if (!assembly.ReflectionOnly) return assembly;
+        var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(_ => _.FullName == assembly.FullName);
+        if (loaded is not null) return loaded;
+        var location = LocationOf(assembly)
+            ?? throw new ValidatorRuntimeCouldNotBeLoaded($"assembly '{assembly.FullName}'", new FileNotFoundException("Assembly has no executable location"));
+        return LoadRequired(assembly, location);
+    }
+
+    /// <summary>
+    /// Gets an executable type without substituting metadata after a translation failure.
+    /// </summary>
+    /// <param name="type">The type being translated.</param>
+    /// <returns>The executable type.</returns>
+    /// <exception cref="ValidatorRuntimeCouldNotBeLoaded">The executable type cannot be loaded.</exception>
+    internal static Type RequiredForGeneration(Type type)
+    {
+        try
+        {
+            var assembly = RequiredForGeneration(type.Assembly);
+            return assembly.GetType(type.FullName!, throwOnError: true)!;
+        }
+        catch (Exception exception)
+        {
+            throw new ValidatorRuntimeCouldNotBeLoaded($"type '{type.FullName}' in '{type.Assembly.FullName}'", exception);
+        }
+    }
+
+    static Assembly LoadRequired(Assembly assembly, string location)
+    {
+        lock (_lock)
+        {
+            if (_assembliesByLocation.TryGetValue(location, out var loaded)) return loaded;
+            try
+            {
+                // Resolves to the already-loaded instance when there is one, so an assembly is never duplicated.
+                loaded = Assembly.LoadFrom(location);
+                _assembliesByLocation[location] = loaded;
+                return loaded;
+            }
+            catch (Exception exception)
+            {
+                // Do not cache failures: optional callers must not hide the cause from a later required lookup.
+                throw new ValidatorRuntimeCouldNotBeLoaded($"assembly '{assembly.FullName}' at '{location}'", exception);
+            }
         }
     }
 

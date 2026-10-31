@@ -33,9 +33,9 @@ internal static class ValidatorTypes
     /// <returns>The validator, or <see langword="null"/> if none is found.</returns>
     /// <exception cref="MultipleValidatorsForType">More than one discoverable validator is found for the type.</exception>
     internal static Type? Find(Assembly generatedAssembly, Type type) => Find(
-        generatedAssembly,
-        type,
-        TypeExtensions.ValidatorAssemblies,
+        RuntimeValidatorAssemblies.RequiredForGeneration(generatedAssembly),
+        RuntimeValidatorAssemblies.RequiredForGeneration(type),
+        TypeExtensions.ValidatorAssemblies.Select(RuntimeValidatorAssemblies.RequiredForGeneration),
         assembly => _validatorsByAssembly.GetValue(assembly, Index),
         _warning,
         _warnedAssemblies);
@@ -139,7 +139,19 @@ internal static class ValidatorTypes
             name.StartsWith("Microsoft.", StringComparison.Ordinal));
     }
 
-    static ValidatorIndex Index(Assembly assembly) => Index(assembly, _ => _.GetTypes());
+    static ValidatorIndex Index(Assembly assembly) => Index(assembly, GetRuntimeTypes);
+
+    static Type[] GetRuntimeTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (Exception exception) when (exception is not ReflectionTypeLoadException)
+        {
+            throw new ValidatorRuntimeCouldNotBeLoaded($"validator types in assembly '{assembly.FullName}'", exception);
+        }
+    }
 
     static ValidatorIndex Index(Assembly assembly, Func<Assembly, Type[]> loadTypes)
     {

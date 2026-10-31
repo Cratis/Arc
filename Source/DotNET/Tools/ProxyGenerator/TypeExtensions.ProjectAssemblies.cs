@@ -19,6 +19,28 @@ public static partial class TypeExtensions
     /// <returns>True if successful, false if not.</returns>
     internal static bool TryInitializeProjectAssemblies(string assemblyFile, Action<string> message, Action<string> errorMessage)
     {
+        var initialized = false;
+        try
+        {
+            initialized = InitializeOwnedProjectAssemblies(assemblyFile, message, errorMessage);
+            return initialized;
+        }
+        finally
+        {
+            if (!initialized) DisposeUnpublishedMetadataLoadContext();
+        }
+    }
+
+    /// <summary>
+    /// Initializes the project graph while the caller owns cleanup of unsuccessful initialization.
+    /// </summary>
+    /// <param name="assemblyFile">The target application assembly.</param>
+    /// <param name="message">The information callback.</param>
+    /// <param name="errorMessage">The error callback.</param>
+    /// <returns>Whether initialization succeeded.</returns>
+    /// <exception cref="ValidatorRuntimeCouldNotBeLoaded">Executable application initialization failed.</exception>
+    internal static bool InitializeOwnedProjectAssemblies(string assemblyFile, Action<string> message, Action<string> errorMessage)
+    {
         DetachProjectAssemblies(disposeMetadataLoadContext: true);
         _serverHandledCommandResponseValueTypeNames = [];
         _serverHandledCommandResponseValueAttributeTypeNames = [];
@@ -30,6 +52,8 @@ public static partial class TypeExtensions
         DependencyContext? dependencyContext;
         try
         {
+            _ = AssemblyName.GetAssemblyName(Path.GetFullPath(assemblyFile));
+            InstallRuntimeAssemblyResolution(assemblyFile);
             assembly = LoadRuntimeAssembly(assemblyFile);
             dependencyContext = DependencyContext.Load(assembly);
         }
@@ -37,6 +61,10 @@ public static partial class TypeExtensions
         {
             errorMessage($"Could not load project assembly '{assemblyFile}': {ex.Message}");
             return false;
+        }
+        catch (Exception exception) when (exception is TypeInitializationException or ReflectionTypeLoadException)
+        {
+            throw new ValidatorRuntimeCouldNotBeLoaded($"initialization of assembly '{assemblyFile}'", exception);
         }
 
         if (dependencyContext is null)
@@ -204,11 +232,23 @@ public static partial class TypeExtensions
         return loadedAssembly ?? Assembly.LoadFile(normalizedPath);
     }
 
+    static void InstallRuntimeAssemblyResolution(string assemblyFile)
+    {
+        var resolver = new AssemblyDependencyResolver(Path.GetFullPath(assemblyFile));
+        _runtimeAssemblyResolvingHandler = (context, name) =>
+        {
+            var path = resolver.ResolveAssemblyToPath(name);
+            return path is null ? null : context.LoadFromAssemblyPath(path);
+        };
+        AssemblyLoadContext.Default.Resolving += _runtimeAssemblyResolvingHandler;
+    }
+
     static void DetachProjectAssemblies(bool disposeMetadataLoadContext = false)
     {
         var metadataLoadContext = _metadataLoadContext;
         Assemblies = [];
         ValidatorAssemblies = [];
+        RuntimeValidatorAssemblies.ClearCache();
         _derivativeCandidates = null;
         ValidatorTypes.SetWarningLogger(_ => { });
         _assembliesByName.Clear();
@@ -221,6 +261,12 @@ public static partial class TypeExtensions
         {
             AssemblyLoadContext.Default.Resolving -= _assemblyResolvingHandler;
             _assemblyResolvingHandler = null;
+        }
+
+        if (_runtimeAssemblyResolvingHandler is not null)
+        {
+            AssemblyLoadContext.Default.Resolving -= _runtimeAssemblyResolvingHandler;
+            _runtimeAssemblyResolvingHandler = null;
         }
 
         _metadataLoadContext = null;
@@ -288,7 +334,9 @@ public static partial class TypeExtensions
 
             return null;
         };
+        AssemblyLoadContext.Default.Resolving -= _runtimeAssemblyResolvingHandler;
         AssemblyLoadContext.Default.Resolving += _assemblyResolvingHandler;
+        AssemblyLoadContext.Default.Resolving += _runtimeAssemblyResolvingHandler;
     }
 
     static string GetAspNetCoreAppPath(string runtimeRoot)

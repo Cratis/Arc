@@ -35,8 +35,8 @@ public static class ValidationRulesExtractor
     {
         // A FluentValidation rule only exists once its validator's constructor has run, which a metadata-only type
         // cannot do - see RuntimeValidatorAssemblies.
-        var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
-        var runtimeType = RuntimeValidatorAssemblies.For(type);
+        var runtimeAssembly = RuntimeValidatorAssemblies.RequiredForGeneration(assembly);
+        var runtimeType = RuntimeValidatorAssemblies.RequiredForGeneration(type);
 
         // Try FluentValidation first
         var fluentValidationRules = ExtractFluentValidationRules(runtimeAssembly, runtimeType).ToList();
@@ -97,13 +97,13 @@ public static class ValidationRulesExtractor
     /// </remarks>
     public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type, bool isOptional = false)
     {
-        var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
-        var runtimeType = RuntimeValidatorAssemblies.For(type);
-
-        if (!IsConcept(runtimeType))
+        if (!IsConcept(type))
         {
             return [];
         }
+
+        var runtimeAssembly = RuntimeValidatorAssemblies.RequiredForGeneration(assembly);
+        var runtimeType = RuntimeValidatorAssemblies.RequiredForGeneration(type);
 
         // Only these two client rules reject null/undefined; all other supported rules validate supplied values.
         return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType)
@@ -389,24 +389,7 @@ public static class ValidationRulesExtractor
 
         try
         {
-            var validator = CreateValidatorInstance(validatorType);
-            if (validator == null)
-            {
-                return [];
-            }
-
-            // Call CreateDescriptor() method using reflection
-            var createDescriptorMethod = validatorType.GetMethod("CreateDescriptor", BindingFlags.Public | BindingFlags.Instance);
-            if (createDescriptorMethod == null)
-            {
-                return [];
-            }
-
-            var descriptor = createDescriptorMethod.Invoke(validator, null);
-            if (descriptor == null)
-            {
-                return [];
-            }
+            var descriptor = CreateValidatorDescriptor(validatorType);
 
             var propertyValidations = new List<PropertyValidationDescriptor>();
 
@@ -415,14 +398,11 @@ public static class ValidationRulesExtractor
             var getRulesMethod = descriptor.GetType().GetMethod("GetRulesForMember");
             if (getMembersMethod == null || getRulesMethod == null)
             {
-                return [];
+                throw new MissingMethodException($"Validator descriptor '{descriptor.GetType().FullName}' is missing member/rule inspection methods");
             }
 
-            var members = getMembersMethod.Invoke(descriptor, null);
-            if (members == null)
-            {
-                return [];
-            }
+            var members = getMembersMethod.Invoke(descriptor, null)
+                ?? throw new InvalidOperationException("Validator descriptor returned no member collection");
 
             // Iterate through members
             foreach (var member in (System.Collections.IEnumerable)members)
@@ -443,7 +423,7 @@ public static class ValidationRulesExtractor
                 // represented by the client rule builder, so leave them for server-side validation.
                 if (getRulesMethod.Invoke(descriptor, [memberName]) is not System.Collections.IEnumerable memberRules)
                 {
-                    continue;
+                    throw new InvalidOperationException($"Validator descriptor returned no rule collection for member '{memberName}'");
                 }
 
                 foreach (var rule in memberRules.Cast<object>().Where(_ => !HasCondition(_)))
@@ -465,11 +445,18 @@ public static class ValidationRulesExtractor
 
             return propertyValidations;
         }
-        catch
+        catch (Exception exception)
         {
-            // Silently fail if we can't extract rules
-            return [];
+            throw new ValidatorRuntimeCouldNotBeLoaded($"rule extraction for model '{type.FullName}', validator '{validatorType.FullName}' in '{validatorType.Assembly.FullName}'", exception);
         }
+    }
+
+    static object CreateValidatorDescriptor(Type validatorType)
+    {
+        var validator = CreateValidatorInstance(validatorType);
+        var method = validatorType.GetMethod("CreateDescriptor", BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new MissingMethodException(validatorType.FullName, "CreateDescriptor");
+        return method.Invoke(validator, null) ?? throw new InvalidOperationException("Validator returned no descriptor");
     }
 
     static object? CreateValidatorInstance(Type validatorType)
@@ -487,7 +474,7 @@ public static class ValidationRulesExtractor
             var constructors = validatorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
             if (constructors.Length == 0)
             {
-                return null;
+                throw new MissingMethodException($"Validator '{validatorType.FullName}' has no public constructor");
             }
 
             var constructor = constructors[0];
@@ -511,9 +498,9 @@ public static class ValidationRulesExtractor
 
             return Activator.CreateInstance(validatorType, parameterValues);
         }
-        catch
+        catch (Exception exception)
         {
-            return null;
+            throw new ValidatorRuntimeCouldNotBeLoaded($"activation of validator '{validatorType.FullName}' in '{validatorType.Assembly.FullName}'", exception);
         }
     }
 

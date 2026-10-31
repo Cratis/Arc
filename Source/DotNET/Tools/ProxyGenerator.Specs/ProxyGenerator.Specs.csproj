@@ -21,6 +21,8 @@
         <ProjectReference Include="TestArtifacts/ReferencedConceptValidator/ReferencedConceptValidator.csproj" />
         <ProjectReference Include="TestArtifacts/TransitiveConceptValidator/TransitiveConceptValidator.csproj" />
         <ProjectReference Include="TestArtifacts/SourceFileResolverFixture/SourceFileResolverFixture.csproj" />
+        <ProjectReference Include="TestArtifacts/ValidatorRuntimeApplication/ValidatorRuntimeApplication.csproj" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="TestArtifacts/ValidatorRuntimeApplication/Harness/ValidatorRuntimeHarness.csproj" ReferenceOutputAssembly="false" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
