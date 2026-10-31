@@ -33,6 +33,13 @@ public static class ValidationRulesExtractor
     /// <returns>Collection of property validation descriptors.</returns>
     public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true, bool includeDataAnnotations = true)
     {
+        // Discovery describes every artifact before excluded ones are filtered out. An excluded type is never
+        // emitted, so its validator must not run - and must not fail generation when it cannot be constructed.
+        if (type.IsExcluded())
+        {
+            return [];
+        }
+
         // A FluentValidation rule only exists once its validator's constructor has run, which a metadata-only type
         // cannot do - see RuntimeValidatorAssemblies.
         var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
@@ -389,43 +396,11 @@ public static class ValidationRulesExtractor
 
         try
         {
-            var validator = CreateValidatorInstance(validatorType);
-            if (validator == null)
-            {
-                return [];
-            }
-
-            // Call CreateDescriptor() method using reflection
-            var createDescriptorMethod = validatorType.GetMethod("CreateDescriptor", BindingFlags.Public | BindingFlags.Instance);
-            if (createDescriptorMethod == null)
-            {
-                return [];
-            }
-
-            var descriptor = createDescriptorMethod.Invoke(validator, null);
-            if (descriptor == null)
-            {
-                return [];
-            }
-
+            var (descriptor, members, getRulesMethod) = DescribeValidator(validatorType);
             var propertyValidations = new List<PropertyValidationDescriptor>();
 
-            // Call GetMembersWithValidators() using reflection
-            var getMembersMethod = descriptor.GetType().GetMethod("GetMembersWithValidators");
-            var getRulesMethod = descriptor.GetType().GetMethod("GetRulesForMember");
-            if (getMembersMethod == null || getRulesMethod == null)
-            {
-                return [];
-            }
-
-            var members = getMembersMethod.Invoke(descriptor, null);
-            if (members == null)
-            {
-                return [];
-            }
-
             // Iterate through members
-            foreach (var member in (System.Collections.IEnumerable)members)
+            foreach (var member in members)
             {
                 var keyProperty = member.GetType().GetProperty("Key");
                 var memberName = keyProperty?.GetValue(member)?.ToString();
@@ -465,56 +440,72 @@ public static class ValidationRulesExtractor
 
             return propertyValidations;
         }
-        catch
+        catch (Exception exception) when (exception is not ValidationRulesCouldNotBeExtracted)
         {
-            // Silently fail if we can't extract rules
-            return [];
+            throw new ValidationRulesCouldNotBeExtracted(type, validatorType, exception);
         }
+    }
+
+    static (object Descriptor, System.Collections.IEnumerable Members, MethodInfo GetRulesMethod) DescribeValidator(Type validatorType)
+    {
+        var validator = CreateValidatorInstance(validatorType)
+            ?? throw new InvalidOperationException("Validator could not be constructed");
+        var createDescriptorMethod = validatorType.GetMethod("CreateDescriptor", BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException("Validator does not expose CreateDescriptor");
+        var descriptor = createDescriptorMethod.Invoke(validator, null)
+            ?? throw new InvalidOperationException("CreateDescriptor returned null");
+        var getMembersMethod = descriptor.GetType().GetMethod("GetMembersWithValidators")
+            ?? throw new InvalidOperationException("Validator descriptor does not expose GetMembersWithValidators");
+        var getRulesMethod = descriptor.GetType().GetMethod("GetRulesForMember")
+            ?? throw new InvalidOperationException("Validator descriptor does not expose GetRulesForMember");
+        var members = getMembersMethod.Invoke(descriptor, null)
+            ?? throw new InvalidOperationException("GetMembersWithValidators returned null");
+
+        return (descriptor, (System.Collections.IEnumerable)members, getRulesMethod);
     }
 
     static object? CreateValidatorInstance(Type validatorType)
     {
-        try
+        if (validatorType.Assembly.ReflectionOnly)
         {
-            // First, try to create an instance without parameters (parameterless constructor)
-            var parameterlessConstructor = validatorType.GetConstructor(Type.EmptyTypes);
-            if (parameterlessConstructor != null)
-            {
-                return Activator.CreateInstance(validatorType);
-            }
-
-            // If no parameterless constructor, find the first constructor and create default values for its parameters
-            var constructors = validatorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
-            if (constructors.Length == 0)
-            {
-                return null;
-            }
-
-            var constructor = constructors[0];
-            var parameters = constructor.GetParameters();
-            var parameterValues = new object?[parameters.Length];
-
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                var parameterType = parameters[i].ParameterType;
-
-                // Create default value for parameter type
-                if (parameterType.IsValueType)
-                {
-                    parameterValues[i] = Activator.CreateInstance(parameterType);
-                }
-                else
-                {
-                    parameterValues[i] = null;
-                }
-            }
-
-            return Activator.CreateInstance(validatorType, parameterValues);
+            throw RuntimeValidatorAssemblies.LoadFailureFor(validatorType.Assembly)
+                ?? new InvalidOperationException("Validator assembly could not be loaded for execution");
         }
-        catch
+
+        // First, try to create an instance without parameters (parameterless constructor)
+        var parameterlessConstructor = validatorType.GetConstructor(Type.EmptyTypes);
+        if (parameterlessConstructor != null)
         {
-            return null;
+            return Activator.CreateInstance(validatorType);
         }
+
+        // If no parameterless constructor, find the first constructor and create default values for its parameters
+        var constructors = validatorType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+        if (constructors.Length == 0)
+        {
+            throw new InvalidOperationException("Validator has no public constructor");
+        }
+
+        var constructor = constructors[0];
+        var parameters = constructor.GetParameters();
+        var parameterValues = new object?[parameters.Length];
+
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var parameterType = parameters[i].ParameterType;
+
+            // Create default value for parameter type
+            if (parameterType.IsValueType)
+            {
+                parameterValues[i] = Activator.CreateInstance(parameterType);
+            }
+            else
+            {
+                parameterValues[i] = null;
+            }
+        }
+
+        return Activator.CreateInstance(validatorType, parameterValues);
     }
 
     static bool HasCondition(object rule) =>
