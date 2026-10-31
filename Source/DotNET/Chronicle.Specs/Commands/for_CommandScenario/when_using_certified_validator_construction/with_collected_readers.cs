@@ -20,7 +20,7 @@ public class with_collected_readers : Specification
 
     async Task Establish()
     {
-        _scenario = new CommandScenario<given.a_certified_command.CollectedReaders>().UseDecisionReads();
+        _scenario = new CommandScenario<given.a_certified_command.CollectedReaders>();
         await _scenario.Validate(new(EventSourceId.New()));
         _scenario.Services.AddProtectedDecisionValidator<given.a_certified_command.CollectedReadersValidator>(_ => _callbacks++);
         _root = (ServiceProvider)_scenario.Services.BuildProtectedDecisionServiceProvider();

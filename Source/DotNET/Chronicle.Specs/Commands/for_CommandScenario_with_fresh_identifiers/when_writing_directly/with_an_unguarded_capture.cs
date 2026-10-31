@@ -19,7 +19,9 @@ public class with_an_unguarded_capture : Specification
     {
         foreach (var style in Enum.GetValues<WriteStyle>())
         {
+#pragma warning disable CS0618 // Framework compatibility: direct writes with the legacy single-log opt-in.
             await using var scenario = new CommandScenario<UnguardedDirectWrite>().UseDecisionReads();
+#pragma warning restore CS0618
             var id = Identifier.New();
             scenario.PinGeneratedValue("id", id);
             scenario.Given.ForEventSource(id).Events(new Created("existing"));

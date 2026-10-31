@@ -82,7 +82,9 @@ public class when_automatically_enabling_decision_reads
     [Fact]
     public async Task should_keep_the_explicit_compatibility_method_working()
     {
+#pragma warning disable CS0618 // Compatibility: the explicit legacy opt-in remains available.
         await using var scenario = new CommandScenario<Ordinary>().UseDecisionReads();
+#pragma warning restore CS0618
         var id = EventSourceId.New();
         scenario.Given.ForEventSource(id).Events(new DecisionStateChanged());
         (await scenario.EventLog.HasEventsFor(id)).ShouldBeTrue();

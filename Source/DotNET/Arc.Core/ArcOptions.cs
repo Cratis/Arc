@@ -102,6 +102,11 @@ public class ArcOptions
     public OnBehalfOfOptions OnBehalfOf { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the opt-in signed forwarded identity settings. Disabled by default.
+    /// </summary>
+    public ForwardedIdentityOptions ForwardedIdentity { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the options for the application calendar, bound from <c>Cratis:Arc:Calendar</c>.
     /// </summary>
     public CalendarOptions Calendar { get; set; } = new();

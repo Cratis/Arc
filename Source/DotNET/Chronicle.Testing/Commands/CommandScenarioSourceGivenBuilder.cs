@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
@@ -67,14 +68,19 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
     /// <typeparam name="TReadModel">Type of read model to pin. Inferred from <paramref name="readModel"/>.</typeparam>
     /// <param name="readModel">The read model instance.</param>
     /// <remarks>
-    /// In decision mode a pinned instance serves the reads that do not guard the decision: <c>IReadModels</c>, injected
-    /// read models and an <c>[Unprotected]</c> command's <c>DecisionRead&lt;T&gt;</c>. A protected decision read always folds
-    /// the scenario's event log, exactly as in production, and never sees a pinned instance; seed events for it instead.
+    /// A plain model under <c>[ReadProtection(On)]</c> uses the pinned state after acquiring its real protected read;
+    /// admission, enrollment and conflict detection still run against the event log. A pin does not replace a
+    /// <c>DecisionRead&lt;T&gt;</c> token. Those reads, and per-stream models, must be seeded with routed events.
     /// </remarks>
-    /// <exception cref="PinnedReadModelCannotProvideDecisionToken">The command reads this read model as a protected decision read parameter.</exception>
+    /// <exception cref="PinnedReadModelCannotProvideDecisionToken">The command reads it as a protected decision read parameter.</exception>
+    /// <exception cref="PinnedPerStreamReadModelIsNotSupported">The model is per-stream.</exception>
     public void ReadModel<TReadModel>(TReadModel readModel)
         where TReadModel : class
     {
+        if (PerStreamReadModelBinding.IsDeclared(typeof(TReadModel)))
+        {
+            throw new PinnedPerStreamReadModelIsNotSupported(typeof(TReadModel));
+        }
         if (_scenario.Context.ContainsKey(ChronicleCommandScenarioExtender.DecisionScenarioKey) &&
             ProtectedDecisionReadParameters.ReadModelTypesOf(typeof(TCommand)).Contains(typeof(TReadModel)))
         {

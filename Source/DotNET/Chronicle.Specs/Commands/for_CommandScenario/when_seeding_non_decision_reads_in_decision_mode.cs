@@ -17,7 +17,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task injected_read_model_materializes_from_the_seeded_events()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new GuardedStateChanged("guarded"), new AdvisoryNoted("seeded"));
         (await scenario.Execute(new ReadAdvisoryAlongsideDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -27,7 +27,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task read_models_resolve_from_the_seeded_events()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryThroughReadModels>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryThroughReadModels>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new AdvisoryNoted("seeded"));
         (await scenario.Execute(new ReadAdvisoryThroughReadModels(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -37,7 +37,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task unprotected_decision_read_materializes_from_the_seeded_events()
     {
-        await using var scenario = new CommandScenario<ReadUnprotected>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadUnprotected>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new AdvisoryNoted("seeded"));
         (await scenario.Execute(new ReadUnprotected(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -47,7 +47,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task pinned_read_model_serves_an_injected_read_model()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).ReadModel(new AdvisoryState(Guid.Parse(source.Value), "pinned"));
         (await scenario.Execute(new ReadAdvisoryAlongsideDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -57,7 +57,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task pinned_read_model_serves_an_unprotected_decision_read()
     {
-        await using var scenario = new CommandScenario<ReadUnprotected>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadUnprotected>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).ReadModel(new AdvisoryState(Guid.Parse(source.Value), "pinned"));
         (await scenario.Execute(new ReadUnprotected(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -67,7 +67,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task competing_append_to_a_non_decision_read_neither_shows_up_nor_conflicts()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>();
         var source = EventSourceId.New();
         scenario.AppendConcurrently(source, new AdvisoryNoted("late"));
         (await scenario.Execute(new ReadAdvisoryAlongsideDecision(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -77,7 +77,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task unrelated_events_leave_a_nullable_read_model_absent()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryPresence>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryPresence>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new GuardedStateChanged("guarded"));
         (await scenario.Execute(new ReadAdvisoryPresence(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -87,7 +87,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task relevant_events_make_a_nullable_read_model_present()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryPresence>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryPresence>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new GuardedStateChanged("guarded"), new AdvisoryNoted("seeded"));
         (await scenario.Execute(new ReadAdvisoryPresence(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -97,7 +97,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public async Task unrelated_events_leave_a_read_models_instance_absent()
     {
-        await using var scenario = new CommandScenario<ReadAdvisoryPresenceThroughReadModels>().UseDecisionReads();
+        await using var scenario = new CommandScenario<ReadAdvisoryPresenceThroughReadModels>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).Events(new GuardedStateChanged("guarded"));
         (await scenario.Execute(new ReadAdvisoryPresenceThroughReadModels(source), global::Xunit.TestContext.Current.CancellationToken)).ShouldBeSuccessful();
@@ -127,7 +127,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public void pinning_a_decision_read_declared_by_a_base_command_names_the_command_and_read_model()
     {
-        using var scenario = new CommandScenario<ReadGuardedStateThroughBaseCommand>().UseDecisionReads();
+        using var scenario = new CommandScenario<ReadGuardedStateThroughBaseCommand>();
         var source = EventSourceId.New();
         Assert.Throws<PinnedReadModelCannotProvideDecisionToken>(() => scenario.Given.ForEventSource(source).ReadModel(new GuardedState(Guid.Parse(source.Value), "pinned")));
     }
@@ -135,7 +135,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public void pinning_a_read_model_only_a_helper_method_takes_is_allowed()
     {
-        using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecisionWithHelper>().UseDecisionReads();
+        using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecisionWithHelper>();
         var source = EventSourceId.New();
         scenario.Given.ForEventSource(source).ReadModel(new AdvisoryState(Guid.Parse(source.Value), "pinned"));
     }
@@ -143,7 +143,7 @@ public class when_seeding_non_decision_reads_in_decision_mode
     [Fact]
     public void pinning_a_protected_decision_read_names_the_command_and_read_model()
     {
-        using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>().UseDecisionReads();
+        using var scenario = new CommandScenario<ReadAdvisoryAlongsideDecision>();
         var source = EventSourceId.New();
         var error = Assert.Throws<PinnedReadModelCannotProvideDecisionToken>(() => scenario.Given.ForEventSource(source).ReadModel(new GuardedState(Guid.Parse(source.Value), "pinned")));
         Assert.Contains($"'{nameof(ReadAdvisoryAlongsideDecision)}' reads '{nameof(GuardedState)}'", error.Message);

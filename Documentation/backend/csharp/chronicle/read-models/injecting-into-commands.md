@@ -17,6 +17,17 @@ Which one to use is a question about *what the state is for*. These are focused 
 | `Handle()` | The event you produce is computed from the state | an input |
 | `Provide()` | The state has to be combined with fetched data before the decision | an input to acquisition |
 
+## Choose how a command reads state
+
+Use the first shape that expresses the key:
+
+1. Take the read model as a plain `Handle` parameter. Use `[ReadProtection(ReadProtectionMode.On)]` where the rule must hold under concurrency.
+2. Use `[LookUpBy(nameof(Command.Property))]` when a command property supplies another model's key.
+3. Declare a per-stream model and take it as a plain parameter when state belongs to the command's stream.
+4. Only when no parameter can express the key—an identity-derived or ambient key, or each key in a collection—read with `IDecisionReads.Get<T>` inside `Provide()`, returning plain values to `Handle()`.
+
+New application code does not take `IDecisionReads` or `DecisionRead<T>` in `Handle()`. Those advanced shapes remain supported, but the plain parameter keeps the decision independent of acquisition and makes it directly specifiable.
+
 ## In a validator
 
 Validators run before the handler, so a validator can reject early with a message. The read model is an ordinary constructor dependency. Under `Off` the rejection is advisory: two concurrent commands can both pass it. Under `On` the parameter is guarded, so a command that passed on stale state is not committed. See [validators and read protection](../consistency/validators.md):
@@ -193,17 +204,17 @@ Under read protection `On`, a plain `T` parameter in `Handle()`, `Provide()` or 
 | `Handle(BookStock? stock)`, or a validator constructor parameter | Plain read | Guarded read |
 | `[Unprotected("why")]` on the parameter or the model | Plain read | Advisory read: stored, unguarded |
 | `[LookUpBy(nameof(Property))]` on a parameter | Selects the key | Selects the key |
-| `DecisionRead<T>` with `[ProtectedDecision]` | Guarded read for that command | Guarded read. The attribute is redundant |
-| `IDecisionReads.Get<T>(key)` in `Provide()` | Guarded for `[ProtectedDecision]` commands | Guarded read |
+| `IDecisionReads.Get<T>(key)` in `Provide()`, returning plain values for computed keys | Guarded for `[ProtectedDecision]` commands | Guarded read |
+| Existing advanced `DecisionRead<T>` with `[ProtectedDecision]` | Guarded read for that command | Guarded read. Prefer a plain parameter |
 | `IReadModels`, `IEventStore` or `IEventLog` reads | Allowed | Refused unless the method is `[Unprotected("why")]` |
 
 A conflict returns `concurrencyViolation` with the detail `ReadChanged`, and the command is not retried. See [Refusals](../consistency/refusals.md).
 
 `Validate` is advisory: it reads fresh state and does not append or guard, so a successful validation response does **not** promise that `Execute` will commit.
 
-### Commands marked [ProtectedDecision]
+### Existing advanced commands marked [ProtectedDecision]
 
-A command that is not under `On` can opt in on its own. **Mark it with `[ProtectedDecision]`** (`Cratis.Arc.Chronicle.ReadModels`) before injecting `DecisionRead<T>` into `Provide()` or `Handle()`; use `.Instance` and `.Exists`. Inject the command-aware `IDecisionReads` and call `Get<T>(otherKey)` to guard a different event source. The profile is fixed when the Arc pipeline enters each command, including nested commands. An unmarked command under `Off` keeps its plain reads, and `IDecisionReads.GetDetached<T>` returns a detached snapshot as Chronicle's own reader does. Inside a `[ProtectedDecision]` command `GetDetached<T>` is refused, because a detached snapshot is not enrolled in the decision. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation.
+The following is existing, advanced usage, not the recommended shape for new application code. Prefer a plain read-model parameter under `On`. An existing command that is not under `On` can opt in on its own with `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`) before injecting `DecisionRead<T>` into `Provide()` or `Handle()`; use `.Instance` and `.Exists`. Inject the command-aware `IDecisionReads` and call `Get<T>(otherKey)` to guard a different event source. The profile is fixed when the Arc pipeline enters each command, including nested commands. An unmarked command under `Off` keeps its plain reads, and `IDecisionReads.GetDetached<T>` returns a detached snapshot as Chronicle's own reader does. Inside a `[ProtectedDecision]` command `GetDetached<T>` is refused, because a detached snapshot is not enrolled in the decision. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation.
 
 By default, a `[ProtectedDecision]` command outside `On` runs a discoverable validator only if it has one public, parameterless constructor. [Certified validator construction](../consistency/certified-validators.md) opts dependency-taking validators into fresh construction in a native Microsoft DI scope: use `DecisionRead<T>` or the command-aware `IDecisionReads`, not a plain read-model parameter. This capability requires an untrimmed JIT runtime. Under `On`, validators with plain read-model parameters remain allowed without that opt-in. See [Validators and read protection](../consistency/validators.md#commands-marked-protecteddecision).
 
@@ -246,28 +257,28 @@ The model is implicitly passive. Queries use `IReadModels.GetInstanceById<T>(Eve
 
 ### Read a projection within one stream
 
-For another stream or source, or a projection without a per-stream declaration, inject the command-aware `IDecisionReads` and pass the source id, stream type and stream id explicitly. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
+Prefer a declared per-stream model bound to the command route. When a key or stream can only be computed during acquisition, inject the command-aware `IDecisionReads` into `Provide()` and pass the source id, stream type and stream id explicitly, returning plain state. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
 
 ```csharp
-using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
 
-[Command]
+[Command, ReadProtection(ReadProtectionMode.On)]
 [EventSourceType("reports")]
 [EventStreamType("approval")]
 [EventStreamId("{Period}")]
 public record DecideWithinPeriod(EventSourceId Id, string Period)
 {
-    public Task<DecisionRead<PeriodState>> Provide(IDecisionReads reads) =>
-        reads.Get<PeriodState>(Id, "approval", Period, "reports");
+    public async Task<PeriodState?> Provide(IDecisionReads reads) =>
+        (await reads.Get<PeriodState>(Id, "approval", Period, "reports")).Instance;
 
-    public PeriodValueDecided Handle(DecisionRead<PeriodState> state) => new(state.Instance?.Value ?? 0);
+    public PeriodValueDecided Handle(PeriodState? state) => new(state?.Value ?? 0);
 }
 ```
 
-Under `On` the command needs no attribute. Outside `On`, add `[ProtectedDecision]`. The fold and its append guard use those same dimensions. `Provide()` returns the issued token to `Handle()`; Arc enrolls it in the command transaction and caches identical reads only within that invocation. A whole-source read or another stream's read does not share that cache entry. The optional event source type narrows both the fold and guard. Keep it aligned with the returned event route.
+The command declares `On`. The fold and its append guard use those same dimensions. Arc enrolls the read before `Provide()` returns its plain state and caches identical reads only within that invocation; `Handle()` does not need the token. A whole-source read or another stream's read does not share that cache entry. The optional event source type narrows both the fold and guard. Keep it aligned with the returned event route.
 
 Use `AdmitForStream<T>()` to check the projection shape without reading. Chronicle also admits consistently stream-id-keyed projections through this overload; reading them through a key-only `Get<T>` refuses with `StreamKeyRequiresStreamScope`. An injected `DecisionRead<T>` is narrowed automatically only when `T` declares `[EventStream<TSource>(stream)]`; otherwise it stays key-based. Use the explicit stream overload for another stream or source.
 
@@ -283,7 +294,7 @@ What differs is where the read model is loaded from and what key loads it, inclu
 
 ## Testing
 
-For legacy plain read models, seed state with the `Given` builder — either events or a pinned instance. For guarded reads, explicitly select the [single-log decision scenario](../../testing/chronicle.md#protected-decision-scenarios) and seed actual events; pinned state cannot supply a valid guard. See [Test the race](../consistency/scenarios/testing.md).
+Specify a decision by calling `Handle(readModel)` directly. To exercise the pipeline, use `CommandScenario<T>` and give state with `Given.ForEventSource(id).ReadModel(instance)`, including for protected plain parameters. The real protected read still runs before the pin supplies its instance; admission and conflict detection are unchanged. Specs never configure decision reads or simulate concurrency. Per-stream models and computed-key reads in `Provide()` use given events. See [Chronicle testing](../../testing/chronicle.md#give-a-protected-read-model-its-state).
 
 ## See also
 

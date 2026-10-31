@@ -109,27 +109,13 @@ Chronicle's `EventSequenceShouldExtensions` extend `IEventSequence`. Call them o
 
 Content overloads also accept `Action<TEvent>` assertions. An action validates the first matching event; a predicate searches for a satisfying event. For all overloads, see the [Chronicle event assertions reference](/chronicle/testing/events/assertions/).
 
-## Competing appends
-
-`AppendConcurrently(source, events)` works with or without decision mode. Queue competitors before the first `Execute` or `Validate`; the harness appends them after a successful handler and response processing, before the command transaction commits. The overload taking an `EventRoute` preserves the competitor's routing. Nested commands do not drain the outer command's queue.
-
-For `Off` commands without protected dependencies, the scenario keeps its existing `EventScenario`, read-model seeds and pins. Competing appends do not add a guard: use an explicit concurrency scope or a stream decision to test that kind of conflict. Legacy read-model seeds remain separate from the command log; seed `EventScenario.Given` for an explicit log-boundary test. Competitors are excluded from `AppendedEvents`; ordinary cumulative capture still includes attempted command appends, including failures. Inspect successful results or the log to prove that an owner event committed. Custom execution scope registrations are refused when enabling competing appends because the harness cannot safely order them around the transaction owner.
-
 ## Protected decision scenarios
 
 Create a plain `new CommandScenario<T>()`. Commands declaring read protection `On` or `Measure`, `[ProtectedDecision]`, decision or stream dependencies, per-stream read models, or guarded generated parameters automatically get one in-process event log **before seeding**. The scenario uses the command's runtime-resolved assembly/type declarations, including `<CratisReadProtection>`. The pipeline still applies the host's runtime cap on each execution; selecting the log does not itself add a guard to an `Off` or `Measure` command.
 
-Scenario decision mode applies the host's validator boundary: under `On`, validators with read-model parameters run as in production, including when only the validator reads state. Outside `On`, a `[ProtectedDecision]` command runs only [parameterless validators](../chronicle/consistency/validators.md#commands-marked-protecteddecision). `Off` commands without protected dependencies keep the ordinary `EventScenario`, separate read-model seeds and pinned `.ReadModel(...)` state shown above. See [Test the race](../chronicle/consistency/scenarios/testing.md) for a complete example:
+Under `On`, validators with read-model parameters run as in production, including when only the validator reads state. Outside `On`, an existing `[ProtectedDecision]` command runs only [parameterless validators](../chronicle/consistency/validators.md#commands-marked-protecteddecision). Application specs give state and assert outcomes: they never configure decision reads or simulate concurrent writers. Arc and Chronicle prove concurrency handling in their own framework specs.
 
-```csharp
-await using var scenario = new CommandScenario<RegisterAuthor>();
-scenario.Given.ForEventSource(authorId).Events(new AuthorRegistered("Jane Austen"));
-scenario.AppendConcurrently(authorId, new AuthorRegistered("Another writer"));
-var result = await scenario.Execute(new RegisterAuthor(authorId, "New name"));
-result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
-```
-
-This is an illustrative fragment: `RegisterAuthor` is marked `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`); a direct event-source-keyed admitted projection, event type registration and a handler using `DecisionRead<T>` must exist. Decision mode uses Chronicle's `EventStoreForTesting`: seeded events, decision folds, competing events and owner commits share **one real in-process event log**. `AppendConcurrently` queues an append outside the command's transaction. After handler decision reads and response processing, the competitor is appended before the command owner commits. A matching event conflicts even if the command appends to a different source, and a successful command returning no events still validates its decision. Assert the result's `concurrencyViolation` and that no **command** event committed; a competitor event is expected to remain in the log. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in decision mode, not seeded or competing events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see *all* stored events.
+The selected in-process log is shared by seeded events, protected reads and command commits. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in this setup, not seeded events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see all stored events.
 
 There is no `EventScenario` facade over that store. In decision mode `scenario.EventScenario` throws rather than returning a misleading second log; use `Given.ForEventSource(...).Events(...)` to seed. The scenario selects the store during construction, so there is no late switch that could discard seeds. Ordinary scenarios keep their existing `EventScenario` and cumulative append behavior. No public API accepts invented sequence numbers or handcrafted decision tokens.
 
@@ -137,15 +123,41 @@ This in-process harness does not stand in for a server, storage backend, authori
 
 ### Reads that do not guard the decision
 
-A protected command can also read state it does not guard: an injected read model, `IReadModels.GetInstanceById`, or a `DecisionRead<T>` in an `[Unprotected]` command. In decision mode these resolve the way production resolves them from a caught-up read model store:
+A command can also read state it does not guard: an advisory `[Unprotected]` read-model parameter, an allowed `IReadModels.GetInstanceById` call, or an existing `DecisionRead<T>` in an `[Unprotected]` command. In decision mode these resolve the way production resolves them from a caught-up read model store:
 
 - Events seeded with `Given.ForEventSource(...).Events(...)` (or appended to `scenario.EventLog` before `Execute`) are projected through the read model's own projection or reducer, from the same log the decision reads fold. Seed once; both kinds of read see it.
 - A read model exists only once an event its projection or reducer handles has been seeded for the event source: a nullable read model stays `null` when the source only has unrelated events, as in production.
 - A read is resolved from the events seeded for the one event source it is asked for, and the key is not matched against the result. A read model keyed by an event property is still materialized, under that property's value, and is returned for the event source whose events produced it, whether or not the value equals the event source id; events seeded for another source never contribute, so a read for a source with only unrelated events is `null`. If one source's events produce several instances (several key values), the command fails. Parts fed by the events of other sources, such as children, come out empty. Pin the read model with `.ReadModel(...)` to supply the complete value.
 - A pinned `.ReadModel(...)` instance serves these reads and takes precedence over seeded events for that read model and event source, whether the events were seeded before or after the pin.
-- A competing event queued with `AppendConcurrently` arrives after the reads, so it neither shows up in them nor conflicts with them: only decision reads are guarded.
 
-A protected decision read always folds the log and never sees a pinned instance. Pinning a read model that the command takes as a `DecisionRead<T>` parameter throws `PinnedReadModelCannotProvideDecisionToken`; a read made through `IDecisionReads.Get<T>(key)` is not visible up front, so a pin is never refused for it and never reaches it: seed events for it.
+### Give a protected read model its state
+
+A pinned instance reaches a plain read-model parameter under `[ReadProtection(On)]`, including a validator constructor parameter. The real protected read is still issued first: admission, enrollment, the decision token and conflict detection are unchanged. A pin supplies the value, not a fabricated guard. The pin is scoped to the model type and resolved key and takes precedence over seeded events.
+
+For example, given an admitted `LedgerBalance` model and a `SettleLedger` command taking it as a plain `Handle` parameter:
+
+```csharp
+public class when_settling_a_funded_ledger : Specification
+{
+    readonly EventSourceId _ledgerId = EventSourceId.New();
+    readonly CommandScenario<SettleLedger> _scenario = new();
+    CommandResult _result = default!;
+
+    void Establish() => _scenario.Given.ForEventSource(_ledgerId)
+        .ReadModel(new LedgerBalance(_ledgerId, 100m));
+
+    async Task Because() => _result = await _scenario.Execute(new SettleLedger(_ledgerId));
+
+    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+
+    [Fact] async Task should_settle_the_given_balance() =>
+        await _scenario.ShouldHaveAppendedEvent<SettleLedger, LedgerSettled>(_ledgerId, fact => fact.Balance == 100m);
+
+    async Task Destroy() => await _scenario.DisposeAsync();
+}
+```
+
+This fragment assumes the application's `LedgerBalance(EventSourceId Id, decimal Balance)` and `LedgerSettled(decimal Balance)` types. No testing switch is needed. Per-stream models need routed events rather than source-only pins. Existing advanced `DecisionRead<T>` parameters cannot use pins: they throw `PinnedReadModelCannotProvideDecisionToken`. An explicit `IDecisionReads.Get<T>(key)` folds events, not pinned state; use it in `Provide()` only for keys that parameter binding cannot express.
 
 ### Check that Chronicle admits the decision reads
 
@@ -166,7 +178,11 @@ public class when_checking_decision_read_admission
 
 For a command returning `CompleteStream`, `scenario.ShouldHaveCompletedStream(type, id)` accepts a successful completion with or without an event source scope. To assert the exact owner, pass a `ClosedStreamScope` instead; see [completion assertions](../chronicle/commands/completing-streams.md#assert-completion-in-a-command-scenario). Other sources using the same stream type and id remain open after a scoped close. A command without an event source id still closes that pair for every source.
 
-Explicit stream-scoped `IDecisionReads.Get<T>` calls also work in decision mode. Seed events with `OnRoute(...)` and queue competitors on that same route to check the stream guard. The static admission helper uses stream admission for plain per-stream model parameters under `On`. Use `AdmitForStream<T>()` for explicit stream folds inside method bodies; the helper cannot inspect those calls.
+For per-stream parameters, seed events with `OnRoute(...)`. The static admission helper uses stream admission for these parameters under `On`. Advanced explicit stream folds inside `Provide()` can use `AdmitForStream<T>()`; the helper cannot inspect method-body calls.
+
+:::note[Advanced: framework concurrency verification]
+`AppendConcurrently(source, events)` exists to verify the framework's concurrency handling and is hidden from normal editor completion. Use it only for a specific, explicit need, not in ordinary application specs. Its behavior is unchanged: it works with or without decision mode, queues facts before the first execution, and appends them after response processing but before the owner's commit. The route overload preserves routing. Nested commands do not drain the outer queue. The hook does not add a guard to an unguarded command, and it refuses custom execution scopes whose ordering it cannot guarantee.
+:::
 
 ## Transactional commands in tests
 

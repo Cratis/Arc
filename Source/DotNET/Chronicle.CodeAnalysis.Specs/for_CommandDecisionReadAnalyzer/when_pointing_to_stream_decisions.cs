@@ -50,7 +50,8 @@ public class when_pointing_to_stream_decisions
                     return new Created();
                 }
             }
-            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info),
+            AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
                 .WithSeverity(DiagnosticSeverity.Info).WithArguments("StreamDecision.Append", "Unprotected method bodies"));
 
     [Fact]

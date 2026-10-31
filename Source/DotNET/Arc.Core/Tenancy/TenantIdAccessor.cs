@@ -8,12 +8,31 @@ namespace Cratis.Arc.Tenancy;
 /// <summary>
 /// Represents the current tenant accessor and explicit <see cref="ITenantScope"/>.
 /// </summary>
-/// <param name="tenantIdResolver">The <see cref="ITenantIdResolver"/> to use for resolving tenant IDs.</param>
-[Singleton]
-public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAccessor, ITenantScope
+[Singleton, IgnoreConvention]
+public class TenantIdAccessor : ITenantIdAccessor, ITenantScope
 {
     static readonly AsyncLocal<TenantId?> _current = new();
     static readonly AsyncLocal<ExplicitTenantFrame?> _explicit = new();
+    readonly ITenantIdResolver _tenantIdResolver;
+    readonly TenantMembershipVerification? _verification;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TenantIdAccessor"/> class without request membership verification.
+    /// </summary>
+    /// <param name="tenantIdResolver">The tenant resolver.</param>
+    public TenantIdAccessor(ITenantIdResolver tenantIdResolver)
+        : this(tenantIdResolver, null)
+    {
+    }
+
+    /// <summary>Initializes a verified request tenant accessor.</summary>
+    /// <param name="tenantIdResolver">The tenant resolver.</param>
+    /// <param name="verification">The request membership verifier.</param>
+    internal TenantIdAccessor(ITenantIdResolver tenantIdResolver, TenantMembershipVerification? verification)
+    {
+        _tenantIdResolver = tenantIdResolver;
+        _verification = verification;
+    }
 
     /// <inheritdoc/>
     public TenantId Current
@@ -30,9 +49,8 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
                 return _current.Value;
             }
 
-            var tenantId = tenantIdResolver.Resolve();
-            var result = string.IsNullOrEmpty(tenantId) ? TenantId.NotSet : new TenantId(tenantId);
-            if (result != TenantId.NotSet)
+            var result = ResolveVerified(_tenantIdResolver, out var verified);
+            if (!verified && result != TenantId.NotSet)
             {
                 _current.Value = result;
             }
@@ -72,11 +90,24 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     /// <returns>A scope restoring the previously cached tenant.</returns>
     internal IDisposable UseAuthorizedTenant(TenantId tenant) => UseTenant(_explicit.Value?.Tenant ?? tenant);
 
+    /// <summary>Resolves and verifies a candidate without changing the cached tenant.</summary>
+    /// <param name="resolver">The operation's resolver.</param>
+    /// <returns>The verified tenant candidate.</returns>
+    internal TenantId ResolveVerified(ITenantIdResolver resolver) => ResolveVerified(resolver, out _);
+
     static TenantScope UseTenant(TenantId tenant)
     {
         var previous = _current.Value;
         _current.Value = tenant;
         return new TenantScope(previous);
+    }
+
+    TenantId ResolveVerified(ITenantIdResolver resolver, out bool verified)
+    {
+        var tenantId = resolver.Resolve();
+        var candidate = string.IsNullOrEmpty(tenantId) ? TenantId.NotSet : new TenantId(tenantId);
+        verified = _verification?.Verify(candidate) == true;
+        return candidate;
     }
 
     /// <summary>

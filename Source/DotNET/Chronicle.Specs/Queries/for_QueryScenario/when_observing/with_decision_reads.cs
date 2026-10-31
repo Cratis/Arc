@@ -15,7 +15,6 @@ public class with_decision_reads : given.a_shared_command_scenario
 
     async Task Establish()
     {
-        _commands.UseDecisionReads();
         ShareServices();
         _scenario.Given.ForEventSource(_id).Events(new ObservedAccountChanged(10m));
         _commands.Given.ForEventSource(_pinnedId).ReadModel(new ObservedAccount(_pinnedId.Value, 20m));

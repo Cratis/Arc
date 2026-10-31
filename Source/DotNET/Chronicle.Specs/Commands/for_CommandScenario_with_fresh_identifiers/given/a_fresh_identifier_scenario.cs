@@ -24,7 +24,7 @@ public class a_fresh_identifier_scenario : Specification
     void Establish()
     {
         _id = new(new Guid(0xfb6dd43a, 0xb161, 0x44b1, 0x9b, 0xaa, 0x7b, 0x2e, 0x4a, 0x07, 0x16, 0x80));
-        _scenario = new CommandScenario<CreateSource>().UseDecisionReads();
+        _scenario = new CommandScenario<CreateSource>();
         _scenario.PinGeneratedValue("id", _id);
         _command = new(ResultShape.Wrapper);
     }

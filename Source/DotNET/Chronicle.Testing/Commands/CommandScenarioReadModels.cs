@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.ReadModels;
@@ -25,7 +27,7 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// system derives read models from the event log. Pinned instances take precedence when a test wants to assert against
 /// a specific read model value directly.
 /// </remarks>
-internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null, IEventSequence? commandLog = null) : IReadModels, IDisposable
+internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null, IEventSequence? commandLog = null) : IReadModels, IGivenReadModelInstances, IDisposable
 {
     readonly Dictionary<(Type ReadModelType, string EventSourceId), object> _instances = [];
     readonly Dictionary<string, List<object>> _events = [];
@@ -33,6 +35,10 @@ internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEven
 
     /// <inheritdoc/>
     public IMaterializedReadModels Materialized => inner.Materialized;
+
+    /// <inheritdoc/>
+    bool IGivenReadModelInstances.TryGet(Type readModelType, ReadModelKey key, [NotNullWhen(true)] out object? instance) =>
+        _instances.TryGetValue((readModelType, key.Value), out instance);
 
     /// <summary>
     /// Pins a materialized read model instance for an event source id.

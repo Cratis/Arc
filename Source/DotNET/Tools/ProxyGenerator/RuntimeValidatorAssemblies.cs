@@ -24,6 +24,7 @@ namespace Cratis.Arc.ProxyGenerator;
 public static class RuntimeValidatorAssemblies
 {
     static readonly Dictionary<string, Assembly?> _assembliesByLocation = [];
+    static readonly Dictionary<string, Exception> _loadFailuresByLocation = [];
 
     /// <summary>
     /// Guards the cache. Deliberately an <see cref="object"/> rather than <c>System.Threading.Lock</c>, which the
@@ -56,11 +57,10 @@ public static class RuntimeValidatorAssemblies
                 // Resolves to the already-loaded instance when there is one, so an assembly is never duplicated.
                 loaded = Assembly.LoadFrom(location);
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // A project whose dependencies cannot be loaded simply contributes no rules, exactly as before.
-                // Failing generation over it would be worse than generating clients that validate less than the
-                // server.
+                // Preserve the load failure so rule extraction can surface it rather than silently omit rules.
+                _loadFailuresByLocation[location] = exception;
                 loaded = null;
             }
 
@@ -88,6 +88,20 @@ public static class RuntimeValidatorAssemblies
         catch (Exception)
         {
             return type;
+        }
+    }
+
+    /// <summary>
+    /// Get the failure recorded when loading the executable counterpart of an assembly, if any.
+    /// </summary>
+    /// <param name="assembly">The metadata assembly.</param>
+    /// <returns>The load failure, or null when the assembly loaded or was never requested.</returns>
+    internal static Exception? LoadFailureFor(Assembly assembly)
+    {
+        var location = LocationOf(assembly);
+        lock (_lock)
+        {
+            return location is not null && _loadFailuresByLocation.TryGetValue(location, out var failure) ? failure : null;
         }
     }
 

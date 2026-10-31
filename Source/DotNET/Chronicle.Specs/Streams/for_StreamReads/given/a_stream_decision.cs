@@ -24,7 +24,7 @@ public class a_stream_decision : Specification
     {
         _id = EventSourceId.New();
         _route = new("reports", "approval", "owner:month");
-        _scenario = new CommandScenario<DecideStream>().UseDecisionReads();
+        _scenario = new CommandScenario<DecideStream>();
     }
 
     async Task Destroy() => await _scenario.DisposeAsync();

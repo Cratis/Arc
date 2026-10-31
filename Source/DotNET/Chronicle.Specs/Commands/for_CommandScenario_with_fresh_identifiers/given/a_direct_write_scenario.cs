@@ -22,7 +22,7 @@ public class a_direct_write_scenario<TCommand> : Specification
     void Establish()
     {
         _id = Identifier.New();
-        _scenario = new CommandScenario<TCommand>().UseDecisionReads();
+        _scenario = new CommandScenario<TCommand>();
         _scenario.PinGeneratedValue("id", _id);
     }
 

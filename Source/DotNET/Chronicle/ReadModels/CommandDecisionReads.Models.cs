@@ -20,7 +20,9 @@ internal sealed partial class CommandDecisionReads
         where T : class
     {
         var read = await Get<T>(key, cancellationToken);
-        return await ReleaseInstance(read);
+        return readModels is IGivenReadModelInstances given && given.TryGet(typeof(T), key, out var instance)
+            ? (T)instance
+            : await ReleaseInstance(read);
     }
 
     /// <summary>

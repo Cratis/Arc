@@ -9,7 +9,7 @@ namespace Cratis.Arc.Chronicle.Streams.for_StreamReads.when_deciding;
 public class with_plain_and_routed_events : given.a_stream_decision
 {
     CommandScenario<PlainAndRouted> _other;
-    void Establish() => _other = new CommandScenario<PlainAndRouted>().UseDecisionReads();
+    void Establish() => _other = new CommandScenario<PlainAndRouted>();
     async Task Because() => _result = await _other.Execute(new(_id, new("owner"), "month"));
     async Task Destroy() => await _other.DisposeAsync();
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();

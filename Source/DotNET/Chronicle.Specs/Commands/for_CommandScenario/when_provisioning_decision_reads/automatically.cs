@@ -21,7 +21,9 @@ public class automatically : Specification
     void Establish()
     {
         _scenario = new CommandScenario<AutomaticRead>();
+#pragma warning disable CS0618 // Compatibility: explicit opt-in and idempotence are exercised here.
         _explicit = new CommandScenario<Ordinary>().UseDecisionReads();
+#pragma warning restore CS0618
     }
 
     void Because()
@@ -29,7 +31,9 @@ public class automatically : Specification
         _store = Stores(_scenario.Services).Single();
         _facadeError = Catch.Exception(() => _ = _scenario.EventScenario);
         _firstStore = _store;
+#pragma warning disable CS0618 // Compatibility: the obsolete opt-in remains idempotent.
         _scenario.UseDecisionReads();
+#pragma warning restore CS0618
     }
 
     void Destroy()

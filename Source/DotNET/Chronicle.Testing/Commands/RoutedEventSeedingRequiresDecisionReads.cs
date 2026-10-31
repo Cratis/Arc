@@ -7,4 +7,4 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// The exception that is thrown when routed event seeding is requested for legacy read-model state.
 /// </summary>
 public class RoutedEventSeedingRequiresDecisionReads()
-    : Exception("Routing seeding needs decision reads. Call UseDecisionReads() before Given.ForEventSource(...).OnRoute(...).Events(...).");
+    : Exception("Routed event seeding needs a command that declares decision dependencies, or give the event on its own event source.");
