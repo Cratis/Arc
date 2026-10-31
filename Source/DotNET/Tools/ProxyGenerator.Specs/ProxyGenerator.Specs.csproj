@@ -13,6 +13,7 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../ProxyGenerator/ProxyGenerator.csproj" />
+        <ProjectReference Include="TestArtifacts/RuntimeDependencyApplication/RuntimeDependencyApplication.csproj" ReferenceOutputAssembly="false" Private="false" />
         <ProjectReference Include="../../Arc/Arc.csproj" />
         <ProjectReference Include="TestArtifacts/AssemblyNameMismatchDependency/AssemblyNameMismatchDependency.csproj" />
         <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />

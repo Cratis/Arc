@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.RuntimeDependencyApplication</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.RuntimeDependencyApplication</RootNamespace>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <GenerateDependencyFile>true</GenerateDependencyFile>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
+        <ProjectReference Include="../RuntimeDependencyLibrary/RuntimeDependencyLibrary.csproj" />
+    </ItemGroup>
+</Project>
