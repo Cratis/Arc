@@ -31,8 +31,8 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
     /// <param name="command">The input owner.</param>
     /// <param name="sources">The registered generated sources.</param>
     /// <param name="generatedIdentity">Whether a generated command identifier is proven.</param>
-    /// <returns>The production with independently proven routing.</returns>
-    internal ProducesModel Apply(ProducesModel production, BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, INamedTypeSymbol command, AuthoringSources? sources, bool generatedIdentity)
+    /// <returns>The production with independently proven routing and unsafe returned-tuple wrapper provenance.</returns>
+    internal (ProducesModel Production, bool UnsafeReturnedTupleWrapper) Apply(ProducesModel production, BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, INamedTypeSymbol command, AuthoringSources? sources, bool generatedIdentity)
     {
         var identifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, command.Name);
         var fallback = new CommandRouteReader(models, types, new ScreenplayDiagnostics(), true).Read(command, identifier, command.Name);
@@ -50,43 +50,17 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
             if (ExplicitEventDestination.Read(wrapper, model) is not { } envelope || envelope.Event != creation ||
                 !ReturnedProductionShape.Reaches(wrapper, body, model))
             {
-                return production;
+                return (production, false);
             }
-            if (usesCommandContext && wrapper.Initializer is null)
-            {
-                return production with { UsesCommandContext = true };
-            }
-            var path = ProductionValues.Path(envelope.Destination, model, command, sources);
-            if (path is null)
-            {
-                return production;
-            }
-            var type = DestinationType(path, envelope.Destination);
-            var route = new ProductionRouteReader(models, types) { Definitions = Definitions }.Read(wrapper, command, model, fallback, type, sources);
-            if (route is null && wrapper.Initializer is not null)
-            {
-                return production with { UsesCommandContext = false };
-            }
-            if (route is null && !generatedIdentity)
-            {
-                return production;
-            }
-            if (usesCommandContext && route is not null && fallback is not null && SameEffectiveRoute(route, fallback))
-            {
-                return production with { UsesCommandContext = true };
-            }
+            var recovered = RecoverDestination(production, envelope, usesCommandContext);
+            var returnedTuple = body is TupleExpressionSyntax || wrapper.Ancestors().TakeWhile(ancestor => ancestor != body).Any(ancestor => ancestor is TupleExpressionSyntax);
 
-            return production with
-            {
-                UsesCommandContext = route is null && path == identifier,
-                Destination = new PropertyPathSource(path),
-                Route = route
-            };
+            return (recovered, returnedTuple && HasUnknownDestination(recovered));
         }
         if (generatedIdentity && production.UsesCommandContext)
         {
             // Existing generated-identity tuples are command context, not explicit per-production fan-out.
-            return production;
+            return (production, false);
         }
         if (creation.Ancestors().OfType<TupleExpressionSyntax>().FirstOrDefault() is { } tuple &&
             ReturnedProductionShape.Reaches(creation, body, model))
@@ -96,21 +70,56 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
                 var path = ProductionValues.Path(identity, model, command, sources);
                 if (path is not null && (fallback is not null || generatedIdentity || path == identifier))
                 {
-                    return production with
+                    return (production with
                     {
                         UsesCommandContext = path == identifier,
                         Destination = new PropertyPathSource(path),
                         Route = path == identifier || fallback is null ? null : fallback with { IdentifierType = DestinationType(path, identity) }
-                    };
+                    }, false);
                 }
             }
             else if (ReturnedProductionShape.UsesCommandContext(tuple, model))
             {
-                return production with { UsesCommandContext = true };
+                return (production with { UsesCommandContext = true }, false);
             }
         }
 
-        return production;
+        return (production, false);
+
+        ProducesModel RecoverDestination(ProducesModel candidate, ExplicitEventDestination envelope, bool usesCommandContext)
+        {
+            var destinationWrapper = envelope.Wrapper;
+            if (usesCommandContext && destinationWrapper.Initializer is null)
+            {
+                return candidate with { UsesCommandContext = true };
+            }
+            var path = ProductionValues.Path(envelope.Destination, model, command, sources);
+            if (path is null)
+            {
+                return candidate;
+            }
+            var type = DestinationType(path, envelope.Destination);
+            var route = new ProductionRouteReader(models, types) { Definitions = Definitions }.Read(destinationWrapper, command, model, fallback, type, sources);
+            if (route is null && destinationWrapper.Initializer is not null)
+            {
+                return candidate with { UsesCommandContext = false };
+            }
+            if (route is null && !generatedIdentity)
+            {
+                return candidate;
+            }
+            if (usesCommandContext && route is not null && fallback is not null && SameEffectiveRoute(route, fallback))
+            {
+                return candidate with { UsesCommandContext = true };
+            }
+
+            return candidate with
+            {
+                UsesCommandContext = route is null && path == identifier,
+                Destination = new PropertyPathSource(path),
+                Route = route
+            };
+        }
 
         TypeReferenceModel? DestinationType(string path, ExpressionSyntax value)
         {
@@ -119,6 +128,9 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
             return type is null ? null : types.Resolve(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
         }
     }
+
+    static bool HasUnknownDestination(ProducesModel production) => !production.UsesCommandContext && production.Destination is null &&
+        production.UnavailableCondition is null && production.UnavailableDestination is null;
 
     static bool SameEffectiveRoute(CommandRouteModel route, CommandRouteModel fallback) => route.Identity == fallback.Identity &&
         route.StreamIdType == fallback.StreamIdType && route.StreamId == fallback.StreamId && route.StreamIdLiteral == fallback.StreamIdLiteral &&

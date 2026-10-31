@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
 /// <summary>
-/// Withholds unsafe generated productions and prevents signature recovery from restoring them.
+/// Withholds unsafe productions and prevents signature recovery from restoring them.
 /// </summary>
 /// <param name="diagnostics">Where unrepresentable destinations are reported.</param>
 internal class UnrepresentableProductions(ScreenplayDiagnostics diagnostics)
@@ -15,21 +15,21 @@ internal class UnrepresentableProductions(ScreenplayDiagnostics diagnostics)
     bool _withheld;
 
     /// <summary>
-    /// Withholds every production of a handler with generated inputs when any has no representable destination.
+    /// Withholds unsafe generated productions or a proven unsafe ordinary returned-tuple wrapper's handler.
     /// </summary>
     /// <param name="handler">The handler whose productions were read.</param>
     /// <param name="produces">The productions collected so far.</param>
-    /// <param name="first">Where the handler's productions start.</param>
+    /// <param name="range">The handler's first production and returned-tuple wrapper proof.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
-    internal void Apply(IMethodSymbol handler, List<ProducesModel> produces, int first, string location)
+    internal void Apply(IMethodSymbol handler, List<ProducesModel> produces, (int First, bool UnsafeReturnedTupleWrapper) range, string location)
     {
-        if (!handler.Parameters.Any(parameter => parameter.HasAttribute(WellKnownTypeNames.GeneratedValueAttribute)) ||
-            !produces.Skip(first).Any(IsUnrepresentable))
+        var generated = handler.Parameters.Any(parameter => parameter.HasAttribute(WellKnownTypeNames.GeneratedValueAttribute));
+        if (!(generated ? produces.Skip(range.First).Any(IsUnrepresentable) : range.UnsafeReturnedTupleWrapper))
         {
             return;
         }
 
-        produces.RemoveRange(first, produces.Count - first);
+        produces.RemoveRange(range.First, produces.Count - range.First);
         diagnostics.Information(
             ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
             "A production of the command is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and no production of the command is stated",

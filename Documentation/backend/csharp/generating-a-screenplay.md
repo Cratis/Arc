@@ -157,6 +157,8 @@ Returned `EventForEventSourceId` wrappers can supply per-production `for` and `s
 
 Unproven destinations, explicit appends and aggregates fetched for another identity keep the conservative standalone-event fallback. Information diagnostic `SP0051` reports the omitted destination once per command rather than redirecting it. An unproven override also withholds the command route with `SP0054` in both output modes: keeping it would claim routing the generator could not establish.
 
+An ordinary handler returning a supported inline tuple is an exception: if an explicit `EventForEventSourceId` wrapper in that tuple has neither proven command context nor a representable destination, the generator withholds every production of that handler, including proven siblings. Aliases, unsupported tuple shapes and non-tuple wrappers retain their existing fallback behavior. Generated-input handlers retain their dependency-aware withholding rules. When withholding leaves no productions, the command retains its native file-backed handler; execution requires a constrained implementation attachment. `SP0051` reports the withholding instead of stating an unproven effect.
+
 ## Read models
 
 Every read model the application declares gets a `readmodel` declaration of its own: each `[ReadModel]` type, and each type an `IProjectionFor<T>` or `IReducerFor<T>` builds. The declaration carries the properties of the type, its XML `<summary>` as `description`, and a `file` line when the file declaring it has a repository-relative path that stays true on another machine. Projections, reducers, and queries then name a read model the document declares, which is what lets them bind to the executable model.
