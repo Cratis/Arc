@@ -9,4 +9,5 @@ namespace Cratis.Arc.Identity;
 /// <param name="CanonicalBytes">The MAC input.</param>
 /// <param name="Headers">The covered, OWS-trimmed headers.</param>
 /// <param name="Snapshot">The exact inputs used only for request-local cache comparison.</param>
-internal sealed record ForwardedIdentityRequest(byte[] CanonicalBytes, IReadOnlyDictionary<string, string> Headers, string Snapshot);
+/// <param name="Method">The method from the same verified host-observed snapshot.</param>
+internal sealed record ForwardedIdentityRequest(byte[] CanonicalBytes, IReadOnlyDictionary<string, string> Headers, string Snapshot, string Method);

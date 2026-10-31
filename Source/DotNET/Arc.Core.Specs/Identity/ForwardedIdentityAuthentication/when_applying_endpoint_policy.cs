@@ -54,10 +54,8 @@ public class when_applying_endpoint_policy : given.a_signed_request
         var handlers = new List<IAuthenticationHandler>();
         if (native)
         {
-            var earlier = Substitute.For<IAuthenticationHandler>();
-            earlier.AppliesToAnonymousEndpoints.Returns(true);
-            earlier.HandleAuthentication(_context).Returns(AuthenticationResult.Succeeded(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "native")], "native"))));
-            handlers.Add(earlier);
+            // A concrete handler avoids Castle's unsupported default-interface property interception.
+            handlers.Add(new given.a_native_handler());
         }
         handlers.Add(signed);
         instances.GetEnumerator().Returns(_ => handlers.GetEnumerator());

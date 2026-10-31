@@ -14,15 +14,26 @@ public class when_reentering_concurrently : given.a_signed_request
     async Task Because()
     {
         var first = Authenticate();
+
+        // Capture before configuring another substitute: nested substitute calls would bind Returns to the wrong getter.
+        var items = _context.Items;
+        var headers = _context.Headers;
+        var method = _context.Method;
+        var path = _context.Path;
+        var target = ((ICanReadForwardedIdentityRequest)_context).RawTarget;
         var wrapper = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest>();
-        wrapper.Items.Returns(_context.Items);
-        wrapper.Headers.Returns(_context.Headers);
-        wrapper.Method.Returns(_context.Method);
-        wrapper.Path.Returns(_context.Path);
+        wrapper.Items.Returns(items);
+        wrapper.Headers.Returns(headers);
+        wrapper.Method.Returns(method);
+        wrapper.Path.Returns(path);
         var raw = (ICanReadForwardedIdentityRequest)wrapper;
         raw.HeaderNames.Returns(_rawHeaders.Keys);
-        raw.RawTarget.Returns(((ICanReadForwardedIdentityRequest)_context).RawTarget);
+        raw.RawTarget.Returns(target);
         raw.GetHeaderValues(Arg.Any<string>()).Returns(call => _rawHeaders.TryGetValue(call.Arg<string>(), out var values) ? values : []);
+        wrapper.Method.ShouldEqual("POST");
+        wrapper.Path.ShouldEqual("/base/a%2Fb");
+        raw.RawTarget.ShouldEqual("/base/a%2fb?x=1");
+        ReferenceEquals(wrapper.Items, _context.Items).ShouldBeTrue();
         _results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => Task.Run(() => ForwardedIdentityAuthentication.Authenticate(wrapper, _options, "specs", wrapper.Path, _clock, _replays))));
         ((ClaimsIdentity)first.Principal!.Identity!).AddClaim(new Claim("injected", "yes"));
         _afterMutation = Authenticate();

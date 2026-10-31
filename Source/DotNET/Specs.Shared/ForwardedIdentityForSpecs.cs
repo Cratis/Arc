@@ -33,6 +33,14 @@ internal static class ForwardedIdentityForSpecs
     /// <summary>Gets a fresh copy of the public test-only 00..1f key.</summary>
     internal static byte[] Key => Enumerable.Range(0, 32).Select(value => (byte)value).ToArray();
 
+    /// <summary>Gets the independently produced negative cases for the combined forwarding protocols.</summary>
+    internal static IReadOnlyList<string> InvalidActorCases =>
+    [
+        "missing actor", "missing assertion", "malformed actor", "null actor claims", "disabled inner", "wrong inner key",
+        "untrusted inner key", "expired inner", "future inner", "issuer", "audience", "service", "principal hash", "subject",
+        "actor hash", "actor subject", "method", "path", "tenant"
+    ];
+
     /// <summary>Creates explicitly enabled test-only verifier options.</summary>
     /// <returns>The options.</returns>
     internal static ArcOptions Options() => new()
@@ -106,6 +114,87 @@ internal static class ForwardedIdentityForSpecs
         var claims = OnBehalfOfAssertionsForSpecs.ClaimsFor(headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader], actor, "u", "actor", now);
         claims["htm"] = "POST";
         claims["htu"] = "/base/a%2Fb";
+        headers[OnBehalfOfHeaders.AssertionHeader] = OnBehalfOfAssertionsForSpecs.Sign(claims);
+    }
+
+    /// <summary>Produces a broken inner forward to be covered by a fresh, valid outer signature.</summary>
+    /// <param name="headers">The represented headers.</param>
+    /// <param name="options">The test configuration.</param>
+    /// <param name="scenario">The negative scenario.</param>
+    /// <param name="now">The fixed verifier time.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The scenario is not one of <see cref="InvalidActorCases"/>.</exception>
+    internal static void BreakActorForward(IDictionary<string, string> headers, ArcOptions options, string scenario, DateTimeOffset now)
+    {
+        AddActor(headers, options, now);
+        var actor = headers[OnBehalfOfHeaders.ActorHeader];
+        var claims = OnBehalfOfAssertionsForSpecs.ClaimsFor(headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader], actor, "u", "actor", now);
+        claims["htm"] = "POST";
+        claims["htu"] = "/base/a%2Fb";
+        switch (scenario)
+        {
+            case "missing actor":
+                headers.Remove(OnBehalfOfHeaders.ActorHeader);
+                return;
+            case "missing assertion":
+                headers.Remove(OnBehalfOfHeaders.AssertionHeader);
+                return;
+            case "malformed actor":
+                headers[OnBehalfOfHeaders.ActorHeader] = "not-base64";
+                break;
+            case "null actor claims":
+                headers[OnBehalfOfHeaders.ActorHeader] = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"userId\":\"actor\",\"claims\":null}"));
+                break;
+            case "disabled inner":
+                options.OnBehalfOf.Enabled = false;
+                break;
+            case "wrong inner key":
+                headers[OnBehalfOfHeaders.AssertionHeader] = OnBehalfOfAssertionsForSpecs.Sign(claims, keyId: "unknown");
+                return;
+            case "untrusted inner key":
+                headers[OnBehalfOfHeaders.AssertionHeader] = OnBehalfOfAssertionsForSpecs.Sign(claims, key: OnBehalfOfAssertionsForSpecs.UnknownKey);
+                return;
+            case "expired inner":
+                claims["exp"] = now.AddSeconds(-60).ToUnixTimeSeconds();
+                break;
+            case "future inner":
+                claims["nbf"] = now.AddSeconds(60).ToUnixTimeSeconds();
+                break;
+            case "issuer":
+                claims["iss"] = "other";
+                break;
+            case "audience":
+                claims["aud"] = "other";
+                break;
+            case "service":
+                options.OnBehalfOf.Service = "expected";
+                claims["svc"] = "other";
+                break;
+            case "principal hash":
+                claims["principal_hash"] = OnBehalfOfAssertionsForSpecs.Sha256("other");
+                break;
+            case "subject":
+                claims["sub"] = "other";
+                break;
+            case "actor hash":
+                claims["actor_hash"] = OnBehalfOfAssertionsForSpecs.Sha256("other");
+                break;
+            case "actor subject":
+                claims["act"] = new Dictionary<string, object> { ["sub"] = "other", ["idp"] = "aad" };
+                break;
+            case "method":
+                claims["htm"] = "GET";
+                break;
+            case "path":
+                claims["htu"] = "/other";
+                break;
+            case "tenant":
+                options.Tenancy.HttpHeader = "custom-tenant";
+                headers["custom-tenant"] = "other";
+                claims["tenant"] = "expected";
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(scenario));
+        }
         headers[OnBehalfOfHeaders.AssertionHeader] = OnBehalfOfAssertionsForSpecs.Sign(claims);
     }
 

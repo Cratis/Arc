@@ -11,7 +11,7 @@ public class when_verifying_the_published_vector : given.a_signed_request
     void Because()
     {
         var envelope = ForwardedIdentityEnvelope.Parse(ForwardedIdentityForSpecs.Envelope)!;
-        _canonical = System.Text.Encoding.UTF8.GetString(ForwardedIdentityCanonicalization.Create(_context, _options, envelope)!.CanonicalBytes);
+        _canonical = System.Text.Encoding.UTF8.GetString(ForwardedIdentityCanonicalization.Create(ForwardedIdentitySnapshot.Capture(_context, _options)!, _options, envelope)!.CanonicalBytes);
         _result = Authenticate();
     }
 

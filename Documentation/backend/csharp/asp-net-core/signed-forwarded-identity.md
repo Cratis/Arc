@@ -2,6 +2,8 @@
 
 Signed forwarding lets a provisioned ingress attest the identity headers it sends to Arc, using HMAC-SHA256. It is opt-in, server-side only, and disabled by default on both ASP.NET Core and HttpListener.
 
+See also [configuration](configuration.md), [Microsoft identity](microsoft-identity.md), and [on-behalf forwarding](acting-on-behalf-of.md).
+
 ## Configure a verifier
 
 Enable both `Cratis:Arc:TrustForwardedIdentityHeaders` and `Cratis:Arc:ForwardedIdentity:Enabled`. Set `ForwardedIdentity:Audience` to your integration's audience and provision `ForwardedIdentity:Keys` with entries containing `KeyId` and `SecretBase64`. Each secret is exactly 32 freshly generated random bytes, standard-base64 encoded. Configure secrets through your secret provider, for example the configuration key `Cratis__Arc__ForwardedIdentity__Keys__0__SecretBase64`; never check them into configuration files. Do not reuse OIDC, cookie, or on-behalf keys.
@@ -18,7 +20,9 @@ A rejected forwarded credential is not an unconditional HTTP veto. Existing hand
 
 On-behalf forwarding still requires the separate enabled RS256 assertion and actor checks. When both features are enabled, both envelopes must validate. Successful complete authentication is cached for an unchanged request only, including the attached actor. Reentry does not consume either replay token again. Mutating consumed input or relevant configuration invalidates reuse; a different request cannot reuse the success. Returned principals and actors are independent copies. Authorization is not cached.
 
-Custom HTTP hosts must implement `ICanReadForwardedIdentityRequest`, preserving raw header cardinality and the raw origin-form request target. Flattened header dictionaries and decoded paths are insufficient. Both built-in hosts supply this capability.
+Custom HTTP hosts must implement `ICanReadForwardedIdentityRequest`, exposing host-observed header values without further flattening and the raw origin-form request target. Both built-in hosts supply this capability. Arc takes one immutable snapshot: the MAC and all identity/actor construction use those same copied values, never a later read from the host or a flattened header dictionary.
+
+**Cardinality is host-observed, not a wire-level guarantee.** ASP.NET Core exposes multiple observed values, including repeated names with different casing; Arc rejects them. Managed HttpListener exposes only the last observed value when a wire header is repeated. Earlier values are irrecoverable: the last observed value must be the signed value, otherwise no forwarded identity is established. A comma inside one observed value remains data, not a duplicate separator. Windows/http.sys wire behavior has **not been verified**. Ingresses should strip inbound identity headers and generate a single signed set; do not rely on this contract to detect repetitions already discarded by a host.
 
 ## Wire contract v1
 
@@ -28,7 +32,7 @@ Send exactly one `x-cratis-forwarded-identity-signature` field value:
 v1.<kid>.<ts>.<nonce>.<mac>
 ```
 
-The envelope is at most 256 ASCII bytes. `kid` matches `[A-Za-z0-9_-]{1,64}` and is case-sensitive. `ts` is unsigned invariant decimal Unix seconds with no leading zeros except zero. `nonce` is unpadded base64url of 32 cryptographically random bytes, freshly generated for every outbound attempt. `mac` is unpadded base64url of the 32-byte HMAC-SHA256 result. No algorithm negotiation, extra fields, padding, unknown versions, or repeated signature values are accepted.
+The envelope is at most 256 ASCII bytes. `kid` matches `[A-Za-z0-9_-]{1,64}` and is case-sensitive. `ts` is unsigned invariant decimal Unix seconds with no leading zeros except zero. `nonce` is unpadded base64url of 32 cryptographically random bytes, freshly generated for every outbound attempt. `mac` is unpadded base64url of the 32-byte HMAC-SHA256 result. No algorithm negotiation, extra fields, padding, unknown versions, or multiple host-observed signature values are accepted.
 
 ### Covered headers
 
@@ -40,7 +44,7 @@ Include every present header whose lowercase name starts with `x-ms-client-princ
 - `x-cratis-microservice` and `service-id`
 - The host's configured `Tenancy.HttpHeader`, if different.
 
-Exclude the signature itself, Authorization, cookies, and unrelated headers. Names are deduplicated case-insensitively, then sorted by lowercase ordinal name. Every covered name must have exactly one raw field value. Repeated field lines are rejected; a comma in one legitimate name is not itself a duplicate. Unknown identity/on-behalf suffixes are covered too. Optional empty values are included; absent and empty differ. The principal, principal-id, and principal-name tuple must be present and nonempty.
+Exclude the signature itself, Authorization, cookies, and unrelated headers. Names are deduplicated case-insensitively, then sorted by lowercase ordinal name. Every covered name must have exactly one host-observed value. Multiple observed values are rejected; a comma in one legitimate value is not itself a duplicate. This cannot detect wire repetitions already collapsed to the last value by managed HttpListener. Unknown identity/on-behalf suffixes are covered too. Optional empty values are included; absent and empty differ. The principal, principal-id, and principal-name tuple must be present and nonempty.
 
 Strip only outer HTTP OWS (SP/HTAB) from values. Preserve internal printable ASCII, commas, base64 padding, percent-escape spelling, and serialized whitespace. Reject remaining control characters and non-ASCII wire values. Unicode identities use existing base64/RFC 8187 encodings. After authenticating the bytes, the decoded subject must be nonempty and equal the RFC 8187-decoded principal-id. Invalid UTF-8, malformed principals, null claims/roles, and invalid extended IDs are rejected. The principal remains authoritative for provider claims.
 
@@ -115,7 +119,7 @@ Content-Length: 0
 
 ```
 
-Use isolated replay state when comparing equivalent representations. Nonce B is 32 `01` bytes: `AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB AQ` with the single display space removed.
+Use isolated replay state when comparing equivalent representations. Nonce B is 32 `01` bytes: `AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE`. Replacing only the nonce in the base request gives MAC `ql7vBinbDwBTqcRq5op-eA4hyMWHf0LFh5MqPlG6qsI` and envelope `v1.k1.1700000000.AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE.ql7vBinbDwBTqcRq5op-eA4hyMWHf0LFh5MqPlG6qsI`. These are independent requests and both can authenticate once.
 
 | Variation | Expected forwarded authentication |
 | --- | --- |
@@ -124,7 +128,8 @@ Use isolated replay state when comparing equivalent representations. Nonce B is 
 | Principal, ID, name, token, tenant, service, actor, or assertion changed after signing | Rejected |
 | Method, audience, key ID, or escaped path changed | Rejected |
 | Query `x=1` becomes `x=2` | MAC unchanged; no query-integrity claim |
-| Any covered repeated field, extra envelope component, padding, or unknown version | Rejected |
+| Multiple host-observed values (including case variants), extra envelope component, padding, or unknown version | Rejected |
+| Managed HttpListener repeats a wire field | Only the last observed value is checked; it must be signed |
 | Timestamp `1699999940` or `1700000030`, freshly signed | Accepted freshness edge |
 | Timestamp `1699999939` or `1700000031`, freshly signed | Rejected freshness edge |
 | Same nonce on a distinct request in this process | Rejected after one acceptance |

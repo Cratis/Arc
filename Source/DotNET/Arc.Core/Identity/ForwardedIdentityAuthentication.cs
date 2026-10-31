@@ -48,17 +48,21 @@ internal static class ForwardedIdentityAuthentication
 
     static ForwardedIdentityAuthenticationResult AuthenticateLocked(IHttpRequestContext context, ArcOptions options, string authenticationType, string innerPath, TimeProvider time, ForwardedIdentityReplayCache replays, Cache cache)
     {
-        var names = context is ICanReadForwardedIdentityRequest rawNames ? rawNames.HeaderNames : context.Headers.Keys;
-        if (!names.Any(name => name.Equals(ForwardedIdentityEnvelope.Header, StringComparison.OrdinalIgnoreCase) ||
-            name.StartsWith("x-ms-client-principal", StringComparison.OrdinalIgnoreCase) || name.StartsWith("x-cratis-on-behalf", StringComparison.OrdinalIgnoreCase)))
+        if (context is not ICanReadForwardedIdentityRequest)
+        {
+            cache.Principal = null;
+            return ForwardedIdentitySnapshot.HasCredential(context.Headers.Keys) ? new(Failure: "forwarded-identity-invalid-input") : new();
+        }
+        var observed = ForwardedIdentitySnapshot.Capture(context, options);
+        if (observed is not null && !ForwardedIdentitySnapshot.HasCredential(observed.Headers.Keys))
         {
             cache.Principal = null;
             return new();
         }
-        if (context is not ICanReadForwardedIdentityRequest raw || ForwardedIdentityConfiguration.Read(options) is not { } configuration ||
-            raw.GetHeaderValues(ForwardedIdentityEnvelope.Header) is not { Count: 1 } signature ||
-            ForwardedIdentityEnvelope.Parse(signature[0]) is not { } envelope ||
-            ForwardedIdentityCanonicalization.Create(context, options, envelope) is not { } request)
+        if (observed is null || ForwardedIdentityConfiguration.Read(options) is not { } configuration ||
+            !observed.Headers.TryGetValue(ForwardedIdentityEnvelope.Header, out var signature) ||
+            ForwardedIdentityEnvelope.Parse(signature) is not { } envelope ||
+            ForwardedIdentityCanonicalization.Create(observed, options, envelope) is not { } request)
         {
             cache.Principal = null;
             return new(Failure: "forwarded-identity-invalid-input");
@@ -85,7 +89,7 @@ internal static class ForwardedIdentityAuthentication
                 Header(request, OnBehalfOfHeaders.ActorHeader),
                 Header(request, OnBehalfOfHeaders.AssertionHeader),
                 options.Tenancy.HttpHeader is { Length: > 0 } tenantHeader ? Header(request, tenantHeader) : null,
-                context.Method,
+                request.Method,
                 innerPath);
             if (forward.Actor is null || ForwardedIdentityVerification.ReadPrincipal(forward.Actor, options.JsonSerializerOptions) is null ||
                 ForwardedActor.Attach(forward, represented, identity, authenticationType, options, time, OnBehalfOfReplayCache.Shared) is not null)

@@ -43,11 +43,12 @@ public class when_applying_endpoint_policy : Specification
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(monitor);
+        services.AddRouting();
         services.AddAuthorization();
         services.AddAuthentication(native ? "native" : MicrosoftIDentityPlatformAuthHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, MicrosoftIDentityPlatformAuthHandler>(MicrosoftIDentityPlatformAuthHandler.SchemeName, _ => { })
             .AddScheme<AuthenticationSchemeOptions, ForwardedIdentityNativeAuthenticationHandler>("native", _ => { });
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var context = new DefaultHttpContext { RequestServices = provider };
         context.Request.Method = "POST";
         context.Request.PathBase = "/base";

@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
-using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Identity;
 
@@ -67,36 +67,34 @@ internal static class ForwardedIdentityCanonicalization
     /// <summary>
     /// Captures bounded canonical input and the exact consumed transport fields.
     /// </summary>
-    /// <param name="context">The request context.</param>
+    /// <param name="observed">The single immutable host-observed snapshot.</param>
     /// <param name="options">The validated host configuration.</param>
     /// <param name="envelope">The parsed envelope.</param>
     /// <returns>The captured request, or null if invalid.</returns>
-    internal static ForwardedIdentityRequest? Create(IHttpRequestContext context, ArcOptions options, ForwardedIdentityEnvelope envelope)
+    internal static ForwardedIdentityRequest? Create(ForwardedIdentitySnapshot observed, ArcOptions options, ForwardedIdentityEnvelope envelope)
     {
-        if (context is not ICanReadForwardedIdentityRequest raw ||
-            string.IsNullOrEmpty(context.Method) || context.Method.Any(character => !IsToken(character) || char.IsLower(character)) ||
-            Path(raw.RawTarget) is not { } path)
+        if (string.IsNullOrEmpty(observed.Method) || observed.Method.Any(character => !IsToken(character) || char.IsLower(character)) ||
+            Path(observed.RawTarget) is not { } path)
         {
             return null;
         }
-        var names = raw.HeaderNames.Where(name => IsCovered(name, options.Tenancy.HttpHeader) &&
-                !name.Equals(ForwardedIdentityEnvelope.Header, StringComparison.OrdinalIgnoreCase))
-            .Select(name => name.ToLowerInvariant()).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Take(65).ToArray();
+        var names = observed.Headers.Keys.Where(name => !name.Equals(ForwardedIdentityEnvelope.Header, StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.Ordinal).ToArray();
         if (names.Length > 64)
         {
             return null;
         }
         var canonical = new StringBuilder("Cratis.AuthProxy.ForwardedIdentity.v1\n");
-        foreach (var value in new[] { options.ForwardedIdentity.Audience, envelope.KeyId, envelope.TimestampText, envelope.Nonce, context.Method, path, names.Length.ToString(CultureInfo.InvariantCulture) })
+        foreach (var value in new[] { options.ForwardedIdentity.Audience, envelope.KeyId, envelope.TimestampText, envelope.Nonce, observed.Method, path, names.Length.ToString(CultureInfo.InvariantCulture) })
         {
             canonical.Append(Frame(value));
         }
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var snapshot = new StringBuilder(Frame(context.Method) + Frame(context.Path) + Frame(raw.RawTarget!) + Frame(raw.GetHeaderValues(ForwardedIdentityEnvelope.Header)[0]));
+        var snapshot = new StringBuilder(Frame(observed.Method) + Frame(observed.Path) + Frame(observed.RawTarget!) + Frame(observed.Headers[ForwardedIdentityEnvelope.Header]));
         foreach (var name in names)
         {
-            var values = raw.GetHeaderValues(name);
-            if (name.Any(character => !IsToken(character)) || values.Count != 1 || values[0] is not { } original || original.Length > 32768)
+            var original = observed.Headers[name];
+            if (name.Any(character => !IsToken(character)))
             {
                 return null;
             }
@@ -121,7 +119,7 @@ internal static class ForwardedIdentityCanonicalization
             }
         }
         var bytes = Encoding.UTF8.GetBytes(canonical.ToString());
-        return bytes.Length > 32768 ? null : new(bytes, headers, snapshot.ToString());
+        return bytes.Length > 32768 ? null : new(bytes, new ReadOnlyDictionary<string, string>(headers), snapshot.ToString(), observed.Method);
     }
 
     static bool IsToken(char character) => character is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9') || "!#$%&'*+-.^_`|~".Contains(character);

@@ -27,7 +27,7 @@ public class a_signed_handler : Specification
         _headers[ForwardedIdentityForSpecs.SignatureHeader] = ForwardedIdentityForSpecs.Sign(_headers, timestamp: 1700000000);
         _clock = Substitute.For<TimeProvider>();
         _clock.GetUtcNow().Returns(DateTimeOffset.FromUnixTimeSeconds(1700000000));
-        _context = new DefaultHttpContext { RequestServices = new ServiceCollection().BuildServiceProvider() };
+        _context = new DefaultHttpContext { RequestServices = new ServiceCollection().AddSingleton(Options.Create(_options)).BuildServiceProvider() };
         _context.Request.Method = "POST";
         _context.Request.PathBase = "/base";
         _context.Request.Path = "/a%2Fb";
