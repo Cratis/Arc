@@ -14,7 +14,6 @@ public class when_rehydrating_with_an_explicit_serializer_in_decision_mode : giv
 
     async Task Establish()
     {
-        _aggregateScenario.UseDecisionReads();
         await SeedEntry();
     }
 

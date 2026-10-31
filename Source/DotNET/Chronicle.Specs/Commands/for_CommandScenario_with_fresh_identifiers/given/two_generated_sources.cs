@@ -21,7 +21,7 @@ public class two_generated_sources : Specification
     {
         _first = new(new Guid(0x64aa36d7, 0xd559, 0x4f6d, 0x82, 0x74, 0x3d, 0x6b, 0x6e, 0x66, 0xa1, 0x9b));
         _second = new(new Guid(0x51a050b4, 0x97f7, 0x4a44, 0x91, 0xe1, 0x4d, 0x09, 0xdb, 0x94, 0x3b, 0x7b));
-        _scenario = new CommandScenario<CreateTwoSources>().UseDecisionReads();
+        _scenario = new CommandScenario<CreateTwoSources>();
         _scenario.PinGeneratedValue("first", _first);
         _scenario.PinGeneratedValue("second", _second);
         _command = new();

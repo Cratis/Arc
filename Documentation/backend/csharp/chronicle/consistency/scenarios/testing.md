@@ -1,96 +1,48 @@
 ---
-title: Test the race
-description: Test that a rule holds when two writers race, with a command scenario that queues a competing append after the command has read its state.
+title: Specify a state-dependent rule
+description: Give a command its read-model state and assert its outcome, without configuring decision reads or simulating concurrency.
 ---
 
-Use this page when you want a test that proves a rule holds under concurrency: the command reads, a competitor writes, and the command must not commit.
+Application specs give state and assert outcomes. Call `Handle(state)` directly to specify a decision. Use `CommandScenario<T>` when validation, parameter binding or event appending contributes to the behavior being specified. The scenario selects its read path from the command; specs never configure decision reads or simulate competing appends.
 
-| You want to test | Use |
-| --- | --- |
-| A guarded read changed before commit | `new CommandScenario<T>()`, `Given.ForEventSource(...)`, `AppendConcurrently(...)` |
-| An explicit scope or a stream decision | The same, with a route for a stream |
-| A validator's rule | The same scenario. The validator reads the same log |
-| A plain `Off` command without protected dependencies | `new CommandScenario<T>()`. Pinned read models stand in for reads |
+Arc and Chronicle prove their concurrency guarantees in their own framework specs. An application declares `[ReadProtection(ReadProtectionMode.On)]` where a rule must hold under concurrency; it does not re-prove the framework's guard implementation in every slice.
 
-The scenario automatically selects one real in-process event log for commands with read protection `On` or `Measure`, protected decisions, decision dependencies, per-stream read models or guarded generated parameters. Seeded events, guarded reads and commits see the same history. Pinned read models cannot supply a guard, so seed real events instead.
+## Give a rule its state
 
-## A race on one entity
+This illustrative fragment assumes a `BorrowBook` command with a protected plain `BookStock` parameter, a model `BookStock(EventSourceId Id, int Available)` and a registered `BookBorrowed` event:
 
 ```csharp
-using Cratis.Arc.Chronicle.Testing.Commands;
-using Cratis.Arc.Commands;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Testing.Commands;
-using Cratis.Arc.Validation;
-using Cratis.Chronicle.Events;
-using Cratis.Chronicle.Projections.ModelBound;
-using Cratis.Concepts;
-using FluentValidation;
-using Xunit;
-
-public record Isbn(string Value) : EventSourceId(Value);
-
-public record MemberId(Guid Value) : ConceptAs<Guid>(Value);
-
-[EventType]
-public record BookAdded();
-
-[EventType]
-public record BookBorrowed(MemberId Member);
-
-public record BookStock(
-    EventSourceId Id,
-    [Increment<BookAdded>, Decrement<BookBorrowed>] int Available);
-
-[Command, ReadProtection(ReadProtectionMode.On)]
-public record BorrowBook(Isbn Isbn, MemberId Member)
+public class when_borrowing_an_available_book : Specification
 {
-    public BookBorrowed Handle() => new(Member);
-}
+    readonly EventSourceId _book = EventSourceId.New();
+    readonly CommandScenario<BorrowBook> _scenario = new();
+    CommandResult _result = default!;
 
-public class BorrowBookValidator : CommandValidator<BorrowBook>
-{
-    public BorrowBookValidator(BookStock? stock) =>
-        RuleFor(command => command.Isbn)
-            .Must(_ => stock is { Available: > 0 })
-            .WithMessage("No copies left.");
-}
+    void Establish() => _scenario.Given.ForEventSource(_book)
+        .ReadModel(new BookStock(_book, 1));
 
-public class when_borrowing_the_last_copy_while_another_member_borrows_it
-{
-    [Fact]
-    public async Task should_reject_the_command_with_a_concurrency_violation()
-    {
-        await using var scenario = new CommandScenario<BorrowBook>();
-        var isbn = new Isbn("978-0-00-000001-0");
-        scenario.Given.ForEventSource(isbn).Events(new BookAdded());
-        scenario.AppendConcurrently(isbn, new BookBorrowed(new MemberId(Guid.NewGuid())));
+    async Task Because() => _result = await _scenario.Execute(new BorrowBook(_book));
 
-        var result = await scenario.Execute(new BorrowBook(isbn, new MemberId(Guid.NewGuid())));
+    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
-        result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
-        Assert.Empty(scenario.AppendedEvents);
-    }
+    [Fact] async Task should_record_the_loan() =>
+        await _scenario.ShouldHaveAppendedEvent<BorrowBook, BookBorrowed>(_book);
+
+    async Task Destroy() => await _scenario.DisposeAsync();
 }
 ```
 
-`AppendConcurrently` appends after the command read its state and before it commits. The command's own event is not written, so the scenario records no appended events for it.
+A pin reaches the plain parameter after the real protected read has been issued. Admission, enrollment and conflict detection remain unchanged. Give unavailable state in a separate spec to assert the rule's rejection. For a per-stream model, give routed events instead of a source-only pin.
 
-The read protection mode comes from the assembly that declares the command, or from `[ReadProtection(...)]` on it, as in production. Test the command in the mode it runs in.
+## Check admission
 
-## Other checks
+`DecisionReadAdmissions.ShouldAdmitDecisionReadsOf` and `ShouldAdmitDecisionReadsIn` check declared protected parameters and validator dependencies without executing the command. The helper deliberately ignores the runtime cap so deployment settings cannot hide a declared refusal. See [Check that Chronicle admits the decision reads](../../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads).
 
-| Check | How |
-| --- | --- |
-| That a command with `Off` still behaves | Run the scenario in a project that is `Off`. It exercises plain reads |
-| That a stream decision guards a stream | Seed and compete on the same route. See [Stream decisions](../../commands/stream-decisions.md#seed-and-interfere-on-the-same-route) |
-| That Chronicle admits a read model before production | [Check that Chronicle admits the decision reads](../../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads) |
-
-`DecisionReadAdmissions.ShouldAdmitDecisionReadsOf` and `ShouldAdmitDecisionReadsIn` check `[ProtectedDecision]` commands and commands declaring `On` on the command or assembly, ignoring the runtime cap. Under `On`, they include plain Chronicle read-model parameters and discoverable validator constructor parameters, except advisory reads. Per-stream model parameters use stream admission. The hosted startup admission check uses the same parameter discovery but the effective mode, including `ReadProtection:MaximumMode`: refusals stop the host only under effective `On`, unless `ReadProtection:StartupAdmissionCheck` is `Log` or `Off`. The helper deliberately ignores that cap so deployment settings cannot hide a declared refusal. Calls inside method bodies still need a scenario or an explicit admission check.
-
-For the rest of the scenario API, see [Testing Chronicle commands](../../../testing/chronicle.md).
+:::note[Advanced: framework verification]
+The framework's own specs simulate competing writers to prove guard handling. A caller with a specific, explicit need can use the hidden concurrent-append hook described in [Chronicle testing](../../../testing/chronicle.md#protected-decision-scenarios). This is not the recommended application testing surface.
+:::
 
 ## Related
 
 - [Getting started](../getting-started.md)
-- [Chronicle: test the race](/chronicle/dynamic-consistency-boundary/scenarios/)
+- [Testing Chronicle commands](../../../testing/chronicle.md)

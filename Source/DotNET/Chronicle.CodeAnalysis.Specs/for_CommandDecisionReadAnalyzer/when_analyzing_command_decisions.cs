@@ -94,7 +94,8 @@ public class when_analyzing_command_decisions
                     return new Created();
                 }
             }
-            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info),
+            AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
                 .WithSeverity(DiagnosticSeverity.Info));
 
     [Fact]
@@ -108,7 +109,8 @@ public class when_analyzing_command_decisions
                     await store.EventLog.Append(EventSourceId, new Created());
                 }
             }
-            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info),
+            AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
                 .WithSeverity(DiagnosticSeverity.Info));
 
     [Fact]
@@ -407,7 +409,7 @@ public class when_analyzing_command_decisions
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011").WithSeverity(DiagnosticSeverity.Info));
 
     [Fact]
-    public async Task unprotected_command_and_transactional_append_are_not_reported() =>
+    public async Task unprotected_reads_and_transactional_appends_are_not_reported_but_token_parameters_are() =>
         await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
             [Command]
             [Unprotected]
@@ -428,7 +430,7 @@ public class when_analyzing_command_decisions
                     return new Created();
                 }
             }
-            """);
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info));
 
     [Fact]
     public async Task read_only_command_and_non_chronicle_parameter_are_not_reported() =>

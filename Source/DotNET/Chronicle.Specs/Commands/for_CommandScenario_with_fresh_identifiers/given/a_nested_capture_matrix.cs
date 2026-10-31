@@ -19,7 +19,7 @@ public class a_nested_capture_matrix : Specification
     {
         foreach (var style in explicitScopes ? new[] { NestedStyle.ExplicitScope, NestedStyle.DirectScope } : [NestedStyle.StreamType, NestedStyle.StreamId, NestedStyle.SourceType, NestedStyle.Aggregate])
         {
-            await using var scenario = new CommandScenario<CreateNestedSource>().UseDecisionReads();
+            await using var scenario = new CommandScenario<CreateNestedSource>();
             var id = Identifier.New();
             scenario.PinGeneratedValue("id", id);
             if (occupied)

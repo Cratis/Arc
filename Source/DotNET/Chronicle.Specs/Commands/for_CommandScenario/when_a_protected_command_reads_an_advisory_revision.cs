@@ -12,7 +12,7 @@ public class when_a_protected_command_reads_an_advisory_revision : given.an_advi
 
     async Task Establish()
     {
-        _scenario = new CommandScenario<ReadAdvisoryRevisionWithProtection>().UseDecisionReads();
+        _scenario = new CommandScenario<ReadAdvisoryRevisionWithProtection>();
         await Seed(_scenario);
     }
 
