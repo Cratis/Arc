@@ -14,10 +14,10 @@ public class when_capturing_configuration : Specification
 
     void Because()
     {
-        _original = ForwardedIdentityConfiguration.Read(_options)!.Snapshot;
-        _unchanged = ForwardedIdentityConfiguration.Read(_options)!.Snapshot;
+        _original = ForwardedIdentityConfiguration.Read(_options).Snapshot;
+        _unchanged = ForwardedIdentityConfiguration.Read(_options).Snapshot;
         _options.ForwardedIdentity.Keys[0].SecretBase64 = Convert.ToBase64String(new byte[32]);
-        _rotated = ForwardedIdentityConfiguration.Read(_options)!.Snapshot;
+        _rotated = ForwardedIdentityConfiguration.Read(_options).Snapshot;
     }
 
     [Fact] void should_not_retain_the_original_secret_text() => _original.ShouldNotContain(Convert.ToBase64String(ForwardedIdentityForSpecs.Key));

@@ -7,7 +7,7 @@ public class when_framing_values : Specification
 {
     string[] _frames;
 
-    void Because() => _frames = [Identity.ForwardedIdentityCanonicalization.Frame(string.Empty), Identity.ForwardedIdentityCanonicalization.Frame("a:b"), Identity.ForwardedIdentityCanonicalization.Frame("é")];
+    void Because() => _frames = [ForwardedIdentityCanonicalization.Frame(string.Empty), ForwardedIdentityCanonicalization.Frame("a:b"), ForwardedIdentityCanonicalization.Frame("é")];
 
     [Fact] void should_frame_empty_values() => _frames[0].ShouldEqual("0:\n");
     [Fact] void should_preserve_colons() => _frames[1].ShouldEqual("3:a:b\n");

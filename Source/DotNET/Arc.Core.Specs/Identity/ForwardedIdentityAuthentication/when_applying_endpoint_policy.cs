@@ -59,7 +59,7 @@ public class when_applying_endpoint_policy : given.a_signed_request
         }
         handlers.Add(signed);
         instances.GetEnumerator().Returns(_ => handlers.GetEnumerator());
-        var authentication = new Cratis.Arc.Authentication.Authentication(instances);
+        var authentication = new Authentication.Authentication(instances);
         var middleware = new AuthenticationMiddleware(authentication);
         await middleware.Authenticate(_context, metadata);
         return status;
