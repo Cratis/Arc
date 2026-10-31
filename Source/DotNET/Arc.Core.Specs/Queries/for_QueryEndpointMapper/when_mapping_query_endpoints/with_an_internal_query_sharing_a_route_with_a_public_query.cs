@@ -23,6 +23,7 @@ public class with_an_internal_query_sharing_a_route_with_a_public_query : given.
     void Because() => _mapper.MapQueryEndpoints(_serviceProvider);
 
     [Fact] void should_map_only_one_endpoint() => _mapper.CountFor("GET").ShouldEqual(1);
+    [Fact] void should_map_the_public_query() => _mapper.Mapped.Single().Metadata!.Name.ShouldContain("Feature.PublicReadModel.WatchAll");
     [Fact] void should_not_warn() => _logger.Entries.Exists(_ => _.Level == LogLevel.Warning).ShouldBeFalse();
     [Fact] void should_report_the_skipped_internal_query_at_debug_level() =>
         _logger.Entries.Single(_ => _.Level == LogLevel.Debug && _.Message.Contains("Feature.InternalReadModel.WatchAll")).Message.ShouldContain("Feature.PublicReadModel.WatchAll");

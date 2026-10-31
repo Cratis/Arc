@@ -29,6 +29,7 @@ public class with_two_public_queries_sharing_a_route : given.query_performers_sh
     }
 
     [Fact] void should_map_only_one_endpoint() => _mapper.CountFor("GET").ShouldEqual(1);
+    [Fact] void should_map_the_first_query() => _mapper.Mapped.Single().Metadata!.Name.ShouldContain("Feature.FirstReadModel.WatchAll");
     [Fact] void should_name_the_route() => _warning.Message.ShouldContain(Route);
     [Fact] void should_name_the_mapped_query() => _warning.Message.ShouldContain("Feature.FirstReadModel.WatchAll");
     [Fact] void should_name_the_skipped_query() => _warning.Message.ShouldContain("Feature.SecondReadModel.WatchAll");
