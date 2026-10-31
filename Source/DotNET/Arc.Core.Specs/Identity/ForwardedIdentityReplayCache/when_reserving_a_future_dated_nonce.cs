@@ -13,7 +13,7 @@ public class when_reserving_a_future_dated_nonce : Specification
     void Because()
     {
         var cache = new ForwardedIdentityReplayCache(1);
-        var first = ForwardedIdentityEnvelope.Parse(ForwardedIdentityForSpecs.Envelope)! with { Timestamp = 1030 };
+        var first = ForwardedIdentityEnvelope.Parse(ForwardedIdentityForSpecs.Envelope) with { Timestamp = 1030 };
         var second = first with { Nonce = "different" };
         _accepted = cache.TryReserve("arc-test", first, 1000);
         _full = cache.TryReserve("arc-test", second, 1001);

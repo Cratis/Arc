@@ -35,11 +35,11 @@ public class when_reentering_concurrently : given.a_signed_request
         raw.RawTarget.ShouldEqual("/base/a%2fb?x=1");
         ReferenceEquals(wrapper.Items, _context.Items).ShouldBeTrue();
         _results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => Task.Run(() => ForwardedIdentityAuthentication.Authenticate(wrapper, _options, "specs", wrapper.Path, _clock, _replays))));
-        ((ClaimsIdentity)first.Principal!.Identity!).AddClaim(new Claim("injected", "yes"));
+        ((ClaimsIdentity)first.Principal.Identity).AddClaim(new Claim("injected", "yes"));
         _afterMutation = Authenticate();
     }
 
     [Fact] void should_share_the_complete_success_between_wrappers() => _results.All(result => result.Principal?.Identity?.IsAuthenticated == true).ShouldBeTrue();
     [Fact] void should_not_share_mutable_principals() => _results.Select(result => result.Principal).Distinct().Count().ShouldEqual(16);
-    [Fact] void should_not_reuse_mutated_returned_claims() => _afterMutation.Principal!.HasClaim(claim => claim.Type == "injected").ShouldBeFalse();
+    [Fact] void should_not_reuse_mutated_returned_claims() => _afterMutation.Principal.HasClaim(claim => claim.Type == "injected").ShouldBeFalse();
 }

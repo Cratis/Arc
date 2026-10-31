@@ -15,8 +15,8 @@ public class when_consumed_inputs_change : given.a_signed_handler
         await Record("method", () => _context.Request.Method = "GET");
         await Record("path base", () => _context.Request.PathBase = "/other");
         await Record("path", () => _context.Request.Path = "/other");
-        await Record("raw path", () => _context.Features.Get<IHttpRequestFeature>()!.RawTarget = "/other");
-        await Record("raw query", () => _context.Features.Get<IHttpRequestFeature>()!.RawTarget = "/base/a%2fb?x=2");
+        await Record("raw path", () => _context.Features.Get<IHttpRequestFeature>().RawTarget = "/other");
+        await Record("raw query", () => _context.Features.Get<IHttpRequestFeature>().RawTarget = "/base/a%2fb?x=2");
         await Record("trust", () => _options.TrustForwardedIdentityHeaders = false);
         await Record("audience", () => _options.ForwardedIdentity.Audience = "other");
         await Record("key id", () => _options.ForwardedIdentity.Keys[0].KeyId = "K1");

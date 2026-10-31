@@ -23,7 +23,7 @@ public class when_an_unrelated_verifier_uses_a_later_clock : given.a_signed_hand
         ForwardedIdentityAuthentication.Authenticate(new AspNetCoreHttpRequestContext(_context), _options, "unrelated", "/base/a%2Fb", _clock).Principal.ShouldNotBeNull();
         _context = original;
         _clock.GetUtcNow().Returns(DateTimeOffset.FromUnixTimeSeconds(1700000000));
-        _context.Features.Get<IHttpRequestFeature>()!.RawTarget = "/base/a%2fb?x=2";
+        _context.Features.Get<IHttpRequestFeature>().RawTarget = "/base/a%2fb?x=2";
         _result = await Authenticate();
     }
 

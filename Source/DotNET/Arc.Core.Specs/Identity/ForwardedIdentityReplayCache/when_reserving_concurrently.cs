@@ -10,7 +10,7 @@ public class when_reserving_concurrently : Specification
     async Task Because()
     {
         var cache = new ForwardedIdentityReplayCache();
-        var envelope = ForwardedIdentityEnvelope.Parse(ForwardedIdentityForSpecs.Envelope)!;
+        var envelope = ForwardedIdentityEnvelope.Parse(ForwardedIdentityForSpecs.Envelope);
         _results = await Task.WhenAll(Enumerable.Range(0, 64).Select(_ => Task.Run(() => cache.TryReserve("arc-test", envelope, 1700000000))));
     }
 

@@ -29,5 +29,5 @@ public class when_the_host_observes_the_last_value : given.a_listener
     [Fact] void should_accept_only_when_the_observed_value_was_signed() => _signedLast.IsAuthenticated.ShouldBeTrue();
     [Fact] void should_observe_the_last_unsigned_value_on_managed_listener() => _unsignedObserved.ShouldEqual(["last-unsigned"]);
     [Fact] void should_not_establish_identity_when_the_last_value_was_not_signed() => _unsignedLast.IsAuthenticated.ShouldBeFalse();
-    [Fact] void should_construct_identity_from_the_verified_snapshot() => _signedLast.Principal.Identity!.Name.ShouldEqual("n");
+    [Fact] void should_construct_identity_from_the_verified_snapshot() => _signedLast.Principal.Identity.Name.ShouldEqual("n");
 }

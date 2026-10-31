@@ -32,7 +32,7 @@ public class a_signed_handler : Specification
         _context.Request.Method = "POST";
         _context.Request.PathBase = "/base";
         _context.Request.Path = "/a%2Fb";
-        _context.Features.Get<IHttpRequestFeature>()!.RawTarget = "/base/a%2fb?x=1";
+        _context.Features.Get<IHttpRequestFeature>().RawTarget = "/base/a%2fb?x=1";
         ApplyHeaders();
     }
 

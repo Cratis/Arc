@@ -24,7 +24,7 @@ public class when_reentering_a_signed_actor_forward : given.a_signed_handler
     async Task Because()
     {
         var first = await Authenticate();
-        ((ClaimsIdentity)first.Principal!.Identity!).Actor!.AddClaim(new Claim("injected", "yes"));
+        ((ClaimsIdentity)first.Principal.Identity).Actor.AddClaim(new Claim("injected", "yes"));
         _again = await Authenticate();
         _context.Items = new Dictionary<object, object?>();
         _headers[ForwardedIdentityForSpecs.SignatureHeader] = ForwardedIdentityForSpecs.Sign(_headers, timestamp: _now.ToUnixTimeSeconds());
@@ -33,8 +33,8 @@ public class when_reentering_a_signed_actor_forward : given.a_signed_handler
     }
 
     [Fact] void should_cache_the_complete_actor_authentication() => _again.Succeeded.ShouldBeTrue();
-    [Fact] void should_attach_the_verified_actor() => ((ClaimsIdentity)_again.Principal!.Identity!).Actor!.FindFirst(ClaimTypes.NameIdentifier)!.Value.ShouldEqual("actor");
-    [Fact] void should_not_augment_the_represented_roles() => _again.Principal!.IsInRole("administrator").ShouldBeFalse();
-    [Fact] void should_return_independent_actor_claims() => ((ClaimsIdentity)_again.Principal!.Identity!).Actor!.HasClaim(claim => claim.Type == "injected").ShouldBeFalse();
+    [Fact] void should_attach_the_verified_actor() => ((ClaimsIdentity)_again.Principal.Identity).Actor.FindFirst(ClaimTypes.NameIdentifier).Value.ShouldEqual("actor");
+    [Fact] void should_not_augment_the_represented_roles() => _again.Principal.IsInRole("administrator").ShouldBeFalse();
+    [Fact] void should_return_independent_actor_claims() => ((ClaimsIdentity)_again.Principal.Identity).Actor.HasClaim(claim => claim.Type == "injected").ShouldBeFalse();
     [Fact] void should_not_cache_a_success_on_another_request() => _replayed.Succeeded.ShouldBeFalse();
 }

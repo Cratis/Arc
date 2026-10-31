@@ -15,7 +15,7 @@ public class when_reentering_with_a_new_handler : given.a_signed_handler
     async Task Because()
     {
         _first = await Authenticate();
-        ((ClaimsIdentity)_first.Principal!.Identity!).AddClaim(new Claim("injected", "yes"));
+        ((ClaimsIdentity)_first.Principal.Identity).AddClaim(new Claim("injected", "yes"));
         _reentries = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Authenticate()));
         _context.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityNameHeader] = "forged";
         _mutated = await Authenticate();
@@ -23,6 +23,6 @@ public class when_reentering_with_a_new_handler : given.a_signed_handler
 
     [Fact] void should_cache_beyond_the_handler_instance() => _reentries.All(result => result.Succeeded).ShouldBeTrue();
     [Fact] void should_return_independent_principals() => _reentries.Select(result => result.Principal).Distinct().Count().ShouldEqual(8);
-    [Fact] void should_not_copy_caller_mutations() => _reentries.All(result => !result.Principal!.HasClaim(claim => claim.Type == "injected")).ShouldBeTrue();
+    [Fact] void should_not_copy_caller_mutations() => _reentries.All(result => !result.Principal.HasClaim(claim => claim.Type == "injected")).ShouldBeTrue();
     [Fact] void should_invalidate_when_headers_change() => _mutated.Succeeded.ShouldBeFalse();
 }

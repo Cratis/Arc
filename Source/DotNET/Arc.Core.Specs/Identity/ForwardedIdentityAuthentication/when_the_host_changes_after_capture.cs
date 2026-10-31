@@ -25,6 +25,6 @@ public class when_the_host_changes_after_capture : given.a_signed_request
 
     [Fact] void should_read_the_principal_once() => _principalReads.ShouldEqual(1);
     [Fact] void should_read_the_signature_once() => _signatureReads.ShouldEqual(1);
-    [Fact] void should_authenticate_the_captured_bytes() => _result.Principal!.Identity!.IsAuthenticated.ShouldBeTrue();
-    [Fact] void should_build_identity_from_the_same_snapshot() => _result.Principal!.Identity!.Name.ShouldEqual("n");
+    [Fact] void should_authenticate_the_captured_bytes() => _result.Principal.Identity.IsAuthenticated.ShouldBeTrue();
+    [Fact] void should_build_identity_from_the_same_snapshot() => _result.Principal.Identity.Name.ShouldEqual("n");
 }

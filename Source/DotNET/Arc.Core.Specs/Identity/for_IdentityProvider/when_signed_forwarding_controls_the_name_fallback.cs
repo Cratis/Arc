@@ -35,7 +35,7 @@ public class when_signed_forwarding_controls_the_name_fallback : for_ForwardedId
         _legacy = await provider.Get();
         _options.ForwardedIdentity.Enabled = true;
         _native = await provider.Get();
-        _context.User = Authenticate().Principal!;
+        _context.User = Authenticate().Principal;
         _signed = await provider.Get();
         _context.User = new ClaimsPrincipal();
         _anonymous = await provider.Get();
