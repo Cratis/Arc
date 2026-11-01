@@ -5,7 +5,10 @@ import { DialogContext, DialogContextContent } from './DialogContext.js';
 import { DialogResponse } from './DialogResponse.js';
 import { DialogResult } from './DialogResult.js';
 import { CloseDialog } from './CloseDialog.js';
-import { useCallback, useRef, useState, ComponentType, FC, ReactElement, useMemo } from 'react';
+import { useCallback, useContext, useId, useRef, useState, ComponentType, FC, ReactElement, useMemo } from 'react';
+import { SliceScopeContext } from '../slices/SliceScopeContext.js';
+import { DialogSliceScope } from './DialogSliceScope.js';
+import { UseDialogOptions } from './UseDialogOptions.js';
 import { ShowDialog } from './ShowDialog.js';
 
 /**
@@ -20,13 +23,21 @@ import { ShowDialog } from './ShowDialog.js';
  * @typeParam TResponse The response type the dialog resolves with when it is closed.
  * @typeParam TInput The input properties the dialog component expects. Inferred from the component.
  * @param DialogComponent The dialog component to use.
+ * @param options Optional {@link UseDialogOptions}: an explicit slice location, a title, and whether the open dialog is tracked.
+ * The dialog renders in a slice scope that is a child of the scope `useDialog` was called in, so its location follows
+ * where it was opened from even when the dialog is rendered elsewhere.
  * @returns A tuple containing the wrapped dialog component, a function to show the dialog and the dialog context content.
  * The wrapped dialog component will receive the properties passed to it, excluding the `closeDialog` property.
  */
 export function useDialog<TResponse = object, TInput extends object = object>(
-    DialogComponent: ComponentType<TInput>
+    DialogComponent: ComponentType<TInput>,
+    options?: UseDialogOptions
 ): [FC<Partial<TInput>>, ShowDialog<TInput, TResponse>, DialogContextContent<TInput, TResponse>] {
 
+    const opener = useContext(SliceScopeContext);
+    const dialogId = useId();
+    const optionsRef = useRef(options);
+    optionsRef.current = options;
     const [visible, setVisible] = useState(false);
     const [dialogProps, setDialogProps] = useState<TInput | undefined>();
     const resolverRef = useRef<((value: DialogResponse<TResponse>) => void) | undefined>(undefined);
@@ -63,12 +74,19 @@ export function useDialog<TResponse = object, TInput extends object = object>(
     const renderRef = useRef<(extraProps: Partial<TInput>) => ReactElement | null>(() => null);
     renderRef.current = (extraProps: Partial<TInput>) => visible
         ? (
-            <DialogContext.Provider value={dialogContextValue.current as unknown as DialogContextContent<object, object>}>
-                <RenderedComponent
-                    {...extraProps}
-                    {...(dialogProps as TInput)}
-                    closeDialog={closeDialog} />
-            </DialogContext.Provider>
+            <DialogSliceScope
+                id={dialogId}
+                opener={opener}
+                title={optionsRef.current?.title}
+                slice={optionsRef.current?.slice}
+                track={optionsRef.current?.trackInApplicationContext ?? true}>
+                <DialogContext.Provider value={dialogContextValue.current as unknown as DialogContextContent<object, object>}>
+                    <RenderedComponent
+                        {...extraProps}
+                        {...(dialogProps as TInput)}
+                        closeDialog={closeDialog} />
+                </DialogContext.Provider>
+            </DialogSliceScope>
         )
         : null;
 
