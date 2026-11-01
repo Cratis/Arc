@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing_the_projects_of_an_application;
@@ -76,6 +77,11 @@ public class an_aggregate_root_a_command_in_another_of_them_uses_through_referen
     [Fact] void should_compile_the_application_project() => Analyzed.ErrorsIn(_application).ShouldBeEmpty();
     [Fact] void should_see_the_domain_project_through_a_copy_of_it() => SymbolEqualityComparer.Default.Equals(_application.GetAssemblyOrModuleSymbol(_domainReference), _domain.Assembly).ShouldBeFalse();
     [Fact] void should_state_the_event_the_aggregate_root_applies_as_produced_by_the_command() => _analysis.Model.Slices.SelectMany(_ => _.Commands).Single().Produces.Single().EventName.ShouldEqual("BookReserved");
+    [Fact] void should_compare_distinct_behavior_parameters() => SymbolEqualityComparer.Default.Equals(
+        _domain.GetTypeByMetadataName("Library.Lending.Reservations.Reservation")!.GetMembers("Reserve").OfType<IMethodSymbol>().Single().Parameters[0],
+        _application.GetTypeByMetadataName("Library.Lending.Reservations.Reservation")!.GetMembers("Reserve").OfType<IMethodSymbol>().Single().Parameters[0]).ShouldBeFalse();
+    [Fact] void should_follow_the_first_argument() => _analysis.Model.Slices.SelectMany(_ => _.Commands).Single().Produces.Single().Mappings.Single(_ => _.Property == "Isbn").Source.ShouldEqual(new PropertyPathSource("Isbn"));
+    [Fact] void should_follow_the_second_argument() => _analysis.Model.Slices.SelectMany(_ => _.Commands).Single().Produces.Single().Mappings.Single(_ => _.Property == "Member").Source.ShouldEqual(new PropertyPathSource("MemberId"));
     [Fact] void should_not_report_the_aggregate_root_as_one_nothing_uses() => _analysis.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.AggregateRootWithoutCounterpart).ShouldBeFalse();
 
     static IEnumerable<MetadataReference> PlatformReferencesOfItsOwn() =>
