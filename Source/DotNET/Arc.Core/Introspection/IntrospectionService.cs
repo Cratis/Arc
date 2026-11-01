@@ -4,7 +4,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
-using System.Xml.Linq;
 using Cratis.Arc.Commands;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
@@ -21,9 +20,6 @@ namespace Cratis.Arc.Introspection;
 [Singleton]
 public class IntrospectionService : IIntrospectionService
 {
-    static readonly Dictionary<string, XDocument?> _xmlDocCache = [];
-    static readonly char[] _lineSeparators = ['\n', '\r'];
-
     readonly Lazy<IReadOnlyList<CommandIntrospectionMetadata>> _commands;
     readonly Lazy<IReadOnlyList<QueryIntrospectionMetadata>> _queries;
 
@@ -143,41 +139,6 @@ public class IntrospectionService : IIntrospectionService
         return schema;
     }
 
-    static string GetDocumentationSummary(Type type)
-    {
-        var xmlFile = Path.ChangeExtension(type.Assembly.Location, ".xml");
-
-        if (!_xmlDocCache.TryGetValue(xmlFile, out var xmlDoc))
-        {
-            xmlDoc = File.Exists(xmlFile) ? XDocument.Load(xmlFile) : null;
-            _xmlDocCache[xmlFile] = xmlDoc;
-        }
-
-        if (xmlDoc is null)
-        {
-            return string.Empty;
-        }
-
-        var memberName = $"T:{type.FullName}";
-        var member = xmlDoc.Descendants("member")
-            .FirstOrDefault(m => m.Attribute("name")?.Value == memberName);
-
-        if (member is null)
-        {
-            return string.Empty;
-        }
-
-        var summary = member.Element("summary");
-        if (summary is null)
-        {
-            return string.Empty;
-        }
-
-        return string.Join(
-            ' ',
-            summary.Value
-                .Split(_lineSeparators, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrEmpty(s)));
-    }
+    static string GetDocumentationSummary(Type type) =>
+        XmlDocumentationSummaries.Get(Path.ChangeExtension(type.Assembly.Location, ".xml"), $"T:{type.FullName}");
 }
