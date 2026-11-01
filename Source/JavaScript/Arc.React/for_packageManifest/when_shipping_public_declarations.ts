@@ -20,9 +20,12 @@ const itWithTimeout = it as unknown as (name: string, options: { timeout: number
 
 describe('when shipping public declarations', () => {
     itWithTimeout('should not publish the test-only global declarations', { timeout: 60000 }, () => {
-        const output = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: packageRoot, encoding: 'utf-8' });
+        // npm 10 runs prepare even with ignore-scripts; keep lifecycle stdout out of the JSON report.
+        const output = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts', '--foreground-scripts=false'], { cwd: packageRoot, encoding: 'utf-8' });
         const reports = Object.values(JSON.parse(output)) as { files: { path: string }[] }[];
+        reports.length.should.equal(1);
         const files = reports.flatMap(report => report.files.map(file => file.path));
+        files.should.include('package.json');
         files.filter(file => file.endsWith('global.d.ts')).should.deep.equal([]);
     });
 
