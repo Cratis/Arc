@@ -39,6 +39,17 @@ public class MongoDBOptions
     public bool? DirectConnection { get; set; }
 
     /// <summary>
+    /// Gets or sets whether MongoDB command bodies and failure messages are written to the log.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to false: with Trace logging enabled for the client factory, only metadata is logged (request id,
+    /// command, database, collection, duration, and failure type and server error code). When true, the full command
+    /// body and the driver failure message are logged too. These contain document, update and filter values, which
+    /// may include personal data, so enable this only while diagnosing and never in production.
+    /// </remarks>
+    public bool LogCommandBodies { get; set; }
+
+    /// <summary>
     /// Gets or sets how connections are resolved per tenant, overriding the application-wide
     /// <see cref="ArcOptions.ConnectionResolution"/> for MongoDB.
     /// </summary>

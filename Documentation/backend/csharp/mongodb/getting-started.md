@@ -74,3 +74,22 @@ builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
 Import `Cratis.Arc.MongoDB` for MongoDB builder customization methods. Use `WithServerResolver<T>()` and `WithDatabaseResolver<T>()` only when the default configured server and [tenant database naming](./tenancy.md) do not meet your requirements.
 
 Next, verify [concept serialization](./concepts.md) and [class mapping](./class-mapping.md). Add [collection observation](./observing-collections.md) only after ordinary reads work; change streams require a replica set or sharded cluster and appropriate permissions.
+
+## Command logging
+
+When Trace logging is enabled for `MongoDBClientFactory` at startup, Arc logs one line per MongoDB command with the request id, command name, database, collection, duration, and, for failures, the exception type and server error code. It does not log document, update or filter values, nor the driver's failure message, because duplicate-key messages echo the key values.
+
+To see full command bodies and failure messages while diagnosing a problem, opt in:
+
+```json
+{
+  "Cratis": {
+    "MongoDB": {
+      "LogCommandBodies": true
+    }
+  }
+}
+```
+
+> [!WARNING]
+> `LogCommandBodies` writes document and filter values to your logs. They may include personal data. Enable it only temporarily and never in production.
