@@ -93,7 +93,8 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var appendedEvents = new List<AppendedEventWithResult>();
         var readModels = new CommandScenarioReadModels(
             Defaults.Instance.EventStore.ReadModels,
-            commandLog: eventScenario.EventLog);
+            commandLog: eventScenario.EventLog,
+            foldStore: (EventStoreForTesting)Defaults.Instance.EventStore);
         var eventStore = new EventStoreForScenario(eventScenario, readModels, eventStoreName, namespaceName);
         var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
@@ -266,7 +267,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
             store,
             new DecisionCommandScenario(store, commandEvents),
             commandEvents,
-            new CommandScenarioReadModels(store.ReadModels, store.EventLog));
+            new CommandScenarioReadModels(store.ReadModels, store.EventLog, foldStore: store));
 #pragma warning restore CA2000
     }
 
