@@ -47,6 +47,7 @@ public class a_held_construction_assigned_in_a_base_context_another_project_decl
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
         using Cratis.Arc.Chronicle.Testing.Commands;
+        using Cratis.Chronicle.Testing.EventSequences;
         using Library.Authors.Registration;
         using Xunit;
 

@@ -35,7 +35,7 @@ public class when_placing_a_given_event_seen_through_references_of_its_own : Spe
         namespace Projects.Projects.Overview.ListProjects
         {
             [ReadModel]
-            [FromEvent<Projects.Projects.Registration.RegisterProject.ProjectRegistered>]
+            [FromEvent<global::Projects.Projects.Registration.RegisterProject.ProjectRegistered>]
             public record ProjectOverview
             {
                 public string Name { get; init; } = string.Empty;
@@ -98,7 +98,7 @@ public class when_placing_a_given_event_seen_through_references_of_its_own : Spe
         var controlApplication = Analyzed.Project(
             "Projects",
             [],
-            ("Projects/Application.cs", Application.Replace("public ProjectRegistered Handle() => new(Name);", "public Projects.Projects.Other.ProjectRegistered Handle() => new(Name);", StringComparison.Ordinal)),
+            ("Projects/Application.cs", Application.Replace("public ProjectRegistered Handle() => new(Name);", "public global::Projects.Projects.Other.ProjectRegistered Handle() => new(Name);", StringComparison.Ordinal)),
             ("Projects/Other.cs", OtherNamespaceApplication));
         _control = Analyze(controlApplication, Consumer(controlApplication));
     }
