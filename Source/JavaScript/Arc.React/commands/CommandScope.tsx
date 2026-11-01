@@ -17,7 +17,7 @@ export type CommandScopeExecute = () => Promise<Map<ICommand, CommandResult>>;
 export type AddCommand = (command: ICommand) => void;
 
 export interface ICommandScopeProps {
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
     setHasChanges?: CommandScopeChanged;
     setIsPerforming?: (isPerforming: boolean) => void;
 

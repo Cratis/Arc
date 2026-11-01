@@ -8,7 +8,7 @@ import { MobxOptions } from './MobxOptions.js';
 import { deferredReactionScheduler } from './deferredReactionScheduler.js';
 
 export interface MVVMProps {
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
     mobx?: MobxOptions;
 }
 
