@@ -15,13 +15,16 @@ const declarationFiles = (directory: string): string[] => readdirSync(directory,
     return entry.name.endsWith('.d.ts') ? [path] : [];
 });
 
+/** Packing is slow under load; vitest accepts per-test options that the mocha typings do not declare. */
+const itWithTimeout = it as unknown as (name: string, options: { timeout: number }, body: () => void) => void;
+
 describe('when shipping public declarations', () => {
-    it('should not publish the test-only global declarations', () => {
+    itWithTimeout('should not publish the test-only global declarations', { timeout: 60000 }, () => {
         const output = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: packageRoot, encoding: 'utf-8' });
         const reports = Object.values(JSON.parse(output)) as { files: { path: string }[] }[];
         const files = reports.flatMap(report => report.files.map(file => file.path));
         files.filter(file => file.endsWith('global.d.ts')).should.deep.equal([]);
-    }, 60000);
+    });
 
     it('should not reference test packages or augment the global JSX namespace', () => {
         const offending = ['esm', 'cjs'].flatMap(format => declarationFiles(join(packageRoot, 'dist', format))
