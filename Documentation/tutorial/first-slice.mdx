@@ -9,13 +9,13 @@ Every app starts with one feature. Ours is **registering an author** — the fir
 
 ## Prerequisites
 
-Complete [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/) and [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle. For the TypeScript backend, start with [the standalone MongoDB host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) and [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/) instead; it runs on port 3000 and requires generated artifact metadata.
+Complete [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/) and [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) first, including the curl write/read checkpoint. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Keep **EF Core with SQLite** if you followed the default, or MongoDB if you chose that alternative; neither requires Chronicle. For the TypeScript backend, start with [the standalone MongoDB host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) and [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/) instead; it runs on port 3000 and requires generated artifact metadata.
 
 <Aside type="note" title="Building on Kotlin or Java?">
 Start from [Get started with Kotlin](/arc/backend/kotlin/get-started/) or [Get started with Java](/arc/backend/kotlin/get-started/java/) instead: JDK 17, Gradle, the `io.cratis.arc` plugin, and `arc-spring-boot-starter` take the place of the .NET SDK and the `Cratis.Arc.*` packages. Where this tutorial says MongoDB or EF Core, read [Spring Data MongoDB or Spring Data JPA](/arc/backend/kotlin/guides/spring-data/). Every backend excerpt below has a tab for your language; the setup commands and the React half are covered per backend in a note.
 </Aside>
 
-The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [frontend getting-started checkpoint](/arc/frontend/react/getting-started/) puts the same command in an inline `CommandForm` instead. With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
+The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [frontend getting-started checkpoint](/arc/frontend/react/getting-started/) puts the same command in an inline `CommandForm` instead and has a [no-Components route](/arc/frontend/react/getting-started/#without-components). With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
 
 ## Follow the backend half
 
@@ -33,13 +33,13 @@ On TypeScript, create `Features/Authors/AuthorId.ts` and `AuthorName.ts` as sepa
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-concepts" variants="typescript" />
 
-These are **excerpts from the backend checkpoint**, not additional files. Each tab shows the same slice over that backend's document store — MongoDB on C#, Spring Data MongoDB on the JVM:
+The backend blocks in this section are **excerpts for comparison, not files to create again**. On C#, keep your existing `src/Authors/` files, including `LibraryDbContext.cs` for SQLite. Skip to [Build before importing](#build-before-importing) if you only need the next action. This first comparison uses document storage — MongoDB on C#, Spring Data MongoDB on the JVM:
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
 
 The JVM's `@AllowAnonymous` on these tutorial artifacts allows the unauthenticated first round trip; chapter 5 replaces it with role-based access. The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, through `@FromServices` on `handle` and the companion-object query function on the JVM, and through `@inject` or `service(...)` on TypeScript. Returning `Task`, `Unit`, or `Promise<void>` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and none of the three backends needs a controller or a duplicated transport model.
 
-**If you chose the relational branch**, .NET injects `LibraryDbContext` instead of the collection. The JVM and TypeScript backend snippets use repositories, whose implementations supply the relational storage:
+**For the default C# SQLite branch**, .NET injects the existing `LibraryDbContext` instead of the collection. The JVM and TypeScript backend snippets use repositories, whose implementations supply the relational storage:
 
 <ArcBackendTabs snippet="tutorial/first-slice/relational-author-slice" />
 
@@ -76,14 +76,15 @@ If you already have a Vite app, retain its entry/configuration and adapt only th
 ```bash
 npm init -y
 npm pkg set type=module
-npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.19.6 @cratis/arc @cratis/arc.react \
-  @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
-npm install --save-dev vite @types/react @types/react-dom
+npm install react@19.3.1 react-dom@19.3.1 @cratis/fundamentals@7.27.1 \
+  @cratis/arc@22.156.2 @cratis/arc.react@22.156.2 \
+  @cratis/components@4.39.0 reflect-metadata@0.2.2 tsyringe@4.10.0
+npm install --save-dev vite@8.3.5 @types/react@19.3.0 @types/react-dom@19.3.0
 ```
 
-For a .NET or JVM-only project without TypeScript installed yet, also run `npm install --save-dev typescript`. If you followed the TypeScript backend setup, **keep its existing TypeScript 6 compiler alias** (`tsc6`); installing plain `typescript` here would replace it.
+For a .NET or JVM-only project without TypeScript installed yet, also run `npm install --save-dev typescript@5.9.3`. If you followed the TypeScript backend setup, **keep its existing TypeScript 6 compiler alias** (`tsc6`); installing plain `typescript` here would replace it.
 
-`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). For the TypeScript backend sample, pin both to **22.19.1**: `npm install @cratis/arc@22.19.1 @cratis/arc.react@22.19.1`. `@cratis/arc.react` depends on that exact Arc version; mixing versions installs a second copy, and generated proxies fail the frontend type-check because the runtime classes have private members. The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
+`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Vite 8 requires Node.js **22.12 or newer** (or the 20.x line from 20.19); the C# walkthrough uses Node.js **26.8.1**, npm **12.0.2**, and the pinned packages above with Arc NuGet **22.156.2** and SQLite. Keep this baseline for the first run rather than mixing versions. Retain `package-lock.json`. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). For the TypeScript backend sample, pin both to **22.19.1**: `npm install @cratis/arc@22.19.1 @cratis/arc.react@22.19.1`. `@cratis/arc.react` depends on that exact Arc version; mixing versions installs a second copy, and generated proxies fail the frontend type-check because the runtime classes have private members. The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
 
 If you followed the TypeScript backend setup, **keep its `tsconfig.json`**: the generator's `--project` points to it, and its `main.ts` and `Features/**/*.ts` entries emit the backend's `dist/main.js`. Add a separate `tsconfig.web.json` for Vite instead. The .NET and JVM projects can also use this separate frontend config:
 
@@ -139,7 +140,7 @@ export default defineConfig({
 });
 ```
 
-Vite needs `oxc.decorator.legacy` for generated proxies' `@field` decorators because it reads decorator settings from `tsconfig.json`, not `tsconfig.web.json`. The separate `dist-web` output also keeps Vite from emptying the TypeScript backend's `dist/main.js`. The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
+This is a **Vite 8** configuration. Vite needs `oxc.decorator.legacy` for generated proxies' `@field` decorators because it reads decorator settings from `tsconfig.json`, not `tsconfig.web.json`. If an existing app uses another Vite major, use that version's decorator configuration rather than copying the `oxc` setting unchecked. The separate `dist-web` output also keeps Vite from emptying the TypeScript backend's `dist/main.js`. The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
 
 Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default; the [TypeScript standalone host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) uses **3000**. Point both proxy targets at that backend's loopback port (or set `server.port=5000` for Spring Boot), and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on all three backends.
 
@@ -259,12 +260,12 @@ npx vite
 
 For the TypeScript backend setup, use `npx tsc6 -p tsconfig.web.json --noEmit` in place of `npx tsc`, keeping `npm run generate` on the original backend `tsconfig.json` before building the browser project. Open `http://localhost:5173`. The first two commands check TypeScript and the production bundle; only the following browser checks prove the round trip:
 
-1. Open the author list and add an author with a nonblank name.
-2. Confirm that the list displays the saved name without refresh.
-3. Open a **new** dialog and add another author. Inspect the query data: the two ids must differ.
-4. Reload the browser and confirm both authors remain.
+1. The list should already contain the author saved by curl in the backend checkpoint.
+2. Open **Add author**, enter a new nonblank name, and confirm. The list should display the saved name without refresh.
+3. Open a **new** dialog and add another author. Inspect the query data: the two new ids must differ.
+4. Reload the browser and confirm all three authors remain.
 
-These checks prove a command/query/persistence round trip. A successful build alone proves none of those effects.
+These checks prove a command/query/persistence round trip. A successful build alone proves none of those effects. If the list cannot load, inspect the browser network requests and confirm both Vite proxy targets reach the running backend. If saving works but another open screen stays stale, check the observation source: SQLite notifications cover writes through this host's configured context, while MongoDB requires change streams. Do not add a manual list refresh to hide a broken subscription.
 
 ## Where type safety lives
 

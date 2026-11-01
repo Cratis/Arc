@@ -11,15 +11,15 @@ This checkpoint uses the C# standalone backend and its generated paths. If your 
 
 ## Prerequisites
 
-Complete [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) and generate its proxies with a Debug build. You need a Vite + React 19 app with `react`, `react-dom`, `@cratis/fundamentals`, `@cratis/arc`, and `@cratis/arc.react` installed.
+Complete [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/), including its curl checkpoint and Debug proxy generation. Keep that backend running. This page assumes an **existing Vite + React 19 app** with `react`, `react-dom`, `@cratis/fundamentals`, `@cratis/arc`, and `@cratis/arc.react` installed. Starting from an empty frontend? Follow [the full-stack slice's browser setup](/arc/tutorial/first-slice/#set-up-the-browser-project) instead: it supplies the entry point, TypeScript configuration, and build commands.
 
 Add Components and its required peers:
 
 ```bash
-npm install @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
+npm install @cratis/components@4.39.0 reflect-metadata@0.2.2 tsyringe@4.10.0
 ```
 
-Keep `@cratis/arc` and `@cratis/arc.react` on the version your generated proxies were produced with, within Components' peer range (`>=20.3.1 <23`). See [Components setup](/components/getting-started/) for strict installers and other options. To start without Components, see [Without Components](#without-components).
+The C# walkthrough uses NuGet Arc **22.156.2**, npm `@cratis/arc` and `@cratis/arc.react` **22.156.2**, Fundamentals **7.27.1**, React **19.3.1**, and Components **4.39.0**. Its [browser setup](/arc/tutorial/first-slice/#set-up-the-browser-project) pins the full toolchain. Keep `@cratis/arc` and `@cratis/arc.react` on the same version your generated proxies were produced with, within Components' peer range (`>=20.3.1 <23`); a second Arc runtime copy can make generated classes fail the type-check because of private members. See [Components setup](/components/getting-started/) for strict installers and other options. To start without Components, see [Without Components](#without-components).
 
 The checkpoint below imports from `./Authors/RegisterAuthor` and `./Authors/Author`, where the backend setup's source-file grouping places the `AllAuthors` query beside the `Author` type. Without `CratisProxiesUseSourceFileAsOutputFile`, each query gets its own file, so import `AllAuthors` from `./Authors/AllAuthors` instead. Match the paths to your configured output directory and namespace mapping. There is **no generated `Bindings` startup file**.
 
@@ -123,7 +123,7 @@ server: {
 
 ## Check the round trip
 
-Start the backend and frontend. You should see the author list, enter a name, and see “Author registered.” after a successful submission, with an empty name field ready for the next author. The list updates when the backend's `Observe()` source emits the changed collection: MongoDB change streams, or EF Core's `SaveChanges` notifications in the same host. Arc transports those emissions; executing a command alone does not create a persistence subscription.
+Type-check and build your frontend, then start it with your app's Vite command. You should see the author saved by curl. Enter a new name and submit: “Author registered.” should appear, with an empty name field ready for the next author. Register a second new name, reload, and confirm all three authors remain. Each registration must have a different id in the query response. The list should update without a refresh when the backend's `Observe()` source emits the changed collection: MongoDB change streams, or EF Core's `SaveChanges` notifications in the same host. If loading fails, check the browser network requests and both Vite proxy targets before changing the UI. Arc transports those emissions; executing a command alone does not create a persistence subscription.
 
 ```mermaid
 flowchart LR
