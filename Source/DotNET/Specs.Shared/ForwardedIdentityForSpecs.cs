@@ -106,7 +106,8 @@ internal static class ForwardedIdentityForSpecs
     /// <param name="headers">The represented identity headers to augment.</param>
     /// <param name="options">The test host options to enable for on-behalf forwarding.</param>
     /// <param name="now">The assertion issue time, or now.</param>
-    internal static void AddActor(IDictionary<string, string> headers, ArcOptions options, DateTimeOffset? now = null)
+    /// <param name="expires">An optional assertion expiry, otherwise one minute after issue.</param>
+    internal static void AddActor(IDictionary<string, string> headers, ArcOptions options, DateTimeOffset? now = null, DateTimeOffset? expires = null)
     {
         options.OnBehalfOf = OnBehalfOfAssertionsForSpecs.Options();
         var actor = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"identityProvider\":\"aad\",\"userId\":\"actor\",\"userDetails\":\"Actor\",\"userRoles\":[\"administrator\"],\"claims\":[]}"));
@@ -114,6 +115,11 @@ internal static class ForwardedIdentityForSpecs
         var claims = OnBehalfOfAssertionsForSpecs.ClaimsFor(headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader], actor, "u", "actor", now);
         claims["htm"] = "POST";
         claims["htu"] = "/base/a%2Fb";
+        if (expires is not null)
+        {
+            claims["exp"] = expires.Value.ToUnixTimeSeconds();
+        }
+
         headers[OnBehalfOfHeaders.AssertionHeader] = OnBehalfOfAssertionsForSpecs.Sign(claims);
     }
 

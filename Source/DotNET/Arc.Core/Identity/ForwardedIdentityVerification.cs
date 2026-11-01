@@ -28,8 +28,9 @@ internal static class ForwardedIdentityVerification
         {
             return null;
         }
-        using var hmac = new HMACSHA256(key);
-        if (!CryptographicOperations.FixedTimeEquals(hmac.ComputeHash(request.CanonicalBytes), envelope.Mac))
+        Span<byte> mac = stackalloc byte[HMACSHA256.HashSizeInBytes];
+        HMACSHA256.HashData(key, request.CanonicalBytes, mac);
+        if (!CryptographicOperations.FixedTimeEquals(mac, envelope.Mac))
         {
             return null;
         }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
@@ -11,6 +12,8 @@ namespace Cratis.Arc.Tenancy;
 
 /// <summary>
 /// Verifies request tenant candidates using the current request's membership checks.
+/// The <see cref="ITenantMembership"/> implementations are resolved once per request scope (when any are registered)
+/// and reused, while membership is checked on every call.
 /// </summary>
 /// <param name="requestContexts">The current request accessor.</param>
 /// <param name="principals">The effective principal accessor.</param>
@@ -21,6 +24,8 @@ internal sealed class TenantMembershipVerification(
     ICurrentPrincipalAccessor principals,
     ILogger<TenantMembershipVerification> logger)
 {
+    static readonly ConditionalWeakTable<IServiceProvider, ITenantMembership[]> _resolved = new();
+
     /// <summary>Gets whether the request has membership checks.</summary>
     internal bool HasMembership => Memberships().Length > 0;
 
@@ -67,9 +72,22 @@ internal sealed class TenantMembershipVerification(
             return [];
         }
 
+        var services = request.RequestServices;
+        if (_resolved.TryGetValue(services, out var cached))
+        {
+            return cached;
+        }
+
         try
         {
-            return (request.RequestServices.GetService(typeof(IEnumerable<ITenantMembership>)) as IEnumerable<ITenantMembership>)?.ToArray() ?? [];
+            var resolved = services.GetService(typeof(IEnumerable<ITenantMembership>));
+            var memberships = resolved as ITenantMembership[] ?? (resolved as IEnumerable<ITenantMembership>)?.ToArray() ?? [];
+            if (memberships.Length > 0)
+            {
+                _resolved.TryAdd(services, memberships);
+            }
+
+            return memberships;
         }
         catch (Exception exception)
         {
