@@ -11,8 +11,6 @@ namespace Cratis.Arc.Tenancy;
 
 /// <summary>
 /// Verifies request tenant candidates using the current request's membership checks.
-/// The <see cref="ITenantMembership"/> implementations are resolved once per request context and service provider (when any are registered)
-/// and reused for that context only, while membership is checked on every call.
 /// </summary>
 /// <param name="requestContexts">The current request accessor.</param>
 /// <param name="principals">The effective principal accessor.</param>
@@ -23,8 +21,6 @@ internal sealed class TenantMembershipVerification(
     ICurrentPrincipalAccessor principals,
     ILogger<TenantMembershipVerification> logger)
 {
-    static readonly object _itemsKey = new();
-
     /// <summary>Gets whether the request has membership checks.</summary>
     internal bool HasMembership => Memberships().Length > 0;
 
@@ -71,22 +67,9 @@ internal sealed class TenantMembershipVerification(
             return [];
         }
 
-        var services = request.RequestServices;
-        if (request.Items.TryGetValue(_itemsKey, out var item) && item is Resolved { } cached && ReferenceEquals(cached.Services, services))
-        {
-            return cached.Memberships;
-        }
-
         try
         {
-            var resolved = services.GetService(typeof(IEnumerable<ITenantMembership>));
-            var memberships = resolved as ITenantMembership[] ?? (resolved as IEnumerable<ITenantMembership>)?.ToArray() ?? [];
-            if (memberships.Length > 0)
-            {
-                request.Items[_itemsKey] = new Resolved(services, memberships);
-            }
-
-            return memberships;
+            return (request.RequestServices.GetService(typeof(IEnumerable<ITenantMembership>)) as IEnumerable<ITenantMembership>)?.ToArray() ?? [];
         }
         catch (Exception exception)
         {
@@ -94,6 +77,4 @@ internal sealed class TenantMembershipVerification(
             throw new TenantMembershipDenied();
         }
     }
-
-    sealed record Resolved(IServiceProvider Services, ITenantMembership[] Memberships);
 }
