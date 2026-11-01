@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Cratis.Arc.Queries.ModelBound;
 
@@ -25,6 +26,6 @@ public class QueryMetadataRegistry : IQueryMetadataRegistry
     /// </summary>
     /// <param name="queryName">The fully qualified query name.</param>
     /// <param name="readModelType">The read model type for the query.</param>
-    public static void Register(string queryName, Type readModelType) => _queries.TryAdd(queryName, readModelType);
+    public static void Register(string queryName, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] Type readModelType) => _queries.TryAdd(queryName, readModelType);
 }
 

@@ -117,6 +117,7 @@ public sealed class PublishedArcCore
         if (!string.Equals(requestedUrl, reportedUrl, StringComparison.Ordinal))
         {
             _output.Enqueue($"ApplicationUrl binding mismatch: requested {requestedUrl}, reported {reportedUrl}");
+            throw new PublishedArcCoreDidNotStart(_exitCode, Output);
         }
 
         Client = new HttpClient { BaseAddress = new Uri(reportedUrl) };
