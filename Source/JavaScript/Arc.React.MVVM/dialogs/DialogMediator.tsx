@@ -16,7 +16,7 @@ export interface DialogMediatorProps {
     /**
      * Children to provide the dialog mediator to.
      */
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
 
     /**
      * The dialog mediator context.

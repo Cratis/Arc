@@ -7,7 +7,7 @@ import { useMessenger } from './useMessenger.js';
 import { MessengerScopeContext } from './MessengerScopeContext.js';
 
 export interface IMessengerScopeProps {
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
 
     /**
      * Whether messages published in this scope should bubble to parent scope.
