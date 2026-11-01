@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -26,8 +27,13 @@ internal static class ArcOptionsConfiguration
     /// <summary>
     /// Binds configuration while preserving an existing override when its key is absent.
     /// </summary>
+    /// <remarks>
+    /// The dynamic dependencies root the members the reflection binder must reach in trimmed hosts.
+    /// </remarks>
     /// <param name="options">The options to bind.</param>
     /// <param name="configuration">The Arc configuration section.</param>
+    [DynamicDependency(nameof(ArcOptions.Hosting), typeof(ArcOptions))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(HostingOptions))]
     internal static void Bind(ArcOptions options, IConfiguration configuration)
     {
         var authenticationOverride = options.Introspection.AuthenticationOverride;
