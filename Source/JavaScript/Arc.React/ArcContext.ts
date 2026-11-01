@@ -6,6 +6,7 @@ import { QueryTransportMethod } from '@cratis/arc/queries';
 import type { IObservableQueryDiagnostics } from '@cratis/arc/queries';
 import { IMessenger, Messenger } from '@cratis/arc/messaging';
 import React from 'react';
+import type { ApplicationContext } from './applicationContext/ApplicationContext.js';
 
 export interface ArcConfiguration {
     microservice: string;
@@ -68,6 +69,17 @@ export interface ArcConfiguration {
      * notified whenever a new snapshot is produced.
      */
     observableQueryDiagnostics?: IObservableQueryDiagnostics;
+    /**
+     * The application context store holding what the user is looking at: focused slice location, active
+     * slices, screen, open dialogs and host contributions. Read it with `useApplicationContext()`, or use its
+     * `subscribe` and `getSnapshot` from code outside React.
+     */
+    applicationContext?: ApplicationContext;
+    /**
+     * When true, `<Slice>` and slice folder boundaries render a `display: contents` element carrying
+     * `data-cratis-module`, `data-cratis-feature` and `data-cratis-slice`. Defaults to false.
+     */
+    sliceMarkers?: boolean;
 }
 
 export const ArcContext = React.createContext<ArcConfiguration>({
