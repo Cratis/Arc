@@ -68,9 +68,8 @@ internal static class ForwardedIdentityAuthentication
             return new(Failure: "forwarded-identity-invalid-input");
         }
         var now = time.GetUtcNow().ToUnixTimeSeconds();
-        var snapshot = ForwardedIdentityCanonicalization.Frame(configuration.Snapshot) + ForwardedIdentityCanonicalization.Frame(request.Snapshot) +
-            ForwardedIdentityCanonicalization.Frame(authenticationType) + ForwardedIdentityCanonicalization.Frame(innerPath);
-        if (cache.Principal is not null && cache.Snapshot == snapshot && ReferenceEquals(cache.JsonOptions, options.JsonSerializerOptions) && now <= cache.Expires && envelope.Timestamp <= now + 30)
+        if (cache.Principal is not null && ReferenceEquals(cache.Configuration, configuration) && cache.RequestSnapshot == request.Snapshot &&
+            cache.AuthenticationType == authenticationType && cache.InnerPath == innerPath && ReferenceEquals(cache.JsonOptions, options.JsonSerializerOptions) && now <= cache.Expires && envelope.Timestamp <= now + 30)
         {
             return new(Clone(cache.Principal));
         }
@@ -101,7 +100,10 @@ internal static class ForwardedIdentityAuthentication
             expires = Math.Min(expires, validUntil.ToUnixTimeSeconds() - 1);
         }
         cache.Principal = new(identity);
-        cache.Snapshot = snapshot;
+        cache.Configuration = configuration;
+        cache.RequestSnapshot = request.Snapshot;
+        cache.AuthenticationType = authenticationType;
+        cache.InnerPath = innerPath;
         cache.JsonOptions = options.JsonSerializerOptions;
         cache.Expires = expires;
         return new(Clone(cache.Principal));
@@ -114,7 +116,10 @@ internal static class ForwardedIdentityAuthentication
     sealed class Cache
     {
         internal ClaimsPrincipal? Principal { get; set; }
-        internal string? Snapshot { get; set; }
+        internal ForwardedIdentityConfiguration? Configuration { get; set; }
+        internal string? RequestSnapshot { get; set; }
+        internal string? AuthenticationType { get; set; }
+        internal string? InnerPath { get; set; }
         internal JsonSerializerOptions? JsonOptions { get; set; }
 
         /// <summary>
