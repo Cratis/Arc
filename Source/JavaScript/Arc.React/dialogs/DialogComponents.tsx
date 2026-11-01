@@ -58,7 +58,7 @@ export interface DialogComponentsProps {
     /**
      * Optional children elements to render within the dialog components context.
      */
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
 
     /**
      * Optional confirmation dialog component to use.

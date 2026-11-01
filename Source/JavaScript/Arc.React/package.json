@@ -28,7 +28,8 @@
     "files": [
         "dist",
         "**/*.ts",
-        "**/*.tsx"
+        "**/*.tsx",
+        "!global.d.ts"
     ],
     "main": "dist/cjs/index.js",
     "module": "dist/esm/index.js",

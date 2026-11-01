@@ -11,7 +11,7 @@ import { QueryScopeContext, defaultQueryScopeContext } from './QueryScopeContext
 export { QueryScopeContext } from './QueryScopeContext.js';
 
 export interface IQueryScopeProps {
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
     setIsPerforming?: (isPerforming: boolean) => void;
 }
 
