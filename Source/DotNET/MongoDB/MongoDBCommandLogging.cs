@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -16,6 +17,12 @@ namespace Cratis.Arc.MongoDB;
 /// <param name="logCommandBodies">Whether to log full command bodies and failure messages.</param>
 internal sealed class MongoDBCommandLogging(ILogger<MongoDBClientFactory> logger, bool logCommandBodies)
 {
+    static readonly FrozenSet<string> _collectionCommands = new[]
+    {
+        "find", "insert", "update", "delete", "aggregate", "count", "distinct", "findAndModify",
+        "create", "drop", "createIndexes", "dropIndexes", "listIndexes", "collMod"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
     /// <summary>
     /// Gets whether the logging handlers should be subscribed at all.
     /// </summary>
@@ -79,6 +86,16 @@ internal sealed class MongoDBCommandLogging(ILogger<MongoDBClientFactory> logger
 
     static string? GetCollectionName(CommandStartedEvent command)
     {
+        if (command.CommandName == "getMore")
+        {
+            return command.Command.TryGetValue("collection", out var collection) && collection is BsonString collectionName ? collectionName.Value : null;
+        }
+
+        if (!_collectionCommands.Contains(command.CommandName))
+        {
+            return null;
+        }
+
         var first = command.Command.ElementCount > 0 ? command.Command.GetElement(0) : default;
         return first.Name == command.CommandName && first.Value is BsonString name ? name.Value : null;
     }
