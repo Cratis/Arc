@@ -65,6 +65,16 @@
                 "default": "./dist/cjs/queries/index.js"
             }
         },
+        "./applicationContext": {
+            "import": {
+                "types": "./dist/esm/applicationContext/index.d.ts",
+                "default": "./dist/esm/applicationContext/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/applicationContext/index.d.ts",
+                "default": "./dist/cjs/applicationContext/index.js"
+            }
+        },
         "./slices": {
             "import": {
                 "types": "./dist/esm/slices/index.d.ts",

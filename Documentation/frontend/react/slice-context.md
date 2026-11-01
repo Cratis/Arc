@@ -169,3 +169,5 @@ Without the plugin, everything else on this page still works; only the folder so
 | `withSliceLocation(component, location, exportedAs?)` | Returns a component that renders the given one within a scope for a slice folder; used by `SliceLocationPlugin`. Values that are not components are returned as they are. |
 | `SliceLocation` | Re-exported from `@cratis/arc/reflection`. |
 | `SliceScope`, `SliceScopeKind`, `SliceScopeContext` | The scope store and its React context, for advanced composition and tests. |
+
+To read the location of the whole page from outside any slice scope, such as a top-bar button, see [application context](./application-context.md).

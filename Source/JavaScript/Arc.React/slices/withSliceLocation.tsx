@@ -5,6 +5,8 @@ import { ComponentType, ReactNode, Ref, createElement, forwardRef, memo, useCont
 import { SliceLocation } from '@cratis/arc/reflection';
 import { SliceScope, SliceScopeKind } from './SliceScope.js';
 import { SliceScopeContext } from './SliceScopeContext.js';
+import { useRegisterScope } from '../applicationContext/useRegisterScope.js';
+import { SliceMarker } from '../applicationContext/SliceMarker.js';
 
 interface FolderSliceProps {
     location: SliceLocation;
@@ -19,9 +21,13 @@ const FolderSlice = (props: FolderSliceProps) => {
         () => new SliceScope(parent, new SliceLocation(module, feature, slice), SliceScopeKind.folder),
         [parent, module, feature, slice]);
 
+    useRegisterScope(scope);
+
     return (
         <SliceScopeContext.Provider value={scope}>
-            {props.children}
+            <SliceMarker scope={scope}>
+                {props.children}
+            </SliceMarker>
         </SliceScopeContext.Provider>
     );
 };

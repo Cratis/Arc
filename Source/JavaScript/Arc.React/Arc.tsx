@@ -15,6 +15,7 @@ import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext.j
 import { MessengerScopeContext } from './messaging/MessengerScopeContext.js';
 import { SliceScope } from './slices/SliceScope.js';
 import { SliceScopeContext } from './slices/SliceScopeContext.js';
+import { ApplicationContext } from './applicationContext/ApplicationContext.js';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**
@@ -86,6 +87,17 @@ export interface ArcProps {
      * Set to 0 to restore immediate eviction.
      */
     queryCacheRetentionMs?: number;
+    /**
+     * Opt in to marking slice boundaries in the DOM. When true, `<Slice>` and slice folder boundaries render a
+     * `display: contents` element with `data-cratis-module`, `data-cratis-feature` and `data-cratis-slice`.
+     * Defaults to false, which renders nothing extra.
+     */
+    sliceMarkers?: boolean;
+    /**
+     * Optional application context store to use, so code outside React can create it up front and subscribe
+     * to it. Created by `<Arc>` when not given.
+     */
+    applicationContext?: ApplicationContext;
 }
 
 /**
@@ -96,6 +108,8 @@ export const Arc = (props: ArcProps) => {
     const [queryVersion, setQueryVersion] = useState(0);
     const messenger = useRef(new Messenger());
     const [sliceScope] = useState(() => new SliceScope());
+    const [ownApplicationContext] = useState(() => new ApplicationContext());
+    const applicationContext = props.applicationContext ?? ownApplicationContext;
 
     // The cache is application-scoped — create once per Arc mount.
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
@@ -135,6 +149,8 @@ export const Arc = (props: ArcProps) => {
         queryVersion,
         reconnectQueries,
         observableQueryDiagnostics: observableQueryDiagnostics.current,
+        applicationContext,
+        sliceMarkers: props.sliceMarkers ?? false,
     };
 
     Bindings.initialize(
@@ -147,6 +163,8 @@ export const Arc = (props: ArcProps) => {
         configuration.queryDirectMode,
         configuration.observableQueryTransferMode,
         configuration.eventSourceFactory);
+
+    useEffect(() => applicationContext.registerScope(sliceScope), [applicationContext, sliceScope]);
 
     useEffect(() => {
         const cache = queryInstanceCache.current;

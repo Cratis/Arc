@@ -9,7 +9,6 @@ using Cratis.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Events;
@@ -139,13 +138,7 @@ public class MongoDBClientFactory(
             .Subscribe<CommandSucceededEvent>(_ => UpdateCommandCount(serverKey, scope, _commandsCount[serverKey] - 1))
             .Subscribe<CommandFailedEvent>(_ => UpdateCommandCount(serverKey, scope, _commandsCount[serverKey] - 1));
 
-        if (logger.IsEnabled(LogLevel.Trace))
-        {
-            builder
-                .Subscribe<CommandStartedEvent>(CommandStarted)
-                .Subscribe<CommandFailedEvent>(CommandFailed)
-                .Subscribe<CommandSucceededEvent>(CommandSucceeded);
-        }
+        new MongoDBCommandLogging(logger, options.Value.LogCommandBodies).Subscribe(builder);
     }
 
     void UpdateConnectionCount(string serverKey, IMeterScope<IMongoClient> scope, int count)
@@ -171,10 +164,4 @@ public class MongoDBClientFactory(
         _commandsCount[serverKey] = count;
         scope.Commands(count);
     }
-
-    void CommandStarted(CommandStartedEvent command) => logger.CommandStarted(command.RequestId, command.CommandName, command.Command.ToJson());
-
-    void CommandFailed(CommandFailedEvent command) => logger.CommandFailed(command.RequestId, command.CommandName, command.Failure.Message);
-
-    void CommandSucceeded(CommandSucceededEvent command) => logger.CommandSucceeded(command.RequestId, command.CommandName);
 }

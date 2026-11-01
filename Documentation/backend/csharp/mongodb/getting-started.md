@@ -99,3 +99,22 @@ builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
 With resilience disabled, you receive native exceptions and cancellation, the driver owns retries, and Arc adds no concurrency limit. Database and collection objects come directly from the driver. In either mode, disposing the root client does not dispose the process-shared client; disposing a request scope cannot invalidate later scopes. Derived clients returned by `WithReadConcern`, `WithReadPreference` or `WithWriteConcern` retain native driver behavior and ownership.
 
 Next, verify [concept serialization](./concepts.md) and [class mapping](./class-mapping.md). Add [collection observation](./observing-collections.md) only after ordinary reads work; change streams require a replica set or sharded cluster and appropriate permissions.
+
+## Command logging
+
+When Trace logging is enabled for `MongoDBClientFactory` at startup, Arc logs one line per MongoDB command with the request id, command name, database, collection, duration, and, for failures, the exception type and server error code. It does not log document, update or filter values, nor the driver's failure message, because duplicate-key messages echo the key values.
+
+To see full command bodies and failure messages while diagnosing a problem, opt in:
+
+```json
+{
+  "Cratis": {
+    "MongoDB": {
+      "LogCommandBodies": true
+    }
+  }
+}
+```
+
+> [!WARNING]
+> `LogCommandBodies` writes document and filter values to your logs. They may include personal data. Enable it only temporarily and never in production.
