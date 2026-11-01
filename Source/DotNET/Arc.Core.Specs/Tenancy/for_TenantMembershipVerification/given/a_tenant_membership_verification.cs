@@ -32,6 +32,7 @@ public class a_tenant_membership_verification : Specification
         _principals.Current.Returns(_principal);
         _requests.Current.Returns(_request);
         _request.RequestServices.Returns(_services);
+        _request.Items.Returns(new Dictionary<object, object?>());
         _services.GetService(typeof(IEnumerable<ITenantMembership>)).Returns(new[] { _membership });
         _membership.IsMember(Arg.Any<ClaimsPrincipal>(), Arg.Any<TenantId>()).Returns(true);
         _logger = Substitute.For<ILogger<TenantMembershipVerification>>();

@@ -68,9 +68,8 @@ internal static class ForwardedIdentityAuthentication
             return new(Failure: "forwarded-identity-invalid-input");
         }
         var now = time.GetUtcNow().ToUnixTimeSeconds();
-        var snapshot = ForwardedIdentityCanonicalization.Frame(configuration.Snapshot) + ForwardedIdentityCanonicalization.Frame(request.Snapshot) +
-            ForwardedIdentityCanonicalization.Frame(authenticationType) + ForwardedIdentityCanonicalization.Frame(innerPath);
-        if (cache.Principal is not null && cache.Snapshot == snapshot && ReferenceEquals(cache.JsonOptions, options.JsonSerializerOptions) && now <= cache.Expires && envelope.Timestamp <= now + 30)
+        if (cache.Principal is not null && ReferenceEquals(cache.Configuration, configuration) && cache.RequestSnapshot == request.Snapshot &&
+            cache.AuthenticationType == authenticationType && cache.InnerPath == innerPath && ReferenceEquals(cache.JsonOptions, options.JsonSerializerOptions) && now <= cache.Expires && envelope.Timestamp <= now + 30)
         {
             return new(Clone(cache.Principal));
         }
@@ -81,6 +80,7 @@ internal static class ForwardedIdentityAuthentication
             return new(Failure: "forwarded-identity-rejected");
         }
         var identity = new ClaimsIdentity(ForwardedIdentityClaims.From(represented, request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader]), authenticationType);
+        var expires = envelope.Timestamp + 60;
         if (ForwardedActor.IsPresent(request.Headers.ContainsKey))
         {
             var forward = new OnBehalfOfForward(
@@ -92,15 +92,20 @@ internal static class ForwardedIdentityAuthentication
                 request.Method,
                 innerPath);
             if (forward.Actor is null || ForwardedIdentityVerification.ReadPrincipal(forward.Actor, options.JsonSerializerOptions) is null ||
-                ForwardedActor.Attach(forward, represented, identity, authenticationType, options, time, OnBehalfOfReplayCache.Shared) is not null)
+                ForwardedActor.Attach(forward, represented, identity, authenticationType, options, time, OnBehalfOfReplayCache.Shared, out var validUntil) is not null)
             {
                 return new(Failure: "forwarded-identity-invalid-actor");
             }
+
+            expires = Math.Min(expires, validUntil.ToUnixTimeSeconds() - 1);
         }
         cache.Principal = new(identity);
-        cache.Snapshot = snapshot;
+        cache.Configuration = configuration;
+        cache.RequestSnapshot = request.Snapshot;
+        cache.AuthenticationType = authenticationType;
+        cache.InnerPath = innerPath;
         cache.JsonOptions = options.JsonSerializerOptions;
-        cache.Expires = envelope.Timestamp + 60;
+        cache.Expires = expires;
         return new(Clone(cache.Principal));
     }
 
@@ -111,8 +116,15 @@ internal static class ForwardedIdentityAuthentication
     sealed class Cache
     {
         internal ClaimsPrincipal? Principal { get; set; }
-        internal string? Snapshot { get; set; }
+        internal ForwardedIdentityConfiguration? Configuration { get; set; }
+        internal string? RequestSnapshot { get; set; }
+        internal string? AuthenticationType { get; set; }
+        internal string? InnerPath { get; set; }
         internal JsonSerializerOptions? JsonOptions { get; set; }
+
+        /// <summary>
+        /// Gets or sets the last whole Unix second at which the complete result may be reused (earlier of outer and inner lifetime).
+        /// </summary>
         internal long Expires { get; set; }
     }
 }
