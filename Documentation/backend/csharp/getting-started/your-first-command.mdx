@@ -163,6 +163,10 @@ The console should print `Now listening on: http://localhost:5000` and `Hosting 
 
 ## Write and read an author
 
+<Aside type="caution" title="Local development only">
+These tutorial endpoints allow anonymous reads and writes. Keep the host bound to `localhost`. Before exposing the app to other users, add [authentication and authorization](/arc/tutorial/authorization/) and configure tenant isolation if your app needs it.
+</Aside>
+
 Keep the host running. From a second terminal, call the routes the generated proxies use:
 
 ```bash
