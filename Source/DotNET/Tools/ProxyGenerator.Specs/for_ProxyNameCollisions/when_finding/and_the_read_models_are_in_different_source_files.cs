@@ -17,8 +17,8 @@ public class and_the_read_models_are_in_different_source_files : Specification
         _descriptors = [new FakeDescriptor(typeof(FirstReadModel), "WatchAll"), new FakeDescriptor(typeof(SecondReadModel), "WatchAll")];
         _map = new Dictionary<string, string>
         {
-            [typeof(FirstReadModel).FullName!] = "A",
-            [typeof(SecondReadModel).FullName!] = "B"
+            [typeof(FirstReadModel).FullName] = "A",
+            [typeof(SecondReadModel).FullName] = "B"
         };
     }
 

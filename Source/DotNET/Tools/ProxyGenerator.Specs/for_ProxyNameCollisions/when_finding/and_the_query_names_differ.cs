@@ -17,8 +17,8 @@ public class and_the_query_names_differ : Specification
         _descriptors = [new FakeDescriptor(typeof(FirstReadModel), "WatchAll"), new FakeDescriptor(typeof(SecondReadModel), "WatchAllNotes")];
         _map = new Dictionary<string, string>
         {
-            [typeof(FirstReadModel).FullName!] = "MongoWatcher",
-            [typeof(SecondReadModel).FullName!] = "MongoWatcher"
+            [typeof(FirstReadModel).FullName] = "MongoWatcher",
+            [typeof(SecondReadModel).FullName] = "MongoWatcher"
         };
     }
 

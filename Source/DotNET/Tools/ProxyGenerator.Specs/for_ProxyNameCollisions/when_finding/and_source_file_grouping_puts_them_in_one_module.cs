@@ -20,8 +20,8 @@ public class and_source_file_grouping_puts_them_in_one_module : Specification
         _distinct = new(typeof(FirstReadModel), "ObserveAll");
         _map = new Dictionary<string, string>
         {
-            [typeof(FirstReadModel).FullName!] = "MongoWatcher",
-            [typeof(SecondReadModel).FullName!] = "MongoWatcher"
+            [typeof(FirstReadModel).FullName] = "MongoWatcher",
+            [typeof(SecondReadModel).FullName] = "MongoWatcher"
         };
     }
 
