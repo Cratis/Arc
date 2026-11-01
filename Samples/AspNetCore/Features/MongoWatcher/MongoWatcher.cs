@@ -67,7 +67,7 @@ public record WatcherNote(string Text, DateTimeOffset CreatedAt)
     /// An <see cref="ISubject{T}"/> that emits the full note list whenever <see cref="WatcherNote"/>
     /// or <see cref="WatcherItem"/> documents change.
     /// </returns>
-    public static ISubject<IEnumerable<WatcherNote>> WatchAll(IMongoDBWatcher watcher) =>
+    public static ISubject<IEnumerable<WatcherNote>> WatchAllNotes(IMongoDBWatcher watcher) =>
         watcher
             .Observe<WatcherNote>()
             .Join<WatcherItem>()
@@ -81,7 +81,7 @@ public record WatcherNote(string Text, DateTimeOffset CreatedAt)
     /// An <see cref="ISubject{T}"/> that emits the full note list whenever a <see cref="WatcherNote"/>
     /// document changes.
     /// </returns>
-    public static ISubject<IEnumerable<WatcherNote>> ObserveAll(IMongoCollection<WatcherNote> notes) =>
+    public static ISubject<IEnumerable<WatcherNote>> ObserveAllNotes(IMongoCollection<WatcherNote> notes) =>
         notes.Observe();
 }
 
