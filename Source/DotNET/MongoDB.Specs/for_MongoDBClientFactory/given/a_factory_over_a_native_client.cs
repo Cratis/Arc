@@ -23,6 +23,13 @@ public class a_factory_over_a_native_client : Specification
     protected MongoClientSettings _settings;
     protected MongoDBClientFactory _factory;
 
+    protected static async Task CompleteWithinDeadline(Task task)
+    {
+        var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10)));
+        completed.ShouldBeSame(task);
+        await task;
+    }
+
     void Establish()
     {
         _native = Substitute.For<IMongoClient>();

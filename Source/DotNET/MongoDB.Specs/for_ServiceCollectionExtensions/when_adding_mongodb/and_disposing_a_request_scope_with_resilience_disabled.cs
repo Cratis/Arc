@@ -3,8 +3,11 @@
 
 using Cratis.Arc.Connections;
 using Cratis.Arc.Tenancy;
+using Cratis.Metrics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Cratis.Arc.MongoDB.for_ServiceCollectionExtensions.when_adding_mongodb;
@@ -15,8 +18,6 @@ public class and_disposing_a_request_scope_with_resilience_disabled : for_MongoD
     IMongoClient _second;
     long _result;
     Type _connectionsType;
-
-    void Establish() => _options.EnableResilience = false;
 
     async Task Because()
     {
@@ -30,7 +31,12 @@ public class and_disposing_a_request_scope_with_resilience_disabled : for_MongoD
             options.Database = _options.Database;
             options.EnableResilience = false;
         });
-        services.AddSingleton<IMongoDBClientFactory>(_factory);
+        services.AddSingleton<IMongoDBClientFactory>(sp => new MongoDBClientFactory(
+            sp.GetRequiredService<IMongoServerResolver>(),
+            sp.GetRequiredKeyedService<IMeter<IMongoClient>>(Internals.MeterName),
+            sp.GetRequiredService<IOptions<MongoDBOptions>>(),
+            sp.GetRequiredService<ILogger<MongoDBClientFactory>>(),
+            _ => _native));
         var resolvers = Substitute.For<IConnectionResolvers>();
         resolvers.For(Arg.Any<ConnectionResolutionOptions>()).Returns((ICachingConnectionResolver?)null);
         services.AddSingleton(resolvers);
@@ -53,6 +59,7 @@ public class and_disposing_a_request_scope_with_resilience_disabled : for_MongoD
         }
     }
 
+    [Fact] void should_use_the_disabled_path() => _second.ShouldBeOfExactType<SharedMongoClient>();
     [Fact] void should_use_the_real_connections() => _connectionsType.ShouldEqual(typeof(MongoDBConnections));
     [Fact] void should_reuse_the_cached_root_client() => _second.ShouldBeSame(_first);
     [Fact] void should_not_dispose_the_native_client() => _native.DidNotReceive().Dispose();

@@ -21,7 +21,7 @@ public class with_a_cancelled_collection_call : given.a_client_with_resilience_d
     async Task Because()
     {
         _result = _collection.CountDocumentsAsync(FilterDefinition<given.Document>.Empty, cancellationToken: _token);
-        _error = await Catch.Exception(async () => await _result.WaitAsync(TimeSpan.FromSeconds(5)));
+        _error = await Catch.Exception(async () => await CompleteWithinDeadline(_result));
     }
 
     [Fact] void should_return_the_native_task() => _result.ShouldBeSame(_nativeTask);
