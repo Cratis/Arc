@@ -17,6 +17,9 @@ on:
     branches: [main]
     paths:
       - "Source/DotNET/**"
+      - "Samples/ArcCore/**"
+      - "Samples/Shared/**"
+      - "Samples/ArcCore.Specs/**"
       - "Directory.Build.props"
       - "Directory.Build.targets"
       - "Directory.Packages*.props"
@@ -74,3 +77,84 @@ jobs:
 
       - name: Hold trim/AOT diagnostics to the baseline
         run: python3 scripts/aot-ratchet.py
+
+  published-arc-core:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [Untrimmed]
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      MSBUILDDISABLENODEREUSE: "1"
+      PUBLISH_VARIANT: ${{ matrix.variant }}
+      ACCEPTANCE_ROOT: ${{ runner.temp }}/arc-3595
+      CRATIS_ARC_PUBLISHED_ARCCORE: ${{ runner.temp }}/arc-3595/publish/ArcCore
+      CRATIS_ARC_PUBLISHED_ARCCORE_LOG: ${{ runner.temp }}/arc-3595/application.log
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
+
+      - name: Prepare acceptance output
+        run: mkdir -p "$ACCEPTANCE_ROOT"
+
+      - name: Publish ArcCore
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r linux-x64 -p:CratisSamplePublish="$PUBLISH_VARIANT" -o "$ACCEPTANCE_ROOT/publish" > "$ACCEPTANCE_ROOT/publish.log" 2>&1
+
+      - name: Record published image size
+        run: du -sk "$ACCEPTANCE_ROOT/publish" "$CRATIS_ARC_PUBLISHED_ARCCORE"
+
+      - name: Build acceptance runner
+        run: dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net10.0
+
+      - name: Exercise published HTTP commands and queries
+        run: Samples/ArcCore.Specs/bin/Release/net10.0/Cratis.Arc.Samples.ArcCore.Specs -noLogo -noColor -failSkips -result-trx "$ACCEPTANCE_ROOT/acceptance.trx"
+
+      - name: Require all acceptance facts to pass without skips
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const trx = fs.readFileSync(`${process.env.ACCEPTANCE_ROOT}/acceptance.trx`, 'utf8');
+          const counters = trx.match(/<(?:\w+:)?Counters\b[^>]*>/)?.[0];
+          assert.ok(counters, 'Acceptance TRX must contain counters');
+          for (const [name, count] of Object.entries({ total: 12, executed: 12, passed: 12, failed: 0, notExecuted: 0 })) {
+            assert.match(counters, new RegExp(`\\b${name}="${count}"`), `Expected ${name}=${count}`);
+          }
+          const results = trx.match(/<(?:\w+:)?UnitTestResult\b[^>]*>/g) ?? [];
+          assert.equal(results.length, 12, 'Expected all 12 HTTP acceptance facts');
+          for (const result of results) assert.match(result, /\boutcome="Passed"/);
+          console.log('Checked 12 acceptance facts: 12 passed, 0 skipped');
+          NODE
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: published-arc-core-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/arc-3595/*.log
+            ${{ runner.temp }}/arc-3595/*.trx
+          if-no-files-found: warn
