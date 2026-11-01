@@ -93,9 +93,6 @@ jobs:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
       MSBUILDDISABLENODEREUSE: "1"
       PUBLISH_VARIANT: ${{ matrix.variant }}
-      ACCEPTANCE_ROOT: ${{ runner.temp }}/arc-3595
-      CRATIS_ARC_PUBLISHED_ARCCORE: ${{ runner.temp }}/arc-3595/publish/ArcCore
-      CRATIS_ARC_PUBLISHED_ARCCORE_LOG: ${{ runner.temp }}/arc-3595/application.log
 
     steps:
       - name: Checkout code
@@ -114,7 +111,16 @@ jobs:
           mode: restore
 
       - name: Prepare acceptance output
-        run: mkdir -p "$ACCEPTANCE_ROOT"
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/arc-3595"
+          mkdir -p "$root"
+          {
+            echo "ACCEPTANCE_ROOT=$root"
+            echo "CRATIS_ARC_PUBLISHED_ARCCORE=$root/publish/ArcCore"
+            echo "CRATIS_ARC_PUBLISHED_ARCCORE_LOG=$root/application.log"
+          } >> "$GITHUB_ENV"
 
       - name: Publish ArcCore
         shell: bash
