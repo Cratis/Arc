@@ -150,8 +150,13 @@ public class HeldValues(SemanticModels models)
     /// <returns>The member to look up, or <see langword="null"/> when it is already the one recorded or cannot be matched exactly once.</returns>
     static ISymbol? AsSeenBy(ISymbol symbol, Dictionary<ISymbol, List<AssignmentExpressionSyntax>> written, Compilation compilation)
     {
-        if (written.ContainsKey(symbol) || symbol is ILocalSymbol ||
-            symbol.OriginalDefinition.GetDocumentationCommentId() is not { } identity)
+        if (written.ContainsKey(symbol) || symbol is ILocalSymbol)
+        {
+            return null;
+        }
+
+        var identity = symbol.OriginalDefinition.GetDocumentationCommentId();
+        if (identity is null)
         {
             return null;
         }
