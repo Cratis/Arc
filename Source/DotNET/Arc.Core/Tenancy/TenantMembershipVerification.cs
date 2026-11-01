@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
@@ -12,8 +11,8 @@ namespace Cratis.Arc.Tenancy;
 
 /// <summary>
 /// Verifies request tenant candidates using the current request's membership checks.
-/// The <see cref="ITenantMembership"/> implementations are resolved once per request scope (when any are registered)
-/// and reused, while membership is checked on every call.
+/// The <see cref="ITenantMembership"/> implementations are resolved once per request context and service provider (when any are registered)
+/// and reused for that context only, while membership is checked on every call.
 /// </summary>
 /// <param name="requestContexts">The current request accessor.</param>
 /// <param name="principals">The effective principal accessor.</param>
@@ -24,7 +23,7 @@ internal sealed class TenantMembershipVerification(
     ICurrentPrincipalAccessor principals,
     ILogger<TenantMembershipVerification> logger)
 {
-    static readonly ConditionalWeakTable<IServiceProvider, ITenantMembership[]> _resolved = new();
+    static readonly object _itemsKey = new();
 
     /// <summary>Gets whether the request has membership checks.</summary>
     internal bool HasMembership => Memberships().Length > 0;
@@ -73,9 +72,9 @@ internal sealed class TenantMembershipVerification(
         }
 
         var services = request.RequestServices;
-        if (_resolved.TryGetValue(services, out var cached))
+        if (request.Items.TryGetValue(_itemsKey, out var item) && item is Resolved { } cached && ReferenceEquals(cached.Services, services))
         {
-            return cached;
+            return cached.Memberships;
         }
 
         try
@@ -84,7 +83,7 @@ internal sealed class TenantMembershipVerification(
             var memberships = resolved as ITenantMembership[] ?? (resolved as IEnumerable<ITenantMembership>)?.ToArray() ?? [];
             if (memberships.Length > 0)
             {
-                _resolved.TryAdd(services, memberships);
+                request.Items[_itemsKey] = new Resolved(services, memberships);
             }
 
             return memberships;
@@ -95,4 +94,6 @@ internal sealed class TenantMembershipVerification(
             throw new TenantMembershipDenied();
         }
     }
+
+    sealed record Resolved(IServiceProvider Services, ITenantMembership[] Memberships);
 }
