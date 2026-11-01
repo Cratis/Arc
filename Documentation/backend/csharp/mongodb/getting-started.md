@@ -73,4 +73,28 @@ builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
 
 Import `Cratis.Arc.MongoDB` for MongoDB builder customization methods. Use `WithServerResolver<T>()` and `WithDatabaseResolver<T>()` only when the default configured server and [tenant database naming](./tenancy.md) do not meet your requirements.
 
+## Choose collection resilience
+
+`EnableResilience` defaults to `true`. Leave it enabled for Cosmos DB and when opening change streams before a collection exists. It handles "Collection not found" errors on async (`Task`-returning) collection calls, returning success, default values or empty cursors as appropriate; change streams return a cursor that waits for the collection. Synchronous collection calls bypass this behavior. Async calls also have a per-method concurrency limit of half the driver's connection pool, with a one-second acquire timeout. This is not a retry policy or an AOT switch.
+
+For workloads that need plain driver behavior, add this setting alongside your required `Server` and `Database` values:
+
+```json
+{
+  "Cratis": {
+    "MongoDB": {
+      "EnableResilience": false
+    }
+  }
+}
+```
+
+Alternatively, when registering MongoDB on your service collection (with the normal connection configuration already available):
+
+```csharp
+services.AddCratisMongoDB(options => options.EnableResilience = false);
+```
+
+With resilience disabled, you receive native exceptions and cancellation, the driver owns retries, and Arc adds no concurrency limit. Database and collection objects come directly from the driver. In either mode, disposing the root client does not dispose the process-shared client; disposing a request scope cannot invalidate later scopes. Derived clients returned by `WithReadConcern`, `WithReadPreference` or `WithWriteConcern` retain native driver behavior and ownership.
+
 Next, verify [concept serialization](./concepts.md) and [class mapping](./class-mapping.md). Add [collection observation](./observing-collections.md) only after ordinary reads work; change streams require a replica set or sharded cluster and appropriate permissions.

@@ -34,11 +34,29 @@ public class MongoDBClientFactory(
     IOptions<MongoDBOptions> options,
     ILogger<MongoDBClientFactory> logger) : IMongoDBClientFactory
 {
+#pragma warning disable CA2000 // Dispose objects before losing scope - we're returning the client
+    readonly Func<MongoClientSettings, IMongoClient> _createClient = settings => new MongoClient(settings);
+#pragma warning restore CA2000 // Dispose objects before losing scope
     readonly ConcurrentDictionary<(string Servers, MongoCredential? Credential), IMongoClient> _clients = new();
     readonly ConcurrentDictionary<string, int> _connectedClientsCount = new();
     readonly ConcurrentDictionary<string, int> _connectionsAddedToPoolCount = new();
     readonly ConcurrentDictionary<string, int> _checkedOutConnectionsCount = new();
     readonly ConcurrentDictionary<string, int> _commandsCount = new();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MongoDBClientFactory"/> class with a native client constructor.
+    /// </summary>
+    /// <param name="serverResolver">The server resolver.</param>
+    /// <param name="meter">The client meter.</param>
+    /// <param name="options">The MongoDB options.</param>
+    /// <param name="logger">The factory logger.</param>
+    /// <param name="createClient">The native client constructor.</param>
+    internal MongoDBClientFactory(
+        IMongoServerResolver serverResolver,
+        IMeter<IMongoClient> meter,
+        IOptions<MongoDBOptions> options,
+        ILogger<MongoDBClientFactory> logger,
+        Func<MongoClientSettings, IMongoClient> createClient) : this(serverResolver, meter, options, logger) => _createClient = createClient;
 
     /// <inheritdoc/>
     public IMongoClient Create() => Create(serverResolver.Resolve());
@@ -74,9 +92,11 @@ public class MongoDBClientFactory(
         };
 
         logger.CreateClient(settings.Server.ToString());
-#pragma warning disable CA2000 // Dispose objects before losing scope - we're returning the client
-        var client = new MongoClient(settings);
-#pragma warning restore CA2000 // Dispose objects before losing scope
+        var client = _createClient(settings);
+        if (!options.Value.EnableResilience)
+        {
+            return new SharedMongoClient(client);
+        }
 
         // No retry strategy: the collection interceptors complete the caller's task inside the callback for every
         // outcome, so nothing reaches a strategy and a retry could never trigger.
