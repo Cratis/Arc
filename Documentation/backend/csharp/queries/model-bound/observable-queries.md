@@ -74,7 +74,7 @@ Return the provider subject directly when it expresses the read. Rx operators su
 
 ## Subscription lifetime
 
-Direct transports dispose the subscription they receive; the hub also manages per-subscription resources. A composition must therefore honor two contracts:
+Direct transports dispose the subscription they receive; the hub also manages per-subscription resources. Each hub subscription (WebSocket and SSE) gets its own service scope when it starts, and the scope is disposed when the subscription ends, so scoped and transient services resolved for a subscription behave as they do for an HTTP request. A composition must therefore honor two contracts:
 
 - **Subscription-owned teardown:** the disposable returned by `Subscribe` must release every upstream subscription. Keep the disposable from `.Subscribe(replaySubject)`; implementing `IDisposable` on a wrapper alone does not connect it to downstream teardown.
 - **Terminal error propagation:** deliver errors to downstream subscribers and release upstream resources. Direct SSE and WebSocket transports send a failed query result with the subscription's correlation id and exception message (without a stack trace) before ending a stream whose source calls `OnError`, unless the subscription was already canceled. Direct SSE and WebSocket transports can call the returned subject's `OnError` after interception or delivery failures. An onNext-only adapter uses a default throwing error handler; explicitly preserve the terminal-error path rather than swallowing it.
