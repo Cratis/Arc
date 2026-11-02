@@ -141,7 +141,7 @@ public class QueryPipeline(
         {
             throw;
         }
-        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
         {
             OperationActivity.RecordException(activity, exception);
             return QueryResult.Unauthorized(GetCorrelationId());
@@ -380,7 +380,7 @@ public class QueryPipeline(
                 var authorizedDependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
                 context = context with { Dependencies = authorizedDependencies };
                 queryContextManager.Set(context);
-                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipal);
+                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipalSnapshot);
                 snapshotLease.Attach(snapshot);
                 result.MergeWith(await stagedFilters.AfterAuthorization(context));
             }
@@ -396,7 +396,7 @@ public class QueryPipeline(
                 var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
                 context = context with { Dependencies = dependencies };
                 queryContextManager.Set(context);
-                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipal);
+                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipalSnapshot);
                 snapshotLease.Attach(snapshot);
                 result = await queryFilters.OnPerform(context);
                 if (result.IsSuccess && prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
@@ -490,7 +490,7 @@ public class QueryPipeline(
             OperationActivity.RecordException(activity, ex);
             return QueryResult.Unauthorized(correlationId);
         }
-        catch (Exception ex) when (TenantMembershipDenied.IsCauseOf(ex))
+        catch (Exception ex) when (UnauthorizedCause.IsCauseOf(ex))
         {
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.Unauthorized(correlationId));

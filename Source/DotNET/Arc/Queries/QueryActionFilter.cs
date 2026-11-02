@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
@@ -267,12 +268,12 @@ public class QueryActionFilter(
             {
                 result = await next();
             }
-            catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+            catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
             {
                 return (null, exceptionMessages, exceptionStackTrace, null, true);
             }
 
-            if (TenantMembershipDenied.IsCauseOf(result.Exception))
+            if (UnauthorizedCause.IsCauseOf(result.Exception))
             {
                 result.Exception = null;
                 return (result, exceptionMessages, exceptionStackTrace, null, true);

@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Observability;
-using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -362,7 +361,7 @@ public class CommandPipeline(
 
     static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
     {
-        if (TenantMembershipDenied.IsCauseOf(exception))
+        if (UnauthorizedCause.IsCauseOf(exception))
         {
             return CommandResult.Unauthorized(correlationId);
         }
@@ -484,7 +483,7 @@ public class CommandPipeline(
         {
             throw;
         }
-        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
         {
             OperationActivity.RecordException(activity, exception);
             return (null, CommandResult.Unauthorized(GetCorrelationId()));
@@ -614,7 +613,7 @@ public class CommandPipeline(
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipal);
+            var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipalSnapshot);
             snapshotLease.Attach(snapshot);
             result = await commandFilters.OnExecution(commandContext);
             if (snapshot.MembershipDenied)
@@ -876,7 +875,7 @@ public class CommandPipeline(
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
-            using var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipal);
+            using var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipalSnapshot);
             result = await commandFilters.OnExecution(commandContext);
             if (snapshot.MembershipDenied)
             {

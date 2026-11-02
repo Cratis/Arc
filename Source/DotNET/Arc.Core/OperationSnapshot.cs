@@ -42,7 +42,7 @@ internal sealed class OperationSnapshot : IDisposable
 
     OperationSnapshot(
         OperationSnapshot? previous,
-        Func<ClaimsPrincipal?> authorizedPrincipal,
+        Func<PrincipalSnapshot?> authorizedPrincipal,
         ClaimsPrincipal? principalAtBegin,
         PrincipalSnapshot capturedPrincipal,
         TenantId? seed,
@@ -124,9 +124,9 @@ internal sealed class OperationSnapshot : IDisposable
     /// Begins a new snapshot, never inheriting an enclosing one.
     /// </summary>
     /// <param name="services">The services of the operation.</param>
-    /// <param name="authorizedPrincipal">Selects the principal the authorization filters chose, read on first use; when it returns null the principal ambient at begin is used.</param>
+    /// <param name="authorizedPrincipal">Gets the identity of the principal the authorization filters chose, as captured when it was selected, read on first use; when it returns null the principal ambient at begin is used.</param>
     /// <returns>The new, current snapshot. Dispose it when the operation completes.</returns>
-    internal static OperationSnapshot Begin(IServiceProvider services, Func<ClaimsPrincipal?> authorizedPrincipal)
+    internal static OperationSnapshot Begin(IServiceProvider services, Func<PrincipalSnapshot?> authorizedPrincipal)
     {
         var principalAtBegin = services.GetService<ICurrentPrincipalAccessor>()?.Current;
         var capturedPrincipal = AuthorizationPrincipalIdentity.Capture(principalAtBegin);
@@ -174,13 +174,15 @@ internal sealed class OperationSnapshot : IDisposable
         _current.Value = _previous;
     }
 
-    ClaimsPrincipal? SelectPrincipal(Func<ClaimsPrincipal?> authorizedPrincipal, ClaimsPrincipal? principalAtBegin, PrincipalSnapshot capturedPrincipal)
+    ClaimsPrincipal? SelectPrincipal(Func<PrincipalSnapshot?> authorizedPrincipal, ClaimsPrincipal? principalAtBegin, PrincipalSnapshot capturedPrincipal)
     {
-        var selected = authorizedPrincipal() ?? principalAtBegin;
+        var authorized = authorizedPrincipal();
+        var expected = authorized ?? capturedPrincipal;
+        var selected = authorized is null ? principalAtBegin : authorized.Reference;
 
         // A principal whose claims were mutated in place after the operation began is no longer the caller the operation
         // started as. Reading fails closed, for every read, and the pipeline rejects the operation as unauthorized.
-        if (ReferenceEquals(selected, principalAtBegin) && !AuthorizationPrincipalIdentity.Same(capturedPrincipal, selected))
+        if (!AuthorizationPrincipalIdentity.Same(expected, selected))
         {
             _membershipDenied = true;
             throw new TenantMembershipDenied();
