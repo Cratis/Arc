@@ -2,6 +2,8 @@
   href: index.md
 - name: Test decisions and the pipeline
   href: command-decisions.md
+- name: Command and validator assertions
+  href: command-assertions.md
 - name: Test command operations
   href: command-operations.md
 - name: Specify operation failure cases
