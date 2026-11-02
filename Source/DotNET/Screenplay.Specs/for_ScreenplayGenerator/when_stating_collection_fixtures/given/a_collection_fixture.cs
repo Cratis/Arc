@@ -66,16 +66,11 @@ public class a_collection_fixture : for_ScreenplayGenerator.given.a_generated_do
 
     protected void AssertTags(params string[] items)
     {
-        Assert.True(CountTagLists(items) == 2,
+        var expected = for_ScreenplayGenerator.given.StatedLists.Quoted(items);
+        Assert.True(for_ScreenplayGenerator.given.StatedLists.Of(Result.Source, "tags").Count(list => list.SequenceEqual(expected)) == 2,
             $"{Result.Source}{Environment.NewLine}{string.Join(Environment.NewLine, Result.Diagnostics)}");
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         AssertDocument();
-    }
-
-    int CountTagLists(string[] items)
-    {
-        var list = items.Length == 0 ? "tags none" : "tags\n" + string.Concat(items.Select(item => $"\\s+item \"{item}\"\n?"));
-        return System.Text.RegularExpressions.Regex.Count(Result.Source, list);
     }
 
     protected void AssertUnread()

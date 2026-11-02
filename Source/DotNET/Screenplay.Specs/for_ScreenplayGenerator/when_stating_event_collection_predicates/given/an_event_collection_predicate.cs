@@ -84,8 +84,8 @@ public class an_event_collection_predicate : for_ScreenplayGenerator.given.a_gen
     {
         Result.Source.ShouldContain("then ApprovalRequested");
         Result.Source.ShouldContain("requester = \"Jane Austen\"");
-        var list = items.Length == 0 ? "tags none" : "tags\n" + string.Concat(items.Select(item => $"\\s+item \"{item}\"\n?"));
-        System.Text.RegularExpressions.Regex.Count(Result.Source, list).ShouldEqual(2);
+        var expected = for_ScreenplayGenerator.given.StatedLists.Quoted(items);
+        for_ScreenplayGenerator.given.StatedLists.Of(Result.Source, "tags").Count(list => list.SequenceEqual(expected)).ShouldEqual(2);
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         AssertDocument();
     }
