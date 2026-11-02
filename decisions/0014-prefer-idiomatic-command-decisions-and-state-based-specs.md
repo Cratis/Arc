@@ -1,8 +1,9 @@
 ---
 id: 0014-prefer-idiomatic-command-decisions-and-state-based-specs
 title: Prefer idiomatic command decisions and state-based application specifications
-status: accepted
+status: superseded
 stage: implemented
+superseded-by: 0015-handle-dependencies-are-the-authors-choice
 decided: 2026-10-31
 decider: Repository maintainer (direct user instruction via the orchestrating session)
 class: product
@@ -15,6 +16,8 @@ applies-to:
 
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
+
+> Partly superseded by [0015](0015-handle-dependencies-are-the-authors-choice.md): ARCCHR0039 is removed and Handle dependencies are the author's choice. The rest of this record, including idiomatic documentation and state-based application specifications, still stands.
 
 ## Context
 
