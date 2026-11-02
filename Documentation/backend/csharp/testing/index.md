@@ -13,6 +13,7 @@ A command's `Handle()` is an ordinary C# method. Call it directly for a determin
 | What you need to prove                                                     | Start with                                                       | What it does not prove                                            |
 | -------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
 | A deterministic calculation or decision                                    | Direct `Handle()` spec with explicit input/state                 | Arc validation, authorization, `Provide()`, or persistence        |
+| Returned events, rejections, or validator messages                         | [Command and validator assertions](./command-assertions.md)       | Pipeline composition or actual event appends                      |
 | Calls to an application service                                            | Direct unit spec with substituted collaborators                  | The real service, database, or production registration            |
 | Validation, authorization, `Provide()`, dependencies, or command responses | `CommandScenario<TCommand>`                                      | HTTP routing/authentication middleware or external infrastructure |
 | Model-bound query binding, validation, authorization, or buffered observable emissions | `QueryScenario<TReadModel>` | HTTP routing, scheme authentication, streaming transports, or real database watchers |
