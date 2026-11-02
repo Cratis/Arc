@@ -67,13 +67,13 @@ Plain model parameters do not currently express every decision read. Caller-deri
 
 [ARCCHR0040](../code-analysis/ARCCHR0040.md) suggests the model-parameter alternative for direct `IDecisionReads` and `DecisionRead<T>` parameters in recognized command `Handle()` methods. It is Info only, has no code fix, and changes no runtime behavior. Arbitrary services are not restricted; `Provide()` is not policed by this diagnostic.
 
-When an actual acquisition gap requires the dependency, suppress it locally with a concrete reason. This state-returning command excerpt assumes a registered `State` model, the `Cratis.Arc.Commands.ModelBound` and `Cratis.Chronicle.ReadModels` namespaces, and an application-provided `ICallerContext` service. Its account key comes from trusted caller context, not a bindable command property:
+When an actual acquisition gap requires the dependency, suppress it locally with a concrete reason and a link to the tracking feature. Keep `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()` rather than moving it to `Provide()`. This state-returning command excerpt assumes a registered `State` model, the `Cratis.Arc.Commands.ModelBound` and `Cratis.Chronicle.ReadModels` namespaces, and an application-provided `ICallerContext` service. Its account key comes from trusted caller context, not a bindable command property:
 
 ```csharp
 public interface ICallerContext { ReadModelKey AccountKey { get; } }
 [Command] public record InspectCaller
 {
-#pragma warning disable ARCCHR0040 // Key comes from trusted caller identity, not a command property.
+#pragma warning disable ARCCHR0040 // Key comes from trusted caller identity; https://github.com/Cratis/Arc/issues/3620 tracks acquisition gaps.
     public async System.Threading.Tasks.Task<State> Handle(IDecisionReads reads, ICallerContext caller)
     {
         var state = await reads.Get<State>(caller.AccountKey);
@@ -85,4 +85,4 @@ public interface ICallerContext { ReadModelKey AccountKey { get; } }
 
 The ARCCHR0040 specification (`Source/DotNET/Chronicle.CodeAnalysis.Specs/for_CommandReadModelParameterAnalyzer/when_a_handler_declares_dependencies.cs`) compiles this declaration and verifies the reasoned suppression. `ICallerContext` is an illustrative application interface, not a new Arc API.
 
-Keep the reason beside the declaration. Suppression does not waive concurrency, authorization, or acquisition-failure handling.
+Keep the reason and tracking-feature link beside the declaration. Suppression does not waive concurrency, authorization, or acquisition-failure handling.

@@ -12,7 +12,8 @@ through Arc's command-aware reader.
 ## Resolve the diagnostic
 
 Take a read model as a Handle/Provide parameter or validator constructor
-parameter. For a computed key, use `IDecisionReads.Get` in Provide.
+parameter. For a computed key no parameter can express, take `IDecisionReads`
+directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature.
 For intentional advisory context, mark the method `[Unprotected("why")]`.
 An explicit `AllowReads` remains reported as a reviewable bypass.
 

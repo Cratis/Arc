@@ -1,6 +1,6 @@
 ---
 title: Gapless numbers
-description: Numbers that have no gaps and no duplicates across all entities, written as a numbering source that is read in Provide.
+description: Numbers that have no gaps and no duplicates across all entities, written as a numbering source that is read in Handle.
 ---
 
 Use this when a number must be unique and must not skip, across every entity: invoice numbers, case numbers.
@@ -8,7 +8,7 @@ Use this when a number must be unique and must not skip, across every entity: in
 | | |
 | --- | --- |
 | Rule | Invoice numbers have no gaps and no duplicates across all invoices |
-| Mechanism | A numbering event source (`"invoice-numbers"`) with a projection of the next number, read with `IDecisionReads` in `Provide()`. The invoice carries the number |
+| Mechanism | A numbering event source (`"invoice-numbers"`) with a projection of the next number, read with `IDecisionReads` directly in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature. The invoice carries the number |
 | Alternatives | `[Unique]` on the number: no duplicates, but gaps are possible |
 | Not | A declared `Concurrency` without an event source id: it is not anchored to a read |
 
@@ -39,20 +39,19 @@ public record IssueInvoice(InvoiceId Invoice)
 {
     public static readonly EventSourceId Numbering = "invoice-numbers";
 
-    public async Task<NumberAssignment> Provide(IDecisionReads reads)
+#pragma warning disable ARCCHR0040 // Cross-source key; https://github.com/Cratis/Arc/issues/3620 tracks acquisition gaps.
+    public async Task<IEnumerable<EventForEventSourceId>> Handle(IDecisionReads reads)
     {
         var read = await reads.Get<NextInvoiceNumber>(Numbering.Value);
-        return new((read.Instance?.Assigned ?? 0) + 1);
-    }
-
-    public IEnumerable<EventForEventSourceId> Handle(NumberAssignment number) =>
+        var number = (read.Instance?.Assigned ?? 0) + 1;
+        return
         [
             new(Numbering, new InvoiceNumberAssigned(Invoice.Value)),
-            new(Invoice, new InvoiceIssued(number.Number))
+            new(Invoice, new InvoiceIssued(number))
         ];
+    }
+#pragma warning restore ARCCHR0040
 }
-
-public record NumberAssignment(int Number);
 ```
 
 ```text

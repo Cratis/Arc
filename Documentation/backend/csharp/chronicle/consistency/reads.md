@@ -5,13 +5,13 @@ description: "Learn which command reads are protected, advisory, refused or ungu
 
 Use this page when you want to know what a read in a command becomes under `On`, how to mark one as advisory, or how to choose which key a parameter reads. Under `Off`, plain read-model parameters remain unguarded; explicit `[ProtectedDecision]` commands with `DecisionRead<T>` still guard their declared decision reads.
 
-Prefer a plain read-model `Handle` parameter, then `[LookUpBy]` for a command property key, then a per-stream model for the command route. Only keys no parameter can express belong in `Provide(IDecisionReads)`, which returns plain state to `Handle()`. New application handlers do not take `IDecisionReads` or `DecisionRead<T>`.
+Prefer a plain read-model `Handle` parameter, then `[LookUpBy]` for a command property key, then a per-stream model for the command route. Only when supported parameters cannot express a key or stream id, take `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature; see the [stream example](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
 
 ## Four classes of read
 
 | Class | What it is | Under `On` |
 | --- | --- | --- |
-| **Protected** | A read-model parameter, or a computed-key read in `Provide()`, that Chronicle can guard | Read fresh, and enrolled as a guard before your code sees the value |
+| **Protected** | A read-model parameter, or an explicit computed-key read in `Handle()`, that Chronicle can guard | Read fresh, and enrolled as a guard before your code sees the value |
 | **Advisory** | A read you marked `[Unprotected("why")]` | A stored read that guards nothing. The reason goes to telemetry |
 | **Refused** | Any other read Arc or Chronicle can see | The command fails with a `500` that names the read and the fix |
 | **Unknown** | A dependency Arc cannot see: a service, another database, an HTTP call | Outside the guard. Never reported as protected |
@@ -24,11 +24,11 @@ Prefer a plain read-model `Handle` parameter, then `[LookUpBy]` for a command pr
 | A read-model parameter backed by an unfiltered reducer with no constructor dependencies other than `ILogger<T>` (self-reducing models are exempt from that constructor restriction) | **Protected** |
 | A reducer with a filter or other constructor dependencies | **Refused** |
 | A model with joins, children, `FromEvery`, `FromEventProperty` or `UsingKey` | **Refused** |
-| A declared per-stream model | **Protected** on the command route. A projection keyed by a stream without that declaration needs an explicit stream read in `Provide()` |
+| A declared per-stream model | **Protected** on the command route. A projection keyed by a stream without that declaration needs an explicit stream read in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | A key that is not a string or a `Guid`; an ambiguous projection; a model of another event sequence; a definition that does not match the registered one | **Refused** |
 | A projection with Pinned generation delivery | **Refused** |
 | A model with no instance yet | **Protected.** A nullable parameter receives `null` and the guard watches for the first event. A required parameter rejects with a validation result |
-| `IDecisionReads.Get<T>` in `Provide()`, returning plain state for a key no parameter can express | **Protected** |
+| `IDecisionReads.Get<T>` in `Handle()` for a key no parameter can express, with a reasoned ARCCHR0040 suppression linked to the tracking feature | **Protected** |
 | Existing advanced `DecisionRead<T>` with `[ProtectedDecision]` | Still supported. Prefer a plain parameter under `On` |
 | `IDecisionReads.GetDetached<T>` | **Refused** unless inside an advisory method |
 | `IReadModels`, raw `IEventStore`, `IEventLog` or `IEventSequence` reads, including inside a command filter | **Refused** at the call |

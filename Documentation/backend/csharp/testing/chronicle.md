@@ -157,7 +157,7 @@ public class when_settling_a_funded_ledger : Specification
 }
 ```
 
-This fragment assumes the application's `LedgerBalance(EventSourceId Id, decimal Balance)` and `LedgerSettled(decimal Balance)` types. No testing switch is needed. Per-stream models need routed events rather than source-only pins. Existing advanced `DecisionRead<T>` parameters cannot use pins: they throw `PinnedReadModelCannotProvideDecisionToken`. An explicit `IDecisionReads.Get<T>(key)` folds events, not pinned state; use it in `Provide()` only for keys that parameter binding cannot express.
+This fragment assumes the application's `LedgerBalance(EventSourceId Id, decimal Balance)` and `LedgerSettled(decimal Balance)` types. No testing switch is needed. Per-stream models need routed events rather than source-only pins. Existing advanced `DecisionRead<T>` parameters cannot use pins: they throw `PinnedReadModelCannotProvideDecisionToken`. An explicit `IDecisionReads.Get<T>(key)` folds events, not pinned state; use it directly in `Handle()` only for keys that parameter binding cannot express, suppressing ARCCHR0040 with a reason and a link to the tracking feature.
 
 ### Check that Chronicle admits the decision reads
 
