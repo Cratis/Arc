@@ -28,7 +28,7 @@ public class when_a_handler_records_keyed_state : given.protected_plain_models
             recorded.To.ShouldEqual(new AccountId(target));
             _tokens.Count.ShouldEqual(readCount);
             _tokens.Select(token => token.Key).ShouldEqual(readCount == 1 ? [(ReadModelKey)"from"] : [(ReadModelKey)"from", (ReadModelKey)"to"]);
-            _tokens.All(token => token.IsProtected).ShouldBeTrue();
+            _tokens.TrueForAll(token => token.IsProtected).ShouldBeTrue();
             if (readCount == 1)
             {
                 to.ShouldBeSame(from);

@@ -45,7 +45,7 @@ public record RecordTransfer(AccountId From, AccountId To)
 public record TransferRecorded(AccountId From, AccountId To);
 ```
 
-The command and event are compiled in [RecordTransfer.cs](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/ReadModels/for_ChronicleParameterDependencyResolver/given/RecordTransfer.cs). [The specification](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/ReadModels/for_ChronicleParameterDependencyResolver/when_a_handler_records_keyed_state.cs) calls `Handle()` with resolved state and checks its event values, two protected reads for different keys, and one cached read for equal keys. Run it from the repository root:
+The command is compiled in [RecordTransfer.cs](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/ReadModels/for_ChronicleParameterDependencyResolver/given/RecordTransfer.cs), and its event in [TransferRecorded.cs](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/ReadModels/for_ChronicleParameterDependencyResolver/given/TransferRecorded.cs). [The specification](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/ReadModels/for_ChronicleParameterDependencyResolver/when_a_handler_records_keyed_state.cs) calls `Handle()` with resolved state and checks its event values, two protected reads for different keys, and one cached read for equal keys. Run it from the repository root:
 
 ```shell
 dotnet test Source/DotNET/Chronicle.Specs -c Release --filter FullyQualifiedName~when_a_handler_records_keyed_state
