@@ -115,26 +115,36 @@ public partial class ObservableQueryDemultiplexer
         }
 
         logger.ClientSubscribed(body.Request.QueryName, body.QueryId);
-        var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(
-            context,
-            state.Context,
-            serviceProvider,
-            operation.Token);
-
-        var session = new SubscriptionSession
+        var scope = new ObservableQuerySubscriptionServiceScope(serviceProvider);
+        try
         {
-            SubscriptionContext = subscriptionContext,
-            Subscriptions = state.Subscriptions,
-            ConnectionId = body.ConnectionId,
-            QueryId = body.QueryId,
-            Request = body.Request,
-            Operation = operation,
-            Protocol = "SSE",
-            Send = (message, operationToken) => SendSseMessage(state, message, operationToken)
-        };
-        var wasUnauthorized = await EstablishSubscription(session, context);
+            var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(
+                context,
+                state.Context,
+                scope.ServiceProvider,
+                operation.Token);
 
-        context.SetStatusCode(wasUnauthorized ? 401 : 200);
+            var session = new SubscriptionSession
+            {
+                SubscriptionContext = subscriptionContext,
+                Subscriptions = state.Subscriptions,
+                ConnectionId = body.ConnectionId,
+                QueryId = body.QueryId,
+                Request = body.Request,
+                Operation = operation,
+                Protocol = "SSE",
+                Scope = scope,
+                Send = (message, operationToken) => SendSseMessage(state, message, operationToken)
+            };
+            var wasUnauthorized = await EstablishSubscription(session, context);
+
+            context.SetStatusCode(wasUnauthorized ? 401 : 200);
+        }
+        finally
+        {
+            // A live stream took ownership of the scope; for every other exit path this releases it.
+            scope.Dispose();
+        }
     }
 
     /// <inheritdoc/>

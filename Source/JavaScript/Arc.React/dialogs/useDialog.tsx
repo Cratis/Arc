@@ -15,7 +15,7 @@ import { ShowDialog } from './ShowDialog.js';
  * Use a dialog component in your application. This hook manages the visibility and properties of the dialog.
  *
  * The dialog component only needs to declare the input properties it expects — typically as
- * `(props: TInput) => JSX.Element`. It reads `closeDialog` (and the request) from
+ * `(props: TInput) => React.JSX.Element`. It reads `closeDialog` (and the request) from
  * {@link useDialogContext} rather than receiving them as explicit props, so no wrapper prop
  * type or `as unknown as ComponentType<TInput>` cast is required at the call site. `TInput` is
  * inferred directly from the component, and a component whose input type does not match the

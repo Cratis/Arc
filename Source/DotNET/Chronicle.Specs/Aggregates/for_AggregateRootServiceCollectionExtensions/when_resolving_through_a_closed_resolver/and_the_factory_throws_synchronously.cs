@@ -5,7 +5,7 @@ using System.Reflection;
 using Cratis.Chronicle.Events;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootServiceCollectionExtensions.when_resolving_without_dynamic_code;
+namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootServiceCollectionExtensions.when_resolving_through_a_closed_resolver;
 
 public class and_the_factory_throws_synchronously : Specification
 {
@@ -22,7 +22,7 @@ public class and_the_factory_throws_synchronously : Specification
     }
 
     void Because() => _exception = Catch.Exception(() =>
-        AggregateRootServiceCollectionExtensions.GetAggregateRootWithoutDynamicCode(typeof(SampleAggregateRoot), _factory, EventSourceId.New()));
+        AggregateRootServiceCollectionExtensions.GetAggregateRoot(AggregateRootServiceCollectionExtensions.CloseResolverFor(typeof(SampleAggregateRoot)), _factory, EventSourceId.New()));
 
     [Fact] void should_throw_a_target_invocation_exception() => _exception.ShouldBeOfExactType<TargetInvocationException>();
     [Fact] void should_carry_the_factory_exception() => _exception.InnerException.ShouldEqual(_failure);

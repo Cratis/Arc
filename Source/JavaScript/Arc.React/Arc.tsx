@@ -16,13 +16,14 @@ import { MessengerScopeContext } from './messaging/MessengerScopeContext.js';
 import { SliceScope } from './slices/SliceScope.js';
 import { SliceScopeContext } from './slices/SliceScopeContext.js';
 import { ApplicationContext } from './applicationContext/ApplicationContext.js';
+import type React from 'react';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**
  * Properties for the Arc context component.
  */
 export interface ArcProps {
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
     microservice?: string;
     development?: boolean;
     origin?: string;

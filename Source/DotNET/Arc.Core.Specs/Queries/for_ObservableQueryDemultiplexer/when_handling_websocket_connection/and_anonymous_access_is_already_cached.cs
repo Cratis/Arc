@@ -25,7 +25,9 @@ public class and_anonymous_access_is_already_cached : given.a_guarded_websocket_
 
     async Task Because() => await RunConnection(() => Task.CompletedTask);
 
-    [Fact] void should_create_a_scope_only_for_the_first_predicate_evaluation() => _scopeFactory.Received(1).CreateScope();
+    [Fact]
+    void should_create_a_scope_only_for_the_first_predicate_evaluation_and_one_per_subscription() =>
+        _scopeFactory.Received(3).CreateScope(); // 1 predicate scope + 1 subscription scope for each of the 2 subscriptions
     [Fact] void should_deliver_the_first_snapshot() => CountQueryResultsFor(FirstQueryId).ShouldEqual(1);
     [Fact] void should_deliver_the_second_snapshot() => CountQueryResultsFor(SecondQueryId).ShouldEqual(1);
 }

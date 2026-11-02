@@ -7,5 +7,5 @@ public class with_array_empty : given.a_collection_fixture
 {
     void Because() => GenerateFixture("ApprovalLabel", "Array.Empty<ApprovalLabel>()");
 
-    [Fact] void should_state_and_bind_an_empty_list() => AssertTags("[]");
+    [Fact] void should_state_and_bind_an_empty_list() => AssertTags();
 }

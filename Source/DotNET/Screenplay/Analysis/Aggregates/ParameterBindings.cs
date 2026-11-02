@@ -17,8 +17,15 @@ namespace Cratis.Arc.Screenplay.Analysis.Aggregates;
 public sealed class ParameterBindings
 {
     readonly Dictionary<ISymbol, BoundArgument> _bound;
+    readonly Dictionary<(AssemblyIdentity Assembly, string Method, int Ordinal), BoundArgument> _declared;
 
-    ParameterBindings(Dictionary<ISymbol, BoundArgument> bound) => _bound = bound;
+    ParameterBindings(
+        Dictionary<ISymbol, BoundArgument> bound,
+        Dictionary<(AssemblyIdentity Assembly, string Method, int Ordinal), BoundArgument> declared)
+    {
+        _bound = bound;
+        _declared = declared;
+    }
 
     /// <summary>
     /// Binds the parameters of a method to what one call site gave them.
@@ -30,17 +37,23 @@ public sealed class ParameterBindings
     public static ParameterBindings For(IMethodSymbol method, InvocationExpressionSyntax call, SemanticModel semanticModel)
     {
         var bound = new Dictionary<ISymbol, BoundArgument>(SymbolEqualityComparer.Default);
+        var declared = new Dictionary<(AssemblyIdentity Assembly, string Method, int Ordinal), BoundArgument>();
         var arguments = call.ArgumentList.Arguments;
 
         for (var index = 0; index < arguments.Count; index++)
         {
             if (ParameterOf(method, arguments[index], index) is { } parameter)
             {
-                bound[parameter] = new(arguments[index].Expression, semanticModel);
+                var argument = new BoundArgument(arguments[index].Expression, semanticModel);
+                bound[parameter] = argument;
+                if (IdentityOf(parameter) is { } identity)
+                {
+                    declared[identity] = argument;
+                }
             }
         }
 
-        return new(bound);
+        return new(bound, declared);
     }
 
     /// <summary>
@@ -51,9 +64,20 @@ public sealed class ParameterBindings
     /// <returns>The binding, or <see langword="null"/> when the expression names no bound parameter.</returns>
     public BoundArgument? Resolve(ExpressionSyntax expression, SemanticModel semanticModel) =>
         expression is IdentifierNameSyntax identifier &&
-        semanticModel.GetSymbolInfo(identifier).Symbol is IParameterSymbol parameter &&
-        _bound.TryGetValue(parameter, out var argument)
-            ? argument
+        semanticModel.GetSymbolInfo(identifier).Symbol is IParameterSymbol parameter
+            ? Resolve(parameter)
+            : null;
+
+    /// <summary>
+    /// Identifies a parameter of an ordinary declared method without admitting local or anonymous functions.
+    /// </summary>
+    /// <param name="parameter">The parameter to identify.</param>
+    /// <returns>The assembly, method declaration and ordinal, or <see langword="null"/> for unsupported parameters.</returns>
+    static (AssemblyIdentity Assembly, string Method, int Ordinal)? IdentityOf(IParameterSymbol parameter) =>
+        parameter.ContainingSymbol is IMethodSymbol { MethodKind: MethodKind.Ordinary } method &&
+        method.OriginalDefinition.GetDocumentationCommentId() is { } declaration &&
+        method.ContainingAssembly is { } assembly
+            ? (assembly.Identity, declaration, parameter.Ordinal)
             : null;
 
     /// <summary>
@@ -71,5 +95,20 @@ public sealed class ParameterBindings
         }
 
         return index < method.Parameters.Length ? method.Parameters[index] : null;
+    }
+
+    /// <summary>
+    /// Resolves an exact parameter first, then its declaration across compilation boundaries.
+    /// </summary>
+    /// <param name="parameter">The parameter to resolve.</param>
+    /// <returns>The binding, or <see langword="null"/> when the parameter was not bound.</returns>
+    BoundArgument? Resolve(IParameterSymbol parameter)
+    {
+        if (_bound.TryGetValue(parameter, out var argument))
+        {
+            return argument;
+        }
+
+        return IdentityOf(parameter) is { } identity && _declared.TryGetValue(identity, out argument) ? argument : null;
     }
 }

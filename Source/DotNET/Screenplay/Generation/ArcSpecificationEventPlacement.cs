@@ -28,5 +28,5 @@ static class ArcSpecificationEventPlacement
                 .OfType<IMethodSymbol>()
                 .Where(method => method is { MethodKind: MethodKind.Ordinary, IsStatic: false }))
             .SelectMany(method => HandlerBodies.EventTypesIn(method.ReturnType))
-            .Any(produced => SymbolEqualityComparer.Default.Equals(produced, eventType));
+            .Any(produced => DeclaredTypeIdentity.IsSame(produced, eventType));
 }

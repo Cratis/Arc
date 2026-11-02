@@ -185,7 +185,8 @@ public partial class ObservableQueryDemultiplexer
                     requestContext,
                     session.SubscriptionContext.GetPrincipal(),
                     session.QueryId,
-                    session.Request),
+                    session.Request,
+                    session.Scope),
                 new SubscriptionCallbacks(
                     (result, operationToken) => DeliverResult(session, result, operationToken),
                     (result, operationToken) => DeliverResult(session, result, operationToken, isPush: true),
@@ -311,7 +312,7 @@ public partial class ObservableQueryDemultiplexer
 
     async Task<IDisposable?> CreateSubscriptionCore(SubscriptionTarget target, SubscriptionCallbacks callbacks, CancellationToken token)
     {
-        var (context, requestContext, principal, queryId, request) = target;
+        var (context, requestContext, principal, queryId, request, _) = target;
         var queryServiceProvider = requestContext.RequestServices;
         var query = new SubscriptionQuery(
             new FullyQualifiedQueryName(request.QueryName),
@@ -373,6 +374,12 @@ public partial class ObservableQueryDemultiplexer
                 if (TransferScopeToSubscription(subscription, ownedScope))
                 {
                     ownedScope = null;
+                }
+
+                // After the owned scope, so the stream disposes the owned scope first and the subscription scope last.
+                if (subscription is StreamingQuerySubscription lifetime)
+                {
+                    target.Scope?.TryTransferTo(lifetime);
                 }
 
                 var attached = subscription;
@@ -607,7 +614,8 @@ public partial class ObservableQueryDemultiplexer
         IHttpRequestContext RequestContext,
         ClaimsPrincipal Principal,
         string QueryId,
-        ObservableQuerySubscriptionRequest Request);
+        ObservableQuerySubscriptionRequest Request,
+        ObservableQuerySubscriptionServiceScope? Scope);
 
     readonly record struct SubscriptionQuery(
         FullyQualifiedQueryName Name,
@@ -624,6 +632,7 @@ public partial class ObservableQueryDemultiplexer
         public required ObservableQuerySubscriptionRequest Request { get; init; }
         public required ObservableQuerySubscriptionOperation Operation { get; init; }
         public required string Protocol { get; init; }
+        public required ObservableQuerySubscriptionServiceScope Scope { get; init; }
         public required Func<ObservableQueryHubMessage, CancellationToken, Task<bool>> Send { get; init; }
         public bool WasUnauthorized { get; set; }
         public ObservableQueryTelemetry? Telemetry { get; set; }

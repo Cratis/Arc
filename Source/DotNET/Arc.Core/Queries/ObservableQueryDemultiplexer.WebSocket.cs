@@ -195,19 +195,30 @@ public partial class ObservableQueryDemultiplexer
         }
 
         logger.ClientSubscribed(request.QueryName, queryId);
-        var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(context, context, serviceProvider, operation.Token);
-
-        var session = new SubscriptionSession
+        var scope = new ObservableQuerySubscriptionServiceScope(serviceProvider);
+        SubscriptionSession session;
+        try
         {
-            SubscriptionContext = subscriptionContext,
-            Subscriptions = connection.Subscriptions,
-            ConnectionId = connection.ConnectionId,
-            QueryId = queryId,
-            Request = request,
-            Operation = operation,
-            Protocol = "WebSocket",
-            Send = (outgoing, operationToken) => SendWebSocketMessage(connection, outgoing, operationToken)
-        };
+            var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(context, context, scope.ServiceProvider, operation.Token);
+
+            session = new SubscriptionSession
+            {
+                SubscriptionContext = subscriptionContext,
+                Subscriptions = connection.Subscriptions,
+                ConnectionId = connection.ConnectionId,
+                QueryId = queryId,
+                Request = request,
+                Operation = operation,
+                Protocol = "WebSocket",
+                Scope = scope,
+                Send = (outgoing, operationToken) => SendWebSocketMessage(connection, outgoing, operationToken)
+            };
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
 
         // Establishing a subscription runs the whole query pipeline. Doing that inline would stop this connection from
         // reading anything else until it finished: every other subscribe, an unsubscribe, even a ping. A page opens
@@ -219,30 +230,38 @@ public partial class ObservableQueryDemultiplexer
 
     async Task EstablishWithinLimit(WebSocketConnection connection, SubscriptionSession session, IHttpRequestContext context)
     {
-        var operation = session.Operation;
+        // The subscription scope is released here unless a live stream took ownership of it.
         try
         {
-            await connection.Concurrency.WaitAsync(operation.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Replaced or disconnected while waiting for a turn; EstablishSubscription never ran to release it.
-            TerminateSubscription(session.Subscriptions, session.QueryId, operation);
-            operation.CompleteCreation();
-            return;
-        }
+            var operation = session.Operation;
+            try
+            {
+                await connection.Concurrency.WaitAsync(operation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Replaced or disconnected while waiting for a turn; EstablishSubscription never ran to release it.
+                TerminateSubscription(session.Subscriptions, session.QueryId, operation);
+                operation.CompleteCreation();
+                return;
+            }
 
-        try
-        {
-            await EstablishSubscription(session, context);
-        }
-        catch (Exception ex) when (!IsFatal(ex))
-        {
-            logger.ErrorProcessingMessage(ex);
+            try
+            {
+                await EstablishSubscription(session, context);
+            }
+            catch (Exception ex) when (!IsFatal(ex))
+            {
+                logger.ErrorProcessingMessage(ex);
+            }
+            finally
+            {
+                connection.Concurrency.Release();
+            }
         }
         finally
         {
-            connection.Concurrency.Release();
+            session.Scope.Dispose();
         }
     }
 
