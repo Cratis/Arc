@@ -90,6 +90,8 @@ A validator runs before `Provide()`. Do not also acquire a later stream decision
 
 Put `[LookUpBy(nameof(Command.Property))]` on each constructor parameter. The name is resolved on the command, not on the validator. Each read gets its own guard, and `Handle()` can return one `EventForEventSourceId` for each entity without implementing `ICanProvideEventSourceId`. See [Two entities](./scenarios/two-entities.md) and [the transfer example](./reads.md#choose-the-key-with-lookupby).
 
+For a read keyed by the selected caller, use a caller-keyed `Handle` parameter instead: `[LookUpBy<CallerSubject>]` reads the exact `sub` claim, and a custom `CallerClaim` can name an application claim. The provider receives only the captured caller and target model type, not services. An absent or ambiguous key is an authorization refusal, including during validation preflight; it is not nullable model absence. See [caller-derived keys](../read-models/injecting-into-commands.md#key-a-read-by-the-caller). The key selection itself enables no guard: choose `On` when the rule must hold under concurrency. Neither lookup form may redirect a per-stream model.
+
 ## What a validator may and may not do under On
 
 | In a validator | Under `On` |
