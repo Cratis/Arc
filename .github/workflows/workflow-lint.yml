@@ -9,6 +9,7 @@ on:
       - .github/actions/**
       - .github/actionlint.yaml
       - .github/actionlint.yml
+      - scripts/chronicle-published-inputs.test.mjs
 
 permissions:
   contents: read
@@ -20,3 +21,20 @@ concurrency:
 jobs:
   lint:
     uses: Cratis/Workflows/.github/workflows/workflow-lint.yml@main
+
+  chronicle-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Setup node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 23.x
+      - name: Check Chronicle inputs
+        run: node --test scripts/chronicle-published-inputs.test.mjs
