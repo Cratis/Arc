@@ -4,7 +4,7 @@
 using Cratis.Chronicle.Events;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootServiceCollectionExtensions.when_resolving_without_dynamic_code;
+namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootServiceCollectionExtensions.when_resolving_through_a_closed_resolver;
 
 public class and_the_factory_task_faults : Specification
 {
@@ -21,7 +21,7 @@ public class and_the_factory_task_faults : Specification
     }
 
     void Because() => _exception = Catch.Exception(() =>
-        AggregateRootServiceCollectionExtensions.GetAggregateRootWithoutDynamicCode(typeof(SampleAggregateRoot), _factory, EventSourceId.New()));
+        AggregateRootServiceCollectionExtensions.GetAggregateRoot(AggregateRootServiceCollectionExtensions.CloseResolverFor(typeof(SampleAggregateRoot)), _factory, EventSourceId.New()));
 
     [Fact] void should_throw_the_factory_exception_itself() => _exception.ShouldEqual(_failure);
 }
