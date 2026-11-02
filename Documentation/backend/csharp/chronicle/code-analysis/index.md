@@ -46,6 +46,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0036](./ARCCHR0036.md) | Warning | Exact scope coverage of a protected read is not proven, including validator-first stream reads. |
 | [ARCCHR0037](./ARCCHR0037.md) | Error | Per-stream model parameter does not match the command route, or uses LookUpBy. |
 | [ARCCHR0038](./ARCCHR0038.md) | Info | Per-stream model guard widens through another read or declared concurrency. |
+| [ARCCHR0040](./ARCCHR0040.md) | Info | Prefer a read-model parameter over a direct decision-reader or token parameter. |
 
 ARCCHR0039 was removed and its ID is retired; it is never reused. A command's `Handle()` may take any dependency, including `IDecisionReads` and `DecisionRead<T>`, and no diagnostic reports it.
 

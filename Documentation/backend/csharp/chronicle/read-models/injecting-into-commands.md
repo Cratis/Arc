@@ -3,6 +3,8 @@ title: Read models in commands
 description: Take a Chronicle read model as a dependency in a CommandValidator, a Provide method, or a Handle method — and declare what a missing instance means.
 ---
 
+A command's `Handle()` may take any service dependencies. It reads state by declaring the read models it needs as parameters. Direct `IDecisionReads` or `DecisionRead<T>` parameters are almost never needed for supported acquisition shapes. [Command state inputs](command-state-inputs.md) explains the available bindings, protection modes, and gaps that justify a reasoned ARCCHR0040 suppression.
+
 A command can take the read model Arc resolved for its key in three places: the constructor of a `CommandValidator<TCommand>`, a `Provide()` method, and a `Handle()` method. All three resolve from the same command scope, so all three see the same instance.
 
 :::caution[A plain read guards nothing under Off]

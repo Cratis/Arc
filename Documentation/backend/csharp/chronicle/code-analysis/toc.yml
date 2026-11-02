@@ -74,3 +74,5 @@
   href: ARCCHR0037.md
 - name: ARCCHR0038 - Stream read guard widens
   href: ARCCHR0038.md
+- name: ARCCHR0040 - Prefer a read-model parameter
+  href: ARCCHR0040.md
