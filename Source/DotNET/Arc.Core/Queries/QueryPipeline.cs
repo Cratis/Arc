@@ -326,6 +326,8 @@ public class QueryPipeline(
         using var decisionQuery = CommandDecisionPolicy.BeginQuery();
         var result = QueryResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
+        using var snapshotLease = new AuthorizationPrincipalLease();
+        OperationSnapshot? snapshot = null;
         try
         {
             if (paging.IsPaged)
@@ -378,6 +380,8 @@ public class QueryPipeline(
                 var authorizedDependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
                 context = context with { Dependencies = authorizedDependencies };
                 queryContextManager.Set(context);
+                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipal);
+                snapshotLease.Attach(snapshot);
                 result.MergeWith(await stagedFilters.AfterAuthorization(context));
             }
             else
@@ -392,11 +396,18 @@ public class QueryPipeline(
                 var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
                 context = context with { Dependencies = dependencies };
                 queryContextManager.Set(context);
+                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipal);
+                snapshotLease.Attach(snapshot);
                 result = await queryFilters.OnPerform(context);
                 if (result.IsSuccess && prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
                 {
                     principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(authorizedPrincipal, serviceProvider));
                 }
+            }
+
+            if (snapshot is { MembershipDenied: true })
+            {
+                return QueryResult.Unauthorized(correlationId);
             }
 
             if (!result.IsSuccess)

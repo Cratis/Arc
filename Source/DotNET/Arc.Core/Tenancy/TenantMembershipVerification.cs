@@ -43,7 +43,14 @@ internal sealed class TenantMembershipVerification(
     /// <param name="tenant">The candidate tenant.</param>
     /// <returns>True when checks ran and allowed the candidate, false when no checks apply.</returns>
     /// <exception cref="TenantMembershipDenied">Membership was denied or could not be checked.</exception>
-    internal bool Verify(TenantId tenant)
+    internal bool Verify(TenantId tenant) => Verify(tenant, principals.Current);
+
+    /// <summary>Verifies a candidate for an explicitly supplied principal instead of the ambient one.</summary>
+    /// <param name="tenant">The candidate tenant.</param>
+    /// <param name="currentPrincipal">The principal to verify, or null to verify as an unauthenticated caller.</param>
+    /// <returns>True when checks ran and allowed the candidate, false when no checks apply.</returns>
+    /// <exception cref="TenantMembershipDenied">Membership was denied or could not be checked.</exception>
+    internal bool Verify(TenantId tenant, ClaimsPrincipal? currentPrincipal)
     {
         var memberships = Memberships();
         if (memberships.Length == 0)
@@ -51,7 +58,7 @@ internal sealed class TenantMembershipVerification(
             return false;
         }
 
-        var principal = principals.Current ?? new ClaimsPrincipal(new ClaimsIdentity());
+        var principal = currentPrincipal ?? new ClaimsPrincipal(new ClaimsIdentity());
         foreach (var membership in memberships)
         {
             bool allowed;

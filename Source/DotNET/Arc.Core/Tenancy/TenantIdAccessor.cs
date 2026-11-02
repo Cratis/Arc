@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Tenancy;
@@ -49,7 +50,7 @@ public class TenantIdAccessor : ITenantIdAccessor, ITenantScope
                 return _current.Value;
             }
 
-            var result = ResolveVerified(_tenantIdResolver, out var verified);
+            var result = ResolveVerified(_tenantIdResolver, principal: null, usePrincipal: false, out var verified);
             if (!verified && result != TenantId.NotSet)
             {
                 _current.Value = result;
@@ -93,7 +94,16 @@ public class TenantIdAccessor : ITenantIdAccessor, ITenantScope
     /// <summary>Resolves and verifies a candidate without changing the cached tenant.</summary>
     /// <param name="resolver">The operation's resolver.</param>
     /// <returns>The verified tenant candidate.</returns>
-    internal TenantId ResolveVerified(ITenantIdResolver resolver) => ResolveVerified(resolver, out _);
+    internal TenantId ResolveVerified(ITenantIdResolver resolver) => ResolveVerified(resolver, principal: null, usePrincipal: false, out _);
+
+    /// <summary>Resolves and verifies a candidate for a given principal without changing the cached tenant.</summary>
+    /// <param name="resolver">The operation's resolver.</param>
+    /// <param name="principal">The principal to verify membership for, instead of the ambient one.</param>
+    /// <param name="verified">Whether membership checks ran and allowed the candidate.</param>
+    /// <returns>The tenant candidate.</returns>
+    /// <exception cref="TenantMembershipDenied">Membership was denied or could not be checked.</exception>
+    internal TenantId ResolveVerified(ITenantIdResolver resolver, ClaimsPrincipal? principal, out bool verified) =>
+        ResolveVerified(resolver, principal, usePrincipal: true, out verified);
 
     static TenantScope UseTenant(TenantId tenant)
     {
@@ -102,11 +112,11 @@ public class TenantIdAccessor : ITenantIdAccessor, ITenantScope
         return new TenantScope(previous);
     }
 
-    TenantId ResolveVerified(ITenantIdResolver resolver, out bool verified)
+    TenantId ResolveVerified(ITenantIdResolver resolver, ClaimsPrincipal? principal, bool usePrincipal, out bool verified)
     {
         var tenantId = resolver.Resolve();
         var candidate = string.IsNullOrEmpty(tenantId) ? TenantId.NotSet : new TenantId(tenantId);
-        verified = _verification?.Verify(candidate) == true;
+        verified = (usePrincipal ? _verification?.Verify(candidate, principal) : _verification?.Verify(candidate)) == true;
         return candidate;
     }
 

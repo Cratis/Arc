@@ -9,7 +9,8 @@ namespace Cratis.Arc.Tenancy;
 public sealed class TenantMembershipDenied() : Exception("The caller is not a member of the selected tenant.")
 {
     /// <summary>
-    /// Checks whether an exception or one of its nested causes is a tenant membership denial.
+    /// Checks whether an exception or one of its nested causes is a tenant membership denial, or an operation
+    /// snapshot that could not be read, which rejects the operation the same way.
     /// </summary>
     /// <param name="exception">The exception to inspect.</param>
     /// <returns>True if a tenant membership denial is found within sixteen nesting levels.</returns>
@@ -17,7 +18,7 @@ public sealed class TenantMembershipDenied() : Exception("The caller is not a me
 
     static bool IsCauseOf(Exception? exception, int remaining) => remaining > 0 && exception switch
     {
-        TenantMembershipDenied => true,
+        TenantMembershipDenied or Validation.OperationSnapshotUnavailable => true,
         AggregateException aggregate => aggregate.InnerExceptions.Any(inner => IsCauseOf(inner, remaining - 1)),
         { InnerException: { } inner } => IsCauseOf(inner, remaining - 1),
         _ => false

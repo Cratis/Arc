@@ -511,6 +511,7 @@ public class CommandPipeline(
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
         using var identityLease = new AuthorizationPrincipalLease();
+        using var snapshotLease = new AuthorizationPrincipalLease();
         CommandContext? commandContext = default;
         ICommandExecutionScope[]? scopes = default;
         var executionScopesCompleted = false;
@@ -613,7 +614,14 @@ public class CommandPipeline(
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
+            var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipal);
+            snapshotLease.Attach(snapshot);
             result = await commandFilters.OnExecution(commandContext);
+            if (snapshot.MembershipDenied)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
             {
@@ -868,7 +876,13 @@ public class CommandPipeline(
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
+            using var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipal);
             result = await commandFilters.OnExecution(commandContext);
+            if (snapshot.MembershipDenied)
+            {
+                return CommandResult.Unauthorized(correlationId);
+            }
+
             result = FilterValidationResults(result, commandContext);
         }
         catch (InvalidAuthorizationConfiguration ex)
