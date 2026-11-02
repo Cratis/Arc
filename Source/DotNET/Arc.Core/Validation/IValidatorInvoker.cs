@@ -25,4 +25,21 @@ public interface IValidatorInvoker
     /// <param name="cancellationToken">Optional <see cref="CancellationToken"/> for cancelling the validation.</param>
     /// <returns>The <see cref="ValidationResult"/> collection describing the outcome, empty when valid.</returns>
     Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs a validator against an instance, telling the validator what it is being run for.
+    /// </summary>
+    /// <param name="instance">The instance to validate.</param>
+    /// <param name="validator">The <see cref="IValidator"/> to run.</param>
+    /// <param name="path">The camelCased member path from the graph root to <paramref name="instance"/>, empty at the root.</param>
+    /// <param name="kind">What the instance is validated for, or null when not known.</param>
+    /// <param name="cancellationToken">Optional <see cref="CancellationToken"/> for cancelling the validation.</param>
+    /// <returns>The <see cref="ValidationResult"/> collection describing the outcome, empty when valid.</returns>
+    /// <remarks>
+    /// The default implementation ignores <paramref name="kind"/> and forwards to
+    /// <see cref="Invoke(object, IValidator, string, CancellationToken)"/>, so implementations written before this
+    /// overload existed keep working unchanged.
+    /// </remarks>
+    Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidationTargetKind? kind, CancellationToken cancellationToken = default) =>
+        Invoke(instance, validator, path, cancellationToken);
 }

@@ -20,4 +20,11 @@ namespace Cratis.Arc.Validation;
 public record ModelGraphValidationRequest(
     object Instance,
     IServiceProvider? ServiceProvider = default,
-    string RootPath = "");
+    string RootPath = "")
+{
+    /// <summary>
+    /// Gets what the graph is validated for, which scopes rules such as <c>WhenCommand</c> and <c>WhenQuery</c>.
+    /// When not set, the validation context carries no kind and such rules cannot be evaluated.
+    /// </summary>
+    public ValidationTargetKind? Kind { get; init; }
+}

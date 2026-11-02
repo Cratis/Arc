@@ -121,17 +121,35 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     static bool IsLeaf(Type type) =>
         _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
 
-    async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidatorSpans? spans, CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs a validator through the invoker, using the kind-aware overload only when the request carries a kind.
+    /// </summary>
+    /// <param name="instance">The instance to validate.</param>
+    /// <param name="validator">The <see cref="IValidator"/> to run.</param>
+    /// <param name="path">The member path from the graph root.</param>
+    /// <param name="kind">What the graph is validated for, or null when not known.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> for cancelling the validation.</param>
+    /// <returns>The <see cref="ValidationResult"/> collection describing the outcome.</returns>
+    /// <remarks>
+    /// A request without a kind keeps the original call, so an invoker written before the overload existed is never
+    /// asked something it does not know.
+    /// </remarks>
+    Task<IEnumerable<ValidationResult>> InvokeValidator(object instance, IValidator validator, string path, ValidationTargetKind? kind, CancellationToken cancellationToken) =>
+        kind is null
+            ? validatorInvoker.Invoke(instance, validator, path, cancellationToken)
+            : validatorInvoker.Invoke(instance, validator, path, kind, cancellationToken);
+
+    async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidationTargetKind? kind, ValidatorSpans? spans, CancellationToken cancellationToken)
     {
         using var activity = spans?.Start(validator.GetType());
         if (activity is null)
         {
-            return await validatorInvoker.Invoke(instance, validator, path, cancellationToken);
+            return await InvokeValidator(instance, validator, path, kind, cancellationToken);
         }
 
         try
         {
-            var results = (await validatorInvoker.Invoke(instance, validator, path, cancellationToken)).ToArray();
+            var results = (await InvokeValidator(instance, validator, path, kind, cancellationToken)).ToArray();
             if (activity.IsAllDataRequested)
             {
                 activity.SetTag(WellKnownTelemetryNames.ValidationResultCount, results.Length);
@@ -173,7 +191,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         if (!skipOwnValidator && TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
             CertifiedProtectedValidatorConstruction.VerifyInvocation(validator, request.ServiceProvider);
-            results.AddRange(await Invoke(instance, validator, path, spans, cancellationToken));
+            results.AddRange(await Invoke(instance, validator, path, request.Kind, spans, cancellationToken));
 
             // A validator can suppress a cross-cutting concept validator for one of its own properties (see
             // BaseValidator<T>.RuleFor(...).IgnoreConceptRules()) — typically because that property names an
