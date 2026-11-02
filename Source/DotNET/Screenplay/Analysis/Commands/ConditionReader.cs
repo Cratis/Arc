@@ -74,6 +74,26 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
         }
     }
 
+    /// <summary>Reads a built-in Equals call only when its operands have equality-operator semantics.</summary>
+    /// <param name="invocation">The Equals call.</param>
+    /// <param name="scope">The semantic model and command whose input may be compared.</param>
+    /// <param name="location">The diagnostic location.</param>
+    /// <returns>The admitted comparison, or null.</returns>
+    internal ComparisonCondition? ReadEquality(InvocationExpressionSyntax invocation, ProducesScope scope, string location)
+    {
+        var (left, right) = EqualityOperands(invocation, scope.SemanticModel);
+        if (left is null || right is null)
+        {
+            return null;
+        }
+        if (!HaveMatchingBuiltInTypes(left, right, scope.SemanticModel))
+        {
+            return null;
+        }
+
+        return ReadOperands(left, right, ComparisonKind.Equal, new(scope.SemanticModel, scope.Command, location, scope.Bindings));
+    }
+
     /// <summary>
     /// Determines whether an operator combines two conditions.
     /// </summary>
@@ -81,6 +101,37 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
     /// <returns>True when the expression combines conditions.</returns>
     static bool IsLogical(BinaryExpressionSyntax binary) =>
         binary.IsKind(SyntaxKind.LogicalAndExpression) || binary.IsKind(SyntaxKind.LogicalOrExpression);
+
+    static (ExpressionSyntax? Left, ExpressionSyntax? Right) EqualityOperands(InvocationExpressionSyntax invocation, SemanticModel model)
+    {
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || method.Name != "Equals")
+        {
+            return default;
+        }
+        var arguments = invocation.ArgumentList.Arguments;
+        if (arguments.Any(argument => argument.NameColon is not null || argument.RefKindKeyword.RawKind != 0))
+        {
+            return default;
+        }
+        if (method.IsStatic)
+        {
+            return method.ContainingType.SpecialType == SpecialType.System_Object && arguments.Count == 2
+                ? (arguments[0].Expression, arguments[1].Expression) : default;
+        }
+        return InstanceEqualityOperands(invocation, method.ContainingType);
+    }
+
+    static (ExpressionSyntax? Left, ExpressionSyntax? Right) InstanceEqualityOperands(InvocationExpressionSyntax invocation, ITypeSymbol type) =>
+        HasBuiltInEquality(type) && invocation.ArgumentList.Arguments.Count == 1 && invocation.Expression is MemberAccessExpressionSyntax member
+            ? (member.Expression, invocation.ArgumentList.Arguments[0].Expression) : default;
+
+    static bool HaveMatchingBuiltInTypes(ExpressionSyntax left, ExpressionSyntax right, SemanticModel model) =>
+        model.GetTypeInfo(left).Type is { } type && HasBuiltInEquality(type) && SymbolEqualityComparer.Default.Equals(type, model.GetTypeInfo(right).Type);
+
+    static bool HasBuiltInEquality(ITypeSymbol type) => type.SpecialType is
+        SpecialType.System_Boolean or SpecialType.System_Char or SpecialType.System_String or
+        SpecialType.System_Byte or SpecialType.System_SByte or SpecialType.System_Int16 or SpecialType.System_UInt16 or
+        SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Decimal;
 
     /// <summary>
     /// Reads a bare boolean property as a comparison against true.
@@ -156,22 +207,29 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
             return UuidConditions.Read(binary, comparison, new(semanticModel, location, diagnostics, (expression, model) => MappingSourceReader.ReadPath(expression, model, owner), null, bindings));
         }
 
-        var left = MappingSourceReader.ReadPath(binary.Left, semanticModel, owner, bindings);
+        return ReadOperands(binary.Left, binary.Right, comparison, new(semanticModel, owner, location, bindings));
+    }
+
+    ComparisonCondition? ReadOperands(ExpressionSyntax leftOperand, ExpressionSyntax rightOperand, ComparisonKind comparison, ComparisonSite site)
+    {
+        var left = MappingSourceReader.ReadPath(leftOperand, site.Model, site.Owner, site.Bindings);
         if (left is not null)
         {
-            var right = _sources.Read(binary.Right, semanticModel, owner, location, bindings);
+            var right = _sources.Read(rightOperand, site.Model, site.Owner, site.Location, site.Bindings);
 
             return right is null ? null : new ComparisonCondition(left, comparison, right);
         }
 
-        var mirrored = MappingSourceReader.ReadPath(binary.Right, semanticModel, owner, bindings);
+        var mirrored = MappingSourceReader.ReadPath(rightOperand, site.Model, site.Owner, site.Bindings);
         if (mirrored is null)
         {
             return null;
         }
 
-        var value = _sources.Read(binary.Left, semanticModel, owner, location, bindings);
+        var value = _sources.Read(leftOperand, site.Model, site.Owner, site.Location, site.Bindings);
 
         return value is null ? null : new ComparisonCondition(mirrored, ComparisonKinds.Mirrored(comparison), value);
     }
+
+    record ComparisonSite(SemanticModel Model, ITypeSymbol Owner, string Location, ParameterBindings? Bindings);
 }
