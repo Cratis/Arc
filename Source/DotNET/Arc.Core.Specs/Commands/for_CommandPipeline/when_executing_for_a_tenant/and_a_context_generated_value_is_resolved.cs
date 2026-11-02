@@ -32,22 +32,18 @@ public class and_a_context_generated_value_is_resolved : given.a_command_pipelin
         _serviceProvider.GetService(typeof(ITenantIdAccessor)).Returns(accessor);
         _serviceProvider.GetService(typeof(ITenantIdResolver)).Returns(resolver);
         var invoker = new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance);
-        var parameter = typeof(Generating).GetMethod(nameof(Generating.Handle))!.GetParameters()[0];
 
         _commandFilters.OnExecution(Arg.Any<CommandContext>()).Returns(async _ =>
         {
             await invoker.Invoke("value", new RecordingValidator(_filterTenants), string.Empty);
             return CommandResult.Success(_correlationId);
         });
-        _commandHandlerArgumentResolver
-            .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
-            .Returns(async call =>
-            {
-                var context = call.Arg<CommandContext>() with { ReceivedAt = DateTimeOffset.UtcNow };
-                var value = (ContextId)await GeneratedValueResolution.Resolve(typeof(Generating), parameter, context, call.Arg<IServiceProvider>());
-                _generated = value.Value;
-                return new CommandHandlerArgumentResolution([value], CommandResult.Success(_correlationId));
-            });
+        UseTheRealArgumentResolver(typeof(Generating), typeof(Generating).GetMethod(nameof(Generating.Handle))!);
+        _commandHandler.Handle(Arg.Any<CommandContext>()).Returns(call =>
+        {
+            _generated = ((ContextId)call.Arg<CommandContext>().GeneratedValues.Single().Value).Value;
+            return new ValueTask<object?>((object?)null);
+        });
     }
 
     async Task Because() => _result = await _commandPipeline.Execute(_command);
