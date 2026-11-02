@@ -1,5 +1,6 @@
 # Decisions
 
+
 | ID | Title | Status | Stage | Decided | Decider |
 | --- | --- | --- | --- | --- | --- |
 | [0001-enforce-aspnet-core-authorization-attributes](0001-enforce-aspnet-core-authorization-attributes.md) | Enforce ASP.NET Core's authorization attributes on model-bound artifacts, alongside Arc's own | Superseded | Verified | 2026-09-23 | Sindre Alstad Wilting |
@@ -17,3 +18,4 @@
 | [0013-cap-caller-validation-severity](0013-cap-caller-validation-severity.md) | Cap HTTP caller validation severity at Warning unless the command or host opts in | Proposed | None | — | — |
 | [0014-prefer-idiomatic-command-decisions-and-state-based-specs](0014-prefer-idiomatic-command-decisions-and-state-based-specs.md) | Prefer idiomatic command decisions and state-based application specifications | Superseded | Implemented | 2026-10-31 | Repository maintainer (direct user instruction via the orchestrating session) |
 | [0015-handle-dependencies-are-the-authors-choice](0015-handle-dependencies-are-the-authors-choice.md) | Let command Handle methods take any dependency, with no diagnostic | Accepted | Implemented | 2026-11-02 | Einar Ingebrigtsen |
+| [0016-prefer-read-model-parameters-with-narrow-guidance](0016-prefer-read-model-parameters-with-narrow-guidance.md) | Prefer read-model parameters with narrow informational guidance | Proposed | None | — | — |
