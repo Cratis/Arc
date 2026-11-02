@@ -53,7 +53,7 @@ public class a_concept_fixture : for_ScreenplayGenerator.given.a_generated_docum
     protected void AssertStated(bool collection)
     {
         Assert.True(Result.Source.Contains("specification WhenRequestingAndALabelIsSupplied", StringComparison.Ordinal), string.Join(Environment.NewLine, Result.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}")));
-        Result.Source.ShouldContain(collection ? "label = [\"urgent\",\"review\"]" : "label = \"urgent\"");
+        Result.Source.ShouldContain(collection ? "label\n            item \"urgent\"\n            item \"review\"" : "label = \"urgent\"");
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         AssertDocument();
     }

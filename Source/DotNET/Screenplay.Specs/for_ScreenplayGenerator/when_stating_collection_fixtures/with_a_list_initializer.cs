@@ -7,5 +7,5 @@ public class with_a_list_initializer : given.a_collection_fixture
 {
     void Because() => GenerateFixture("ApprovalLabel", "new List<ApprovalLabel> { Urgent, new ApprovalLabel(\"review\") }");
 
-    [Fact] void should_state_and_bind_the_list() => AssertTags("[\"urgent\",\"review\"]");
+    [Fact] void should_state_and_bind_the_list() => AssertTags("urgent", "review");
 }

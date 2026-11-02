@@ -7,5 +7,5 @@ public class with_implicitly_converted_concepts : given.a_collection_fixture
 {
     void Because() => GenerateFixture("ApprovalLabel", "[Urgent, \"review\"]");
 
-    [Fact] void should_state_and_bind_the_concepts_backing_values() => AssertTags("[\"urgent\",\"review\"]");
+    [Fact] void should_state_and_bind_the_concepts_backing_values() => AssertTags("urgent", "review");
 }

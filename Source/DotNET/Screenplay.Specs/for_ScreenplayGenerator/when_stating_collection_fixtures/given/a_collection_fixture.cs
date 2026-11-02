@@ -64,12 +64,18 @@ public class a_collection_fixture : for_ScreenplayGenerator.given.a_generated_do
             (IntegrationTesting.Path, IntegrationTesting.Source));
     }
 
-    protected void AssertTags(string text)
+    protected void AssertTags(params string[] items)
     {
-        Assert.True(Result.Source.Split($"tags = {text}", StringSplitOptions.None).Length == 3,
+        Assert.True(CountTagLists(items) == 2,
             $"{Result.Source}{Environment.NewLine}{string.Join(Environment.NewLine, Result.Diagnostics)}");
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         AssertDocument();
+    }
+
+    int CountTagLists(string[] items)
+    {
+        var list = items.Length == 0 ? "tags none" : "tags\n" + string.Concat(items.Select(item => $"\\s+item \"{item}\"\n?"));
+        return System.Text.RegularExpressions.Regex.Count(Result.Source, list);
     }
 
     protected void AssertUnread()

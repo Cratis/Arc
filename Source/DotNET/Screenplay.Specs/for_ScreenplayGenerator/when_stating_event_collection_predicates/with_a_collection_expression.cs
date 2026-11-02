@@ -7,5 +7,5 @@ public class with_a_collection_expression : given.an_event_collection_predicate
 {
     void Because() => GenerateExpectation("e.Tags.SequenceEqual<ApprovalLabel>([Urgent, \"review\"])");
 
-    [Fact] void should_state_and_bind_the_expected_concepts_in_order() => AssertCollection("[\"urgent\",\"review\"]");
+    [Fact] void should_state_and_bind_the_expected_concepts_in_order() => AssertCollection("urgent", "review");
 }
