@@ -38,7 +38,8 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
         if (!isReadModel ||
             (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On &&
-             !CommandAttributePolicy.HasExplicitLookup(parameter)))
+             !CommandAttributePolicy.HasExplicitLookup(parameter) &&
+             !Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any()))
         {
             return false;
         }
