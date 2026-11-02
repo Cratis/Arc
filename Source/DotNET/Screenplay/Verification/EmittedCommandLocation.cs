@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Slices;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.Verification;
@@ -11,6 +12,24 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// <summary>Matches printed command locations to source analysis without guessing across scopes.</summary>
 internal static class EmittedCommandLocation
 {
+    /// <summary>Uses a compiler command path when present, otherwise the printed location.</summary>
+    /// <param name="application">The parsed printed application.</param>
+    /// <param name="diagnostic">The compiler diagnostic.</param>
+    /// <param name="model">The model used for emission.</param>
+    /// <param name="options">The resolved emission options.</param>
+    /// <returns>The unique owning command and slice, or null.</returns>
+    internal static (SliceModel Slice, CommandModel Command, CommandSyntax Printed)? Find(ApplicationSyntax application, Diagnostic diagnostic, ApplicationModel model, ScreenplayOptions options)
+    {
+        if (CommandPath(diagnostic) is { } path)
+        {
+            var segments = path.EnumerateArray().Select(segment => segment.GetString()).ToArray();
+            var owners = application.Modules.SelectMany(module => Commands(module.Features, [module.Name])).Where(command => command.Path.SequenceEqual(segments)).ToArray();
+            return owners.Length == 1 ? Find(application, owners[0].Command.Location.Line, model, options) : null;
+        }
+
+        return Find(application, diagnostic.Location.Line, model, options);
+    }
+
     /// <summary>Finds the unique analyzed command containing a printed line.</summary>
     /// <param name="application">The parsed printed application.</param>
     /// <param name="line">The diagnostic line.</param>
@@ -42,6 +61,20 @@ internal static class EmittedCommandLocation
         }).ToArray();
 
         return candidates.Length == 1 ? candidates[0] : null;
+    }
+
+    static System.Text.Json.JsonElement? CommandPath(Diagnostic diagnostic)
+    {
+        if (!diagnostic.Arguments.TryGetValue("command", out var subject))
+        {
+            return null;
+        }
+        if (subject.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return subject.Value.TryGetProperty("path", out var path) && path.ValueKind == System.Text.Json.JsonValueKind.Array ? path : null;
     }
 
     static IEnumerable<(string[] Path, SliceSyntax Slice, CommandSyntax Command)> Commands(IEnumerable<FeatureSyntax> features, string[] parents) =>

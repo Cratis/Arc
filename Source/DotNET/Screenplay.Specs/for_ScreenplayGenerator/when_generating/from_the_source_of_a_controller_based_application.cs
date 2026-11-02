@@ -115,5 +115,6 @@ public class from_the_source_of_a_controller_based_application : Specification
     [Fact] void should_never_put_a_transport_type_in_the_document() => Says("ActionResult").ShouldBeFalse();
     [Fact] void should_leave_out_the_query_whose_read_model_is_unknowable() => Says("query Raw").ShouldBeFalse();
     [Fact] void should_report_the_query_it_left_out() => _result.Diagnostics.Select(_ => _.Code).ShouldContain(ScreenplayDiagnosticCodes.UnmappableQuery);
-    [Fact] void should_report_nothing_as_an_error() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_fail_generation_for_residual_binding_errors() => _result.IsSuccess.ShouldBeFalse();
+    [Fact] void should_report_only_binding_errors_as_errors() => _result.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
 }

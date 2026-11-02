@@ -30,5 +30,5 @@ public class and_the_document_it_printed_compiles : given.a_compilation
     [Fact] void should_not_report_that_the_document_did_not_compile() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotCompile);
     [Fact] void should_report_binding_defects_and_legacy_concurrency_loss() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.DocumentDidNotBind, ScreenplayDiagnosticCodes.EventSourceNotRepresentable]);
     [Fact] void should_report_each_binding_defect() => _result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldEqual(6);
-    [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_fail_generation_for_residual_binding_defects() => _result.IsSuccess.ShouldBeFalse();
 }

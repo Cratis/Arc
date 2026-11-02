@@ -48,7 +48,7 @@ Warning SP0019: The query 'Raw' returns 'IActionResult', which says how the resu
 transported rather than what it is, so the query was left out (Library.Messaging.Feed)
 ```
 
-Diagnostics come in three severities. **Information** describes a limitation without failing generation. **Warning** means something was left out or standalone generation found an unexpected semantic binding error (`SP0056`). Embedded generation reports `SP0056` as Information so a generator limitation cannot break your application's build. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
+Diagnostics come in three severities. **Information** describes a limitation without failing generation. **Warning** means something was left out. Standalone generation reports `SP0056` when it withholds a command's binding-invalid productions and leaves them in the C# handler; the returned document is verified again. Unexpected binding errors that cannot be withheld are `SP0056` Errors. Embedded generation reports `SP0056` as Information so a generator limitation cannot break your application's build. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
 
 ## What the generator expects of its host
 
@@ -1189,7 +1189,7 @@ These details can remain outside the document because the language has no counte
 | Parameterized `[Theory]` scenario | Information `SP0076` names the omitted theory, including theories that construct a local command, event, read-model, or reactor scenario; case tables are not generated yet. Ordinary `[Fact]` scenarios in the same class remain eligible. |
 | Unsupported command scenario caller | An authorized scenario is withheld with Warning `SP0039` when its caller or any referenced policy cannot be recovered exactly. An open command scenario is retained without a caller, with Information `SP0075` naming the unsupported setup. |
 | Unrepresentable command denial or failure | `ShouldNotBeAuthorized()` becomes `then denied` only with an emitted authorization gate, exact policies and caller, and no other outcome. Otherwise Warning `SP0039` names the missing caller, inexact policy, combined outcome, or denial not explained by any stated policy. Exception assertions and uncategorized failures remain unsupported. |
-| Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
+| Unexpected generated-document binding errors | Standalone generation withholds the uniquely attributable command's productions and leaves its handler in code. Warning `SP0056` names the original binder code, message, line and column. Dependent successful scenarios and orphan declarations are pruned, and the document is verified again. Errors without a safe command/handler attribution remain in the returned text and are reported as Error `SP0056`. A document with only expected binding limits remains unchanged. Embedded generation is unchanged. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.
 

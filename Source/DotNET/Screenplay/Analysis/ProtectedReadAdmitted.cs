@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Emission;
+using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Analysis;
 
@@ -10,4 +11,11 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// </summary>
 /// <param name="Emission">The emission to use.</param>
 /// <param name="Diagnostics">The refusals and any defect found while admitting.</param>
-internal sealed record ProtectedReadAdmitted(ScreenplayEmission Emission, IReadOnlyList<ScreenplayDiagnostic> Diagnostics);
+internal sealed record ProtectedReadAdmitted(ScreenplayEmission Emission, IReadOnlyList<ScreenplayDiagnostic> Diagnostics)
+{
+    /// <summary>Gets the model after protected-read admission.</summary>
+    internal ApplicationModel? Model { get; init; }
+
+    /// <summary>Gets verification of the returned emission when admission already performed it.</summary>
+    internal Verification.ScreenplayVerification? Verification { get; init; }
+}
