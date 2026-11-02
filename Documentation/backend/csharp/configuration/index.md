@@ -50,6 +50,7 @@ builder.AddCratisArc(options =>
 
 | Option | Type | Default | What it controls |
 | --- | --- | --- | --- |
+| `Artifacts` | `ArtifactsOptions` | empty | Code-only host opt-ins: `options.Artifacts.Include(typeof(SomeType).Assembly)` serves model-bound artifacts from an assembly marked `[ArtifactsRequireOptIn]`. Not bindable from configuration. |
 | `ExposeExceptionDetails` | `bool` | `RuntimeEnvironment.IsDevelopment` | Expose exception messages and stack traces in serialized command/query results (model-bound and controller-based) and observable query errors only in Development by default. Full detail remains in server logs when responses are redacted. Keep disabled in public production environments. |
 | `Command.MaximumCallerAllowedSeverity` | `ValidationResultSeverity` | `Warning` | Default maximum for the model-bound HTTP caller severity header; names and numbers are accepted. A command opt-in replaces this maximum. |
 | `Command.IgnoreCallerAllowedSeverity` | `bool` | `false` | Ignore the caller severity header, even on commands with an opt-in. |
@@ -97,6 +98,28 @@ For example, the equivalent `appsettings.json` keys are:
 `RequireAuthentication` and `Roles` govern mapped discovery endpoints: the command and query catalogs, users, tenants, and the identity-details schema. `Enabled` controls the catalogs; `IdentityDiscovery` controls users, tenants and the schema. Set both to `false` to skip discovery mapping, authentication enforcement checks and exposure warnings. Valid access settings then have no effect, but role configuration is still validated. Outside Development, hosts without authentication leave enabled discovery endpoints unmapped by default and warn once per host; explicitly requiring authentication on such a host fails startup. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
+
+## Including a private library's artifacts
+
+A referenced library can mark its assembly with `[assembly: ArtifactsRequireOptIn]`
+to keep its model-bound commands and read-model queries out of your host. When your
+host is responsible for serving those artifacts, include the assembly in code.
+Here, `SomeType` is a type from that library:
+
+```csharp
+builder.AddCratisArc(options => options.Artifacts.Include(typeof(SomeType).Assembly));
+
+// For a service-collection-only host:
+services.AddCratisArcCore();
+services.Configure<ArcOptions>(options => options.Artifacts.Include(typeof(SomeType).Assembly));
+```
+
+The host snapshots these opt-ins when it first resolves the providers. Register
+all options callbacks before resolving services; changing options later does not
+remap endpoints. `Artifacts` is code-only, not an appsettings or environment-variable
+setting. Unmarked assemblies continue to be served without an opt-in. See the
+[attribute reference](../attributes.md#discovery-and-api-descriptions) for the scope
+and the distinction from `[ExcludeFromDiscovery]`.
 
 ## Adding features with the builder
 
