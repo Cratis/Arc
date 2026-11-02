@@ -17,6 +17,7 @@ public class and_a_websocket_upgrade_comes_from_another_origin_without_configure
 
     Task Because() => _filter.OnActionExecutionAsync(_actionContext, _next);
 
-    [Fact] void should_run_the_action() => _next.Received(1)();
-    [Fact] void should_not_refuse_the_connection() => _actionContext.Result.ShouldBeNull();
+    [Fact] void should_answer_forbidden() => ((StatusCodeResult)_actionContext.Result).StatusCode.ShouldEqual(StatusCodes.Status403Forbidden);
+    [Fact] void should_not_run_the_action() => _next.DidNotReceive()();
+    [Fact] void should_not_accept_the_connection() => _transportEvents.ShouldBeEmpty();
 }

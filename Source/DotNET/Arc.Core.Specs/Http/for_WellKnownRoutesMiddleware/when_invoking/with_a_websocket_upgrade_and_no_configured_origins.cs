@@ -11,7 +11,7 @@ public class with_a_websocket_upgrade_and_no_configured_origins : given.a_websoc
 
     [Fact] void should_handle_the_request() => _result.ShouldBeTrue();
     [Fact] void should_not_call_next() => _nextCalled.ShouldBeFalse();
-    [Fact] void should_call_the_handler() => _handlerCalled.ShouldEqual(true);
-    [Fact] void should_accept_the_connection() => _accepted.ShouldEqual(true);
-    [Fact] void should_complete_the_upgrade() => (_connectError is null).ShouldEqual(true);
+    [Fact] void should_not_call_the_handler() => _handlerCalled.ShouldEqual(false);
+    [Fact] void should_not_accept_the_connection() => _accepted.ShouldEqual(false);
+    [Fact] void should_refuse_the_upgrade() => (_connectError is null).ShouldEqual(false);
 }

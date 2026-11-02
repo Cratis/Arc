@@ -17,7 +17,10 @@ public class when_connecting_through_the_aspnet_host
     const string Same = "same";
 
     [Theory]
-    [InlineData("", "https://elsewhere.test", true)]
+    [InlineData("", "https://elsewhere.test", false)]
+    [InlineData("", null, true)]
+    [InlineData("", Same, true)]
+    [InlineData("*", "null", true)]
     [InlineData("https://trusted.test", null, true)]
     [InlineData("https://trusted.test", Same, true)]
     [InlineData("https://trusted.test", "https://trusted.test", true)]

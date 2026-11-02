@@ -18,9 +18,9 @@ public class QueryOptions
 
     /// <summary>
     /// Gets or sets the origins that may open observable query WebSocket connections from a browser, in addition to the
-    /// origin the application itself is served from. Setting at least one entry restricts connections to those origins. Entries are origins such as <c>https://app.example.com</c>; a single
+    /// origin the application itself is served from. Entries are origins such as <c>https://app.example.com</c>; a single
     /// <c>*</c> entry accepts any origin. Connections without an <c>Origin</c> header, as sent by non-browser clients, are
-    /// always accepted. While the list is empty, connections from any origin are accepted.
+    /// always accepted. While the list is empty, only the application's own origin is accepted.
     /// </summary>
     public IList<string> AllowedWebSocketOrigins { get; set; } = [];
 }
