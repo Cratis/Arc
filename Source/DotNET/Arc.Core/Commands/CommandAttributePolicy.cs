@@ -48,10 +48,11 @@ internal static class CommandAttributePolicy
     /// <returns>The shared lookup resolution.</returns>
     internal static (string? Property, string? Conflict) ResolveLookup([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type commandType, ParameterInfo parameter, bool isReadModel)
     {
-        var declarations = CustomAttributeData.GetCustomAttributes(parameter);
         var property = Attribute.GetCustomAttributes(parameter, typeof(LookUpByAttribute), true).OfType<LookUpByAttribute>().FirstOrDefault()?.Property;
-        var providers = declarations.Count(attribute => typeof(ILookUpByKeyProvider).IsAssignableFrom(attribute.AttributeType));
-        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), providers > 0, providers > 1 || (providers > 0 && property is not null));
+        var lookups = LookUpByKeyProviderDeclarations.For(parameter).ToArray();
+        var providers = lookups.Count(LookUpByKeyProviderDeclarations.IsProvider);
+        var mixed = providers > 0 && lookups.Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute));
+        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), (providers > 0, providers > 1 || mixed));
     }
 
     /// <summary>
@@ -92,8 +93,8 @@ internal static class CommandAttributePolicy
     /// <summary>Checks either lookup form without activating a provider.</summary>
     /// <param name="parameter">The read-model parameter.</param>
     /// <returns>Whether a lookup is explicitly declared.</returns>
-    internal static bool HasExplicitLookup(ParameterInfo parameter) => CustomAttributeData.GetCustomAttributes(parameter)
-        .Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute) || typeof(ILookUpByKeyProvider).IsAssignableFrom(attribute.AttributeType));
+    internal static bool HasExplicitLookup(ParameterInfo parameter) => parameter.GetCustomAttributesData().Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute)) ||
+        LookUpByKeyProviderDeclarations.For(parameter).Any(LookUpByKeyProviderDeclarations.IsProvider);
 
     /// <summary>Validates and reads the provider-backed lookup declaration.</summary>
     /// <param name="parameter">The read-model parameter.</param>

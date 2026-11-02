@@ -36,10 +36,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             dependency = PerStreamReadModelBinding.Resolve(parameter.ParameterType, commandContext, serviceProvider, parameter);
             return true;
         }
-        if (!isReadModel ||
-            (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On &&
-             !CommandAttributePolicy.HasExplicitLookup(parameter) &&
-             !Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any()))
+        if (!RequiresParameterLookup(parameter, isReadModel))
         {
             return false;
         }
@@ -89,6 +86,11 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
 
         return reader.GetInstance<T>(key, context.CancellationToken).GetAwaiter().GetResult();
     }
+
+    static bool RequiresParameterLookup(ParameterInfo parameter, bool isReadModel) => isReadModel &&
+        (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On ||
+         CommandAttributePolicy.HasExplicitLookup(parameter) ||
+         Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
 
     static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
     {

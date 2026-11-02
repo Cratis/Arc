@@ -86,27 +86,17 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         }
 
         var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
-        var propertyName = lookup?.ConstructorArguments.FirstOrDefault().Value as string;
-        var provider = CommandAttributeSymbols.ResolveKeyProvider(parameter);
-        if (propertyName is null && provider.Provider is null)
-        {
-            return;
-        }
+        var propertyValue = lookup?.ConstructorArguments.FirstOrDefault().Value;
+        if (AnalyzeKeyProvider(context, parameter, mayBeModel, backedTypes) || propertyValue is not string propertyName) return;
 
         var command = ReadProtectionSymbols.CommandFor(method) ?? method.ContainingType;
         var resolution = CommandAttributeSymbols.ResolveLookup(command, parameter, mayBeModel);
-        if (provider.Conflict is not null)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, "is invalid: only one lookup form may be declared"));
-            return;
-        }
         if (!mayBeModel)
         {
             context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, $"requires a read model, but '{parameter.Type.Name}' is not a read-model type. Remove LookUpBy or inject a read model."));
             return;
         }
 
-        if (provider.Provider is not null || propertyName is null) return;
         var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
         if (resolution.Conflict is not null)
         {
@@ -120,6 +110,25 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
 
         // Explicit lookup keys are canonicalized independently of the model's CLR Id type at runtime.
         // Even non-concept values have the runtime's ToEventSourceId/ToString fallback.
+    }
+
+    static bool AnalyzeKeyProvider(SymbolAnalysisContext context, IParameterSymbol parameter, bool mayBeModel, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
+    {
+        var provider = CommandAttributeSymbols.ResolveKeyProvider(parameter);
+        if (provider.Provider is null) return false;
+        var reason = ProviderRefusal(parameter, provider.Conflict, mayBeModel, ChronicleStateSymbols.IsBacked(parameter.Type, context.Compilation, backedTypes));
+        if (reason is not null)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, reason));
+        }
+        return true;
+    }
+
+    static string? ProviderRefusal(IParameterSymbol parameter, string? conflict, bool mayBeModel, bool isBacked)
+    {
+        if (conflict is not null) return "is invalid: only one lookup form may be declared";
+        if (!mayBeModel) return $"requires a read model, but '{parameter.Type.Name}' is not a read-model type. Remove LookUpBy or inject a read model.";
+        return isBacked ? null : "is only supported for Chronicle read models";
     }
 
     /// <summary>

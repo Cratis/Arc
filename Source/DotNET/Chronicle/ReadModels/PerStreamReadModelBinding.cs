@@ -68,7 +68,7 @@ internal static class PerStreamReadModelBinding
         {
             throw new InvalidLookUpBy(context.Type, lookup.Property, "the stream belongs to the command's own event source");
         }
-        if (parameter is not null && CustomAttributeData.GetCustomAttributes(parameter).FirstOrDefault(attribute => typeof(ILookUpByKeyProvider).IsAssignableFrom(attribute.AttributeType)) is { } provider)
+        if (parameter is not null && LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
         {
             throw new InvalidLookUpBy(context.Type, provider.AttributeType.GenericTypeArguments[0], "cannot redirect a per-stream read model; the stream belongs to the command's own event source");
         }

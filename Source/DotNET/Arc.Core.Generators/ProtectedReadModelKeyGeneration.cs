@@ -107,8 +107,7 @@ internal static class ProtectedReadModelKeyGeneration
         }
         foreach (var parameter in Members(command).OfType<IMethodSymbol>().SelectMany(method => method.Parameters))
         {
-            if (parameter.GetAttributes().Any(attribute => attribute.AttributeClass is { } type &&
-                type.OriginalDefinition.MetadataName == "LookUpByAttribute`1" && type.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands"))
+            if (HasKeyProvider(parameter))
             {
                 continue;
             }
@@ -123,6 +122,19 @@ internal static class ProtectedReadModelKeyGeneration
                 foreach (var property in properties.Where(property => SymbolEqualityComparer.Default.Equals(property.Type, id?.Type))) yield return property.Type;
             }
         }
+    }
+
+    static bool HasKeyProvider(IParameterSymbol parameter)
+    {
+        for (var current = parameter; current is not null; current = (current.ContainingSymbol as IMethodSymbol)?.OverriddenMethod?.Parameters[parameter.Ordinal])
+        {
+            if (current.GetAttributes().Any(attribute => attribute.AttributeClass is { } type &&
+                type.OriginalDefinition.MetadataName == "LookUpByAttribute`1" && type.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands"))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     static bool HasKey(IPropertySymbol property) =>

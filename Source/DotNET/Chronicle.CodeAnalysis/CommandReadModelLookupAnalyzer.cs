@@ -62,9 +62,7 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
             !ChronicleStateSymbols.IsKeyedService(parameter, context.Compilation) &&
             ChronicleStateSymbols.IsBacked(parameter.Type, context.Compilation, backedTypes)))
         {
-            if (PerStreamReadModelSymbols.Declaration(parameter.Type) is not null ||
-                CommandAttributeSymbols.Find(parameter, "Cratis.Arc.Commands.LookUpByAttribute") is not null ||
-                CommandAttributeSymbols.ResolveKeyProvider(parameter).Provider is not null)
+            if (HasDeclaredLookup(parameter))
             {
                 continue;
             }
@@ -111,6 +109,11 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
             }
         }
     }
+
+    static bool HasDeclaredLookup(IParameterSymbol parameter) =>
+        PerStreamReadModelSymbols.Declaration(parameter.Type) is not null ||
+        CommandAttributeSymbols.Find(parameter, "Cratis.Arc.Commands.LookUpByAttribute") is not null ||
+        CommandAttributeSymbols.ResolveKeyProvider(parameter).Provider is not null;
 
     static void Report(SymbolAnalysisContext context, IParameterSymbol parameter, INamedTypeSymbol command, DiagnosticSeverity severity, string reason) =>
         context.ReportDiagnostic(ChronicleStateSymbols.Diagnostic(

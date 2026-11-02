@@ -38,8 +38,7 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         var parameter = root?.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<ParameterSyntax>();
         var model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
-        if (parameter is not null && model?.GetDeclaredSymbol(parameter, context.CancellationToken) is IParameterSymbol providerParameter &&
-            Cratis.Arc.Commands.CommandAttributeSymbols.ResolveKeyProvider(providerParameter).Provider is not null)
+        if (HasKeyProvider(parameter, model, context.CancellationToken))
         {
             return;
         }
@@ -64,4 +63,8 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
             Title);
         context.RegisterCodeFix(action, diagnostic);
     }
+
+    static bool HasKeyProvider(ParameterSyntax? parameter, SemanticModel? model, CancellationToken cancellationToken) =>
+        parameter is not null && model?.GetDeclaredSymbol(parameter, cancellationToken) is IParameterSymbol symbol &&
+        Cratis.Arc.Commands.CommandAttributeSymbols.ResolveKeyProvider(symbol).Provider is not null;
 }

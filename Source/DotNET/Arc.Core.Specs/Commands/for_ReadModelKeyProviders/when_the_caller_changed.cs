@@ -18,7 +18,7 @@ public class when_the_caller_changed : Specification
         ILookUpByKeyProvider attribute = new LookUpByAttribute<CountingKey>();
         _provider = (CountingKey)attribute.Provider;
         ((ClaimsIdentity)principal.Identity).AddClaim(new Claim("sub", "later"));
-        _exception = Catch.Exception(() => ReadModelKeyProviders.Resolve(attribute, typeof(object), typeof(object), principal));
+        _exception = Catch.Exception(() => ReadModelKeyProviders.Resolve(attribute, new(typeof(object), typeof(object), principal)));
     }
 
     [Fact] void should_deny_resolution() => ((ReadModelKeyResolutionDenied)_exception).Reason.ShouldEqual(ReadModelKeyRefusal.CallerChanged);

@@ -15,19 +15,32 @@ public class a_caller_lookup : a_lookup
 {
     protected IDisposable _frame;
     protected ReadModelKey[] _keys;
+    protected ClaimsPrincipal _principal;
+    protected ICurrentPrincipalAccessor _principalAccessor;
+    private protected ProtectedReadModelKeyTraversal _traversal;
     protected Exception?[] _exceptions;
 
     void Establish()
     {
         Configure(new Command());
-        _frame = AuthorizationCommandIdentity.Enter(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "selected")], "test")));
+        _principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "selected")], "test"));
+        _principalAccessor = Substitute.For<ICurrentPrincipalAccessor>();
+        _principalAccessor.Current.Returns(_ => _principal);
+        _context = _context with { ServiceProvider = new CallerServices(_context.ServiceProvider, _principalAccessor) };
+        _traversal = new(Options.Create(new ProtectedReadModelKeyOptions()), NullLogger<ProtectedReadModelKeyTraversal>.Instance);
+        _frame = AuthorizationCommandIdentity.Enter(_principal);
     }
 
-    protected void Resolve<TCommand>() => _keys = Enum.GetValues<ReadProtectionMode>().Select(mode => CommandReadModelLookup.Resolve(_context, typeof(TCommand).GetMethod("Handle").GetParameters()[0], mode, new ProtectedReadModelKeyTraversal(Options.Create(new ProtectedReadModelKeyOptions()), NullLogger<ProtectedReadModelKeyTraversal>.Instance), out _)).ToArray();
+    protected void Resolve<TCommand>() => _keys = Enum.GetValues<ReadProtectionMode>().Select(mode => CommandReadModelLookup.Resolve(_context, typeof(TCommand).GetMethod("Handle").GetParameters()[0], mode, _traversal, out _)).ToArray();
 
     protected void Refuse<TCommand>() => _exceptions = Enum.GetValues<ReadProtectionMode>().Select(mode => Catch.Exception(() => CommandReadModelLookup.Resolve(_context, typeof(TCommand).GetMethod("Handle").GetParameters()[0], mode))).ToArray();
 
     void Destroy() => _frame.Dispose();
+
+    sealed class CallerServices(IServiceProvider services, ICurrentPrincipalAccessor accessor) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == typeof(ICurrentPrincipalAccessor) ? accessor : services.GetService(serviceType);
+    }
 
     protected class Command
     {

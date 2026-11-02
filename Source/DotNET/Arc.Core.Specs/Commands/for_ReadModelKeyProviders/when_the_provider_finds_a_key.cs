@@ -14,7 +14,7 @@ public class when_the_provider_finds_a_key : Specification
     {
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "represented")], "test"));
         using var frame = AuthorizationCommandIdentity.Enter(principal);
-        _key = ReadModelKeyProviders.Resolve(new LookUpByAttribute<CallerSubject>(), typeof(object), typeof(object), principal);
+        _key = ReadModelKeyProviders.Resolve(new LookUpByAttribute<CallerSubject>(), new(typeof(object), typeof(object), principal));
     }
 
     [Fact] void should_return_the_key() => _key.ShouldEqual("represented");

@@ -13,11 +13,20 @@ public class when_handle_uses_a_caller_key : given.a_parameter_lookup
 
     async Task Because()
     {
-        using var frame = AuthorizationCommandIdentity.Enter(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "from")], "test")));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "from")], "test"));
+        var accessor = Substitute.For<ICurrentPrincipalAccessor>();
+        accessor.Current.Returns(principal);
+        _context = _context with { ServiceProvider = new CallerServices(_services, accessor) };
+        using var frame = AuthorizationCommandIdentity.Enter(principal);
         await ResolveHandle();
     }
 
     [Fact] void should_inject_the_callers_model_not_the_client_key() => _arguments.Arguments[0].ShouldBeSame(_from);
+
+    sealed class CallerServices(IServiceProvider services, ICurrentPrincipalAccessor accessor) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == typeof(ICurrentPrincipalAccessor) ? accessor : services.GetService(serviceType);
+    }
 
     public record CallerCommand(AccountId Id)
     {

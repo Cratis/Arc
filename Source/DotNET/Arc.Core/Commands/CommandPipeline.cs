@@ -563,10 +563,7 @@ public class CommandPipeline(
                 }
             }
 
-            identityLease.Attach(AuthorizationCommandIdentity.Enter(
-                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
-                scopeFactory,
-                preparedAuthorization?.PrincipalChanged == true ? CommandCallerProvenance.SchemeSelected : CommandCallerProvenance.Ambient));
+            identityLease.Attach(EnterCallerIdentity(serviceProvider, preparedAuthorization, false));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
 
@@ -849,10 +846,7 @@ public class CommandPipeline(
                 }
             }
 
-            using var identityGuard = AuthorizationCommandIdentity.EnterForValidation(
-                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
-                scopeFactory,
-                preparedAuthorization?.PrincipalChanged == true ? CommandCallerProvenance.SchemeSelected : CommandCallerProvenance.Ambient);
+            using var identityGuard = EnterCallerIdentity(serviceProvider, preparedAuthorization, true);
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
             var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
@@ -889,6 +883,15 @@ public class CommandPipeline(
         }
 
         return result;
+    }
+
+    IDisposable EnterCallerIdentity(IServiceProvider services, PreparedAuthorization? prepared, bool forValidation)
+    {
+        var principal = prepared is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : services.GetService<ICurrentPrincipalAccessor>()?.Current;
+        var provenance = prepared?.PrincipalChanged == true ? CommandCallerProvenance.SchemeSelected : CommandCallerProvenance.Ambient;
+        return forValidation
+            ? AuthorizationCommandIdentity.EnterForValidation(principal, scopeFactory, provenance)
+            : AuthorizationCommandIdentity.Enter(principal, scopeFactory, provenance);
     }
 
     CommandContextValues BuildContextValues(object command, IServiceProvider services, PreparedAuthorization? prepared)

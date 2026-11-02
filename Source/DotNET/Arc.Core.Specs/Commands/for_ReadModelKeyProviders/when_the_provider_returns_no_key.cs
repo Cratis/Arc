@@ -12,8 +12,9 @@ public class when_the_provider_returns_no_key : Specification
 
     void Because()
     {
-        using var frame = AuthorizationCommandIdentity.Enter(new ClaimsPrincipal(new ClaimsIdentity([], "test")));
-        _exception = Catch.Exception(() => ReadModelKeyProviders.Resolve(new LookUpByAttribute<CallerSubject>(), typeof(object), typeof(object), null));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([], "test"));
+        using var frame = AuthorizationCommandIdentity.Enter(principal);
+        _exception = Catch.Exception(() => ReadModelKeyProviders.Resolve(new LookUpByAttribute<CallerSubject>(), new(typeof(object), typeof(object), principal)));
     }
 
     [Fact] void should_deny_resolution() => ((ReadModelKeyResolutionDenied)_exception).Reason.ShouldEqual(ReadModelKeyRefusal.Missing);

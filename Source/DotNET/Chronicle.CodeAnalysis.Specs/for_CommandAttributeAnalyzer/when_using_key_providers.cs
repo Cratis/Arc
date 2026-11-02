@@ -14,7 +14,7 @@ public class when_using_key_providers
 
     [Fact]
     public Task should_accept_a_read_model_provider() => AnalyzerVerifier<CommandAttributeAnalyzer>.VerifyAnalyzerAsync(Imports +
-        "public class Command { public void Handle([LookUpBy<CallerSubject>] Model model) { } } public class Model;");
+        "public class Command { public void Handle([LookUpBy<CallerSubject>] Model model) { } } [Cratis.Chronicle.Projections.ModelBound.FromEvent<Changed>] public class Model; [Cratis.Chronicle.Events.EventType(\"5908fb8b-80a7-45e8-8157-b6af86425c19\")] public record Changed;");
 
     [Fact]
     public Task should_reject_a_provider_on_a_non_read_model() => AnalyzerVerifier<CommandAttributeAnalyzer>.VerifyAnalyzerAsync(Imports +

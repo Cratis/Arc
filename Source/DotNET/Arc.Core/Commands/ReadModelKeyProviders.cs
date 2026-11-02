@@ -2,9 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using System.Security.Claims;
 using Cratis.Arc.Authorization;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Commands;
 
@@ -19,8 +17,8 @@ internal static class ReadModelKeyProviders
     /// <exception cref="ReadModelKeyResolutionDenied">Provider activation failed.</exception>
     internal static ILookUpByKeyProvider? Validate(ParameterInfo parameter, Type commandType)
     {
-        var declarations = CustomAttributeData.GetCustomAttributes(parameter);
-        var providers = declarations.Where(attribute => typeof(ILookUpByKeyProvider).IsAssignableFrom(attribute.AttributeType)).ToArray();
+        var declarations = LookUpByKeyProviderDeclarations.For(parameter).ToArray();
+        var providers = declarations.Where(LookUpByKeyProviderDeclarations.IsProvider).ToArray();
         if (providers.Length == 0) return null;
         var providerType = providers[0].AttributeType;
         if (providers.Length > 1 || declarations.Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute)))
@@ -30,7 +28,7 @@ internal static class ReadModelKeyProviders
 
         try
         {
-            return parameter.GetCustomAttributes().OfType<ILookUpByKeyProvider>().Single();
+            return (ILookUpByKeyProvider)providers[0].Constructor.Invoke([]);
         }
         catch (Exception)
         {
@@ -40,36 +38,33 @@ internal static class ReadModelKeyProviders
 
     /// <summary>Resolves a key only after checking the captured caller.</summary>
     /// <param name="attribute">The provider declaration.</param>
-    /// <param name="readModelType">The read-model type.</param>
-    /// <param name="commandType">The command type, used only for safe logging.</param>
-    /// <param name="currentPrincipal">The observable current principal.</param>
-    /// <param name="logger">The framework logger, never passed to providers.</param>
+    /// <param name="request">The framework-only resolution context.</param>
     /// <returns>The provider's key.</returns>
     /// <exception cref="ReadModelKeyResolutionDenied">The caller or provider could not supply one key.</exception>
-    internal static object Resolve(ILookUpByKeyProvider attribute, Type readModelType, Type commandType, ClaimsPrincipal? currentPrincipal, ILogger? logger = null)
+    internal static object Resolve(ILookUpByKeyProvider attribute, ReadModelKeyProviderRequest request)
     {
-        if (!AuthorizationCommandIdentity.TryGetCaller(currentPrincipal, out var caller, out var refusal))
+        if (!AuthorizationCommandIdentity.TryGetCaller(request.CurrentPrincipal, out var caller, out var refusal))
         {
-            throw Denied(commandType, readModelType, attribute.ProviderType, refusal, logger);
+            throw Denied(request, attribute.ProviderType, refusal);
         }
 
         ReadModelKeyLookup lookup;
         try
         {
-            lookup = attribute.Provider.Resolve(new ReadModelKeyContext(caller!, readModelType));
+            lookup = attribute.Provider.Resolve(new ReadModelKeyContext(caller!, request.ReadModelType));
         }
         catch (Exception)
         {
-            throw Denied(commandType, readModelType, attribute.ProviderType, ReadModelKeyRefusal.ProviderFailed, logger);
+            throw Denied(request, attribute.ProviderType, ReadModelKeyRefusal.ProviderFailed);
         }
 
         if (lookup.Outcome == ReadModelKeyLookupOutcome.Found && lookup.Key is not null and not "") return lookup.Key;
-        throw Denied(commandType, readModelType, attribute.ProviderType, lookup.Outcome == ReadModelKeyLookupOutcome.Ambiguous ? ReadModelKeyRefusal.Ambiguous : ReadModelKeyRefusal.Missing, logger);
+        throw Denied(request, attribute.ProviderType, lookup.Outcome == ReadModelKeyLookupOutcome.Ambiguous ? ReadModelKeyRefusal.Ambiguous : ReadModelKeyRefusal.Missing);
     }
 
-    static ReadModelKeyResolutionDenied Denied(Type commandType, Type readModelType, Type providerType, ReadModelKeyRefusal reason, ILogger? logger)
+    static ReadModelKeyResolutionDenied Denied(ReadModelKeyProviderRequest request, Type providerType, ReadModelKeyRefusal reason)
     {
-        logger?.KeyResolutionRefused(commandType, readModelType, providerType, reason);
+        request.Logger?.KeyResolutionRefused(request.CommandType, request.ReadModelType, providerType, reason);
         return new(reason);
     }
 }

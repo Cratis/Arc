@@ -29,11 +29,7 @@ internal static class AuthorizationCommandIdentity
             previous = previous.Previous;
         }
 
-        if (previous?.IsTransactional == true && ReferenceEquals(previous.Host, host) &&
-            !AuthorizationPrincipalIdentity.Same(previous.Principal, principal))
-        {
-            throw new InvalidAuthorizationConfiguration("A nested command cannot change the identity of an active command transaction.");
-        }
+        ValidateNestedExecution(previous, principal, host);
 
         var frame = new Frame(previous, host, AuthorizationPrincipalIdentity.Capture(principal), provenance);
         _current.Value = frame;
@@ -53,7 +49,8 @@ internal static class AuthorizationCommandIdentity
         refusal = ReadModelKeyRefusal.NoCaller;
         if (frame is null) return false;
         refusal = ReadModelKeyRefusal.CallerChanged;
-        if (frame.CallerRefused || (currentPrincipal is not null && !AuthorizationPrincipalIdentity.Same(frame.Principal, currentPrincipal))) return false;
+        var callerChanged = !AuthorizationPrincipalIdentity.Same(frame.Principal, currentPrincipal);
+        if (frame.CallerRefused || callerChanged) return false;
         caller = frame.Caller;
         return true;
     }
@@ -69,7 +66,7 @@ internal static class AuthorizationCommandIdentity
         while (previous?.IsCompleted == true) previous = previous.Previous;
         var sameHost = previous is not null && ReferenceEquals(previous.Host, host);
         var refused = sameHost && (previous!.CallerRefused || !AuthorizationPrincipalIdentity.Same(previous.Principal, principal));
-        var frame = new Frame(previous, host, sameHost ? previous!.Principal : AuthorizationPrincipalIdentity.Capture(principal), provenance) { CallerRefused = refused };
+        var frame = new Frame(previous, host, sameHost ? previous!.Principal : AuthorizationPrincipalIdentity.Capture(principal), provenance) { CallerRefused = refused, IsValidation = true };
         _current.Value = frame;
         return frame;
     }
@@ -82,6 +79,24 @@ internal static class AuthorizationCommandIdentity
         if (_current.Value is { } current)
         {
             current.IsTransactional = true;
+        }
+    }
+
+    static void ValidateNestedExecution(Frame? frame, ClaimsPrincipal? principal, object? host)
+    {
+        while (frame is not null)
+        {
+            if (!frame.IsCompleted && ReferenceEquals(frame.Host, host))
+            {
+                var changesTransaction = frame.IsTransactional && !AuthorizationPrincipalIdentity.Same(frame.Principal, principal);
+                if (frame.CallerRefused || changesTransaction)
+                {
+                    throw new InvalidAuthorizationConfiguration("A nested command cannot change the identity of an active command transaction.");
+                }
+            }
+
+            if (!frame.IsCompleted && !frame.IsValidation) return;
+            frame = frame.Previous;
         }
     }
 
@@ -104,6 +119,8 @@ internal static class AuthorizationCommandIdentity
         public bool IsTransactional { get; set; }
 
         public bool CallerRefused { get; init; }
+
+        public bool IsValidation { get; init; }
 
         public void Dispose()
         {

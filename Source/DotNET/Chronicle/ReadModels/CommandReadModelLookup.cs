@@ -54,9 +54,9 @@ internal static class CommandReadModelLookup
         var provider = CommandAttributePolicy.ResolveKeyProvider(parameter, context.Type);
         if (provider is not null)
         {
-            var value = ReadModelKeyProviders.Resolve(provider, parameter.ParameterType, context.Type, context.ServiceProvider?.GetService<ICurrentPrincipalAccessor>()?.Current, logger);
+            var value = ReadModelKeyProviders.Resolve(provider, new(parameter.ParameterType, context.Type, context.ServiceProvider?.GetService<ICurrentPrincipalAccessor>()?.Current, logger));
             keyText = string.Empty;
-            return ProviderKeyFor(value, parameter.ParameterType, traversal, protect);
+            return CallerReadModelKeyLookup.Resolve((value, parameter.ParameterType), traversal, protect, key => KeyFor(key, parameter.ParameterType, traversal, false, out _));
         }
 
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
@@ -138,31 +138,6 @@ internal static class CommandReadModelLookup
         {
             ReadProtectionTelemetry.Record(context.Type, "measurement_unavailable", model, failure.GetType().Name);
         }
-    }
-
-    static ReadModelKey ProviderKeyFor(object value, Type readModelType, ProtectedReadModelKeyTraversal? traversal, bool protect)
-    {
-        ReadModelKey key;
-        try
-        {
-            key = KeyFor(value, readModelType, traversal, false, out _);
-        }
-        catch (Exception)
-        {
-            throw new ReadModelKeyResolutionDenied(ReadModelKeyRefusal.RefusedKeyText);
-        }
-
-        if (!ProtectedReadModelKeyTraversal.IsValidWireText(key.Value) || key.Value == EventSourceId.Unspecified.Value)
-        {
-            throw new ReadModelKeyResolutionDenied(ReadModelKeyRefusal.RefusedKeyText);
-        }
-
-        if (protect)
-        {
-            ProtectedReadModelKeys.ValidateRawKey(traversal, readModelType, value, string.Empty);
-        }
-
-        return key;
     }
 
     static ReadModelKey KeyFor(object? value, Type readModelType, ProtectedReadModelKeyTraversal? traversal, bool protect, out string keyText)

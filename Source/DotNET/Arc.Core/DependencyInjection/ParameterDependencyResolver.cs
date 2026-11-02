@@ -95,6 +95,11 @@ static class ParameterDependencyResolver
             }
         }
 
+        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
+        {
+            throw new InvalidLookUpBy(parameter.Member.DeclaringType!, provider.AttributeType.GenericTypeArguments[0], "is only supported for Chronicle read models");
+        }
+
         return serviceProvider.GetService(parameter.ParameterType);
     }
 

@@ -16,8 +16,9 @@ public class when_the_provider_throws : Specification
     {
         _logger = Substitute.For<ILogger>();
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
-        using var frame = AuthorizationCommandIdentity.Enter(new ClaimsPrincipal(new ClaimsIdentity([], "test")));
-        _exception = Catch.Exception(() => ReadModelKeyProviders.Resolve(new LookUpByAttribute<ThrowingKey>(), typeof(object), typeof(object), null, _logger));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([], "test"));
+        using var frame = AuthorizationCommandIdentity.Enter(principal);
+        _exception = Catch.Exception(() => ReadModelKeyProviders.Resolve(new LookUpByAttribute<ThrowingKey>(), new(typeof(object), typeof(object), principal, _logger)));
     }
 
     [Fact] void should_deny_resolution() => ((ReadModelKeyResolutionDenied)_exception).Reason.ShouldEqual(ReadModelKeyRefusal.ProviderFailed);
