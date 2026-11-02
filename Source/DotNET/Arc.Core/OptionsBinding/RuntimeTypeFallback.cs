@@ -10,13 +10,14 @@ using Microsoft.Extensions.Logging;
 namespace Cratis.Arc.OptionsBinding;
 
 /// <summary>
-/// Binds the members of a runtime subtype that the binding tables do not describe.
+/// Binds a runtime subtype instead of using its declared type's binding table.
 /// </summary>
 /// <remarks>
 /// The reflection binder walks the runtime type of a value. The binding tables describe the declared types, so a value whose
-/// type is a subclass of the declared type (for instance a subclass of an option type that adds its own properties) would
-/// lose the keys of those properties. For exactly that case the stock binder binds the keys that the declared type does not
-/// own. Arc's own types never take this path.
+/// type is a subclass of the declared type must be bound as a whole by the stock binder to preserve hidden members and
+/// runtime property order. The declared table is skipped, so collections are not bound twice. The original configuration
+/// is passed through unchanged to preserve section paths and distinguish absent values from explicit nulls.
+/// Arc's own types never take this path.
 /// </remarks>
 internal static class RuntimeTypeFallback
 {
@@ -45,30 +46,25 @@ internal static class RuntimeTypeFallback
     internal static void ResetBindCount() => _bindCount = 0;
 
     /// <summary>
-    /// Binds the keys that the declared type does not own when the value is of a subtype of it.
+    /// Binds the value when it is a subtype of the declared type, replacing declared-table binding.
     /// </summary>
     /// <param name="declared">The declared type.</param>
-    /// <param name="declaredNames">The names of the members the declared type binds itself.</param>
     /// <param name="point">The binding point holding the value.</param>
     /// <param name="config">The configuration section of the value.</param>
+    /// <returns>Whether the runtime subtype was bound.</returns>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Only reached for a value whose runtime type differs from the declared type, which means the application supplied a subtype. Arc's own types never take this path.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Only reached for a value whose runtime type differs from the declared type, which means the application supplied a subtype. Arc's own types never take this path.")]
-    internal static void BindWhenSubtype(BoundType declared, IReadOnlyCollection<string> declaredNames, BindingPoint point, IConfiguration config)
+    internal static bool BindWhenSubtype(BoundType declared, BindingPoint point, IConfiguration config)
     {
         if (point.Value is not { } value || value.GetType() == declared.ClrType)
         {
-            return;
-        }
-
-        var remaining = WithoutDeclaredKeys(config, declaredNames);
-        if (!remaining.GetChildren().Any())
-        {
-            return;
+            return false;
         }
 
         WarnWhenDynamicCodeIsUnavailable(_logger, value.GetType(), RuntimeFeature.IsDynamicCodeSupported);
         _bindCount++;
-        Bind(value, remaining);
+        Bind(value, config);
+        return true;
     }
 
     /// <summary>
@@ -90,19 +86,4 @@ internal static class RuntimeTypeFallback
     [RequiresUnreferencedCode("Binds members of a runtime subtype that the trimmer can not see.")]
     [RequiresDynamicCode("The stock binder instantiates generic types.")]
     static void Bind(object instance, IConfiguration config) => config.Bind(instance);
-
-    static IConfiguration WithoutDeclaredKeys(IConfiguration config, IReadOnlyCollection<string> declaredNames)
-    {
-        var values = new Dictionary<string, string?>();
-        var prefixLength = config is IConfigurationSection section ? section.Path.Length + 1 : 0;
-        foreach (var child in config.GetChildren().Where(_ => !declaredNames.Contains(_.Key, StringComparer.OrdinalIgnoreCase)))
-        {
-            foreach (var pair in child.AsEnumerable(false))
-            {
-                values[pair.Key[prefixLength..]] = pair.Value;
-            }
-        }
-
-        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-    }
 }
