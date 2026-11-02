@@ -512,5 +512,18 @@ static class DiagnosticDescriptors
         description: "Under Measure or On, a whole-source read on the command source, a read on another stream, or effective declared Concurrency without both stream dimensions can widen a stream read guard. Widening causes extra conflicts, not missed changes.",
         helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0038/");
 
+    /// <summary>
+    /// ARCCHR0040: Prefer a read-model parameter for command state.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0040_PreferReadModelParameter = new(
+        id: "ARCCHR0040",
+        title: "Prefer a read-model parameter",
+        messageFormat: "Handle takes '{0}'; declare the read model as a Handle parameter instead. If an acquisition gap requires this dependency, suppress ARCCHR0040 with a reason.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Handle may take any services. Direct IDecisionReads and DecisionRead<T> parameters usually have a read-model-parameter alternative; unsupported acquisition shapes may need a reasoned suppression. Runtime behavior is unchanged.",
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0040/");
+
     const string Category = "Arc.Chronicle";
 }
