@@ -46,7 +46,7 @@ public class ControllerCommandReader(
             shape is null ? FromParameters(method) : properties.Read(shape),
             AuthorizationReader.Read(method, controller),
             shape is null ? [] : validators.For(shape),
-            produces.Read(controller, [method], location),
+            produces.ReadController(controller, method, body, location),
             shape is null ? null : ConcurrencyReader.Read(shape),
             paths.Relative(method.SourceFilePath() ?? controller.SourceFilePath()));
     }

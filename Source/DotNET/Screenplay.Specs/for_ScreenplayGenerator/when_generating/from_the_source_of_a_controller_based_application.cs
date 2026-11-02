@@ -109,6 +109,7 @@ public class from_the_source_of_a_controller_based_application : Specification
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_declare_the_command_named_after_its_request_body() => Says("command PostToFeed").ShouldBeTrue();
     [Fact] void should_state_what_the_command_produces() => Says("produces MessagePosted").ShouldBeTrue();
+    [Fact] void should_map_the_controller_request_body_property() => Says("text = text").ShouldBeTrue();
     [Fact] void should_declare_what_the_command_requires_of_the_caller() => Says("authorize Author").ShouldBeTrue();
     [Fact] void should_tell_the_two_observing_queries_apart() => Says("query ArchiveControllerObserveAll").ShouldBeTrue();
     [Fact] void should_tell_the_other_one_apart_too() => Says("query FeedControllerObserveAll").ShouldBeTrue();
