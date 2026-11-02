@@ -11,7 +11,9 @@ public class and_the_factory_completes_later_under_a_single_threaded_context : S
     IAggregateRootFactory _factory;
     SampleAggregateRoot _aggregateRoot;
     TaskCompletionSource<SampleAggregateRoot> _completion;
+    ManualResetEventSlim _factoryCalled;
     object _result;
+    bool _blockedBeforeCompletion;
     bool _finished;
 
     void Establish()
@@ -19,7 +21,12 @@ public class and_the_factory_completes_later_under_a_single_threaded_context : S
         _aggregateRoot = new SampleAggregateRoot();
         _completion = new TaskCompletionSource<SampleAggregateRoot>();
         _factory = Substitute.For<IAggregateRootFactory>();
-        _factory.Get<SampleAggregateRoot>(Arg.Any<EventSourceId>(), null, null).Returns(_completion.Task);
+        _factoryCalled = new ManualResetEventSlim();
+        _factory.Get<SampleAggregateRoot>(Arg.Any<EventSourceId>(), null, null).Returns(_ =>
+        {
+            _factoryCalled.Set();
+            return _completion.Task;
+        });
     }
 
     void Because()
@@ -38,14 +45,18 @@ public class and_the_factory_completes_later_under_a_single_threaded_context : S
             IsBackground = true
         };
         resolving.Start();
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(50);
-            _completion.SetResult(_aggregateRoot);
-        });
+
+        // Complete the factory task only once the resolving thread has awaited it and is blocked waiting for the result,
+        // so the continuation is registered under the blocked context before the task completes.
+        _blockedBeforeCompletion = _factoryCalled.Wait(TimeSpan.FromSeconds(10)) &&
+            SpinWait.SpinUntil(() => (resolving.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(10));
+        _completion.SetResult(_aggregateRoot);
         _finished = resolving.Join(TimeSpan.FromSeconds(10));
     }
 
+    void Destroy() => _factoryCalled.Dispose();
+
+    [Fact] void should_block_on_the_incomplete_task_before_it_completes() => _blockedBeforeCompletion.ShouldBeTrue();
     [Fact] void should_finish_resolving() => _finished.ShouldBeTrue();
     [Fact] void should_return_the_aggregate_root_itself() => _result.ShouldEqual(_aggregateRoot);
 
