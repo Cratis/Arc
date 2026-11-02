@@ -49,7 +49,7 @@ public class and_the_factory_completes_later_under_a_single_threaded_context : S
         // Complete the factory task only once the resolving thread has awaited it and is blocked waiting for the result,
         // so the continuation is registered under the blocked context before the task completes.
         _blockedBeforeCompletion = _factoryCalled.Wait(TimeSpan.FromSeconds(10)) &&
-            SpinWait.SpinUntil(() => (resolving.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(10));
+            SpinWait.SpinUntil(() => resolving.ThreadState.HasFlag(ThreadState.WaitSleepJoin), TimeSpan.FromSeconds(10));
         _completion.SetResult(_aggregateRoot);
         _finished = resolving.Join(TimeSpan.FromSeconds(10));
     }
