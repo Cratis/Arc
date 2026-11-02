@@ -1,9 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.OptionsBinding;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
@@ -21,24 +22,21 @@ internal static class ArcOptionsConfiguration
     internal static void Configure(IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IOptionsChangeTokenSource<ArcOptions>>(new ConfigurationChangeTokenSource<ArcOptions>(configuration));
-        services.Configure<ArcOptions>(options => Bind(options, configuration));
+        services.AddOptions<ArcOptions>().Configure<IServiceProvider>((options, provider) =>
+            Bind(options, configuration, provider.GetService<ILoggerFactory>()?.CreateLogger(typeof(ArcOptions).FullName!)));
     }
 
     /// <summary>
     /// Binds configuration while preserving an existing override when its key is absent.
     /// </summary>
-    /// <remarks>
-    /// The dynamic dependencies root the members the reflection binder must reach in trimmed hosts.
-    /// </remarks>
     /// <param name="options">The options to bind.</param>
     /// <param name="configuration">The Arc configuration section.</param>
-    [DynamicDependency(nameof(ArcOptions.Hosting), typeof(ArcOptions))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(HostingOptions))]
-    internal static void Bind(ArcOptions options, IConfiguration configuration)
+    /// <param name="logger">Optional logger for the runtime subtype warning.</param>
+    internal static void Bind(ArcOptions options, IConfiguration configuration, ILogger? logger = null)
     {
         var authenticationOverride = options.Introspection.AuthenticationOverride;
         var queryHealthAuthenticationOverride = options.QueryHealth.AuthenticationOverride;
-        configuration.Bind(options);
+        ArcOptionsBinder.Bind(options, configuration, logger);
         if (configuration["Introspection:RequireAuthentication"] is null)
         {
             options.Introspection.AuthenticationOverride = authenticationOverride;

@@ -11,17 +11,19 @@ public class when_binding_on_behalf_of_from_configuration : Specification
 
     void Establish() => _options = new ArcOptions();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Cratis:Arc:OnBehalfOf:Enabled"] = "true",
-            ["Cratis:Arc:OnBehalfOf:Issuer"] = "https://authproxy.example.com",
-            ["Cratis:Arc:OnBehalfOf:Audience"] = "https://app.example.com",
-            ["Cratis:Arc:OnBehalfOf:ClockSkew"] = "00:00:10",
-            ["Cratis:Arc:OnBehalfOf:SigningKeys:0:KeyId"] = "authproxy-2026",
-            ["Cratis:Arc:OnBehalfOf:SigningKeys:0:PublicKeyPem"] = "-----BEGIN PUBLIC KEY-----"
-        })
-        .Build().GetSection("Cratis:Arc").Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(
+        _options,
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cratis:Arc:OnBehalfOf:Enabled"] = "true",
+                ["Cratis:Arc:OnBehalfOf:Issuer"] = "https://authproxy.example.com",
+                ["Cratis:Arc:OnBehalfOf:Audience"] = "https://app.example.com",
+                ["Cratis:Arc:OnBehalfOf:ClockSkew"] = "00:00:10",
+                ["Cratis:Arc:OnBehalfOf:SigningKeys:0:KeyId"] = "authproxy-2026",
+                ["Cratis:Arc:OnBehalfOf:SigningKeys:0:PublicKeyPem"] = "-----BEGIN PUBLIC KEY-----"
+            })
+            .Build().GetSection("Cratis:Arc"));
 
     [Fact] void should_enable_on_behalf_of() => _options.OnBehalfOf.Enabled.ShouldBeTrue();
     [Fact] void should_bind_the_issuer() => _options.OnBehalfOf.Issuer.ShouldEqual("https://authproxy.example.com");
