@@ -25,4 +25,5 @@ public class and_validation_has_refused_the_caller : given.a_captured_caller
     }
 
     [Fact] void should_preserve_the_refusal() => _exception.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
+    [Fact] void should_preserve_the_transactional_reason() => _exception.Message.ShouldEqual("A nested command cannot change the identity of an active command transaction.");
 }

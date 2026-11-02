@@ -13,13 +13,13 @@ public class when_a_provider_has_no_chronicle_backing : Specification
     void Because() => _result = AnalyzerVerifier<CommandAttributeAnalyzer>.VerifyAnalyzerAsync(
         "using Cratis.Arc.Commands; using Cratis.Chronicle.ReadModels; " +
         "public class Command { public void Handle([LookUpBy<CallerSubject>] MongoModel mongo, " +
-        "[LookUpBy<CallerSubject>] EntityModel entity, [LookUpBy<CallerSubject>] DecisionRead<MongoModel> decision) { } } " +
-        "public class MongoModel; public class EntityModel;",
-        Unsupported(),
+        "[LookUpBy<CallerSubject>] EntityModel entity, [LookUpBy<CallerSubject>] DecisionRead<MongoModel> decision, " +
+        "[LookUpBy<CallerSubject>] MongoDB.Driver.IMongoCollection<MongoModel> collection) { } } " +
+        "public class MongoModel; public class EntityModel; namespace MongoDB.Driver { public interface IMongoCollection<T> { } }",
         Unsupported(),
         Unsupported());
 
-    [Fact] Task should_report_every_unsupported_binding() => _result;
+    [Fact] Task should_report_only_the_decision_read_and_collection_bindings() => _result;
 
     static ExpectedDiagnostic Unsupported() => new("ARCCHR0031", DiagnosticSeverity.Error, "only supported for Chronicle read models");
 }

@@ -20,7 +20,7 @@ internal static class AuthorizationCommandIdentity
     /// <param name="host">The pipeline scope factory identifying one Arc host across nested executions.</param>
     /// <param name="provenance">How the caller was selected.</param>
     /// <returns>A frame restoring the parent identity after completion.</returns>
-    /// <exception cref="InvalidAuthorizationConfiguration">A same-host nested command would change an active transaction's identity.</exception>
+    /// <exception cref="InvalidAuthorizationConfiguration">A same-host nested command would change an active transaction's identity or reuse a refused caller.</exception>
     internal static IDisposable Enter(ClaimsPrincipal? principal, object? host = null, CommandCallerProvenance provenance = CommandCallerProvenance.Ambient)
     {
         var previous = _current.Value;
@@ -91,13 +91,26 @@ internal static class AuthorizationCommandIdentity
                 var changesTransaction = frame.IsTransactional && !AuthorizationPrincipalIdentity.Same(frame.Principal, principal);
                 if (frame.CallerRefused || changesTransaction)
                 {
-                    throw new InvalidAuthorizationConfiguration("A nested command cannot change the identity of an active command transaction.");
+                    throw new InvalidAuthorizationConfiguration(NestedRefusalMessage(frame, host));
                 }
             }
 
             if (!frame.IsCompleted && !frame.IsValidation) return;
             frame = frame.Previous;
         }
+    }
+
+    static string NestedRefusalMessage(Frame frame, object? host) => HasActiveTransaction(frame, host)
+        ? "A nested command cannot change the identity of an active command transaction."
+        : "A nested command cannot execute after the caller identity was refused.";
+
+    static bool HasActiveTransaction(Frame frame, object? host)
+    {
+        for (var current = frame; current is not null; current = current.Previous)
+        {
+            if (IsActiveForHost(current, host) && current.IsTransactional) return true;
+        }
+        return false;
     }
 
     static bool IsActiveForHost(Frame frame, object? host) => !frame.IsCompleted && ReferenceEquals(frame.Host, host);
