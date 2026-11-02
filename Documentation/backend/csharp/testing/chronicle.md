@@ -230,6 +230,8 @@ Two things to be aware of:
 
 ## Testing commands that use EventForEventSourceId
 
+To inspect a direct `Handle()` return value, use [returned-decision assertions](./command-assertions.md#assert-a-returned-events-target): `ShouldTarget(id)`, `ShouldBeEvent<TEvent>()`, and `ShouldContainEvent<TEvent>(id)` check the declared target and payload. They do **not** prove an append; keep the scenario assertions below when the append contract matters.
+
 When a command handler returns `EventForEventSourceId` or `IEnumerable<EventForEventSourceId>`, it can target sources other than the command's own source. **Both** event-log assertions and the scenario-level helpers below support filtering by event source ID. Choose log assertions to verify readable stored events; choose scenario helpers to inspect appends captured through the client-side `AppendOperations` observable.
 
 The capture subscription starts when the scenario is constructed, not at each `Execute`. `AppendedEvents` accumulates event-log seeding and subsequent executions. Use a fresh scenario, a source unique to the command, or an explicit baseline when distinguishing new appends from setup. A matching seeded event must not be mistaken for evidence that the command appended it.

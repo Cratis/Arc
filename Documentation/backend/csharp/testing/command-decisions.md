@@ -106,6 +106,8 @@ The spec passes when the decision returns `ShippingCost(10)`. There is no servic
 
 Cratis Specifications gives the example a readable shape: `Because()` performs the action, and `should_...` names the expected behavior. Use `Establish()` for setup when a case needs it and `Destroy()` for owned resources.
 
+For event-producing decisions, use [command and validator assertions](./command-assertions.md): `ShouldBeEvent<TEvent>()` checks a returned event, `ShouldBeRejected(reason)` checks an exact rejection message, and `ShouldAccept` / `ShouldReject` specify validators directly. These assertions do not execute Arc's pipeline or prove an append.
+
 ## Prove that Arc connects the pieces
 
 Create `Shipping.Specs/for_QuoteShipping/when_quoting_shipping_through_arc.cs`:
