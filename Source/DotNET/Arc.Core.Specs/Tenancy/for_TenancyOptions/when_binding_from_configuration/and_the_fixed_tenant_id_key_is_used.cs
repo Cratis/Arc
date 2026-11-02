@@ -13,14 +13,15 @@ public class and_the_fixed_tenant_id_key_is_used : Specification
 
     void Establish() => _options = new ArcOptions();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Tenancy:ResolverType"] = "Fixed",
-            ["Tenancy:FixedTenantId"] = TenantId
-        })
-        .Build()
-        .Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(
+        _options,
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Tenancy:ResolverType"] = "Fixed",
+                ["Tenancy:FixedTenantId"] = TenantId
+            })
+            .Build());
 
     [Fact] void should_bind_the_resolver_type() => _options.Tenancy.ResolverType.ShouldEqual(TenantResolverType.Fixed);
     [Fact] void should_bind_the_fixed_tenant_id() => _options.Tenancy.FixedTenantId.ShouldEqual(TenantId);

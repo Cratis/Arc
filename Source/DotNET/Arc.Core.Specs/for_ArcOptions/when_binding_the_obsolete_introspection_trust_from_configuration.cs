@@ -11,12 +11,14 @@ public class when_binding_the_obsolete_introspection_trust_from_configuration : 
 
     void Establish() => _options = new ArcOptions();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Cratis:Arc:Introspection:TrustForwardedIdentityHeaders"] = "true"
-        })
-        .Build().GetSection("Cratis:Arc").Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(
+        _options,
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cratis:Arc:Introspection:TrustForwardedIdentityHeaders"] = "true"
+            })
+            .Build().GetSection("Cratis:Arc"));
 
     [Fact] void should_trust_forwarded_identity_headers_for_the_whole_host() => _options.TrustForwardedIdentityHeaders.ShouldBeTrue();
 }

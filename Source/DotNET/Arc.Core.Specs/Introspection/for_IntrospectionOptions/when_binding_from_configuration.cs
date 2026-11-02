@@ -11,14 +11,16 @@ public class when_binding_from_configuration : Specification
 
     void Establish() => _options = new ArcOptions();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Cratis:Arc:Introspection:Enabled"] = "false",
-            ["Cratis:Arc:Introspection:RequireAuthentication"] = "true",
-            ["Cratis:Arc:Introspection:Roles"] = "Administrator,Operator"
-        })
-        .Build().GetSection("Cratis:Arc").Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(
+        _options,
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cratis:Arc:Introspection:Enabled"] = "false",
+                ["Cratis:Arc:Introspection:RequireAuthentication"] = "true",
+                ["Cratis:Arc:Introspection:Roles"] = "Administrator,Operator"
+            })
+            .Build().GetSection("Cratis:Arc"));
 
     [Fact] void should_disable_endpoints() => _options.Introspection.Enabled.ShouldBeFalse();
     [Fact] void should_require_authentication() => _options.Introspection.RequireAuthentication.ShouldEqual(true);
