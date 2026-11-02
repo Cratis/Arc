@@ -29,7 +29,7 @@ public class when_a_handler_declares_dependencies : Specification
         {
             public Changed Handle({|#0:{{type}} read|}) => new();
         }
-        """, new ExpectedDiagnostic("ARCCHR0040", DiagnosticSeverity.Info, "declare the read model as a Handle parameter", type));
+        """, new ExpectedDiagnostic("ARCCHR0040", DiagnosticSeverity.Info, "declare the read model as a Handle parameter instead (guarded only when read protection is On)", type));
 
     [Fact]
     public Task should_not_report_other_services_or_models() => Verify("""
@@ -83,11 +83,32 @@ public class when_a_handler_declares_dependencies : Specification
         public interface ICallerContext { ReadModelKey AccountKey { get; } }
         [Command] public record InspectCaller
         {
-        #pragma warning disable ARCCHR0040 // Key comes from trusted caller identity, not a command property.
+        #pragma warning disable ARCCHR0040 // Key comes from trusted caller identity; https://github.com/Cratis/Arc/issues/3620 tracks acquisition gaps.
             public async System.Threading.Tasks.Task<State> Handle(IDecisionReads reads, ICallerContext caller)
             {
                 var state = await reads.Get<State>(caller.AccountKey);
                 return state.Instance;
+            }
+        #pragma warning restore ARCCHR0040
+        }
+        """);
+
+    [Fact]
+    public Task should_honor_the_documented_stream_suppression() => Verify("""
+        public record AccountWithdrawals(decimal Total);
+        [EventType("d1c1bf41-1397-43fb-9c96-b6f1266a3ce7")] public record MoneyWithdrawn(decimal Amount);
+        [Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)]
+        [EventSourceType("BankAccount")]
+        [EventStreamType("Transactions")]
+        [EventStreamId("{Month}")]
+        public record InspectMonth(EventSourceId Id, string Date)
+        {
+            public string Month => Date[..7];
+        #pragma warning disable ARCCHR0040 // Computed month; https://github.com/Cratis/Arc/issues/3620 tracks acquisition gaps.
+            public async System.Threading.Tasks.Task<MoneyWithdrawn> Handle(IDecisionReads reads)
+            {
+                var state = await reads.Get<AccountWithdrawals>(Id, "Transactions", Month, "BankAccount");
+                return new(state.Instance?.Total ?? 0);
             }
         #pragma warning restore ARCCHR0040
         }

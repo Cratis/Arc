@@ -518,7 +518,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0040_PreferReadModelParameter = new(
         id: "ARCCHR0040",
         title: "Prefer a read-model parameter",
-        messageFormat: "Handle takes '{0}'; declare the read model as a Handle parameter instead. If an acquisition gap requires this dependency, suppress ARCCHR0040 with a reason.",
+        messageFormat: "Handle takes '{0}'; declare the read model as a Handle parameter instead (guarded only when read protection is On). If an acquisition gap requires this dependency, suppress ARCCHR0040 with a reason.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
