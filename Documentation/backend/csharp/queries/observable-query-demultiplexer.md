@@ -142,6 +142,28 @@ For subject-backed collections, omitted `transferMode` uses legacy snapshot-plus
 
 Paging metadata belongs to collection results. Single-result subjects, including strings and value types, report `PagingInfo.NotPaged` rather than copying `TotalItems` from an inner observation. Collection delta emissions keep their paging metadata even when they omit the full data snapshot. This only controls the result envelope; it does not normalize incoming paging arguments or change how an application reads its sources. For MongoDB queries that compose observations, see [auxiliary sources](../mongodb/observing-collections.md#compose-a-primary-observation-with-auxiliary-sources).
 
+## Restricting WebSocket origins
+
+By default the hub, and every other Arc observable query WebSocket route, accepts connections from any origin. To restrict them, set `Cratis:Arc:Query:AllowedWebSocketOrigins`:
+
+```json
+{
+    "Cratis": {
+        "Arc": {
+            "Query": {
+                "AllowedWebSocketOrigins": [ "https://portal.example.com" ]
+            }
+        }
+    }
+}
+```
+
+Once the list has an entry, a connection is accepted when it has no `Origin` header, when its `Origin` is the origin the request was made to (same scheme, host and effective port), or when its `Origin` is listed. Anything else, including an empty, `null` or duplicated `Origin`, gets `403` before the connection is accepted and before any query runs. A `*` entry accepts every origin. Loopback origins get no special treatment, so a development proxy on another port must be listed.
+
+The request's own origin is taken from the `Host` header and the connection scheme as ASP.NET Core sees them. Behind a reverse proxy that rewrites `Host` or terminates TLS, apply the forwarded headers with ASP.NET Core's `UseForwardedHeaders`, or list the public origin.
+
+Browsers cannot send an `Authorization` header on a WebSocket, so applications that authenticate browsers with cookies should configure this setting. Arc logs a startup warning when cookie authentication is configured and the list is empty.
+
 ## Authorization and exposure
 
 The hub transport endpoints themselves allow anonymous access so one connection can carry both public and protected queries. Before running each query, the hub applies the host's default authorization: ASP.NET Core's `FallbackPolicy`, or the Arc Core host's requirement for an authenticated caller when authentication handlers are registered. A query marked with Arc's `[AllowAnonymous]`, or whose effective declaration consists entirely of opted-in guest policies, bypasses that host fallback just as its direct endpoint does. The query pipeline still evaluates its own authorization filters and guest policies. A fallback denial or failure sends `Unauthorized` without running the query; SSE subscribe also returns 401. The SSE GET and unsubscribe routes do not execute queries.
