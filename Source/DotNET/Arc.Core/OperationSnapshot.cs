@@ -69,13 +69,10 @@ internal sealed class OperationSnapshot : IDisposable
     {
         get
         {
+            // A completed frame captured by a continuation that outlives its operation must not fall back to an
+            // enclosing frame, which belongs to another operation.
             var snapshot = _current.Value;
-            while (snapshot?.Completed == true)
-            {
-                snapshot = snapshot._previous;
-            }
-
-            return snapshot;
+            return snapshot?.Completed == true ? null : snapshot;
         }
     }
 

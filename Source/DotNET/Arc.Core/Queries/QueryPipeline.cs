@@ -457,6 +457,12 @@ public class QueryPipeline(
                 return QueryResult.Unauthorized(correlationId);
             }
 
+            // The single choke point: a denied snapshot never reaches the performer.
+            if (snapshot is { MembershipDenied: true })
+            {
+                return QueryResult.Unauthorized(correlationId);
+            }
+
             var data = await queryPerformer.Perform(context);
             if (data is null)
             {

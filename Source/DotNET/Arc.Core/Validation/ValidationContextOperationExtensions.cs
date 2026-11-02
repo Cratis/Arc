@@ -51,7 +51,7 @@ public static class ValidationContextOperationExtensions
     public static bool IsSystem(this IValidationContext context) => SnapshotOf(context).IsSystem;
 
     static OperationSnapshot SnapshotOf(IValidationContext context) =>
-        context.RootContextData.TryGetValue(OperationSnapshot.ContextKey, out var value) && value is OperationSnapshot snapshot
+        context.RootContextData.TryGetValue(OperationSnapshot.ContextKey, out var value) && value is OperationSnapshot { Completed: false } snapshot
             ? snapshot
             : throw new OperationSnapshotUnavailable();
 }

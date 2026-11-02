@@ -635,6 +635,13 @@ public class CommandPipeline(
 
             cancellationToken.ThrowIfCancellationRequested();
             var resolution = await argumentResolver.Resolve(commandHandler, commandContext, serviceProvider, commandContext.AllowedSeverity);
+
+            // Generated values run validators that can swallow the snapshot denial; reject before any such failure is reported.
+            if (snapshot.MembershipDenied)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             result.MergeWith(resolution.ControlResult);
             result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
@@ -665,6 +672,13 @@ public class CommandPipeline(
 
             // Read again: a context values provider or modifier can have resolved the tenant since the read above.
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
+
+            // The single choke point: a denied snapshot never reaches the handler.
+            if (snapshot.MembershipDenied)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             var response = await Handle(commandHandler, commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
