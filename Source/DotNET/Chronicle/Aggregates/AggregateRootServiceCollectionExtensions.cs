@@ -82,5 +82,5 @@ public static class AggregateRootServiceCollectionExtensions
         AsObject(factory.Get<TAggregateRoot>(eventSourceId, null, null));
 
     static async Task<object> AsObject<T>(Task<T> task)
-        where T : class => await task;
+        where T : class => await task.ConfigureAwait(false);
 }
