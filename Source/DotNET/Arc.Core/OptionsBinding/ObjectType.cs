@@ -48,12 +48,15 @@ internal sealed class ObjectType : BoundType
             point.SetValue(CreateInstance());
         }
 
+        if (RuntimeTypeFallback.BindWhenSubtype(this, point, config))
+        {
+            return;
+        }
+
         _resolvedMembers ??= _members();
         foreach (var member in _resolvedMembers)
         {
             member.Bind(point.Value!, config);
         }
-
-        RuntimeTypeFallback.BindWhenSubtype(this, MemberNames.ToArray(), point, config);
     }
 }

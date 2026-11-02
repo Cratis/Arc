@@ -35,6 +35,6 @@ internal sealed class AbstractType : BoundType
             point.SetValue(CreateInstance());
         }
 
-        RuntimeTypeFallback.BindWhenSubtype(this, [], point, config);
+        RuntimeTypeFallback.BindWhenSubtype(this, point, config);
     }
 }
