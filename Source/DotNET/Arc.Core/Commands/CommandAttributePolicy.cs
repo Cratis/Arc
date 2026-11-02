@@ -87,6 +87,18 @@ internal static class CommandAttributePolicy
         }
     }
 
+    /// <summary>Checks either lookup form without activating a provider.</summary>
+    /// <param name="parameter">The read-model parameter.</param>
+    /// <returns>Whether a lookup is explicitly declared.</returns>
+    internal static bool HasExplicitLookup(ParameterInfo parameter) => CustomAttributeData.GetCustomAttributes(parameter)
+        .Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute) || typeof(ILookUpByKeyProvider).IsAssignableFrom(attribute.AttributeType));
+
+    /// <summary>Validates and reads the provider-backed lookup declaration.</summary>
+    /// <param name="parameter">The read-model parameter.</param>
+    /// <param name="commandType">The command type.</param>
+    /// <returns>The provider declaration, or null for a legacy lookup.</returns>
+    internal static ILookUpByKeyProvider? ResolveKeyProvider(ParameterInfo parameter, Type commandType) => ReadModelKeyProviders.Validate(parameter, commandType);
+
     static int? ReadProtection(IEnumerable<object> attributes) => attributes.OfType<ReadProtectionAttribute>().Select(_ => (int?)_.Mode).FirstOrDefault();
 
     static bool HasUnprotected(IEnumerable<object> attributes) => attributes.Any(_ => _ is IUnprotectedDecisionAttribute);

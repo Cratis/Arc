@@ -362,7 +362,7 @@ public class CommandPipeline(
 
     static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
     {
-        if (TenantMembershipDenied.IsCauseOf(exception))
+        if (TenantMembershipDenied.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception))
         {
             return CommandResult.Unauthorized(correlationId);
         }
@@ -565,7 +565,8 @@ public class CommandPipeline(
 
             identityLease.Attach(AuthorizationCommandIdentity.Enter(
                 preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
-                scopeFactory));
+                scopeFactory,
+                preparedAuthorization?.PrincipalChanged == true ? CommandCallerProvenance.SchemeSelected : CommandCallerProvenance.Ambient));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
 
@@ -848,6 +849,10 @@ public class CommandPipeline(
                 }
             }
 
+            using var identityGuard = AuthorizationCommandIdentity.EnterForValidation(
+                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
+                scopeFactory,
+                preparedAuthorization?.PrincipalChanged == true ? CommandCallerProvenance.SchemeSelected : CommandCallerProvenance.Ambient);
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
             var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);

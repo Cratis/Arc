@@ -139,7 +139,7 @@ public class CommandResult
     /// <param name="exception">The exception.</param>
     /// <returns>A <see cref="CommandResult"/>.</returns>
     public static CommandResult Error(CorrelationId correlationId, Exception exception) =>
-        TenantMembershipDenied.IsCauseOf(exception)
+        TenantMembershipDenied.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception)
             ? Unauthorized(correlationId)
             : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 
@@ -155,7 +155,7 @@ public class CommandResult
     /// code running inside the pipeline reject a command as invalid without knowing how the result is serialized.
     /// </remarks>
     public static CommandResult FromException(CorrelationId correlationId, Exception exception) =>
-        TenantMembershipDenied.IsCauseOf(exception)
+        TenantMembershipDenied.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception)
             ? Unauthorized(correlationId)
             : exception is IValidationFailure validationFailure
                 ? new() { CorrelationId = correlationId, ValidationResults = [validationFailure.ValidationResult] }
