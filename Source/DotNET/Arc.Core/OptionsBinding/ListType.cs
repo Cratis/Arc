@@ -50,7 +50,7 @@ internal sealed class ListType<T> : BoundType
             try
             {
                 var elementPoint = new BindingPoint();
-                BinderSemantics.BindInstance(_element, elementPoint, child, true, config);
+                BinderSemantics.BindInstance(_element, elementPoint, child, true);
                 if (elementPoint.HasNewValue)
                 {
                     collection.Add(elementPoint.Value is null ? default! : (T)elementPoint.Value);

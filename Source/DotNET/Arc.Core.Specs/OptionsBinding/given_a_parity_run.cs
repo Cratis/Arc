@@ -17,7 +17,9 @@ public abstract class given_a_parity_run : Specification
 
     void Because() => _run = new ParityRun(Configuration, Prepare);
 
-    [Fact] void should_leave_the_same_options() => _run.ReflectionFreeSnapshot.ShouldEqual(_run.ReflectionSnapshot);
+    [Fact]
+    public void should_leave_the_same_options() => _run.ReflectionFreeSnapshot.ShouldEqual(_run.ReflectionSnapshot);
 
-    [Fact] void should_raise_the_same_failure() => _run.ReflectionFreeFailure.ShouldEqual(_run.ReflectionFailure);
+    [Fact]
+    public void should_raise_the_same_failure() => _run.ReflectionFreeFailure.ShouldEqual(_run.ReflectionFailure);
 }

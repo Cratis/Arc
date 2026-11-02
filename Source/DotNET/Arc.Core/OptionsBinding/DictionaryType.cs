@@ -40,7 +40,7 @@ internal sealed class DictionaryType<TValue> : BoundType
         var dictionary = point.Value as IDictionary<string, TValue> ?? new Dictionary<string, TValue>();
         foreach (var child in config.GetChildren())
         {
-            BindEntry(dictionary, child, config);
+            BindEntry(dictionary, child);
         }
 
         if (!point.IsReadOnly)
@@ -49,13 +49,13 @@ internal sealed class DictionaryType<TValue> : BoundType
         }
     }
 
-    void BindEntry(IDictionary<string, TValue> dictionary, IConfigurationSection child, IConfiguration config)
+    void BindEntry(IDictionary<string, TValue> dictionary, IConfigurationSection child)
     {
         try
         {
             var key = child.Key;
             var entryPoint = new BindingPoint(() => dictionary.TryGetValue(key, out var existing) ? existing : default(object), false);
-            BinderSemantics.BindInstance(_value, entryPoint, child, true, config);
+            BinderSemantics.BindInstance(_value, entryPoint, child, true);
             if (entryPoint.HasNewValue)
             {
                 dictionary[key] = entryPoint.Value is null ? default! : (TValue)entryPoint.Value;
