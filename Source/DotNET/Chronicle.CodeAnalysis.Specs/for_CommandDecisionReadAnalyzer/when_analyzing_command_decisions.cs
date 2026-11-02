@@ -94,8 +94,7 @@ public class when_analyzing_command_decisions
                     return new Created();
                 }
             }
-            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info),
-            AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
                 .WithSeverity(DiagnosticSeverity.Info));
 
     [Fact]
@@ -109,8 +108,7 @@ public class when_analyzing_command_decisions
                     await store.EventLog.Append(EventSourceId, new Created());
                 }
             }
-            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info),
-            AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
                 .WithSeverity(DiagnosticSeverity.Info));
 
     [Fact]
@@ -430,7 +428,7 @@ public class when_analyzing_command_decisions
                     return new Created();
                 }
             }
-            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039").WithSeverity(DiagnosticSeverity.Info));
+            """);
 
     [Fact]
     public async Task read_only_command_and_non_chronicle_parameter_are_not_reported() =>
