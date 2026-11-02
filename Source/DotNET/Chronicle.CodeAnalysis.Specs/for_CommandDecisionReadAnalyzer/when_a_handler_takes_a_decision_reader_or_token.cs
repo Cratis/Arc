@@ -6,7 +6,6 @@
 
 using Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing;
 using Cratis.Arc.Commands;
-using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandDecisionReadAnalyzer;
 
@@ -16,54 +15,54 @@ public class when_a_handler_takes_a_decision_reader_or_token : Specification
     [InlineData(ReadProtectionMode.Off)]
     [InlineData(ReadProtectionMode.Measure)]
     [InlineData(ReadProtectionMode.On)]
-    public Task should_advise_on_a_synchronous_reader_parameter_in_every_mode(ReadProtectionMode mode) => Verify($$"""
+    public Task should_not_report_a_synchronous_reader_parameter_in_every_mode(ReadProtectionMode mode) => Verify($$"""
         [Command, ReadProtection(ReadProtectionMode.{{mode}})]
         public record Decide
         {
-            public void Handle({|#0:IDecisionReads reads|}) { }
+            public void Handle(IDecisionReads reads) { }
         }
-        """, Advice("IDecisionReads"));
+        """);
 
     [Theory]
     [InlineData(ReadProtectionMode.Off)]
     [InlineData(ReadProtectionMode.Measure)]
     [InlineData(ReadProtectionMode.On)]
-    public Task should_advise_on_an_async_token_parameter_in_every_mode(ReadProtectionMode mode) => Verify($$"""
+    public Task should_not_report_an_async_token_parameter_in_every_mode(ReadProtectionMode mode) => Verify($$"""
         [Command, ReadProtection(ReadProtectionMode.{{mode}})]
         public record Decide
         {
-            public async Task Handle({|#0:DecisionRead<State> read|}) { await Task.CompletedTask; }
+            public async Task Handle(DecisionRead<State> read) { await Task.CompletedTask; }
         }
-        """, Advice("DecisionRead"));
+        """);
 
     [Theory]
     [InlineData(ReaderDeclaration.ReaderAlias)]
     [InlineData(ReaderDeclaration.TokenAlias)]
     [InlineData(ReaderDeclaration.DerivedInterface)]
-    public Task should_resolve_aliases_and_derived_reader_interfaces(ReaderDeclaration kind)
+    public Task should_not_report_aliases_and_derived_reader_interfaces(ReaderDeclaration kind)
     {
-        var (declaration, type, expectedType) = kind switch
+        var (declaration, type) = kind switch
         {
-            ReaderDeclaration.ReaderAlias => ("using Reader = Cratis.Chronicle.ReadModels.IDecisionReads;", "Reader", "IDecisionReads"),
-            ReaderDeclaration.TokenAlias => ("using Token = Cratis.Chronicle.ReadModels.DecisionRead<State>;", "Token", "DecisionRead"),
-            _ => ("public interface Reader : IDecisionReads;", "Reader", "Reader")
+            ReaderDeclaration.ReaderAlias => ("using Reader = Cratis.Chronicle.ReadModels.IDecisionReads;", "Reader"),
+            ReaderDeclaration.TokenAlias => ("using Token = Cratis.Chronicle.ReadModels.DecisionRead<State>;", "Token"),
+            _ => ("public interface Reader : IDecisionReads;", "Reader")
         };
         return Verify($$"""
             {{declaration}}
             [Command] public record Decide
             {
-                public void Handle({|#0:{{type}} read|}) { }
+                public void Handle({{type}} read) { }
             }
-            """, Advice(expectedType));
+        """);
     }
 
     [Fact]
-    public Task should_report_each_offending_parameter() => Verify("""
+    public Task should_not_report_a_reader_together_with_a_token() => Verify("""
         [Command] public record Decide
         {
-            public void Handle({|#0:IDecisionReads reads|}, {|#1:DecisionRead<State> read|}) { }
+            public void Handle(IDecisionReads reads, DecisionRead<State> read) { }
         }
-        """, Advice("IDecisionReads"), Advice("DecisionRead"));
+        """);
 
     [Fact]
     public Task should_not_report_provide_acquiring_plain_state() => Verify("""
@@ -138,12 +137,12 @@ public class when_a_handler_takes_a_decision_reader_or_token : Specification
         """);
 
     [Fact]
-    public Task should_resolve_fully_qualified_parameter_types() => Verify("""
+    public Task should_not_report_fully_qualified_parameter_types() => Verify("""
         [Command] public record Decide
         {
-            public void Handle({|#0:global::Cratis.Chronicle.ReadModels.IDecisionReads reads|}) { }
+            public void Handle(global::Cratis.Chronicle.ReadModels.IDecisionReads reads) { }
         }
-        """, Advice("IDecisionReads"));
+        """);
 
     [Fact]
     public Task should_not_analyze_generated_code() => AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync("""
@@ -166,9 +165,6 @@ public class when_a_handler_takes_a_decision_reader_or_token : Specification
         Advisory = 1,
         Unannotated = 2
     }
-
-    static ExpectedDiagnostic Advice(string type) => AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0039")
-        .WithSeverity(DiagnosticSeverity.Info).WithArguments("Decide", type, "plain parameter", "LookUpBy", "per-stream", "Provide(IDecisionReads)");
 
     static Task Verify(string declaration, params ExpectedDiagnostic[] expected) =>
         AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync($$"""
