@@ -18,14 +18,16 @@ internal sealed class ChronicleStartupDecisionReads(IServiceProvider services) :
     /// <inheritdoc/>
     public async Task<IDecisionReads?> Get(CancellationToken cancellationToken)
     {
-        var options = services.GetService<IOptions<ChronicleClientOptions>>()?.Value;
-        if (options?.AutoDiscoverAndRegister != true)
+        var client = services.GetService<IChronicleClient>();
+        if (client is null)
         {
             return null;
         }
 
-        var client = services.GetService<IChronicleClient>();
-        if (client is null)
+        // The client holds the options it was built with. An ASP.NET Core host builds it from ChronicleAspNetCoreOptions
+        // and never configures IOptions<ChronicleClientOptions>, which would then resolve to defaults with no event store.
+        var options = client.Options as ChronicleClientOptions ?? services.GetService<IOptions<ChronicleClientOptions>>()?.Value;
+        if (options?.AutoDiscoverAndRegister != true)
         {
             return null;
         }

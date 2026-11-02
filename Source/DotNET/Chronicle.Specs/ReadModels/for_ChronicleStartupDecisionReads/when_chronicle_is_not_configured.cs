@@ -23,6 +23,6 @@ public class when_chronicle_is_not_configured : Specification
         var reader = await new ChronicleStartupDecisionReads(provider).Get(CancellationToken.None);
 
         reader.ShouldBeNull();
-        client.ReceivedCalls().ShouldBeEmpty();
+        client.DidNotReceive().GetEventStore(Arg.Any<EventStoreName>(), Arg.Any<EventStoreNamespaceName?>());
     }
 }
