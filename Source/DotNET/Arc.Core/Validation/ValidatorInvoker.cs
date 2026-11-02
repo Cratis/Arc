@@ -31,7 +31,7 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
         Invoke(instance, validator, path, null, cancellationToken);
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidationTargetKind? kind, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidationTargetKind? kind, CancellationToken cancellationToken)
     {
         try
         {

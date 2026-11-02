@@ -12,7 +12,7 @@ public class when_an_invoker_predates_the_kind_overload : Specification
 
     void Establish() => _legacy = new LegacyInvoker();
 
-    async Task Because() => _results = await ((IValidatorInvoker)_legacy).Invoke(new object(), new InlineValidator<object>(), "path", ValidationTargetKind.Command);
+    async Task Because() => _results = await ((IValidatorInvoker)_legacy).Invoke(new object(), new InlineValidator<object>(), "path", ValidationTargetKind.Command, CancellationToken.None);
 
     [Fact] void should_forward_to_the_original_method() => _legacy.Path.ShouldEqual("path");
     [Fact] void should_return_what_the_original_method_returned() => _results.Single().Message.ShouldEqual("legacy");

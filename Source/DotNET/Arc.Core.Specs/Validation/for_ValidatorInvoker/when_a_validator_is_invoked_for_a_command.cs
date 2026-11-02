@@ -9,7 +9,7 @@ public class when_a_validator_is_invoked_for_a_command : given.a_validator_invok
 {
     IEnumerable<ValidationResult> _results;
 
-    async Task Because() => _results = await _invoker.Invoke(new Model(), new ModelValidator(), string.Empty, ValidationTargetKind.Command);
+    async Task Because() => _results = await _invoker.Invoke(new Model(), new ModelValidator(), string.Empty, ValidationTargetKind.Command, CancellationToken.None);
 
     [Fact] void should_apply_the_command_rule() => _results.Single().Message.ShouldEqual("command");
     [Fact] void should_not_apply_the_query_rule() => _results.Any(_ => _.Message == "query").ShouldBeFalse();
