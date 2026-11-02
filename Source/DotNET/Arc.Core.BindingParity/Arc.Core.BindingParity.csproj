@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        Runs the options binding parity matrix against the real ConfigurationBinder of every target framework Arc.Core ships.
+        The specs run on net10.0 only, so the net8.0 and net9.0 branches of the binder would otherwise never execute in CI.
+        The scenarios are linked from Arc.Core.Specs; the stubs in Stubs.cs stand in for the specification framework.
+        The assembly name is on the InternalsVisibleTo list of Arc.Core.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+        <AssemblyName>Cratis.Arc.Core.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.OptionsBinding</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>false</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="../Arc.Core.Specs/OptionsBinding/ParityRun.cs" Link="Shared/ParityRun.cs" />
+        <Compile Include="../Arc.Core.Specs/OptionsBinding/OptionsSnapshot.cs" Link="Shared/OptionsSnapshot.cs" />
+        <Compile Include="../Arc.Core.Specs/OptionsBinding/given_a_parity_run.cs" Link="Shared/given_a_parity_run.cs" />
+        <!-- Every parity scenario derives from given_a_parity_run; the other specs of the folder use the specification framework. -->
+        <Compile Include="../Arc.Core.Specs/OptionsBinding/when_binding_*.cs"
+                 Exclude="../Arc.Core.Specs/OptionsBinding/when_binding_a_subclass_of_an_option_type.cs;../Arc.Core.Specs/OptionsBinding/when_binding_arc_own_option_types.cs"
+                 LinkBase="Shared" />
+    </ItemGroup>
+</Project>

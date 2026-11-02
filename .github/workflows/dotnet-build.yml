@@ -146,6 +146,16 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0
 
+      # The specs run on net10.0 only, so the net8.0 and net9.0 branches of Arc's options binder are only exercised here:
+      # the harness compares the binder with the real ConfigurationBinder of each target framework. It exits 1 on a mismatch
+      # and 2 when it could not run, so any non-zero exit fails the step.
+      - name: Options binding parity (net8.0, net9.0, net10.0)
+        run: |
+          set -euo pipefail
+          for framework in net8.0 net9.0 net10.0; do
+            dotnet Source/DotNET/Arc.Core.BindingParity/bin/Release/$framework/Cratis.Arc.Core.Specs.dll --report "$RUNNER_TEMP/binding-parity-$framework.txt"
+          done
+
       # Hand off the compiled binaries AND the JavaScript dist output to the spec jobs
       # via an artifact rather than actions/cache. This is an intra-run handoff, not
       # cross-run reuse: actions/cache keys on the immutable commit SHA, so a single
