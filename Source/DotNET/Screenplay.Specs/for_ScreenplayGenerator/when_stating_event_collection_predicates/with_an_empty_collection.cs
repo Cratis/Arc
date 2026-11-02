@@ -7,5 +7,5 @@ public class with_an_empty_collection : given.an_event_collection_predicate
 {
     void Because() => GenerateExpectation("e.Tags.SequenceEqual([])", "[]");
 
-    [Fact] void should_state_and_bind_the_empty_expected_list() => AssertCollection("[]");
+    [Fact] void should_state_and_bind_the_empty_expected_list() => AssertCollection();
 }
