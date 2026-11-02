@@ -48,7 +48,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0038](./ARCCHR0038.md) | Info | Per-stream model guard widens through another read or declared concurrency. |
 | [ARCCHR0040](./ARCCHR0040.md) | Info | Prefer a read-model parameter over a direct decision-reader or token parameter. |
 
-ARCCHR0039 was removed and its ID is retired; it is never reused. A command's `Handle()` may take any dependency, including `IDecisionReads` and `DecisionRead<T>`, and no diagnostic reports it.
+ARCCHR0039 was removed and its ID is retired; it is never reused. A command's `Handle()` may take any dependency, including `IDecisionReads` and `DecisionRead<T>`. ARCCHR0040 offers Info-only guidance for those two direct parameters; it imposes no dependency restriction and can be suppressed with a reason for an acquisition gap.
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 
