@@ -38,6 +38,11 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         var parameter = root?.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<ParameterSyntax>();
         var model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
+        if (parameter is not null && model?.GetDeclaredSymbol(parameter, context.CancellationToken) is IParameterSymbol providerParameter &&
+            Cratis.Arc.Commands.CommandAttributeSymbols.ResolveKeyProvider(providerParameter).Provider is not null)
+        {
+            return;
+        }
         var argument = parameter?.AttributeLists.SelectMany(_ => _.Attributes)
             .Where(attribute => model?.GetSymbolInfo(attribute, context.CancellationToken).Symbol is IMethodSymbol constructor &&
                 constructor.ContainingType.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute")

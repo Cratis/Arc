@@ -86,19 +86,27 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         }
 
         var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
-        if (lookup?.ConstructorArguments.FirstOrDefault().Value is not string propertyName)
+        var propertyName = lookup?.ConstructorArguments.FirstOrDefault().Value as string;
+        var provider = CommandAttributeSymbols.ResolveKeyProvider(parameter);
+        if (propertyName is null && provider.Provider is null)
         {
             return;
         }
 
         var command = ReadProtectionSymbols.CommandFor(method) ?? method.ContainingType;
         var resolution = CommandAttributeSymbols.ResolveLookup(command, parameter, mayBeModel);
+        if (provider.Conflict is not null)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, "is invalid: only one lookup form may be declared"));
+            return;
+        }
         if (!mayBeModel)
         {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, parameter.Type.Name));
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, $"requires a read model, but '{parameter.Type.Name}' is not a read-model type. Remove LookUpBy or inject a read model."));
             return;
         }
 
+        if (provider.Provider is not null || propertyName is null) return;
         var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
         if (resolution.Conflict is not null)
         {

@@ -107,6 +107,11 @@ internal static class ProtectedReadModelKeyGeneration
         }
         foreach (var parameter in Members(command).OfType<IMethodSymbol>().SelectMany(method => method.Parameters))
         {
+            if (parameter.GetAttributes().Any(attribute => attribute.AttributeClass is { } type &&
+                type.OriginalDefinition.MetadataName == "LookUpByAttribute`1" && type.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands"))
+            {
+                continue;
+            }
             var lookup = parameter.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute");
             if (lookup?.ConstructorArguments.FirstOrDefault().Value is string name)
             {

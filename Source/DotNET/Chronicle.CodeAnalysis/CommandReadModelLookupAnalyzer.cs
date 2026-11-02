@@ -63,7 +63,8 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
             ChronicleStateSymbols.IsBacked(parameter.Type, context.Compilation, backedTypes)))
         {
             if (PerStreamReadModelSymbols.Declaration(parameter.Type) is not null ||
-                CommandAttributeSymbols.Find(parameter, "Cratis.Arc.Commands.LookUpByAttribute") is not null)
+                CommandAttributeSymbols.Find(parameter, "Cratis.Arc.Commands.LookUpByAttribute") is not null ||
+                CommandAttributeSymbols.ResolveKeyProvider(parameter).Provider is not null)
             {
                 continue;
             }

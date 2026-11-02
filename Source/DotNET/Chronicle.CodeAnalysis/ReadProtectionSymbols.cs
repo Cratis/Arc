@@ -95,6 +95,7 @@ internal static class ReadProtectionSymbols
     /// <returns>The known key property.</returns>
     internal static IPropertySymbol? Lookup(INamedTypeSymbol command, IParameterSymbol parameter, Compilation compilation)
     {
+        if (CommandAttributeSymbols.ResolveKeyProvider(parameter).Provider is not null) return null;
         var properties = RawGuidResponseAnalysis.PublicProperties(command).ToArray();
         var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
         if (lookup is not null)
