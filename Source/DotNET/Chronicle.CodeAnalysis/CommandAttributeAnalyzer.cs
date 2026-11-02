@@ -85,9 +85,8 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
             ReportInert(context, parameter, "Unprotected has no effect on a non-read-model parameter");
         }
 
-        var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
-        var propertyValue = lookup?.ConstructorArguments.FirstOrDefault().Value;
-        if (AnalyzeKeyProvider(context, parameter, mayBeModel, backedTypes) || propertyValue is not string propertyName) return;
+        var propertyName = LookupProperty(context, parameter, mayBeModel, backedTypes);
+        if (propertyName is null) return;
 
         var command = ReadProtectionSymbols.CommandFor(method) ?? method.ContainingType;
         var resolution = CommandAttributeSymbols.ResolveLookup(command, parameter, mayBeModel);
@@ -110,6 +109,13 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
 
         // Explicit lookup keys are canonicalized independently of the model's CLR Id type at runtime.
         // Even non-concept values have the runtime's ToEventSourceId/ToString fallback.
+    }
+
+    static string? LookupProperty(SymbolAnalysisContext context, IParameterSymbol parameter, bool mayBeModel, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
+    {
+        var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
+        var propertyValue = lookup?.ConstructorArguments.FirstOrDefault().Value;
+        return AnalyzeKeyProvider(context, parameter, mayBeModel, backedTypes) ? null : propertyValue as string;
     }
 
     static bool AnalyzeKeyProvider(SymbolAnalysisContext context, IParameterSymbol parameter, bool mayBeModel, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)

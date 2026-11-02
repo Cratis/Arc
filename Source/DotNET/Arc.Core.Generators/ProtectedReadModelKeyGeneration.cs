@@ -105,12 +105,8 @@ internal static class ProtectedReadModelKeyGeneration
         {
             yield return property.Type;
         }
-        foreach (var parameter in Members(command).OfType<IMethodSymbol>().SelectMany(method => method.Parameters))
+        foreach (var parameter in Members(command).OfType<IMethodSymbol>().SelectMany(method => method.Parameters).Where(parameter => !HasKeyProvider(parameter)))
         {
-            if (HasKeyProvider(parameter))
-            {
-                continue;
-            }
             var lookup = parameter.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute");
             if (lookup?.ConstructorArguments.FirstOrDefault().Value is string name)
             {
@@ -128,14 +124,16 @@ internal static class ProtectedReadModelKeyGeneration
     {
         for (var current = parameter; current is not null; current = (current.ContainingSymbol as IMethodSymbol)?.OverriddenMethod?.Parameters[parameter.Ordinal])
         {
-            if (current.GetAttributes().Any(attribute => attribute.AttributeClass is { } type &&
-                type.OriginalDefinition.MetadataName == "LookUpByAttribute`1" && type.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands"))
+            if (current.GetAttributes().Any(IsKeyProviderAttribute))
             {
                 return true;
             }
         }
         return false;
     }
+
+    static bool IsKeyProviderAttribute(AttributeData attribute) => attribute.AttributeClass is { } type &&
+        type.OriginalDefinition.MetadataName == "LookUpByAttribute`1" && type.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands";
 
     static bool HasKey(IPropertySymbol property) =>
         property.GetAttributes().Any(IsKeyAttribute) || property.ContainingType.InstanceConstructors.SelectMany(constructor => constructor.Parameters)

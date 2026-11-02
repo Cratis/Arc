@@ -43,8 +43,7 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
             return;
         }
         var argument = parameter?.AttributeLists.SelectMany(_ => _.Attributes)
-            .Where(attribute => model?.GetSymbolInfo(attribute, context.CancellationToken).Symbol is IMethodSymbol constructor &&
-                constructor.ContainingType.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute")
+            .Where(attribute => IsStringLookupAttribute(attribute, model, context.CancellationToken))
             .SelectMany(attribute => attribute.ArgumentList?.Arguments ?? default)
             .FirstOrDefault(_ => _.Expression is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression));
         if (argument is null || model?.GetDeclaredSymbol(parameter!, context.CancellationToken) is not IParameterSymbol symbol)
@@ -63,6 +62,10 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
             Title);
         context.RegisterCodeFix(action, diagnostic);
     }
+
+    static bool IsStringLookupAttribute(AttributeSyntax attribute, SemanticModel? model, CancellationToken cancellationToken) =>
+        model?.GetSymbolInfo(attribute, cancellationToken).Symbol is IMethodSymbol constructor &&
+        constructor.ContainingType.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute";
 
     static bool HasKeyProvider(ParameterSyntax? parameter, SemanticModel? model, CancellationToken cancellationToken) =>
         parameter is not null && model?.GetDeclaredSymbol(parameter, cancellationToken) is IParameterSymbol symbol &&

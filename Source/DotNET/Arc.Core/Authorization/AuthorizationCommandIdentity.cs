@@ -86,7 +86,7 @@ internal static class AuthorizationCommandIdentity
     {
         while (frame is not null)
         {
-            if (!frame.IsCompleted && ReferenceEquals(frame.Host, host))
+            if (IsActiveForHost(frame, host))
             {
                 var changesTransaction = frame.IsTransactional && !AuthorizationPrincipalIdentity.Same(frame.Principal, principal);
                 if (frame.CallerRefused || changesTransaction)
@@ -99,6 +99,8 @@ internal static class AuthorizationCommandIdentity
             frame = frame.Previous;
         }
     }
+
+    static bool IsActiveForHost(Frame frame, object? host) => !frame.IsCompleted && ReferenceEquals(frame.Host, host);
 
     sealed class Frame(Frame? previous, object? host, PrincipalSnapshot principal, CommandCallerProvenance provenance) : IDisposable
     {
