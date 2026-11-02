@@ -34,6 +34,7 @@
         <YarnCmd Condition="$([MSBuild]::IsOSPlatform('windows'))">yarn.cmd</YarnCmd>
         <YarnCmd Condition="!$([MSBuild]::IsOSPlatform('windows'))">yarn</YarnCmd>
         <ArcCoreFrontendDir>$(MSBuildProjectDirectory)/../ArcCore</ArcCoreFrontendDir>
+        <ArcRepositoryRoot Condition="'$(ArcRepositoryRoot)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '../..'))</ArcRepositoryRoot>
     </PropertyGroup>
 
     <!-- Mac Catalyst settings -->
@@ -63,13 +64,6 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
     </ItemGroup>
 
-    <!-- Bundle ArcCore's built wwwroot so Arc can serve the frontend from the same origin as the API -->
-    <ItemGroup>
-        <Content Include="$(ArcCoreFrontendDir)/wwwroot/**" Condition="Exists('$(ArcCoreFrontendDir)/wwwroot')"
-                 Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)"
-                 CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
-
     <ItemGroup>
         <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../../Source/DotNET/Arc.Core.Generators/Arc.Core.Generators.csproj"
@@ -78,17 +72,103 @@
         <ProjectReference Include="../Shared/Shared.csproj" />
     </ItemGroup>
 
-    <!-- Build the ArcCore React frontend before the .NET build so wwwroot is ready.
-         Runs yarn install (no-op when node_modules is current) then yarn build.
-         SkipUnchangedFiles would be ideal but vite always rewrites assets, so we
-         unconditionally rebuild; the tsc incremental cache keeps it fast on reruns. -->
-    <Target Name="BuildFrontend" BeforeTargets="Build">
+    <!-- Completion stamps are scoped to the SDK's configuration/TFM intermediate directory.
+         Real outputs are checked separately: Yarn/TypeScript may preserve their timestamps. -->
+    <Target Name="InitializeFrontendBuild">
+        <PropertyGroup>
+            <FrontendInstallStamp>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'frontend-install.stamp'))</FrontendInstallStamp>
+            <FrontendBuildStamp>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'frontend-build.stamp'))</FrontendBuildStamp>
+            <_FrontendInstallInventory>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'frontend-install.inputs'))</_FrontendInstallInventory>
+            <_FrontendBuildInventory>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'frontend-build.inputs'))</_FrontendBuildInventory>
+            <_FrontendOutputInventory>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'frontend-build.outputs'))</_FrontendOutputInventory>
+            <_FrontendInputExcludes>$(ArcRepositoryRoot)**/node_modules/**;$(ArcRepositoryRoot)**/dist/**;$(ArcRepositoryRoot)**/bin/**;$(ArcRepositoryRoot)**/obj/**;$(ArcRepositoryRoot)**/wwwroot/**;$(ArcRepositoryRoot)**/.ai-work/**;$(ArcRepositoryRoot)**/.cache/**;$(ArcRepositoryRoot)**/.vite/**;$(ArcRepositoryRoot)**/.yarn/**;$(ArcRepositoryRoot)**/.eslintcache;$(ArcRepositoryRoot)**/*.tsbuildinfo</_FrontendInputExcludes>
+        </PropertyGroup>
+        <ItemGroup>
+            <_FrontendMetadata Include="$(FrontendInstallStamp);$(FrontendBuildStamp);$(_FrontendInstallInventory);$(_FrontendBuildInventory);$(_FrontendOutputInventory)" />
+            <FileWrites Include="@(_FrontendMetadata)" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="PrepareFrontendInstall" DependsOnTargets="InitializeFrontendBuild">
+        <ItemGroup>
+            <_FrontendRequiredInstallInput Include="$(ArcRepositoryRoot)package.json;$(ArcRepositoryRoot)yarn.lock;$(ArcRepositoryRoot).yarnrc.yml;$(ArcCoreFrontendDir)/package.json" />
+            <_FrontendInstallCandidate Include="$(MSBuildProjectFullPath);@(_FrontendRequiredInstallInput)" />
+            <!-- Match the root workspace discovery, including nested workspaces but not generated trees. -->
+            <_FrontendInstallCandidate Include="$(ArcRepositoryRoot)Source/**/package.json;$(ArcRepositoryRoot)Samples/**/package.json"
+                                       Exclude="$(_FrontendInputExcludes);$(ArcRepositoryRoot)Source/DotNET/Screenplay.Embedded/**" />
+            <_FrontendInstallCandidate Include="$(ArcRepositoryRoot).yarn/releases/**;$(ArcRepositoryRoot).yarn/plugins/**" />
+            <_FrontendInstallCandidate Include="$(ArcRepositoryRoot)link-eslint-typescript.js" Condition="Exists('$(ArcRepositoryRoot)link-eslint-typescript.js')" />
+            <_FrontendInstallInput Include="@(_FrontendInstallCandidate->Metadata('FullPath')->Distinct())" />
+        </ItemGroup>
+        <Error Condition="!Exists('%(_FrontendRequiredInstallInput.Identity)')" Text="[Maui] Required frontend install input is missing: %(_FrontendRequiredInstallInput.Identity)" />
+        <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(FrontendInstallStamp)'))" />
+        <!-- Stable full-path inventories detect removals and additions with old timestamps. -->
+        <WriteLinesToFile File="$(_FrontendInstallInventory)" Lines="@(_FrontendInstallInput)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <Delete Files="$(FrontendInstallStamp)" Condition="!Exists('$(ArcRepositoryRoot)node_modules/.yarn-state.yml')" />
+    </Target>
+
+    <Target Name="InstallFrontend" DependsOnTargets="PrepareFrontendInstall"
+            Inputs="@(_FrontendInstallInput);$(_FrontendInstallInventory)" Outputs="$(FrontendInstallStamp)">
         <Message Text="[Maui] Installing frontend dependencies in ArcCore..." Importance="high" />
-        <Exec Command="$(YarnCmd) install"
-              WorkingDirectory="$(ArcCoreFrontendDir)" />
+        <Delete Files="$(FrontendInstallStamp)" />
+        <Exec Command="$(YarnCmd) install" WorkingDirectory="$(ArcCoreFrontendDir)" />
+        <Error Condition="!Exists('$(ArcRepositoryRoot)node_modules/.yarn-state.yml')" Text="[Maui] Yarn install did not produce node_modules/.yarn-state.yml." />
+        <Touch Files="$(FrontendInstallStamp)" AlwaysCreate="true" />
+    </Target>
+
+    <Target Name="PrepareFrontendBuild" DependsOnTargets="InstallFrontend">
+        <ItemGroup>
+            <_FrontendRequiredBuildInput Include="$(ArcRepositoryRoot)tsconfig.json;$(ArcCoreFrontendDir)/tsconfig.json;$(ArcCoreFrontendDir)/index.html;$(ArcCoreFrontendDir)/.frontend/vite.config.ts" />
+            <_FrontendBuildCandidate Include="$(MSBuildProjectFullPath);$(FrontendInstallStamp);@(_FrontendRequiredBuildInput)" />
+            <_FrontendBuildCandidate Include="$(ArcCoreFrontendDir)/**;$(ArcCoreFrontendDir)/.frontend/**;$(ArcCoreFrontendDir)/../Shared/**"
+                                     Exclude="$(_FrontendInputExcludes);$(ArcCoreFrontendDir)/../Shared/**/*.cs;$(ArcCoreFrontendDir)/../Shared/**/*.csproj;$(ArcCoreFrontendDir)/**/*.cs;$(ArcCoreFrontendDir)/**/*.csproj" />
+            <_FrontendBuildCandidate Include="$(ArcRepositoryRoot)Source/JavaScript/Arc/**;$(ArcRepositoryRoot)Source/JavaScript/Arc.React/**"
+                                     Exclude="$(_FrontendInputExcludes)" />
+            <!-- Referenced declarations can change independently of this project's install/build stamps. -->
+            <_FrontendBuildCandidate Include="$(ArcRepositoryRoot)Source/JavaScript/Arc/dist/esm/**/*.d.ts;$(ArcRepositoryRoot)Source/JavaScript/Arc.React/dist/esm/**/*.d.ts;$(ArcRepositoryRoot)tsconfig*.json;$(ArcRepositoryRoot)*.config.*" />
+            <_FrontendBuildCandidate Include="$(ArcRepositoryRoot)global.d.ts" Condition="Exists('$(ArcRepositoryRoot)global.d.ts')" />
+            <_FrontendBuildCandidate Include="$(ArcRepositoryRoot)test.d.ts" Condition="Exists('$(ArcRepositoryRoot)test.d.ts')" />
+            <_FrontendBuildCandidate Include="$(ArcRepositoryRoot)run-task-on-workspaces.js" Condition="Exists('$(ArcRepositoryRoot)run-task-on-workspaces.js')" />
+            <_FrontendBuildInput Include="@(_FrontendBuildCandidate->Metadata('FullPath')->Distinct())" />
+        </ItemGroup>
+        <Error Condition="!Exists('%(_FrontendRequiredBuildInput.Identity)')" Text="[Maui] Required frontend build input is missing: %(_FrontendRequiredBuildInput.Identity)" />
+        <WriteLinesToFile File="$(_FrontendBuildInventory)" Lines="@(_FrontendBuildInput)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <ReadLinesFromFile File="$(_FrontendOutputInventory)" Condition="Exists('$(_FrontendOutputInventory)')">
+            <Output TaskParameter="Lines" ItemName="_FrontendPreviousOutput" />
+        </ReadLinesFromFile>
+        <ItemGroup>
+            <_FrontendMissingOutput Include="@(_FrontendPreviousOutput)" Condition="!Exists('%(Identity)')" />
+        </ItemGroup>
+        <Delete Files="$(FrontendBuildStamp)" Condition="!Exists('$(ArcCoreFrontendDir)/wwwroot/index.html') Or !Exists('$(_FrontendOutputInventory)') Or '@(_FrontendPreviousOutput)' == '' Or '@(_FrontendMissingOutput)' != ''" />
+    </Target>
+
+    <Target Name="BuildFrontend" DependsOnTargets="PrepareFrontendBuild"
+            Inputs="@(_FrontendBuildInput);$(_FrontendBuildInventory)" Outputs="$(FrontendBuildStamp)">
         <Message Text="[Maui] Building ArcCore frontend..." Importance="high" />
-        <Exec Command="$(YarnCmd) build"
-              WorkingDirectory="$(ArcCoreFrontendDir)" />
+        <Delete Files="$(FrontendBuildStamp)" />
+        <Exec Command="$(YarnCmd) build" WorkingDirectory="$(ArcCoreFrontendDir)" />
+        <Error Condition="!Exists('$(ArcCoreFrontendDir)/wwwroot/index.html')" Text="[Maui] Frontend build did not produce wwwroot/index.html." />
+        <ItemGroup>
+            <_FrontendEmittedOutput Include="$(ArcCoreFrontendDir)/wwwroot/**" />
+        </ItemGroup>
+        <WriteLinesToFile File="$(_FrontendOutputInventory)" Lines="@(_FrontendEmittedOutput->Metadata('FullPath')->Distinct())" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <Touch Files="$(FrontendBuildStamp)" AlwaysCreate="true" />
+    </Target>
+
+    <!-- Collect at execution time, before SDK content metadata/copy discovery, even on a skipped build. -->
+    <Target Name="CollectFrontendContent" BeforeTargets="AssignTargetPaths" DependsOnTargets="BuildFrontend"
+            Condition="'$(IsCrossTargetingBuild)' != 'true'">
+        <ItemGroup>
+            <Content Remove="$(ArcCoreFrontendDir)/wwwroot/**" />
+            <_FrontendContent Include="$(ArcCoreFrontendDir)/wwwroot/**" />
+            <Content Include="@(_FrontendContent)"
+                     Link="wwwroot/%(_FrontendContent.RecursiveDir)%(_FrontendContent.Filename)%(_FrontendContent.Extension)"
+                     CopyToOutputDirectory="PreserveNewest" />
+        </ItemGroup>
+    </Target>
+
+    <Target Name="CleanFrontendBuildStamps" AfterTargets="Clean" DependsOnTargets="InitializeFrontendBuild">
+        <Delete Files="@(_FrontendMetadata)" />
     </Target>
 
     <!-- Mac Catalyst: copy deps.json into Contents/MonoBundle/ inside the app bundle.
