@@ -65,9 +65,9 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
         diagnostics.AddRange(admitted.Diagnostics);
-        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain, resolved.AuthoringOnlyConstructs);
+        var verification = ReportDocumentThatDoesNotCompile(emission, analysis.Diagnostics, diagnostics, resolved.Domain, resolved.AuthoringOnlyConstructs);
 
-        return new(emission.Source, analysis.Model, diagnostics.All);
+        return new(emission.Source, analysis.Model, diagnostics.All) { Verification = verification };
     }
 
     /// <inheritdoc/>
@@ -77,11 +77,12 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     /// <summary>
     /// Reads the printed document back and reports syntax and unexpected semantic binding errors.
     /// </summary>
-    /// <param name="source">The printed document.</param>
+    /// <param name="emission">The printed document and its analysis context.</param>
     /// <param name="analyzed">What analysis reported, which says whether the source it read compiled.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
     /// <param name="location">Where to report against.</param>
     /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
+    /// <returns>The verification, unless untrustworthy source analysis suppresses it.</returns>
     /// <remarks>
     /// Everything else reported names something the application declared that the language cannot hold. This names
     /// the generator being wrong, which is why it runs on every generation rather than on request - the only way a
@@ -100,8 +101,8 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     /// language rejects with nothing wrong reported, which is the one outcome this exists to make impossible.
     /// </para>
     /// </remarks>
-    void ReportDocumentThatDoesNotCompile(
-        string source,
+    ScreenplayVerification? ReportDocumentThatDoesNotCompile(
+        ScreenplayEmission emission,
         IEnumerable<ScreenplayDiagnostic> analyzed,
         ScreenplayDiagnostics diagnostics,
         string? location,
@@ -109,10 +110,10 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     {
         if (analyzed.Any(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile && _.Severity == ScreenplayDiagnosticSeverity.Error))
         {
-            return;
+            return null;
         }
 
-        var verification = _verifier.Verify(source);
+        var verification = GeneratedCommandReads.Verify(_verifier, emission);
         if (verification.Compiles)
         {
             foreach (var warning in verification.BindingDiagnostics.Where(diagnostic => diagnostic.Code == "PLAY0689"))
@@ -127,7 +128,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
                     location);
             }
 
-            return;
+            return verification;
         }
 
         var first = verification.Errors[0];
@@ -136,5 +137,6 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
             ScreenplayDiagnosticCodes.DocumentDidNotCompile,
             $"The generated document did not compile - {verification.Errors.Count} error(s), the first being '{first.Message}' on line {first.Location.Line}. That is the generator being wrong rather than anything the source declared, and the document is returned as it stands so the line can be read",
             location);
+        return verification;
     }
 }

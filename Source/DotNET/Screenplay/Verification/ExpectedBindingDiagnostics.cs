@@ -50,6 +50,25 @@ public static class ExpectedBindingDiagnostics
     internal static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs, IEnumerable<CompilerContractCatalog.DiagnosticFact> catalog) =>
         IsExpected(diagnostic, authoringOnlyConstructs, ActiveErrorCodes(catalog));
 
+    /// <summary>Classifies a generated diagnostic with the original analysis context.</summary>
+    /// <param name="diagnostic">The binder diagnostic.</param>
+    /// <param name="authoringOnlyConstructs">Whether authoring constructs were requested.</param>
+    /// <param name="verification">The verification carrying emission metadata.</param>
+    /// <returns>True for existing limits or a proven advisory legacy read refusal.</returns>
+    internal static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs, ScreenplayVerification verification) =>
+        IsExpected(diagnostic, authoringOnlyConstructs) ||
+        (authoringOnlyConstructs && diagnostic.Code == AdmissionLimitCode && _activeErrorCodes.Contains(diagnostic.Code) &&
+            IsAdvisoryReadRefusal(diagnostic, verification));
+
+    static bool IsAdvisoryReadRefusal(Diagnostic diagnostic, ScreenplayVerification verification)
+    {
+        const string ConditionKind = "Condition operand";
+        var operand = Reason(diagnostic.Message, ConditionKind) == " must be a declared command property in require; read-model paths require the 'command reads protected' preamble (#129)."
+            ? diagnostic.Message[(ConditionKind.Length + 2)..diagnostic.Message.IndexOf('\'', ConditionKind.Length + 2)] : null;
+        var mapping = Reason(diagnostic.Message, "The produced event mapping expression") == " is not admitted by ESM v1. Read-model paths require the 'command reads protected' preamble (#129).";
+        return (operand is not null || mapping) && verification.CommandReads?.IsAdvisory(verification, diagnostic, operand) == true;
+    }
+
     static FrozenSet<string> ActiveErrorCodes(IEnumerable<CompilerContractCatalog.DiagnosticFact> catalog) => catalog
         .Where(fact => !fact.Retired && !fact.Reserved && fact.Severities.Contains(DiagnosticSeverity.Error))
         .Select(fact => fact.Code)
