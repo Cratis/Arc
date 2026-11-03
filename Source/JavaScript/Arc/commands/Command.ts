@@ -298,7 +298,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         const values = {};
         this.propertyDescriptors.forEach(propertyDescriptor => {
             const property = propertyDescriptor.name;
-            if (Object.prototype.hasOwnProperty.call(this, property)) {
+            if (property in this) {
                 values[property] = this[property];
             }
         });
