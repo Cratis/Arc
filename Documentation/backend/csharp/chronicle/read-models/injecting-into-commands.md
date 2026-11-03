@@ -293,6 +293,12 @@ The stream type must be specific, not `EventStreamType.All`. See Chronicle's [st
 
 For the decision matrix, costs, pitfalls and scenarios that put these pieces together, see [Choosing how a command's rule holds](../consistency/index.md), its [scenarios](../consistency/scenarios/index.md) and its [pitfalls](../consistency/pitfalls.md).
 
+## Reads are awaited
+
+Arc binds a read model, a `DecisionRead<T>` token or a per-stream model into `Handle()` and `Provide()` by awaiting the Chronicle read, so a command that runs on a single-threaded scheduler yields while the read is pending instead of blocking it. This holds for framework-owned parameter binding only, and only when the caller awaits the command pipeline itself.
+
+Constructor injection, validators built by synchronous factories, other `IServiceProvider` lookups and custom synchronous resolvers are not changed by this; they keep their existing synchronous behavior. The supported ways to read state described above stay the same. See [the command pipeline](../../commands/command-pipeline.md#how-parameters-are-bound) for the resolver contract.
+
 ## Read models from other providers
 
 Injection is not Chronicle-only. A read model backed by Entity Framework Core or MongoDB is injected into a command exactly the same way, and everything on this page — the three positions, and what nullability means — applies unchanged.

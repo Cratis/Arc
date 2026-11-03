@@ -141,6 +141,12 @@ Without a response, the typed overload supplies **`default(TResult)`**: null for
 
 Scope completion can fail after the handler produced a value. After scopes complete, failed execution clears an already selected response to the default of its **concrete response type**. When requesting that same type, this yields `default(TResult)`, including `Guid.Empty`. Currently, adapting a cleared value-type response to `object` or a compatible interface can preserve its boxed default instead of null. For example, `Execute<object>` can return a boxed `Guid.Empty` after scope completion fails. Always check `IsSuccess` before using the response; neither null nor a default-valued response is itself an authorization or success verdict.
 
+## How parameters are bound
+
+The pipeline binds `Handle()` and `Provide()` parameters in order and awaits each one, so call `Execute` with `await` and never block on it. A plugin that implements `ICanResolveParameterDependency` keeps working unchanged, including one that is synchronous only. A plugin whose dependency is acquired asynchronously can additionally implement `IAsyncParameterDependencyResolver`. Its `Resolve` method returns a `ParameterDependencyResolution`: `NotResolved` when the plugin does not own the parameter, or `Resolved(dependency)` when it does, even if the dependency is null. Resolvers are consulted in discovery order and the first one that owns the parameter wins; when none does, the container resolves the type.
+
+This covers parameter binding only. It does not make general dependency injection, constructor injection or custom synchronous factories nonblocking. Chronicle read-model parameters use this contract, see [injecting read models](../chronicle/read-models/injecting-into-commands.md#reads-are-awaited).
+
 ## Exception handling
 
 The pipeline catches handler, filter, response-handler, and scope-completion exceptions and represents failures in `CommandResult`. Exceptions implementing `IValidationFailure` can be translated into validation outcomes; ordinary exceptions produce exception details. A wrong requested generic response type is a separate caller error, described above.
