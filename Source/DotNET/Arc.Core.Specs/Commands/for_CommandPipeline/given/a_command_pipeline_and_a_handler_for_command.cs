@@ -30,7 +30,8 @@ public class a_command_pipeline_and_a_handler_for_command : a_command_pipeline
     /// </summary>
     /// <param name="commandType">The command type declaring the handler method.</param>
     /// <param name="handle">The handler method whose parameters are resolved.</param>
-    protected void UseTheRealArgumentResolver(Type commandType, MethodInfo handle)
+    /// <param name="controlResult">An optional independent control failure reported after resolving the arguments.</param>
+    protected void UseTheRealArgumentResolver(Type commandType, MethodInfo handle, CommandResult? controlResult = null)
     {
         _commandHandler.CommandType.Returns(commandType);
         _commandHandler.Parameters.Returns(handle.GetParameters());
@@ -40,10 +41,14 @@ public class a_command_pipeline_and_a_handler_for_command : a_command_pipeline
         var resolver = new CommandHandlerArgumentResolver(provideInvoker);
         _commandHandlerArgumentResolver
             .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
-            .Returns(call => resolver.Resolve(
-                call.Arg<ICommandHandler>(),
-                call.Arg<CommandContext>() with { ReceivedAt = DateTimeOffset.UtcNow },
-                call.Arg<IServiceProvider>(),
-                call.Arg<ValidationResultSeverity?>()));
+            .Returns(async call =>
+            {
+                var resolution = await resolver.Resolve(
+                    call.Arg<ICommandHandler>(),
+                    call.Arg<CommandContext>() with { ReceivedAt = DateTimeOffset.UtcNow },
+                    call.Arg<IServiceProvider>(),
+                    call.Arg<ValidationResultSeverity?>());
+                return controlResult is null ? resolution : resolution with { ControlResult = controlResult };
+            });
     }
 }
