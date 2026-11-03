@@ -40,16 +40,17 @@ export function useCommand<
 
     command.current = useMemo(() => {
         const instance = new commandType();
-        instance.setMicroservice(arc.microservice);
-        instance.setApiBasePath(arc.apiBasePath ?? '');
-        instance.setOrigin(arc.origin ?? '');
-        instance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
         if (initialValues) {
             instance.setInitialValues(initialValues);
         }
         instance.onPropertyChanged(propertyChangedCallback, instance);
         return instance;
     }, []);
+
+    command.current.setMicroservice(arc.microservice);
+    command.current.setApiBasePath(arc.apiBasePath ?? '');
+    command.current.setOrigin(arc.origin ?? '');
+    command.current.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
 
     const context = useContext(CommandScopeContext);
 
