@@ -51,7 +51,7 @@ internal static class CommandAttributePolicy
         var property = Attribute.GetCustomAttributes(parameter, typeof(LookUpByAttribute), true).OfType<LookUpByAttribute>().FirstOrDefault()?.Property;
         var lookups = LookUpByKeyProviderDeclarations.For(parameter).ToArray();
         var providers = lookups.Count(LookUpByKeyProviderDeclarations.IsProvider);
-        var mixed = providers > 0 && lookups.Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute));
+        var mixed = providers > 0 && lookups.Any(attribute => attribute is LookUpByAttribute);
         return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), (providers > 0, providers > 1 || mixed));
     }
 

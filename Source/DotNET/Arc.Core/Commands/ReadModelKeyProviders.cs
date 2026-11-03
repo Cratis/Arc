@@ -20,20 +20,13 @@ internal static class ReadModelKeyProviders
         var declarations = LookUpByKeyProviderDeclarations.For(parameter).ToArray();
         var providers = declarations.Where(LookUpByKeyProviderDeclarations.IsProvider).ToArray();
         if (providers.Length == 0) return null;
-        var providerType = providers[0].AttributeType;
-        if (providers.Length > 1 || declarations.Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute)))
+        var providerType = providers[0].GetType();
+        if (providers.Length > 1 || declarations.Any(attribute => attribute is LookUpByAttribute))
         {
             throw new InvalidLookUpBy(commandType, providerType, "only one lookup form may be declared");
         }
 
-        try
-        {
-            return (ILookUpByKeyProvider)providers[0].Constructor.Invoke([]);
-        }
-        catch (Exception)
-        {
-            throw new ReadModelKeyResolutionDenied(ReadModelKeyRefusal.ProviderFailed);
-        }
+        return (ILookUpByKeyProvider)providers[0];
     }
 
     /// <summary>Resolves a key only after checking the captured caller.</summary>
