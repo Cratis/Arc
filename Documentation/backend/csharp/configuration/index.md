@@ -76,6 +76,7 @@ builder.AddCratisArc(options =>
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
 | `GeneratedApis.IncludeQueryNameInRoute` | `bool` | `true` | Append the query name as the last route segment. |
 | `GeneratedApis.EnableQueryHttpMethod` | `bool` | `true` | Expose generated queries over HTTP `QUERY` with JSON arguments in addition to `GET`. Disable when infrastructure rejects that method. |
+| `Query.AllowedWebSocketOrigins` | `string[]` | not set | Origins allowed to open observable query WebSocket connections from a browser. Not set accepts any origin; once set, even to an empty list in code, only the app's own origin, no-`Origin` clients and the listed origins are accepted (`*` accepts any). |
 | `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Idle keep-alive cadence for observable query hub connections; zero or negative disables keep-alive. |
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |
 | `Hosting.ApplicationUrl` | `string` | `http://+:5001/` | The listen URL — **Arc.Core only** (ignored under ASP.NET Core). |
@@ -194,6 +195,8 @@ builder.AddCratisArc();
 CORS is **not** an Arc option. In an ASP.NET Core host, configure it with standard ASP.NET Core (`builder.Services.AddCors(...)` and `app.UseCors(...)`). Arc neither wraps nor replaces it. These ASP.NET extensions do not apply to `ArcApplication`; configure cross-origin handling at your trusted ingress for that host.
 
 Generated endpoints accept the [HTTP QUERY method](../queries/using-the-http-query-method.md) in addition to GET by default (`GeneratedApis.EnableQueryHttpMethod = true`). If clients use it across origins, include `QUERY` in your allowed methods (`policy.WithMethods("GET", "POST", "QUERY")`) — it is not a simple method, so cross-origin calls preflight. This is a method-allowlist consideration, not a substitute for configuring allowed origins, headers, and credentials. A client that uses GET does not need QUERY in that allowlist.
+
+CORS does not govern WebSocket connections. To restrict which origins may open observable query WebSocket connections, set `Query.AllowedWebSocketOrigins` to the same origins your CORS policy lists.
 
 ## Where to go next
 
