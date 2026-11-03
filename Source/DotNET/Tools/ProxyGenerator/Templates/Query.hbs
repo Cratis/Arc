@@ -117,7 +117,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}[]> {
 export class {{Name}} extends QueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
-    static readonly sliceLocation: ArcSliceLocation = new ArcSliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
+    static readonly sliceLocation: ArcSliceLocation = /*#__PURE__*/ new ArcSliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
     readonly route: string = '{{{Route}}}';
     readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
 {{#if HasValidationRules}}
@@ -128,7 +128,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
 {{#if IsEnumerable}}
     readonly defaultValue: {{{Model}}}[] = [];
     private readonly _sortBy: {{Name}}SortBy;
-    private static readonly _sortBy: {{Name}}SortByWithoutQuery = new {{Name}}SortByWithoutQuery();
+    private static readonly _sortBy: {{Name}}SortByWithoutQuery = /*#__PURE__*/ new {{Name}}SortByWithoutQuery();
 {{else}}
     readonly defaultValue: {{{Model}}} = {} as {{{Model}}};
 {{/if}}

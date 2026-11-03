@@ -50,7 +50,7 @@ export class {{Name}} extends Command<I{{Name}}, {{{ResponseType.Name}}}{{#if Re
 {{else}}
 export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{/if}}
-    static readonly sliceLocation: ArcSliceLocation = new ArcSliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
+    static readonly sliceLocation: ArcSliceLocation = /*#__PURE__*/ new ArcSliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
     readonly route: string = '{{{Route}}}';
 {{#if HasValidationRules}}
     readonly validation: CommandValidator = new {{Name}}Validator();
