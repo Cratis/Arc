@@ -62,6 +62,16 @@ static class ParameterDependencyResolver
         return Complete(serviceProvider, parameter, dependency, createException);
     }
 
+    /// <summary>
+    /// Resolves dependencies for a set of parameters.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider to resolve from.</param>
+    /// <param name="parameters">The parameters to resolve.</param>
+    /// <param name="createException">Callback for creating an exception when a non-nullable parameter cannot be resolved or resolves to null.</param>
+    /// <returns>The resolved dependencies in parameter order.</returns>
+    public static object?[] Resolve(IServiceProvider serviceProvider, ParameterInfo[] parameters, Func<ParameterInfo, Exception> createException) =>
+        parameters.Select(parameter => Resolve(serviceProvider, parameter, createException)).ToArray();
+
     static object? Complete(IServiceProvider serviceProvider, ParameterInfo parameter, object? dependency, Func<ParameterInfo, Exception> createException)
     {
         // A protected decision dependency must never use nullable binding as an escape hatch: even a
@@ -100,16 +110,6 @@ static class ParameterDependencyResolver
         throw createException(parameter);
     }
 
-    /// <summary>
-    /// Resolves dependencies for a set of parameters.
-    /// </summary>
-    /// <param name="serviceProvider">The service provider to resolve from.</param>
-    /// <param name="parameters">The parameters to resolve.</param>
-    /// <param name="createException">Callback for creating an exception when a non-nullable parameter cannot be resolved or resolves to null.</param>
-    /// <returns>The resolved dependencies in parameter order.</returns>
-    public static object?[] Resolve(IServiceProvider serviceProvider, ParameterInfo[] parameters, Func<ParameterInfo, Exception> createException) =>
-        parameters.Select(parameter => Resolve(serviceProvider, parameter, createException)).ToArray();
-
     static object? ResolveParameter(IServiceProvider serviceProvider, ParameterInfo parameter)
     {
         if (serviceProvider.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers)
@@ -132,22 +132,27 @@ static class ParameterDependencyResolver
         {
             foreach (var resolver in resolvers)
             {
-                if (resolver is IAsyncParameterDependencyResolver asyncResolver)
+                var resolution = await TryResolveAsync(resolver, serviceProvider, parameter);
+                if (resolution.IsResolved)
                 {
-                    var resolution = await asyncResolver.Resolve(serviceProvider, parameter);
-                    if (resolution.IsResolved)
-                    {
-                        return resolution.Dependency;
-                    }
-                }
-                else if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
-                {
-                    return dependency;
+                    return resolution.Dependency;
                 }
             }
         }
 
         return serviceProvider.GetService(parameter.ParameterType);
+    }
+
+    static ValueTask<ParameterDependencyResolution> TryResolveAsync(ICanResolveParameterDependency resolver, IServiceProvider serviceProvider, ParameterInfo parameter)
+    {
+        if (resolver is IAsyncParameterDependencyResolver asyncResolver)
+        {
+            return asyncResolver.Resolve(serviceProvider, parameter);
+        }
+
+        return new(resolver.TryResolve(serviceProvider, parameter, out var dependency)
+            ? ParameterDependencyResolution.Resolved(dependency)
+            : ParameterDependencyResolution.NotResolved);
     }
 
     static bool IsNullable(ParameterInfo parameter) =>

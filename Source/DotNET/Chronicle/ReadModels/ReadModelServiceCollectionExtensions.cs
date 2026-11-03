@@ -171,6 +171,7 @@ public static class ReadModelServiceCollectionExtensions
     /// <typeparam name="T">The read model type.</typeparam>
     /// <param name="services">The command services.</param>
     /// <returns>The boxed token.</returns>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id.</exception>
     internal static async ValueTask<object> ResolveDecisionReadAsync<T>(IServiceProvider services)
         where T : class
     {

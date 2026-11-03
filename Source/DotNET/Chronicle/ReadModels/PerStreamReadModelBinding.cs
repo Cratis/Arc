@@ -197,6 +197,10 @@ internal static class PerStreamReadModelBinding
         return services.GetRequiredService<IReadModels>().GetInstanceById<T>(plan.Source, plan.Route.EventStreamId);
     }
 
+
+    static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
+        attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
+
     sealed record StreamReadPlan(
         UnprotectedAttribute? Advisory,
         string KeyText,
@@ -207,7 +211,4 @@ internal static class PerStreamReadModelBinding
     {
         public bool IsProtected => CommandReader is not null;
     }
-
-    static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
-        attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
 }

@@ -170,6 +170,11 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
     }
 
+    static bool IsStoredLookup(ParameterInfo parameter, bool isReadModel) =>
+        isReadModel &&
+        (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On ||
+         Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
+
     bool Measure(IServiceProvider serviceProvider, ParameterInfo parameter)
     {
         var isReadModel = _readModelTypes.Contains(parameter.ParameterType);
@@ -182,11 +187,6 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
 
         return isReadModel;
     }
-
-    static bool IsStoredLookup(ParameterInfo parameter, bool isReadModel) =>
-        isReadModel &&
-        (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On ||
-         Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
 
     bool IsFrameworkIssuedToken(Type type, out Type model)
     {

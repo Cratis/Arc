@@ -34,9 +34,9 @@ public static class ReadModelDispatch
                 PerStreamReadModelBinding.ResolveModel<TModel>,
                 reads => reads.Describe<TModel>(),
                 DecisionReadVerdict.Refusal<TModel>,
-                (services, context, key) => ChronicleParameterDependencyResolver.ResolveModelAsync<TModel>(services, context, key),
-                (context, services, parameter) => PerStreamReadModelBinding.ResolveModelAsync<TModel>(context, services, parameter),
-                services => ReadModelServiceCollectionExtensions.ResolveDecisionReadAsync<TModel>(services),
+                ChronicleParameterDependencyResolver.ResolveModelAsync<TModel>,
+                PerStreamReadModelBinding.ResolveModelAsync<TModel>,
+                ReadModelServiceCollectionExtensions.ResolveDecisionReadAsync<TModel>,
                 async (readModels, readModel) => await readModels.Release((TModel)readModel)));
 
     /// <summary>
