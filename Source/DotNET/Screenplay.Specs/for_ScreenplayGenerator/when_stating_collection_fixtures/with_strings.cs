@@ -7,5 +7,5 @@ public class with_strings : given.a_collection_fixture
 {
     void Because() => GenerateFixture("string", "[Urgent, \"review\"]");
 
-    [Fact] void should_state_and_bind_every_string_in_order() => AssertTags("[\"urgent\",\"review\"]");
+    [Fact] void should_state_and_bind_every_string_in_order() => AssertTags("urgent", "review");
 }

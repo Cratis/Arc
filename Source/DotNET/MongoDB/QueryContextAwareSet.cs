@@ -7,6 +7,7 @@ using System.Reflection;
 #if NET9_0_OR_GREATER
 using System.Runtime.CompilerServices;
 #endif
+using Cratis.Arc.MongoDB;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
 
@@ -17,7 +18,7 @@ namespace MongoDB.Driver;
 /// </summary>
 /// <remarks>This list is not mutated in a thread-safe way.</remarks>
 /// <typeparam name="TDocument">The type of the document.</typeparam>
-internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
+internal sealed class QueryContextAwareSet<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument> : IEnumerable<TDocument>
 {
     readonly IEqualityComparer _idEqualityComparer;
     readonly Func<TDocument, object> _getId;

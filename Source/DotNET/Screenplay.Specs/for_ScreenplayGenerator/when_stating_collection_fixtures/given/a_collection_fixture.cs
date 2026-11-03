@@ -64,9 +64,10 @@ public class a_collection_fixture : for_ScreenplayGenerator.given.a_generated_do
             (IntegrationTesting.Path, IntegrationTesting.Source));
     }
 
-    protected void AssertTags(string text)
+    protected void AssertTags(params string[] items)
     {
-        Assert.True(Result.Source.Split($"tags = {text}", StringSplitOptions.None).Length == 3,
+        var expected = for_ScreenplayGenerator.given.StatedLists.Quoted(items);
+        Assert.True(for_ScreenplayGenerator.given.StatedLists.Of(Result.Source, "tags").Count(list => list.SequenceEqual(expected)) == 2,
             $"{Result.Source}{Environment.NewLine}{string.Join(Environment.NewLine, Result.Diagnostics)}");
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         AssertDocument();

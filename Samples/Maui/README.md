@@ -117,7 +117,7 @@ Maui.app
 
 ### Frontend Bundling
 
-The ArcCore React frontend (`Samples/ArcCore`) is built by the `BuildFrontend` MSBuild target before every `dotnet build`. The compiled `wwwroot/` output is embedded in the app and served by Arc's static file middleware.
+The ArcCore React frontend (`Samples/ArcCore`) is built incrementally by the `BuildFrontend` MSBuild target when inputs change or frontend outputs are missing; dependencies are installed when install inputs change or Yarn's install state is missing. The compiled `wwwroot/` output is embedded in the app and served by Arc's static file middleware.
 
 ### Mac Catalyst Notes
 

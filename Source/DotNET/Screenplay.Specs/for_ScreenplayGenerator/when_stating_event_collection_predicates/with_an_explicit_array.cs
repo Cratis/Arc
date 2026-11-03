@@ -7,5 +7,5 @@ public class with_an_explicit_array : given.an_event_collection_predicate
 {
     void Because() => GenerateExpectation("e.Tags.SequenceEqual(new ApprovalLabel[] { Urgent, \"review\" })");
 
-    [Fact] void should_state_and_bind_the_expected_array() => AssertCollection("[\"urgent\",\"review\"]");
+    [Fact] void should_state_and_bind_the_expected_array() => AssertCollection("urgent", "review");
 }

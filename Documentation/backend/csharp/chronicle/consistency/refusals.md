@@ -60,7 +60,7 @@ LendBook reads 'stock' (BookStock) through a reducer that filters its events, so
 | keyed by an event property | Append a fact to the entity the model is keyed by, or use a constraint |
 | using Pinned generation delivery | Use Compatibility delivery for this projection |
 | with an unsupported key type | Give the model a string or `Guid` `Id` |
-| keyed by a stream | Use `IDecisionReads.Get` with an explicit source, stream type and stream id in `Provide()` |
+| keyed by a stream | Use `IDecisionReads.Get` with an explicit source, stream type and stream id directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | from another event sequence | Read a model of the event log |
 | without exactly one backing definition | Register exactly one projection or admitted reducer for the model |
 | with a mismatched registered definition | Register the current definition before executing commands |
@@ -74,9 +74,9 @@ Unfiltered reducers with no constructor dependencies other than `ILogger<T>` are
 
 | Failure | Cause | Fix |
 | --- | --- | --- |
-| `ReadRefusedWhileReadsAreProtected` | A read through `IReadModels`, `IEventStore`, `IEventLog` or an event sequence | Take a read model as a parameter, use `IDecisionReads.Get` in `Provide()`, or mark the method `[Unprotected("why")]` |
+| `ReadRefusedWhileReadsAreProtected` | A read through `IReadModels`, `IEventStore`, `IEventLog` or an event sequence | Take a read model as a parameter, use `IDecisionReads.Get` directly in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature, or mark the method `[Unprotected("why")]` |
 | `ReadModelInjectedOutsideDecision` | A read model injected through dependency injection anywhere other than `Handle()` and validator constructors, for example into a command filter or a service | Take the model as a parameter of `Handle()` or of a `CommandValidator<T>` constructor, and move the rule there. If it is only context, mark the read-model type `[Unprotected("why")]` |
-| `DetachedReadWhileReadsAreProtected` | `IDecisionReads.GetDetached` | Use `Get` in `Provide()` |
+| `DetachedReadWhileReadsAreProtected` | `IDecisionReads.GetDetached` | Use `Get` directly in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | `ImmediateAppendWhileReadsAreProtected` | An append through `IEventLog.Append`, `AppendMany`, `Revise`, `Redact` or `CompleteStream` that writes at once | Return the event from `Handle()`, or use `IEventLog.Transactional.Append`. Return `CompleteStream` instead of calling it |
 | `ReadAfterProtectedCommit` | A protected read after an aggregate's `Commit()` completed the unit | Read before committing, and return the result of `Commit()` last |
 | `ReadOfSourceWithStagedEvents` | A read of a source after the command staged events for it | Decide once in the outer command and pass the value down |

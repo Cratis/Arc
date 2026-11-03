@@ -80,11 +80,12 @@ public class an_event_collection_predicate : for_ScreenplayGenerator.given.a_gen
             (IntegrationTesting.Path, IntegrationTesting.Source));
     }
 
-    protected void AssertCollection(string text)
+    protected void AssertCollection(params string[] items)
     {
         Result.Source.ShouldContain("then ApprovalRequested");
         Result.Source.ShouldContain("requester = \"Jane Austen\"");
-        Result.Source.Split($"tags = {text}", StringSplitOptions.None).Length.ShouldEqual(3);
+        var expected = for_ScreenplayGenerator.given.StatedLists.Quoted(items);
+        for_ScreenplayGenerator.given.StatedLists.Of(Result.Source, "tags").Count(list => list.SequenceEqual(expected)).ShouldEqual(2);
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         AssertDocument();
     }

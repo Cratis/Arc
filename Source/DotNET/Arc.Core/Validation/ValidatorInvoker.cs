@@ -27,7 +27,11 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
     public const string CouldNotValidateMessage = "The value could not be validated.";
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, CancellationToken cancellationToken = default)
+    public Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, CancellationToken cancellationToken = default) =>
+        Invoke(instance, validator, path, null, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidationTargetKind? kind, CancellationToken cancellationToken)
     {
         try
         {
@@ -37,6 +41,16 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             // analyzable, unlike typeof(ValidationContext<>).MakeGenericType(...) + Activator.CreateInstance which
             // NativeAOT and trimming cannot preserve.
             var validationContext = new ValidationContext<object>(instance);
+            switch (kind)
+            {
+                case ValidationTargetKind.Command:
+                    validationContext.SetCommand();
+                    break;
+                case ValidationTargetKind.Query:
+                    validationContext.SetQuery();
+                    break;
+            }
+
             var validationResult = await validator.ValidateAsync(validationContext, cancellationToken);
             if (validationResult.IsValid)
             {

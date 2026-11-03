@@ -16,7 +16,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="arcOptions">The <see cref="ArcOptions"/>.</param>
 /// <param name="handlerLogger">The <see cref="ILogger"/>.</param>
 [Singleton]
-public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger<WebSocketConnectionHandler> handlerLogger) : IWebSocketConnectionHandler
+public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger<WebSocketConnectionHandler> handlerLogger) : IWebSocketConnectionHandler, IWebSocketMessageSender
 {
     const int BufferSize = 1024 * 4;
 
@@ -86,14 +86,23 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
         QueryResult queryResult,
         SemaphoreSlim writeLock,
         CancellationToken token)
+        => (await Send(webSocket, queryResult, writeLock, token)).Error;
+
+    /// <inheritdoc/>
+    public async Task<WebSocketSendResult> Send(
+        IWebSocket webSocket,
+        QueryResult queryResult,
+        SemaphoreSlim writeLock,
+        CancellationToken token)
     {
         var lockHeld = false;
+        var writeStarted = false;
         try
         {
             if (webSocket.State != WebSocketState.Open)
             {
                 handlerLogger.WebSocketNotOpen(webSocket.State);
-                return null;
+                return WebSocketSendResult.Skipped;
             }
 
             await writeLock.WaitAsync(token);
@@ -102,24 +111,25 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
 #pragma warning disable CA1508 // Avoid dead conditional code
             if (webSocket.State != WebSocketState.Open)
             {
-                return null;
+                return WebSocketSendResult.Skipped;
             }
 #pragma warning restore CA1508 // Avoid dead conditional code
 
             var envelope = WebSocketMessage.CreateData(queryResult);
             var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<WebSocketMessage>());
+            writeStarted = true;
             await webSocket.Send(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             message = null;
-            return null;
+            return WebSocketSendResult.Sent;
         }
         catch (OperationCanceledException)
         {
-            return null;
+            return writeStarted ? WebSocketSendResult.Unconfirmed : WebSocketSendResult.Skipped;
         }
         catch (Exception ex)
         {
             handlerLogger.ErrorSendingMessage(ex);
-            return ex;
+            return WebSocketSendResult.Failed(ex);
         }
         finally
         {

@@ -39,6 +39,20 @@ public class MongoDBOptions
     public bool? DirectConnection { get; set; }
 
     /// <summary>
+    /// Gets or sets whether collection access resilience is enabled. Defaults to true.
+    /// </summary>
+    /// <remarks>
+    /// For async (Task-returning) collection calls, resilience turns collection-not-found errors into
+    /// success, default values or empty cursors, waits for collections when watching, and limits each
+    /// method to half the connection pool with a one-second acquire timeout. Synchronous calls bypass it.
+    /// Disabling it uses plain driver behavior: native exceptions and cancellation, driver-owned retries,
+    /// and no Arc concurrency limit. In both modes, the shared root client ignores Dispose.
+    /// Keep this enabled for Cosmos DB and change streams opened before a collection exists.
+    /// This is not a retry policy or an AOT switch.
+    /// </remarks>
+    public bool EnableResilience { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets whether MongoDB command bodies and failure messages are written to the log.
     /// </summary>
     /// <remarks>
