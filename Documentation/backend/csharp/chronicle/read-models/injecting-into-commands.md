@@ -87,6 +87,8 @@ public record SettleMyLedger
 }
 ```
 
+An override's lookup declaration replaces the same declaration on the base method; different provider types or a mix of provider and property lookups remain conflicts.
+
 `CallerSubject` reads exactly `sub`; it does not map `NameIdentifier`, fall back to a name, or inspect actor-chain claims. It requires an authenticated, non-system caller and one distinct non-empty value. Repeated identical values are one value; different values are ambiguous. Claim types and values use ordinal comparison.
 
 For an application claim, derive from the abstract `CallerClaim`:
