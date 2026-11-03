@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Http;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
@@ -40,6 +42,13 @@ public class QueryActionFilter(
         if (context.HttpContext.Request.Method == HttpMethod.Get.Method &&
             context.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
         {
+            context.HttpContext.HandleWebSocketHeadersForMultipleProxies();
+            if (new AspNetCoreHttpRequestContext(context.HttpContext).RejectsUntrustedWebSocketOrigin())
+            {
+                context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
+                return;
+            }
+
             using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
             var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", controllerActionDescriptor.ControllerTypeInfo, queryContextManager);
             var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();

@@ -65,7 +65,7 @@ Read protection has two layers, and the names are close. **Read protection in Ch
 | The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
 | “Has fact X happened in this short stream?”, without a model | Stream decision |
 | Rich behaviour across the whole entity | Aggregate, without reads of the same source |
-| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Another month or another source | `IDecisionReads` stream overload directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | Uniqueness across sources | Constraint |
 
 ## Decision flowchart

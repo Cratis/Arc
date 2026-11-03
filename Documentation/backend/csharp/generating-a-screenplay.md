@@ -472,7 +472,7 @@ Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V7` or
 
 ## Protected command reads and ESM v25
 
-A command that decides from a read model should decide from a state that is still true when it commits. Arc gives you that with [read protection](chronicle/consistency/reads.md): with `ReadProtection(ReadProtectionMode.On)` a read-model parameter of `Handle()` or `Provide()` is a protected decision read, and Chronicle rejects the command when a relevant event arrives after the read. The generator states those reads in the document, so the decision and its guarantee travel with the model.
+A command that decides from a read model should decide from a state that is still true when it commits. Arc gives you that with [read protection](chronicle/consistency/reads.md): with `ReadProtection(ReadProtectionMode.On)` a read-model parameter of `Handle()` is a protected decision read, and Chronicle rejects the command when a relevant event arrives after the read. The generator states those reads in the document, so the decision and its guarantee travel with the model.
 
 A document states them under one root line, `command reads protected`, which selects ESM v25 (Screenplay decision 0085). Under that line every `reads` claims protection, and the Screenplay compiler refuses a read it cannot protect instead of treating it as advisory. The generator emits the line only when at least one command keeps a protected read, in the default output and with `AuthoringOnlyConstructs`.
 

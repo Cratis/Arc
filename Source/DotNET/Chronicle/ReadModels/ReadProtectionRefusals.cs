@@ -32,7 +32,7 @@ internal static class ReadProtectionRefusals
             DecisionReadRefusalReason.KeyConversion => ("with an unsupported key type", $"give {model.Name} a string or Guid Id"),
             DecisionReadRefusalReason.ReadModelRequiresStreamScope => ("scoped to one event stream and was read without it", "take it as a parameter of a command routed to that stream"),
             DecisionReadRefusalReason.StreamScopeDoesNotMatchReadModel => ("with a stream scope that differs from its declaration", "use the model's declared source and stream types"),
-            DecisionReadRefusalReason.StreamKeyRequiresStreamScope => ("keyed by a stream", "use IDecisionReads.Get with an explicit source, stream type and stream id in Provide"),
+            DecisionReadRefusalReason.StreamKeyRequiresStreamScope => ("keyed by a stream", "use IDecisionReads.Get with an explicit source, stream type and stream id directly in Handle() with a reasoned ARCCHR0040 suppression"),
             DecisionReadRefusalReason.NotEventLog => ("from another event sequence", "read a model of the event log"),
             DecisionReadRefusalReason.AmbiguousProjection => ("without exactly one backing definition", "register exactly one projection or admitted reducer for the model"),
             DecisionReadRefusalReason.DefinitionMismatch => ("with a mismatched registered definition", "register the current definition before executing commands"),

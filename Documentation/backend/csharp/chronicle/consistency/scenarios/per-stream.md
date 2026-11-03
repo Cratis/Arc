@@ -13,7 +13,7 @@ Use a per-stream read model when a rule depends on the folded state of one strea
 | The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
 | “Has fact X happened in this short stream?”, without a model | Stream decision |
 | Rich behaviour across the whole entity | Aggregate. Do not also read a model of the same source |
-| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Another month or another source | `IDecisionReads` stream overload directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | Uniqueness across sources | Constraint |
 
 ## A monthly limit
@@ -92,7 +92,7 @@ Under `Off` and `Measure`, the same parameter folds only that month but supplies
 
 - The command needs a matching source type and stream type, and an explicit, non-default stream id. `[EventSource<BankAccountEventSource>("Transactions")]` keeps writers aligned. Matching string routes work too.
 - Another definition, stream, `All`, or a missing stream id is refused in every mode with `ReadModelStreamNotOnCommandRoute`. [ARCCHR0037](../../code-analysis/ARCCHR0037.md) catches source-visible mismatches.
-- Do not put `[LookUpBy]` on a per-stream parameter. The source always comes from the command's route. Read another account or month explicitly through `IDecisionReads` in `Provide()`; see [stream reads](../../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
+- Do not put `[LookUpBy]` on a per-stream parameter. The source always comes from the command's route. Read another account or month explicitly through `IDecisionReads` directly in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature; see [stream reads](../../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
 - A whole-source read on the same account chooses a whole-source guard. Another stream read can widen it too. Declared `Concurrency` that omits stream dimensions can also widen it; [ARCCHR0038](../../code-analysis/ARCCHR0038.md) reports source-visible cases. Use no declared policy for the model's exact event types, or stream-level `EventSourceId | EventStreamType | EventStreamId` for an any-event stream boundary.
 - The declaration's source type filters both fold and guard. Events written without that source type are not included. Every writer must use the same definition route. Revisions and redactions remain outside the guard.
 

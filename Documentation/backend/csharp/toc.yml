@@ -44,6 +44,8 @@
   href: observability.md
 - name: Testing
   href: testing/toc.yml
+- name: Command and validator assertions
+  href: testing/command-assertions.md
 - name: Chronicle
   href: chronicle/toc.yml
 - name: Generating a principal for local development
