@@ -158,7 +158,7 @@ By default the hub, and every other Arc observable query WebSocket route, accept
 }
 ```
 
-Once the list has an entry, a connection is accepted when it has no `Origin` header, when its `Origin` is the origin the request was made to (same scheme, host and effective port), or when its `Origin` is listed. Anything else, including an empty, `null` or duplicated `Origin`, gets `403` before the connection is accepted and before any query runs. A `*` entry accepts every origin. Loopback origins get no special treatment, so a development proxy on another port must be listed.
+Once the setting is present (even as an empty list set in code), a connection is accepted when it has no `Origin` header, when its `Origin` is the origin the request was made to (same scheme, host and effective port), or when its `Origin` is listed. Anything else, including an empty, `null` or duplicated `Origin`, gets `403` before the connection is accepted and before any query runs. A `*` entry accepts every origin. Loopback origins get no special treatment, so a development proxy on another port must be listed.
 
 The request's own origin is taken from the `Host` header and the connection scheme as ASP.NET Core sees them. Behind a reverse proxy that rewrites `Host` or terminates TLS, apply the forwarded headers with ASP.NET Core's `UseForwardedHeaders`, or list the public origin.
 

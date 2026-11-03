@@ -73,7 +73,7 @@ builder.AddCratisArc(options =>
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
 | `GeneratedApis.IncludeQueryNameInRoute` | `bool` | `true` | Append the query name as the last route segment. |
 | `GeneratedApis.EnableQueryHttpMethod` | `bool` | `true` | Expose generated queries over HTTP `QUERY` with JSON arguments in addition to `GET`. Disable when infrastructure rejects that method. |
-| `Query.AllowedWebSocketOrigins` | `string[]` | empty | Origins allowed to open observable query WebSocket connections from a browser. Empty accepts any origin; with entries, only the app's own origin, no-`Origin` clients and the listed origins are accepted (`*` accepts any). |
+| `Query.AllowedWebSocketOrigins` | `string[]` | not set | Origins allowed to open observable query WebSocket connections from a browser. Not set accepts any origin; once set, even to an empty list in code, only the app's own origin, no-`Origin` clients and the listed origins are accepted (`*` accepts any). |
 | `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Idle keep-alive cadence for observable query hub connections; zero or negative disables keep-alive. |
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |
 | `Hosting.ApplicationUrl` | `string` | `http://+:5001/` | The listen URL — **Arc.Core only** (ignored under ASP.NET Core). |
