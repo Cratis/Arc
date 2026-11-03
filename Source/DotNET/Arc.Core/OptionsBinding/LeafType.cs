@@ -70,6 +70,11 @@ internal sealed class LeafType : BoundType
             point.SetValue(CreateInstance());
         }
 
+        if (RuntimeTypeFallback.BindWhenSubtype(this, point, config))
+        {
+            return;
+        }
+
         if (_members is null)
         {
             return;

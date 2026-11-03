@@ -10,6 +10,6 @@ namespace Cratis.Arc.OptionsBinding;
 /// </summary>
 internal static partial class RuntimeTypeFallbackLogMessages
 {
-    [LoggerMessage(LogLevel.Warning, "Option type '{TypeName}' is a subtype of an Arc option type and is bound through reflection, which is not supported when dynamic code is unavailable (trimming or NativeAOT); its own properties may not bind")]
+    [LoggerMessage(LogLevel.Warning, "Option type '{TypeName}' is a subtype of an Arc option type and is bound through reflection, which is not supported when dynamic code is unavailable (trimming or NativeAOT); none of its settings, including inherited Arc settings, are guaranteed to bind")]
     internal static partial void RuntimeSubtypeBoundWithoutDynamicCode(this ILogger logger, string typeName);
 }
