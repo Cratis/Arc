@@ -5,7 +5,7 @@ namespace Cratis.Arc.Http.for_WellKnownRoutesMiddleware.when_invoking;
 
 public class with_a_websocket_upgrade_from_the_same_origin_and_no_configured_origins : given.a_websocket_upgrade_request
 {
-    void Establish() => _arcOptions.Query.AllowedWebSocketOrigins.Clear();
+    void Establish() => _arcOptions.Query.AllowedWebSocketOrigins = null;
 
     Task Because() => Upgrade($"http://localhost:{_port}");
 

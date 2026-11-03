@@ -14,7 +14,7 @@ public class QueryOptionsValidator : IValidateOptions<ArcOptions>
     /// <inheritdoc/>
     public ValidateOptionsResult Validate(string? name, ArcOptions options)
     {
-        var invalid = options.Query.AllowedWebSocketOrigins
+        var invalid = (options.Query.AllowedWebSocketOrigins ?? [])
             .Where(entry => entry != WebSocketOrigins.Wildcard && !WebSocketOrigins.TryNormalize(entry, out _))
             .ToArray();
 

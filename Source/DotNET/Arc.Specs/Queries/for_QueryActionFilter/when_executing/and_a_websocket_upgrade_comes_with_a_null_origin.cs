@@ -10,7 +10,7 @@ public class and_a_websocket_upgrade_comes_with_a_null_origin : given.a_controll
 {
     void Establish()
     {
-        _options.Query.AllowedWebSocketOrigins.Add("https://trusted.test");
+        _options.Query.AllowedWebSocketOrigins = ["https://trusted.test"];
         _webSocketFeature.IsWebSocketRequest.Returns(true);
         _httpContext.Request.Headers.Host = "app.test";
         _httpContext.Request.Headers.Origin = "null";

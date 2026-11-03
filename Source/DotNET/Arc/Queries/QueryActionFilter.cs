@@ -41,6 +41,7 @@ public class QueryActionFilter(
         if (context.HttpContext.Request.Method == HttpMethod.Get.Method &&
             context.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
         {
+            context.HttpContext.HandleWebSocketHeadersForMultipleProxies();
             if (new AspNetCoreHttpRequestContext(context.HttpContext).RejectsUntrustedWebSocketOrigin())
             {
                 context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);

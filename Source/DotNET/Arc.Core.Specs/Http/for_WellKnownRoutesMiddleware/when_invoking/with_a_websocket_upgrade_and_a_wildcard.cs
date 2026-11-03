@@ -5,7 +5,7 @@ namespace Cratis.Arc.Http.for_WellKnownRoutesMiddleware.when_invoking;
 
 public class with_a_websocket_upgrade_and_a_wildcard : given.a_websocket_upgrade_request
 {
-    void Establish() => _arcOptions.Query.AllowedWebSocketOrigins.Add("*");
+    void Establish() => _arcOptions.Query.AllowedWebSocketOrigins = ["*"];
 
     Task Because() => Upgrade("https://elsewhere.test");
 

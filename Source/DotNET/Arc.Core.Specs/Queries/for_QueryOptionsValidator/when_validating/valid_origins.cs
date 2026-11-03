@@ -12,10 +12,7 @@ public class valid_origins : Specification
     void Because()
     {
         var options = new ArcOptions();
-        foreach (var origin in new[] { "https://app.test", "http://localhost:5173/" })
-        {
-            options.Query.AllowedWebSocketOrigins.Add(origin);
-        }
+        options.Query.AllowedWebSocketOrigins = ["https://app.test", "http://localhost:5173/"];
 
         _result = new QueryOptionsValidator().Validate(null, options);
     }

@@ -12,10 +12,7 @@ public class a_host_without_a_scheme : Specification
     void Because()
     {
         var options = new ArcOptions();
-        foreach (var origin in new[] { "app.test" })
-        {
-            options.Query.AllowedWebSocketOrigins.Add(origin);
-        }
+        options.Query.AllowedWebSocketOrigins = ["app.test"];
 
         _result = new QueryOptionsValidator().Validate(null, options);
     }

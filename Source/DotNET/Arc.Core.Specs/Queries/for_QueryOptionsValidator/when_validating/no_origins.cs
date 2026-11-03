@@ -12,10 +12,7 @@ public class no_origins : Specification
     void Because()
     {
         var options = new ArcOptions();
-        foreach (var origin in Array.Empty<string>())
-        {
-            options.Query.AllowedWebSocketOrigins.Add(origin);
-        }
+        options.Query.AllowedWebSocketOrigins = [];
 
         _result = new QueryOptionsValidator().Validate(null, options);
     }
