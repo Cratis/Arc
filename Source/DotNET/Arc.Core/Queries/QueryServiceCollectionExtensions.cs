@@ -1,11 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -28,12 +31,15 @@ public static class QueryServiceCollectionExtensions
         services.AddSingleton<Func<IServiceProvider, IAuthorizationEvaluator>>(_ =>
             scope => scope.GetRequiredService<IAuthorizationEvaluator>());
         services.AddSingleton<IQueryPerformerProviders, QueryPerformerProviders>();
+        services.TryAddSingleton(sp => new ArtifactAssemblyFilter(sp.GetService<IOptions<ArcOptions>>() ?? Microsoft.Extensions.Options.Options.Create(new ArcOptions())));
         services.AddSingleton<QueryPerformerProvider>(sp => new QueryPerformerProvider(
             sp.GetRequiredService<ITypes>(),
             sp.GetRequiredService<IQueryMetadataRegistry>(),
-            sp.GetRequiredService<IServiceProviderIsService>(),
-            sp.GetRequiredService<IServiceScopeFactory>(),
-            sp.GetRequiredService<Func<IServiceProvider, IAuthorizationEvaluator>>()));
+            QueryPerformerProvider.CreateScopedPerformerFactory(
+                sp.GetRequiredService<IServiceProviderIsService>(),
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                sp.GetRequiredService<Func<IServiceProvider, IAuthorizationEvaluator>>()),
+            sp.GetRequiredService<ArtifactAssemblyFilter>()));
         var modelBoundProvider = services.FirstOrDefault(descriptor => descriptor.ServiceType == typeof(IQueryPerformerProvider) &&
             descriptor.ImplementationType == typeof(QueryPerformerProvider));
         if (modelBoundProvider is not null)

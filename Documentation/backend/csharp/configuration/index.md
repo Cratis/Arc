@@ -37,6 +37,8 @@ Configuration-bindable settings can be supplied three ways, layered in this orde
 
 Bind `ArcOptions` only through the host's `AddCratisArc` / `AddCratis` registration (or `IHostBuilder.AddCratisArcCore`), not through an additional `services.Configure<ArcOptions>(section)` or `section.Bind(options)`. Arc's binding preserves an unset `Introspection.RequireAuthentication`; the stock .NET binder can write its getter's `false` value back even when the key is absent, making discovery anonymous in every environment (or failing validation when `Roles` is set). Assigning `RequireAuthentication` from its own getter, including a property-by-property copy, likewise counts as an explicit opt-out. Leave the property untouched to retain the environment default, or assign an intentional override in `configureOptions`.
 
+Arc binds `ArcOptions` from configuration with its own binder, which needs no reflection and is safe under trimming and Native AOT. It produces the same values, assignments and failures as the stock .NET binder for every setting Arc defines, so existing `appsettings.json` and environment variables keep working unchanged. A consumer that adds `services.Configure<ArcOptions>(configuration)` registers the stock reflection binder as well: it still works in an untrimmed host, but under trimming or Native AOT it can miss members that were trimmed away, so rely on `AddCratisArc` / `AddCratis` for configuration binding and keep code-level changes in `configureOptions`. One case still uses the stock reflection binder: an option object you replace with a subclass that adds properties of its own (for example `options.OnBehalfOf = new MyOnBehalfOfOptions()`). Arc hands the whole subclassed instance to the stock binder, which reads both inherited Arc settings and the subclass's own properties through reflection. That needs all bound members to be preserved when you trim, and it is not supported under Native AOT, where none of that instance's settings, including inherited Arc settings, are guaranteed to bind. Arc logs one warning per type when dynamic code is unavailable. Arc's own option types never take this path.
+
 ```csharp
 builder.AddCratisArc(options =>
 {
@@ -50,6 +52,7 @@ builder.AddCratisArc(options =>
 
 | Option | Type | Default | What it controls |
 | --- | --- | --- | --- |
+| `Artifacts` | `ArtifactsOptions` | empty | Code-only host opt-ins: `options.Artifacts.Include(typeof(SomeType).Assembly)` serves model-bound artifacts from an assembly marked `[ArtifactsRequireOptIn]`. Not bindable from configuration. |
 | `ExposeExceptionDetails` | `bool` | `RuntimeEnvironment.IsDevelopment` | Expose exception messages and stack traces in serialized command/query results (model-bound and controller-based) and observable query errors only in Development by default. Full detail remains in server logs when responses are redacted. Keep disabled in public production environments. |
 | `Command.MaximumCallerAllowedSeverity` | `ValidationResultSeverity` | `Warning` | Default maximum for the model-bound HTTP caller severity header; names and numbers are accepted. A command opt-in replaces this maximum. |
 | `Command.IgnoreCallerAllowedSeverity` | `bool` | `false` | Ignore the caller severity header, even on commands with an opt-in. |
@@ -73,10 +76,11 @@ builder.AddCratisArc(options =>
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
 | `GeneratedApis.IncludeQueryNameInRoute` | `bool` | `true` | Append the query name as the last route segment. |
 | `GeneratedApis.EnableQueryHttpMethod` | `bool` | `true` | Expose generated queries over HTTP `QUERY` with JSON arguments in addition to `GET`. Disable when infrastructure rejects that method. |
+| `Query.AllowedWebSocketOrigins` | `string[]` | not set | Origins allowed to open observable query WebSocket connections from a browser. Not set accepts any origin; once set, even to an empty list in code, only the app's own origin, no-`Origin` clients and the listed origins are accepted (`*` accepts any). |
 | `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Idle keep-alive cadence for observable query hub connections; zero or negative disables keep-alive. |
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |
 | `Hosting.ApplicationUrl` | `string` | `http://+:5001/` | The listen URL — **Arc.Core only** (ignored under ASP.NET Core). |
-| `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | Generated Arc endpoints use these options; manual serialization must opt in. MVC receives only the naming policy and converters, not null/number handling or other settings. Configure in code only; see the [MVC serialization boundary](../asp-net-core/configuration.md#json-serialization). Add source-generated metadata with `AddJsonTypeInfoResolver`; see [Adding Source-Generated Metadata](../asp-net-core/configuration.md#adding-source-generated-metadata). |
+| `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | Generated Arc endpoints use these options; manual serialization must opt in. MVC receives only the naming policy and converters, not null/number handling or other settings. Configure in code only; see the [MVC serialization boundary](../asp-net-core/configuration.md#json-serialization). Add source-generated metadata with `AddJsonTypeInfoResolver`; see [Adding Source-Generated Metadata](../asp-net-core/configuration.md#adding-source-generated-metadata). The `AllowDuplicateProperties` key binds on .NET 10 only, because earlier `System.Text.Json` versions have no such property. |
 
 For example, the equivalent `appsettings.json` keys are:
 
@@ -97,6 +101,28 @@ For example, the equivalent `appsettings.json` keys are:
 `RequireAuthentication` and `Roles` govern mapped discovery endpoints: the command and query catalogs, users, tenants, and the identity-details schema. `Enabled` controls the catalogs; `IdentityDiscovery` controls users, tenants and the schema. Set both to `false` to skip discovery mapping, authentication enforcement checks and exposure warnings. Valid access settings then have no effect, but role configuration is still validated. Outside Development, hosts without authentication leave enabled discovery endpoints unmapped by default and warn once per host; explicitly requiring authentication on such a host fails startup. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
+
+## Including a private library's artifacts
+
+A referenced library can mark its assembly with `[assembly: ArtifactsRequireOptIn]`
+to keep its model-bound commands and read-model queries out of your host. When your
+host is responsible for serving those artifacts, include the assembly in code.
+Here, `SomeType` is a type from that library:
+
+```csharp
+builder.AddCratisArc(options => options.Artifacts.Include(typeof(SomeType).Assembly));
+
+// For a service-collection-only host:
+services.AddCratisArcCore();
+services.Configure<ArcOptions>(options => options.Artifacts.Include(typeof(SomeType).Assembly));
+```
+
+The host snapshots these opt-ins when it first resolves the providers. Register
+all options callbacks before resolving services; changing options later does not
+remap endpoints. `Artifacts` is code-only, not an appsettings or environment-variable
+setting. Unmarked assemblies continue to be served without an opt-in. See the
+[attribute reference](../attributes.md#discovery-and-api-descriptions) for the scope
+and the distinction from `[ExcludeFromDiscovery]`.
 
 ## Adding features with the builder
 
@@ -169,6 +195,8 @@ builder.AddCratisArc();
 CORS is **not** an Arc option. In an ASP.NET Core host, configure it with standard ASP.NET Core (`builder.Services.AddCors(...)` and `app.UseCors(...)`). Arc neither wraps nor replaces it. These ASP.NET extensions do not apply to `ArcApplication`; configure cross-origin handling at your trusted ingress for that host.
 
 Generated endpoints accept the [HTTP QUERY method](../queries/using-the-http-query-method.md) in addition to GET by default (`GeneratedApis.EnableQueryHttpMethod = true`). If clients use it across origins, include `QUERY` in your allowed methods (`policy.WithMethods("GET", "POST", "QUERY")`) — it is not a simple method, so cross-origin calls preflight. This is a method-allowlist consideration, not a substitute for configuring allowed origins, headers, and credentials. A client that uses GET does not need QUERY in that allowlist.
+
+CORS does not govern WebSocket connections. To restrict which origins may open observable query WebSocket connections, set `Query.AllowedWebSocketOrigins` to the same origins your CORS policy lists.
 
 ## Where to go next
 

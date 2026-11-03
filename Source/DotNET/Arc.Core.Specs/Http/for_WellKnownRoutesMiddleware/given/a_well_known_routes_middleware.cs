@@ -15,6 +15,7 @@ public class a_well_known_routes_middleware : Specification
     protected ILogger<WellKnownRoutesMiddleware> _logger;
     protected HttpListener _listener;
     protected int _port;
+    protected ArcOptions _arcOptions;
 
     void Establish()
     {
@@ -22,6 +23,8 @@ public class a_well_known_routes_middleware : Specification
         services.AddSingleton<IHttpRequestContextAccessor, HttpRequestContextAccessor>();
         services.AddSingleton<IAuthentication, NoAuthentication>();
         services.AddLogging();
+        _arcOptions = new ArcOptions();
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(_arcOptions));
         _serviceProvider = services.BuildServiceProvider();
 
         _logger = Substitute.For<ILogger<WellKnownRoutesMiddleware>>();

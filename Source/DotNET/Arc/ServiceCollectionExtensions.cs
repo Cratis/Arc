@@ -73,6 +73,7 @@ public static class ServiceCollectionExtensions
         // group port is the only listener.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<MatcherPolicy, EndpointGroupMatcherPolicy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EndpointGroupListenerValidation>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, WebSocketOriginsStartupWarning>());
 
         // Arc's authorization policy runtime and introspection guard depend on IAuthorizationPolicyProvider and
         // IAuthorizationService, and UseAuthentication on IAuthenticationService, which AddControllers used to

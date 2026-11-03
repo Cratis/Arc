@@ -13,14 +13,15 @@ public class and_the_development_tenant_id_key_is_used : Specification
 
     void Establish() => _options = new ArcOptions();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Tenancy:ResolverType"] = "Development",
-            ["Tenancy:DevelopmentTenantId"] = TenantId
-        })
-        .Build()
-        .Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(
+        _options,
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Tenancy:ResolverType"] = "Development",
+                ["Tenancy:DevelopmentTenantId"] = TenantId
+            })
+            .Build());
 
     [Fact] void should_bind_the_resolver_type() => _options.Tenancy.ResolverType.ShouldEqual(TenantResolverType.Development);
     [Fact] void should_bind_the_development_tenant_id() => _options.Tenancy.DevelopmentTenantId.ShouldEqual(TenantId);

@@ -85,10 +85,10 @@ The `reason` of a `refused_read` is the Chronicle refusal. [Refusals](./refusals
 | `FromEventProperty`, `NotEventSourceKeyed` | Append a fact to the entity the model is keyed by, or use a constraint |
 | `GenerationDeliveryNotSupported` | Use Compatibility delivery for the projection |
 | `KeyConversion` | Give the model a string or `Guid` `Id` |
-| `StreamKeyRequiresStreamScope` | Read the stream-keyed model with `IDecisionReads.Get` and an explicit stream in `Provide()` |
+| `StreamKeyRequiresStreamScope` | Read the stream-keyed model with `IDecisionReads.Get` and an explicit stream directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | `IReadModels`, `IEventStore`, `IEventSequence` | Take the model as a parameter, or mark the method `[Unprotected("why")]` |
 | `IMongoCollection` | Inject the read model instead of its collection |
-| `DetachedReadWhileReadsAreProtected` | Use `IDecisionReads.Get` in `Provide()`. A detached read is refused |
+| `DetachedReadWhileReadsAreProtected` | Use `IDecisionReads.Get` directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature. A detached read is refused |
 
 Build-time diagnostics mark many of the same sites: [ARCCHR0024](../code-analysis/ARCCHR0024.md), [ARCCHR0026](../code-analysis/ARCCHR0026.md), [ARCCHR0028](../code-analysis/ARCCHR0028.md). Raise them to errors in the projects you move.
 
@@ -101,7 +101,7 @@ Build-time diagnostics mark many of the same sites: [ARCCHR0024](../code-analysi
 | Reducer-backed model | An unfiltered reducer without constructor dependencies is admitted. Otherwise re-express it as a projection | `[Unprotected("reference data; staleness tolerated")]` on the model type | Keep the project in `Measure` until it is done |
 | Joined or enriched model | Separate source-keyed models with `[LookUpBy]` | `[Unprotected("copied as of read; may be stale")]` on the parameter | Keep the command `Off` |
 | List or search | A constraint | `[Unprotected]` on `Provide()` | |
-| Service that reads Chronicle | A parameter, or `IDecisionReads` in `Provide()` | `[Unprotected]` on `Handle()` | |
+| Service that reads Chronicle | A parameter, or `IDecisionReads` directly in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature | `[Unprotected]` on `Handle()` | |
 
 ## Switching to On
 

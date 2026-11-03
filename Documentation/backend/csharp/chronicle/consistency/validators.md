@@ -81,7 +81,7 @@ A plain constructor parameter whose model declares `[EventStream<TSource>(stream
 | The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
 | “Has fact X happened in this short stream?”, without a model | Stream decision |
 | Rich behaviour across the whole entity | Aggregate, without reads of the same source |
-| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Another month or another source | `IDecisionReads` stream overload directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | Uniqueness across sources | Constraint |
 
 A validator runs before `Provide()`. Do not also acquire a later stream decision for the same source: its boundary may not cover the validator's earlier read. [ARCCHR0036](../code-analysis/ARCCHR0036.md) warns about that combination.
