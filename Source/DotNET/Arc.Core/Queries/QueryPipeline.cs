@@ -141,7 +141,7 @@ public class QueryPipeline(
         {
             throw;
         }
-        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
         {
             OperationActivity.RecordException(activity, exception);
             return QueryResult.Unauthorized(GetCorrelationId());
@@ -326,6 +326,8 @@ public class QueryPipeline(
         using var decisionQuery = CommandDecisionPolicy.BeginQuery();
         var result = QueryResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
+        using var snapshotLease = new AuthorizationPrincipalLease();
+        OperationSnapshot? snapshot = null;
         try
         {
             if (paging.IsPaged)
@@ -378,6 +380,8 @@ public class QueryPipeline(
                 var authorizedDependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
                 context = context with { Dependencies = authorizedDependencies };
                 queryContextManager.Set(context);
+                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipalSnapshot);
+                snapshotLease.Attach(snapshot);
                 result.MergeWith(await stagedFilters.AfterAuthorization(context));
             }
             else
@@ -392,11 +396,18 @@ public class QueryPipeline(
                 var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
                 context = context with { Dependencies = dependencies };
                 queryContextManager.Set(context);
+                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipalSnapshot);
+                snapshotLease.Attach(snapshot);
                 result = await queryFilters.OnPerform(context);
                 if (result.IsSuccess && prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
                 {
                     principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(authorizedPrincipal, serviceProvider));
                 }
+            }
+
+            if (snapshot is { MembershipDenied: true })
+            {
+                return QueryResult.Unauthorized(correlationId);
             }
 
             if (!result.IsSuccess)
@@ -446,6 +457,12 @@ public class QueryPipeline(
                 return QueryResult.Unauthorized(correlationId);
             }
 
+            // The single choke point: a denied snapshot never reaches the performer.
+            if (snapshot is { MembershipDenied: true })
+            {
+                return QueryResult.Unauthorized(correlationId);
+            }
+
             var data = await queryPerformer.Perform(context);
             if (data is null)
             {
@@ -479,7 +496,7 @@ public class QueryPipeline(
             OperationActivity.RecordException(activity, ex);
             return QueryResult.Unauthorized(correlationId);
         }
-        catch (Exception ex) when (TenantMembershipDenied.IsCauseOf(ex))
+        catch (Exception ex) when (UnauthorizedCause.IsCauseOf(ex))
         {
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.Unauthorized(correlationId));

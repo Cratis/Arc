@@ -84,6 +84,31 @@ Nullable dependency parameters may receive null when no value can be resolved. N
 
 A service that reads storage must actually implement that lookup. Arc.Core does not assume projected event state or supply persistence for arbitrary dependency types. For provider-specific current-state resolution, see [use current state in a command](../../../scenarios/use-current-state-in-a-command.mdx). [Chronicle read-model injection](../chronicle/read-models/injecting-into-commands.md) is an optional integration, not the default validator dependency model.
 
+## Reading the tenant and caller
+
+A validator can read who is calling and which tenant the operation runs for without constructor dependencies. The extension methods on `IValidationContext` are `GetTenant()`, `GetCausedBy()` and `IsSystem()`:
+
+```csharp
+using Cratis.Arc.Validation;
+using FluentValidation;
+
+public class ArchiveDocumentValidator : AbstractValidator<ArchiveDocument>
+{
+    public ArchiveDocumentValidator() =>
+        RuleFor(command => command.Reason)
+            .Must((command, reason, context) => context.GetCausedBy() is { IsAnonymous: false, IsSystem: false })
+            .WithMessage("Only signed-in people can archive documents.");
+}
+```
+
+Arc takes one snapshot of the tenant and the caller for each command or query. Filters, generated values and child validators (`SetValidator`, `RuleForEach`, `ChildRules`) share it. A command or query started from inside another one gets its own snapshot, and the outer one is current again when the inner one completes. The snapshot is resolved on first read, so a tenant or principal switch inside a validator does not change what it reads.
+
+Keep these points in mind:
+
+- Reading outside Arc's command or query pipeline (a bare `ValidatorInvoker.Invoke`, a custom `IValidatorInvoker`, or MVC controller model validation) throws `OperationSnapshotUnavailable`. The operation is then unauthorized (403), and no allowed validation severity can hide it.
+- `GetTenant()` returns the resolved tenant, or `TenantId.NotSet` when none was resolved. It is membership-verified only when an `ITenantMembership` hook is registered; see [tenant membership](../tenancy/membership.md). When the caller's membership is denied, or the caller's claims were changed in place after the operation began, the read fails closed and the operation is unauthorized.
+- `GetCausedBy()` is Arc's view of the caller. An anonymous caller is `CausingIdentity.Anonymous` here, while Chronicle's audit `CausedBy` for the same operation may be `System`. Do not use it as the audit record.
+
 ## Choosing a rejection phase
 
 - Use a validator for input feedback before data provisioning and execution.

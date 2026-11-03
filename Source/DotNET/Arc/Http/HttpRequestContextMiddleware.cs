@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
 
@@ -33,7 +34,7 @@ public class HttpRequestContextMiddleware(IHttpRequestContextAccessor httpReques
         {
             await next(context);
         }
-        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception) && !context.Response.HasStarted)
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception) && !context.Response.HasStarted)
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
         }

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Tenancy;
 using Cratis.DependencyInjection;
 using Cratis.Strings;
 using FluentValidation;
@@ -41,6 +42,11 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             // analyzable, unlike typeof(ValidationContext<>).MakeGenericType(...) + Activator.CreateInstance which
             // NativeAOT and trimming cannot preserve.
             var validationContext = new ValidationContext<object>(instance);
+            if (OperationSnapshot.Current is { } snapshot)
+            {
+                validationContext.RootContextData[OperationSnapshot.ContextKey] = snapshot;
+            }
+
             switch (kind)
             {
                 case ValidationTargetKind.Command:
@@ -61,9 +67,14 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             return validationResult.Errors.Select(_ =>
                 new ValidationResult(ToSeverity(_.Severity), _.ErrorMessage, [MemberFor(path, _.PropertyName, isConcept)], _.CustomState ?? null!)).ToArray();
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired))
+        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired) &&
+            !OperationSnapshotUnavailable.IsCauseOf(ex) &&
+            !(TenantMembershipDenied.IsCauseOf(ex) && OperationSnapshot.Current is { } denied && (denied.StrictMembership || denied.MembershipDenied)))
         {
             // Failed decision acquisition must remain non-filterable, even with an allowed-severity override.
+            // So must an operation snapshot that is unavailable, and a tenant membership denial when the snapshot's own read
+            // was denied or strict membership is on: both reject the operation as unauthorized, which a validation
+            // error with an allowed severity would hide.
             // A validator that dereferences a null concept member throws while validating hostile or partial
             // input. Surface it as a validation failure (HTTP 400) rather than letting it propagate to a server
             // error (HTTP 500). The detail is logged server-side and never returned to the client. Cancellation
