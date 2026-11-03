@@ -118,7 +118,7 @@ public record LendBook(Isbn Isbn, MemberId Member)
 The command fails with a `500`:
 
 ```text
-LendBook called GetInstanceById while read protection is On. Take a read model as a parameter, use IDecisionReads.Get in Provide, or mark the method [Unprotected("why")].
+LendBook called GetInstanceById while read protection is On. Take a read model as a parameter, use IDecisionReads.Get directly in Handle() with a reasoned ARCCHR0040 suppression, or mark the method [Unprotected("why")].
 ```
 
 The fix is the parameter from step 2. If the read is only context, mark the method or the read `[Unprotected("why")]`. [Refusals](./refusals.md) lists every refusal with its fix.

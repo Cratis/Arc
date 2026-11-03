@@ -23,8 +23,19 @@ public class CommandHandlerProvider : ICommandHandlerProvider
     /// </summary>
     /// <param name="types">The types available in the application.</param>
     public CommandHandlerProvider(ITypes types)
+        : this(types, ArtifactAssemblyFilter.IncludeAll)
     {
-        _commandTypes = _commandsByUniverse.GetValue(types, _ => new CommandDiscovery()).GetCommands(types);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CommandHandlerProvider"/> class with host artifact opt-ins.
+    /// </summary>
+    /// <param name="types">The types available in the application.</param>
+    /// <param name="filter">The host's assembly filter.</param>
+    internal CommandHandlerProvider(ITypes types, ArtifactAssemblyFilter filter)
+    {
+        _commandTypes = _commandsByUniverse.GetValue(types, _ => new CommandDiscovery()).GetCommands(types)
+            .Where(kv => filter.Serves(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
         _handlers = _commandTypes.ToDictionary(kv => kv.Key, kv => (ICommandHandler)new ModelBoundCommandHandler(kv.Key, kv.Value));
     }
 

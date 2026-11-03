@@ -15,10 +15,10 @@ Start here. These scenarios use `[Command]` records that return events, constrai
 | One library card per member. A username is unique | `[Unique]` on an event or a property | [Unique and once](./unique-and-once.md) |
 | A member may hold three loans, and the last copy of a book | Two read models, one batch | [Two entities](./two-entities.md) |
 | A course has capacity and a student has a limit | Two read models, two events, atomic | [Two entities](./two-entities.md#a-course-and-a-student) |
-| At most 5000 may be withdrawn per account per month | Per-stream read model, or a stream read in `Provide()` | [One stream](./per-stream.md) |
+| At most 5000 may be withdrawn per account per month | Per-stream read model, or a stream read directly in `Handle()` with a reasoned ARCCHR0040 suppression | [One stream](./per-stream.md) |
 | A report is approved once per owner per month | A stream decision | [One stream](./per-stream.md#a-period-approval) |
 | Steps of a process happen in order and a finished process accepts nothing more | A stream with declared concurrency, and a closed stream | [Process stream](./process-stream.md) |
-| Invoice numbers have no gaps and no duplicates | A numbering source read in `Provide()` | [Gapless numbers](./numbering.md) |
+| Invoice numbers have no gaps and no duplicates | A numbering source read directly in `Handle()` with a reasoned ARCCHR0040 suppression | [Gapless numbers](./numbering.md) |
 | Many rules over one lifecycle | An aggregate root | [Rich aggregate](./aggregate.md) |
 | Do not overwrite changes the user did not see | An explicit scope with the revision | [Editing conflict](./editing-conflict.md) |
 | A rare violation, a hint, external data, a hot key | No guard, or the right shape of data | [Rules that need no guard](./no-guard.md) |
@@ -31,7 +31,7 @@ Start here. These scenarios use `[Command]` records that return events, constrai
 | The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
 | “Has fact X happened in this short stream?”, without a model | Stream decision |
 | Rich behaviour across the whole entity | Aggregate, without reads of the same source |
-| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Another month or another source | `IDecisionReads` stream overload directly in `Handle()`, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | Uniqueness across sources | Constraint |
 
 ## Less idiomatic and Chronicle direct

@@ -107,6 +107,11 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
 
             var accessor = httpContext.RequestServices.GetRequiredService<IHttpRequestContextAccessor>();
             using var request = HttpRequestContextAccessor.BeginRequest(accessor, context);
+            if (context.RejectsUntrustedWebSocketOrigin())
+            {
+                return;
+            }
+
             await handler(context);
         };
 
