@@ -6,7 +6,7 @@ description: Keep a query with the read model it returns, without writing a cont
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-When a screen needs a list of accounts, you should not need a controller just to forward a database call. Put a static method on the returned model and mark the model with `[ReadModel]`. Arc discovers the query and generates its HTTP endpoint and TypeScript proxy.
+When a screen needs a list of accounts, you should not need a controller just to forward a database call. Put a public static query method on the model you want to return and mark the model with `[ReadModel]`. Arc discovers that method and generates its HTTP endpoint and TypeScript proxy. The declaration below supplies the read; the host and data provider still need to be configured.
 
 A read model is the shape you serve. It can come from MongoDB, EF Core, a service, or in-memory data. **Neither `[ReadModel]` nor a database query requires Chronicle or event sourcing.**
 
@@ -58,13 +58,15 @@ public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 }
 ```
 
-`GET /api/accounts` now returns a [query result envelope](../query-pipeline.md#query-result-metadata) whose `data` is the account list. The explicit path makes this example independent of namespace-routing configuration. `AllAccounts` becomes the generated query class name; its fully qualified query name is `Banking.Accounts.DebitAccount.AllAccounts`.
+Call `GET /api/accounts` to run `AllAccounts`, then read the account list from `data` in the [query result envelope](../query-pipeline.md#query-result-metadata). A successful empty collection means the read found no accounts; a denied or failed query needs different handling. Check the result verdict before treating missing data as absence.
+
+The explicit path makes this example independent of namespace-routing configuration. `AllAccounts` becomes the generated query class name; its fully qualified query name is `Banking.Accounts.DebitAccount.AllAccounts`.
 
 This unprotected teaching example is suitable only for public data or a local sandbox. Before exposing account data, add [authorization](authorization.md).
 
 ## What Arc discovers
 
-Use a non-generic static method returning **the declaring read-model type**, a collection of that type, or one of its [supported wrappers](return-types.md). Public methods are the recommended declaration style. A method accepting that exact read-model type as a parameter is never a query, even if the parameter is nullable. This keeps self-reduction and other self-parameter helpers off the endpoint surface without requiring `RequireQueryAttribute`.
+Use a non-generic public static method returning **the declaring read-model type**, a collection of that type, or one of its [supported wrappers](return-types.md). Public static visibility is required for Arc to discover the endpoint. A method accepting that exact read-model type as a parameter is never a query, even if the parameter is nullable. This keeps self-reduction and other self-parameter helpers off the endpoint surface without requiring `RequireQueryAttribute`.
 
 For example, a method on `DebitAccount` returning `IEnumerable<DebitAccount>` qualifies. A method there returning `AccountSummary`, `int`, or `PagedResult<DebitAccount>` does not. Put a summary query on an `[ReadModel] AccountSummary` instead, or choose a [controller](../controller-based/index.md). Compiling a method is not proof that Arc discovers an endpoint for it.
 
