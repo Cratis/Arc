@@ -137,6 +137,10 @@ For a non-streaming query delivered through the hub, the guard receives `IsSnaps
 
 `ObservableQueryEmissionContext` carries the fully qualified query name, the coerced query arguments, the captured `SubscriptionScope` (or `null`), the caller's `ClaimsPrincipal`, the correlation id, whether this is the first emission on the subscription, `IsSnapshot` (true only for non-streaming hub results; false for stream emissions and HTTP observable snapshots), the subscription's cancellation token, and the `IServiceProvider` to resolve from. Each guard receives its own copy of the scope and arguments; mutation by one guard cannot change another guard's input or a later emission.
 
+For the single-query WebSocket transport, `IsFirstEmission` stays true until a complete transport write is confirmed. A closed socket, cancellation before writing, or an unconfirmed write does not advance that hint or increment delivered-push telemetry. A completed write is not an acknowledgment that the client received or consumed the message.
+
+Custom `IWebSocketConnectionHandler` implementations can also implement `IWebSocketMessageSender` to report explicit write outcomes. Only `WebSocketSendStatus.Sent` advances delivery state. The existing `SendMessage` contract remains available, but its null return cannot confirm a write: legacy-only handlers are treated as unconfirmed, so their first-emission hint stays true and they do not increment delivered-push telemetry. The hint is best-effort delivery state, not an authorization boundary.
+
 The principal is handed over **explicitly**. Emissions arrive on the producing stream's own thread, where the request's `AsyncLocal` context does not flow, so a guard that reached for an ambient accessor would see the wrong identity — or none at all.
 
 ## Several guards
