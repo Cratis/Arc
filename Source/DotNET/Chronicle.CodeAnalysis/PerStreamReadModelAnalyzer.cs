@@ -76,6 +76,10 @@ public sealed class PerStreamReadModelAnalyzer : DiagnosticAnalyzer
         {
             return "LookUpBy cannot redirect a stream belonging to the command's own source";
         }
+        if (CommandAttributeSymbols.ResolveKeyProvider(parameter).Provider is { } provider)
+        {
+            return $"LookUpBy<{provider.Name}> cannot redirect a stream belonging to the command's own source";
+        }
         var route = EventSourceDefinitionSymbols.Find(command, EventSourceDefinitionSymbols.DeclarationAttribute);
         var matches = route is not null
             ? EventSourceDefinitionSymbols.NameOf((INamedTypeSymbol)route.AttributeClass!.TypeArguments[0]) == EventSourceDefinitionSymbols.NameOf(source) &&

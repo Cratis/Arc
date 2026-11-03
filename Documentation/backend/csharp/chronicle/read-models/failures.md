@@ -3,16 +3,27 @@ title: When read model resolution fails
 description: Every failure mode for a command-scoped Chronicle read model — what the client sees, what it means, and how to fix it.
 ---
 
-Read-model resolution distinguishes invalid input from missing infrastructure. An unusable key or an absent required read model is a **validation failure (HTTP 400)**. Missing service registrations and execution outside the command pipeline are configuration problems, not evidence that an entity does not exist.
+Read-model resolution distinguishes invalid input from missing infrastructure. For command-property and convention lookups, an unusable key or an absent required read model is a **validation failure (HTTP 400)**. A refused caller-derived key is an authorization failure instead. Missing service registrations and execution outside the command pipeline are configuration problems, not evidence that an entity does not exist.
 
 | Failure                                                                                                                                       | Cause                                                                         | Client sees                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [`ReadModelKeyResolutionDenied`](#readmodelkeyresolutiondenied) | The captured caller or its provider cannot supply a safe key | Authorization failure, without provider exception details |
 | [`UnableToResolveReadModelFromCommandContext`](#unabletoresolvereadmodelfromcommandcontext)                                                   | The command carries no usable key                                             | HTTP 400 — "The command is missing the identifier required to load its current state." |
 | [`ReadModelDoesNotExistForCommand`](#readmodeldoesnotexistforcommand)                                                                         | Valid key, but a required (non-nullable) read model does not exist            | HTTP 400 — "The command targets an entity that does not exist."                        |
 | [`ReadModelValidatorRequiresCommandPipeline`](#readmodelvalidatorrequirescommandpipeline)                                                     | The validator ran through MVC model binding, before a command context existed | Request fails                                                                          |
 | [`CannotResolveCommandDependency` / `CannotResolveValidatorDependency`](#cannotresolvecommanddependency-and-cannotresolvevalidatordependency) | A required non-nullable dependency could not be resolved                      | Depends on the dependency                                                              |
 
 The two validation failures above use generic client-facing messages. Do not generalize that to every exception: Arc's exception-detail exposure is configurable, and enabling it can expose type names and other details. Keep production exception redaction and authorization configured independently.
+
+## ReadModelKeyResolutionDenied
+
+A generic `[LookUpBy<TKeyProvider>]` lookup could not obtain a safe key from the captured selected caller. The command result is an authorization failure (`IsAuthorized == false`), not a missing-model validation error. Application exception mappers do not replace this result; provider exceptions, stack traces and claim values are not exposed.
+
+Resolution is refused when the caller frame is absent or its observable principal changes, the provider returns missing or ambiguous, the provider throws, or the resolved key text is empty, wildcard, unspecified, padded with whitespace or contains an ambiguous `#` separator. Nullable and `[Unprotected]` parameters do not bypass these checks. Arc never falls back to a client-supplied command key after refusal.
+
+Supply the intended selected caller before entering the command pipeline and ensure the provider returns one usable key. Do not log claim values while diagnosing the refusal. `CallerSubject` requires an authenticated, non-system caller and reads exactly `sub`, excluding the actor chain. See [caller-derived keys](./injecting-into-commands.md#key-a-read-by-the-caller).
+
+A valid key with no stored model is different: normal nullable-versus-required absence rules apply. Conflicting lookup forms or redirecting a per-stream model are declaration errors (`InvalidLookUpBy`), not evidence of missing state.
 
 ## UnableToResolveReadModelFromCommandContext
 

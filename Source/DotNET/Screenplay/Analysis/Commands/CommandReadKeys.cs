@@ -36,6 +36,11 @@ internal static class CommandReadKeys
             return (null, $"its LookUpBy declaration names no public command property ({lookup.Conflict})");
         }
 
+        if (CommandAttributeSymbols.ResolveKeyProvider(parameter).Provider is { } provider)
+        {
+            return (null, $"key comes from key provider '{provider.Name}' and cannot be represented as a command property");
+        }
+
         if (lookup.Property is not null)
         {
             return (lookup.Property, null);

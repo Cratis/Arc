@@ -6,6 +6,7 @@ using Cratis.Arc.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Samples;
 using Samples.Authentication;
+using Samples.Features.CallerKeyedLookups;
 using Samples.Features.QueryShowcase;
 
 var builder = ArcApplication.CreateBuilder(args);
@@ -15,7 +16,8 @@ _ = typeof(ShowcaseItem);
 builder
     .AddCratisArc(configureOptions: options =>
     {
-        options.AddJsonTypeInfoResolver(SamplesJsonSerializerContext.Default);
+        options.AddJsonTypeInfoResolver(SamplesJsonSerializerContext.Default)
+            .AddJsonTypeInfoResolver(CallerKeyedLookupsJsonSerializerContext.Default);
         options.GeneratedApis.RoutePrefix = "api";
         options.GeneratedApis.IncludeCommandNameInRoute = false;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;

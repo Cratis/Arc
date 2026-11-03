@@ -146,13 +146,13 @@ jobs:
           const trx = fs.readFileSync(`${process.env.ACCEPTANCE_ROOT}/acceptance.trx`, 'utf8');
           const counters = trx.match(/<(?:\w+:)?Counters\b[^>]*>/)?.[0];
           assert.ok(counters, 'Acceptance TRX must contain counters');
-          for (const [name, count] of Object.entries({ total: 12, executed: 12, passed: 12, failed: 0, notExecuted: 0 })) {
+          for (const [name, count] of Object.entries({ total: 28, executed: 28, passed: 28, failed: 0, notExecuted: 0 })) {
             assert.match(counters, new RegExp(`\\b${name}="${count}"`), `Expected ${name}=${count}`);
           }
           const results = trx.match(/<(?:\w+:)?UnitTestResult\b[^>]*>/g) ?? [];
-          assert.equal(results.length, 12, 'Expected all 12 HTTP acceptance facts');
+          assert.equal(results.length, 28, 'Expected all 28 HTTP acceptance facts');
           for (const result of results) assert.match(result, /\boutcome="Passed"/);
-          console.log('Checked 12 acceptance facts: 12 passed, 0 skipped');
+          console.log('Checked 28 acceptance facts: 28 passed, 0 skipped');
           NODE
 
       - name: Upload failure diagnostics
