@@ -104,8 +104,12 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             actualRoute = route;
         }
 
+        const submittedValues = this.captureCurrentValues();
         const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call', allowedSeverity, ignoreWarnings);
-        this.setInitialValuesFromCurrentValues();
+        if (result.isSuccess) {
+            this._initialValues = submittedValues;
+            this.updateHasChanges();
+        }
         return result;
     }
 
@@ -286,13 +290,19 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     setInitialValuesFromCurrentValues() {
+        this._initialValues = this.captureCurrentValues();
+        this.updateHasChanges();
+    }
+
+    private captureCurrentValues(): object {
+        const values = {};
         this.propertyDescriptors.forEach(propertyDescriptor => {
             const property = propertyDescriptor.name;
-            if (this[property]) {
-                this._initialValues[property] = this[property];
+            if (Object.prototype.hasOwnProperty.call(this, property)) {
+                values[property] = this[property];
             }
         });
-        this.updateHasChanges();
+        return values;
     }
 
     /** @inheritdoc */
