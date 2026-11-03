@@ -154,7 +154,7 @@ public static class QueryEndpointMapper
                         return;
                     }
 
-                    context.SetStatusCode((int)(TenantMembershipDenied.IsCauseOf(ex) ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest));
+                    context.SetStatusCode((int)(UnauthorizedCause.IsCauseOf(ex) ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest));
                     await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
                     return;
                 }
@@ -200,7 +200,7 @@ public static class QueryEndpointMapper
             {
                 tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
             }
-            catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+            catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
             {
                 context.SetStatusCode((int)HttpStatusCode.Forbidden);
                 await context.WriteResponseAsJson(QueryResult.Unauthorized(queryResult.CorrelationId), typeof(QueryResult), context.RequestAborted);

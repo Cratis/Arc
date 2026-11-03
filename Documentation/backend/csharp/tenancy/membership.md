@@ -60,6 +60,12 @@ The default is `false`. `IngressValidatesTenant` is a trusted operator assertion
 
 Enable it only when the ingress enforces caller-to-tenant membership and direct backend bypass is prevented. Isolate backend listeners so callers cannot reach them except through that ingress, and trust forwarded identity and tenant information only from that boundary. Apply the same boundary to HTTP, WebSocket and SSE traffic; Arc cannot infer or enforce this deployment isolation from the setting.
 
+## Membership denials in validators
+
+By default a `TenantMembershipDenied` thrown by a validator, for example by an injected tenant accessor, becomes a `ValidatorFailed` validation error. A raised allowed severity can drop that error. Set `Tenancy:StrictValidatorMembership` to `true` to make such a denial reject the operation as unauthorized instead. We recommend turning it on.
+
+Reading the tenant through the validation context (`GetTenant()`) is always strict, whatever this setting is. See [reading the tenant and caller](../commands/validation.md#reading-the-tenant-and-caller).
+
 ## Boundary of the check
 
 Registering `ITenantMembership` opts in to server-side enforcement when request code resolves a tenant, including Arc HTTP command/query endpoints, ASP.NET Core controllers and native HTTP hosting. It is not blanket authorization for every endpoint. Arc checks observable WebSocket and SSE connections before upgrading or committing streaming headers when a hook is registered, and still checks each subscription's effective principal and tenant. An explicitly selected application tenant remains trusted. Membership is checked when a subscription starts, not on every emission; an application replacing Arc's tenant accessor is responsible for its own membership enforcement.

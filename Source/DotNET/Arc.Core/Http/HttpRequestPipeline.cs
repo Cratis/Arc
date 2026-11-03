@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
-using Cratis.Arc.Tenancy;
+using Cratis.Arc.Authorization;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Http;
@@ -38,7 +38,7 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
                 await context.Response.OutputStream.WriteAsync(buffer);
             }
         }
-        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
         {
             try
             {

@@ -73,7 +73,7 @@ internal static class GeneratedValueResolution
             throw new MissingGenerationTime();
         }
 
-        var tenant = services.GetRequiredService<ITenantIdAccessor>().Current;
+        var tenant = OperationSnapshot.Current?.Tenant ?? services.GetRequiredService<ITenantIdAccessor>().Current;
 
         return new(context.ReceivedAt, tenant.IsDefault ? GenerationContext.DefaultTenant : tenant.Value);
     }

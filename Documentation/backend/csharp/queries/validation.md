@@ -8,6 +8,8 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 Reject malformed search input before the query reaches storage. Arc's model-bound query pipeline supports discovered FluentValidation validators; MVC actions use their own model-binding/model-state path. Choose the example for the endpoint style you actually expose.
 
+Validators of model-bound queries can read the operation's tenant and caller with `GetTenant()` and `GetCausedBy()`. See [reading the tenant and caller](../commands/validation.md#reading-the-tenant-and-caller).
+
 ## Validate the whole argument set
 
 A parameter model lets you validate required strings and relationships between scalar arguments without expecting HTTP to bind a complex DTO. This alternative banking declaration uses the [shared `AccountId` and `AccountName` concepts](model-bound/index.md#model-account-identities-and-names), the Arc MongoDB provider, and validator discovery. The prefix is search text, so its rule belongs to the query rather than to the complete account-name value:
