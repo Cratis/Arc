@@ -25,6 +25,7 @@ public class and_a_generated_value_validator_swallows_the_snapshot_denial : give
                 return true;
             });
         _serviceProvider.GetService(typeof(IDiscoverableValidators)).Returns(validators);
+
         // An independent resolver failure must not hide the swallowed denial behind an ordinary error result.
         UseTheRealArgumentResolver(
             typeof(Generating),

@@ -41,14 +41,24 @@ public class a_command_pipeline_and_a_handler_for_command : a_command_pipeline
         var resolver = new CommandHandlerArgumentResolver(provideInvoker);
         _commandHandlerArgumentResolver
             .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
-            .Returns(async call =>
-            {
-                var resolution = await resolver.Resolve(
-                    call.Arg<ICommandHandler>(),
-                    call.Arg<CommandContext>() with { ReceivedAt = DateTimeOffset.UtcNow },
-                    call.Arg<IServiceProvider>(),
-                    call.Arg<ValidationResultSeverity?>());
-                return controlResult is null ? resolution : resolution with { ControlResult = controlResult };
-            });
+            .Returns(call => ResolveWithTheRealResolver(
+                resolver,
+                call.Arg<ICommandHandler>(),
+                call.Arg<CommandContext>(),
+                call.Arg<IServiceProvider>(),
+                call.Arg<ValidationResultSeverity?>(),
+                controlResult));
+    }
+
+    static async ValueTask<CommandHandlerArgumentResolution> ResolveWithTheRealResolver(
+        CommandHandlerArgumentResolver resolver,
+        ICommandHandler handler,
+        CommandContext context,
+        IServiceProvider serviceProvider,
+        ValidationResultSeverity? severity,
+        CommandResult? controlResult)
+    {
+        var resolution = await resolver.Resolve(handler, context with { ReceivedAt = DateTimeOffset.UtcNow }, serviceProvider, severity);
+        return controlResult is null ? resolution : resolution with { ControlResult = controlResult };
     }
 }

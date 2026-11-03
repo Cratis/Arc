@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
@@ -23,8 +24,7 @@ public class and_authorization_rechecking_swallows_the_snapshot_denial : given.a
                 _argumentsResolved = true;
                 return new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution([], CommandResult.Success(_correlationId)));
             });
-        var evaluator = Substitute.For<IAuthorizationAttributeEvaluator>();
-        evaluator.GetAuthorizationRequirements(Arg.Any<Type>()).Returns(call =>
+        var evaluator = new RecheckingEvaluator(() =>
         {
             // Only the final declaration lookup runs after argument resolution and its membership guard.
             if (_argumentsResolved)
@@ -39,7 +39,6 @@ public class and_authorization_rechecking_swallows_the_snapshot_denial : given.a
                     _caughtDenial = true;
                 }
             }
-            return Array.Empty<AuthorizationRequirement>();
         });
         _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(
             new KnownInstancesOf<IAnonymousEvaluator>([]),
@@ -52,4 +51,22 @@ public class and_authorization_rechecking_swallows_the_snapshot_denial : given.a
     [Fact] void should_catch_the_snapshot_denial() => _caughtDenial.ShouldBeTrue();
     [Fact] void should_be_unauthorized() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_not_execute_the_handler() => _commandHandler.DidNotReceive().Handle(Arg.Any<CommandContext>());
+
+    /// <summary>
+    /// A hand-written evaluator: substitutes cannot intercept the interface's default-implemented members.
+    /// </summary>
+    /// <param name="onTypeLookup">Callback invoked on every type requirement lookup.</param>
+    class RecheckingEvaluator(Action onTypeLookup) : IAuthorizationAttributeEvaluator
+    {
+        public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(Type type) => null;
+        public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(MethodInfo method) => null;
+
+        public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type)
+        {
+            onTypeLookup();
+            return [];
+        }
+
+        public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) => [];
+    }
 }

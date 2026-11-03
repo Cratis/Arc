@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
@@ -49,8 +50,7 @@ public class and_authorization_rechecking_swallows_the_snapshot_denial : given.a
             _filtersCompleted = true;
             return QueryResult.Success(_correlationId);
         });
-        var evaluator = Substitute.For<IAuthorizationAttributeEvaluator>();
-        evaluator.GetAuthorizationRequirements(Arg.Any<Type>()).Returns(call =>
+        var evaluator = new RecheckingEvaluator(() =>
         {
             // The final declaration lookup happens after the post-filter membership guard.
             if (_filtersCompleted)
@@ -65,7 +65,6 @@ public class and_authorization_rechecking_swallows_the_snapshot_denial : given.a
                     _caughtDenial = true;
                 }
             }
-            return Array.Empty<AuthorizationRequirement>();
         });
         _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(
             new KnownInstancesOf<IAnonymousEvaluator>([]),
@@ -80,4 +79,22 @@ public class and_authorization_rechecking_swallows_the_snapshot_denial : given.a
     [Fact] void should_catch_the_snapshot_denial() => _caughtDenial.ShouldBeTrue();
     [Fact] void should_be_unauthorized() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_not_perform_the_query() => _queryPerformer.DidNotReceive().Perform(Arg.Any<QueryContext>());
+
+    /// <summary>
+    /// A hand-written evaluator: substitutes cannot intercept the interface's default-implemented members.
+    /// </summary>
+    /// <param name="onTypeLookup">Callback invoked on every type requirement lookup.</param>
+    class RecheckingEvaluator(Action onTypeLookup) : IAuthorizationAttributeEvaluator
+    {
+        public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(Type type) => null;
+        public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(MethodInfo method) => null;
+
+        public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type)
+        {
+            onTypeLookup();
+            return [];
+        }
+
+        public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) => [];
+    }
 }
