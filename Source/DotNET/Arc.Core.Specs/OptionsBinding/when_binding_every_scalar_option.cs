@@ -13,6 +13,7 @@ public class when_binding_every_scalar_option : given_a_parity_run
         ["Cratis:Arc:CorrelationId:HttpHeader"] = "x-corr",
         ["Cratis:Arc:Tenancy:ResolverType"] = "Claim",
         ["Cratis:Arc:Tenancy:IngressValidatesTenant"] = "true",
+        ["Cratis:Arc:Tenancy:StrictValidatorMembership"] = "true",
         ["Cratis:Arc:Tenancy:HttpHeader"] = "x-tenant",
         ["Cratis:Arc:Tenancy:BaseDomain"] = "example.test",
         ["Cratis:Arc:Tenancy:QueryParameter"] = "tid",
