@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Constructor } from '@cratis/fundamentals';
-import { useState, useCallback, useContext, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useContext, useRef, useMemo, useEffect, useInsertionEffect } from 'react';
 import { Command } from '@cratis/arc/commands';
 import { CommandScopeContext } from './CommandScope.js';
 import { ArcContext } from '../ArcContext.js';
@@ -14,7 +14,7 @@ export type ClearCommandValues = () => void;
 
 /**
  * Use a command in a component.
- * Provider configuration updates apply after commit through an effect, without replacing the command.
+ * Provider configuration updates apply during commit before layout effects, without replacing the command.
  * @param commandType Type of the command to use.
  * @param initialValues Any initial values to set for the command.
  * @returns Tuple with the command, a {@link SetCommandValues<TCommandContent>} delegate to set values on command, and a {@link ClearCommandValues} delegate to clear values.
@@ -52,8 +52,9 @@ export function useCommand<
         return instance;
     }, []);
 
-    // No layout work is needed: synchronize after commit, never during a render that may be abandoned.
-    useEffect(() => {
+    // Synchronize during commit before any layout effects, including children's, can execute the command.
+    // Insertion effects never run for suspended or abandoned renders.
+    useInsertionEffect(() => {
         command.current!.setMicroservice(arc.microservice);
         command.current!.setApiBasePath(arc.apiBasePath ?? '');
         command.current!.setOrigin(arc.origin ?? '');
