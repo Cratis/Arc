@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
@@ -52,7 +53,7 @@ public static class MongoCollectionExtensions
     /// <param name="options">Optional find options.</param>
     /// <typeparam name="TDocument">The document type.</typeparam>
     /// <returns>The observable documents.</returns>
-    public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
+    public static ISubject<IEnumerable<TDocument>> Observe<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
         FindOptions? options = null) => collection.Observe(filter, false, options);
@@ -63,7 +64,7 @@ public static class MongoCollectionExtensions
     /// <param name="options">Optional find options.</param>
     /// <typeparam name="TDocument">The document type.</typeparam>
     /// <returns>The observable document.</returns>
-    public static ISubject<TDocument> ObserveSingle<TDocument>(
+    public static ISubject<TDocument> ObserveSingle<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
         FindOptions? options = null) => collection.ObserveSingle(filter, false, options);
@@ -74,7 +75,7 @@ public static class MongoCollectionExtensions
     /// <param name="options">Optional find options.</param>
     /// <typeparam name="TDocument">The document type.</typeparam>
     /// <returns>The observable documents.</returns>
-    public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
+    public static ISubject<IEnumerable<TDocument>> Observe<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
         FindOptions? options = null) => collection.Observe(filter, false, options);
@@ -85,7 +86,7 @@ public static class MongoCollectionExtensions
     /// <param name="options">Optional find options.</param>
     /// <typeparam name="TDocument">The document type.</typeparam>
     /// <returns>The observable document.</returns>
-    public static ISubject<TDocument> ObserveSingle<TDocument>(
+    public static ISubject<TDocument> ObserveSingle<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
         FindOptions? options = null) => collection.ObserveSingle(filter, false, options);
@@ -96,7 +97,7 @@ public static class MongoCollectionExtensions
     /// <typeparam name="TDocument">The document type.</typeparam>
     /// <typeparam name="TId">The id type.</typeparam>
     /// <returns>The observable document.</returns>
-    public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id) =>
+    public static ISubject<TDocument> ObserveById<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument, TId>(this IMongoCollection<TDocument> collection, TId id) =>
         collection.ObserveById(id, false);
 
     /// <summary>
@@ -108,7 +109,7 @@ public static class MongoCollectionExtensions
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a collection of the type for the collection.</returns>
-    public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
+    public static ISubject<IEnumerable<TDocument>> Observe<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
         bool ignoreQueryContext,
@@ -139,7 +140,7 @@ public static class MongoCollectionExtensions
     /// no document matches — after the observed document is deleted, after an update or replace moves it out
     /// of the filter, or when the initial query finds none.
     /// </returns>
-    public static ISubject<TDocument> ObserveSingle<TDocument>(
+    public static ISubject<TDocument> ObserveSingle<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
         bool ignoreQueryContext,
@@ -161,7 +162,7 @@ public static class MongoCollectionExtensions
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a collection of the type for the collection.</returns>
     /// <example><c>collection.Observe(filterDefinition, ignoreQueryContext: true)</c>.</example>
-    public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
+    public static ISubject<IEnumerable<TDocument>> Observe<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filterDefinition,
         bool ignoreQueryContext,
@@ -184,7 +185,7 @@ public static class MongoCollectionExtensions
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns><see cref="ISubject{T}"/> with a collection of the type for the collection.</returns>
-    public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
+    public static ISubject<IEnumerable<TDocument>> Observe<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         bool ignoreQueryContext,
         FilterDefinition<TDocument>? filter = null,
@@ -204,7 +205,7 @@ public static class MongoCollectionExtensions
     /// of the filter, or when the initial query finds none.
     /// </returns>
     /// <example><c>collection.ObserveSingle(filterDefinition, ignoreQueryContext: true)</c>.</example>
-    public static ISubject<TDocument> ObserveSingle<TDocument>(
+    public static ISubject<TDocument> ObserveSingle<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filterDefinition,
         bool ignoreQueryContext,
@@ -229,7 +230,7 @@ public static class MongoCollectionExtensions
     /// no document matches — after the observed document is deleted, after an update or replace moves it out
     /// of the filter, or when the initial query finds none.
     /// </returns>
-    public static ISubject<TDocument> ObserveSingle<TDocument>(
+    public static ISubject<TDocument> ObserveSingle<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         this IMongoCollection<TDocument> collection,
         bool ignoreQueryContext,
         FilterDefinition<TDocument>? filter = null,
@@ -247,7 +248,7 @@ public static class MongoCollectionExtensions
     /// An <see cref="ISubject{T}"/> with an instance of the type; emits <see langword="default"/> when no
     /// document matches — after the observed document is deleted, or when the initial query finds none.
     /// </returns>
-    public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id, bool ignoreQueryContext)
+    public static ISubject<TDocument> ObserveById<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument, TId>(this IMongoCollection<TDocument> collection, TId id, bool ignoreQueryContext)
     {
         // Single-result observations never apply query paging.
         _ = ignoreQueryContext;
@@ -272,7 +273,7 @@ public static class MongoCollectionExtensions
     /// from "still catching up" — completing the observable instead would close the connection out from
     /// under the client rather than report absence.
     /// </remarks>
-    static ISubject<TDocument> ObserveSingle<TDocument>(
+    static ISubject<TDocument> ObserveSingle<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
          this IMongoCollection<TDocument> collection,
          Func<IFindFluent<TDocument, TDocument>> findCall,
          FilterDefinition<TDocument> filter)
@@ -284,7 +285,7 @@ public static class MongoCollectionExtensions
             (documents, _, observable) => observable.OnNext(documents.FirstOrDefault()!));
     }
 
-    static ISubject<TResult> Observe<TDocument, TResult>(
+    static ISubject<TResult> Observe<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument, TResult>(
         this IMongoCollection<TDocument> collection,
         Func<IFindFluent<TDocument, TDocument>> findCall,
         FilterDefinition<TDocument> filter,
@@ -494,7 +495,7 @@ public static class MongoCollectionExtensions
         }
     }
 
-    static async Task HandleChange<TDocument, TResult>(
+    static async Task HandleChange<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument, TResult>(
         IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument> filter,
         bool matchesEverything,
@@ -583,7 +584,7 @@ public static class MongoCollectionExtensions
     /// before, on or after the page, whether it was counted, or where it now sorts. One count and one page read per
     /// batch of held changes answers all of it, the same trade the Entity Framework Core provider makes.
     /// </remarks>
-    static async Task HandlePagedChange<TDocument, TResult>(
+    static async Task HandlePagedChange<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument, TResult>(
         IMongoCollection<TDocument> collection,
         Func<IFindFluent<TDocument, TDocument>> findCall,
         QueryContext queryContext,
@@ -621,7 +622,7 @@ public static class MongoCollectionExtensions
     /// <param name="changes">Collects the removal.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>True when a document was removed.</returns>
-    static bool RemoveFromSet<TDocument>(
+    static bool RemoveFromSet<[DynamicallyAccessedMembers(DocumentTypeMembers.Required)] TDocument>(
         QueryContextAwareSet<TDocument> documents,
         object id,
         List<CollectionChange> changes)
