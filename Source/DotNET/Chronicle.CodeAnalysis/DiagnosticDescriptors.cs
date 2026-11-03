@@ -426,7 +426,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0028_RawReadUnderOn = new(
         id: "ARCCHR0028",
         title: "Chronicle read is not proven protected",
-        messageFormat: "Command '{0}' calls '{1}' while read protection is On; this read is not proven protected. Take a read model as a parameter, use IDecisionReads.Get in Provide, or mark the method [Unprotected(\"why\")].",
+        messageFormat: "Command '{0}' calls '{1}' while read protection is On; this read is not proven protected. Take a read model as a parameter, use IDecisionReads.Get directly in Handle() with a reasoned ARCCHR0040 suppression, or mark the method [Unprotected(\"why\")].",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -492,7 +492,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0037_ReadModelStreamNotOnCommandRoute = new(
         id: "ARCCHR0037",
         title: "Read model stream is not on the command route",
-        messageFormat: "Command '{0}' reads '{1}' ({2}), scoped to {3}/{4}, but {5}. Route the command to that stream with an explicit EventStreamId, or use IDecisionReads in Provide for another stream.",
+        messageFormat: "Command '{0}' reads '{1}' ({2}), scoped to {3}/{4}, but {5}. Route the command to that stream with an explicit EventStreamId, or use IDecisionReads directly in Handle() with a reasoned ARCCHR0040 suppression for another stream.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,

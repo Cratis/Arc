@@ -301,7 +301,7 @@ What differs is where the read model is loaded from and what key loads it, inclu
 
 ## Testing
 
-Specify a decision by calling `Handle(readModel)` directly. To exercise the pipeline, use `CommandScenario<T>` and give state with `Given.ForEventSource(id).ReadModel(instance)`, including for protected plain parameters. The real protected read still runs before the pin supplies its instance; admission and conflict detection are unchanged. Specs never configure decision reads or simulate concurrency. Per-stream models and computed-key reads in `Provide()` use given events. See [Chronicle testing](../../testing/chronicle.md#give-a-protected-read-model-its-state).
+Specify a decision by calling `Handle(readModel)` directly. To exercise the pipeline, use `CommandScenario<T>` and give state with `Given.ForEventSource(id).ReadModel(instance)`, including for protected plain parameters. The real protected read still runs before the pin supplies its instance; admission and conflict detection are unchanged. Specs never configure decision reads or simulate concurrency. Per-stream models and computed-key reads in `Handle()` use given events. See [Chronicle testing](../../testing/chronicle.md#give-a-protected-read-model-its-state).
 
 ## See also
 

@@ -178,7 +178,7 @@ public class when_checking_decision_read_admission
 
 For a command returning `CompleteStream`, `scenario.ShouldHaveCompletedStream(type, id)` accepts a successful completion with or without an event source scope. To assert the exact owner, pass a `ClosedStreamScope` instead; see [completion assertions](../chronicle/commands/completing-streams.md#assert-completion-in-a-command-scenario). Other sources using the same stream type and id remain open after a scoped close. A command without an event source id still closes that pair for every source.
 
-For per-stream parameters, seed events with `OnRoute(...)`. The static admission helper uses stream admission for these parameters under `On`. Advanced explicit stream folds inside `Provide()` can use `AdmitForStream<T>()`; the helper cannot inspect method-body calls.
+For per-stream parameters, seed events with `OnRoute(...)`. The static admission helper uses stream admission for these parameters under `On`. Advanced explicit stream folds inside `Handle()` can use `AdmitForStream<T>()`; the helper cannot inspect method-body calls.
 
 :::note[Advanced: framework concurrency verification]
 `AppendConcurrently(source, events)` exists to verify the framework's concurrency handling and is hidden from normal editor completion. Use it only for a specific, explicit need, not in ordinary application specs. Its behavior is unchanged: it works with or without decision mode, queues facts before the first execution, and appends them after response processing but before the owner's commit. The route overload preserves routing. Nested commands do not drain the outer queue. The hook does not add a guard to an unguarded command, and it refuses custom execution scopes whose ordering it cannot guarantee.
