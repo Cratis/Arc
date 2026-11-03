@@ -11,6 +11,14 @@ namespace Cratis.Arc.Commands;
 public class InvalidLookUpBy(Type commandType, string property) : Exception($"LookUpBy('{property}') on command '{commandType}' requires a read-model parameter and an existing command property.")
 {
     readonly string? _reason;
+    readonly Type? _providerType;
+
+    /// <summary>Initializes a refusal for an invalid provider-backed lookup declaration.</summary>
+    /// <param name="commandType">The command type.</param>
+    /// <param name="providerType">The declared provider type.</param>
+    /// <param name="reason">The safe declaration error.</param>
+    public InvalidLookUpBy(Type commandType, Type providerType, string reason)
+        : this(commandType, string.Empty, reason) => _providerType = providerType;
 
     /// <summary>
     /// Initializes a refusal for a lookup that cannot select this model's key.
@@ -22,5 +30,7 @@ public class InvalidLookUpBy(Type commandType, string property) : Exception($"Lo
         : this(commandType, property) => _reason = reason;
 
     /// <inheritdoc/>
-    public override string Message => _reason is null ? base.Message : $"LookUpBy('{property}') on command '{commandType}' is invalid: {_reason}.";
+    public override string Message => _providerType is not null
+        ? $"LookUpBy<{_providerType}> on command '{commandType}' is invalid: {_reason}."
+        : _reason is null ? base.Message : $"LookUpBy('{property}') on command '{commandType}' is invalid: {_reason}.";
 }

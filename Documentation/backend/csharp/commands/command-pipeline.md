@@ -3,17 +3,19 @@ title: Command pipeline
 description: Execute and await standalone Arc commands from application code.
 ---
 
-When a background job or application service needs the same command behavior as an HTTP caller, inject `ICommandPipeline`. It runs the model-bound authorization, validation, provisioning, handler, response handlers, command operations, and execution scopes without an HTTP round trip.
+Use `ICommandPipeline` to execute a model-bound command from a background job or application service without an HTTP round trip. Choose the DI scope, await execution, then check the result before reading its response. The pipeline runs authorization, validation, provisioning, the handler, response handlers, command operations, and execution scopes; invoking it is not equivalent to calling the handler method directly.
 
 :::tip[Declare work instead of writing a recovery stack]
 For immediate side effects chosen by a command, return [command operations](./operations/index.md). The pipeline awaits their execution and eligible compensation. Backend code and [CommandScenario](../testing/command-operations.md) can inspect recovery observations without moving recovery handling to the frontend.
 :::
 
-Mapped HTTP endpoints also send body-binding failures through resource-free authorization before returning validation. This path creates no command context or execution scopes, and emits command/validation spans just like other refusals. See [input binding](./input-binding.md#authorization-before-reporting-input-errors) for named-policy limits; direct pipeline callers already supply a bound instance.
+Direct calls supply a command instance, so HTTP body binding is not part of this procedure. Mapped endpoints have a separate refusal path for an unbound body: they check resource-free authorization before returning binding validation, without creating command context or execution scopes. That refusal still emits command/validation spans. See [input binding](./input-binding.md#authorization-before-reporting-input-errors) for the named-policy limits.
 
 ## Basic usage
 
-These complete caller types use `AddItemToCart`, `ICartService`, and the shared cart concepts from the [service-backed example](./model-bound/index.md#a-service-backed-command). Configure Arc and the example's service registration before resolving them.
+These caller types use `AddItemToCart`, `ICartService`, and the shared cart concepts from the [service-backed example](./model-bound/index.md#a-service-backed-command). Configure Arc and register that example's service before resolving a caller. Use the first form unless you have an existing command scope to share.
+
+Before using a response, [check the final command result](#command-results).
 
 ### Without a service provider
 
@@ -28,7 +30,7 @@ public class CartApplicationService(ICommandPipeline pipeline)
 }
 ```
 
-Each scope-free call creates and disposes its own DI scope. The returned task represents completed execution, including response handlers and scope completion. The caller must await it before using the result; returning the task from an asynchronous API, as above, preserves that contract.
+This scope-free call creates and disposes its own DI scope. Its task completes after response handlers and execution-scope completion, so awaiting it includes those stages. Returning the task from the caller above lets the next caller await the same work. Do not discard the task or read a response before completion.
 
 ### With a service provider
 
@@ -44,7 +46,7 @@ public class ScopedCartApplicationService(ICommandPipeline pipeline, IServicePro
 }
 ```
 
-Resolve this caller inside the existing scope you intend to share. Passing the root provider does not create a command scope. Scope-explicit calls use the supplied provider and leave its lifetime to the caller.
+Use this form only after resolving the caller inside the scope you intend to share. The pipeline uses the supplied provider and leaves disposal to you. Passing the root provider does not create a command scope and can give scoped dependencies the wrong lifetime.
 
 ## Execute for a specific tenant
 
@@ -68,7 +70,15 @@ public class TenantCartJob(ITenantScope tenants, ICommandPipeline pipeline)
 }
 ```
 
-`ITenantScope.Begin` selects a nonempty tenant for the current async flow. The explicit selection wins over the configured resolver, **including during an HTTP request** and when an authentication scheme selects a different principal. Nested scopes restore the outer tenant; disposal restores the previously resolved tenant. Disposal is idempotent. If an outer scope is disposed before an inner one, the inner tenant remains selected and the disposed outer tenant is skipped when the inner scope ends. The scope also works with `Validate`, queries, reads through `IReadModels`, and both typed and untyped execution, including cancellation-aware calls. Selecting a tenant does not grant authorization: enforce tenant access and establish a trusted principal separately when required. Tasks or timers started inside a scope capture its tenant even after the parent disposes it; do not reuse that captured context for unrelated work. Independent HTTP requests reset tenant selection when they enter Arc's request pipeline, and observable emissions restore the subscriber's tenant rather than inheriting the producer's scope. On ASP.NET Core that reset runs in Arc's startup filter, so it covers all application middleware, including middleware registered before `UseCratisArc()`, but not middleware added by another `IStartupFilter` registered before Arc's; do not resolve tenant-scoped services in such middleware. `ITenantScope` requires Arc's `TenantIdAccessor` as the effective `ITenantIdAccessor` registration. If you register a custom accessor (before or after Arc), resolving `ITenantScope` throws `ExplicitTenantScopeRequiresArcAccessor` rather than selecting a tenant that other services cannot see.
+`ITenantScope.Begin` selects a nonempty tenant for the current async flow. The explicit selection wins over the configured resolver, **including during an HTTP request** and when an authentication scheme selects a different principal. Nested scopes restore the outer tenant; disposal restores the previously resolved tenant and is idempotent. If you dispose an outer scope before an inner one, the inner tenant stays selected. Ending the inner scope then skips the disposed outer tenant.
+
+The same selection works with `Validate`, queries, reads through `IReadModels`, and typed or untyped execution, including cancellation-aware calls. It does not grant permission to use that tenant. Enforce tenant access and establish a trusted principal separately when required.
+
+Keep captured async work within the intended tenant lifetime. Tasks or timers started inside a scope capture its tenant even after the parent disposes the scope; do not reuse that captured context for unrelated work. Independent HTTP requests reset tenant selection on entry to Arc's request pipeline. Observable emissions restore the subscriber's tenant instead of inheriting the producer's scope.
+
+On ASP.NET Core, Arc's startup filter installs that reset for all application middleware, including middleware registered before `UseCratisArc()`. It cannot cover middleware added by another `IStartupFilter` registered before Arc's; do not resolve tenant-scoped services there.
+
+`ITenantScope` requires Arc's `TenantIdAccessor` as the effective `ITenantIdAccessor` registration. If a custom accessor is registered before or after Arc, resolving `ITenantScope` throws `ExplicitTenantScopeRequiresArcAccessor`. This prevents a selection that other services cannot see.
 
 **Create a new DI scope inside the tenant scope before resolving tenant-scoped services** such as Chronicle's event store or a `DbContext`. A service already resolved in an existing DI scope remains bound to that scope's original tenant, even if you change the current tenant. Scope-free pipeline `Execute` and `Validate` create their own DI scopes inside the tenant scope for you; if you pass an existing `IServiceProvider`, you are responsible for creating it after `Begin` and for disposing it. The same rule applies to other tenant-scoped reads.
 
@@ -105,7 +115,7 @@ var result = await pipeline.Execute(
     cancellationToken: cancellationToken);
 ```
 
-Use these cancellation extension overloads with Arc's cancellation-aware pipeline. A custom implementation of only `ICommandPipeline`, rather than `ICommandPipelineWithCancellation`, receives the compatibility call without a token. Awaiting the delayed command waits for its task; cancellation is handled through the pipeline's result/error path, so inspect the result rather than assuming every cancellation throws to your caller.
+These cancellation extension overloads forward the token to Arc's cancellation-aware pipeline. A custom implementation of only `ICommandPipeline`, without `ICommandPipelineWithCancellation`, receives the compatibility call without a token. Awaiting the delayed command waits for its task. Cancellation follows the pipeline's result/error path, so inspect the result; do not rely on every cancellation throwing to the caller.
 
 ## Command results
 
@@ -161,7 +171,7 @@ if (check.IsSuccess)
 }
 ```
 
-`Validate` also has a scope-explicit overload and [severity thresholds](./validation-severity-filtering.md). It skips `Provide()`, `Handle()`, response processing, and execution scopes, but still runs context providers and command filters. It is not a guarantee that collaborators are side-effect free or that the later execution will succeed. See [pre-flight validation](./command-validation.md).
+Use this two-call flow only when early feedback is useful; it is not required before execution. `Validate` has a scope-explicit overload and [severity thresholds](./validation-severity-filtering.md). It skips `Provide()`, `Handle()`, response processing, and execution scopes, but context providers and command filters still run application code. They need not be side-effect free, and state can change before execution. The fragment therefore checks the eventual execution result too. See [pre-flight validation](./command-validation.md).
 
 ## Commands without a request
 
@@ -169,4 +179,4 @@ Commands triggered by a Chronicle occurrence — a schedule, startup, shutdown o
 
 ## Context and authentication
 
-The current correlation context is used when available. Authorization uses the HTTP request principal when a request exists; otherwise it uses an explicitly established server-side principal. For trusted background execution, see [server-side authorization scopes](./model-bound/authorization.md#executing-commands-from-server-side-code). Do not assume a background command is automatically authorized or that a fresh DI scope creates a tenant or user identity.
+A fresh DI scope supplies service lifetimes, not a user or tenant identity. The pipeline uses the current correlation context when available. For authorization, it uses the HTTP request principal when one exists; otherwise it uses an explicitly established server-side principal. Before running protected work in a background process, follow [server-side authorization scopes](./model-bound/authorization.md#executing-commands-from-server-side-code). Background execution is not automatically authorized.

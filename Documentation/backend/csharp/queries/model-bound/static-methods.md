@@ -8,11 +8,13 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Method requirements
 
+If a method compiles but has no query endpoint, check its declaration and return shape first. Arc discovers methods by these rules, not by whether their names sound like queries.
+
 Declare queries as non-generic **public static** methods on a `[ReadModel]` type. The read-model type itself may be internal. Give each query a descriptive name and return the declaring model or a [supported wrapper around it](return-types.md). Non-public static helpers, local functions, compiler-generated methods, and property accessors are not query endpoints. Ordinary helper methods returning another type are not query endpoints. Avoid overloaded query names: the method name is part of the query's identity.
 
 A method with a parameter of its own read-model type is **never a query**. The parameter can be nullable or non-nullable, have any name, and appear in any position. This is an exact type check: a collection of the model, a different read-model type, or a service parameter does not trigger the exclusion. Adding `[Query]` to a self-parameter method is an [ARC0026](../../code-analysis/ARC0026.md) error; remove the marker, not the current-state parameter.
 
-Dependencies are resolved by type, not by parameter position. C# still requires optional parameters to follow required parameters, including required service parameters.
+In a query signature, services such as the MongoDB collection come from DI, while [query arguments](query-arguments.md) carry the caller's input. Arc distinguishes them by type, not by parameter position. C# still requires optional parameters to follow required parameters, including required service parameters.
 
 **Why public only?** A non-public helper must never become reachable over HTTP merely because it returns the read model. Earlier versions supported internal query methods; those methods are no longer exposed or given TypeScript query proxies. [ARC0029](../../code-analysis/ARC0029.md) warns on non-public query-shaped static methods and non-public statics marked `[Query]`. Make a method public only when you intend to expose it, and review its authorization before doing so. `[Query]` cannot override visibility.
 
@@ -90,7 +92,7 @@ public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 
 `Search` composes the MongoDB fluent query **before** materializing it. `FindAsync()` returns a cursor, not a fluent query; do not call `Limit()` or `Skip()` on that cursor. The fixed 100-row cap here is not Arc paging and supplies no total-count metadata.
 
-Arc awaits the task. `ById` can return null successfully in the model-bound pipeline; that is not an automatic HTTP 404. Do not catch database failures and return null or an empty list: that hides a failure as a successful read.
+Arc awaits the task before producing the result. For `ById`, a successful null result means no account matched; the model-bound pipeline does not turn it into an automatic HTTP 404. Check the [result verdict](../query-pipeline.md#query-result-metadata) before interpreting the data. Do not catch database failures and return null or an empty list: that hides a failure as a successful read.
 
 ## Observable methods
 

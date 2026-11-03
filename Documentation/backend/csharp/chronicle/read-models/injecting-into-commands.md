@@ -25,8 +25,9 @@ Use the first shape that expresses the key:
 
 1. Take the read model as a plain `Handle` parameter. Use `[ReadProtection(ReadProtectionMode.On)]` where the rule must hold under concurrency.
 2. Use `[LookUpBy(nameof(Command.Property))]` when a command property supplies another model's key.
-3. Declare a per-stream model and take it as a plain parameter when state belongs to the command's stream.
-4. Only when no parameter can express the key or stream id, take `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature. See the [stream example](#read-a-projection-within-one-stream).
+3. Use `[LookUpBy<CallerSubject>]` when the selected caller's exact `sub` claim supplies the key, or a custom provider for another caller claim. No client-supplied command property is needed.
+4. Declare a per-stream model and take it as a plain parameter when state belongs to the command's stream.
+5. Only when no parameter can express the key or stream id, take `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature. See the [stream example](#read-a-projection-within-one-stream).
 
 New application code does not take `IDecisionReads` or `DecisionRead<T>` in `Handle()`. Those advanced shapes remain supported, but the plain parameter keeps the decision independent of acquisition and makes it directly specifiable.
 
@@ -69,6 +70,42 @@ public record UseReducerReadModelInHandle(EventSourceId AccountId)
 ```
 
 The injection signature is the same for classic reducers, [self-reducing models](./index.md#self-reducing-read-models) (Chronicle 19.58.0+), fluent projections, and model-bound projections, including passive models. A self model needs no separate reducer registration in Arc: Chronicle's discovered reducer set supplies it. Existing instances are read through `IReadModels` and released before injection; absent self-model state resolves to null. Under `Off`, none of these snapshots protects a later append against concurrent changes. Under `On`, a model that read protection can guard is read fresh and guarded, and a reducer that it cannot guard is refused. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
+
+## Key a read by the caller
+
+Use the generic attribute on a read-model `Handle` parameter when the caller owns the state. This dependency fragment uses the same `LedgerBalance` and `LedgerSettled` application types as above:
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+
+[Command]
+public record SettleMyLedger
+{
+    public LedgerSettled Handle([LookUpBy<CallerSubject>] LedgerBalance balance) =>
+        new(balance.Balance);
+}
+```
+
+An override's lookup declaration replaces the same declaration on the base method; different provider types or a mix of provider and property lookups remain conflicts.
+
+`CallerSubject` reads exactly `sub`; it does not map `NameIdentifier`, fall back to a name, or inspect actor-chain claims. It requires an authenticated, non-system caller and one distinct non-empty value. Repeated identical values are one value; different values are ambiguous. Claim types and values use ordinal comparison.
+
+For an application claim, derive from the abstract `CallerClaim`:
+
+```csharp
+using Cratis.Arc.Commands;
+
+public sealed class CallerLogin() : CallerClaim("login");
+```
+
+Then use `[LookUpBy<CallerLogin>]` on the read-model parameter. For a computed key, implement `IReadModelKeyProvider.Resolve(ReadModelKeyContext)` and return `ReadModelKeyLookup.Found(key)`, `.Missing` or `.Ambiguous`. `Found(null)` is invalid; a default result is missing. The context contains only the immutable `Caller` and target `ReadModelType`. `Caller.Single(claimType)` applies the same distinct-value rule. A provider must be a stateless, thread-safe class with a public parameterless constructor. One instance is shared: no services, DI, IO or ambient principal access is available to it.
+
+Arc captures the selected caller before command context providers run. A scheme-selected principal or an on-behalf-of represented identity is the caller, not the actor. Later observable principal replacement or in-place claim mutation refuses resolution. This also applies to validation preflight and validation nested in execution.
+
+The key selects the instance in `Off`, `Measure` and `On`; it does not enable protection. `Off` and `Measure` remain unguarded. Under `On`, the existing admission, freshness and concurrency checks still apply. `[Unprotected]` exempts guarding, not caller/key checks. A provider key must have safe, non-empty exact wire text in every mode: wildcard, unspecified, surrounding whitespace and ambiguous `#` text are refused.
+
+A missing or ambiguous key, changed caller or throwing provider is an authorization refusal. There is no convention or client-key fallback, even for nullable parameters. Once a valid key is found, ordinary nullable-versus-required model absence rules apply. Do not combine the generic and string attributes, or declare two providers. Neither form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
 
 ## In `Provide()`
 
@@ -302,6 +339,8 @@ What differs is where the read model is loaded from and what key loads it, inclu
 ## Testing
 
 Specify a decision by calling `Handle(readModel)` directly. To exercise the pipeline, use `CommandScenario<T>` and give state with `Given.ForEventSource(id).ReadModel(instance)`, including for protected plain parameters. The real protected read still runs before the pin supplies its instance; admission and conflict detection are unchanged. Specs never configure decision reads or simulate concurrency. Per-stream models and computed-key reads in `Handle()` use given events. See [Chronicle testing](../../testing/chronicle.md#give-a-protected-read-model-its-state).
+
+For caller-derived keys, give `CommandScenario<T>` a selected principal through its scenario services before executing the command; there is no `GivenCaller` helper. Arrange the matching read-model state under that caller's key. Direct `Handle(readModel)` calls still test the decision without exercising lookup. To test refusal, execute through the pipeline with a missing or ambiguous caller claim rather than passing a fabricated model.
 
 ## See also
 

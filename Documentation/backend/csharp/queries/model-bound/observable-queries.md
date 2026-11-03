@@ -43,9 +43,7 @@ public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 
 `ObserveSingle()` and `ObserveById()` emit `null` — not an error, and not a completed observable — when there is no document to report: the document was deleted, an update moved it out of the filter, or the initial query never found one. The subscription stays open, so if a document with the same key reappears later, subscribers start receiving it again.
 
-This is also what happens when a `[ReadModel]` marked `[RemovedWith<T>]` is removed: removal hard-deletes the backing document, and an active subscriber sees that removal as this same `null` emission — "the read model was removed" is not a special case to handle separately.
-
-Guard against it on the frontend the same way you guard against "not loaded yet" — with `result.hasData` (or `result.isReady` if you need to tell "no result yet" apart from "ready, but nothing matches"):
+Check the result before rendering absence. While `ObserveAccount.use({ id: accountId })` is waiting, show the loading state. Once it is ready, handle denied and unsuccessful results before using `hasData` to decide that no account matches. A successful null value leaves the subscription open for a later matching document:
 
 ```tsx
 // ObserveAccount is the generated proxy for the query method above
@@ -55,6 +53,9 @@ if (!result.isReady) {
     return <Spinner />;
 }
 
+if (!result.isAuthorized) return <>Access denied</>;
+if (!result.isSuccess) return <>Query failed</>;
+
 if (!result.hasData) {
     return <NotFound />;
 }
@@ -63,6 +64,8 @@ return <AccountDetails account={result.data} />;
 ```
 
 See [Observing Collections](../../mongodb/observing-collections.md#when-the-observed-document-is-gone) for the MongoDB-level detail.
+
+This is also what happens when a `[ReadModel]` marked `[RemovedWith<T>]` is removed: removal hard-deletes the backing document, and an active subscriber sees that removal as this same `null` emission — "the read model was removed" is not a special case to handle separately.
 
 The method must still return the declaring read model or a supported wrapper around it. `Task<ISubject<T>>` is allowed; arbitrary `IObservable<T>` is not a model-bound discovery shape. See [return types](return-types.md).
 
@@ -85,22 +88,22 @@ Test interception failures through both direct transports, terminal error delive
 
 MongoDB `Observe()` reads the Arc query context and performs [provider-specific paging](paging.md#observable-queries-with-paging). Arbitrary subjects do not get automatic per-emission slicing.
 
-For the collection `Observe()` and `ObserveSingle()` producers above, MongoDB watcher failures are **logged and followed by completion/disposal**, not forwarded through `OnError`. Per-change processing failures are logged separately and the watcher may continue. Therefore `Do(onError: ...)` cannot guarantee notification of these source failures. Downstream Rx operator errors are a separate error channel. Monitor provider logs and stream health; completion does not prove that the data is current.
+For the collection `Observe()` and `ObserveSingle()` producers above, MongoDB logs observation and change-dispatch failures and forwards them to subscribers through `OnError` before cleaning up the observation. Normal cancellation, disposal, and completion end quietly, without an error notification. After a failed observation, create a new observation rather than reusing the terminated subject.
 
 ## Waiting for the first HTTP result
 
-For MongoDB snapshots, use `waitForFirstResult=true` so Arc subscribes, receives the first emission, and disposes that subscription. Waiting defaults to 30 seconds; a positive `waitForFirstResultTimeout` overrides it in seconds, and timeout returns 408.
+For a MongoDB snapshot, use `waitForFirstResult=true`: Arc subscribes and waits for the first result that emission guards allow, then disposes the subscription. A suppressed emission does not restart the deadline. This returns one result rather than opening a connection for later updates; denial, an error, or completion can end the wait without a successful result. Waiting defaults to 30 seconds; a positive `waitForFirstResultTimeout` overrides it in seconds, and timeout returns 408. A timeout means the wait expired, not that the collection is empty.
 
-A no-wait snapshot neither subscribes nor disposes the subject. MongoDB's `LifetimeAwareSubject` has no readable `Value` property, even after buffering an emission, so this request returns 202 with `isReady: false`. Because `Observe()` starts its watcher eagerly, it can leave that watcher running. Reserve no-wait snapshots for producers with a readable current value and verified cleanup on the no-subscription path.
+A no-wait snapshot neither subscribes nor disposes the subject. MongoDB's `LifetimeAwareSubject` has no readable `Value` property, even after buffering an emission, so this request returns 202 with `isReady: false`. That is no current result, not a successful empty collection. Because `Observe()` starts its watcher eagerly, it can leave that watcher running. Reserve no-wait snapshots for producers with a readable current value and verified cleanup on the no-subscription path.
 
 ```bash
 curl --include 'https://localhost:5001/api/accounts/observe?waitForFirstResult=true&waitForFirstResultTimeout=10'
 ```
 
-Use a trusted local certificate and your application's normal authentication for this protected example. This request waits for a first emission, **not a change since the previous request**. See [cURL workflows](../using-observable-queries-with-curl.md) for SSE and bounded repeated polling.
+Use a trusted local certificate and your application's normal authentication for this protected example. This request waits for a first allowed result, **not a change since the previous request**. See [cURL workflows](../using-observable-queries-with-curl.md) for SSE and bounded repeated polling.
 
 > [!WARNING]
-> Observable HTTP snapshots currently bypass [read-model interception](../read-model-interception.md). Produce only data the caller is allowed to receive; do not depend on streaming-only masking to protect a snapshot endpoint.
+> Observable HTTP snapshots apply [read-model interception](../read-model-interception.md) before emission guards decide whether to return the data. Interception does not replace query authorization or owner-scoped data selection. Produce only rows the caller may read; use [emission guards](../observable-query-emission-guards.md) when permissions must be checked during delivery.
 
 ## Ahead-of-time compilation
 

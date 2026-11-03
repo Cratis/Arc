@@ -98,7 +98,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         var returned = ReturnedBy(body);
-        var straight = IsStraight(body);
+        var straight = IsStraight(body, model);
         parameters.Bind(command, body, model);
         var generated = parameters.Generated.ToList();
         var validatedGenerated = parameters.Validated.ToList();
@@ -327,7 +327,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
     static bool IsReturnedOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations");
 
-    static bool IsStraight(SyntaxNode body) => body is not BlockSyntax block ||
+    static bool IsStraight(SyntaxNode body, SemanticModel model) => ReturnedEventList.Read(body, model) is not null || body is not BlockSyntax block ||
         (block.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) && block.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
 
     static bool ProvisionStaysInCode(INamedTypeSymbol command, CommandReadsReader reads) => HasProvide(command) && !reads.ProvisionStatesReadsOnly;

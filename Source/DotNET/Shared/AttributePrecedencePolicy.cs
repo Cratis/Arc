@@ -19,6 +19,9 @@ internal static class AttributePrecedencePolicy
     /// </summary>
     internal const string LookUpByName = "Cratis.Arc.Commands.LookUpByAttribute";
 
+    /// <summary>Metadata name of the generic lookup declaration.</summary>
+    internal const string LookUpByProviderName = "Cratis.Arc.Commands.LookUpByAttribute`1";
+
     /// <summary>
     /// Metadata name of the advisory declaration.
     /// </summary>
@@ -86,7 +89,9 @@ internal static class AttributePrecedencePolicy
     /// <param name="property">The declared property, or null without a declaration.</param>
     /// <param name="isReadModel">Whether the parameter is a read model.</param>
     /// <param name="propertyExists">Tests for a command property.</param>
+    /// <param name="provider">Whether a provider is declared and whether lookup forms conflict.</param>
     /// <returns>The selected property and any declaration conflict.</returns>
-    internal static (string? Property, string? Conflict) ResolveLookup(string? property, bool isReadModel, Func<string, bool> propertyExists) =>
+    internal static (string? Property, string? Conflict) ResolveLookup(string? property, bool isReadModel, Func<string, bool> propertyExists, (bool HasProvider, bool Conflicting) provider = default) =>
+        provider.Conflicting ? (null, LookupConflict) : provider.HasProvider ? (null, isReadModel ? null : LookupConflict) :
         property is null ? (null, null) : isReadModel && propertyExists(property) ? (property, null) : (null, LookupConflict);
 }

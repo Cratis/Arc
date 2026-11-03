@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
@@ -55,6 +56,48 @@ public class ProducesConditionResolver(ScreenplayDiagnostics diagnostics)
         }
 
         return condition;
+    }
+
+    /// <summary>Reads a guard, following only immutable Boolean aliases and admitted equality calls.</summary>
+    /// <param name="guard">The original guard expression.</param>
+    /// <param name="scope">The command and semantic model.</param>
+    /// <param name="location">The diagnostic location.</param>
+    /// <returns>The proven condition, or null.</returns>
+    internal ConditionModel? ReadGuard(ExpressionSyntax guard, ProducesScope scope, string location) => ReadGuard(guard, scope, location, new(SymbolEqualityComparer.Default));
+
+    ConditionModel? ReadGuard(ExpressionSyntax guard, ProducesScope scope, string location, HashSet<ISymbol> visited)
+    {
+        if (guard is ParenthesizedExpressionSyntax parentheses)
+        {
+            return ReadGuard(parentheses.Expression, scope, location, visited);
+        }
+        if (guard is PrefixUnaryExpressionSyntax negation && negation.IsKind(SyntaxKind.LogicalNotExpression))
+        {
+            return ConditionReader.Invert(ReadGuard(negation.Operand, scope, location, visited));
+        }
+        if (guard is IdentifierNameSyntax && scope.SemanticModel.GetSymbolInfo(guard).Symbol is ILocalSymbol { Type.SpecialType: SpecialType.System_Boolean })
+        {
+            return ReadAlias(guard, scope, location, visited);
+        }
+
+        return guard is InvocationExpressionSyntax invocation
+            ? _conditions.ReadEquality(invocation, scope, location)
+            : _conditions.Read(guard, scope.SemanticModel, scope.Command, location, scope.Bindings);
+    }
+
+    ConditionModel? ReadAlias(ExpressionSyntax guard, ProducesScope scope, string location, HashSet<ISymbol> visited)
+    {
+        var local = (ILocalSymbol)scope.SemanticModel.GetSymbolInfo(guard).Symbol!;
+        var body = guard.Ancestors().FirstOrDefault(node => node is BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
+        if (!visited.Add(local) || body is null)
+        {
+            return null;
+        }
+        if (!CommandAuthoringReader.IsUnchanged(local, body, scope.SemanticModel))
+        {
+            return null;
+        }
+        return LocalValueOrigins.Values(local, scope.SemanticModel).ToArray() is [var initializer] ? ReadGuard(initializer, scope, location, visited) : null;
     }
 
     /// <summary>
@@ -126,7 +169,7 @@ public class ProducesConditionResolver(ScreenplayDiagnostics diagnostics)
             return null;
         }
 
-        var condition = _conditions.Read(guard, scope.SemanticModel, scope.Command, location, scope.Bindings);
+        var condition = ReadGuard(guard, scope, location);
         var resolved = isPositive ? condition : ConditionReader.Invert(condition);
         if (resolved is null)
         {

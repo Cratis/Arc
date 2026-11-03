@@ -3,7 +3,7 @@ title: Command execution scopes
 description: Observe model-bound command execution before filters and after response processing.
 ---
 
-A pre-execution filter cannot report how a command finished. An execution scope brackets model-bound execution: begin before the filters, then complete with the outcome after the handler and response processing. Use it for timing or for a storage coordination mechanism you actually implement.
+Timing a command or coordinating a storage lifetime requires a callback after handling as well as before it. An execution scope supplies that pair around model-bound execution. It begins before command filters and completes after handling and response processing, including failure paths. The hook lets an integration coordinate its own resource; it does not supply a transaction by itself.
 
 :::tip[Use operations for per-command side effects]
 Prefer [command operations](./operations/index.md), rather than a custom scope and rollback stack, for work chosen by one command. Arc manages operation failure handling and optional compensation. Scopes remain the integration mechanism for cross-cutting lifetime and commit concerns.
@@ -11,18 +11,20 @@ Prefer [command operations](./operations/index.md), rather than a custom scope a
 
 ## How it works
 
-Arc discovers `ICommandExecutionScope` implementations and resolves them from the command's service scope. Once a handler and context are available, the pipeline:
+Arc discovers `ICommandExecutionScope` implementations and resolves them from the command's service scope. Authorization preparation and role checks can reject a command before scopes begin. Once a handler and context are available and that preparation allows execution, the pipeline:
 
 1. Materializes the scope instances and calls synchronous `Begin(context)` on each.
 2. Awaits `BeginAsync(context)` sequentially on scopes implementing `IAsyncCommandExecutionScope`, in the same order.
 3. Runs filters, resolves provided data and handler arguments, awaits `Handle()`, and processes its response.
 4. Calls asynchronous `Complete(context, result)` in reverse scope order, including when validation fails or execution throws.
 
-`Begin` is synchronous so ambient state it establishes can flow into execution. Each materialized scope completes once, but its `Begin` may never have run if an earlier scope threw. Missing-handler or context/scope-construction failures before scopes are available do not run this lifecycle. Pre-flight `Validate` does not run execution scopes.
+Synchronous `Begin` lets ambient state flow into the execution that follows. Plan for partial initialization: outside command-operation participation, each materialized scope completes once, even if its `Begin` never ran because an earlier scope threw. For commands whose declared return type can contain operations, only scopes whose begin was attempted complete, including the scope whose begin threw. Completion must therefore tolerate missing state. A missing handler or a failure constructing context or scopes can occur before this lifecycle is available. Pre-flight `Validate` skips it entirely.
 
-For asynchronous initialization, implement `IAsyncCommandExecutionScope` alongside the ordinary lifecycle. All synchronous begins finish first, so ambient state is established before asynchronous work starts. Context values are already built. Honor `context.CancellationToken`; cancellation or initialization failure skips filters and follows the same completion cleanup as other execution failures. Set ambient `AsyncLocal` state in synchronous `Begin`, not inside `BeginAsync`: changes inside an async method do not flow back to its caller. Pre-flight `Validate` skips both synchronous and asynchronous execution scopes.
+Add `IAsyncCommandExecutionScope` when initialization must await work. All synchronous begins finish before asynchronous initialization starts, and context values are already built. Honor `context.CancellationToken`: cancellation or initialization failure skips filters and enters completion cleanup. Establish ambient `AsyncLocal` state in synchronous `Begin`. Changes made inside `BeginAsync` do not flow back to the caller. Neither initialization form runs during pre-flight `Validate`.
 
-With no asynchronous scopes, the existing lifecycle is unchanged. Relative discovery order is unspecified; keep scopes independent. An exception in one `Complete` is merged into the result and does not prevent remaining scopes from completing.
+With no asynchronous scopes, the lifecycle has no asynchronous initialization stage. Keep scopes independent because their relative discovery order is unspecified. If one `Complete` throws, the pipeline merges the exception into the result and still completes the remaining scopes.
+
+The diagram's authorization and validation box represents command filters. It does not place all authorization work after scope initialization: preparation can reject earlier, while a scope can begin before an authorization filter gives its verdict.
 
 ```mermaid
 flowchart LR
@@ -36,7 +38,7 @@ flowchart LR
 
 ## Implementing a custom execution scope
 
-This complete scope records elapsed time through .NET logging. It requires a resolvable `ILogger<CommandTimingScope>` and a logging provider to observe output. It stores state in the per-command values dictionary, so shared scope instances do not share timers across commands.
+Use this timing scope to observe the lifecycle without committing business data. It requires a resolvable `ILogger<CommandTimingScope>` and a logging provider to see output. The timer lives in the per-command values dictionary, so even a shared scope instance keeps each command's timer separate.
 
 ```csharp
 using System;
@@ -76,17 +78,17 @@ public class CommandTimingScope(ILogger<CommandTimingScope> logger) : ICommandOp
 
 The timing scope implements `ICommandOperationExecutionScope`, declaring that it does not commit business changes. This makes its lifetime behavior explicit for operation-bearing commands while preserving ordinary execution-scope behavior. A scope that actually commits storage must report its real commitment facts instead; see the [supported operation scope profile](./operations/reference.md#supported-scope-profile).
 
-If `Begin` did not run, completion safely does nothing. This duration includes response processing and any scopes that complete before this one. Another scope can still change the outcome afterward, so the log deliberately describes success **at this completion callback**, not an immutable final verdict.
+If `Begin` did not run, no timer exists and completion does nothing. A recorded duration includes response processing and scopes that completed before this one. Read the log's success field as success **at this completion callback**. Another scope can still fail afterward; only the returned final result describes the completed invocation.
 
 ## Mutating the result — handle with care
 
-`Complete` receives a mutable `CommandResult`. Add failures when completing your concern fails; never erase earlier authorization, validation, or exception outcomes. Removing failures could report success after another scope already acted on failure.
+`Complete` receives a mutable `CommandResult`, so a completion failure can change the eventual verdict. Add failures from your concern without erasing earlier authorization, validation, or exception outcomes. Another scope may already have acted on a failure; removing it would report success inconsistent with that action.
 
 A response may already be present in the callback context. It is not proof that every scope will succeed. After completion, the pipeline clears the **result's** response if execution is unsuccessful. See [response phase availability](./response-value-handlers.md#response-object-availability).
 
 ## Optional integrations
 
-Standalone Arc supplies this extension point, not an automatic database transaction. Your own scope must implement any begin/commit/rollback behavior it promises, including failure and nesting semantics.
+A standalone Arc scope supplies lifecycle callbacks. If you use them for a database transaction, your implementation owns beginning, committing, rolling back, and handling nested or failed invocations. A failure result cannot undo an arbitrary service write by itself.
 
 `Cratis.Arc.Chronicle` supplies a separate `TransactionalCommandScope`. Its event-store-specific guarantees are documented under [Chronicle transactional commands](./transactional-commands.md); they do not apply to arbitrary service writes.
 

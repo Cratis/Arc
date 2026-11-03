@@ -124,7 +124,7 @@ In every one of these cases the subject emits `default` — `null` for a referen
 
 > **Note**: A `[ReadModel]` marked `[RemovedWith<T>]` hard-deletes its backing document when the removal event fires. An active `ObserveSingle()`/`ObserveById()` subscriber sees that removal exactly as described above — "the read model was removed" is this same `null` emission, not a special case.
 
-On the frontend, guard against it the same way you guard against "still loading" — check `result.hasData` (and `result.isReady` if you need to distinguish "no result yet" from "ready, but nothing matches"):
+On the frontend, show the loading state while the query is pending, then handle denied and unsuccessful results before checking `hasData`. A ready result does not by itself mean success. Only a successful result without data belongs in the `NotFound` branch; a failed observation needs error handling instead. The following example uses the same decision order as the [model-bound consumer](../queries/model-bound/observable-queries.md#when-there-is-no-matching-document):
 
 ```tsx
 const [result] = GetAccountObservable.use(accountId);
@@ -132,6 +132,9 @@ const [result] = GetAccountObservable.use(accountId);
 if (!result.isReady) {
     return <Spinner />;
 }
+
+if (!result.isAuthorized) return <>Access denied</>;
+if (!result.isSuccess) return <>Query failed</>;
 
 if (!result.hasData) {
     return <NotFound />;

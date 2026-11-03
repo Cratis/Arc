@@ -168,6 +168,11 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
             return null;
         }
 
+        if (ReturnedEventList.Read(body, model) is { } list)
+        {
+            return ListIdentifier(list, body, model, generated);
+        }
+
         // Wrappers do not update command context; promotion would retarget plain sibling events.
         if (HasPlainSiblingEvent(tuple, model))
         {
@@ -210,6 +215,12 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
     static List<VariableDeclaratorSyntax> LocalsOf(SyntaxNode body) => body is BlockSyntax block
         ? block.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList()
         : [];
+
+    string? ListIdentifier(ReturnedEventList list, SyntaxNode body, SemanticModel model, IReadOnlyList<PropertyModel> generated)
+    {
+        var path = Sources.ReadGeneratedPath(list.Events[0].Destination, model);
+        return path is not null && generated.Any(property => property.Name == path) && !AggregateRootBehaviors.ReachedFrom(body, model).Any() ? path : null;
+    }
 
     void AddUnavailable(IParameterSymbol parameter, string name, string failure)
     {

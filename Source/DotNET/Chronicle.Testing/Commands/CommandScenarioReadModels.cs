@@ -6,7 +6,8 @@ using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.ReadModels;
-using Cratis.Chronicle.Testing.ReadModels;
+using Cratis.Chronicle.Testing;
+using Cratis.Chronicle.Testing.Events;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
@@ -21,13 +22,17 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// protected decision reads fold.
 /// </param>
 /// <param name="commandLog">The legacy command log whose successful appends are mirrored into a private observation log.</param>
+/// <param name="foldStore">
+/// The testing store whose reducers and projections materialize read models, borrowed for each fold; defaults to the
+/// process-wide <see cref="Defaults.Instance"/> store.
+/// </param>
 /// <remarks>
 /// Seeding events is deliberately type-agnostic: a test states the events that happened for an event source, and any
 /// read model a command injects for that source is materialized from those events on demand — mirroring how the real
 /// system derives read models from the event log. Pinned instances take precedence when a test wants to assert against
 /// a specific read model value directly.
 /// </remarks>
-internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null, IEventSequence? commandLog = null) : IReadModels, IGivenReadModelInstances, IDisposable
+internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null, IEventSequence? commandLog = null, EventStoreForTesting? foldStore = null) : IReadModels, IGivenReadModelInstances, IDisposable
 {
     readonly Dictionary<(Type ReadModelType, string EventSourceId), object> _instances = [];
     readonly Dictionary<string, List<object>> _events = [];
@@ -86,12 +91,12 @@ internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEven
             var appended = await eventLog.GetFromSequenceNumber(EventSequenceNumber.First, eventSourceId);
             if (appended.Count > 0)
             {
-                return (await ProjectReadModel(readModelType, "ProcessAppendedEvents", [appended]))!;
+                return (await ReadModelFolds.Materialize(readModelType, foldStore ?? (EventStoreForTesting)Defaults.Instance.EventStore, new ReadModelFoldInput.Appended(appended)))!;
             }
         }
         else if (_events.TryGetValue(eventSourceId.Value, out var events) && events.Count > 0)
         {
-            return (await ProjectReadModel(readModelType, "ProcessEventsFor", [eventSourceId, events]))!;
+            return (await ReadModelFolds.Materialize(readModelType, foldStore ?? (EventStoreForTesting)Defaults.Instance.EventStore, new ReadModelFoldInput.Seeded(eventSourceId, events)))!;
         }
 
         // Nothing seeded for this event source id, or none of it concerns this read model (the projection yields no
@@ -149,23 +154,4 @@ internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEven
     /// <returns>True if at least one prior event was seeded for that exact source.</returns>
     internal bool HasSeededEventsFor(string identifier) =>
         _events.TryGetValue(identifier, out var events) && events.Count > 0;
-
-    static async Task<object?> ProjectReadModel(Type readModelType, string processMethod, object[] arguments)
-    {
-        // ReadModelScenario<T> is Chronicle's own engine for materializing a read model from events through its real
-        // reducer or projection — we build on it here rather than reimplementing projection. Reflection is used only
-        // because it is generic and the read model type is known at runtime. No initial state is supplied: an explicit
-        // one makes the read model exist even when none of the events concern it, whereas production only has a read
-        // model once an event it handles has happened, so the instance is null when the events are unrelated to it.
-        // We read the materialized Instance and deliberately do NOT route through its ReadModels facade: that facade
-        // throws ("Read model returned null") when a read model does not exist instead of returning null, which would
-        // break the nullable "does not exist" semantics command-scoped code relies on.
-        var scenarioType = typeof(ReadModelScenario<>).MakeGenericType(readModelType);
-        var scenario = Activator.CreateInstance(scenarioType, [null])!;
-
-        var processTask = (Task)scenarioType.GetMethod(processMethod)!.Invoke(scenario, arguments)!;
-        await processTask;
-
-        return scenarioType.GetProperty("Instance")!.GetValue(scenario);
-    }
 }

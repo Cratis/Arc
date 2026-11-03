@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
@@ -49,9 +50,17 @@ internal static class CommandReadModelLookup
     {
         var protect = mode == ReadProtectionMode.On &&
             !Attribute.IsDefined(parameter, typeof(UnprotectedAttribute)) && !Attribute.IsDefined(parameter.ParameterType, typeof(UnprotectedAttribute));
+        var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
+        var provider = CommandAttributePolicy.ResolveKeyProvider(parameter, context.Type);
+        if (provider is not null)
+        {
+            var value = ReadModelKeyProviders.Resolve(provider, new(parameter.ParameterType, context.Type, context.ServiceProvider?.GetService<ICurrentPrincipalAccessor>()?.Current, logger));
+            keyText = string.Empty;
+            return CallerReadModelKeyLookup.Resolve((value, parameter.ParameterType), traversal, protect, key => KeyFor(key, parameter.ParameterType, traversal, false, out _));
+        }
+
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
         var configuration = context.ServiceProvider?.GetService<IConfiguration>();
-        var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
         var properties = CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
         if (lookup is not null)
         {

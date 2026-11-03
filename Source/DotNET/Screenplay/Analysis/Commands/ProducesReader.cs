@@ -102,6 +102,19 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         return produces.Count > 0 ? Deduplicate(produces) : withholding.ReadSignature(handlers, location);
     }
 
+    /// <summary>Reads an action with only its classified request-body parameter admitted as command input.</summary>
+    /// <param name="controller">The controller declaring the action.</param>
+    /// <param name="handler">The action being read.</param>
+    /// <param name="input">The request-body parameter already classified by the controller reader.</param>
+    /// <param name="location">The action's source location.</param>
+    /// <returns>The recovered productions.</returns>
+    internal IEnumerable<ProducesModel> ReadController(INamedTypeSymbol controller, IMethodSymbol handler, IParameterSymbol? input, string location)
+    {
+        var reader = new ProducesReader(models, aggregates, diagnostics, authoringOnlyConstructs) { Types = Types, Definitions = Definitions };
+        reader._mappings.ControllerInput = input;
+        return reader.Read(controller, [handler], location);
+    }
+
     /// <summary>
     /// Removes productions the source declared more than once, conservatively merging their eligibility flags.
     /// </summary>
@@ -188,6 +201,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             var production = new ProducesModel(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
+                CodeMappedProperties = _mappings.CodeMappedProperties.ToArray(),
                 UnavailableCondition = unavailableCondition,
                 UnavailableDestination = unavailableDestination,
                 UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
