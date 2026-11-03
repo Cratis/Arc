@@ -100,7 +100,7 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
             else
             {
-                arguments[i] = ParameterDependencyResolver.Resolve(
+                arguments[i] = await ParameterDependencyResolver.ResolveAsync(
                     serviceProvider,
                     parameter,
                     _ => new CannotResolveCommandDependency(parameter));

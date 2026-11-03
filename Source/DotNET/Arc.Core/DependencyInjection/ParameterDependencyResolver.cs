@@ -36,6 +36,34 @@ static class ParameterDependencyResolver
             throw new CannotResolveDependency(parameter, failure);
         }
 
+        return Complete(serviceProvider, parameter, dependency, createException);
+    }
+
+    /// <summary>
+    /// Resolves a dependency for a parameter, awaiting resolvers that implement <see cref="IAsyncParameterDependencyResolver"/>.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider to resolve from.</param>
+    /// <param name="parameter">The parameter to resolve.</param>
+    /// <param name="createException">Callback for creating an exception when a non-nullable parameter cannot be resolved or resolves to null.</param>
+    /// <returns>The resolved dependency, or null when the parameter is nullable.</returns>
+    /// <exception cref="CannotResolveDependency">Thrown when the dependency is registered but one of its own dependencies could not be constructed.</exception>
+    public static async ValueTask<object?> ResolveAsync(IServiceProvider serviceProvider, ParameterInfo parameter, Func<ParameterInfo, Exception> createException)
+    {
+        object? dependency;
+        try
+        {
+            dependency = await ResolveParameterAsync(serviceProvider, parameter);
+        }
+        catch (InvalidOperationException failure)
+        {
+            throw new CannotResolveDependency(parameter, failure);
+        }
+
+        return Complete(serviceProvider, parameter, dependency, createException);
+    }
+
+    static object? Complete(IServiceProvider serviceProvider, ParameterInfo parameter, object? dependency, Func<ParameterInfo, Exception> createException)
+    {
         // A protected decision dependency must never use nullable binding as an escape hatch: even a
         // registered factory returning null is a missing guard, not an optional dependency.
         if (CommandDecisionPolicy.IsProtected)
@@ -89,6 +117,30 @@ static class ParameterDependencyResolver
             foreach (var resolver in resolvers)
             {
                 if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
+                {
+                    return dependency;
+                }
+            }
+        }
+
+        return serviceProvider.GetService(parameter.ParameterType);
+    }
+
+    static async ValueTask<object?> ResolveParameterAsync(IServiceProvider serviceProvider, ParameterInfo parameter)
+    {
+        if (serviceProvider.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers)
+        {
+            foreach (var resolver in resolvers)
+            {
+                if (resolver is IAsyncParameterDependencyResolver asyncResolver)
+                {
+                    var resolution = await asyncResolver.Resolve(serviceProvider, parameter);
+                    if (resolution.IsResolved)
+                    {
+                        return resolution.Dependency;
+                    }
+                }
+                else if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
                 {
                     return dependency;
                 }
