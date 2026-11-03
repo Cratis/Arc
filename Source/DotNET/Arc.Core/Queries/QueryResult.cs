@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Tenancy;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -144,7 +144,7 @@ public partial class QueryResult
     /// <param name="exception">The exception.</param>
     /// <returns>A <see cref="QueryResult"/>.</returns>
     public static QueryResult Error(CorrelationId correlationId, Exception exception) =>
-        TenantMembershipDenied.IsCauseOf(exception)
+        UnauthorizedCause.IsCauseOf(exception)
             ? Unauthorized(correlationId)
             : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 
@@ -160,7 +160,7 @@ public partial class QueryResult
     /// code running inside the pipeline reject a query as invalid without knowing how the result is serialized.
     /// </remarks>
     public static QueryResult FromException(CorrelationId correlationId, Exception exception) =>
-        TenantMembershipDenied.IsCauseOf(exception)
+        UnauthorizedCause.IsCauseOf(exception)
             ? Unauthorized(correlationId)
             : exception is IValidationFailure validationFailure
                 ? new() { CorrelationId = correlationId, ValidationResults = [validationFailure.ValidationResult] }
