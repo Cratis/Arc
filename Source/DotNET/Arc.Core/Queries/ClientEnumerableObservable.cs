@@ -92,11 +92,15 @@ public class ClientEnumerableObservable<T>(
                     }
 
                     using var push = telemetry.BeginPush();
-                    var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
-                    if (error is null)
+                    var result = await WebSocketSends.Send(webSocketConnectionHandler, webSocket, queryResult, writeLock, cts.Token);
+                    if (result.Status == WebSocketSendStatus.Sent)
                     {
                         push.Delivered();
                         hasDeliveredEmission = true;
+                        continue;
+                    }
+                    if (result.Error is null)
+                    {
                         continue;
                     }
                     if (cts.IsCancellationRequested)
