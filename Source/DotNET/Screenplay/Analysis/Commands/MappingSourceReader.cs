@@ -24,6 +24,16 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// </remarks>
 public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
 {
+    static readonly string[] _nonBodyBindings =
+    [
+        "Microsoft.AspNetCore.Mvc.FromServicesAttribute",
+        "Microsoft.AspNetCore.Mvc.FromQueryAttribute",
+        "Microsoft.AspNetCore.Mvc.FromRouteAttribute"
+    ];
+
+    /// <summary>Gets or sets the exact parameter classified as command input by the controller reader.</summary>
+    internal IParameterSymbol? ControllerInput { get; set; }
+
     /// <summary>
     /// Reads the dotted path an expression walks into the command's own input.
     /// </summary>
@@ -112,7 +122,7 @@ public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
             return Read(bound.Expression, bound.SemanticModel, owner, location);
         }
 
-        var path = ReadPath(unwrapped, semanticModel, owner, bindings);
+        var path = ReadPath(unwrapped, semanticModel, owner, bindings) ?? ReadControllerInput(expression, semanticModel);
 
         return path is null ? null : new PropertyPathSource(path);
     }
@@ -386,6 +396,16 @@ public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
         _ => expression
     };
 
+    static bool IsNonBodyParameter(IParameterSymbol parameter) => parameter.RefKind != RefKind.None ||
+        parameter.GetAttributes().Any(attribute => _nonBodyBindings.Contains(attribute.AttributeClass?.FullMetadataName() ?? string.Empty));
+
+    static bool IsInputProperty(MemberAccessExpressionSyntax member, SemanticModel model) =>
+        model.GetSymbolInfo(member).Symbol is IPropertySymbol { IsStatic: false, IsIndexer: false, DeclaredAccessibility: Accessibility.Public };
+
+    static bool IsInputRoot(ExpressionSyntax expression, SemanticModel model, IParameterSymbol input) =>
+        ValueConversions.Preserves(expression, model, _ => false) && Unwrap(expression) is IdentifierNameSyntax name &&
+        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(name).Symbol, input);
+
     /// <summary>
     /// Determines whether an identifier names a property of the command itself.
     /// </summary>
@@ -396,6 +416,36 @@ public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
     static bool IsOwnInput(IdentifierNameSyntax identifier, SemanticModel semanticModel, ITypeSymbol owner) =>
         semanticModel.GetSymbolInfo(identifier).Symbol is IPropertySymbol property &&
         SymbolEqualityComparer.Default.Equals(property.ContainingType, owner);
+
+    string? ReadControllerInput(ExpressionSyntax expression, SemanticModel model)
+    {
+        if (!HasUnchangedControllerInput(model))
+        {
+            return null;
+        }
+        var segments = new List<string>();
+        var current = expression;
+        while (Unwrap(current) is MemberAccessExpressionSyntax member)
+        {
+            if (!ValueConversions.Preserves(current, model, _ => false) || !IsInputProperty(member, model))
+            {
+                return null;
+            }
+            segments.Insert(0, member.Name.Identifier.ValueText);
+            current = member.Expression;
+        }
+        return segments.Count > 0 && IsInputRoot(current, model, ControllerInput!) ? string.Join('.', segments) : null;
+    }
+
+    bool HasUnchangedControllerInput(SemanticModel model)
+    {
+        if (ControllerInput is not { } input || IsNonBodyParameter(input))
+        {
+            return false;
+        }
+        return input.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().Parent?.Parent is MethodDeclarationSyntax method &&
+            method.SyntaxTree == model.SyntaxTree && CommandAuthoringReader.IsUnchanged(input, method, model);
+    }
 
     /// <summary>
     /// Recovers what a constant stands for, naming the member when it belongs to an enumeration.

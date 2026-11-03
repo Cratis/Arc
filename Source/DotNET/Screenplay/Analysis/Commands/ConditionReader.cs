@@ -74,6 +74,26 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
         }
     }
 
+    /// <summary>Reads a built-in Equals call only when its operands have equality-operator semantics.</summary>
+    /// <param name="invocation">The Equals call.</param>
+    /// <param name="scope">The semantic model and command whose input may be compared.</param>
+    /// <param name="location">The diagnostic location.</param>
+    /// <returns>The admitted comparison, or null.</returns>
+    internal ComparisonCondition? ReadEquality(InvocationExpressionSyntax invocation, ProducesScope scope, string location)
+    {
+        var (left, right) = EqualityOperands(invocation, scope.SemanticModel);
+        if (left is null || right is null)
+        {
+            return null;
+        }
+        if (!HaveMatchingBuiltInTypes(left, right, scope.SemanticModel))
+        {
+            return null;
+        }
+
+        return ReadOperands(left, right, ComparisonKind.Equal, new(scope.SemanticModel, scope.Command, location, scope.Bindings));
+    }
+
     /// <summary>
     /// Determines whether an operator combines two conditions.
     /// </summary>
@@ -81,6 +101,86 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
     /// <returns>True when the expression combines conditions.</returns>
     static bool IsLogical(BinaryExpressionSyntax binary) =>
         binary.IsKind(SyntaxKind.LogicalAndExpression) || binary.IsKind(SyntaxKind.LogicalOrExpression);
+
+    static (ExpressionSyntax? Left, ExpressionSyntax? Right) EqualityOperands(InvocationExpressionSyntax invocation, SemanticModel model)
+    {
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || method.Name != "Equals")
+        {
+            return default;
+        }
+        var arguments = invocation.ArgumentList.Arguments;
+        if (arguments.Any(argument => argument.NameColon is not null || argument.RefKindKeyword.RawKind != 0))
+        {
+            return default;
+        }
+        if (method.IsStatic)
+        {
+            return method.ContainingType.SpecialType == SpecialType.System_Object && arguments.Count == 2
+                ? (arguments[0].Expression, arguments[1].Expression) : default;
+        }
+        return InstanceEqualityOperands(invocation, method.ContainingType);
+    }
+
+    static (ExpressionSyntax? Left, ExpressionSyntax? Right) InstanceEqualityOperands(InvocationExpressionSyntax invocation, ITypeSymbol type) =>
+        HasBuiltInEquality(type) && invocation.ArgumentList.Arguments.Count == 1 && invocation.Expression is MemberAccessExpressionSyntax member
+            ? (member.Expression, invocation.ArgumentList.Arguments[0].Expression) : default;
+
+    static bool HaveMatchingBuiltInTypes(ExpressionSyntax left, ExpressionSyntax right, SemanticModel model) =>
+        model.GetTypeInfo(left).Type is { } type && HasBuiltInEquality(type) && SymbolEqualityComparer.Default.Equals(type, model.GetTypeInfo(right).Type);
+
+    /// <summary>
+    /// Determines whether the casts around an operand leave its value alone, because recovering the operand path drops them.
+    /// </summary>
+    /// <param name="expression">The operand.</param>
+    /// <param name="model">The semantic model of the tree the operand lives in.</param>
+    /// <returns>True when no cast changes the value the operand compares as.</returns>
+    static bool PreservesValue(ExpressionSyntax expression, SemanticModel model)
+    {
+        switch (expression)
+        {
+            case ParenthesizedExpressionSyntax parenthesized:
+                return PreservesValue(parenthesized.Expression, model);
+
+            case CheckedExpressionSyntax checkedExpression:
+                return PreservesValue(checkedExpression.Expression, model);
+
+            case CastExpressionSyntax cast:
+                return PreservesCast(cast, model) && PreservesValue(cast.Expression, model);
+
+            default:
+                return true;
+        }
+    }
+
+    static bool PreservesCast(CastExpressionSyntax cast, SemanticModel model)
+    {
+        var inner = cast.Expression;
+        var constant = model.GetConstantValue(cast);
+        if (constant.HasValue)
+        {
+            var innerConstant = model.GetConstantValue(inner);
+            return innerConstant.HasValue && SameConstant(constant.Value, innerConstant.Value);
+        }
+
+        if (model.GetTypeInfo(inner).Type is not { } from || model.GetTypeInfo(cast).Type is not { } to)
+        {
+            return false;
+        }
+        var conversion = model.Compilation.ClassifyConversion(from, to);
+        return conversion.IsIdentity || (to.SpecialType == SpecialType.System_Object && (conversion.IsReference || conversion.IsBoxing));
+    }
+
+    static bool SameConstant(object? converted, object? original) =>
+        IsNumber(converted) && IsNumber(original)
+            ? Convert.ToDecimal(converted, System.Globalization.CultureInfo.InvariantCulture) == Convert.ToDecimal(original, System.Globalization.CultureInfo.InvariantCulture)
+            : Equals(converted, original);
+
+    static bool IsNumber(object? value) => value is sbyte or byte or short or ushort or int or uint or long or ulong or decimal;
+
+    static bool HasBuiltInEquality(ITypeSymbol type) => type.SpecialType is
+        SpecialType.System_Boolean or SpecialType.System_Char or SpecialType.System_String or
+        SpecialType.System_Byte or SpecialType.System_SByte or SpecialType.System_Int16 or SpecialType.System_UInt16 or
+        SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Decimal;
 
     /// <summary>
     /// Reads a bare boolean property as a comparison against true.
@@ -156,22 +256,34 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
             return UuidConditions.Read(binary, comparison, new(semanticModel, location, diagnostics, (expression, model) => MappingSourceReader.ReadPath(expression, model, owner), null, bindings));
         }
 
-        var left = MappingSourceReader.ReadPath(binary.Left, semanticModel, owner, bindings);
+        return ReadOperands(binary.Left, binary.Right, comparison, new(semanticModel, owner, location, bindings));
+    }
+
+    ComparisonCondition? ReadOperands(ExpressionSyntax leftOperand, ExpressionSyntax rightOperand, ComparisonKind comparison, ComparisonSite site)
+    {
+        if (!PreservesValue(leftOperand, site.Model) || !PreservesValue(rightOperand, site.Model))
+        {
+            return null;
+        }
+
+        var left = MappingSourceReader.ReadPath(leftOperand, site.Model, site.Owner, site.Bindings);
         if (left is not null)
         {
-            var right = _sources.Read(binary.Right, semanticModel, owner, location, bindings);
+            var right = _sources.Read(rightOperand, site.Model, site.Owner, site.Location, site.Bindings);
 
             return right is null ? null : new ComparisonCondition(left, comparison, right);
         }
 
-        var mirrored = MappingSourceReader.ReadPath(binary.Right, semanticModel, owner, bindings);
+        var mirrored = MappingSourceReader.ReadPath(rightOperand, site.Model, site.Owner, site.Bindings);
         if (mirrored is null)
         {
             return null;
         }
 
-        var value = _sources.Read(binary.Left, semanticModel, owner, location, bindings);
+        var value = _sources.Read(leftOperand, site.Model, site.Owner, site.Location, site.Bindings);
 
         return value is null ? null : new ComparisonCondition(mirrored, ComparisonKinds.Mirrored(comparison), value);
     }
+
+    record ComparisonSite(SemanticModel Model, ITypeSymbol Owner, string Location, ParameterBindings? Bindings);
 }

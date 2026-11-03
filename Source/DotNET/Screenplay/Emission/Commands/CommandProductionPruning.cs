@@ -25,9 +25,7 @@ internal static class CommandProductionPruning
         {
             return production;
         }
-        var declaration = application.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
-            ? @event.TypeIdentity == identity : @event.Name == production.EventName);
-        var required = omitted.FirstOrDefault(mapping => declaration?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true);
+        var required = omitted.FirstOrDefault(mapping => IsRequired(production, mapping.Property, application));
         if (required is not null)
         {
             var reason = required.Source is UnavailableValueSource source ? $"generated input '{source.Input.Name}' ({source.Input.Failure})" : "value";
@@ -40,6 +38,18 @@ internal static class CommandProductionPruning
         }
 
         return production with { Mappings = production.Mappings.Except(omitted).ToList(), CanInline = false };
+    }
+
+    /// <summary>Checks whether dropping a property would leave the event payload incomplete.</summary>
+    /// <param name="production">The production identifying the event declaration.</param>
+    /// <param name="property">The event property to check.</param>
+    /// <param name="application">The event schemas.</param>
+    /// <returns>True unless the declared property is optional.</returns>
+    internal static bool IsRequired(ProducesModel production, string property, ApplicationModel application)
+    {
+        var declaration = application.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
+            ? @event.TypeIdentity == identity : @event.Name == production.EventName);
+        return declaration?.Properties.SingleOrDefault(candidate => candidate.Name == property)?.Type.IsOptional != true;
     }
 
     /// <summary>

@@ -32,6 +32,9 @@ public record ScreenplayVerification(
     /// </summary>
     public bool Compiles => Errors.Count == 0;
 
+    /// <summary>Gets the generated read intent, when verification followed emission.</summary>
+    internal GeneratedCommandReads? CommandReads { get; init; }
+
     /// <summary>
     /// Gets unexpected semantic binding errors in either generation mode.
     /// </summary>
@@ -40,7 +43,7 @@ public record ScreenplayVerification(
     public IReadOnlyList<Diagnostic> UnexpectedBindingErrors(bool authoringOnlyConstructs = false) =>
         [.. BindingDiagnostics.Where(diagnostic =>
             diagnostic.Severity == DiagnosticSeverity.Error &&
-            (!ExpectedBindingDiagnostics.IsExpected(diagnostic, authoringOnlyConstructs) ||
+            (!ExpectedBindingDiagnostics.IsExpected(diagnostic, authoringOnlyConstructs, this) ||
              (!authoringOnlyConstructs && diagnostic.Code == "PLAY0271" && NamesRoutedCommand(diagnostic))))];
 
     bool NamesRoutedCommand(Diagnostic diagnostic) => Application?.Modules.SelectMany(module => module.Features).SelectMany(Commands)

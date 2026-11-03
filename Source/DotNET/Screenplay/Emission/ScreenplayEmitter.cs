@@ -33,8 +33,13 @@ public class ScreenplayEmitter(IScreenplayPrinter printer, IScreenplayNaming nam
     public ScreenplayEmission Emit(ApplicationModel model, ScreenplayOptions options)
     {
         var diagnostics = new ScreenplayDiagnostics();
-        var application = new ApplicationSyntaxBuilder(naming, diagnostics).Build(model, options.WithDefaults(model.Domain));
+        var resolved = options.WithDefaults(model.Domain);
+        var builder = new ApplicationSyntaxBuilder(naming, diagnostics);
+        var application = builder.Build(model, resolved);
 
-        return new(printer.Print(application), application, diagnostics.All);
+        return new(printer.Print(application), application, diagnostics.All)
+        {
+            CommandReads = new Verification.GeneratedCommandReads(builder.EmittedModel!, resolved, naming)
+        };
     }
 }

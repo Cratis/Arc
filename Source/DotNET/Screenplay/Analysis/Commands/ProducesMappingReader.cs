@@ -19,7 +19,18 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
 {
     readonly MappingSourceReader _sources = new(diagnostics);
+    readonly List<string> _codeMappedProperties = [];
     AuthoringSources? _authoring;
+
+    /// <summary>Gets the properties whose mappings stayed in code during the last read.</summary>
+    internal IReadOnlyList<string> CodeMappedProperties => _codeMappedProperties;
+
+    /// <summary>Gets or sets the controller's already-classified request input, for this isolated reader.</summary>
+    internal IParameterSymbol? ControllerInput
+    {
+        get => _sources.ControllerInput;
+        set => _sources.ControllerInput = value;
+    }
 
     /// <summary>
     /// Reads the mappings of a single event construction.
@@ -42,6 +53,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         AuthoringSources? authoring = null)
     {
         _authoring = authoring;
+        _codeMappedProperties.Clear();
         var mappings = new List<PropertyMappingModel>();
         var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
 
@@ -211,9 +223,12 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="eventType">The type of the event being constructed.</param>
     /// <param name="property">The property that was being filled in.</param>
     /// <param name="location">Where the command lives.</param>
-    void Report(ITypeSymbol eventType, string property, string location) =>
+    void Report(ITypeSymbol eventType, string property, string location)
+    {
+        _codeMappedProperties.Add(property);
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.UnmappableCommandProduction,
             $"The value given to '{eventType.Name}.{property}' is code rather than command input or a constant, so the mapping was left out",
             location);
+    }
 }

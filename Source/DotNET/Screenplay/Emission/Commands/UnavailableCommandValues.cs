@@ -40,27 +40,57 @@ internal class UnavailableCommandValues(ScreenplayDiagnostics diagnostics)
                 continue;
             }
 
-            var omitted = production.Mappings.Where(mapping => mapping.Source is UnavailableValueSource).ToList();
-            var retained = CommandProductionPruning.WithoutMappings(production, omitted, application, diagnostics, location);
+            if (WithholdCodeMappedProduction(production, application, location))
+            {
+                continue;
+            }
+            var retained = PruneUnavailableMappings(production, application, location);
             if (retained is null)
             {
                 continue;
             }
-            foreach (var mapping in omitted)
-            {
-                var input = ((UnavailableValueSource)mapping.Source).Input;
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.UnmappableCommandProduction,
-                    $"The mapping of optional event property '{production.EventName}.{mapping.Property}' was left out because it depends on unavailable generated input '{input.Name}' ({input.Failure}); independent mappings and the production were retained",
-                    location);
-            }
             productions.Add(retained);
         }
 
-        return command with
+        return WithProductions(command, productions);
+    }
+
+    static CommandModel WithProductions(CommandModel command, IReadOnlyList<ProducesModel> productions) => command with
+    {
+        Produces = productions,
+        HasNoFactBehavior = command.HasNoFactBehavior && command.Authoring?.UnavailableGenerated.Count is not > 0
+    };
+
+    ProducesModel? PruneUnavailableMappings(ProducesModel production, ApplicationModel application, string location)
+    {
+        var omitted = production.Mappings.Where(mapping => mapping.Source is UnavailableValueSource).ToList();
+        var retained = CommandProductionPruning.WithoutMappings(production, omitted, application, diagnostics, location);
+        if (retained is null)
         {
-            Produces = productions,
-            HasNoFactBehavior = command.HasNoFactBehavior && command.Authoring?.UnavailableGenerated.Count is not > 0
-        };
+            return null;
+        }
+        foreach (var mapping in omitted)
+        {
+            var input = ((UnavailableValueSource)mapping.Source).Input;
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableCommandProduction,
+                $"The mapping of optional event property '{production.EventName}.{mapping.Property}' was left out because it depends on unavailable generated input '{input.Name}' ({input.Failure}); independent mappings and the production were retained",
+                location);
+        }
+        return retained;
+    }
+
+    bool WithholdCodeMappedProduction(ProducesModel production, ApplicationModel application, string location)
+    {
+        var required = production.CodeMappedProperties.FirstOrDefault(property => CommandProductionPruning.IsRequired(production, property, application));
+        if (required is null)
+        {
+            return false;
+        }
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.UnmappableCommandProduction,
+            $"Production '{production.EventName}' was left out because required event property '{required}' is computed by code; stating it without that mapping would leave the production incomplete",
+            location);
+        return true;
     }
 }
