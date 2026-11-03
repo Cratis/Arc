@@ -17,11 +17,11 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.110.1" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.110.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.110.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.27.1" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.26.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.117.1" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.117.1" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.117.1" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.30.2" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.30.2" />
     <PackageVersion Include="Cratis.Screenplay" Version="5.1.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.19.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.19.0" />
@@ -36,7 +36,7 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
@@ -58,7 +58,7 @@
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
-    <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
     <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
          NuGet still orders it above 0.50.4, depending on it forces every consumer that also pulls a
@@ -68,7 +68,7 @@
     <PackageVersion Include="handlebars.net" Version="2.4.3" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
-    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.11.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.15.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageVersion Include="snappier" Version="1.3.1" />
