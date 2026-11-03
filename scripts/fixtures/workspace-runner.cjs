@@ -20,6 +20,7 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
     });
     const calls = [];
     const viewCalls = [];
+    const delays = [];
     const output = [];
     const exitSignal = {};
     let status = 0;
@@ -55,12 +56,18 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
                     const result = Array.isArray(configured) ? configured[index] : configured;
                     return { status: 1, stdout: Buffer.alloc(0), stderr: Buffer.from('npm error code E404'), ...result };
                 }
+                const index = calls.filter(previous => previous.name === manifest.name).length;
                 calls.push(call);
-                return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), ...results[manifest.name] };
+                const configured = results[manifest.name];
+                const result = Array.isArray(configured) ? configured[index] : configured;
+                return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), ...result };
             }
         }
     };
     const execute = vm.runInNewContext(`(function (require) {\n${script}\n})`, {
+        Atomics: {
+            wait: (array, index, value, timeout) => { delays.push(timeout); return 'timed-out'; }
+        },
         process: {
             argv: ['node', 'run-task-on-workspaces.js', task, ...args],
             cwd: () => root,
@@ -79,7 +86,7 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
     } catch (error) {
         if (error !== exitSignal) throw error;
     }
-    return { status, calls, viewCalls, output: output.join('\n'), manifests: packagePaths.map(location => JSON.parse(read(location))), files };
+    return { status, calls, viewCalls, delays, output: output.join('\n'), manifests: packagePaths.map(location => JSON.parse(read(location))), files };
 }
 
 module.exports = runWorkspaces;

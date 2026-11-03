@@ -184,22 +184,24 @@ public class ClientObservable<T>(
                 }
 
                 using var push = telemetry.BeginPush();
-                var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
-                if (error is not null)
+                var result = await WebSocketSends.Send(webSocketConnectionHandler, webSocket, queryResult, writeLock, cts.Token);
+                if (result.Error is not null)
                 {
                     if (!cts.IsCancellationRequested)
                     {
-                        Subject.OnError(error);
+                        Subject.OnError(result.Error);
                     }
 
                     return;
                 }
 
-                push.Delivered();
+                if (result.Status == WebSocketSendStatus.Sent)
+                {
+                    push.Delivered();
 
-                // Only a write that actually reached the client counts as delivered — a guard asking whether this is
-                // the first emission must not be told the client already has one it never received.
-                hasDeliveredEmission = true;
+                    // A completed transport write is not an acknowledgment from the client.
+                    hasDeliveredEmission = true;
+                }
             }
             catch (Exception ex)
             {
