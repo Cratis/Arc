@@ -31,7 +31,8 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         : this(
             types,
             queryMetadataRegistry,
-            (type, name, method) => new ModelBoundQueryPerformer(type, name, method, serviceProviderIsService, authorizationEvaluator))
+            (type, name, method) => new ModelBoundQueryPerformer(type, name, method, serviceProviderIsService, authorizationEvaluator),
+            ArtifactAssemblyFilter.IncludeAll)
     {
     }
 
@@ -52,14 +53,23 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         : this(
             types,
             queryMetadataRegistry,
-            (type, name, method) => new ModelBoundQueryPerformer(type, name, method, serviceProviderIsService, scopeFactory, resolveEvaluator))
+            CreateScopedPerformerFactory(serviceProviderIsService, scopeFactory, resolveEvaluator),
+            ArtifactAssemblyFilter.IncludeAll)
     {
     }
 
-    QueryPerformerProvider(
+    /// <summary>
+    /// Constructs discovered performers with host artifact opt-ins.
+    /// </summary>
+    /// <param name="types">Discovered types.</param>
+    /// <param name="queryMetadataRegistry">Generated query metadata.</param>
+    /// <param name="createPerformer">Creates a performer for a discovered query.</param>
+    /// <param name="filter">The host's assembly filter.</param>
+    internal QueryPerformerProvider(
         ITypes types,
         IQueryMetadataRegistry queryMetadataRegistry,
-        Func<Type, string, MethodInfo, ModelBoundQueryPerformer> createPerformer)
+        Func<Type, string, MethodInfo, ModelBoundQueryPerformer> createPerformer,
+        ArtifactAssemblyFilter filter)
     {
         var generatedMetadata = queryMetadataRegistry.All;
         var generatedQueries = _generatedQueries.GetValue(generatedMetadata, _ => new GeneratedQueryDiscovery()).GetQueries(generatedMetadata);
@@ -70,6 +80,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         var scannedQueries = _queriesByUniverse.GetValue(types, _ => new QueryDiscovery()).GetQueries(types, coveredAssemblies, coveredTypes);
 
         _performers = generatedQueries.Concat(scannedQueries)
+            .Where(query => filter.Serves(query.ReadModelType))
             .Select(query => createPerformer(query.ReadModelType, query.ReadModelTypeName, query.Method))
             .DistinctBy(p => p.FullyQualifiedName)
             .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
@@ -81,6 +92,19 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     /// <inheritdoc/>
     public bool TryGetPerformerFor(FullyQualifiedQueryName query, [NotNullWhen(true)] out IQueryPerformer? performer) =>
         _performers.TryGetValue(query, out performer);
+
+    /// <summary>
+    /// Creates performers whose authorization is resolved from the executing query scope.
+    /// </summary>
+    /// <param name="serviceProviderIsService">Service classification.</param>
+    /// <param name="scopeFactory">A scope for standalone performer calls.</param>
+    /// <param name="resolveEvaluator">Resolves the evaluator in the executing scope.</param>
+    /// <returns>The scoped performer factory.</returns>
+    internal static Func<Type, string, MethodInfo, ModelBoundQueryPerformer> CreateScopedPerformerFactory(
+        IServiceProviderIsService serviceProviderIsService,
+        IServiceScopeFactory scopeFactory,
+        Func<IServiceProvider, IAuthorizationEvaluator> resolveEvaluator) =>
+        (type, name, method) => new ModelBoundQueryPerformer(type, name, method, serviceProviderIsService, scopeFactory, resolveEvaluator);
 
     static MethodInfo[] MethodsOf(Type owner) =>
         owner.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
