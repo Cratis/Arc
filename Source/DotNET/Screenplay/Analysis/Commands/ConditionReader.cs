@@ -128,6 +128,55 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
     static bool HaveMatchingBuiltInTypes(ExpressionSyntax left, ExpressionSyntax right, SemanticModel model) =>
         model.GetTypeInfo(left).Type is { } type && HasBuiltInEquality(type) && SymbolEqualityComparer.Default.Equals(type, model.GetTypeInfo(right).Type);
 
+    /// <summary>
+    /// Determines whether the casts around an operand leave its value alone, because recovering the operand path drops them.
+    /// </summary>
+    /// <param name="expression">The operand.</param>
+    /// <param name="model">The semantic model of the tree the operand lives in.</param>
+    /// <returns>True when no cast changes the value the operand compares as.</returns>
+    static bool PreservesValue(ExpressionSyntax expression, SemanticModel model)
+    {
+        switch (expression)
+        {
+            case ParenthesizedExpressionSyntax parenthesized:
+                return PreservesValue(parenthesized.Expression, model);
+
+            case CheckedExpressionSyntax checkedExpression:
+                return PreservesValue(checkedExpression.Expression, model);
+
+            case CastExpressionSyntax cast:
+                return PreservesCast(cast, model) && PreservesValue(cast.Expression, model);
+
+            default:
+                return true;
+        }
+    }
+
+    static bool PreservesCast(CastExpressionSyntax cast, SemanticModel model)
+    {
+        var inner = cast.Expression;
+        var constant = model.GetConstantValue(cast);
+        if (constant.HasValue)
+        {
+            var innerConstant = model.GetConstantValue(inner);
+            return innerConstant.HasValue && SameConstant(constant.Value, innerConstant.Value);
+        }
+
+        if (model.GetTypeInfo(inner).Type is not { } from || model.GetTypeInfo(cast).Type is not { } to)
+        {
+            return false;
+        }
+        var conversion = model.Compilation.ClassifyConversion(from, to);
+        return conversion.IsIdentity || (to.SpecialType == SpecialType.System_Object && (conversion.IsReference || conversion.IsBoxing));
+    }
+
+    static bool SameConstant(object? converted, object? original) =>
+        IsNumber(converted) && IsNumber(original)
+            ? Convert.ToDecimal(converted, System.Globalization.CultureInfo.InvariantCulture) == Convert.ToDecimal(original, System.Globalization.CultureInfo.InvariantCulture)
+            : Equals(converted, original);
+
+    static bool IsNumber(object? value) => value is sbyte or byte or short or ushort or int or uint or long or ulong or decimal;
+
     static bool HasBuiltInEquality(ITypeSymbol type) => type.SpecialType is
         SpecialType.System_Boolean or SpecialType.System_Char or SpecialType.System_String or
         SpecialType.System_Byte or SpecialType.System_SByte or SpecialType.System_Int16 or SpecialType.System_UInt16 or
@@ -212,6 +261,11 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
 
     ComparisonCondition? ReadOperands(ExpressionSyntax leftOperand, ExpressionSyntax rightOperand, ComparisonKind comparison, ComparisonSite site)
     {
+        if (!PreservesValue(leftOperand, site.Model) || !PreservesValue(rightOperand, site.Model))
+        {
+            return null;
+        }
+
         var left = MappingSourceReader.ReadPath(leftOperand, site.Model, site.Owner, site.Bindings);
         if (left is not null)
         {
