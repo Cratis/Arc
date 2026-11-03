@@ -11,7 +11,8 @@ public class when_binding_over_preconfigured_options : given_a_parity_run
     protected override IDictionary<string, string?> Configuration => new Dictionary<string, string?>
     {
         ["Cratis:Arc:Tenancy:HttpHeader"] = "from-config",
-        ["Cratis:Arc:EndpointGroups:Ports:admin:0"] = "9"
+        ["Cratis:Arc:EndpointGroups:Ports:admin:0"] = "9",
+        ["Cratis:Arc:Query:AllowedWebSocketOrigins:0"] = "https://configured.test"
     };
 
     protected override Action<ArcOptions>? Prepare => options =>
@@ -19,5 +20,6 @@ public class when_binding_over_preconfigured_options : given_a_parity_run
         options.Tenancy.BaseDomain = "kept";
         options.EndpointGroups.Ports["admin"] = [1, 2];
         options.Introspection.RequireAuthentication = true;
+        options.Query.AllowedWebSocketOrigins = ["https://preconfigured.test"];
     };
 }

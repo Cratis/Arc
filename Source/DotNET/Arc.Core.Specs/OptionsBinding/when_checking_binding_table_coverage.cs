@@ -9,7 +9,8 @@ namespace Cratis.Arc.OptionsBinding;
 
 /// <summary>
 /// Guards the binding tables against drifting from the option classes: every public readable property reachable from
-/// <see cref="ArcOptions"/> in a Cratis type needs a binding entry, and every Cratis type reachable needs a table.
+/// <see cref="ArcOptions"/> in a Cratis type needs a binding entry, and every Cratis type reachable needs a table,
+/// except the explicitly listed code-only subtrees.
 /// </summary>
 public class when_checking_binding_table_coverage : Specification
 {
@@ -38,6 +39,14 @@ public class when_checking_binding_table_coverage : Specification
         [typeof(System.Text.Json.JsonSerializerOptions)] = JsonSerializerOptionsBinding.Bound
     };
 
+    /// <summary>
+    /// Artifacts is a code-only host opt-in, not configuration. Revisit this exemption if that contract changes.
+    /// </summary>
+    static readonly HashSet<(Type Owner, string Property)> _codeOnlySubtrees =
+    [
+        (typeof(ArcOptions), nameof(ArcOptions.Artifacts))
+    ];
+
     List<string> _missingMembers;
     List<string> _missingTables;
 
@@ -54,6 +63,20 @@ public class when_checking_binding_table_coverage : Specification
 
     [Fact] void should_have_a_table_for_every_reachable_type() => _missingTables.ShouldBeEmpty();
 
+    [Fact]
+    void should_exempt_only_existing_unbound_properties()
+    {
+        foreach (var (owner, property) in _codeOnlySubtrees)
+        {
+            owner.GetProperty(property).ShouldNotBeNull();
+            _tables[owner].MemberNames.ShouldNotContain(property);
+        }
+    }
+
+    [Fact]
+    void should_keep_artifacts_without_public_setters() =>
+        typeof(ArtifactsOptions).GetProperties().Where(_ => _.SetMethod?.IsPublic == true).ShouldBeEmpty();
+
     void Visit(Type type, HashSet<Type> visited)
     {
         if (!visited.Add(type))
@@ -68,7 +91,7 @@ public class when_checking_binding_table_coverage : Specification
         }
 
         var bound = table.MemberNames.ToHashSet();
-        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(_ => !_codeOnlySubtrees.Contains((type, _.Name))))
         {
             if (property.GetMethod is null || property.GetMethod.GetParameters().Length != 0)
             {

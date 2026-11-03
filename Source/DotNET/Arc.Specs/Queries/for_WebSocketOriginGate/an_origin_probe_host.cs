@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries.for_WebSocketOriginGate;
@@ -35,10 +36,15 @@ public sealed class an_origin_probe_host : IAsyncDisposable
 
     public OriginProbe Probe { get; }
 
-    public static async Task<an_origin_probe_host> Start(IList<string>? allowed, bool withControllers, Action<IServiceCollection>? configure = null)
+    public static async Task<an_origin_probe_host> Start(IList<string>? allowed, bool withControllers, Action<IServiceCollection>? configure = null, IDictionary<string, string?>? configuration = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+        if (configuration is not null)
+        {
+            builder.Configuration.AddInMemoryCollection(configuration);
+        }
+
         if (withControllers)
         {
             builder.AddCratisArc();
@@ -50,7 +56,10 @@ public sealed class an_origin_probe_host : IAsyncDisposable
 
         var probe = new OriginProbe();
         builder.Services.AddSingleton(probe);
-        builder.Services.Configure<ArcOptions>(options => options.Query.AllowedWebSocketOrigins = allowed);
+        if (configuration is null)
+        {
+            builder.Services.Configure<ArcOptions>(options => options.Query.AllowedWebSocketOrigins = allowed);
+        }
         configure?.Invoke(builder.Services);
         var app = builder.Build();
         app.UseWebSockets();

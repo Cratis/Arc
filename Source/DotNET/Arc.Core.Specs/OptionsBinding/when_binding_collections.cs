@@ -19,6 +19,8 @@ public class when_binding_collections : given_a_parity_run
         ["Cratis:Arc:EndpointGroups:Ports:admin:0"] = "5001",
         ["Cratis:Arc:EndpointGroups:Ports:admin:1"] = "5002",
         ["Cratis:Arc:EndpointGroups:Ports:public:0"] = "not-a-port",
-        ["Cratis:Arc:EndpointGroups:RoutePrefixes:admin"] = "/admin"
+        ["Cratis:Arc:EndpointGroups:RoutePrefixes:admin"] = "/admin",
+        ["Cratis:Arc:Query:AllowedWebSocketOrigins:0"] = "https://trusted.test",
+        ["Cratis:Arc:Query:AllowedWebSocketOrigins:1"] = "https://another.test"
     };
 }

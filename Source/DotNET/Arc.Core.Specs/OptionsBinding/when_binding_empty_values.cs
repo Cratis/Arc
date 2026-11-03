@@ -12,6 +12,7 @@ public class when_binding_empty_values : given_a_parity_run
     {
         ["Cratis:Arc:Tenancy:BaseDomain"] = "",
         ["Cratis:Arc:Hosting:ApplicationUrl"] = "",
-        ["Cratis:Arc:Calendar:TimeZone"] = ""
+        ["Cratis:Arc:Calendar:TimeZone"] = "",
+        ["Cratis:Arc:Query:AllowedWebSocketOrigins"] = ""
     };
 }

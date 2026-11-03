@@ -14,6 +14,7 @@ public class when_binding_explicit_nulls : given_a_parity_run
         ["Cratis:Arc:ConnectionResolution:Connection:Template:Database"] = null,
         ["Cratis:Arc:Calendar"] = null,
         ["Cratis:Arc:EndpointGroups:Ports:admin"] = null,
-        ["Cratis:Arc:ExposeExceptionDetails"] = null
+        ["Cratis:Arc:ExposeExceptionDetails"] = null,
+        ["Cratis:Arc:Query:AllowedWebSocketOrigins"] = null
     };
 }
