@@ -105,7 +105,7 @@
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
     <!-- Required at runtime by the Roslyn testing XUnit verifiers; compile assets are excluded where referenced. -->
     <PackageVersion Include="xunit.assert" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <!-- Held at 5.x. NSubstitute 6 deadlocks the task-returning DynamicProxy fixtures used by
          MongoCollectionInterceptor. Directory.Build.targets checks this during compilation so
