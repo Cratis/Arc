@@ -12,6 +12,8 @@
   href: messaging.md
 - name: Slice context
   href: slice-context.md
+- name: Application context
+  href: application-context.md
 - name: Commands
   href: commands/toc.yml
 - name: CommandForm

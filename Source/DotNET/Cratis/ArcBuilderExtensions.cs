@@ -3,13 +3,16 @@
 
 using Cratis.Arc;
 using Cratis.Arc.Chronicle.Identities;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle;
 using Cratis.Chronicle.AspNetCore;
 using Cratis.Chronicle.Transactions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using HttpIdentityProvider = Cratis.Chronicle.AspNetCore.Identities.IdentityProvider;
 
@@ -101,7 +104,26 @@ public static class ArcBuilderExtensions
             builder.Services.Remove(descriptor);
         }
 
+        UseWebHostOptionsForStartupDecisionReads(builder.Services);
         builder.Services.AddCommandAwareDecisionReads();
         return builder;
+    }
+
+    /// <summary>
+    /// Binds startup decision-read admission to <see cref="ChronicleAspNetCoreOptions"/>, which is what a web host configures,
+    /// instead of the unconfigured <see cref="ChronicleClientOptions"/> that would name no event store.
+    /// </summary>
+    /// <param name="services">The services to configure.</param>
+    static void UseWebHostOptionsForStartupDecisionReads(IServiceCollection services)
+    {
+        // AddReadModels has already added the ChronicleClientOptions default; replace only that default and keep any other registration.
+        foreach (var descriptor in services.Where(_ => _.ServiceType == typeof(IStartupDecisionReads) && _.ImplementationType == typeof(ChronicleStartupDecisionReads)).ToArray())
+        {
+            services.Remove(descriptor);
+        }
+
+        services.TryAddSingleton<IStartupDecisionReads>(provider => new ChronicleStartupDecisionReads(
+            provider,
+            resolver => resolver.GetService<IOptions<ChronicleAspNetCoreOptions>>()?.Value));
     }
 }

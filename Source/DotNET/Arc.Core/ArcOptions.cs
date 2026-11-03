@@ -102,6 +102,11 @@ public class ArcOptions
     public OnBehalfOfOptions OnBehalfOf { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the opt-in signed forwarded identity settings. Disabled by default.
+    /// </summary>
+    public ForwardedIdentityOptions ForwardedIdentity { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the options for the application calendar, bound from <c>Cratis:Arc:Calendar</c>.
     /// </summary>
     public CalendarOptions Calendar { get; set; } = new();
@@ -135,6 +140,11 @@ public class ArcOptions
     /// assigned to their group. Untagged commands and queries are not affected.
     /// </remarks>
     public EndpointGroupsOptions EndpointGroups { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the code-only host opt-ins for assemblies marked with <see cref="ArtifactsRequireOptInAttribute"/>.
+    /// </summary>
+    public ArtifactsOptions Artifacts { get; set; } = new();
 
     /// <summary>
     /// Gets or sets a value indicating whether exception detail (messages and stack traces) is exposed

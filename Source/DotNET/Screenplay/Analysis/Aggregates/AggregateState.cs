@@ -52,7 +52,7 @@ public static class AggregateState
     {
         for (var current = aggregateRoot; current is not null; current = current.BaseType)
         {
-            if (SymbolEqualityComparer.Default.Equals(current, declaring))
+            if (IsSameType(current, declaring))
             {
                 return true;
             }
@@ -60,4 +60,19 @@ public static class AggregateState
 
         return false;
     }
+
+    /// <summary>
+    /// Compares a type with its declaration as seen through another compilation's references.
+    /// </summary>
+    /// <param name="type">The aggregate type or one of its base types.</param>
+    /// <param name="declaring">The type declaring the state member.</param>
+    /// <returns>True when both symbols describe the same declared, constructed type.</returns>
+    static bool IsSameType(INamedTypeSymbol type, INamedTypeSymbol? declaring) =>
+        SymbolEqualityComparer.Default.Equals(type, declaring) ||
+        (declaring is not null &&
+         type.ContainingAssembly.Identity.Equals(declaring.ContainingAssembly.Identity) &&
+         string.Equals(
+             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+             declaring.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+             StringComparison.Ordinal));
 }

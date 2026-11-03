@@ -103,6 +103,34 @@ function updateDependencyVersionsFromLocalWorkspaces(file, packageJson, version)
     }
 }
 
+const publishAttempts = 3;
+const publishRetryDelays = [5000, 10000];
+
+function isTransparencyLogConflict(result) {
+    if (result.status === 0 || result.error) return false;
+
+    const output = `${result.stdout?.toString() ?? ''}\n${result.stderr?.toString() ?? ''}`;
+    return /^npm (?:error|ERR!) code TLOG_CREATE_ENTRY_ERROR\s*$/m.test(output)
+        && /^npm (?:error|ERR!) .*\(409\).*an equivalent entry already exists in the transparency log/m.test(output);
+}
+
+function waitBeforeRetry(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function publishWithProvenance(workspaceName, cwd) {
+    for (let attempt = 1; attempt <= publishAttempts; attempt++) {
+        const result = spawn('npm', ['publish', '--provenance'], { cwd });
+        console.log(result.stdout?.toString() ?? '');
+        console.log(result.stderr?.toString() ?? '');
+        if (attempt === publishAttempts || !isTransparencyLogConflict(result)) return result;
+
+        const delay = publishRetryDelays[attempt - 1];
+        console.log(`Transparency log conflict (409) publishing '${workspaceName}' on attempt ${attempt} of ${publishAttempts} - retrying the same provenance publish in ${delay} ms`);
+        waitBeforeRetry(delay);
+    }
+}
+
 const publishFailures = [];
 const blockedPublishes = new Set();
 
@@ -146,9 +174,7 @@ for (const workspaceName of workspaceNamesToRun) {
                 }
 
                 console.log(`Publishing workspace '${workspaceName}' at '${workspaceRelativeLocation}'`);
-                const result = spawn('npm', ['publish', '--provenance'], { cwd: workspaceAbsoluteLocation });
-                console.log(result.stdout?.toString() ?? '');
-                console.log(result.stderr?.toString() ?? '');
+                const result = publishWithProvenance(workspaceName, workspaceAbsoluteLocation);
                 if (result.status !== 0) {
                     if (isVersionPublished(spawn, workspaceName, version, packageJson, workspaceAbsoluteLocation)) {
                         console.log(`Workspace '${workspaceName}' version ${version} is published despite the publish error`);

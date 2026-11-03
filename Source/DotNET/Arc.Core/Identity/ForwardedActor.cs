@@ -55,8 +55,31 @@ internal static class ForwardedActor
         string authenticationType,
         ArcOptions options,
         TimeProvider time,
-        OnBehalfOfReplayCache replays)
+        OnBehalfOfReplayCache replays) => Attach(forward, represented, identity, authenticationType, options, time, replays, out _);
+
+    /// <summary>
+    /// Verifies the forward and attaches the actor to the represented user's identity, reporting how long the result stays acceptable.
+    /// </summary>
+    /// <param name="forward">The <see cref="OnBehalfOfForward"/> values of the request.</param>
+    /// <param name="represented">The represented user's <see cref="ClientPrincipal"/>.</param>
+    /// <param name="identity">The represented user's identity.</param>
+    /// <param name="authenticationType">The authentication type for the actor identity.</param>
+    /// <param name="options">The <see cref="ArcOptions"/>.</param>
+    /// <param name="time">The <see cref="TimeProvider"/> to check the assertion lifetime with.</param>
+    /// <param name="replays">The <see cref="OnBehalfOfReplayCache"/> that refuses a reused assertion.</param>
+    /// <param name="validUntil">The exclusive instant from which the verifier rejects the assertion, or default on failure.</param>
+    /// <returns>The failure reason, or <see langword="null"/> when the actor was attached.</returns>
+    internal static string? Attach(
+        OnBehalfOfForward forward,
+        ClientPrincipal represented,
+        ClaimsIdentity identity,
+        string authenticationType,
+        ArcOptions options,
+        TimeProvider time,
+        OnBehalfOfReplayCache replays,
+        out DateTimeOffset validUntil)
     {
+        validUntil = default;
         var admission = Admit(options);
         if (admission is not null)
         {
@@ -114,6 +137,7 @@ internal static class ForwardedActor
         }
 
         identity.Actor = new ClaimsIdentity(ForwardedIdentityClaims.From(actor, actor.UserId), authenticationType);
+        validUntil = assertion.Expires + options.OnBehalfOf.ClockSkew;
         return null;
     }
 

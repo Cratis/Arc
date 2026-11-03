@@ -137,8 +137,8 @@ public static partial class Generator
 
         message($"  Found {commands.Count} commands and {queries.Count} queries");
 
-        if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
-        if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
+        var collisions = ProxyNameCollisions.Find([.. commands, .. queries], segmentsToSkip, sourceFileMap);
+        if (!TryPrepareOutputDirectory(outputPath, skipOutputDeletion, collisions, errorMessage)) return false;
 
         var typesInvolved = new TypesInvolved();
         var directories = new List<string>();
@@ -249,6 +249,20 @@ public static partial class Generator
         CollectProducedFiles(producedFiles, generatedFiles, skipIndexGeneration, outputPath);
 
         message($"  Overall time: {overallStopwatch.Elapsed}");
+
+        return true;
+    }
+
+    static bool TryPrepareOutputDirectory(string outputPath, bool skipOutputDeletion, IReadOnlyList<ProxyNameCollision> collisions, Action<string> errorMessage)
+    {
+        if (collisions.Count > 0)
+        {
+            ProxyNameCollisions.Report(collisions, errorMessage);
+            return false;
+        }
+
+        if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
+        if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
         return true;
     }

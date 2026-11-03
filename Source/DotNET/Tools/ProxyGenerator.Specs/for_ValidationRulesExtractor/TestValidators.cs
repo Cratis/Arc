@@ -65,6 +65,13 @@ public class TestCommandWithSeveritiesValidator : BaseValidator<TestCommandWithS
     }
 }
 
+public class TestCommandWithThrowingValidator;
+
+public class TestCommandWithThrowingValidatorValidator : AbstractValidator<TestCommandWithThrowingValidator>
+{
+    public TestCommandWithThrowingValidatorValidator() => throw new InvalidOperationException("Test validator cannot be constructed");
+}
+
 public class TestCommandWithoutValidator
 {
     public string Name { get; set; } = string.Empty;

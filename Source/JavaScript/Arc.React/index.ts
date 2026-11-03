@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import * as applicationContext from './applicationContext/index.js';
 import * as commands from './commands/index.js';
 import * as dialogs from './dialogs/index.js';
 import * as identity from './identity/index.js';
@@ -11,9 +12,11 @@ import * as stories from './stories/index.js';
 
 export * from './Arc.js';
 export * from './ArcContext.js';
+export * from './applicationContext/index.js';
 export * from './WellKnownBindings.js';
 
 export {
+    applicationContext,
     commands,
     dialogs,
     identity,

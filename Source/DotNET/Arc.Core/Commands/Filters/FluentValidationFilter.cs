@@ -15,7 +15,7 @@ public class FluentValidationFilter(IModelGraphValidator modelGraphValidator) : 
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
         var validationResults = await modelGraphValidator.Validate(
-            new ModelGraphValidationRequest(context.Command, context.ServiceProvider),
+            new ModelGraphValidationRequest(context.Command, context.ServiceProvider) { Kind = ValidationTargetKind.Command },
             context.CancellationToken);
 
         var commandResult = CommandResult.Success(context.CorrelationId);

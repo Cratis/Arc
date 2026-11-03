@@ -426,7 +426,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0028_RawReadUnderOn = new(
         id: "ARCCHR0028",
         title: "Chronicle read is not proven protected",
-        messageFormat: "Command '{0}' calls '{1}' while read protection is On; this read is not proven protected. Take a read model as a parameter, use IDecisionReads.Get in Provide, or mark the method [Unprotected(\"why\")].",
+        messageFormat: "Command '{0}' calls '{1}' while read protection is On; this read is not proven protected. Take a read model as a parameter, use IDecisionReads.Get directly in Handle() with a reasoned ARCCHR0040 suppression, or mark the method [Unprotected(\"why\")].",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -492,7 +492,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0037_ReadModelStreamNotOnCommandRoute = new(
         id: "ARCCHR0037",
         title: "Read model stream is not on the command route",
-        messageFormat: "Command '{0}' reads '{1}' ({2}), scoped to {3}/{4}, but {5}. Route the command to that stream with an explicit EventStreamId, or use IDecisionReads in Provide for another stream.",
+        messageFormat: "Command '{0}' reads '{1}' ({2}), scoped to {3}/{4}, but {5}. Route the command to that stream with an explicit EventStreamId, or use IDecisionReads directly in Handle() with a reasoned ARCCHR0040 suppression for another stream.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -513,17 +513,17 @@ static class DiagnosticDescriptors
         helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0038/");
 
     /// <summary>
-    /// ARCCHR0039: A handler exposes decision acquisition instead of plain state.
+    /// ARCCHR0040: Prefer a read-model parameter for command state.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0039_NonIdiomaticDecisionParameter = new(
-        id: "ARCCHR0039",
-        title: "Prefer plain read-model parameters in Handle",
-        messageFormat: "Command '{0}' takes '{1}' in Handle. Take the read model as a plain parameter, use LookUpBy for a command property key, or a per-stream model for the command route. Only keys no parameter can express belong in Provide(IDecisionReads), returning plain values to Handle.",
+    public static readonly DiagnosticDescriptor ARCCHR0040_PreferReadModelParameter = new(
+        id: "ARCCHR0040",
+        title: "Prefer a read-model parameter",
+        messageFormat: "Handle takes '{0}'; declare the read model as a Handle parameter instead (guarded only when read protection is On). If an acquisition gap requires this dependency, suppress ARCCHR0040 with a reason.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "Decision reader and token parameters remain supported, but application handlers should decide from plain state. This signature advice applies in Off, Measure and On and does not change runtime guard behavior.",
-        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0039/");
+        description: "Handle may take any services. Direct IDecisionReads and DecisionRead<T> parameters usually have a read-model-parameter alternative; unsupported acquisition shapes may need a reasoned suppression. Runtime behavior is unchanged.",
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0040/");
 
     const string Category = "Arc.Chronicle";
 }

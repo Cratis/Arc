@@ -14,11 +14,13 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <param name="requestContext">The subscribe request whose identity and request data are captured.</param>
 /// <param name="transportContext">The long-lived context used only for response transport operations.</param>
-/// <param name="requestServices">A durable service provider, not the subscribe request's disposed scope.</param>
+/// <param name="requestServices">The subscription's own service-scope provider, which lives exactly as long as the subscription.</param>
 /// <param name="requestAborted">The subscription cancellation token.</param>
 /// <remarks>
 /// Request data is copied from the subscribe request and is therefore independent of that request's lifetime. Response
 /// operations are forwarded only to the long-lived transport context.
+/// Invariant I-3600: a hub subscription context resolves only through its own subscription scope or a scope the pipeline
+/// selected for that same subscription, never through the root provider or another subscription's scope.
 /// </remarks>
 internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     IHttpRequestContext requestContext,

@@ -9,7 +9,7 @@ Use this when a command may proceed only if the stored state of one entity allow
 | --- | --- |
 | Rule | A book cannot be borrowed when no copy is left |
 | Mechanism | A read model parameter under `On`, the rule in a validator |
-| Alternatives | An aggregate (more code, no read model). `IDecisionReads` in `Provide()` for a computed key |
+| Alternatives | An aggregate (more code, no read model). `IDecisionReads` directly in `Handle()` for a computed key, with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | Not | A validator over a plain read under `Off`. It is only a hint |
 
 ```csharp

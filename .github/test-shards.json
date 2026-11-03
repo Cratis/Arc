@@ -97,6 +97,7 @@
         "Cratis.Arc.ProxyGenerator.for_Generator",
         "Cratis.Arc.ProxyGenerator.for_MethodInfoExtensions",
         "Cratis.Arc.ProxyGenerator.for_PropertyExtensions",
+        "Cratis.Arc.ProxyGenerator.for_ProxyNameCollisions",
         "Cratis.Arc.ProxyGenerator.for_StringExtensions",
         "Cratis.Arc.ProxyGenerator.for_TemplateTypes",
         "Cratis.Arc.ProxyGenerator.for_TypeExtensions",

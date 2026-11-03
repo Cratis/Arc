@@ -17,6 +17,8 @@ For a query method named `AuthorsByName` with client parameters, the generator e
 
 A parameterless query has no parameters interface and uses the base class's default parameter type. Collection results use `TModel[]`. The default output is a file named after the query method; [source-file grouping](Configuration/basic.md#source-file-as-output-file) can change that filename.
 
+When two read models would generate same-named query proxies into one TypeScript module, generation stops with an error naming both sources. Rename one query method: the proxy class and its conventional route both come from the method name.
+
 Controller methods marked `[AspNetResult]` are excluded from normal proxy discovery.
 
 ## React return tuples

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { SliceLocation } from '@cratis/arc/reflection';
+import { commonLocationOf } from './commonLocationOf.js';
 
 /**
  * Defines how a {@link SliceScope} decides its slice location.
@@ -75,6 +76,20 @@ export class SliceScope {
     }
 
     /**
+     * Gets the distinct slice locations currently registered directly on this scope, before they are folded.
+     * @returns The registered locations.
+     */
+    get registered(): SliceLocation[] {
+        const result: SliceLocation[] = [];
+        for (const location of this._registrations.values()) {
+            if (!result.some(existing => existing.equals(location))) {
+                result.push(location);
+            }
+        }
+        return result;
+    }
+
+    /**
      * Subscribes to changes that may affect the resolved location of the scope.
      * @param listener The callback to call on a change.
      * @returns A callback that removes the subscription.
@@ -136,30 +151,6 @@ export class SliceScope {
 
 function nothingToUnregister(): void {
     // An empty location is never registered, so there is nothing to remove.
-}
-
-/**
- * Gets the parts all locations agree on, from the module down: once a part differs, it and the parts below it are
- * left empty.
- * @param locations The locations to combine.
- * @returns The combined location, or undefined when there are none or they agree on nothing.
- */
-function commonLocationOf(locations: SliceLocation[]): SliceLocation | undefined {
-    if (locations.length === 0) {
-        return undefined;
-    }
-
-    const [first, ...rest] = locations;
-    const sameModule = rest.every(location => location.module === first.module);
-    const sameFeature = sameModule && rest.every(location => location.feature === first.feature);
-    const sameSlice = sameFeature && rest.every(location => location.slice === first.slice);
-
-    const common = new SliceLocation(
-        sameModule ? first.module : '',
-        sameFeature ? first.feature : '',
-        sameSlice ? first.slice : '');
-
-    return common.isEmpty ? undefined : common;
 }
 
 /**

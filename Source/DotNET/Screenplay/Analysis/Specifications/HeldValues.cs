@@ -140,6 +140,33 @@ public class HeldValues(SemanticModels models)
         _ => false
     };
 
+    /// <summary>
+    /// Gets a member as the compilation that declares it knows it, since a consumer compiled with references of its
+    /// own sees the same member as a different symbol from the one its assignments were recorded under.
+    /// </summary>
+    /// <param name="symbol">The member or local as the step names it.</param>
+    /// <param name="written">The assignments recorded for the declaring compilation.</param>
+    /// <param name="compilation">The compilation that declares the member.</param>
+    /// <returns>The member to look up, or <see langword="null"/> when it is already the one recorded or cannot be matched exactly once.</returns>
+    static ISymbol? AsSeenBy(ISymbol symbol, Dictionary<ISymbol, List<AssignmentExpressionSyntax>> written, Compilation compilation)
+    {
+        if (written.ContainsKey(symbol) || symbol is ILocalSymbol)
+        {
+            return null;
+        }
+
+        var identity = symbol.OriginalDefinition.GetDocumentationCommentId();
+        if (identity is null)
+        {
+            return null;
+        }
+
+        return DocumentationCommentId.GetSymbolsForDeclarationId(identity, compilation)
+            .Where(candidate => candidate.ContainingAssembly.Identity.Equals(symbol.ContainingAssembly.Identity) &&
+                candidate.DeclaringSyntaxReferences.Length > 0)
+            .Take(2).ToList() is [var only] ? only : null;
+    }
+
     bool ReadStability(ISymbol symbol, Compilation compilation)
     {
         if (symbol is IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true })
@@ -228,7 +255,8 @@ public class HeldValues(SemanticModels models)
             }
 
             var declaration = reference.GetSyntax();
-            foreach (var assignment in WritesIn(model.Compilation).Assignments.GetValueOrDefault(symbol, [])
+            var written = WritesIn(model.Compilation).Assignments;
+            foreach (var assignment in written.GetValueOrDefault(AsSeenBy(symbol, written, model.Compilation) ?? symbol, [])
                 .Where(assignment => assignment.SyntaxTree == reference.SyntaxTree && declaration.Span.Contains(assignment.Span)))
             {
                 yield return assignment.Right;

@@ -142,7 +142,7 @@ public record BorrowAvailableBook(BookId Book, MemberId Member)
 }
 ```
 
-Use `[LookUpBy]` for a command property key, or a per-stream model for the command route. Only when neither can express the key should `Provide(IDecisionReads)` acquire plain state for `Handle()`. Application specs call `Handle(state)` directly or give that state to `CommandScenario`; they never configure decision reads or simulate concurrent appends. Arc does not add application test support for non-recommended handler patterns.
+Use `[LookUpBy]` for a command property key, or a per-stream model for the command route. Only when neither can express the key should `Handle()` take `IDecisionReads` (or `DecisionRead<T>`) directly, with ARCCHR0040 suppressed with a reason and a link to the tracking feature. Application specs call `Handle(state)` directly or give that state to `CommandScenario`; they never configure decision reads or simulate concurrent appends. Arc does not add application test support for non-recommended handler patterns.
 
 ## The earlier form: [ProtectedDecision] and DecisionRead
 

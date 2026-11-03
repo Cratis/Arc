@@ -13,6 +13,7 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../ProxyGenerator/ProxyGenerator.csproj" />
+        <ProjectReference Include="TestArtifacts/RuntimeDependencyApplication/RuntimeDependencyApplication.csproj" ReferenceOutputAssembly="false" Private="false" />
         <ProjectReference Include="../../Arc/Arc.csproj" />
         <ProjectReference Include="TestArtifacts/AssemblyNameMismatchDependency/AssemblyNameMismatchDependency.csproj" />
         <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
@@ -83,34 +84,60 @@
     <PropertyGroup>
         <ArcJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc</ArcJavaScriptPath>
         <ArcReactJavaScriptPath>$(MSBuildThisFileDirectory)../../../JavaScript/Arc.React</ArcReactJavaScriptPath>
-        <!-- Default to always rebuild (CI behavior) -->
-        <ArcNeedsRebuild>true</ArcNeedsRebuild>
-        <ArcReactNeedsRebuild>true</ArcReactNeedsRebuild>
+        <ArcJavaScriptRoot>$(MSBuildThisFileDirectory)../../../../</ArcJavaScriptRoot>
     </PropertyGroup>
-    <Target Name="CheckJavaScriptTimestamps" BeforeTargets="BuildJavaScriptPackages" Condition="'$(CI)' == ''">
-        <!-- Local optimization: check timestamps to potentially skip builds -->
-        <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" IgnoreExitCode="true">
-            <Output TaskParameter="ExitCode" PropertyName="ArcUpToDateCode" />
-        </Exec>
-        <Exec Command="bash '$(MSBuildThisFileDirectory)check-timestamp.sh' '$(ArcReactJavaScriptPath)'" ContinueOnError="true" StandardOutputImportance="low" StandardErrorImportance="low" IgnoreExitCode="true">
-            <Output TaskParameter="ExitCode" PropertyName="ArcReactUpToDateCode" />
-        </Exec>
+    <ItemGroup>
+        <!-- Everything that influences the output of `yarn build` for each package (tsc -b + rollup). -->
+        <_ArcJavaScriptInput Include="$(ArcJavaScriptPath)/**/*.ts;$(ArcJavaScriptPath)/**/*.tsx;$(ArcJavaScriptPath)/package.json;$(ArcJavaScriptPath)/tsconfig*.json;$(ArcJavaScriptPath)/rollup.config.mjs"
+                               Exclude="$(ArcJavaScriptPath)/node_modules/**;$(ArcJavaScriptPath)/dist/**" />
+        <_ArcJavaScriptInput Include="$(ArcJavaScriptRoot)package.json;$(ArcJavaScriptRoot)yarn.lock;$(ArcJavaScriptRoot)tsconfig.json;$(ArcJavaScriptRoot)rollup.config.mjs;$(ArcJavaScriptRoot)global.d.ts;$(ArcJavaScriptRoot)test.d.ts" Condition="Exists('$(ArcJavaScriptRoot)yarn.lock')" />
+        <_ArcReactJavaScriptInput Include="$(ArcReactJavaScriptPath)/**/*.ts;$(ArcReactJavaScriptPath)/**/*.tsx;$(ArcReactJavaScriptPath)/package.json;$(ArcReactJavaScriptPath)/tsconfig*.json;$(ArcReactJavaScriptPath)/rollup.config.mjs"
+                                    Exclude="$(ArcReactJavaScriptPath)/node_modules/**;$(ArcReactJavaScriptPath)/dist/**" />
+        <_ArcReactJavaScriptInput Include="@(_ArcJavaScriptInput)" Exclude="$(ArcJavaScriptPath)/**" />
+    </ItemGroup>
+    <Target Name="InitializeJavaScriptBuild">
+        <!-- Resolve paths after the SDK has set the configuration/TFM-specific intermediate directory. -->
         <PropertyGroup>
-            <!-- Exit code 0 means up to date, 1 means needs rebuild -->
-            <ArcNeedsRebuild Condition="'$(ArcUpToDateCode)' == '0'">false</ArcNeedsRebuild>
-            <ArcNeedsRebuild Condition="'$(ArcUpToDateCode)' != '0'">true</ArcNeedsRebuild>
-            <ArcReactNeedsRebuild Condition="'$(ArcReactUpToDateCode)' == '0'">false</ArcReactNeedsRebuild>
-            <ArcReactNeedsRebuild Condition="'$(ArcReactUpToDateCode)' != '0'">true</ArcReactNeedsRebuild>
+            <ArcJavaScriptStamp>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'arc-js.stamp'))</ArcJavaScriptStamp>
+            <ArcReactJavaScriptStamp>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'arc-react-js.stamp'))</ArcReactJavaScriptStamp>
         </PropertyGroup>
+        <ItemGroup>
+            <FileWrites Include="$(ArcJavaScriptStamp);$(ArcReactJavaScriptStamp)" />
+        </ItemGroup>
     </Target>
-    <Target Name="BuildJavaScriptPackages" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' == 'net10.0'">
-        <!-- Build JavaScript packages based on property conditions -->
-        <Message Text="Building @cratis/arc JavaScript package..." Importance="high" Condition="$(ArcNeedsRebuild)" />
-        <Exec Command="yarn build" WorkingDirectory="$(ArcJavaScriptPath)" Condition="$(ArcNeedsRebuild)" />
-        <Message Text="Skipping @cratis/arc build - sources unchanged" Importance="high" Condition="!$(ArcNeedsRebuild)" />
-        <Message Text="Building @cratis/arc.react JavaScript package..." Importance="high" Condition="$(ArcReactNeedsRebuild)" />
-        <Exec Command="yarn build" WorkingDirectory="$(ArcReactJavaScriptPath)" Condition="$(ArcReactNeedsRebuild)" />
-        <Message Text="Skipping @cratis/arc.react build - sources unchanged" Importance="high" Condition="!$(ArcReactNeedsRebuild)" />
+    <Target Name="PrepareArcReactJavaScriptInputs" DependsOnTargets="BuildArcJavaScriptPackage">
+        <!-- Include declarations even when Arc was built outside this project's targets. -->
+        <ItemGroup>
+            <_ArcReactJavaScriptInput Include="$(ArcJavaScriptStamp);$(ArcJavaScriptPath)/dist/esm/**/*.d.ts" />
+        </ItemGroup>
+    </Target>
+    <Target Name="CleanJavaScriptBuildStamps" AfterTargets="Clean" DependsOnTargets="InitializeJavaScriptBuild">
+        <Delete Files="$(ArcJavaScriptStamp);$(ArcReactJavaScriptStamp)" />
+    </Target>
+    <!-- Incremental: skipped when the stamp and the dist entry are newer than every input. A missing dist entry or stamp forces a rebuild. -->
+    <Target Name="BuildArcJavaScriptPackage"
+            BeforeTargets="BeforeBuild"
+            DependsOnTargets="InitializeJavaScriptBuild"
+            Condition="'$(TargetFramework)' == 'net10.0'"
+            Inputs="@(_ArcJavaScriptInput)"
+            Outputs="$(ArcJavaScriptStamp);$(ArcJavaScriptPath)/dist/esm/index.js">
+        <Message Text="Building @cratis/arc JavaScript package..." Importance="high" />
+        <Delete Files="$(ArcJavaScriptStamp)" />
+        <Exec Command="yarn build" WorkingDirectory="$(ArcJavaScriptPath)" />
+        <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(ArcJavaScriptStamp)'))" />
+        <Touch Files="$(ArcJavaScriptStamp)" AlwaysCreate="true" />
+    </Target>
+    <Target Name="BuildArcReactJavaScriptPackage"
+            BeforeTargets="BeforeBuild"
+            DependsOnTargets="PrepareArcReactJavaScriptInputs"
+            Condition="'$(TargetFramework)' == 'net10.0'"
+            Inputs="@(_ArcReactJavaScriptInput)"
+            Outputs="$(ArcReactJavaScriptStamp);$(ArcReactJavaScriptPath)/dist/esm/index.js">
+        <Message Text="Building @cratis/arc.react JavaScript package..." Importance="high" />
+        <Delete Files="$(ArcReactJavaScriptStamp)" />
+        <Exec Command="yarn build" WorkingDirectory="$(ArcReactJavaScriptPath)" />
+        <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(ArcReactJavaScriptStamp)'))" />
+        <Touch Files="$(ArcReactJavaScriptStamp)" AlwaysCreate="true" />
     </Target>
     <Target Name="CopyProxyJavaScriptDependencies" AfterTargets="Build" Condition="'$(TargetFramework)' == 'net10.0'">
         <Copy SourceFiles="@(ProxyJavaScriptDependency)"

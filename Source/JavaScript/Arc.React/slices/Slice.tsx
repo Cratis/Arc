@@ -5,6 +5,8 @@ import { ReactNode, useContext, useMemo } from 'react';
 import { SliceLocation } from '@cratis/arc/reflection';
 import { SliceScope, SliceScopeKind } from './SliceScope.js';
 import { SliceScopeContext } from './SliceScopeContext.js';
+import { useRegisterScope } from '../applicationContext/useRegisterScope.js';
+import { SliceMarker } from '../applicationContext/SliceMarker.js';
 
 /**
  * Properties for the {@link Slice} component.
@@ -54,9 +56,13 @@ export const Slice = (props: SliceProps) => {
             : new SliceScope(parent),
         [parent, isExplicit, module, feature, slice]);
 
+    useRegisterScope(scope);
+
     return (
         <SliceScopeContext.Provider value={scope}>
-            {props.children}
+            <SliceMarker scope={scope}>
+                {props.children}
+            </SliceMarker>
         </SliceScopeContext.Provider>
     );
 };

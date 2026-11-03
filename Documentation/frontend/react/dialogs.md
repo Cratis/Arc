@@ -48,6 +48,42 @@ React `useDialog<TResponse, TInput>(Component)` returns **three** elements: `[Wr
 
 `closeDialog(result, response?)` resolves the pending call. A cancellation may have no response, so check both the result and optional value. Do not open the same hook concurrently: it stores one pending resolver.
 
+## Dialogs and slice scope
+
+A dialog is often rendered by a renderer far from where it was opened. `useDialog` captures the slice scope of the component that called it, and renders the dialog in a child scope of that scope. Inside the dialog, `useSliceContext()` reports the location of the slice that owns it, and commands and queries used in the dialog refine that location as they would inline.
+
+```tsx
+import { useDialog, useDialogSliceLocation } from '@cratis/arc.react/dialogs';
+
+const EditOrderDialog = () => {
+    const location = useDialogSliceLocation();     // Orders/Editing/ChangeOrder
+    return <header>Edit order <small>{location.toString()}</small></header>;
+};
+
+const ChangeOrder = () => {
+    const [EditOrder, showEditOrder] = useDialog(EditOrderDialog, { title: 'Edit order' });
+    return <><button onClick={() => showEditOrder()}>Edit</button><EditOrder /></>;
+};
+```
+
+A dialog can declare its own location, which wins over the inherited one:
+
+```tsx
+useDialog(AddressDialog, { slice: { module: 'Orders', feature: 'Shipping', slice: 'Address' } });
+```
+
+`useDialog` takes these options as a second argument:
+
+| Option | Description |
+| --- | --- |
+| `slice` | An explicit location for the dialog. Parts not given are empty. |
+| `title` | The title reported in the [application context](./application-context.md). |
+| `trackInApplicationContext` | Set to `false` to keep the open dialog out of the application context. Defaults to `true`. The built-in confirmation and busy indicator dialogs of `DialogComponents` do not track. |
+
+Open dialogs register with the application context: `useApplicationContext().dialogs` lists them bottom first, and `location` is the location of the top-most dialog. Closing it returns focus to the dialog below, or to the page. `useDialogSliceLocation()` returns the location of the dialog the component is rendered in, and `SliceLocation.empty` outside a dialog, so dialog chrome such as a header slot can read it without knowing about scopes.
+
+When `sliceMarkers` is enabled on `<Arc>`, the dialog content is wrapped in the marker element too. Renderers that portal the content elsewhere can use `sliceMarkerAttributes(useDialogSliceLocation())` on their own element.
+
 ## Confirmation dialogs
 
 `DialogButtons` supports `Ok`, `OkCancel`, `YesNo`, and `YesNoCancel`. `DialogResult` supports `None`, `Ok`, `Yes`, `No`, and **`Cancelled`**, not `Cancel`.

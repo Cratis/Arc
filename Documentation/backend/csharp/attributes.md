@@ -53,6 +53,7 @@ templates such as `{id}` are not supported for commands, and it should not end w
 | Attribute | Valid on | Effect |
 |---|---|---|
 | `[ExcludeFromDiscovery]` (`Cratis.Arc`) | command type, read model type, query method, controller or controller action | Omits the marked operation from `/.cratis/commands` or `/.cratis/queries` and generated OpenAPI descriptions (including command validation endpoints). |
+| `[assembly: ArtifactsRequireOptIn]` (`Cratis.Arc`) | assembly | Does not serve the assembly's model-bound commands or read-model queries unless the host includes the assembly through `ArcOptions.Artifacts.Include(assembly)`. They are not mapped, catalogued, described or included in artifact startup validation. |
 
 The marker is inherited: marking a base command type or read model also hides every type
 that derives from it. This differs from a command's `[Path]`, which is not inherited.
@@ -61,6 +62,15 @@ This marker **does not unmap the HTTP endpoint or authorize it**. Protect it wit
 `[Authorize]`, a trusted ingress, or both; do not rely on hiding metadata as a
 security boundary. Controller-based commands are not in the command catalog, but
 marked controller actions are omitted from MVC's API descriptions.
+
+Use `[assembly: ArtifactsRequireOptIn]` when a library's commands and queries belong
+in its own private container, such as Chronicle's kernel, rather than every host
+that references it. Unlike `[ExcludeFromDiscovery]`, this marker removes endpoints,
+not just their descriptions. Hosts that serve the library explicitly
+[include its assembly in code](configuration/index.md#including-a-private-librarys-artifacts).
+Controller actions, proxy generation, and other extension points discovered from
+the assembly, such as filters and validators, are not affected. Unmarked assemblies
+keep their existing behavior.
 
 ## Authorization
 

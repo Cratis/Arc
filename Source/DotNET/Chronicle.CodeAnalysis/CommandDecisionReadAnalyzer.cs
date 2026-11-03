@@ -14,7 +14,7 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 /// Advises on recognizable unguarded Chronicle reads and immediate appends in event-producing commands.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed partial class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
+public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 {
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
     const string ChronicleReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
@@ -27,8 +27,7 @@ public sealed partial class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
-        DiagnosticDescriptors.ARCCHR0012_ImmediateAppendAfterDecisionRead,
-        DiagnosticDescriptors.ARCCHR0039_NonIdiomaticDecisionParameter
+        DiagnosticDescriptors.ARCCHR0012_ImmediateAppendAfterDecisionRead
     ];
 
     /// <inheritdoc/>
@@ -59,7 +58,6 @@ public sealed partial class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        AnalyzeHandlerParameter(context, syntax, parameter, method);
         if (!InDecision(method, out var command))
         {
             return;

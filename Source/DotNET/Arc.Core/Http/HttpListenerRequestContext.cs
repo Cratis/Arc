@@ -21,7 +21,7 @@ namespace Cratis.Arc.Http;
 /// </remarks>
 /// <param name="context">The <see cref="HttpListenerContext"/>.</param>
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
-public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext, ICanReadResponseHeaders
+public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext, ICanReadResponseHeaders, ICanReadForwardedIdentityRequest
 {
     readonly Dictionary<object, object?> _items = [];
     JsonSerializerOptions? _jsonOptions;
@@ -41,6 +41,12 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
 
     /// <inheritdoc/>
     public string Path => context.Request.Url?.AbsolutePath ?? string.Empty;
+
+    /// <inheritdoc/>
+    public IEnumerable<string> HeaderNames => context.Request.Headers.AllKeys.OfType<string>();
+
+    /// <inheritdoc/>
+    public string? RawTarget => context.Request.RawUrl;
 
     /// <inheritdoc/>
     public string Method => context.Request.HttpMethod;
@@ -78,6 +84,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<string> GetHeaderValues(string name) => context.Request.Headers.GetValues(name) ?? [];
 
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)

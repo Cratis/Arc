@@ -31,6 +31,17 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
+        if (options.Value.ForwardedIdentity?.Enabled == true)
+        {
+            var signed = ForwardedIdentityAuthentication.Authenticate(context, options.Value, nameof(MicrosoftIdentityPlatformAuthenticationHandler), context.Path);
+            if (signed.Failure is { } failure)
+            {
+                ForwardedIdentityLogMessages.Rejected(_logger, failure);
+                return Task.FromResult(AuthenticationResult.Failed(failure));
+            }
+            return Task.FromResult(signed.Principal is { } signedPrincipal ? AuthenticationResult.Succeeded(signedPrincipal) : AuthenticationResult.Anonymous);
+        }
+
         var headers = context.Headers;
 
         var onBehalfOf = ForwardedActor.IsPresent(headers.ContainsKey);

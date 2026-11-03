@@ -52,7 +52,7 @@ const defaultContextValue: IdentityContextValue = {
 export const IdentityProviderContext = React.createContext<IdentityContextValue>(defaultContextValue);
 
 export interface IdentityProviderProps {
-    children?: JSX.Element | JSX.Element[],
+    children?: React.JSX.Element | React.JSX.Element[],
     httpHeadersCallback?: GetHttpHeaders,
     detailsType?: Constructor
 }

@@ -12,6 +12,7 @@ using Cratis.Execution;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
@@ -45,8 +46,9 @@ public static class QueryEndpointMapper
 
         // Register public performers first so they win over internal performers when URLs conflict.
         var orderedPerformers = queryPerformerProviders.Performers
-            .OrderByDescending(p => p.ReadModelType is { IsPublic: true } or { IsNestedPublic: true });
-        var registeredUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            .OrderByDescending(IsPublic);
+        var registeredUrls = new Dictionary<string, IQueryPerformer>(StringComparer.OrdinalIgnoreCase);
+        var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger(typeof(QueryEndpointMapper).FullName!) ?? NullLogger.Instance;
 
         foreach (var performer in orderedPerformers)
         {
@@ -71,13 +73,31 @@ public static class QueryEndpointMapper
                 locationForTag = location;
             }
 
-            if (!registeredUrls.Add(url)) continue;
+            if (!registeredUrls.TryAdd(url, performer))
+            {
+                ReportRouteCollision(logger, performer, url, registeredUrls[url]);
+                continue;
+            }
 
             foreach (var reader in readers)
             {
                 MapForReader(mapper, reader, performer, new(url, locationForTag, endpointGroup), serviceProvider);
             }
         }
+    }
+
+    static bool IsPublic(IQueryPerformer performer) =>
+        performer.ReadModelType is { IsPublic: true } or { IsNestedPublic: true };
+
+    static void ReportRouteCollision(ILogger logger, IQueryPerformer skipped, string url, IQueryPerformer mapped)
+    {
+        if (IsPublic(skipped))
+        {
+            logger.PublicQueryRouteCollision(skipped.FullyQualifiedName, url, mapped.FullyQualifiedName);
+            return;
+        }
+
+        logger.InternalQueryRouteCollision(skipped.FullyQualifiedName, url, mapped.FullyQualifiedName);
     }
 
     static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, QueryEndpointPlacement placement, IServiceProvider services)
@@ -134,7 +154,7 @@ public static class QueryEndpointMapper
                         return;
                     }
 
-                    context.SetStatusCode((int)HttpStatusCode.BadRequest);
+                    context.SetStatusCode((int)(TenantMembershipDenied.IsCauseOf(ex) ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest));
                     await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
                     return;
                 }
@@ -175,7 +195,17 @@ public static class QueryEndpointMapper
         {
             // The pipeline has restored the outer request identity. A direct stream lives beyond that lease,
             // so keep its subscriber identity, selected tenant and owned provider until the transport finishes.
-            var tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
+            TenantId tenant;
+            try
+            {
+                tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
+            }
+            catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+            {
+                context.SetStatusCode((int)HttpStatusCode.Forbidden);
+                await context.WriteResponseAsJson(QueryResult.Unauthorized(queryResult.CorrelationId), typeof(QueryResult), context.RequestAborted);
+                return;
+            }
             var manager = context.RequestServices.GetRequiredService<IQueryContextManager>();
             var previousQueryContext = manager.Current;
             var queryContext = queryResult.AuthorizedQueryContext ?? previousQueryContext;

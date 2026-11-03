@@ -63,4 +63,6 @@ CRATIS_ARC_PUBLISHED_ARCCORE_LOG="$PWD/.ai-work/2859/untrimmed-app.log" \
 Samples/ArcCore.Specs/bin/Release/net10.0/Cratis.Arc.Samples.ArcCore.Specs -noLogo -noColor -result-trx "$PWD/.ai-work/2859/untrimmed.trx"
 ```
 
-This is not a CI gate yet; see [#2859](https://github.com/Cratis/Arc/issues/2859). Trimmed and NativeAOT runs may expose library incompatibilities; the untrimmed variant is the control.
+The [Trim/AOT Ratchet workflow](../.github/workflows/aot-ratchet.yml) runs all 12 HTTP acceptance facts against the Untrimmed published executable on native Linux x64, and fails if any fact is skipped. The executable must listen at the requested nondefault loopback URL; a reported URL mismatch fails startup instead of testing another port. The query checks require HTTP 200, success, id `7`, and name `Item #7`; the command round trip must also pass.
+
+Use a native RID for your platform and install the .NET SDK selected by `global.json`. Trimmed and NativeAOT acceptance is pending [Cratis/Fundamentals#1237](https://github.com/Cratis/Fundamentals/issues/1237) (NativeAOT enum converters) and a trimmed-publish ILLink crash, tracked separately; this sample makes no Trimmed or NativeAOT working claim. The untrimmed variant remains the control; see [#2859](https://github.com/Cratis/Arc/issues/2859).

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Generation;
@@ -198,7 +199,7 @@ internal sealed class ArcSpecificationFactBuilder(
         }
 
         if (_artifactTypes.TryGetValue(artifactKey, out var existingArtifact) &&
-            !SymbolEqualityComparer.Default.Equals(existingArtifact, artifact))
+            !DeclaredTypeIdentity.IsSame(existingArtifact, artifact))
         {
             _sourceEvidence.Block(specification, evidence, $"step {index} resolves one artifact identity to several source types");
             return false;

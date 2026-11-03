@@ -46,7 +46,14 @@ public class a_guarded_client_enumerable_observable : Specification
         _context.RequestServices.Returns(Substitute.For<IServiceProvider>());
         _context.User.Returns(_principal);
 
-        var webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
+        var webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler, IWebSocketMessageSender>();
+        ((IWebSocketMessageSender)webSocketConnectionHandler)
+            .Send(Arg.Any<IWebSocket>(), Arg.Any<QueryResult>(), Arg.Any<SemaphoreSlim>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var error = await webSocketConnectionHandler.SendMessage(call.Arg<IWebSocket>(), call.Arg<QueryResult>(), call.Arg<SemaphoreSlim>(), call.Arg<CancellationToken>());
+                return error is null ? WebSocketSendResult.Sent : WebSocketSendResult.Failed(error);
+            });
         webSocketConnectionHandler
             .HandleIncomingMessages(Arg.Any<IWebSocket>(), Arg.Any<SemaphoreSlim>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>

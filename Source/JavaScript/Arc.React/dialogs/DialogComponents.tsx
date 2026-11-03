@@ -58,7 +58,7 @@ export interface DialogComponentsProps {
     /**
      * Optional children elements to render within the dialog components context.
      */
-    children?: JSX.Element | JSX.Element[];
+    children?: React.JSX.Element | React.JSX.Element[];
 
     /**
      * Optional confirmation dialog component to use.
@@ -73,9 +73,12 @@ export interface DialogComponentsProps {
     busyIndicator?: React.FC<BusyIndicatorDialogRequest>;
 }
 
+// The built-in dialogs are rendered from the host and are not owned by a slice, so they do not take focus.
+const untracked = { trackInApplicationContext: false };
+
 const DialogComponentsWrapper = (props: DialogComponentsProps) => {
-    const [Confirmation, showConfirmation] = useDialog(props.confirmation ?? React.Fragment as React.FC<ConfirmationDialogRequest>);
-    const [BusyIndicator, showBusyIndicator, closeBusyIndicatorDialogContext] = useDialog(props.busyIndicator ?? React.Fragment as React.FC<BusyIndicatorDialogRequest>);
+    const [Confirmation, showConfirmation] = useDialog(props.confirmation ?? React.Fragment as React.FC<ConfirmationDialogRequest>, untracked);
+    const [BusyIndicator, showBusyIndicator, closeBusyIndicatorDialogContext] = useDialog(props.busyIndicator ?? React.Fragment as React.FC<BusyIndicatorDialogRequest>, untracked);
 
     const configuration: IDialogComponents = {
         confirmation: Confirmation,

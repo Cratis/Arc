@@ -12,7 +12,7 @@ namespace Cratis.Arc.ProxyGenerator;
 /// </summary>
 public static class XmlDocumentation
 {
-    static readonly Dictionary<string, XDocument> _loadedDocuments = [];
+    static readonly Dictionary<string, Dictionary<string, XElement>> _loadedDocuments = [];
     static readonly object _loadedDocumentsLock = new();
 
     /// <summary>
@@ -27,8 +27,7 @@ public static class XmlDocumentation
         if (xmlDoc is null) return null;
 
         var memberName = GetMemberName(member);
-        var element = xmlDoc.Descendants("member")
-            .FirstOrDefault(m => m.Attribute("name")?.Value == memberName);
+        var element = xmlDoc.GetValueOrDefault(memberName);
 
         if (element is null) return null;
 
@@ -47,8 +46,7 @@ public static class XmlDocumentation
         if (xmlDoc is null) return null;
 
         var memberName = GetTypeName(type);
-        var element = xmlDoc.Descendants("member")
-            .FirstOrDefault(m => m.Attribute("name")?.Value == memberName);
+        var element = xmlDoc.GetValueOrDefault(memberName);
 
         if (element is null) return null;
 
@@ -69,8 +67,7 @@ public static class XmlDocumentation
         if (xmlDoc is null) return null;
 
         var memberName = GetMemberName(method);
-        var methodElement = xmlDoc.Descendants("member")
-            .FirstOrDefault(m => m.Attribute("name")?.Value == memberName);
+        var methodElement = xmlDoc.GetValueOrDefault(memberName);
 
         if (methodElement is null) return null;
 
@@ -94,8 +91,7 @@ public static class XmlDocumentation
         if (xmlDoc is null) return null;
 
         var memberName = GetMemberName(property);
-        var element = xmlDoc.Descendants("member")
-            .FirstOrDefault(m => m.Attribute("name")?.Value == memberName);
+        var element = xmlDoc.GetValueOrDefault(memberName);
 
         if (element is null) return null;
 
@@ -105,7 +101,24 @@ public static class XmlDocumentation
         return Render(summary);
     }
 
-    static XDocument? GetXmlDocument(Assembly assembly)
+    /// <summary>
+    /// Index every documented member by its name. The first occurrence of a name wins.
+    /// </summary>
+    /// <param name="document">The XML documentation document.</param>
+    /// <returns>The members keyed by name.</returns>
+    internal static Dictionary<string, XElement> IndexMembers(XDocument document)
+    {
+        var index = new Dictionary<string, XElement>();
+        foreach (var member in document.Descendants("member"))
+        {
+            var name = member.Attribute("name")?.Value;
+            if (name is not null) index.TryAdd(name, member);
+        }
+
+        return index;
+    }
+
+    static Dictionary<string, XElement>? GetXmlDocument(Assembly assembly)
     {
         var assemblyLocation = assembly.Location;
         if (string.IsNullOrEmpty(assemblyLocation)) return null;
@@ -122,7 +135,7 @@ public static class XmlDocumentation
 
             try
             {
-                doc = XDocument.Load(xmlPath);
+                doc = IndexMembers(XDocument.Load(xmlPath));
                 _loadedDocuments[xmlPath] = doc;
                 return doc;
             }

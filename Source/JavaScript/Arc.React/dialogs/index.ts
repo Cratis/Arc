@@ -14,3 +14,6 @@ export * from './ShowDialog.js';
 export * from './useBusyIndicator.js';
 export * from './useConfirmationDialog.js';
 export * from './useDialog.js';
+export * from './DialogSliceScope.js';
+export * from './UseDialogOptions.js';
+export * from './useDialogSliceLocation.js';
