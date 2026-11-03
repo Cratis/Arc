@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Return the query, not all its rows
 
-To let Arc request one page from your database, return `IQueryable<T>` without materializing it first. This alternative declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider:
+Return `IQueryable<T>` from `AllAccounts` so Arc can count and select a page before materializing the rows. Calling `ToList()` first would give Arc a finished collection rather than a database query it can page. This alternative declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider:
 
 ```csharp
 using System.Linq;
@@ -32,7 +32,7 @@ GET /api/accounts?page=0&pageSize=25
 GET /api/accounts?page=1&pageSize=10&sortBy=name&sortDirection=asc
 ```
 
-The first request uses the method's stable ID ordering. A client-requested sort replaces that primary ordering; design a stable ordering for production paging, especially when a sort field has duplicates.
+The first request asks for the first 25 accounts using the method's stable ID ordering. The second requests page 1 with ten accounts per page, ordered by name. A client-requested sort replaces that primary ordering; design a stable ordering for production paging, especially when a sort field has duplicates.
 
 ## How it works
 
@@ -56,7 +56,7 @@ The Arc source generator registers every read model that has a query returning a
 
 ## Result metadata
 
-The response `paging` object contains `page`, `size`, `totalItems`, and computed `totalPages`. It does not contain `pageSize`, `hasNext`, or `hasPrevious`. See the complete [query result contract](../query-pipeline.md#query-result-metadata).
+Read the selected accounts from `data` and the requested page from `paging.page` and `paging.size`. `paging.totalItems` counts matching accounts before slicing, and `paging.totalPages` is computed from that count and size. The response does not contain `pageSize`, `hasNext`, or `hasPrevious`. Check the [query result verdict](../query-pipeline.md#query-result-metadata) before treating an empty `data` collection as a successful page with no matches.
 
 Materialized lists, arrays, and plain enumerable results do not receive built-in slicing/sorting. Returning a manually constructed `QueryResult` from the read model is not a metadata-control workaround and fails the ordinary discovery contract.
 

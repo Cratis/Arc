@@ -3,7 +3,7 @@ title: Command context
 description: Access invocation metadata and understand when dependencies and responses become available.
 ---
 
-When several pipeline extensions need the same invocation metadata, carry it in `CommandContext` rather than adding transport details to the command's input. The context is a record whose contents depend on the execution phase.
+`CommandContext` carries invocation metadata for pipeline extensions. Its command input stays the same, but resolved dependencies and the selected response become available at later phases. Use this reference to decide which context to read in a filter, handler, or lifecycle callback; a context retained from an earlier phase is not a live view of every later record.
 
 ## Properties
 
@@ -11,22 +11,27 @@ When several pipeline extensions need the same invocation metadata, carry it in 
 | --- | --- |
 | `CorrelationId` | The invocation's correlation identifier. |
 | `Type`, `Command` | The command type and instance. |
-| `Dependencies` | Resolved handler arguments, initially empty. |
+| `Dependencies` | Resolved handler arguments; empty during filters and scope initialization. |
+| `GeneratedValues` | Validated values captured while resolving generated handler parameters; see [validation and captures](./generated-values.md#validation-and-captures). |
 | `Values` | A case-insensitive `CommandContextValues` dictionary. |
 | `AllowedSeverity` | Optional threshold for the stages described in [severity filtering](./validation-severity-filtering.md). |
-| `Response` | Selected caller response, if any; not the raw handler return. |
+| `Response` | Selected caller response, if any; available after response processing, not the raw handler return or proof of final success. |
 | `ServiceProvider` | The provider for this invocation's service scope, when supplied. |
 | `CancellationToken` | The execution cancellation token. |
 | `ReceivedAt` | `DateTimeOffset` captured once when Arc receives this operation. |
 | `SliceLocation` | The module, feature and slice of the command, resolved like its proxy's output folder. See [slice location](../proxy-generation/Configuration/slice-location.md). |
 
-`ReceivedAt` is Arc receipt time, not network arrival or a timestamp before application middleware. Model-bound HTTP dispatch captures it before body/argument binding and authorization preparation; direct pipeline calls capture it on entry. A hub captures a new value for each subscribe operation, not for the connection. MVC contexts are established by action filters after MVC binding. The value stays fixed through authorization, validation, handler execution, and any Arc-owned replacement service scope. During a decorated transport dispatch, sibling public pipeline calls (such as `Validate` followed by `Execute`, or a query followed by a command) share the transport receipt. A pipeline call started from inside another pipeline entry captures a new receipt and restores the outer value afterward. The offer ends with the dispatch: work that starts a pipeline after the dispatch finishes captures a fresh receipt, even if its execution context was created during dispatch.
+`ReceivedAt` means Arc receipt time, not network arrival or a timestamp before application middleware. Model-bound HTTP dispatch captures it before body/argument binding and authorization preparation. Direct pipeline calls capture it on entry. A hub captures a value per subscribe operation, not per connection; MVC establishes command context in an action filter after binding.
+
+The captured time stays fixed through authorization, validation, handler execution, and any Arc-owned replacement service scope. Sibling public pipeline calls within a decorated transport dispatch, such as `Validate` followed by `Execute` or a query followed by a command, share the transport receipt. A call started inside another pipeline entry captures a new receipt and restores the outer value afterward.
+
+Receipt sharing ends with the dispatch. Work that starts a pipeline after dispatch finishes gets a fresh receipt, even if it captured its execution context during that dispatch.
 
 Context values are application/extension data, not automatically trusted identity claims. Use `ICurrentPrincipalAccessor` for the [authorization principal](./model-bound/authorization.md).
 
 ## Command context values
 
-Implement `ICommandContextValuesProvider.Provide(object command)` to contribute values. Arc's builder merges providers in discovery order; a later value with the same case-insensitive key overwrites the earlier one. Use namespaced keys you own.
+Implement `ICommandContextValuesProvider.Provide(object command)` to contribute extension metadata. The builder merges providers in discovery order, and a later value overwrites an earlier value with the same case-insensitive key. Namespace keys you own so a tracing provider cannot accidentally replace another integration's data.
 
 This complete provider adds tracing metadata without reading request-supplied identity:
 
@@ -46,13 +51,13 @@ public class TraceContextValuesProvider : ICommandContextValuesProvider
 }
 ```
 
-Under normal Arc type discovery, the provider is included automatically. It runs during context construction for execution **and validation**, before command authorization filters. Keep it lightweight and avoid sensitive output or state changes; pre-flight validation cannot make a custom provider pure.
+Normal Arc type discovery includes this provider automatically. Its tracing values are built during execution **and validation**, before command authorization filters. Do not perform a write or expose sensitive data on the assumption that a filter has already allowed the command. Pre-flight invokes the provider too, so keep it lightweight and safe to repeat.
 
 Arc may also populate reserved context values such as a resolved command key. Do not overwrite values owned by the framework or another integration.
 
 ## Accessing command context
 
-Filters, response handlers, and execution scopes receive a context argument directly. Components that do not receive one can inject `ICommandContextAccessor` for the established ambient context. This complete command uses a provided tracing value and returns it as ordinary response data:
+Prefer the context argument supplied to a filter, response handler, or execution scope. For a component with no such argument, inject `ICommandContextAccessor` to read the established ambient context. Access outside an established context throws; it is not an optional lookup. This command reads the tracing value from the provider above and returns ordinary response data:
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -72,12 +77,12 @@ The empty response means no trace identifier was supplied. This is a metadata de
 
 ## Phase availability
 
-During scope `Begin` and command filters, `Dependencies` is empty and `Response` is null. After filters, Arc resolves `Provide()` values and handler arguments and uses an updated context for handler invocation. During response processing it may create another context record with a selected response.
+At scope `Begin` and during command filters, `Dependencies` is empty and `Response` is null: argument resolution has not happened yet. After filters, Arc resolves `Provide()` values and handler arguments, then uses an updated context for handler invocation. Response processing can create a further record containing the selected caller response.
 
-Use the context **passed to a lifecycle callback** for its phase's dependencies and response. The ambient accessor is established earlier; do not assume a retained accessor value is replaced whenever the pipeline creates a later record copy. `Values` is shared by those copies and remains mutable.
+Read phase-specific dependencies and response from the context **passed to the lifecycle callback**. The ambient accessor was established earlier and is not automatically replaced for each later record copy. `Values` is shared and mutable across those copies; replacing a record and mutating that dictionary are different operations. The ambient context accessor itself does not provide a stack that restores an earlier command context for you.
 
 A validator resolved from the operation's service provider can inject `IOperationContextAccessor` (`Cratis.Arc`) and read its nullable `ReceivedAt`. It is null outside an Arc operation and in MVC-bound validators that run during model binding, before the command action filter starts the receipt. To test time-sensitive rules, register your own `TimeProvider` before or after `AddCratisArcCore()`; Arc uses `TryAddSingleton<TimeProvider>` for `TimeProvider.System`, so an app registration takes precedence regardless of order. Do not call `DateTimeOffset.UtcNow` to reconstruct a receipt timestamp in a validator.
 
-At scope `Complete`, a successfully processed simple response is available just as a tuple-selected response is. The result can still fail during scope completion. See [response object availability](./response-value-handlers.md#response-object-availability) before using a response inside an extension.
+At scope `Complete`, both a successfully processed simple response and a tuple-selected response are available. A later completion failure can still make execution unsuccessful. Do not commit unrelated work merely because this callback sees a response; consult [response object availability](./response-value-handlers.md#response-object-availability) for the extension contract.
 
 MVC action filters establish some ambient command context separately, but controller actions do not pass through this model-bound lifecycle. Continue to [execution scopes](./command-execution-scopes.md) or [command filters](./command-filters.md) for extension examples.

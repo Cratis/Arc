@@ -3,11 +3,11 @@ title: Pre-flight command validation
 description: Check authorization and input without invoking a command's Provide or Handle methods.
 ---
 
-A form can ask whether a command is currently acceptable before attempting the change. Arc's `Validate` operation returns a `CommandResult` from pre-flight checks, without running the command handler. It is early feedback, not a reservation or a guarantee that later execution will succeed.
+Check a form before submission when the user needs feedback without attempting the change. Arc's `Validate` operation returns a `CommandResult` from pre-flight checks and skips the command handler. Use that result to explain what currently blocks the request. Submit the command separately when the user proceeds; the check reserves no state and cannot guarantee that execution will succeed.
 
 ## Backend support
 
-For model-bound commands, inject `ICommandPipeline` and call `Validate`. Both a scope-free form and a form accepting an existing `IServiceProvider` are available, with optional severity and cancellation overloads.
+For a model-bound command, inject `ICommandPipeline` and call `Validate`. Choose the scope-free form when Arc should own a fresh DI scope, or pass an existing `IServiceProvider` when you intend to share that scope and manage its lifetime. Both forms have optional severity and cancellation overloads.
 
 This complete caller uses the [service-backed `AddItemToCart`](./model-bound/index.md#a-service-backed-command) definition and shared cart concepts. Configure its validators and authorization requirements separately:
 
@@ -22,11 +22,11 @@ public class CartPreflight(ICommandPipeline pipeline)
 }
 ```
 
-Await the returned task and inspect `IsSuccess` for an overall verdict. `IsValid` alone ignores authorization and exception failures. With no validators, pre-flight does not discover arbitrary checks inside the cart service.
+Await the task before displaying feedback. Use `IsSuccess` for the overall verdict; `IsValid` alone ignores authorization and exception failures. If this check succeeds but execution later fails in the cart service, move only the rules suitable for early feedback into validators. Pre-flight cannot discover arbitrary checks inside a service that the handler has not called.
 
 ## What runs
 
-The model-bound validation path finds the handler, builds context values, establishes a context, and runs command filters. Authorization filters run before ordinary filters, with short-circuiting on unsuccessful results. Applicable [severity filtering](./validation-severity-filtering.md) then determines the remaining validation results.
+The model-bound validation path finds the handler, builds context values, establishes a context, and runs command filters. Authorization preparation can reject a request before that work. Within the filter chain, authorization filters precede ordinary filters and unsuccessful results short-circuit the chain. Applicable [severity filtering](./validation-severity-filtering.md) determines which validation failures remain blocking.
 
 It skips:
 
@@ -35,13 +35,13 @@ It skips:
 - response value handlers;
 - execution scopes' `Begin` and `Complete` callbacks.
 
-Validators can still resolve dependencies and read services. Context providers, custom filters, validators, and their constructors are executable application code: Arc cannot guarantee that they are side-effect free or reveal no sensitive information. Design them for repeated pre-flight calls.
+A pre-flight request can still construct a validator and read its dependencies. Context providers and custom filters also execute application code. Keep those collaborators safe to call repeatedly, including before the authorization-filter verdict; skipping the handler does not make them side-effect free or prevent them from revealing sensitive information.
 
 ## Model-bound endpoints
 
 Arc adds `/validate` alongside a model-bound command's execute route. For example, **if the mapped execute route is** `/api/carts/add-item-to-cart`, validation is `POST /api/carts/add-item-to-cart/validate` with the same command payload. The base route depends on namespace/path configuration; it is not inferred from this example URL.
 
-Successfully bound bodies use model-bound command filters on both endpoints. If binding fails, both endpoints check authentication, roles, and explicitly resource-free policies before returning `malformedRequest` with the failing member when available. Resource-dependent policies and authorization command filters need an instance and do not run on that path; see [command input binding](./input-binding.md). Validation does not run business decisions that exist only in `Provide()`, `Handle()`, or a service invoked by them.
+Both endpoints send a successfully bound command through model-bound command filters. An unbound body takes a different refusal path: authentication, roles, and explicitly resource-free policies are checked before returning `malformedRequest` with the failing member when available. Resource-dependent policies and authorization command filters need a command instance, so they do not run on that path; see [command input binding](./input-binding.md). Even with a valid body, pre-flight cannot evaluate business decisions that exist only in `Provide()`, `Handle()`, or a service invoked by them.
 
 ## Controller-based commands
 
@@ -54,7 +54,7 @@ For the shown controller route:
 - Execute: `POST /api/carts/add`
 - Validate: `POST /api/carts/add/validate`
 
-If a route is missing, confirm that Arc MVC integration is configured and that the action is recognized as a POST command with an attribute route. Do not assume every arbitrary MVC action receives validation endpoints.
+If the validation request returns a missing-route response, check Arc MVC configuration, POST command recognition, and the action's attribute route before changing the payload. An arbitrary MVC action does not necessarily receive a validation endpoint.
 
 ## Security and concurrency
 
@@ -63,7 +63,7 @@ If a route is missing, confirm that Arc MVC integration is configured and that t
 
 Use [authorization verdicts](./command-filters.md#cross-cutting-authorization-by-namespace), not overridable validation errors, for access control. Model-bound authorization failures and MVC authorization responses belong to their respective pipelines; do not assume identical HTTP challenge behavior.
 
-Always inspect the result of the eventual `Execute` call too. State may change between requests, handler-only checks may reject the operation, or a service or execution scope may fail. Enforce concurrency-sensitive invariants in the operation that performs the change.
+After a successful check, make the eventual `Execute` call and inspect its result too. State can change between requests. Handler-only checks, service failures, or scope completion can still reject execution. Keep concurrency-sensitive invariants in the operation that performs the change, where the check and write can be coordinated.
 
 ## Frontend usage
 

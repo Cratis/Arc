@@ -3,24 +3,25 @@ title: Generated values
 description: Give command handlers server-owned identifiers, codes and secrets without adding them to the request contract.
 ---
 
-A shop registers a customer. The new customer needs an identity before the first event can be recorded
-on it, and that identity has to come from somewhere. If the handler calls `CustomerId.New()` itself, a
-spec cannot choose the value. If you add a `CustomerId` property to the command, every client can choose
-it, and the identity stops being something only the server decides.
+A registration command needs a new customer identity chosen by the server, not supplied in the
+request. Calling `CustomerId.New()` inside the handler hides that choice from a spec that needs to pin
+the value. Adding a `CustomerId` command property gives the client the choice instead.
 
-A `[GeneratedValue]` Handle parameter is the way out. Arc creates the value before it calls `Handle()`,
-validates it, captures it for specs and keeps it out of the request. This page uses the shop from the
-[Generated values tutorial](/generated-values/); the code is from the
+Mark a Handle parameter with `[GeneratedValue]` to make it server-owned. Arc generates and validates
+it before calling `Handle()`, then captures the accepted value for specs. It is not part of the request
+contract. A standalone handler can return the identifier without appending an event or using Chronicle.
+
+The examples follow the shop from the [Generated values tutorial](/generated-values/) and
 [Generated Values Shop sample](https://github.com/Cratis/Samples/tree/main/GeneratedValues/Shop).
-The strategies themselves (UUID, ULID, TypeID, NanoID, bytes) are explained in
-[Generating values](/fundamentals/csharp/generating-values/) in Fundamentals; this page covers what Arc does
-with them.
+Start with the concept and handler below; the [plain-Guid example](#a-plain-guid-works-too) then shows generation without an
+event-store dependency. For the underlying UUID, ULID, TypeID, NanoID, and bytes strategies, use
+[Generating values](/fundamentals/csharp/generating-values/) in Fundamentals.
 
 ## Declare a server-owned identifier
 
-The shop's `CustomerId` is `cus_` followed by a lowercase ULID. The concept owns the strategy by
-implementing `IGeneratable<TSelf>` from Cratis.Fundamentals 7.23.0 or later, and its static `New()` method is
-the strategy:
+Define the strategy on the concept before marking a handler parameter. Here `CustomerId` is `cus_`
+followed by a lowercase ULID. It implements `IGeneratable<TSelf>` from Cratis.Fundamentals 7.23.0 or
+later; its static `New()` method supplies the value:
 
 ```csharp title="Shop/Common/CustomerId.cs"
 using Cratis.Chronicle.Events;
@@ -63,10 +64,11 @@ public record RegisterCustomer(CustomerName Name)
 public record CustomerRegistered(CustomerName Name);
 ```
 
-Arc calls `CustomerId.New()` before invoking `Handle()`. The `customerId` parameter is not a command
-property, so it is not in the request body and not in the generated TypeScript proxy: the proxy for
-`RegisterCustomer` has a `name` property and nothing else. The handler returns the new identifier as the
-command's response, so the caller learns it, and appends `CustomerRegistered` to the same identifier.
+Arc calls `CustomerId.New()` before invoking `Handle()`. Because `customerId` is a handler parameter
+rather than a command property, neither the request body nor the generated TypeScript proxy contains
+it. The proxy for `RegisterCustomer` has only the `name` property. The handler returns the allocated
+identifier as the response and appends `CustomerRegistered` to that identifier. Check the command's
+final result before using its response; having generated an identifier does not mean execution succeeded.
 
 This example uses Arc's Chronicle integration for `EventForEventSourceId`. Generation does not depend on
 it: a handler without Chronicle can return the generated value alone.
@@ -100,10 +102,10 @@ themselves are valid. A raw `Guid`, a nullable concept, duplicate names, or a ge
 
 ## Generate with the command's time and tenant
 
-An order identifier should sort by when the command arrived. If `OrderId.New()` read the clock itself, an
-order id, a log id and a receipt id created by one command would each carry a different creation time, and
-a spec could not fix any of them. Implement `IGeneratableInContext<TSelf>` from Cratis.Fundamentals
-7.24.0 or later and Arc hands the strategy the command's own context:
+Use the context-aware contract when a strategy needs the command's time or tenant. If `OrderId.New()`
+reads the clock itself, values created during one command can carry different times and a spec cannot
+pin the clock through Arc's generation context. Implement `IGeneratableInContext<TSelf>` from
+Cratis.Fundamentals 7.24.0 or later to receive that context:
 
 ```csharp title="Shop/Orders/Placing/PlaceOrder.cs"
 using Cratis.Arc.Commands.ModelBound;
@@ -152,9 +154,10 @@ Three rules to keep in mind:
 
 ## Keep a secret out of the causation chain
 
-The shop's `ApiKey` is 32 random bytes. The secrets guidance in
-[Secrets and tokens](/fundamentals/csharp/generating-values/secrets-and-tokens/) covers why `Bytes(32)` is
-the strategy; the Arc part is what happens to the value afterwards.
+For the shop's `ApiKey`, the strategy uses 32 random bytes. Consult
+[Secrets and tokens](/fundamentals/csharp/generating-values/secrets-and-tokens/) before selecting or
+shortening `Bytes(32)`. Generation chooses the secret; the following Chronicle-specific example addresses
+where the application sends it, which is a separate security concern.
 
 ```csharp title="Shop/Customers/ApiKeys/ApiKey.cs"
 using Cratis.Arc.Chronicle.Commands;
@@ -172,7 +175,7 @@ public record ApiKey(string Value) : ConceptAs<string>(Value), IGeneratable<ApiK
 Chronicle records a command's property values on the causation of every event it appends.
 `[NotAudited]` on the concept leaves any command property of that type out of the causation chain, and
 that is **all** it does. It does not protect event payloads, command responses or logs.
-`IssueApiKey` generates a key and returns it once; the event it appends goes to the customer, not to the key:
+`IssueApiKey` returns a generated key as its response. Its event goes to the customer, not to the key:
 
 ```csharp title="Shop/Customers/ApiKeys/IssueApiKey.cs"
 [Command]
@@ -186,10 +189,11 @@ public record IssueApiKey(CustomerId CustomerId)
 public record ApiKeyIssued;
 ```
 
-The key is the response, so the caller sees it exactly once, and `ApiKeyIssued` carries no key. The
-`ApiKey` is never an event source id: the event is appended to the `CustomerId`. Keeping the key out of
-the event payload and out of logs is your code's job; use Chronicle compliance (`[Encrypted]` and
-friends) for data that must be stored.
+This example returns the key in the response and omits it from `ApiKeyIssued`. It does not implement
+one-time retrieval, guarantee delivery, or prevent the caller from logging or retaining the response.
+The `ApiKey` is not an event source id: the event is appended to the `CustomerId`. Keep the key out of
+event payloads and logs in application code; use Chronicle compliance (`[Encrypted]` and friends) for
+data that must be stored.
 
 `[NotAudited]` earns its place on commands that receive the key as input. The shop's `RevokeApiKey`
 takes an `ApiKey` property, and a spec confirms its value does not appear on the causation of
@@ -212,9 +216,9 @@ The decision flow, collision tables and entropy guidance are in
 
 ## Names and resolution
 
-`[GeneratedValue]` uses the C# parameter name. `[GeneratedValue("cart")]` supplies an explicit name that
-stays stable if you rename the parameter. Names are case-sensitive, non-empty and unique within the
-command. Specs pin values by this name.
+Use an explicit name when specs must survive a parameter rename. By default, `[GeneratedValue]` uses
+the C# parameter name; `[GeneratedValue("cart")]` fixes the name independently. Names are case-sensitive,
+non-empty, and unique within the command. Specs use that same name to pin a value.
 
 Arc generates values only after `Provide()` control results allow the command to continue. A value
 returned by `Provide()`, or registered in dependency injection, never overrides a generated parameter.
@@ -227,12 +231,14 @@ parameter. This factory path alone does not make the whole application NativeAOT
 
 ## Validation and captures
 
-Arc resolves the concept's discoverable validator from the command's scoped provider and runs it
-asynchronously with the command's cancellation token. A failing rule of any severity (Error, Warning or
-Information) rejects the generated or fixture-pinned value with `GeneratedValueRejected`. Warnings and
-information are not advisory for generated values: the server chose the value, so breaking a concept rule
-is a server defect, matching the Screenplay reference. Because it is not invalid request input, the command
-result contains an exception rather than a 400 validation failure.
+A generated value must satisfy its concept rules before the handler receives it. Arc resolves the
+concept's discoverable validator from the command's scoped provider and runs it asynchronously with
+the command's cancellation token. Any failing rule, including Warning or Information, rejects either a
+generated or fixture-pinned value with `GeneratedValueRejected`.
+
+Caller severity thresholds do not turn these failures into advice. A server-selected value breaking a
+concept rule is a server defect, not invalid request input: the command result contains an exception,
+not a 400 validation failure. Screenplay's reference makes the same distinction.
 
 `CommandContext.GeneratedValues` exposes validated captures in parameter resolution order. Each entry has a
 zero-based `Order`, a `Name`, its declared `Type`, its `Value`, and the immutable `Freshness` policy.
@@ -251,8 +257,9 @@ captures of secrets like the secret.
 
 - **The client chooses the identifier.** A customer to update, an order to cancel and any reference the
   caller supplies belong on command properties. Marking them generated would discard what the caller sent.
-- **You need idempotency.** Every execution generates a new value, so retrying a command creates a second
-  customer. If a retry must be safe, accept a client-supplied idempotency key and check it.
+- **You need idempotency.** A repeated invocation can generate a different value. Retrying a successful
+  registration can therefore create another customer, depending on the handler and storage. Accept and
+  enforce a client-supplied idempotency key when retries must not repeat the change.
 - **You need gapless or human-sequenced numbers.** Random and time-ordered values are unique in practice,
   not consecutive. An invoice number with no gaps needs a counter, not a strategy.
 - **The value is an authorization decision.** A generated value does not exist during authorization or
@@ -260,8 +267,9 @@ captures of secrets like the secret.
   pair it with an expiry and a check.
 - **You need a service or a read model.** Inject those as ordinary Handle dependencies.
 
-Generation also does not prove a value is absent from your storage. Time-ordered values, UUIDv7 included,
-reveal their creation time and are not monotonic within a millisecond.
+Enforce storage uniqueness where the operation requires it; generating a value does not prove it is
+absent from storage. Time-ordered values, UUIDv7 included, reveal their creation time and are not
+monotonic within a millisecond.
 
 ## Guard a generated append target
 
@@ -288,6 +296,9 @@ Arc checks generated declarations in the IDE and at compile time:
 Startup validation remains in place for commands compiled without the analyzers.
 
 ## Custom factories in a generated model
+
+Use this section when recovering a Screenplay model from the C# application, not when choosing how a
+standalone handler receives its value. Runtime generation and model recovery have different limits.
 
 Arc executes your concept's generation contract at runtime; Screenplay recovery recognizes only the
 [documented factory forms](../generating-a-screenplay.md#recovering-generation-strategies). A custom

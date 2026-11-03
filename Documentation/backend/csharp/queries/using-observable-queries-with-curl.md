@@ -18,7 +18,7 @@ curl --include --max-time 35 \
   'https://localhost:5001/api/accounts/observe?waitForFirstResult=true'
 ```
 
-Use the wait option for this MongoDB endpoint: Arc subscribes to receive a first emission, then disposes the subscription. The server's default wait is 30 seconds; the client bound above is 35 seconds.
+Use the wait option for this MongoDB endpoint: Arc subscribes and waits for the first result that emission guards allow, then disposes the subscription. The server's default wait is 30 seconds; the client bound above is 35 seconds.
 
 > [!WARNING]
 > MongoDB's `LifetimeAwareSubject` has no readable `Value` property, even after buffering a result. An ordinary no-wait GET therefore returns **202 Accepted** with `isReady: false`, rather than reading that replayed value. The provider starts its watcher eagerly, but this HTTP branch neither subscribes nor disposes the subject and can leave the watcher running. Do not use no-wait snapshots for this provider.
@@ -38,10 +38,10 @@ The server waits for the first allowed emission for up to 10 seconds; the defaul
 - Without waiting, a suppressed or unavailable value returns 202 without data.
 - An emission guard denial or failure returns 403 without data.
 - A wait timeout returns 408 with an error result.
-- Completion before any emission returns 500 with an error result.
+- Completion before an allowed result returns 500 with an error result.
 - An authorization/validation failure is not made successful by waiting.
 
-This waits for **a first result**, not for a change since a previous request. `ObserveSingle` with no matching document may never emit; a filtered observed collection can express absence as an empty list.
+This waits for **a first allowed result**, not for a change since a previous request. MongoDB `ObserveSingle` emits null when its initial query finds no matching document; a filtered observed collection can express absence as an empty list. Other producers may never emit, so waiting can time out without proving absence.
 
 ## Stream updates over SSE
 
@@ -88,9 +88,9 @@ This is **repeated snapshot polling, not change-aware long polling**. An unchang
 | --- | --- |
 | Read a MongoDB observable snapshot once | GET with `waitForFirstResult=true` |
 | Read another producer's current value without subscribing | Ordinary GET only with a readable current value and verified no-subscription cleanup; handle 202 |
-| Wait for a first emission | GET with `waitForFirstResult=true` |
+| Wait for a first allowed result | GET with `waitForFirstResult=true` |
 | Follow one query live | Direct GET with `Accept: text/event-stream` |
 | Follow several queries on one connection | [Hub protocol](observable-query-demultiplexer.md) |
 | Periodically sample state | Delayed, bounded snapshot polling |
 
-MongoDB source failures may be logged and completed rather than sent through an observable error channel. Inspect provider logs as well as HTTP output when a feed stops. For producer cleanup, see [subscription lifetime](model-bound/observable-queries.md#subscription-lifetime).
+MongoDB observation failures are logged and forwarded through `OnError` before cleanup; normal cancellation, disposal, and completion are quiet. A failed observation needs a new observation rather than a subscription to the same terminated subject. Inspect provider logs alongside the failed query result to diagnose a stopped feed; see [MongoDB errors and recovery limits](../mongodb/observing-collections.md#errors-and-recovery-limits). For producer cleanup, see [subscription lifetime](model-bound/observable-queries.md#subscription-lifetime).
