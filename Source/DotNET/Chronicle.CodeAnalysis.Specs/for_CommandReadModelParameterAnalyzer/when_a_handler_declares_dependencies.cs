@@ -1,0 +1,141 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+#pragma warning disable MA0136 // Compiler source fixtures are independent of platform line endings.
+#pragma warning disable SA1117 // Snippets and expected diagnostics are displayed separately.
+
+using System.Collections.Immutable;
+using Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
+
+namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandReadModelParameterAnalyzer;
+
+public class when_a_handler_declares_dependencies : Specification
+{
+    const string Definitions = """
+        using Cratis.Arc.Commands.ModelBound;
+        using Cratis.Chronicle.ReadModels;
+        using Cratis.Chronicle.Events;
+        [EventType("1f632bfe-93f0-4923-b299-a46d20df6297")] public record Changed;
+        public record State;
+        """;
+
+    [Theory]
+    [InlineData("IDecisionReads")]
+    [InlineData("DecisionRead<State>")]
+    public Task should_suggest_a_model_parameter(string type) => Verify($$"""
+        [Command] public record Decide
+        {
+            public Changed Handle({|#0:{{type}} read|}) => new();
+        }
+        """, new ExpectedDiagnostic("ARCCHR0040", DiagnosticSeverity.Info, "declare the read model as a Handle parameter instead (guarded only when read protection is On)", type));
+
+    [Fact]
+    public Task should_not_report_other_services_or_models() => Verify("""
+        public interface IService;
+        [Command] public record Decide
+        {
+            public Changed Handle(IService service, State state) => new();
+        }
+        """);
+
+    [Fact]
+    public Task should_not_report_provide_or_other_methods() => Verify("""
+        [Command] public record Decide
+        {
+            public Changed Handle(State state) => new();
+            public State Provide(IDecisionReads reads) => new();
+            public void Helper(DecisionRead<State> read) { }
+        }
+        """);
+
+    [Fact]
+    public Task should_not_report_static_or_private_methods() => Verify("""
+        [Command] public record Decide
+        {
+            public Changed Handle(State state) => new();
+            public static void Handle(IDecisionReads reads) { }
+            private void Handle(DecisionRead<State> read) { }
+        }
+        """);
+
+    [Fact]
+    public Task should_not_report_non_commands() => Verify("""
+        public record Service
+        {
+            public Changed Handle(IDecisionReads reads, DecisionRead<State> read) => new();
+        }
+        """);
+
+    [Fact]
+    public Task should_not_match_unrelated_short_names() => Verify("""
+        public interface IDecisionReads;
+        public record DecisionRead<T>;
+        [Command] public record Decide
+        {
+            public Changed Handle(IDecisionReads reads, DecisionRead<State> read) => new();
+        }
+        """);
+
+    [Fact]
+    public Task should_honor_suppression_with_a_reason() => Verify("""
+        public interface ICallerContext { ReadModelKey AccountKey { get; } }
+        [Command] public record InspectCaller
+        {
+        #pragma warning disable ARCCHR0040 // Key comes from trusted caller identity; https://github.com/Cratis/Arc/issues/3620 tracks acquisition gaps.
+            public async System.Threading.Tasks.Task<State> Handle(IDecisionReads reads, ICallerContext caller)
+            {
+                var state = await reads.Get<State>(caller.AccountKey);
+                return state.Instance;
+            }
+        #pragma warning restore ARCCHR0040
+        }
+        """);
+
+    [Fact]
+    public Task should_honor_the_documented_stream_suppression() => Verify("""
+        public record AccountWithdrawals(decimal Total);
+        [EventType("d1c1bf41-1397-43fb-9c96-b6f1266a3ce7")] public record MoneyWithdrawn(decimal Amount);
+        [Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)]
+        [EventSourceType("BankAccount")]
+        [EventStreamType("Transactions")]
+        [EventStreamId("{Month}")]
+        public record InspectMonth(EventSourceId Id, string Date)
+        {
+            public string Month => Date[..7];
+        #pragma warning disable ARCCHR0040 // Computed month; https://github.com/Cratis/Arc/issues/3620 tracks acquisition gaps.
+            public async System.Threading.Tasks.Task<MoneyWithdrawn> Handle(IDecisionReads reads)
+            {
+                var state = await reads.Get<AccountWithdrawals>(Id, "Transactions", Month, "BankAccount");
+                return new(state.Instance?.Total ?? 0);
+            }
+        #pragma warning restore ARCCHR0040
+        }
+        """);
+
+    [Fact]
+    public Task should_not_analyze_generated_code() => AnalyzerVerifier<CommandReadModelParameterAnalyzer>.VerifyAnalyzerAsync("""
+        // <auto-generated/>
+        using Cratis.Arc.Commands.ModelBound;
+        using Cratis.Chronicle.ReadModels;
+        using Cratis.Chronicle.Events;
+        [EventType("1f632bfe-93f0-4923-b299-a46d20df6297")] public record Changed;
+        [Command] public record Decide { public Changed Handle(IDecisionReads reads) => new(); }
+        """);
+
+    [Fact]
+    public async Task should_not_analyze_framework_internal_code()
+    {
+        var project = TestProject.CreateProject(Definitions + """
+            [Command] public record Decide { public Changed Handle(IDecisionReads reads) => new(); }
+            """);
+        var compilation = (await project.GetCompilationAsync(global::Xunit.TestContext.Current.CancellationToken)).WithAssemblyName("Cratis.Arc.Chronicle");
+        compilation.GetDiagnostics(global::Xunit.TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new CommandReadModelParameterAnalyzer());
+        (await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync(global::Xunit.TestContext.Current.CancellationToken)).ShouldBeEmpty();
+    }
+
+    static Task Verify(string declaration, params ExpectedDiagnostic[] expected) =>
+        AnalyzerVerifier<CommandReadModelParameterAnalyzer>.VerifyAnalyzerAsync(Definitions + declaration, expected);
+}

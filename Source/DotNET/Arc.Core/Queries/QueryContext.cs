@@ -27,6 +27,8 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// </summary>
     public static readonly QueryContext NotSet = new("[NotSet]", CorrelationId.NotSet, Paging.NotPaged, Sorting.None);
 
+    ClaimsPrincipal? _authorizedPrincipal;
+
     /// <summary>
     /// Gets the time Arc received this query operation. Model-bound dispatch captures it before binding and authorization preparation;
     /// MVC action filters capture it after MVC binding. This is neither network arrival nor time before application middleware.
@@ -54,13 +56,26 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <summary>
     /// Gets the principal selected during authorization, for a long-lived subscription's identity snapshot.
     /// </summary>
-    public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
+    public ClaimsPrincipal? AuthorizedPrincipal
+    {
+        get => _authorizedPrincipal;
+        internal set
+        {
+            _authorizedPrincipal = value;
+            AuthorizedPrincipalSnapshot = value is null ? null : AuthorizationPrincipalIdentity.Capture(value);
+        }
+    }
 
     /// <summary>
     /// Gets or sets the serializable effective scope selected by a query filter for this subscription.
     /// An absent scope is <see langword="null"/>.
     /// </summary>
     public object? SubscriptionScope { get; set; }
+
+    /// <summary>
+    /// Gets the identity of <see cref="AuthorizedPrincipal"/> as it was when authorization selected it.
+    /// </summary>
+    internal PrincipalSnapshot? AuthorizedPrincipalSnapshot { get; private set; }
 
     /// <summary>
     /// Gets the operation-local authorization plan prepared by a host before creating a fresh execution scope.

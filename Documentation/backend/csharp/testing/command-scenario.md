@@ -108,6 +108,8 @@ Run `dotnet test`; both facts should pass. `Validate` still requires a discovera
 
 ## CommandResult assertion helpers
 
+For values returned by a direct `Handle()` call, use [command and validator assertions](./command-assertions.md) instead. `ShouldBeRejected(reason)` requires exact message equality; `ShouldHaveValidationErrorFor(message)` below keeps its substring semantics. Decision helpers do not apply `ICommandResultAssertionPolicy`.
+
 These extension methods return `void`. Built-in assertion failures throw `CommandResultAssertionException`. After its own check passes, **every** helper below applies discovered `ICommandResultAssertionPolicy` implementations through `CommandResultAssertionPolicies`; a policy can still fail the assertion or throw its own exception.
 
 | Method                                                              | Built-in check                                                                                                                 |

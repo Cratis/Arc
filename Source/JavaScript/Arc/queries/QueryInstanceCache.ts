@@ -7,6 +7,7 @@ import type {
     CacheEntryDiagnostics,
 } from './ObservableQueryDiagnosticsSnapshot.js';
 import { reconcileQueryData } from './reconcileQueryData.js';
+import { deepEqual } from '../deepEqual.js';
 
 /**
  * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialized arguments.
@@ -203,13 +204,12 @@ export class QueryInstanceCache {
         entry.lastResult = reconciled as QueryResultWithState<unknown>;
 
         // Reconciliation returns the previous data reference when nothing changed, so identity is
-        // enough to detect it. Data, success, and readiness affect what the user sees; changeSet is
+        // enough to detect it. Data and result metadata affect what the user sees; changeSet is
         // ephemeral and does not independently require a notification.
         if (
             previousResult !== undefined &&
-            previousResult.isSuccess === reconciled.isSuccess &&
-            previousResult.isReady === reconciled.isReady &&
-            previousResult.data === reconciled.data
+            previousResult.data === reconciled.data &&
+            this.hasEquivalentMetadata(previousResult, reconciled)
         ) {
             return;
         }
@@ -251,6 +251,19 @@ export class QueryInstanceCache {
             next.changeSet,
             next.isReady,
         );
+    }
+
+    private hasEquivalentMetadata<TDataType>(result: QueryResultWithState<TDataType>, previous: QueryResultWithState<TDataType>): boolean {
+        return result.isPerforming === previous.isPerforming
+            && result.isSuccess === previous.isSuccess
+            && result.isReady === previous.isReady
+            && result.isAuthorized === previous.isAuthorized
+            && result.isValid === previous.isValid
+            && result.hasExceptions === previous.hasExceptions
+            && result.exceptionStackTrace === previous.exceptionStackTrace
+            && deepEqual(result.paging, previous.paging)
+            && deepEqual(result.exceptionMessages, previous.exceptionMessages)
+            && deepEqual(result.validationResults, previous.validationResults);
     }
 
     /**

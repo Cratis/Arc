@@ -142,6 +142,11 @@ public class ArcOptions
     public EndpointGroupsOptions EndpointGroups { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the code-only host opt-ins for assemblies marked with <see cref="ArtifactsRequireOptInAttribute"/>.
+    /// </summary>
+    public ArtifactsOptions Artifacts { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets a value indicating whether exception detail (messages and stack traces) is exposed
     /// to clients in serialized <see cref="Commands.CommandResult"/> and <see cref="Queries.QueryResult"/> responses.
     /// </summary>

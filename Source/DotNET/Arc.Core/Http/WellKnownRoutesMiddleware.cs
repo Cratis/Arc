@@ -52,6 +52,11 @@ public class WellKnownRoutesMiddleware(IServiceProvider serviceProvider, ILogger
             var httpRequestContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpRequestContextAccessor>();
             using var request = HttpRequestContextAccessor.BeginRequest(httpRequestContextAccessor, requestContext);
 
+            if (requestContext.RejectsUntrustedWebSocketOrigin())
+            {
+                return true;
+            }
+
             var authentication = scope.ServiceProvider.GetRequiredService<IAuthentication>();
             var authenticationMiddleware = new AuthenticationMiddleware(authentication);
 

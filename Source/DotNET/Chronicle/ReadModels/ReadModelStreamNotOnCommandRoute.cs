@@ -13,4 +13,4 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// <param name="stream">The declared stream.</param>
 /// <param name="reason">The route mismatch.</param>
 public class ReadModelStreamNotOnCommandRoute(Type command, string parameter, Type model, Type source, string stream, string reason)
-    : Exception($"{command.Name} reads '{parameter}' ({model.Name}), which is scoped to {source.Name} stream '{stream}', but {command.Name} {reason}. Route {command.Name} with [EventSource<{source.Name}>(\"{stream}\")] and [EventStreamId(...)], or read {model.Name} with an explicit stream through IDecisionReads in Provide.");
+    : Exception($"{command.Name} reads '{parameter}' ({model.Name}), which is scoped to {source.Name} stream '{stream}', but {command.Name} {reason}. Route {command.Name} with [EventSource<{source.Name}>(\"{stream}\")] and [EventStreamId(...)], or read {model.Name} with an explicit stream through IDecisionReads directly in Handle() with a reasoned ARCCHR0040 suppression.");

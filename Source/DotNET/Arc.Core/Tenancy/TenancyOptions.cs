@@ -20,6 +20,17 @@ public class TenancyOptions
     public bool IngressValidatesTenant { get; set; }
 
     /// <summary>
+    /// Gets or sets whether a <see cref="TenantMembershipDenied"/> thrown by any validator rejects the operation as
+    /// unauthorized instead of becoming a validation error.
+    /// </summary>
+    /// <remarks>
+    /// Off by default, which keeps a denial thrown by an existing validator a validation error that a raised allowed
+    /// severity can drop. Turning it on is recommended. Reads of the operation's tenant and caller through a validation
+    /// context are always strict, whatever this value is.
+    /// </remarks>
+    public bool StrictValidatorMembership { get; set; }
+
+    /// <summary>
     /// Gets or sets the HTTP header to use for the tenant ID when using <see cref="TenantResolverType.Header"/>.
     /// </summary>
     public string HttpHeader { get; set; } = Constants.DefaultTenantIdHeader;

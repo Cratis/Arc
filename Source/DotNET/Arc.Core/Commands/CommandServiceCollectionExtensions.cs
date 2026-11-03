@@ -1,8 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -27,6 +32,17 @@ public static class CommandServiceCollectionExtensions
         services.AddSingleton<ICommandPipelineWithCancellation>(sp => sp.GetRequiredService<CommandPipeline>());
         services.AddSingleton<ICommandFilters, CommandFilters>();
         services.AddSingleton<ICommandHandlerProviders, CommandHandlerProviders>();
+        services.TryAddSingleton(sp => new ArtifactAssemblyFilter(sp.GetService<IOptions<ArcOptions>>() ?? Microsoft.Extensions.Options.Options.Create(new ArcOptions())));
+        services.AddSingleton<CommandHandlerProvider>(sp => new CommandHandlerProvider(
+            sp.GetRequiredService<ITypes>(),
+            sp.GetRequiredService<ArtifactAssemblyFilter>()));
+        var modelBoundProvider = services.FirstOrDefault(descriptor => descriptor.ServiceType == typeof(ICommandHandlerProvider) &&
+            descriptor.ImplementationType == typeof(CommandHandlerProvider));
+        if (modelBoundProvider is not null)
+        {
+            var index = services.IndexOf(modelBoundProvider);
+            services[index] = ServiceDescriptor.Singleton<ICommandHandlerProvider>(sp => sp.GetRequiredService<CommandHandlerProvider>());
+        }
         services.AddSingleton<ICommandResponseValueHandlers, CommandResponseValueHandlers>();
         services.AddSingleton<ICommandProvideInvoker, CommandProvideInvoker>();
         services.AddSingleton<ICommandHandlerArgumentResolver, CommandHandlerArgumentResolver>();

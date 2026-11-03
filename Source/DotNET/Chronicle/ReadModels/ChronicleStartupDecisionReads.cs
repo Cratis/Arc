@@ -13,12 +13,22 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// Obtains admission metadata without resolving a tenant-dependent command reader.
 /// </summary>
 /// <param name="services">The host services.</param>
-internal sealed class ChronicleStartupDecisionReads(IServiceProvider services) : IStartupDecisionReads
+/// <param name="clientOptions">Resolves the client options the host configured Chronicle with.</param>
+internal sealed class ChronicleStartupDecisionReads(IServiceProvider services, Func<IServiceProvider, ChronicleClientOptions?> clientOptions) : IStartupDecisionReads
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChronicleStartupDecisionReads"/> class for hosts that configure <see cref="ChronicleClientOptions"/>.
+    /// </summary>
+    /// <param name="services">The host services.</param>
+    public ChronicleStartupDecisionReads(IServiceProvider services)
+        : this(services, provider => provider.GetService<IOptions<ChronicleClientOptions>>()?.Value)
+    {
+    }
+
     /// <inheritdoc/>
     public async Task<IDecisionReads?> Get(CancellationToken cancellationToken)
     {
-        var options = services.GetService<IOptions<ChronicleClientOptions>>()?.Value;
+        var options = clientOptions(services);
         if (options?.AutoDiscoverAndRegister != true)
         {
             return null;

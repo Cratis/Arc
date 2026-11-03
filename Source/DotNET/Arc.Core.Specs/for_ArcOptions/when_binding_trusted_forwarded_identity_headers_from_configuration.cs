@@ -11,12 +11,14 @@ public class when_binding_trusted_forwarded_identity_headers_from_configuration 
 
     void Establish() => _options = new ArcOptions();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Cratis:Arc:TrustForwardedIdentityHeaders"] = "true"
-        })
-        .Build().GetSection("Cratis:Arc").Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(
+        _options,
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Cratis:Arc:TrustForwardedIdentityHeaders"] = "true"
+            })
+            .Build().GetSection("Cratis:Arc"));
 
     [Fact] void should_trust_forwarded_identity_headers() => _options.TrustForwardedIdentityHeaders.ShouldBeTrue();
 }

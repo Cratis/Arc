@@ -52,25 +52,38 @@ jobs:
 
       - name: Resolve inputs
         id: inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_VERSION: ${{ github.event.inputs.version }}
+          MANUAL_BUMP: ${{ github.event.inputs.bump }}
+          PAYLOAD_VERSION: ${{ github.event.client_payload.version }}
+          PAYLOAD_BUMP: ${{ github.event.client_payload.bump }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            version="${{ github.event.inputs.version }}"
-            bump="${{ github.event.inputs.bump }}"
-          elif [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            version="$MANUAL_VERSION"
+            bump="$MANUAL_BUMP"
+          elif [ "$EVENT_NAME" = "schedule" ]; then
             # No payload on a schedule: take the highest stable release. Pre-releases carry a
             # `-` and are never what the daily catch-up should move Arc to.
             index=$(curl -fsS https://api.nuget.org/v3-flatcontainer/cratis.chronicle/index.json)
             version=$(jq -r '.versions[]' <<< "$index" | grep -v -- '-' | sort -V | tail -1)
             bump="patch"
           else
-            version="${{ github.event.client_payload.version }}"
-            bump="${{ github.event.client_payload.bump }}"
+            version="$PAYLOAD_VERSION"
+            bump="$PAYLOAD_BUMP"
           fi
           bump="${bump:-patch}"
-          if [ -z "$version" ]; then
-            echo "No Chronicle version supplied." >&2
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid Chronicle version." >&2
             exit 1
           fi
+          case "$bump" in
+            patch|minor|major) ;;
+            *)
+              echo "::error::Invalid release bump." >&2
+              exit 1
+              ;;
+          esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
 
@@ -83,10 +96,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
           REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          VERSION: ${{ steps.inputs.outputs.version }}
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" != "repository_dispatch" ]; then
+          if [ "$EVENT_NAME" != "repository_dispatch" ]; then
             echo "proceed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -103,10 +118,10 @@ jobs:
             --json commits --jq '.[0].commits[-1].committedDate // empty')
 
           if [ -n "$recent" ]; then
-            echo "::notice::Chronicle update pull request(s) opened in the last 24 hours (PR numbers: $(tr '\n' ' ' <<< "$recent")); the daily run will pick up ${{ steps.inputs.outputs.version }}."
+            echo "::notice::Chronicle update pull request(s) opened in the last 24 hours (PR numbers: $(tr '\n' ' ' <<< "$recent")); the daily run will pick up $VERSION."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
           elif [ -n "$last_push" ] && [[ "$last_push" > "$cutoff" ]]; then
-            echo "::notice::The open chronicle-updates pull request was pushed to at $last_push, within the last 24 hours; the daily run will pick up ${{ steps.inputs.outputs.version }}."
+            echo "::notice::The open chronicle-updates pull request was pushed to at $last_push, within the last 24 hours; the daily run will pick up $VERSION."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
           else
             echo "proceed=true" >> "$GITHUB_OUTPUT"
@@ -131,9 +146,12 @@ jobs:
       - name: Update Chronicle package pins
         if: steps.debounce.outputs.proceed == 'true'
         id: bump
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          PINNED: ${{ steps.pinned.outputs.version }}
         run: |
-          version="${{ steps.inputs.outputs.version }}"
-          pinned="${{ steps.pinned.outputs.version }}"
+          version="$VERSION"
+          pinned="$PINNED"
           file="Directory.Packages.props"
           if [ -n "$pinned" ] && [ "$version" != "$pinned" ] \
             && [ "$(printf '%s\n%s\n' "$version" "$pinned" | sort -V | tail -1)" = "$pinned" ]; then
@@ -157,11 +175,13 @@ jobs:
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          PINNED: ${{ steps.pinned.outputs.version }}
+          VERSION: ${{ steps.inputs.outputs.version }}
         run: |
           python3 .github/scripts/compose-chronicle-release-notes.py \
-            --previous "${{ steps.pinned.outputs.version }}" \
-            --target "${{ steps.inputs.outputs.version }}" \
-            --output "${{ runner.temp }}/release-notes.md"
+            --previous "$PINNED" \
+            --target "$VERSION" \
+            --output "$RUNNER_TEMP/release-notes.md"
 
       - name: Setup .Net
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
@@ -185,8 +205,10 @@ jobs:
 
       - name: Restore
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
         run: |
-          version="${{ steps.inputs.outputs.version }}"
+          version="$VERSION"
           log="${RUNNER_TEMP:-/tmp}/restore.log"
           for i in $(seq 1 40); do
             if dotnet restore > "$log" 2>&1; then
@@ -238,8 +260,11 @@ jobs:
       - name: Determine gate result
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         id: gate
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          SPECS_OUTCOME: ${{ steps.specs.outcome }}
         run: |
-          if [ "${{ steps.build.outcome }}" = "success" ] && [ "${{ steps.specs.outcome }}" = "success" ]; then
+          if [ "$BUILD_OUTCOME" = "success" ] && [ "$SPECS_OUTCOME" = "success" ]; then
             echo "verified=true" >> "$GITHUB_OUTPUT"
           else
             echo "verified=false" >> "$GITHUB_OUTPUT"
@@ -271,6 +296,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
           BUMP: ${{ steps.inputs.outputs.bump }}
           NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           stale=""
           for label in major minor patch no-release; do
@@ -279,7 +305,7 @@ jobs:
             fi
           done
           # gh ignores labels that are not on the pull request.
-          gh pr edit "$NUMBER" --repo "${{ github.repository }}" --remove-label "$stale"
+          gh pr edit "$NUMBER" --repo "$REPOSITORY" --remove-label "$stale"
 
       # Migration and cleanup. Earlier versions of this workflow opened one pull request per
       # release on `chronicle-update/<version>`; close any still open, since the single
@@ -350,10 +376,16 @@ jobs:
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          VERIFIED: ${{ steps.gate.outputs.verified }}
+          BUMP: ${{ steps.inputs.outputs.bump }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          SPECS_OUTCOME: ${{ steps.specs.outcome }}
+          NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "${{ steps.gate.outputs.verified }}" != "true" ]; then
+          if [ "$VERIFIED" != "true" ]; then
             outcome="⚠️ Requires human review before merging — verification failed."
-          elif [ "${{ steps.inputs.outputs.bump }}" = "major" ]; then
+          elif [ "$BUMP" = "major" ]; then
             outcome="⚠️ Requires human review before merging — major bump."
           else
             outcome="✅ All specs passed — auto-merge enabled."
@@ -364,15 +396,15 @@ jobs:
 
           | Step | Result |
           |------|--------|
-          | Build | \`${{ steps.build.outcome }}\` |
-          | Specs | \`${{ steps.specs.outcome }}\` |
-          | Bump | \`${{ steps.inputs.outputs.bump }}\` |
+          | Build | \`$BUILD_OUTCOME\` |
+          | Specs | \`$SPECS_OUTCOME\` |
+          | Bump | \`$BUMP\` |
 
           $outcome
           EOF
 
-          gh pr comment "${{ steps.pr.outputs.pull-request-number }}" \
-            --repo "${{ github.repository }}" \
+          gh pr comment "$NUMBER" \
+            --repo "$REPOSITORY" \
             --body-file "$RUNNER_TEMP/verification-gate.md"
 
       - name: Enable auto-merge
@@ -384,10 +416,12 @@ jobs:
           steps.inputs.outputs.bump != 'major'
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          REPOSITORY: ${{ github.repository }}
         # A true merge commit, never --squash: squashing collapses the branch's commits into a new
         # one and deletes the branch, leaving the originals unreachable. The repository's history is
         # append-only.
-        run: gh pr merge --auto --merge "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }}
+        run: gh pr merge --auto --merge "$NUMBER" --repo "$REPOSITORY"
 
       # The pull request is reused across runs and auto-merge survives a force-push, so an
       # earlier green run's auto-merge would otherwise merge this run's failing or major update.
@@ -400,9 +434,11 @@ jobs:
           (steps.gate.outputs.verified != 'true' || steps.inputs.outputs.bump == 'major')
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           # Auto-merge was usually never enabled on this pull request; that is not a failure.
-          if output=$(gh pr merge --disable-auto "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }} 2>&1); then
+          if output=$(gh pr merge --disable-auto "$NUMBER" --repo "$REPOSITORY" 2>&1); then
             echo "Auto-merge disabled."
           else
             echo "::notice::Could not disable auto-merge (likely not enabled): $output"
