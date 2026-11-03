@@ -10,7 +10,7 @@ public class and_a_websocket_upgrade_comes_from_a_different_port : given.a_contr
 {
     void Establish()
     {
-        _options.Query.AllowedWebSocketOrigins.Add("https://trusted.test");
+        _options.Query.AllowedWebSocketOrigins = ["https://trusted.test"];
         _webSocketFeature.IsWebSocketRequest.Returns(true);
         _httpContext.Request.Headers.Host = "app.test";
         _httpContext.Request.Headers.Origin = "http://app.test:81";

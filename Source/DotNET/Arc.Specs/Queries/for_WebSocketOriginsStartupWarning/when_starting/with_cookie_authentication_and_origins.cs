@@ -10,7 +10,7 @@ public class with_cookie_authentication_and_origins : given.a_startup_warning
     void Establish()
     {
         _schemes.Add(Cookies());
-        _options.Query.AllowedWebSocketOrigins.Add("https://app.test");
+        _options.Query.AllowedWebSocketOrigins = ["https://app.test"];
     }
 
     Task Because() => Start();

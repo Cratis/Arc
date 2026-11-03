@@ -12,10 +12,7 @@ public class an_origin_with_a_path : Specification
     void Because()
     {
         var options = new ArcOptions();
-        foreach (var origin in new[] { "https://app.test/path" })
-        {
-            options.Query.AllowedWebSocketOrigins.Add(origin);
-        }
+        options.Query.AllowedWebSocketOrigins = ["https://app.test/path"];
 
         _result = new QueryOptionsValidator().Validate(null, options);
     }

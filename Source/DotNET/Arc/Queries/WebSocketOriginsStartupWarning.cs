@@ -24,7 +24,7 @@ internal sealed class WebSocketOriginsStartupWarning(
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (arcOptions.Value.Query.AllowedWebSocketOrigins.Count > 0)
+        if (arcOptions.Value.Query.AllowedWebSocketOrigins is not null)
         {
             return;
         }
