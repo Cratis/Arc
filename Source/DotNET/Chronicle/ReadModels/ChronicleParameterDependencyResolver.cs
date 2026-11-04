@@ -15,7 +15,7 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// Resolves Chronicle-backed parameters independently of type-based scoped registrations.
 /// </summary>
 /// <param name="readModelTypes">The models backed by Chronicle artifacts.</param>
-/// <param name="isFrameworkToken">Identifies the effective framework token factory in the executing provider's frozen registrations. Unknown or application-owned registrations retain ordinary DI resolution.</param>
+/// <param name="isFrameworkToken">Identifies the effective framework token factory for the executing root provider. Application-owned registrations retain ordinary DI resolution.</param>
 internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> readModelTypes, Func<IServiceProvider, Type, bool>? isFrameworkToken = null) : IAsyncParameterDependencyResolver
 {
     readonly HashSet<Type> _readModelTypes = readModelTypes.ToHashSet();

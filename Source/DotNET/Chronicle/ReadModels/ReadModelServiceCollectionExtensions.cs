@@ -64,8 +64,8 @@ public static class ReadModelServiceCollectionExtensions
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
-        var frameworkIssuedTokens = new Dictionary<Type, ServiceDescriptor>();
-        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes, (provider, token) => IsFrameworkToken(provider, token, frameworkIssuedTokens)));
+        var frameworkIssuedTokens = new FrameworkTokenRegistrations(services);
+        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes, frameworkIssuedTokens.IsFramework));
         services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
             new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
 
@@ -75,7 +75,7 @@ public static class ReadModelServiceCollectionExtensions
         foreach (var readModelType in readModelTypes)
         {
             // One closed registration per read model; it registers the typed dispatch and the DecisionRead<T> factory.
-            RegisterReadModel(readModelType, services, readModelTypes, frameworkIssuedTokens);
+            RegisterReadModel(readModelType, services, readModelTypes, frameworkIssuedTokens.Factories);
         }
 
         return services;
@@ -253,11 +253,6 @@ public static class ReadModelServiceCollectionExtensions
         }
     }
 
-    static bool IsFrameworkToken(IServiceProvider services, Type token, Dictionary<Type, ServiceDescriptor> registrations) =>
-        registrations.TryGetValue(token, out var registered) &&
-        ProtectedDecisionProviderAttestations.TryGetAttestation(services, out var scope) &&
-        ReferenceEquals(scope.Root.Registrations.LastOrDefault(descriptor => descriptor.ServiceType == token && !descriptor.IsKeyedService), registered);
-
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
         where T : class => ReadDecisionToken<T>(services).GetAwaiter().GetResult();
 
@@ -361,6 +356,31 @@ public static class ReadModelServiceCollectionExtensions
         task.GetAwaiter().GetResult();
 
         return task.GetType().GetProperty("Result")!.GetValue(task)!;
+    }
+
+    sealed class FrameworkTokenRegistrations(IServiceCollection registrations)
+    {
+        readonly ConditionalWeakTable<IServiceScopeFactory, HashSet<Type>> _frameworkTypesByRoot = new();
+
+        public Dictionary<Type, ServiceDescriptor> Factories { get; } = [];
+
+        public bool IsFramework(IServiceProvider provider, Type token) =>
+            Factories.ContainsKey(token) &&
+            _frameworkTypesByRoot.GetValue(provider.GetRequiredService<IServiceScopeFactory>(), _ => FindFrameworkTypes(provider)).Contains(token);
+
+        HashSet<Type> FindFrameworkTypes(IServiceProvider provider)
+        {
+            // Attested roots already own an immutable snapshot. Ordinary hosts use their completed service configuration.
+            var descriptors = ProtectedDecisionProviderAttestations.TryGetAttestation(provider, out var scope)
+                ? scope.Root.Registrations
+                : (IEnumerable<ServiceDescriptor>)registrations;
+            var effective = descriptors.Where(descriptor => !descriptor.IsKeyedService)
+                .GroupBy(descriptor => descriptor.ServiceType)
+                .ToDictionary(group => group.Key, group => group.Last());
+            return Factories.Where(factory => ReferenceEquals(effective.GetValueOrDefault(factory.Key), factory.Value))
+                .Select(factory => factory.Key)
+                .ToHashSet();
+        }
     }
 
     sealed class ReadModelDiscovery
