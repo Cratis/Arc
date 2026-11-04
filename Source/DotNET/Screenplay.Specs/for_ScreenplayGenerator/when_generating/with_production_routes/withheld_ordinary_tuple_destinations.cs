@@ -40,6 +40,24 @@ public class withheld_ordinary_tuple_destinations : a_production_route_document
     }
 
     [Theory]
+    [InlineData("public (string, EventForEventSourceId) Handle() { var wrapped = WRAPPER; return (Name, wrapped); }")]
+    [InlineData("public (string, object[]) Handle() => (Name, [.. Build(), WRAPPER]); public object[] Build() => [];")]
+    [InlineData("public (string, object[]) Handle() => (Name, [Build(), WRAPPER]); public AuthorAudited Build() => new(Name);")]
+    [InlineData("public (string, (EventForEventSourceId, AuthorAudited)) Handle() => (Name, (WRAPPER, new(Name)));")]
+    [InlineData("public (string, string, EventForEventSourceId) Handle() => (Name, Month, WRAPPER);")]
+    [InlineData("public (Receipt, EventForEventSourceId) Handle() => (Converted, WRAPPER); public ConvertedReceipt Converted => new(Name);")]
+    public void should_refuse_an_unsupported_returned_tuple_carrying_an_explicit_wrapper(string handler)
+    {
+        foreach (var authoring in new[] { false, true })
+        {
+            var source = TupleDestinationSources.With(handler.Replace("WRAPPER", TupleDestinationSources.Wrapper, StringComparison.Ordinal))
+                .Replace("namespace Library.Authors.Registration;", "namespace Banking.Authors.Registration;", StringComparison.Ordinal);
+            GenerateOrdinary(source, authoring);
+            AssertWithheld();
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void should_keep_both_ordinary_productions_with_supported_destinations(bool authoring)

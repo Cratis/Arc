@@ -30,4 +30,24 @@ public class ordinary_production_fallbacks : a_generated_document
             AssertDocument();
         }
     }
+
+    [Theory]
+    [InlineData("public AuthorAudited Handle() { var unused = WRAPPER; return new(Name); }", "AuthorAudited", "")]
+    [InlineData("public AuthorAudited Handle() { Func<object> build = () => WRAPPER; return new(Name); }", "AuthorAudited", "")]
+    [InlineData("public (string, EventForEventSourceId) Handle(IEventLog log) { log.Append(Id, new AuthorAudited(Name)); var wrapped = WRAPPER; return (Name, wrapped); }", "AuthorAudited", "AuthorRegistered")]
+    public void should_keep_effects_independent_of_a_refused_returned_tuple(string handler, string kept, string refused)
+    {
+        foreach (var authoring in new[] { false, true })
+        {
+            var source = TupleDestinationSources.With(handler.Replace("WRAPPER", TupleDestinationSources.Wrapper, StringComparison.Ordinal));
+            Analyzed.ErrorsIn(Analyzed.Compile([(Analyzed.SlicePath, source)])).ShouldBeEmpty();
+            Generate(new ScreenplayOptions { AuthoringOnlyConstructs = authoring }, (Analyzed.SlicePath, source));
+            var produced = Result.Model.Slices.SelectMany(slice => slice.Commands).Single().Produces.Select(production => production.EventName).ToList();
+            produced.ShouldContain(kept);
+            if (refused.Length > 0)
+            {
+                produced.ShouldNotContain(refused);
+            }
+        }
+    }
 }

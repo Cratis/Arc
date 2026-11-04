@@ -38,6 +38,26 @@ internal class UnrepresentableProductions(ScreenplayDiagnostics diagnostics)
     }
 
     /// <summary>
+    /// Reports that the effects of an unsupported returned tuple were refused, and prevents signature recovery from restoring them.
+    /// </summary>
+    /// <param name="refused">Whether a returned tuple was refused.</param>
+    /// <param name="othersRemain">Whether productions independent of the returned tuple remain.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    internal void Refuse(bool refused, bool othersRemain, string location)
+    {
+        if (!refused || _withheld)
+        {
+            return;
+        }
+
+        var message = othersRemain
+            ? "A returned tuple of the command carries an explicit event destination that could not be stated, so the effects of that returned value are not stated"
+            : "A production of the command is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and no production of the command is stated";
+        diagnostics.Information(ScreenplayDiagnosticCodes.UnrepresentableProductionDestination, message, location);
+        _withheld = true;
+    }
+
+    /// <summary>
     /// Reads signature productions only when no body productions were withheld.
     /// </summary>
     /// <param name="handlers">The handler methods to read.</param>
