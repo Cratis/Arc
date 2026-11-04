@@ -64,8 +64,8 @@ public static class ReadModelServiceCollectionExtensions
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
-        var frameworkIssuedTokens = new HashSet<Type>();
-        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes, frameworkIssuedTokens));
+        var frameworkIssuedTokens = new Dictionary<Type, ServiceDescriptor>();
+        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes, (provider, token) => IsFrameworkToken(provider, token, frameworkIssuedTokens)));
         services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
             new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
 
@@ -173,22 +173,7 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>The boxed token.</returns>
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id.</exception>
     internal static async ValueTask<object> ResolveDecisionReadAsync<T>(IServiceProvider services)
-        where T : class
-    {
-        var context = services.GetRequiredService<ICommandContextAccessor>().Current;
-        if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
-        {
-            var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
-            return await services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken);
-        }
-        var key = context.GetEventSourceId();
-        if (key == EventSourceId.Unspecified)
-        {
-            throw new UnableToResolveReadModelFromCommandContext(typeof(T));
-        }
-
-        return await services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken);
-    }
+        where T : class => await ReadDecisionToken<T>(services);
 
     /// <summary>
     /// Discovers the same Chronicle-backed models for parameter resolution and admission checks.
@@ -242,13 +227,13 @@ public static class ReadModelServiceCollectionExtensions
     }
 #endif
 
-    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes, ISet<Type>? frameworkIssuedTokens = null) =>
+    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes, IDictionary<Type, ServiceDescriptor>? frameworkIssuedTokens = null) =>
         typeof(ReadModelServiceCollectionExtensions)
             .GetMethod(nameof(RegisterReadModelOf), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(model)
             .Invoke(null, [services, readModelTypes, frameworkIssuedTokens]);
 
-    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes, ISet<Type>? frameworkIssuedTokens)
+    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes, IDictionary<Type, ServiceDescriptor>? frameworkIssuedTokens)
         where T : class
     {
         ReadModelDispatch.Register<T>();
@@ -264,18 +249,26 @@ public static class ReadModelServiceCollectionExtensions
         if (services.Count != count)
         {
             ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
-            frameworkIssuedTokens?.Add(typeof(T));
+            frameworkIssuedTokens?.Add(typeof(DecisionRead<T>), descriptor);
         }
     }
 
+    static bool IsFrameworkToken(IServiceProvider services, Type token, Dictionary<Type, ServiceDescriptor> registrations) =>
+        registrations.TryGetValue(token, out var registered) &&
+        ProtectedDecisionProviderAttestations.TryGetAttestation(services, out var scope) &&
+        ReferenceEquals(scope.Root.Registrations.LastOrDefault(descriptor => descriptor.ServiceType == token && !descriptor.IsKeyedService), registered);
+
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
+        where T : class => ReadDecisionToken<T>(services).GetAwaiter().GetResult();
+
+    static Task<DecisionRead<T>> ReadDecisionToken<T>(IServiceProvider services)
         where T : class
     {
         var context = services.GetRequiredService<ICommandContextAccessor>().Current;
         if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
         {
             var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
-            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken);
         }
         var key = context.GetEventSourceId();
         if (key == EventSourceId.Unspecified)
@@ -283,7 +276,7 @@ public static class ReadModelServiceCollectionExtensions
             throw new UnableToResolveReadModelFromCommandContext(typeof(T));
         }
 
-        return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken).GetAwaiter().GetResult();
+        return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken);
     }
 
     /// <summary>

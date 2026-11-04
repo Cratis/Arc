@@ -15,84 +15,58 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// Resolves Chronicle-backed parameters independently of type-based scoped registrations.
 /// </summary>
 /// <param name="readModelTypes">The models backed by Chronicle artifacts.</param>
-/// <param name="frameworkIssuedTokens">The models whose <c>DecisionRead&lt;T&gt;</c> factory the framework itself registered. Filled while the models are registered; a token whose factory the application registered first is left to that factory.</param>
-internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> readModelTypes, ISet<Type>? frameworkIssuedTokens = null) : IAsyncParameterDependencyResolver
+/// <param name="isFrameworkToken">Identifies the effective framework token factory in the executing provider's frozen registrations. Unknown or application-owned registrations retain ordinary DI resolution.</param>
+internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> readModelTypes, Func<IServiceProvider, Type, bool>? isFrameworkToken = null) : IAsyncParameterDependencyResolver
 {
     readonly HashSet<Type> _readModelTypes = readModelTypes.ToHashSet();
+
+    enum BindingKind
+    {
+        Stored = 0,
+        Protected = 1,
+        Stream = 2,
+        Token = 3
+    }
 
     /// <inheritdoc/>
     public bool TryResolve(IServiceProvider serviceProvider, ParameterInfo parameter, out object? dependency)
     {
         dependency = null;
-        var isReadModel = Measure(serviceProvider, parameter);
-        if (isReadModel && PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
-        {
-            var commandContext = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-            dependency = PerStreamReadModelBinding.Resolve(parameter.ParameterType, commandContext, serviceProvider, parameter);
-            return true;
-        }
-        if (!RequiresParameterLookup(parameter, isReadModel))
+        var binding = Plan(serviceProvider, parameter);
+        if (binding is null || binding.Kind == BindingKind.Token)
         {
             return false;
         }
 
-        var context = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, ProtectedReadModelKeys.Traversal(serviceProvider), out var keyText);
-        var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
-        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
+        using var allowance = binding.AllowReads();
+        dependency = binding.Kind switch
         {
-            dependency = ProtectedReadModelKeys.RequireInstance(ResolveProtected(serviceProvider, context, parameter, key, keyText), parameter, keyText);
-        }
-        else
-        {
-            using var allowance = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && TransactionalCommandScope.CurrentProtectedUnit is { } unit
-                ? unit.AllowReads(ReadAllowance.Advisory, advisory?.Reason ?? "Declared advisory")
-                : null;
-            if (advisory is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
-            {
-                ReadProtectionTelemetry.Record(context.Type, "advisory_read", parameter.ParameterType, advisory.Reason ?? "Declared advisory");
-            }
-            dependency = ReadModelServiceCollectionExtensions.ResolveReadModel(parameter.ParameterType, context, serviceProvider.GetRequiredService<IReadModels>(), key);
-        }
-
+            BindingKind.Stream => PerStreamReadModelBinding.Resolve(binding.Model, binding.Context, serviceProvider, parameter),
+            BindingKind.Protected => ProtectedReadModelKeys.RequireInstance(ResolveProtected(serviceProvider, binding), parameter, binding.KeyText),
+            _ => ReadModelServiceCollectionExtensions.ResolveReadModel(binding.Model, binding.Context, serviceProvider.GetRequiredService<IReadModels>(), binding.Key)
+        };
         return true;
     }
 
     /// <inheritdoc/>
     public async ValueTask<ParameterDependencyResolution> Resolve(IServiceProvider serviceProvider, ParameterInfo parameter)
     {
-        var isReadModel = Measure(serviceProvider, parameter);
-        if (IsFrameworkIssuedToken(parameter.ParameterType, out var tokenModel))
-        {
-            ValidateTokenLookup(parameter);
-            return ParameterDependencyResolution.Resolved(await ReadModelDispatch.For(tokenModel).ResolveTokenAsync(serviceProvider));
-        }
-        if (isReadModel && PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
-        {
-            var commandContext = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-            return ParameterDependencyResolution.Resolved(await PerStreamReadModelBinding.ResolveAsync(parameter.ParameterType, commandContext, serviceProvider, parameter));
-        }
-        if (!RequiresParameterLookup(parameter, isReadModel))
+        var binding = Plan(serviceProvider, parameter);
+        if (binding is null)
         {
             return ParameterDependencyResolution.NotResolved;
         }
 
-        var context = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, ProtectedReadModelKeys.Traversal(serviceProvider), out var keyText);
-        var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
-        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
+        binding.Context.CancellationToken.ThrowIfCancellationRequested();
+        using var allowance = binding.AllowReads();
+        var dependency = binding.Kind switch
         {
-            return ParameterDependencyResolution.Resolved(ProtectedReadModelKeys.RequireInstance(await ResolveProtectedAsync(serviceProvider, context, parameter, key, keyText), parameter, keyText));
-        }
-
-        using var allowance = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && TransactionalCommandScope.CurrentProtectedUnit is { } unit
-            ? unit.AllowReads(ReadAllowance.Advisory, advisory?.Reason ?? "Declared advisory")
-            : null;
-        if (advisory is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
-        {
-            ReadProtectionTelemetry.Record(context.Type, "advisory_read", parameter.ParameterType, advisory.Reason ?? "Declared advisory");
-        }
-        return ParameterDependencyResolution.Resolved(await ReadModelServiceCollectionExtensions.ResolveReadModelAsync(parameter.ParameterType, context, serviceProvider.GetRequiredService<IReadModels>(), key));
+            BindingKind.Token => await ReadModelDispatch.For(binding.Model).ResolveTokenAsync(serviceProvider),
+            BindingKind.Stream => await PerStreamReadModelBinding.ResolveAsync(binding.Model, binding.Context, serviceProvider, parameter),
+            BindingKind.Protected => ProtectedReadModelKeys.RequireInstance(await ResolveProtectedAsync(serviceProvider, binding), parameter, binding.KeyText),
+            _ => await ReadModelServiceCollectionExtensions.ResolveReadModelAsync(binding.Model, binding.Context, serviceProvider.GetRequiredService<IReadModels>(), binding.Key)
+        };
+        return ParameterDependencyResolution.Resolved(dependency);
     }
 
     /// <summary>
@@ -137,43 +111,77 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         return reader;
     }
 
-    static async ValueTask<object?> ResolveProtectedAsync(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
-    {
-        try
-        {
-            return await ReadModelDispatch.For(parameter.ParameterType).ResolveProtectedAsync(services, context, key);
-        }
-        catch (ProtectedReadModelDoesNotExist)
-        {
-            throw new ProtectedReadModelDoesNotExist(parameter.ParameterType, keyText);
-        }
-        catch (Exception failure) when ((failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused) is not null)
-        {
-            var refused = (failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused)!;
-            throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
-        }
-    }
-
     static bool RequiresParameterLookup(ParameterInfo parameter, bool isReadModel) => isReadModel &&
         (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On ||
          CommandAttributePolicy.HasExplicitLookup(parameter) ||
          Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
 
-    static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
+    static object? ResolveProtected(IServiceProvider services, ParameterBinding binding)
     {
         try
         {
-            return ReadModelDispatch.For(parameter.ParameterType).ResolveProtected(services, context, key);
+            return ReadModelDispatch.For(binding.Model).ResolveProtected(services, binding.Context, binding.Key);
         }
-        catch (ProtectedReadModelDoesNotExist)
+        catch (Exception failure) when (IsRefusal(failure))
         {
-            throw new ProtectedReadModelDoesNotExist(parameter.ParameterType, keyText);
+            throw binding.Refusal(failure);
         }
-        catch (Exception failure) when ((failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused) is not null)
+    }
+
+    static async ValueTask<object?> ResolveProtectedAsync(IServiceProvider services, ParameterBinding binding)
+    {
+        try
         {
-            var refused = (failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused)!;
-            throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
+            return await ReadModelDispatch.For(binding.Model).ResolveProtectedAsync(services, binding.Context, binding.Key);
         }
+        catch (Exception failure) when (IsRefusal(failure))
+        {
+            throw binding.Refusal(failure);
+        }
+    }
+
+    static bool IsRefusal(Exception failure) => failure is ProtectedReadModelDoesNotExist or DecisionReadRefused or { InnerException: DecisionReadRefused };
+
+    static void ValidateTokenLookup(ParameterInfo parameter)
+    {
+        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
+        {
+            throw new InvalidLookUpBy(parameter.Member.DeclaringType!, provider.GetType().GenericTypeArguments[0], "is only supported for Chronicle read models");
+        }
+    }
+
+    static ParameterBinding LookupPlan(IServiceProvider services, ParameterInfo parameter, CommandContext context)
+    {
+        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, ProtectedReadModelKeys.Traversal(services), out var keyText);
+        var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
+        if (advisory is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
+        {
+            ReadProtectionTelemetry.Record(context.Type, "advisory_read", parameter.ParameterType, advisory.Reason ?? "Declared advisory");
+        }
+        return new(parameter, context, parameter.ParameterType)
+        {
+            Kind = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null ? BindingKind.Protected : BindingKind.Stored,
+            Key = key,
+            KeyText = keyText,
+            Advisory = advisory
+        };
+    }
+
+    ParameterBinding? Plan(IServiceProvider services, ParameterInfo parameter)
+    {
+        var isReadModel = Measure(services, parameter);
+        if (isFrameworkToken?.Invoke(services, parameter.ParameterType) == true)
+        {
+            ValidateTokenLookup(parameter);
+            return new(parameter, services.GetRequiredService<ICommandContextAccessor>().Current, parameter.ParameterType.GetGenericArguments()[0]) { Kind = BindingKind.Token };
+        }
+        if (isReadModel && PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
+        {
+            return new(parameter, services.GetRequiredService<ICommandContextAccessor>().Current, parameter.ParameterType) { Kind = BindingKind.Stream };
+        }
+        return RequiresParameterLookup(parameter, isReadModel)
+            ? LookupPlan(services, parameter, services.GetRequiredService<ICommandContextAccessor>().Current)
+            : null;
     }
 
     bool Measure(IServiceProvider serviceProvider, ParameterInfo parameter)
@@ -189,21 +197,29 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         return isReadModel;
     }
 
-    static void ValidateTokenLookup(ParameterInfo parameter)
-    {
-        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
-        {
-            throw new InvalidLookUpBy(parameter.Member.DeclaringType!, provider.GetType().GenericTypeArguments[0], "is only supported for Chronicle read models");
-        }
-    }
-
-    bool IsFrameworkIssuedToken(Type type, out Type model)
-    {
-        model = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>) ? type.GetGenericArguments()[0] : typeof(object);
-        return frameworkIssuedTokens?.Contains(model) == true;
-    }
-
     bool IsChronicleCollection(Type type) => type.IsGenericType &&
         type.GetGenericTypeDefinition().FullName == "MongoDB.Driver.IMongoCollection`1" &&
         _readModelTypes.Contains(type.GetGenericArguments()[0]);
+
+    sealed record ParameterBinding(ParameterInfo Parameter, CommandContext Context, Type Model)
+    {
+        public BindingKind Kind { get; init; }
+        public ReadModelKey Key { get; init; } = null!;
+        public string KeyText { get; init; } = string.Empty;
+        public UnprotectedAttribute? Advisory { get; init; }
+
+        public IDisposable? AllowReads() => Kind == BindingKind.Stored && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && TransactionalCommandScope.CurrentProtectedUnit is { } unit
+            ? unit.AllowReads(ReadAllowance.Advisory, Advisory?.Reason ?? "Declared advisory")
+            : null;
+
+        public Exception Refusal(Exception failure)
+        {
+            if (failure is ProtectedReadModelDoesNotExist)
+            {
+                return new ProtectedReadModelDoesNotExist(Model, KeyText);
+            }
+            var refused = (failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused)!;
+            return ReadProtectionRefusals.For(Context.Type, Parameter, refused.Reason);
+        }
+    }
 }

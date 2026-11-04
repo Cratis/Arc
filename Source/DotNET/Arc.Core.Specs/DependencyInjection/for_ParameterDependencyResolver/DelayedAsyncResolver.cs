@@ -6,12 +6,32 @@ using System.Reflection;
 namespace Cratis.Arc.DependencyInjection.for_ParameterDependencyResolver;
 
 /// <summary>
-/// An asynchronous resolver that owns every parameter and completes when the test releases it.
+/// Owns an explicitly registered substitute, rather than a discoverable production extension point.
 /// </summary>
-/// <param name="dependency">The dependency to resolve to, which may be null.</param>
-public sealed class DelayedAsyncResolver(object? dependency) : IAsyncParameterDependencyResolver
+internal sealed class DelayedAsyncResolver
 {
     readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DelayedAsyncResolver"/> class.
+    /// </summary>
+    /// <param name="dependency">The dependency to resolve to, which may be null.</param>
+    public DelayedAsyncResolver(object? dependency)
+    {
+        Resolver = Substitute.For<IAsyncParameterDependencyResolver>();
+        Resolver.TryResolve(Arg.Any<IServiceProvider>(), Arg.Any<ParameterInfo>(), out Arg.Any<object?>()).Returns(call =>
+        {
+            SynchronousCalls++;
+            call[2] = null;
+            return false;
+        });
+        Resolver.Resolve(Arg.Any<IServiceProvider>(), Arg.Any<ParameterInfo>()).Returns(_ => ResolvePending(dependency));
+    }
+
+    /// <summary>
+    /// Gets the resolver registered explicitly by the spec.
+    /// </summary>
+    public IAsyncParameterDependencyResolver Resolver { get; }
 
     /// <summary>
     /// Gets the number of times the synchronous contract was called.
@@ -28,16 +48,7 @@ public sealed class DelayedAsyncResolver(object? dependency) : IAsyncParameterDe
     /// </summary>
     public void Release() => _gate.SetResult();
 
-    /// <inheritdoc/>
-    public bool TryResolve(IServiceProvider serviceProvider, ParameterInfo parameter, out object? dependency)
-    {
-        SynchronousCalls++;
-        dependency = null;
-        return false;
-    }
-
-    /// <inheritdoc/>
-    public async ValueTask<ParameterDependencyResolution> Resolve(IServiceProvider serviceProvider, ParameterInfo parameter)
+    async ValueTask<ParameterDependencyResolution> ResolvePending(object? dependency)
     {
         AsynchronousCalls++;
         await _gate.Task;

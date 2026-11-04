@@ -26,7 +26,7 @@ public class and_a_sync_resolver_precedes_an_async_one : Specification
         });
         _parameter = typeof(Consumer).GetMethod(nameof(Consumer.Method))!.GetParameters()[0];
         _services = new ServiceCollection()
-            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([sync, _async]))
+            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([sync, _async.Resolver]))
             .BuildServiceProvider();
     }
 

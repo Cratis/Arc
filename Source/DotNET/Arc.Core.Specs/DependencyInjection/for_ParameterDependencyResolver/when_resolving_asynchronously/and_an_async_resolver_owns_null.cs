@@ -20,7 +20,7 @@ public class and_an_async_resolver_owns_null : Specification
         _parameter = typeof(Consumer).GetMethod(nameof(Consumer.Method))!.GetParameters()[0];
         _services = new ServiceCollection()
             .AddSingleton(new TheDependency())
-            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver]))
+            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver.Resolver]))
             .BuildServiceProvider();
     }
 

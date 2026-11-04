@@ -16,14 +16,14 @@ public class and_a_decision_read_declares_a_key_provider : Specification
     public async Task should_reject_the_unsupported_binding_before_acquiring_a_token(bool frameworkIssued)
     {
         var activated = false;
-        using var services = new ServiceCollection()
+        await using var services = new ServiceCollection()
             .AddTransient<DecisionRead<Model>>(_ =>
             {
                 activated = true;
                 throw new InvalidOperationException();
             })
             .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([
-                new ChronicleParameterDependencyResolver([typeof(Model)], frameworkIssued ? new HashSet<Type> { typeof(Model) } : [])
+                new ChronicleParameterDependencyResolver([typeof(Model)], (_, _) => frameworkIssued)
             ]))
             .BuildServiceProvider();
         var parameter = typeof(Command).GetMethod(nameof(Command.Handle))!.GetParameters()[0];

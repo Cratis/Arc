@@ -135,8 +135,7 @@ internal static class PerStreamReadModelBinding
         var plan = Plan<T>(context, services, parameter);
         if (plan.IsProtected)
         {
-            var protectedInstance = plan.CommandReader!.GetStreamInstance<T>(plan.Source, plan.Route.EventStreamType, plan.Route.EventStreamId, plan.Route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
-            return parameter is null ? protectedInstance : (T?)ProtectedReadModelKeys.RequireInstance(protectedInstance, parameter, plan.KeyText);
+            return CompleteProtected(ProtectedRead<T>(context, plan).GetAwaiter().GetResult(), parameter, plan);
         }
         using var allowance = Allow(plan.Advisory);
         var instance = StoredRead<T>(context, services, plan).GetAwaiter().GetResult();
@@ -158,8 +157,7 @@ internal static class PerStreamReadModelBinding
         var plan = Plan<T>(context, services, parameter);
         if (plan.IsProtected)
         {
-            var protectedInstance = await plan.CommandReader!.GetStreamInstance<T>(plan.Source, plan.Route.EventStreamType, plan.Route.EventStreamId, plan.Route.EventSourceType, context.CancellationToken);
-            return parameter is null ? protectedInstance : ProtectedReadModelKeys.RequireInstance(protectedInstance, parameter, plan.KeyText);
+            return CompleteProtected(await ProtectedRead<T>(context, plan), parameter, plan);
         }
         using var allowance = Allow(plan.Advisory);
         var instance = await StoredRead<T>(context, services, plan);
@@ -183,8 +181,14 @@ internal static class PerStreamReadModelBinding
         var reader = services.GetRequiredService<IDecisionReads>();
         var isProtected = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null;
         var commandReader = isProtected ? reader as CommandDecisionReads ?? throw new ProtectedCommandRequiresCommandAwareReader() : null;
-        return new(advisory, keyText, route, source, reader, commandReader);
+        return new(route, source, reader) { Advisory = advisory, KeyText = keyText, CommandReader = commandReader };
     }
+
+    static Task<T?> ProtectedRead<T>(CommandContext context, StreamReadPlan plan)
+        where T : class => plan.CommandReader!.GetStreamInstance<T>(plan.Source, plan.Route.EventStreamType, plan.Route.EventStreamId, plan.Route.EventSourceType, context.CancellationToken);
+
+    static T? CompleteProtected<T>(T? instance, ParameterInfo? parameter, StreamReadPlan plan)
+        where T : class => parameter is null ? instance : (T?)ProtectedReadModelKeys.RequireInstance(instance, parameter, plan.KeyText);
 
     static IDisposable? Allow(UnprotectedAttribute? advisory) =>
         CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && TransactionalCommandScope.CurrentProtectedUnit is { } unit
@@ -204,14 +208,11 @@ internal static class PerStreamReadModelBinding
     static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
         attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
 
-    sealed record StreamReadPlan(
-        UnprotectedAttribute? Advisory,
-        string KeyText,
-        EventRoute Route,
-        EventSourceId Source,
-        IDecisionReads Reader,
-        CommandDecisionReads? CommandReader)
+    sealed record StreamReadPlan(EventRoute Route, EventSourceId Source, IDecisionReads Reader)
     {
+        public UnprotectedAttribute? Advisory { get; init; }
+        public string KeyText { get; init; } = string.Empty;
+        public CommandDecisionReads? CommandReader { get; init; }
         public bool IsProtected => CommandReader is not null;
     }
 }

@@ -24,7 +24,7 @@ public class and_a_decision_read_is_issued_for_a_framework_registered_token : gi
     void Establish()
     {
         _parameter = typeof(TokenHandler).GetMethod(nameof(TokenHandler.Handle))!.GetParameters()[0];
-        _resolver = new([typeof(Balance)], new HashSet<Type> { typeof(Balance) });
+        _resolver = new([typeof(Balance)], (_, token) => token == typeof(DecisionRead<Balance>));
     }
 
     async Task Because()

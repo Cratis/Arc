@@ -75,7 +75,10 @@ public sealed class SingleThreadScheduler : SynchronizationContext, IDisposable
             SetSynchronizationContext(previous);
         }
 
-        _worker.Join(_joinTimeout);
+        if (_worker.Join(_joinTimeout))
+        {
+            _queue.Dispose();
+        }
     }
 
     static async Task Execute<T>(Func<Task<T>> work, TaskCompletionSource<T> completion)
