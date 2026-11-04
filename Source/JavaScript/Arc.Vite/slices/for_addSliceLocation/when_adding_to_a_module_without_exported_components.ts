@@ -21,5 +21,6 @@ describe('when adding to a module without exported components', () => {
     it('should leave a function returning JSX and something else alone', () =>
         isUntouched('export function Format(props: { raw: boolean }) {\n    if (props.raw) return \'text\';\n    return <span />;\n}'));
     it('should leave an async function returning JSX alone', () => isUntouched('export async function Load() { return <div />; }'));
+    it('should leave a call given a helper declared later that renders no JSX alone', () => isUntouched('export const Total = sum(format);\nfunction format() { return 1; }'));
     it('should leave a function returning only null alone', () => isUntouched('export function Nothing() { return null; }'));
 });

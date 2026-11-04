@@ -29,6 +29,15 @@ describe('when adding to exported components', () => {
         transform('export const Pay = forwardRef((props, ref) => <div ref={ref} />);')!.should.contain(`export const Pay = ${wrapped('forwardRef((props, ref) => <div ref={ref} />)', 'Pay')};`));
     it('should wrap a call given a top-level component by name', () =>
         transform('function PayInner() { return <div />; }\nexport const Pay = memo(PayInner);')!.should.contain(`export const Pay = ${wrapped('memo(PayInner)', 'Pay')};`));
+    it('should wrap a call given a top-level component declared later by name', () => {
+        const result = transform('export const Pay = memo(PayInner);\nfunction PayInner() { return <div />; }')!;
+        result.should.contain(`export const Pay = ${wrapped('memo(PayInner)', 'Pay')};`);
+        result.should.contain('function PayInner() { return <div />; }');
+    });
+    it('should wrap a call exported by name later given a component declared after it', () =>
+        transform('const Pay = memo(PayInner);\nexport { Pay };\nfunction PayInner() { return <div />; }')!.should.contain(`const Pay = ${wrapped('memo(PayInner)', 'Pay')};`));
+    it('should wrap a call given a wrapper of a component declared later', () =>
+        transform('const Inner = memo(PayInner);\nexport const Pay = forwardRef(Inner);\nfunction PayInner() { return <div />; }')!.should.contain(`export const Pay = ${wrapped('forwardRef(Inner)', 'Pay')};`));
     it('should wrap a component compiled to element factory calls', () =>
         transform('import { jsx as _jsx } from "react/jsx-runtime";\nexport const Pay = () => _jsx("div", {});', '/app/Pay.jsx')!.should.contain(wrapped('() => _jsx("div", {})', 'Pay')));
     it('should wrap a component returning JSX held in a constant', () =>
