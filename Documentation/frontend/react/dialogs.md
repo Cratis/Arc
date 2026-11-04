@@ -80,7 +80,7 @@ useDialog(AddressDialog, { slice: { module: 'Orders', feature: 'Shipping', slice
 | `title` | The title reported in the [application context](./application-context.md). |
 | `trackInApplicationContext` | Set to `false` to keep the open dialog out of the application context. Defaults to `true`. The built-in confirmation and busy indicator dialogs of `DialogComponents` do not track. |
 
-Open dialogs register with the application context: `useApplicationContext().dialogs` lists them bottom first, and `location` is the location of the top-most dialog. Closing it returns focus to the dialog below, or to the page. `useDialogSliceLocation()` returns the location of the dialog the component is rendered in, and `SliceLocation.empty` outside a dialog, so dialog chrome such as a header slot can read it without knowing about scopes.
+Open dialogs register with the application context: `useApplicationContext().dialogs` lists them bottom first, and `location` is the location of the top-most dialog. Closing it returns focus to the dialog below, or to the page. Changing the title or slice of an open dialog updates its entry in place, so `dialogs` keeps the opening order and focus stays with the top-most dialog. `useDialogSliceLocation()` returns the location of the dialog the component is rendered in, and `SliceLocation.empty` outside a dialog, so dialog chrome such as a header slot can read it without knowing about scopes.
 
 When `sliceMarkers` is enabled on `<Arc>`, the dialog content is wrapped in the marker element too. Renderers that portal the content elsewhere can use `sliceMarkerAttributes(useDialogSliceLocation())` on their own element.
 

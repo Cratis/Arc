@@ -1,11 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ReactNode, useEffect, useMemo } from 'react';
+import { ReactNode, useEffect, useMemo, useRef } from 'react';
 import { SliceLocation } from '@cratis/arc/reflection';
 import { SliceScope, SliceScopeKind } from '../slices/SliceScope.js';
 import { SliceScopeContext } from '../slices/SliceScopeContext.js';
 import { ApplicationLayerContext } from '../applicationContext/ApplicationLayerContext.js';
+import { ApplicationDialogRegistration } from '../applicationContext/ApplicationDialogRegistration.js';
 import { SliceMarker } from '../applicationContext/SliceMarker.js';
 import { useApplicationContextStore } from '../applicationContext/useApplicationContextStore.js';
 
@@ -40,10 +41,29 @@ export const DialogSliceScope = (props: DialogSliceScopeProps) => {
             : new SliceScope(opener),
         [opener, explicit, module, feature, sliceName]);
 
+    const latest = useRef({ title: props.title, scope });
+    latest.current = { title: props.title, scope };
+    const registration = useRef<ApplicationDialogRegistration | undefined>(undefined);
+
     // The dialog's scope is registered as part of the dialog's own layer, so it is not mistaken for the page.
-    useEffect(
-        () => props.track ? store?.registerDialog({ id: props.id, title: props.title, scope }) : undefined,
-        [store, scope, props.id, props.title, props.track]);
+    // The registration lives as long as the dialog is tracked; title and scope changes update it in place.
+    useEffect(() => {
+        if (!props.track || !store) {
+            return undefined;
+        }
+        const handle = store.trackDialog({ id: props.id, ...latest.current });
+        registration.current = handle;
+        return () => {
+            handle.remove();
+            if (registration.current === handle) {
+                registration.current = undefined;
+            }
+        };
+    }, [store, props.id, props.track]);
+
+    useEffect(() => {
+        registration.current?.update({ title: props.title, scope });
+    }, [props.title, scope]);
 
     return (
         <ApplicationLayerContext.Provider value={props.track ? props.id : undefined}>
