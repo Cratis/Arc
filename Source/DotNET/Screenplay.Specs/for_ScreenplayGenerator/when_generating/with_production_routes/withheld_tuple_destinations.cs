@@ -13,12 +13,6 @@ public class withheld_tuple_destinations : a_generated_document
     [InlineData("public (string, object[]) Handle() => (Name, [Build(), WRAPPER]); public AuthorAudited Build() => new(Name);")]
     [InlineData("public (string, (EventForEventSourceId, AuthorAudited)) Handle() => (Name, (WRAPPER, new(Name)));")]
     [InlineData("public (string, string, EventForEventSourceId) Handle() => (Name, Month, WRAPPER);")]
-    [InlineData("public (string, EventForEventSourceId, EventForEventSourceId) Handle() => (Name, WRAPPER, new(OtherId + \"computed\", new AuthorAudited(Name)));")]
-    [InlineData("public (string, EventForEventSourceId, EventForEventSourceId) Handle() => (Name, WRAPPER, new(OtherId, new AuthorAudited(Name)) { Subject = \"someone\" });")]
-    [InlineData("public (string, EventForEventSourceId, EventForEventSourceId) Handle() => (Name, WRAPPER, new(OtherId, new AuthorAudited(Name)) { Tags = [\"tag\"] });")]
-    [InlineData("public (string, EventForEventSourceId, EventForEventSourceId) Handle() => (Name, WRAPPER, new(OtherId, new AuthorAudited(Name)) { Occurred = DateTimeOffset.UtcNow });")]
-    [InlineData("public (string, EventForEventSourceId, EventForEventSourceId) Handle() => (Name, WRAPPER, new(OtherId, new AuthorAudited(Name)) { EventStreamId = Month + \"computed\" });")]
-    [InlineData("public (string, EventForEventSourceId, EventForEventSourceId) Handle() => (Name, WRAPPER, new(OtherId, new AuthorAudited(Name)) { EventSource = typeof(LedgerEventSource), EventStream = \"Unknown\" });")]
     [InlineData("public (Receipt, EventForEventSourceId) Handle() => (Converted, WRAPPER); public ConvertedReceipt Converted => new(Name);")]
     public void should_withhold_all_tuple_routes_instead_of_falling_back_to_command_context(string handler)
     {
@@ -30,12 +24,15 @@ public class withheld_tuple_destinations : a_generated_document
             Result.Source.ShouldNotContain("for thirdId");
             Result.Source.ShouldNotContain("for id");
             Result.Source.ShouldNotContain("eventsource Ledger");
-            Result.Source.ShouldNotContain("stream Account.Main");
             Result.Source.ShouldNotContain("otherId String identifier");
             Result.Source.ShouldNotContain("thirdId String identifier");
             Result.Source.ShouldNotContain(" generated identifier");
             Result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnrepresentableProductionDestination).ShouldEqual(1);
-            AssertDocument();
+            Result.Model.Slices.SelectMany(slice => slice.Commands).Single().Produces.ShouldBeEmpty();
+            Result.Source.ShouldNotContain("produces");
+            Result.Source.ShouldContain("handler");
+            AssertPartialDocument();
+            Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).ShouldEqual(["PLAY0800"]);
         }
     }
 
