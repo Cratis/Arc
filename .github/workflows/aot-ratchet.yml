@@ -28,6 +28,7 @@ on:
       - ".globalconfig"
       - "global.json"
       - "scripts/aot-ratchet.py"
+      - "scripts/published-arccore-outcomes*.mjs"
       - ".github/workflows/aot-ratchet.yml"
   workflow_dispatch:
 
@@ -81,13 +82,14 @@ jobs:
   published-arc-core:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        variant: [Untrimmed]
+        # Trimmed is excluded until the ILLink IL1012 crash is fixed (dotnet/runtime#136383; Arc#3595).
+        variant: [Untrimmed, NativeAot]
     env:
       DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
@@ -106,9 +108,19 @@ jobs:
           global-json-file: global.json
 
       - name: Restore NuGet packages
-        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@3f8a8a7ef75f72b6b089638b68ec2f9af8f593e3 # main
         with:
           mode: restore
+
+      - name: Install NativeAOT prerequisites when missing
+        if: matrix.variant == 'NativeAot'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v clang > /dev/null || ! dpkg -s zlib1g-dev > /dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+          fi
 
       - name: Prepare acceptance output
         shell: bash
@@ -122,11 +134,45 @@ jobs:
             echo "CRATIS_ARC_PUBLISHED_ARCCORE_LOG=$root/application.log"
           } >> "$GITHUB_ENV"
 
+      - name: Read published outcome baseline from the PR base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Checkout does not persist credentials; this public repository supports anonymous HTTPS fetches.
+          git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          manifest="origin/$BASE_REF:Samples/ArcCore.Specs/published-outcomes.json"
+          # The first introduction has no base file to compare against.
+          if git cat-file -e "$manifest" 2>/dev/null; then
+            git show "$manifest" > "$ACCEPTANCE_ROOT/base-manifest.json"
+            echo "BASE_MANIFEST=$ACCEPTANCE_ROOT/base-manifest.json" >> "$GITHUB_ENV"
+          fi
+
       - name: Publish ArcCore
         shell: bash
         run: |
           set -euo pipefail
           dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net10.0 -r linux-x64 -p:CratisSamplePublish="$PUBLISH_VARIANT" -o "$ACCEPTANCE_ROOT/publish" > "$ACCEPTANCE_ROOT/publish.log" 2>&1
+
+      - name: Summarise publish warnings
+        if: always()
+        continue-on-error: true # Informational trend, not a warnings-as-errors gate yet.
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+          const path = `${process.env.ACCEPTANCE_ROOT}/publish.log`;
+          const counts = new Map();
+          if (existsSync(path)) {
+            for (const code of readFileSync(path, 'utf8').match(/warning IL[0-9]+/g) ?? []) {
+              counts.set(code, (counts.get(code) ?? 0) + 1);
+            }
+          }
+          const lines = [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => `- ${code}: ${count}`);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ${process.env.PUBLISH_VARIANT} publish warnings\n\n${lines.join('\n') || 'No IL warnings recorded (see publish log for publish status).'}\n\n`);
+          NODE
 
       - name: Record published image size
         run: du -sk "$ACCEPTANCE_ROOT/publish" "$CRATIS_ARC_PUBLISHED_ARCCORE"
@@ -135,28 +181,30 @@ jobs:
         run: dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net10.0
 
       - name: Exercise published HTTP commands and queries
-        run: Samples/ArcCore.Specs/bin/Release/net10.0/Cratis.Arc.Samples.ArcCore.Specs -noLogo -noColor -failSkips -result-trx "$ACCEPTANCE_ROOT/acceptance.trx"
-
-      - name: Require all acceptance facts to pass without skips
         shell: bash
         run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const assert = require('node:assert/strict');
-          const trx = fs.readFileSync(`${process.env.ACCEPTANCE_ROOT}/acceptance.trx`, 'utf8');
-          const counters = trx.match(/<(?:\w+:)?Counters\b[^>]*>/)?.[0];
-          assert.ok(counters, 'Acceptance TRX must contain counters');
-          for (const [name, count] of Object.entries({ total: 36, executed: 36, passed: 36, failed: 0, notExecuted: 0 })) {
-            assert.match(counters, new RegExp(`\\b${name}="${count}"`), `Expected ${name}=${count}`);
-          }
-          const results = trx.match(/<(?:\w+:)?UnitTestResult\b[^>]*>/g) ?? [];
-          assert.equal(results.length, 36, 'Expected all 36 acceptance facts');
-          for (const result of results) assert.match(result, /\boutcome="Passed"/);
-          console.log('Checked 36 acceptance facts: 36 passed, 0 skipped');
-          NODE
+          set +e
+          Samples/ArcCore.Specs/bin/Release/net10.0/Cratis.Arc.Samples.ArcCore.Specs -noLogo -noColor -failSkips -result-trx "$ACCEPTANCE_ROOT/acceptance.trx"
+          status=$?
+          printf 'Acceptance runner exit: %s\n' "$status" | tee "$ACCEPTANCE_ROOT/runner-exit.log"
+          # The checker below owns the verdict, including missing TRX and skips.
+          exit 0
 
-      - name: Upload failure diagnostics
-        if: failure()
+      - name: Self-test the published outcome checker
+        run: node --test scripts/published-arccore-outcomes.test.mjs
+
+      - name: Hold acceptance facts to tracked outcomes without skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ -n "${BASE_MANIFEST:-}" ]]; then
+            args+=(--base-manifest "$BASE_MANIFEST")
+          fi
+          node scripts/published-arccore-outcomes.mjs --trx "$ACCEPTANCE_ROOT/acceptance.trx" --variant "$PUBLISH_VARIANT" "${args[@]}"
+
+      - name: Upload acceptance diagnostics
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: published-arc-core-${{ matrix.variant }}

@@ -1,0 +1,34 @@
+{
+  "facts": 36,
+  "variants": {
+    "Untrimmed": {
+      "expectedFailures": {}
+    },
+    "NativeAot": {
+      "expectedFailures": {
+        "PublishedArcCore › when executing generated commands › should respond with ok": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when executing generated commands › should report success": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when executing generated commands › should return the author in the response": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when executing generated commands › should return the text in the response": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when executing generated commands › should serialize the posted at as a timestamp": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when executing generated commands › should use camel case property names": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup › should report a configuration failure": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup › should discover and refuse the generic claim lookup": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup › should not execute using the service provider fallback": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup › should not misrepresent the refusal as unauthorized": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller subject lookup › should report a configuration failure": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller subject lookup › should discover and refuse the generic subject lookup": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller subject lookup › should not execute using the service provider fallback": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller subject lookup › should not misrepresent the refusal as unauthorized": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without authentication › should report a configuration failure": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without authentication › should refuse before resolving the caller": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without authentication › should not execute using the service provider fallback": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without authentication › should not misrepresent the refusal as unauthorized": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without the claim › should report a configuration failure": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without the claim › should refuse before resolving the missing claim": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without the claim › should not execute using the service provider fallback": "https://github.com/Cratis/Arc/issues/3595",
+        "PublishedArcCore › when using a caller claim lookup without the claim › should not misrepresent the refusal as unauthorized": "https://github.com/Cratis/Arc/issues/3595"
+      }
+    }
+  }
+}

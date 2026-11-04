@@ -105,7 +105,7 @@ Arc captures the selected caller before command context providers run. A scheme-
 
 The key selects the instance in `Off`, `Measure` and `On`; it does not enable protection. `Off` and `Measure` remain unguarded. Under `On`, the existing admission, freshness and concurrency checks still apply. `[Unprotected]` exempts guarding, not caller/key checks. A provider key must have safe, non-empty exact wire text in every mode: wildcard, unspecified, surrounding whitespace and ambiguous `#` text are refused.
 
-A missing or ambiguous key, changed caller or throwing provider is an authorization refusal. There is no convention or client-key fallback, even for nullable parameters. Once a valid key is found, ordinary nullable-versus-required model absence rules apply. Do not combine the generic and string attributes, or declare two providers. Neither form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
+A missing or ambiguous key, changed caller or throwing provider is an authorization refusal. There is no convention or client-key fallback, even for nullable parameters. Once a valid key is found, ordinary nullable-versus-required model absence rules apply. Do not combine the generic and string attributes, or declare two providers. A `Provide()` value of the parameter's type is a declaration error (`InvalidLookUpBy`) and never replaces the caller-keyed read. Neither form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
 
 ## In `Provide()`
 
@@ -329,6 +329,12 @@ Use `AdmitForStream<T>()` to check the projection shape without reading. Chronic
 The stream type must be specific, not `EventStreamType.All`. See Chronicle's [stream-scoped decision-read contract](/chronicle/read-models/decision-reads/#scoped-to-one-event-stream) for default-id behavior, key requirements and merged guard widening. The kernel must acknowledge stream scoping; unsupported scoping fails rather than silently folding the whole source.
 
 For the decision matrix, costs, pitfalls and scenarios that put these pieces together, see [Choosing how a command's rule holds](../consistency/index.md), its [scenarios](../consistency/scenarios/index.md) and its [pitfalls](../consistency/pitfalls.md).
+
+## Reads are awaited
+
+Arc binds a read model, a `DecisionRead<T>` token or a per-stream model into `Handle()` and `Provide()` by awaiting the Chronicle read, so a command that runs on a single-threaded scheduler yields while the read is pending instead of blocking it. This holds for framework-owned parameter binding only, and only when the caller awaits the command pipeline itself.
+
+Constructor injection, validators built by synchronous factories, other `IServiceProvider` lookups and custom synchronous resolvers are not changed by this; they keep their existing synchronous behavior. The supported ways to read state described above stay the same. See [the command pipeline](../../commands/command-pipeline.md#how-parameters-are-bound) for the resolver contract.
 
 ## Read models from other providers
 

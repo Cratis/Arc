@@ -64,7 +64,8 @@ public static class ReadModelServiceCollectionExtensions
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
-        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes));
+        var frameworkIssuedTokens = new FrameworkTokenRegistrations(services);
+        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes, frameworkIssuedTokens.IsFramework));
         services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
             new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
 
@@ -74,7 +75,7 @@ public static class ReadModelServiceCollectionExtensions
         foreach (var readModelType in readModelTypes)
         {
             // One closed registration per read model; it registers the typed dispatch and the DecisionRead<T> factory.
-            RegisterReadModel(readModelType, services, readModelTypes);
+            RegisterReadModel(readModelType, services, readModelTypes, frameworkIssuedTokens.Factories);
         }
 
         return services;
@@ -121,18 +122,7 @@ public static class ReadModelServiceCollectionExtensions
         {
             return PerStreamReadModelBinding.Resolve(readModelType, commandContext, commandContext.ServiceProvider!);
         }
-        var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
-        if (eventSourceId == EventSourceId.Unspecified)
-        {
-            // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
-            // usable key) can never resolve one — for a nullable and a non-nullable dependency alike. That is invalid
-            // client input, not "the entity does not exist", so returning null would be misleading and letting the
-            // throw fall through as-is would be an unhandled server error. UnableToResolveReadModelFromCommandContext
-            // implements IValidationFailure, so the pipeline surfaces it as a validation failure (HTTP 400). A
-            // valid-but-not-found read model still resolves to null below.
-            throw new UnableToResolveReadModelFromCommandContext(readModelType);
-        }
-
+        var eventSourceId = StoredEventSourceId(readModelType, commandContext, key);
         ReadProtectionMeasurement.Current?.StoredRead(readModelType, (ReadModelKey)eventSourceId);
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
 
@@ -151,6 +141,39 @@ public static class ReadModelServiceCollectionExtensions
         // actually carried.
         return readModel is null ? readModel : ReleaseReadModel(readModels, readModelType, readModel);
     }
+
+    /// <summary>
+    /// Resolves a read model for the current command context without blocking, including compliance release.
+    /// </summary>
+    /// <param name="readModelType">Type of read model to resolve.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
+    /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
+    /// <param name="key">An optional per-parameter key, instead of the command key.</param>
+    /// <returns>The resolved read model instance, or null when it does not exist.</returns>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by.</exception>
+    internal static async ValueTask<object?> ResolveReadModelAsync(Type readModelType, CommandContext commandContext, IReadModels readModels, ReadModelKey? key = null)
+    {
+        if (PerStreamReadModelBinding.IsDeclared(readModelType))
+        {
+            return await PerStreamReadModelBinding.ResolveAsync(readModelType, commandContext, commandContext.ServiceProvider!);
+        }
+        var eventSourceId = StoredEventSourceId(readModelType, commandContext, key);
+        ReadProtectionMeasurement.Current?.StoredRead(readModelType, (ReadModelKey)eventSourceId);
+        var readModel = await readModels.GetInstanceById(readModelType, eventSourceId);
+
+        // A never-created or removed read model resolves to null; there is nothing to release.
+        return readModel is null ? null : await ReleaseReadModelAsync(readModels, readModelType, readModel);
+    }
+
+    /// <summary>
+    /// Issues the <see cref="DecisionRead{T}"/> token for the current command without blocking.
+    /// </summary>
+    /// <typeparam name="T">The read model type.</typeparam>
+    /// <param name="services">The command services.</param>
+    /// <returns>The boxed token.</returns>
+    /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id.</exception>
+    internal static async ValueTask<object> ResolveDecisionReadAsync<T>(IServiceProvider services)
+        where T : class => await ReadDecisionToken<T>(services);
 
     /// <summary>
     /// Discovers the same Chronicle-backed models for parameter resolution and admission checks.
@@ -204,13 +227,13 @@ public static class ReadModelServiceCollectionExtensions
     }
 #endif
 
-    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes) =>
+    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes, IDictionary<Type, ServiceDescriptor>? frameworkIssuedTokens = null) =>
         typeof(ReadModelServiceCollectionExtensions)
             .GetMethod(nameof(RegisterReadModelOf), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(model)
-            .Invoke(null, [services, readModelTypes]);
+            .Invoke(null, [services, readModelTypes, frameworkIssuedTokens]);
 
-    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes)
+    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes, IDictionary<Type, ServiceDescriptor>? frameworkIssuedTokens)
         where T : class
     {
         ReadModelDispatch.Register<T>();
@@ -226,17 +249,21 @@ public static class ReadModelServiceCollectionExtensions
         if (services.Count != count)
         {
             ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
+            frameworkIssuedTokens?.Add(typeof(DecisionRead<T>), descriptor);
         }
     }
 
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
+        where T : class => ReadDecisionToken<T>(services).GetAwaiter().GetResult();
+
+    static Task<DecisionRead<T>> ReadDecisionToken<T>(IServiceProvider services)
         where T : class
     {
         var context = services.GetRequiredService<ICommandContextAccessor>().Current;
         if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
         {
             var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
-            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken);
         }
         var key = context.GetEventSourceId();
         if (key == EventSourceId.Unspecified)
@@ -244,7 +271,7 @@ public static class ReadModelServiceCollectionExtensions
             throw new UnableToResolveReadModelFromCommandContext(typeof(T));
         }
 
-        return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken).GetAwaiter().GetResult();
+        return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken);
     }
 
     /// <summary>
@@ -261,6 +288,35 @@ public static class ReadModelServiceCollectionExtensions
                 ?.GetGenericArguments()[0])
             .Where(type => type?.IsClass == true && !type.IsAbstract)
             .Cast<Type>();
+
+    static EventSourceId StoredEventSourceId(Type readModelType, CommandContext commandContext, ReadModelKey? key)
+    {
+        var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
+        if (eventSourceId == EventSourceId.Unspecified)
+        {
+            // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
+            // usable key) can never resolve one — for a nullable and a non-nullable dependency alike. That is invalid
+            // client input, not "the entity does not exist", so returning null would be misleading and letting the
+            // throw fall through as-is would be an unhandled server error. UnableToResolveReadModelFromCommandContext
+            // implements IValidationFailure, so the pipeline surfaces it as a validation failure (HTTP 400). A
+            // valid-but-not-found read model still resolves to null below.
+            throw new UnableToResolveReadModelFromCommandContext(readModelType);
+        }
+
+        return eventSourceId;
+    }
+
+    static async ValueTask<object> ReleaseReadModelAsync(IReadModels readModels, Type readModelType, object readModel)
+    {
+        try
+        {
+            return await ReadModelDispatch.For(readModelType).ReleaseAsync(readModels, readModel);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}'.", exception);
+        }
+    }
 
     static object ReleaseReadModel(IReadModels readModels, Type readModelType, object readModel)
     {
@@ -300,6 +356,31 @@ public static class ReadModelServiceCollectionExtensions
         task.GetAwaiter().GetResult();
 
         return task.GetType().GetProperty("Result")!.GetValue(task)!;
+    }
+
+    sealed class FrameworkTokenRegistrations(IServiceCollection registrations)
+    {
+        readonly ConditionalWeakTable<IServiceScopeFactory, HashSet<Type>> _frameworkTypesByRoot = new();
+
+        public Dictionary<Type, ServiceDescriptor> Factories { get; } = [];
+
+        public bool IsFramework(IServiceProvider provider, Type token) =>
+            Factories.ContainsKey(token) &&
+            _frameworkTypesByRoot.GetValue(provider.GetRequiredService<IServiceScopeFactory>(), _ => FindFrameworkTypes(provider)).Contains(token);
+
+        HashSet<Type> FindFrameworkTypes(IServiceProvider provider)
+        {
+            // Attested roots already own an immutable snapshot. Ordinary hosts use their completed service configuration.
+            var descriptors = ProtectedDecisionProviderAttestations.TryGetAttestation(provider, out var scope)
+                ? scope.Root.Registrations
+                : (IEnumerable<ServiceDescriptor>)registrations;
+            var effective = descriptors.Where(descriptor => !descriptor.IsKeyedService)
+                .GroupBy(descriptor => descriptor.ServiceType)
+                .ToDictionary(group => group.Key, group => group.Last());
+            return Factories.Where(factory => ReferenceEquals(effective.GetValueOrDefault(factory.Key), factory.Value))
+                .Select(factory => factory.Key)
+                .ToHashSet();
+        }
     }
 
     sealed class ReadModelDiscovery

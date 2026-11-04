@@ -33,7 +33,11 @@ public static class ReadModelDispatch
                 ChronicleParameterDependencyResolver.ResolveModel<TModel>,
                 PerStreamReadModelBinding.ResolveModel<TModel>,
                 reads => reads.Describe<TModel>(),
-                DecisionReadVerdict.Refusal<TModel>));
+                DecisionReadVerdict.Refusal<TModel>,
+                ChronicleParameterDependencyResolver.ResolveModelAsync<TModel>,
+                PerStreamReadModelBinding.ResolveModelAsync<TModel>,
+                ReadModelServiceCollectionExtensions.ResolveDecisionReadAsync<TModel>,
+                async (readModels, readModel) => await readModels.Release((TModel)readModel)));
 
     /// <summary>
     /// Gets the dispatch for a read model.
