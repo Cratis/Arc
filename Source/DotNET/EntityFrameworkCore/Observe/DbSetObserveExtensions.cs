@@ -244,6 +244,7 @@ public static class DbSetObserveExtensions
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
         var serviceScopeFactory = Internals.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
         var queryContext = queryContextManager.Current;
+        var observer = ObserverContext.Capture(Internals.ServiceProvider);
         var observationContext = ignoreQueryContext ? queryContext with { Paging = Paging.NotPaged, Sorting = Sorting.None } : queryContext;
 
         var idProperty = GetIdProperty(dbSet);
@@ -326,20 +327,26 @@ public static class DbSetObserveExtensions
 
                 logger.ChangeDetectedRequerying(typeof(TEntity).Name);
 
-                // Create a new scope to get a fresh DbContext
-                using var scope = serviceScopeFactory.CreateScope();
-                var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-                var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
-
-                // Build the query using the fresh DbSet
-                var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-                if (!ignoreQueryContext)
+                // The callback runs on the writer's or notifier's flow, so restore the subscriber's context
+                // before resolving the fresh DbContext.
+                using (observer.Begin())
                 {
-                    queryContext.TotalItems = baseQuery.Count();
+                    // Create a new scope to get a fresh DbContext
+                    using var scope = serviceScopeFactory.CreateScope();
+                    var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+                    var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
+
+                    // Build the query using the fresh DbSet
+                    var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
+                    if (!ignoreQueryContext)
+                    {
+                        queryContext.TotalItems = baseQuery.Count();
+                    }
+                    var newQuery = BuildQuery(baseQuery, observationContext, entityType);
+                    var newEntities = newQuery.ToList();
+                    entities.ReinitializeWithEntities(newEntities);
                 }
-                var newQuery = BuildQuery(baseQuery, observationContext, entityType);
-                var newEntities = newQuery.ToList();
-                entities.ReinitializeWithEntities(newEntities);
+
                 onNext(entities, subject);
             }
             catch (Exception ex)
