@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.DependencyInjection;
@@ -90,6 +91,7 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
             else if (candidates.Find(parameterType.IsInstanceOfType) is { } match)
             {
+                RefuseProvideForCallerKeyedParameter(handler, parameter);
                 if (CommandDecisionPolicy.IsProtected)
                 {
                     serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
@@ -108,6 +110,17 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         }
 
         return arguments;
+    }
+
+    static void RefuseProvideForCallerKeyedParameter(ICommandHandler handler, ParameterInfo parameter)
+    {
+        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is ILookUpByKeyProvider provider)
+        {
+            throw new InvalidLookUpBy(
+                handler.CommandType,
+                provider.ProviderType,
+                "a value returned from Provide() cannot replace a caller-keyed read model; remove it from Provide() or drop the lookup");
+        }
     }
 
     static bool IsControlSignal(object value) =>

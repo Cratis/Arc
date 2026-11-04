@@ -105,7 +105,7 @@ Arc captures the selected caller before command context providers run. A scheme-
 
 The key selects the instance in `Off`, `Measure` and `On`; it does not enable protection. `Off` and `Measure` remain unguarded. Under `On`, the existing admission, freshness and concurrency checks still apply. `[Unprotected]` exempts guarding, not caller/key checks. A provider key must have safe, non-empty exact wire text in every mode: wildcard, unspecified, surrounding whitespace and ambiguous `#` text are refused.
 
-A missing or ambiguous key, changed caller or throwing provider is an authorization refusal. There is no convention or client-key fallback, even for nullable parameters. Once a valid key is found, ordinary nullable-versus-required model absence rules apply. Do not combine the generic and string attributes, or declare two providers. Neither form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
+A missing or ambiguous key, changed caller or throwing provider is an authorization refusal. There is no convention or client-key fallback, even for nullable parameters. Once a valid key is found, ordinary nullable-versus-required model absence rules apply. Do not combine the generic and string attributes, or declare two providers. A `Provide()` value of the parameter's type is a declaration error (`InvalidLookUpBy`) and never replaces the caller-keyed read. Neither form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
 
 ## In `Provide()`
 
