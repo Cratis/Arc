@@ -16,6 +16,10 @@
         <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
     </PropertyGroup>
     <ItemGroup>
+        <ProjectReference Include="../Shared/Shared.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="NSubstitute" />
         <PackageReference Include="Cratis.Specifications.XUnit.v3" />
         <PackageReference Include="xunit.v3.mtp-off" />
         <PackageReference Include="xunit.runner.visualstudio" />

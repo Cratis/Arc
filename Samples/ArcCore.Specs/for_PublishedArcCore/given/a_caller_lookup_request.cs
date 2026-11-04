@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -38,16 +37,14 @@ public class a_caller_lookup_request : a_published_arc_core
 
     protected void AssertConfigurationFailure() => Assert.True(_response.StatusCode == HttpStatusCode.InternalServerError, $"{_responseText}{Environment.NewLine}{_arcCore.Output}");
 
-    protected async Task AssertUnsupportedLookup(string provider, string command)
+    protected Task AssertUnsupportedLookup(string provider, string command)
     {
+        // The published host runs in Development (the sample cookie authentication only works there),
+        // where exception details are returned to the caller instead of being redacted and logged.
         var expected = $"LookUpBy<{provider}> on command 'Samples.Features.CallerKeyedLookups.{command}' is invalid: is only supported for Chronicle read models.";
-        var elapsed = Stopwatch.StartNew();
-        while (!_arcCore.Output.Contains(expected, StringComparison.Ordinal) && elapsed.Elapsed < TimeSpan.FromSeconds(5))
-        {
-            await Task.Delay(10);
-        }
-
-        _arcCore.Output.ShouldContain(expected);
+        var messages = _body.GetProperty("exceptionMessages").EnumerateArray().Select(message => message.GetString()).ToArray();
+        Assert.True(messages.Contains(expected), $"{_responseText}{Environment.NewLine}{_arcCore.Output}");
+        return Task.CompletedTask;
     }
 
     void Destroy() => _response?.Dispose();

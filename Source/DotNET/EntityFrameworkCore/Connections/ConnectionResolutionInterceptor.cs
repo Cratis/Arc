@@ -86,7 +86,7 @@ public class ConnectionResolutionInterceptor(ICachingConnectionResolver resolver
     }
 
     ConnectionRequest RequestFor(DbConnection connection) =>
-        ConnectionRequest.ForTenant(connection.GetConnectionStorage(), ConnectionPurposeScope.Current, tenantIdAccessor.Current);
+        ConnectionRequest.ForTenant(connection.GetConnectionStorage(), ConnectionPurposeScope.Current, ConnectionTenantScope.Current ?? tenantIdAccessor.Current);
 
     void Apply(DbConnection connection, ResolvedConnection resolved)
     {
