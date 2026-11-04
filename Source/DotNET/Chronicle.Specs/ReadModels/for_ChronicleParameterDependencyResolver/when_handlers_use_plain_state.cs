@@ -34,7 +34,7 @@ public class when_handlers_use_plain_state : given.protected_plain_models
             var parameter = typeof(On).GetMethod(nameof(On.Handle))!.GetParameters()[0];
             var resolved = new ChronicleParameterDependencyResolver([typeof(Balance)]).TryResolve(_services, parameter, out var instance);
             resolved.ShouldEqual(mode == ReadProtectionMode.On);
-            var model = (Balance)(resolved ? instance : ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(Balance), _context, _stored))!;
+            var model = (Balance)(resolved ? instance : await ReadModelServiceCollectionExtensions.ResolveReadModelAsync(typeof(Balance), _context, _stored))!;
             new On().Handle(model).Account.ShouldEqual(new AccountId("from"));
             _unit.HasEnrolledDecisionReads.ShouldEqual(mode == ReadProtectionMode.On);
             if (mode == ReadProtectionMode.On)

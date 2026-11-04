@@ -48,14 +48,20 @@ public class ChronicleReadModelForCommandResolver(IEnumerable<Type> readModelTyp
         var readModels = commandContext.ServiceProvider!.GetRequiredService<IReadModels>();
         if (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On || PerStreamReadModelBinding.IsDeclared(readModelType))
         {
-            return Task.FromResult(ReadModelServiceCollectionExtensions.ResolveReadModel(readModelType, commandContext, readModels));
+            return ReadModelServiceCollectionExtensions.ResolveReadModelAsync(readModelType, commandContext, readModels).AsTask();
         }
 
         var advisory = readModelType.GetCustomAttribute<UnprotectedAttribute>() ??
             throw new ReadModelInjectedOutsideDecision(commandContext.Type, readModelType);
         var reason = advisory.Reason ?? "Declared advisory";
         ReadProtectionTelemetry.Record(commandContext.Type, "advisory_read", readModelType, reason);
+        return ResolveAdvisory(readModelType, commandContext, readModels, reason);
+    }
+
+    static async Task<object?> ResolveAdvisory(Type readModelType, CommandContext commandContext, IReadModels readModels, string reason)
+    {
+        // The allowance has to outlive the awaited read, so it is held here rather than around the returned task.
         using var allowance = TransactionalCommandScope.CurrentProtectedUnit?.AllowReads(ReadAllowance.Advisory, reason);
-        return Task.FromResult(ReadModelServiceCollectionExtensions.ResolveReadModel(readModelType, commandContext, readModels));
+        return await ReadModelServiceCollectionExtensions.ResolveReadModelAsync(readModelType, commandContext, readModels);
     }
 }

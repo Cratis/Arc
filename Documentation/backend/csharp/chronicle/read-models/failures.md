@@ -23,7 +23,7 @@ Resolution is refused when the caller frame is absent or its observable principa
 
 Supply the intended selected caller before entering the command pipeline and ensure the provider returns one usable key. Do not log claim values while diagnosing the refusal. `CallerSubject` requires an authenticated, non-system caller and reads exactly `sub`, excluding the actor chain. See [caller-derived keys](./injecting-into-commands.md#key-a-read-by-the-caller).
 
-A valid key with no stored model is different: normal nullable-versus-required absence rules apply. Conflicting lookup forms or redirecting a per-stream model are declaration errors (`InvalidLookUpBy`), not evidence of missing state.
+A valid key with no stored model is different: normal nullable-versus-required absence rules apply. Conflicting lookup forms, a `Provide()` value for a caller-keyed parameter or redirecting a per-stream model are declaration errors (`InvalidLookUpBy`), not evidence of missing state.
 
 ## UnableToResolveReadModelFromCommandContext
 
