@@ -83,7 +83,7 @@ public class BaseValidator<T> : AbstractValidator<T>, IHasIgnoredConceptRuleMemb
         // Check if concept is null, and if so return default (null for reference types)
         // This prevents NullReferenceException when accessing .Value on a null concept
         var nullCheck = Expression.NotEqual(body, Expression.Constant(null, body.Type));
-        var valueProperty = Expression.Property(body, nameof(ConceptAs<TProperty>.Value));
+        var valueProperty = Expression.Property(body, typeof(ConceptAs<TProperty>).GetProperty(nameof(ConceptAs<TProperty>.Value))!);
         var defaultValue = Expression.Default(typeof(TProperty));
         var conditional = Expression.Condition(nullCheck, valueProperty, defaultValue);
 
