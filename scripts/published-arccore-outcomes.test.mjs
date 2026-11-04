@@ -23,7 +23,7 @@ function trx(results = [['one', 'Passed'], ['two', 'Passed']], overrides = {}) {
 }
 
 function check(options = {}) {
-    const { xml = trx(), expectations = {}, variant = 'NativeAot', facts = 2, summary = false, args = [] } = options;
+    const { xml = trx(), expectations = {}, baseExpectations, variant = 'NativeAot', facts = 2, summary = false, args = [] } = options;
     mkdirSync('.ai-work', { recursive: true });
     const root = mkdtempSync(resolve('.ai-work/published-outcomes-'));
     try {
@@ -32,13 +32,19 @@ function check(options = {}) {
         const summaryPath = resolve(root, 'summary.md');
         if (xml !== null) writeFileSync(input, xml);
         writeFileSync(manifest, JSON.stringify({ facts, variants: { Untrimmed: { expectedFailures: expectations }, NativeAot: { expectedFailures: expectations } } }));
+        const baseArgs = [];
+        if (baseExpectations !== undefined) {
+            const baseManifest = resolve(root, 'base-manifest.json');
+            if (baseExpectations !== null) writeFileSync(baseManifest, JSON.stringify({ facts, variants: { NativeAot: { expectedFailures: baseExpectations } } }));
+            baseArgs.push('--base-manifest', baseManifest);
+        }
         const env = { ...process.env };
         delete env.GITHUB_STEP_SUMMARY;
         if (summary) {
             writeFileSync(summaryPath, 'Prior summary\n\n');
             env.GITHUB_STEP_SUMMARY = summaryPath;
         }
-        const result = spawnSync(process.execPath, [checker, '--trx', input, '--variant', variant, '--manifest', manifest, ...args], { encoding: 'utf8', env });
+        const result = spawnSync(process.execPath, [checker, '--trx', input, '--variant', variant, '--manifest', manifest, ...baseArgs, ...args], { encoding: 'utf8', env });
         assert.ifError(result.error);
         return { status: result.status, output: result.stdout + result.stderr, summary: summary ? readFileSync(summaryPath, 'utf8') : '' };
     } finally {
@@ -56,6 +62,31 @@ test('listed failures match exactly', () => {
     const result = check({ xml: trx([['one', 'Failed'], ['two', 'Passed']]), expectations: { one: issue } });
     assert.equal(result.status, 0, result.output);
     assert.match(result.output, /1 failed as expected/);
+});
+
+test('expanding expected failures beyond the base manifest is rejected', () => {
+    const result = check({ xml: trx([['one', 'Failed'], ['two', 'Failed']]), expectations: { one: issue, two: issue }, baseExpectations: { one: issue } });
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /Expected failure not present in base manifest: two/);
+});
+
+test('removing expected failures from the base manifest is allowed', () => {
+    const result = check({ xml: trx([['one', 'Failed'], ['two', 'Passed']]), expectations: { one: issue }, baseExpectations: { one: issue, two: issue } });
+    assert.equal(result.status, 0, result.output);
+});
+
+test('unchanged expected failures in the base manifest are allowed', () => {
+    const result = check({ xml: trx([['one', 'Failed'], ['two', 'Passed']]), expectations: { one: issue }, baseExpectations: { one: issue } });
+    assert.equal(result.status, 0, result.output);
+});
+
+test('a missing base manifest skips the comparison for first introduction', () => {
+    const result = check({ xml: trx([['one', 'Failed'], ['two', 'Passed']]), expectations: { one: issue }, baseExpectations: null });
+    assert.equal(result.status, 0, result.output);
+});
+
+test('an invalid base manifest cannot silently skip the comparison', () => {
+    assert.equal(check({ baseExpectations: [] }).status, 2);
 });
 
 test('an unlisted failure names the fact', () => {

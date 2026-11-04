@@ -134,6 +134,22 @@ jobs:
             echo "CRATIS_ARC_PUBLISHED_ARCCORE_LOG=$root/application.log"
           } >> "$GITHUB_ENV"
 
+      - name: Read published outcome baseline from the PR base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Checkout does not persist credentials; this public repository supports anonymous HTTPS fetches.
+          git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          manifest="origin/$BASE_REF:Samples/ArcCore.Specs/published-outcomes.json"
+          # The first introduction has no base file to compare against.
+          if git cat-file -e "$manifest" 2>/dev/null; then
+            git show "$manifest" > "$ACCEPTANCE_ROOT/base-manifest.json"
+            echo "BASE_MANIFEST=$ACCEPTANCE_ROOT/base-manifest.json" >> "$GITHUB_ENV"
+          fi
+
       - name: Publish ArcCore
         shell: bash
         run: |
@@ -178,7 +194,14 @@ jobs:
         run: node --test scripts/published-arccore-outcomes.test.mjs
 
       - name: Hold acceptance facts to tracked outcomes without skips
-        run: node scripts/published-arccore-outcomes.mjs --trx "$ACCEPTANCE_ROOT/acceptance.trx" --variant "$PUBLISH_VARIANT"
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ -n "${BASE_MANIFEST:-}" ]]; then
+            args+=(--base-manifest "$BASE_MANIFEST")
+          fi
+          node scripts/published-arccore-outcomes.mjs --trx "$ACCEPTANCE_ROOT/acceptance.trx" --variant "$PUBLISH_VARIANT" "${args[@]}"
 
       - name: Upload acceptance diagnostics
         if: always()
