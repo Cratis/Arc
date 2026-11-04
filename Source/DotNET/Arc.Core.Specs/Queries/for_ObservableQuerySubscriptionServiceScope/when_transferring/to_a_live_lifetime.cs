@@ -20,12 +20,12 @@ public class to_a_live_lifetime : Specification
         _lifetime = new StreamingQuerySubscription(CancellationToken.None);
     }
 
-    void Because()
+    async Task Because()
     {
         _transferred = _holder.TryTransferTo(_lifetime);
         _disposalsBeforeLifetimeDisposed = _scope.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IDisposable.Dispose));
         _lifetime.Dispose();
-        _holder.Dispose();
+        await _holder.DisposeAsync();
     }
 
     [Fact] void should_transfer() => _transferred.ShouldBeTrue();

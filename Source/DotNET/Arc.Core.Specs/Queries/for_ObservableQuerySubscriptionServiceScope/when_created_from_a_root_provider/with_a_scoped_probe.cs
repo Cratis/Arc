@@ -23,9 +23,9 @@ public class with_a_scoped_probe : Specification
         _scopedProbe = _provider.GetRequiredService<Probe>();
     }
 
-    void Because()
+    async Task Because()
     {
-        _holder.Dispose();
+        await _holder.DisposeAsync();
         _afterDisposal = Catch.Exception(() => _provider.GetService(typeof(IServiceScopeFactory)));
     }
 

@@ -20,10 +20,10 @@ public class to_a_disposed_lifetime : Specification
         _lifetime.Dispose();
     }
 
-    void Because()
+    async Task Because()
     {
         _transferred = _holder.TryTransferTo(_lifetime);
-        _holder.Dispose();
+        await _holder.DisposeAsync();
     }
 
     [Fact] void should_transfer() => _transferred.ShouldBeTrue();

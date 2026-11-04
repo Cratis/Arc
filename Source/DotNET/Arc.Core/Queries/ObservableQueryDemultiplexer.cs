@@ -84,6 +84,20 @@ public partial class ObservableQueryDemultiplexer(
     int _nextConnectionId;
 
     /// <summary>
+    /// Determines whether an exception must not be swallowed by subscription cleanup.
+    /// </summary>
+    /// <param name="exception">The exception to classify.</param>
+    /// <returns>Whether the exception is fatal.</returns>
+    internal static bool IsFatal(Exception exception) =>
+        exception is OutOfMemoryException or
+            StackOverflowException or
+            AccessViolationException or
+            AppDomainUnloadedException or
+            BadImageFormatException or
+            CannotUnloadAppDomainException or
+            InvalidProgramException;
+
+    /// <summary>
     /// Subscribes to a streaming query result — an <see cref="ISubject{T}"/> or an <see cref="IAsyncEnumerable{T}"/>
     /// — and returns a disposable that tears the subscription down.
     /// </summary>
@@ -101,7 +115,7 @@ public partial class ObservableQueryDemultiplexer(
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
         {
-            var lifetime = new StreamingQuerySubscription(subscription.Token);
+            var lifetime = new StreamingQuerySubscription(subscription.Token, logger.SubscriptionCleanupFailed);
             var guardScope = CreateEmissionScope(lifetime);
 
             if (lifetime.TryEnter())
@@ -172,15 +186,6 @@ public partial class ObservableQueryDemultiplexer(
         token.IsCancellationRequested &&
         exception is OperationCanceledException or IOException or ObjectDisposedException;
 
-    static bool IsFatal(Exception exception) =>
-        exception is OutOfMemoryException or
-            StackOverflowException or
-            AccessViolationException or
-            AppDomainUnloadedException or
-            BadImageFormatException or
-            CannotUnloadAppDomainException or
-            InvalidProgramException;
-
     ObservableQuerySubscriptionOperation? ReserveSubscription(
         ObservableQuerySubscriptionStates subscriptions,
         string queryId,
@@ -250,7 +255,7 @@ public partial class ObservableQueryDemultiplexer(
         var emissionGate = new SemaphoreSlim(1, 1);
 
         var interceptionScope = serviceProvider.CreateScope();
-        var lifetime = new StreamingQuerySubscription(token);
+        var lifetime = new StreamingQuerySubscription(token, logger.SubscriptionCleanupFailed);
         AddOwnedResources(lifetime, emissionGate, interceptionScope);
 
         var subscriptionToken = lifetime.Token;

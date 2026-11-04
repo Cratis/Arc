@@ -12,12 +12,12 @@ public class after_disposal : Specification
     StreamingQuerySubscription _lifetime;
     bool _transferred;
 
-    void Establish()
+    async Task Establish()
     {
         _scope = Substitute.For<IServiceScope>();
         _holder = new ObservableQuerySubscriptionServiceScope(_scope);
         _lifetime = new StreamingQuerySubscription(CancellationToken.None);
-        _holder.Dispose();
+        await _holder.DisposeAsync();
     }
 
     void Because()

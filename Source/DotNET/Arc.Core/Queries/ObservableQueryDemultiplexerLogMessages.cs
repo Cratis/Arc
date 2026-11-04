@@ -10,6 +10,9 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 internal static partial class ObservableQueryDemultiplexerLogMessages
 {
+    [LoggerMessage(LogLevel.Warning, "Disposing a resource owned by an observable query subscription failed")]
+    internal static partial void SubscriptionCleanupFailed(this ILogger<ObservableQueryDemultiplexer> logger, Exception exception);
+
     [LoggerMessage(LogLevel.Debug, "WebSocket client connected to ObservableQueryDemultiplexer")]
     internal static partial void WebSocketClientConnected(this ILogger<ObservableQueryDemultiplexer> logger);
 
