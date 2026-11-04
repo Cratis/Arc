@@ -14,6 +14,11 @@ namespace Samples.Authentication;
 /// client principal from a cookie. This enables authentication for transports that cannot send
 /// custom HTTP headers, such as Server-Sent Events (EventSource) and WebSocket handshakes.
 /// </summary>
+/// <remarks>
+/// WARNING: This handler trusts an unsigned, client-supplied cookie, so any caller can impersonate any user.
+/// It exists for local demos only and must be registered only in the Development environment.
+/// Never copy it into an application.
+/// </remarks>
 public class CookieAuthenticationHandler : IAuthenticationHandler
 {
     /// <summary>

@@ -155,8 +155,8 @@ public sealed class PublishedArcCore
         startInfo.ArgumentList.Add($"--Cratis:Arc:Hosting:ApplicationUrl={requestedUrl}");
         startInfo.ArgumentList.Add("--Logging:LogLevel:Default=Information");
         startInfo.ArgumentList.Add("--Logging:LogLevel:Cratis=Information");
-        startInfo.Environment["DOTNET_ENVIRONMENT"] = "Production";
-        startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
+        startInfo.Environment["DOTNET_ENVIRONMENT"] = "Development";
+        startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         return startInfo;
     }
 

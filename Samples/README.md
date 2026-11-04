@@ -2,6 +2,8 @@
 
 These projects exercise Arc's hosting modes, generated clients, validation, authorization, observable queries, and optional Chronicle integration. They are sample applications, not framework packages.
 
+> **Warning:** The samples' `CookieAuthenticationHandler` trusts an unsigned, client-supplied cookie, so anyone can impersonate any user. It is for local demos only, is registered only in the Development environment, and must never be copied into an application.
+
 ## Embedded event-model explorer
 
 The **AspNetCore** and **Chronicle** samples include `Screenplay.Embedded`. In Debug builds, the Roslyn/MSBuild extension generates `.play` documents and embeds them in the compiled assemblies. AspNetCore maps the explorer explicitly in Development; Chronicle uses the Cratis metapackage's automatic debug-build hosting.
