@@ -14,10 +14,10 @@ namespace Cratis.Arc.Queries;
 /// subscription. It never resolves through the root provider or another subscription's scope.
 /// The scope is created together with the context. It is disposed exactly once: by the creator when the subscription
 /// never becomes a live stream, or by the stream's <see cref="StreamingQuerySubscription"/> once it has drained.
-/// Ownership moves with <see cref="TryTransferTo"/>; an interlocked exchange makes transfer and disposal mutually exclusive.
+/// Ownership moves with <see cref="TryTransferTo"/>; an interlocked exchange makes transfer and asynchronous disposal mutually exclusive.
 /// After disposal a late read through the provider fails closed with <see cref="ObjectDisposedException"/>.
 /// </remarks>
-internal sealed class ObservableQuerySubscriptionServiceScope : IDisposable
+internal sealed class ObservableQuerySubscriptionServiceScope : IAsyncDisposable
 {
     IServiceScope? _scope;
 
@@ -26,7 +26,7 @@ internal sealed class ObservableQuerySubscriptionServiceScope : IDisposable
     /// </summary>
     /// <param name="root">The provider to create the subscription scope from.</param>
     public ObservableQuerySubscriptionServiceScope(IServiceProvider root)
-        : this(root.CreateScope())
+        : this(root.CreateAsyncScope())
     {
     }
 
@@ -63,5 +63,7 @@ internal sealed class ObservableQuerySubscriptionServiceScope : IDisposable
     }
 
     /// <inheritdoc/>
-    public void Dispose() => Interlocked.Exchange(ref _scope, null)?.Dispose();
+    public ValueTask DisposeAsync() => Interlocked.Exchange(ref _scope, null) is { } scope
+        ? SubscriptionResourceDisposal.DisposeAsync(scope)
+        : ValueTask.CompletedTask;
 }

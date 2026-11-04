@@ -195,7 +195,9 @@ public partial class ObservableQueryDemultiplexer
         }
 
         logger.ClientSubscribed(request.QueryName, queryId);
+#pragma warning disable CA2000 // Ownership transfers to the session, or asynchronous cleanup is tracked by the connection in the catch.
         var scope = new ObservableQuerySubscriptionServiceScope(serviceProvider);
+#pragma warning restore CA2000
         SubscriptionSession session;
         try
         {
@@ -216,7 +218,7 @@ public partial class ObservableQueryDemultiplexer
         }
         catch
         {
-            scope.Dispose();
+            connection.Track(DisposeSubscriptionScope(scope));
             throw;
         }
 
@@ -261,7 +263,7 @@ public partial class ObservableQueryDemultiplexer
         }
         finally
         {
-            session.Scope.Dispose();
+            await DisposeSubscriptionScope(session.Scope);
         }
     }
 

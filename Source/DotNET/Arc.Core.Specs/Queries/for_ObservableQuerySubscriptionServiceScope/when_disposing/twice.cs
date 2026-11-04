@@ -16,10 +16,10 @@ public class twice : Specification
         _holder = new ObservableQuerySubscriptionServiceScope(_scope);
     }
 
-    void Because()
+    async Task Because()
     {
-        _holder.Dispose();
-        _holder.Dispose();
+        await _holder.DisposeAsync();
+        await _holder.DisposeAsync();
     }
 
     [Fact] void should_dispose_the_scope_exactly_once() => _scope.Received(1).Dispose();

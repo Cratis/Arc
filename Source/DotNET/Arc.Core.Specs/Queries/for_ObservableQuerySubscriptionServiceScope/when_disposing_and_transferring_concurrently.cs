@@ -12,7 +12,7 @@ public class when_disposing_and_transferring_concurrently : Specification
 
     void Establish() => _scopes = [];
 
-    void Because()
+    async Task Because()
     {
         for (var i = 0; i < Iterations; i++)
         {
@@ -22,17 +22,17 @@ public class when_disposing_and_transferring_concurrently : Specification
             var lifetime = new StreamingQuerySubscription(CancellationToken.None);
             using var barrier = new Barrier(2);
             var deadline = TimeSpan.FromSeconds(10);
-            var dispose = Task.Run(() =>
+            var dispose = Task.Run(async () =>
             {
                 barrier.SignalAndWait(deadline);
-                holder.Dispose();
+                await holder.DisposeAsync();
             });
             var transfer = Task.Run(() =>
             {
                 barrier.SignalAndWait(deadline);
                 holder.TryTransferTo(lifetime);
             });
-            Task.WaitAll([dispose, transfer], deadline);
+            await Task.WhenAll(dispose, transfer).WaitAsync(deadline, TestContext.Current.CancellationToken);
             lifetime.Dispose();
         }
     }

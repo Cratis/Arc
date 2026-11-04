@@ -143,7 +143,7 @@ public partial class ObservableQueryDemultiplexer
         finally
         {
             // A live stream took ownership of the scope; for every other exit path this releases it.
-            scope.Dispose();
+            await DisposeSubscriptionScope(scope);
         }
     }
 
