@@ -110,6 +110,20 @@ function readExpectations(path, variant) {
     return { facts: manifest.facts, expected };
 }
 
+function validateBaseManifest(path, variant, expected) {
+    if (!path) return [];
+    let base;
+    try {
+        base = readExpectations(path, variant).expected;
+    } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+    }
+    return Object.keys(expected)
+        .filter(name => !Object.hasOwn(base, name))
+        .map(name => `Expected failure not present in base manifest: ${name}`);
+}
+
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -161,12 +175,13 @@ function validateCounters(counters, results, facts, { passed, failed }) {
 }
 
 function main() {
-    const { values } = parseArgs({ options: { trx: { type: 'string' }, variant: { type: 'string' }, manifest: { type: 'string', default: 'Samples/ArcCore.Specs/published-outcomes.json' } } });
-    if (!values.trx || !values.variant) throw new Error('Usage: node scripts/published-arccore-outcomes.mjs --trx <file> --variant <name> [--manifest <file>]');
+    const { values } = parseArgs({ options: { trx: { type: 'string' }, variant: { type: 'string' }, manifest: { type: 'string', default: 'Samples/ArcCore.Specs/published-outcomes.json' }, 'base-manifest': { type: 'string' } } });
+    if (!values.trx || !values.variant) throw new Error('Usage: node scripts/published-arccore-outcomes.mjs --trx <file> --variant <name> [--manifest <file>] [--base-manifest <path>]');
     const { facts, expected } = readExpectations(values.manifest, values.variant);
     const { counters, results } = readTrx(values.trx);
     const classified = classifyResults(results, expected);
     const defects = [
+        ...validateBaseManifest(values['base-manifest'], values.variant, expected),
         ...validateExpectations(values.variant, expected, results),
         ...classified.defects,
         ...validateCounters(counters, results, facts, classified)
