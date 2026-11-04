@@ -64,6 +64,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         var isReadModel = Measure(serviceProvider, parameter);
         if (IsFrameworkIssuedToken(parameter.ParameterType, out var tokenModel))
         {
+            ValidateTokenLookup(parameter);
             return ParameterDependencyResolution.Resolved(await ReadModelDispatch.For(tokenModel).ResolveTokenAsync(serviceProvider));
         }
         if (isReadModel && PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
@@ -186,6 +187,14 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
 
         return isReadModel;
+    }
+
+    static void ValidateTokenLookup(ParameterInfo parameter)
+    {
+        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
+        {
+            throw new InvalidLookUpBy(parameter.Member.DeclaringType!, provider.GetType().GenericTypeArguments[0], "is only supported for Chronicle read models");
+        }
     }
 
     bool IsFrameworkIssuedToken(Type type, out Type model)

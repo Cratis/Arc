@@ -201,7 +201,6 @@ internal static class PerStreamReadModelBinding
         return services.GetRequiredService<IReadModels>().GetInstanceById<T>(plan.Source, plan.Route.EventStreamId);
     }
 
-
     static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
         attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
 

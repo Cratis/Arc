@@ -114,21 +114,14 @@ static class ParameterDependencyResolver
     {
         if (serviceProvider.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers)
         {
-            foreach (var resolver in resolvers)
+            var resolution = resolvers.Select(resolver => TryResolve(resolver, serviceProvider, parameter)).FirstOrDefault(result => result.IsResolved);
+            if (resolution.IsResolved)
             {
-                if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
-                {
-                    return dependency;
-                }
+                return resolution.Dependency;
             }
         }
 
-        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
-        {
-            throw new InvalidLookUpBy(parameter.Member.DeclaringType!, provider.GetType().GenericTypeArguments[0], "is only supported for Chronicle read models");
-        }
-
-        return serviceProvider.GetService(parameter.ParameterType);
+        return ResolveFromServices(serviceProvider, parameter);
     }
 
     static async ValueTask<object?> ResolveParameterAsync(IServiceProvider serviceProvider, ParameterInfo parameter)
@@ -145,6 +138,16 @@ static class ParameterDependencyResolver
             }
         }
 
+        return ResolveFromServices(serviceProvider, parameter);
+    }
+
+    static object? ResolveFromServices(IServiceProvider serviceProvider, ParameterInfo parameter)
+    {
+        if (LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
+        {
+            throw new InvalidLookUpBy(parameter.Member.DeclaringType!, provider.GetType().GenericTypeArguments[0], "is only supported for Chronicle read models");
+        }
+
         return serviceProvider.GetService(parameter.ParameterType);
     }
 
@@ -155,10 +158,13 @@ static class ParameterDependencyResolver
             return asyncResolver.Resolve(serviceProvider, parameter);
         }
 
-        return new(resolver.TryResolve(serviceProvider, parameter, out var dependency)
-            ? ParameterDependencyResolution.Resolved(dependency)
-            : ParameterDependencyResolution.NotResolved);
+        return new(TryResolve(resolver, serviceProvider, parameter));
     }
+
+    static ParameterDependencyResolution TryResolve(ICanResolveParameterDependency resolver, IServiceProvider serviceProvider, ParameterInfo parameter) =>
+        resolver.TryResolve(serviceProvider, parameter, out var dependency)
+            ? ParameterDependencyResolution.Resolved(dependency)
+            : ParameterDependencyResolution.NotResolved;
 
     static bool IsNullable(ParameterInfo parameter) =>
         new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
