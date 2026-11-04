@@ -191,19 +191,22 @@ interface TopLevelDeclaration {
 
 /**
  * Gets the functions and variables declared at the top level of a module, by name.
+ * Functions are hoisted, so they are known before variable initializers are classified.
  * @param body The statements of the module.
  * @returns The declarations by name.
  */
 function topLevelDeclarationsOf(body: AstNode[]): Map<string, TopLevelDeclaration> {
     const declarations = new Map<string, TopLevelDeclaration>();
     const isTopLevelComponent = (name: string) => declarations.get(name)?.isComponent === true;
+    const declared = body
+        .map(statement => {
+            const exportStatement = statement.type === 'ExportNamedDeclaration' ? statement : undefined;
+            const declaration = exportStatement ? exportStatement.declaration as AstNode | null : statement;
+            return { exportStatement, declaration };
+        })
+        .filter((entry): entry is { exportStatement: AstNode | undefined, declaration: AstNode } => !!entry.declaration);
 
-    for (const statement of body) {
-        const exportStatement = statement.type === 'ExportNamedDeclaration' ? statement : undefined;
-        const declaration = exportStatement ? exportStatement.declaration as AstNode | null : statement;
-        if (!declaration) {
-            continue;
-        }
+    for (const { exportStatement, declaration } of declared) {
         if (declaration.type === 'FunctionDeclaration' && declaration.id) {
             const name = nameOf(declaration.id as AstNode)!;
             declarations.set(name, {
@@ -211,6 +214,8 @@ function topLevelDeclarationsOf(body: AstNode[]): Map<string, TopLevelDeclaratio
                 isComponent: isComponentFunction(declaration)
             });
         }
+    }
+    for (const { declaration } of declared) {
         if (declaration.type === 'VariableDeclaration') {
             for (const declarator of declaration.declarations as AstNode[]) {
                 const name = nameOf(declarator.id as AstNode);

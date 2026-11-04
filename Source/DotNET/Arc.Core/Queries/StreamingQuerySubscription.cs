@@ -15,17 +15,21 @@ internal sealed class StreamingQuerySubscription : IDisposable
     readonly object _sync = new();
     readonly List<IDisposable> _resources = [];
     readonly Action _cancel;
+    readonly Action<Exception>? _onCleanupFailure;
+    readonly TaskCompletionSource _resourcesDisposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     IDisposable? _producer;
     int _activeOperations;
     bool _disposeRequested;
-    bool _resourcesDisposed;
+    bool _resourcesTaken;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StreamingQuerySubscription"/> class.
     /// </summary>
     /// <param name="connectionToken">The connection or operation token this subscription is linked to.</param>
-    public StreamingQuerySubscription(CancellationToken connectionToken)
+    /// <param name="onCleanupFailure">Reports a failure while disposing an owned resource.</param>
+    public StreamingQuerySubscription(CancellationToken connectionToken, Action<Exception>? onCleanupFailure = null)
     {
+        _onCleanupFailure = onCleanupFailure;
         var ownedCancellation = (CancellationTokenSource?)CancellationTokenSource.CreateLinkedTokenSource(connectionToken);
         try
         {
@@ -44,6 +48,11 @@ internal sealed class StreamingQuerySubscription : IDisposable
     /// Gets the token cancelled when this subscription stops.
     /// </summary>
     public CancellationToken Token { get; }
+
+    /// <summary>
+    /// Gets a task that completes once the owned resources have been disposed. It never faults.
+    /// </summary>
+    internal Task ResourcesDisposed => _resourcesDisposed.Task;
 
     /// <summary>
     /// Adds a resource whose lifetime extends until all active work has exited.
@@ -66,7 +75,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
 
         if (disposeImmediately)
         {
-            resource.Dispose();
+            _ = DisposeLateResourceAsync(resource);
         }
     }
 
@@ -128,7 +137,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
             }
         }
 
-        DisposeResources(resources);
+        StartDisposingResources(resources);
     }
 
     /// <inheritdoc/>
@@ -169,32 +178,51 @@ internal sealed class StreamingQuerySubscription : IDisposable
             }
         }
 
-        DisposeResources(resources);
+        StartDisposingResources(resources);
     }
 
     List<IDisposable>? TakeResourcesForDisposal()
     {
-        if (_resourcesDisposed)
+        if (_resourcesTaken)
         {
             return null;
         }
 
-        _resourcesDisposed = true;
+        _resourcesTaken = true;
         var resources = new List<IDisposable>(_resources);
         _resources.Clear();
         return resources;
     }
 
-    void DisposeResources(List<IDisposable>? resources)
+    void StartDisposingResources(List<IDisposable>? resources)
     {
         if (resources is null)
         {
             return;
         }
 
+        _ = DisposeResourcesAsync(resources);
+    }
+
+    async Task DisposeResourcesAsync(List<IDisposable> resources)
+    {
         foreach (var resource in resources)
         {
-            resource.Dispose();
+            await DisposeLateResourceAsync(resource);
+        }
+
+        _resourcesDisposed.TrySetResult();
+    }
+
+    async Task DisposeLateResourceAsync(IDisposable resource)
+    {
+        try
+        {
+            await SubscriptionResourceDisposal.DisposeAsync(resource);
+        }
+        catch (Exception error) when (!ObservableQueryDemultiplexer.IsFatal(error))
+        {
+            _onCleanupFailure?.Invoke(error);
         }
     }
 }
