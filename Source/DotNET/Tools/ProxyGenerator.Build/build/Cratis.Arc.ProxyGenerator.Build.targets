@@ -24,6 +24,8 @@
     <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != ''"> 
         <PropertyGroup>
             <CratisProxiesOutputPath>$([System.String]::Copy('$(CratisProxiesOutputPath)').TrimEnd('\'))</CratisProxiesOutputPath>
+            <!-- In-repo projects import these targets without the package .props. -->
+            <CratisProxiesFramework Condition=" '$(CratisProxiesFramework)' == '' ">react</CratisProxiesFramework>
         </PropertyGroup>
 
         <Message Text="MSBuildProjectDirectory : $(MSBuildProjectDirectory)" Importance="high" />

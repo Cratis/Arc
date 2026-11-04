@@ -5,9 +5,9 @@ namespace Cratis.Arc.ProxyGenerator.for_FrameworkOption;
 
 public class when_the_framework_value_is_empty : Specification
 {
-    Exception? _exception;
+    ProxyFramework _result;
 
-    void Because() => _exception = Catch.Exception(() => FrameworkOption.Parse(["--framework="]));
+    void Because() => _result = FrameworkOption.Parse(["--framework="]);
 
-    [Fact] void should_reject_the_option() => _exception.ShouldBeOfExactType<ArgumentException>();
+    [Fact] void should_select_react() => _result.ShouldEqual(ProxyFramework.React);
 }
