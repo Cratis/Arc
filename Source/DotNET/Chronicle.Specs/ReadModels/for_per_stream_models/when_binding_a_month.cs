@@ -263,7 +263,7 @@ public class when_binding_a_month : given.a_monthly_account
             ((MonthlyWithdrawals)Resolve()!).Total.ShouldEqual(500);
 
             // The legacy testing reader has no pinned whole-source instance; absence is still a read.
-            ReadModelServiceCollectionExtensions.ResolveReadModel(typeof(AccountWithdrawals), _context, _store.ReadModels).ShouldBeNull();
+            (await ReadModelServiceCollectionExtensions.ResolveReadModelAsync(typeof(AccountWithdrawals), _context, _store.ReadModels)).ShouldBeNull();
             coarsened.ShouldBeTrue();
             _unit.HasEnrolledDecisionReads.ShouldBeFalse();
             (await Complete()).IsSuccess.ShouldBeTrue();

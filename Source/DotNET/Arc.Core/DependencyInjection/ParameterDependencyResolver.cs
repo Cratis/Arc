@@ -114,7 +114,7 @@ static class ParameterDependencyResolver
     {
         if (serviceProvider.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers)
         {
-            var resolution = resolvers.Select(resolver => TryResolve(resolver, serviceProvider, parameter)).FirstOrDefault(result => result.IsResolved);
+            var resolution = resolvers.Select(resolver => ResolveLegacy(resolver, serviceProvider, parameter)).FirstOrDefault(result => result.IsResolved);
             if (resolution.IsResolved)
             {
                 return resolution.Dependency;
@@ -158,10 +158,10 @@ static class ParameterDependencyResolver
             return asyncResolver.Resolve(serviceProvider, parameter);
         }
 
-        return new(TryResolve(resolver, serviceProvider, parameter));
+        return new(ResolveLegacy(resolver, serviceProvider, parameter));
     }
 
-    static ParameterDependencyResolution TryResolve(ICanResolveParameterDependency resolver, IServiceProvider serviceProvider, ParameterInfo parameter) =>
+    static ParameterDependencyResolution ResolveLegacy(ICanResolveParameterDependency resolver, IServiceProvider serviceProvider, ParameterInfo parameter) =>
         resolver.TryResolve(serviceProvider, parameter, out var dependency)
             ? ParameterDependencyResolution.Resolved(dependency)
             : ParameterDependencyResolution.NotResolved;
