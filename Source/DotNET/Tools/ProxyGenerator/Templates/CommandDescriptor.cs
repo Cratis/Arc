@@ -54,6 +54,11 @@ public record CommandDescriptor(
     public SliceLocationDescriptor SliceLocation { get; init; } = SliceLocationDescriptor.Empty;
 
     /// <summary>
+    /// Gets whether framework-specific imports and helpers should be omitted.
+    /// </summary>
+    public bool IsFrameworkNeutral { get; init; }
+
+    /// <summary>
     /// Gets the inclusive severity at which the model-bound command blocks validation failures, if declared.
     /// </summary>
     public int? BlockOnValidationSeverity { get; init; }

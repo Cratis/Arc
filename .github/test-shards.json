@@ -93,6 +93,7 @@
         "Cratis.Arc.ProxyGenerator.for_DescriptorExtensions",
         "Cratis.Arc.ProxyGenerator.for_FileMetadataScanner",
         "Cratis.Arc.ProxyGenerator.for_GeneratedFileMetadata",
+        "Cratis.Arc.ProxyGenerator.for_FrameworkOption",
         "Cratis.Arc.ProxyGenerator.for_GenerationState",
         "Cratis.Arc.ProxyGenerator.for_Generator",
         "Cratis.Arc.ProxyGenerator.for_MethodInfoExtensions",

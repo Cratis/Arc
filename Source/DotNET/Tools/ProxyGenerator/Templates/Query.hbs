@@ -1,14 +1,18 @@
 // **DO NOT EDIT** - This file is an automatically generated file.
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { Paging, QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, SortingActions, SortingActionsForQuery } from '@cratis/arc/queries';
+import { {{#unless IsFrameworkNeutral}}Paging, {{/unless}}QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless IsFrameworkNeutral}}, QueryResultWithState{{/unless}}{{#if HasValidationRules}}, QueryValidator{{/if}}{{#unless IsFrameworkNeutral}}, Sorting{{/unless}}, SortingActions, SortingActionsForQuery } from '@cratis/arc/queries';
 {{else}}
-import { Paging, QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting } from '@cratis/arc/queries';
+import { {{#unless IsFrameworkNeutral}}Paging, {{/unless}}QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless IsFrameworkNeutral}}, QueryResultWithState{{/unless}}{{#if HasValidationRules}}, QueryValidator{{/if}}{{#unless IsFrameworkNeutral}}, Sorting{{/unless}} } from '@cratis/arc/queries';
 {{/if}}
+{{#unless IsFrameworkNeutral}}
 import { PerformQuery, QueryWhen, SetPage, SetPageSize, SetSorting, useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging } from '@cratis/arc.react/queries';
+{{/unless}}
 {{else}}
-import { QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
+import { QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless IsFrameworkNeutral}}, QueryResultWithState{{/unless}}{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
+{{#unless IsFrameworkNeutral}}
 import { PerformQuery, QueryWhen, SetSorting, useQuery, useSuspenseQuery } from '@cratis/arc.react/queries';
+{{/unless}}
 {{/if}}
 import { SliceLocation as ArcSliceLocation, ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
@@ -171,6 +175,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     }
 {{/if}}
 
+{{#unless IsFrameworkNeutral}}
 {{#if Parameters.[0]}}
 {{#if IsEnumerable}}
     static use(args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, PerformQuery<{{Name}}Parameters>, SetSorting] {
@@ -240,4 +245,5 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     }
 {{/if}}
 {{/if}}
+{{/unless}}
 }
