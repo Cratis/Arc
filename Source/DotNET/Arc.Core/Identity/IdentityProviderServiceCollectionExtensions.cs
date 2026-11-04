@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc;
 using Cratis.Arc.Identity;
 using Cratis.Types;
@@ -40,7 +41,9 @@ public static class IdentityProviderServiceCollectionExtensions
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="types"><see cref="ITypes"/> for discovering identity provider.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
+    /// <remarks>Discovers the provider at runtime. In a trimmed or NativeAOT application, use <see cref="AddIdentityProvider{TProvider}(IServiceCollection)"/> instead.</remarks>
     /// <exception cref="MultipleIdentityDetailsProvidersFound">Thrown if multiple identity details providers are found.</exception>
+    [RequiresUnreferencedCode("Discovers the identity details provider at runtime, so trimming cannot keep its constructors. Use AddIdentityProvider<TProvider>() in a trimmed or NativeAOT application.")]
     public static IServiceCollection AddIdentityProvider(this IServiceCollection services, ITypes types) =>
         services.AddIdentityProvider(ResolveIdentityDetailsProviderType(types));
 
@@ -50,7 +53,7 @@ public static class IdentityProviderServiceCollectionExtensions
     /// <typeparam name="TProvider">The <see cref="Type"/> of the <see cref="IProvideIdentityDetails"/> implementation to add.</typeparam>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
-    public static IServiceCollection AddIdentityProvider<TProvider>(this IServiceCollection services)
+    public static IServiceCollection AddIdentityProvider<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>(this IServiceCollection services)
         where TProvider : class, IProvideIdentityDetails =>
         services.AddIdentityProvider(typeof(TProvider));
 
@@ -60,7 +63,7 @@ public static class IdentityProviderServiceCollectionExtensions
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="type">The <see cref="Type"/> of the <see cref="IProvideIdentityDetails"/> implementation to add.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
-    public static IServiceCollection AddIdentityProvider(this IServiceCollection services, Type type)
+    public static IServiceCollection AddIdentityProvider(this IServiceCollection services, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type type)
     {
         TypeIsNotAnIdentityDetailsProvider.ThrowIfNotAnIdentityDetailsProvider(type);
         return services.AddScoped(typeof(IProvideIdentityDetails), type);

@@ -144,6 +144,8 @@ Arc resolves an identity details provider automatically by type discovery. Set `
 builder.Services.AddIdentityProvider<MyIdentityDetailsProvider>();
 ```
 
+In a trimmed or NativeAOT application, register the provider this way, because it keeps the provider's constructors. `AddIdentityProvider(ITypes)` discovers the provider at runtime and is marked `RequiresUnreferencedCode`.
+
 For authenticating requests, see [Authentication](../core/authentication.md). When you use the [Cratis package](../chronicle/cratis-package.md), Microsoft Identity Platform authentication is wired for you.
 
 ## Service provider validation

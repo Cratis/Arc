@@ -5,7 +5,7 @@ description: Bind JSON and URL values into one MVC request model, then validate 
 
 Use `[FromRequest]` when an MVC action needs a single input model assembled from JSON and URL values. Arc handles the merging, so the action and its validator can work with one object instead of stitching parameters together.
 
-This is an ASP.NET Core integration feature, not the binding contract for model-bound Arc commands or queries.
+This is an ASP.NET Core integration feature, not the binding contract for model-bound Arc commands or queries. The binder is marked `RequiresUnreferencedCode` and `RequiresDynamicCode`, so a trimmed or NativeAOT application [turns controllers off](configuration.md#removing-mvc-from-a-trimmed-or-nativeaot-publish) and uses model-bound commands and queries instead.
 
 ## Overview
 
