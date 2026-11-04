@@ -3,9 +3,11 @@ title: Validation
 description: Overview of Arc's TypeScript validation primitives and generated rules that run before command and query requests.
 ---
 
-Core validation in Arc provides shared TypeScript/JavaScript primitives and generated rules that run before command and query requests.
+Arc can check input in the browser before sending a command or query request. If you own the client-side checks, define them with the fluent rules API. If the rules already live on the backend, proxy generation can extract supported rules into typed validators so you do not have to maintain those checks twice.
 
-This page is an overview of validation capabilities. Use the pages below for specific implementation details.
+Generated validation is a projection of supported backend rules, not a guarantee that the browser can enforce every backend condition. Local checks give early feedback; the server remains responsible for authoritative validation and authorization.
+
+Start with rule definition and its supported mappings, then follow how execution uses an attached validator. The result reference explains the feedback you receive. Severity filtering covers the later decision: whether a warning should block execution until the user confirms.
 
 ## Capabilities
 

@@ -3,11 +3,11 @@ title: Rules and fluent API
 description: Define frontend validation rules and see which FluentValidation rules Arc maps into TypeScript.
 ---
 
-Arc validation for frontend core provides a fluent API that mirrors common FluentValidation patterns.
+Use the fluent API to define client-side checks directly, or let proxy generation emit supported rules from backend validators. The rule chains use familiar FluentValidation patterns. For generated rules, check the supported mappings below rather than assuming every backend condition can run in the client.
 
 ## Programmatic rule definition
 
-Use `ruleFor()` with a chainable API:
+Use `ruleFor()` to select a member, then chain its checks. This class fragment assumes your application already defines `ICreateUserCommand` and imports `CommandValidator` from `@cratis/arc/commands`:
 
 ```typescript
 class CreateUserCommandValidator extends CommandValidator<ICreateUserCommand> {
@@ -19,6 +19,8 @@ class CreateUserCommandValidator extends CommandValidator<ICreateUserCommand> {
     }
 }
 ```
+
+Declaring this class does not attach it to a command. A handwritten command must expose its validator through its configured `validation` member for execution to use it. Generated commands attach their generated validator when proxy generation extracts rules; you do not need to maintain a second copy of those same checks by hand.
 
 ## Built-in rules
 
@@ -32,7 +34,7 @@ For strings, `notEmpty()` rejects empty text and text made entirely of Unicode `
 
 ## Custom messages
 
-Use `withMessage()` to override defaults:
+Use `withMessage()` to override defaults. This fragment belongs inside a validator's rule-building code, such as the constructor above:
 
 ```typescript
 this.ruleFor(c => c.email)
@@ -41,6 +43,8 @@ this.ruleFor(c => c.email)
 ```
 
 ## Supported FluentValidation mappings
+
+When extracting backend validators, proxy generation translates these rules into their client-side counterparts. Backend rules outside the supported projection still need to run on the server.
 
 | FluentValidation | TypeScript |
 | ---------------- | ---------- |

@@ -5,6 +5,8 @@ description: Choose which validation severities block execution and avoid execut
 
 Warnings are useful only if the UI knows whether they block the write. Arc's default allows warnings, so calling `execute()` and then asking for permission is too late for a warning-only command.
 
+For overridable advice, use the result's severity to decide whether to offer a confirmed retry. The workflow below blocks on warnings first; it does not ask for confirmation before every write.
+
 ## Filtering logic
 
 `command.execute(allowedSeverity?, ignoreWarnings?)` applies these client rules and communicates the choice to the server:
