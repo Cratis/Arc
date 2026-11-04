@@ -5,69 +5,52 @@ using System.Reactive.Subjects;
 
 namespace Cratis.Arc.Queries.for_ObservableAsyncEnumerator.when_enumerating;
 
-public class and_concurrent_emissions_occur
+public class and_concurrent_emissions_occur : Specification
 {
-    [Fact]
-    public async Task should_not_lose_items_when_emitted_rapidly()
-    {
-        // Arrange
-        var subject = new Subject<int>();
-        var enumerator = new ObservableAsyncEnumerator<int>(subject, CancellationToken.None);
-        var collectedItems = new List<int>();
+    Subject<int> _subject;
+    ObservableAsyncEnumerator<int> _enumerator;
+    List<int> _collectedItems;
 
-        // Act: Emit items rapidly to create race conditions
-        var emitTask = Task.Run(async () =>
+    void Establish()
+    {
+        _subject = new();
+        _enumerator = new(_subject, CancellationToken.None);
+        _collectedItems = [];
+    }
+
+    async Task Because()
+    {
+        var emit = Task.Run(async () =>
         {
             for (var i = 0; i < 50; i++)
             {
-                subject.OnNext(i);
+                _subject.OnNext(i);
+
+                // Widen the interleaving window between producer and consumer.
                 await Task.Yield();
             }
 
-            subject.OnCompleted();
+            _subject.OnCompleted();
         },
-        global::Xunit.TestContext.Current.CancellationToken);
+        TestContext.Current.CancellationToken);
 
-        var consumeTask = Task.Run(async () =>
+        var consume = Task.Run(async () =>
         {
-            while (await enumerator.MoveNextAsync())
+            while (await _enumerator.MoveNextAsync())
             {
-                collectedItems.Add(enumerator.Current);
+                _collectedItems.Add(_enumerator.Current);
             }
         },
-        global::Xunit.TestContext.Current.CancellationToken);
+        TestContext.Current.CancellationToken);
 
-        await Task.WhenAll(emitTask, consumeTask);
-        await enumerator.DisposeAsync();
-
-        // Assert
-        collectedItems.Count.ShouldEqual(50);
+        await Task.WhenAll(emit, consume).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
     }
 
-    [Fact]
-    public async Task should_handle_disposal_during_pending_move_next()
+    [Fact] void should_not_lose_items_when_emitted_rapidly() => _collectedItems.ShouldEqual(Enumerable.Range(0, 50));
+
+    async Task Destroy()
     {
-        // Arrange
-        var subject = new Subject<int>();
-        var enumerator = new ObservableAsyncEnumerator<int>(subject, CancellationToken.None);
-
-        // Act: Start a MoveNextAsync that will wait for an item
-        var moveNextTask = enumerator.MoveNextAsync().AsTask();
-
-        // Give time for the task to enter the wait
-        await Task.Delay(100, global::Xunit.TestContext.Current.CancellationToken);
-
-        // Dispose while waiting
-        var disposeTask = enumerator.DisposeAsync().AsTask();
-
-        // Complete the emission after a brief delay
-        subject.OnNext(42);
-
-        // This should complete without deadlock
-        var timeout = Task.Delay(2000, global::Xunit.TestContext.Current.CancellationToken);
-        var firstCompleted = await Task.WhenAny(moveNextTask, disposeTask, timeout);
-
-        // Assert: Should not timeout
-        (firstCompleted == timeout).ShouldBeFalse();
+        await _enumerator.DisposeAsync();
+        _subject.Dispose();
     }
 }

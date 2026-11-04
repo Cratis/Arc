@@ -5,6 +5,7 @@ export * from './ApplicationScreen.js';
 export * from './ApplicationDialog.js';
 export * from './ApplicationContextSnapshot.js';
 export * from './ApplicationContextContribution.js';
+export * from './ApplicationDialogRegistration.js';
 export * from './ApplicationContext.js';
 export * from './ApplicationLayerContext.js';
 export * from './ApplicationContextContributor.js';

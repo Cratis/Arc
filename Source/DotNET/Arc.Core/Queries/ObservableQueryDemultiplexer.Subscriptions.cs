@@ -163,6 +163,18 @@ public partial class ObservableQueryDemultiplexer
         return result;
     }
 
+    async Task DisposeSubscriptionScope(ObservableQuerySubscriptionServiceScope scope)
+    {
+        try
+        {
+            await scope.DisposeAsync();
+        }
+        catch (Exception error) when (!IsFatal(error))
+        {
+            logger.SubscriptionCleanupFailed(error);
+        }
+    }
+
     /// <summary>
     /// Creates the subscription for a reserved operation and wires it to the transport, registering it for health tracking.
     /// </summary>
