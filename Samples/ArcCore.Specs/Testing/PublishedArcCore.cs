@@ -43,7 +43,7 @@ public sealed class PublishedArcCore
     /// <returns>The running executable and its client.</returns>
     /// <exception cref="PublishedArcCoreNotConfigured">The executable path is missing or invalid.</exception>
     /// <exception cref="PublishedArcCoreDidNotStart">The process exits or fails to signal readiness.</exception>
-    public static async Task<PublishedArcCore> Start()
+    public static async Task<PublishedArcCore> Start(string environment = "Development")
     {
         var executable = Environment.GetEnvironmentVariable("CRATIS_ARC_PUBLISHED_ARCCORE");
         if (string.IsNullOrWhiteSpace(executable) || !Path.IsPathFullyQualified(executable) || !File.Exists(executable))
@@ -52,7 +52,7 @@ public sealed class PublishedArcCore
         }
 
         var requestedUrl = GetAvailableUrl();
-        var arcCore = new PublishedArcCore(CreateStartInfo(executable, requestedUrl));
+        var arcCore = new PublishedArcCore(CreateStartInfo(executable, requestedUrl, environment));
         try
         {
             arcCore._started = arcCore._process.Start();
@@ -143,7 +143,7 @@ public sealed class PublishedArcCore
         return $"http://127.0.0.1:{port}/";
     }
 
-    static ProcessStartInfo CreateStartInfo(string executable, string requestedUrl)
+    static ProcessStartInfo CreateStartInfo(string executable, string requestedUrl, string environment)
     {
         var startInfo = new ProcessStartInfo(executable)
         {
@@ -155,8 +155,8 @@ public sealed class PublishedArcCore
         startInfo.ArgumentList.Add($"--Cratis:Arc:Hosting:ApplicationUrl={requestedUrl}");
         startInfo.ArgumentList.Add("--Logging:LogLevel:Default=Information");
         startInfo.ArgumentList.Add("--Logging:LogLevel:Cratis=Information");
-        startInfo.Environment["DOTNET_ENVIRONMENT"] = "Development";
-        startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        startInfo.Environment["DOTNET_ENVIRONMENT"] = environment;
+        startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
         return startInfo;
     }
 
