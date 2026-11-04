@@ -26,7 +26,7 @@ public class and_a_handler_dependency_resolves_asynchronously : given.a_command_
         _resolver = new(_dependency);
         HandleHasParameters<Handler>();
         _serviceProvider = new ServiceCollection()
-            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver]))
+            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver.Resolver]))
             .BuildServiceProvider();
     }
 

@@ -32,7 +32,7 @@ public class and_provide_dependency_resolves_asynchronously : given.a_command_pr
         _resolver = new(new TheDependency());
         _command = new();
         _serviceProvider = new ServiceCollection()
-            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver]))
+            .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver.Resolver]))
             .BuildServiceProvider();
     }
 
