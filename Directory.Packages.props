@@ -17,9 +17,9 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.117.1" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.117.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.117.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.123.1" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.123.1" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.123.1" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.33.1" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.33.1" />
     <PackageVersion Include="Cratis.Screenplay" Version="5.1.0" />
@@ -42,7 +42,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.14" />
     <!-- Keep Orleans Reminders aligned with the server pulled in by Chronicle.Testing. -->
-    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.2" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.9.6" />
