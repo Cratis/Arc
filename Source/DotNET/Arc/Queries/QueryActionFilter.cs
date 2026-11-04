@@ -55,6 +55,7 @@ public class QueryActionFilter(
             var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
             var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
             using var span = activitySource.OnQuery(routeTemplate);
+            span.Activity?.SetTag(WellKnownTelemetryNames.HttpRoute, routeTemplate);
 
             var callResult = await CallNextAndHandleValidationAndExceptions(context, next);
             if (callResult.MembershipDenied)

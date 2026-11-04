@@ -203,7 +203,8 @@ public class QueryPipeline(
 
             if (result?.AuthorizedTenant is { } tenant && tenant != TenantId.NotSet)
             {
-                activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value);
+                activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value)
+                    .SetTag(WellKnownTelemetryNames.TenantId, tenant.Value);
             }
         }
 

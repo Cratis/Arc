@@ -136,7 +136,7 @@ public sealed class TelemetryRecorder : IDisposable
 
         lock (_lock)
         {
-            _measurements.Add(new(instrument.Name, value, copied));
+            _measurements.Add(new(instrument.Name, value, copied) { ActivityId = Activity.Current?.Id });
         }
     }
 }

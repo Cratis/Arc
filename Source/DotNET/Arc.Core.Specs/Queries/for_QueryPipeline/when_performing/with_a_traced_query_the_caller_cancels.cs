@@ -29,5 +29,6 @@ public class with_a_traced_query_the_caller_cancels : given.a_traced_query_pipel
     [Fact] void should_add_the_cancelled_outcome() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryOutcome).ShouldEqual(WellKnownOperationOutcomes.Cancelled);
     [Fact] void should_leave_the_status_unset() => QuerySpan.Status.ShouldEqual(ActivityStatusCode.Unset);
     [Fact] void should_record_the_cancellation() => QuerySpan.Events.Count(_ => _.Name == WellKnownTelemetryNames.ExceptionEvent).ShouldEqual(1);
+    [Fact] void should_record_duration_inside_the_operation_span() => Duration.ActivityId.ShouldEqual(QuerySpan.Id);
     [Fact] void should_record_the_duration_as_cancelled() => Duration.Tags[WellKnownTelemetryNames.QueryOutcome].ShouldEqual(WellKnownOperationOutcomes.Cancelled);
 }

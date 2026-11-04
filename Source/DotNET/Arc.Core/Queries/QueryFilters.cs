@@ -47,6 +47,7 @@ public class QueryFilters(IInstancesOf<IQueryFilter> filters, IActivitySource<Qu
     {
         var result = QueryResult.Success(context.CorrelationId);
         using var span = activitySource.OnPerform(context.Name.Value);
+        span.Activity?.SetTag(WellKnownTelemetryNames.QueryName, context.Name.Value);
 
         // Resolve the selected filter family from the query's execution scope rather than the singleton's root.
         // Authorize uses its own discovery stream so ordinary scoped filters cannot capture the default identity.

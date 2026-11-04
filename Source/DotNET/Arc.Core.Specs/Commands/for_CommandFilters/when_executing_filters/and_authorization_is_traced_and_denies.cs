@@ -46,6 +46,8 @@ public class and_authorization_is_traced_and_denies : Specification
     [Fact] void should_add_the_command_type() => AuthorizeSpan.GetTagItem(WellKnownTelemetryNames.CommandType).ShouldEqual(typeof(RegisterAuthor).FullName);
     [Fact] void should_leave_the_status_unset() => AuthorizeSpan.Status.ShouldEqual(ActivityStatusCode.Unset);
     [Fact] void should_add_an_authorization_denied_event() => AuthorizeSpan.Events.Count(_ => _.Name == WellKnownTelemetryNames.AuthorizationDeniedEvent).ShouldEqual(1);
+    [Fact] void should_also_tag_the_filter_with_the_command_type() => _telemetry.Span(WellKnownTelemetryNames.CommandFilterSpan).GetTagItem(WellKnownTelemetryNames.CommandType).ShouldEqual(typeof(RegisterAuthor).FullName);
+    [Fact] void should_keep_the_legacy_filter_command_type() => _telemetry.Span(WellKnownTelemetryNames.CommandFilterSpan).GetTagItem("command_type").ShouldEqual(typeof(RegisterAuthor).FullName);
     [Fact] void should_nest_it_in_the_filter_span() => AuthorizeSpan.ParentSpanId.ShouldEqual(_telemetry.Span(WellKnownTelemetryNames.CommandFilterSpan).SpanId);
     [Fact] void should_raise_one_authorize_span() => _telemetry.Activities.Count(_ => _.OperationName == WellKnownTelemetryNames.CommandAuthorizeSpan).ShouldEqual(1);
 }

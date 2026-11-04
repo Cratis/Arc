@@ -67,6 +67,12 @@ public static class WellKnownTelemetryNames
     /// <summary>The attribute holding the resolved tenant.</summary>
     public const string Tenant = "cratis.tenant";
 
+    /// <summary>The tenant identifier, aligned with the shared Cratis telemetry convention.</summary>
+    public const string TenantId = "cratis.tenant.id";
+
+    /// <summary>The HTTP route template, never a request path or URL.</summary>
+    public const string HttpRoute = "http.route";
+
     /// <summary>The attribute holding the correlation id.</summary>
     public const string CorrelationId = "cratis.correlation_id";
 

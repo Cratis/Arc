@@ -26,6 +26,7 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
     {
         var result = CommandResult.Success(context.CorrelationId);
         using var span = activitySource.OnExecution(context.Type.FullName ?? context.Type.Name);
+        OperationActivity.AddCommandType(span.Activity, context.Type);
 
         // Filters are resolved from the command's own scope rather than the provider that constructed this singleton,
         // so a filter depending on a scoped service is created in the scope the command runs in instead of the root.

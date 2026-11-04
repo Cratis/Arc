@@ -22,6 +22,7 @@ public class and_it_is_traced_and_the_handler_throws : given.a_traced_command_pi
     [Fact] void should_record_the_exception_type() => ExceptionEvent.Tags.Single(_ => _.Key == WellKnownTelemetryNames.ExceptionType).Value.ShouldEqual(typeof(InvalidOperationException).FullName);
     [Fact] void should_record_only_the_exception_type() => ExceptionEvent.Tags.Count().ShouldEqual(1);
     [Fact] void should_set_the_handle_status_to_error() => HandleSpan.Status.ShouldEqual(ActivityStatusCode.Error);
+    [Fact] void should_record_duration_inside_the_operation_span() => Durations.Single().ActivityId.ShouldEqual(CommandSpan.Id);
     [Fact] void should_count_an_error_outcome() => Outcomes.Single().Tags[WellKnownTelemetryNames.CommandOutcome].ShouldEqual(WellKnownOperationOutcomes.Error);
     [Fact] void should_not_record_the_exception_message() => _telemetry.AnyTagContains(SecretName).ShouldBeFalse();
 }
