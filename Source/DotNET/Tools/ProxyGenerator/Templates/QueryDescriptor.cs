@@ -65,4 +65,9 @@ public record QueryDescriptor(
     /// Gets the slice location resolved from the same namespace mapping as the proxy's output folder.
     /// </summary>
     public SliceLocationDescriptor SliceLocation { get; init; } = SliceLocationDescriptor.Empty;
+
+    /// <summary>
+    /// Gets whether framework-specific imports and helpers should be omitted.
+    /// </summary>
+    public bool IsFrameworkNeutral { get; init; }
 }

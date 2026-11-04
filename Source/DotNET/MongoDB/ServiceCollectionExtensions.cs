@@ -85,6 +85,9 @@ public static class ServiceCollectionExtensions
             optionsBuilder.BindConfiguration(mongoDBConfigSectionPath);
         }
 
+        services.AddKeyedSingleton<Meter>(WellKnownMongoDBDiagnostics.MeterName, (_, _) => new Meter(WellKnownMongoDBDiagnostics.MeterName));
+        services.AddSingleton<IMeter<MongoDBClientFactory>>(sp => new Meter<MongoDBClientFactory>(sp.GetRequiredKeyedService<Meter>(WellKnownMongoDBDiagnostics.MeterName)));
+
         services.AddKeyedSingleton<IMeter<IMongoClient>>(Internals.MeterName, (sp, key) =>
         {
             var meter = sp.GetRequiredKeyedService<Meter>(key);

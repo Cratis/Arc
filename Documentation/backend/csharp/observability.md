@@ -49,7 +49,7 @@ builder.Services.AddOpenTelemetry()
         .AddSource(WellKnownDiagnostics.ActivitySourceName)
         .AddAspNetCoreInstrumentation())
     .WithMetrics(metrics => metrics
-        .AddMeter(WellKnownDiagnostics.MeterName)
+        .AddMeter(WellKnownDiagnostics.MeterName, "Cratis.Arc.MongoDB")
         .AddAspNetCoreInstrumentation());
 ```
 
@@ -59,7 +59,9 @@ turn tracing on.
 
 ## The spans
 
-All of these are `Internal` activities. Each span keeps one stable name, which
+Pipeline activities are `Internal`; the controller action spans
+`cratis.arc.command.action` and `cratis.arc.query.action` are `Server` activities.
+Each span keeps one stable name, which
 is what tracing backends show as the span name and what you filter and group on.
 The command or query it covers is an attribute, `cratis.arc.command.type` or
 `cratis.arc.query.name`, so a dashboard keyed on a span name keeps working as
@@ -122,6 +124,8 @@ still counted in the metrics.
 | `cratis.arc.validation.result_count` | `cratis.arc.validator.invoke` | how many results the validator produced |
 | `cratis.correlation_id` | `execute`, `validate`, `perform` | the correlation id of the operation |
 | `cratis.tenant` | `execute`, `validate`, `perform` | the tenant the operation runs for, when one was resolved while it ran; a query records it only when it was authorized for a principal |
+| `cratis.tenant.id` | `execute`, `validate`, `perform` | the same resolved tenant; emitted alongside the legacy `cratis.tenant` tag |
+| `http.route` | controller command/query action spans | the route template, alongside legacy `route_template`; never a concrete request path or URL |
 
 The `execute`, `validate`, `filter` and `perform` spans also keep the
 `command_type` and `query_name` attributes they carried in earlier versions.
@@ -226,7 +230,22 @@ work of recording: it starts no child spans, builds no attributes or events, and
 does not look up whether a query name is known. It still checks whether anything
 listens on every operation.
 
-The MongoDB integration records its client metrics on the same meter.
+Duration measurements are recorded while the operation activity is still current, so an OpenTelemetry exporter configured for exemplars can associate them with that trace. Arc does not force an exporter or exemplar policy. Query outcomes remain an attribute on `cratis.arc.query.duration`; there is no additional query-outcomes counter.
+
+### MongoDB client metrics
+
+The MongoDB integration keeps its legacy hyphenated instruments on `Cratis.Arc`. It also emits these dotted instruments on the **`Cratis.Arc.MongoDB`** meter (`WellKnownMongoDBDiagnostics.MeterName` in `Cratis.Arc.MongoDB`):
+
+| Dotted instrument | Type | Legacy instrument on `Cratis.Arc` |
+|---|---|---|
+| `mongodb.open.connections` | gauge | `mongodb-open-connections` |
+| `mongodb.checked.out.connections` | gauge | `mongodb-open-connections` (legacy duplicate name) |
+| `mongodb.connections.in.pool` | gauge | `mongodb-connections-in-pool` |
+| `mongodb.commands` | gauge | `mongodb-commands` |
+| `mongodb.failed.connections` | counter | `mongodb-failed-connections` |
+| `mongodb.aggregated.commands` | counter | `mongodb-aggregated-commands` |
+
+The dotted checked-out and open-connection gauges have distinct names. The legacy duplicate is retained for compatibility; existing dashboards continue to receive the old instruments. Manual OpenTelemetry configuration must subscribe to both meters as shown above. The shared `Cratis.*` subscription already includes both. Both sets retain the existing `Server` attribute.
 
 ## On the JVM
 

@@ -9,4 +9,8 @@ namespace Cratis.Arc.Observability;
 /// <param name="Instrument">The name of the instrument.</param>
 /// <param name="Value">The value recorded.</param>
 /// <param name="Tags">The tags recorded with it.</param>
-public record RecordedMeasurement(string Instrument, double Value, IReadOnlyDictionary<string, object?> Tags);
+public record RecordedMeasurement(string Instrument, double Value, IReadOnlyDictionary<string, object?> Tags)
+{
+    /// <summary>Gets the activity active at the instant the measurement was recorded.</summary>
+    public string? ActivityId { get; init; }
+}

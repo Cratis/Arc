@@ -24,4 +24,6 @@ public class and_it_is_traced_for_an_explicit_tenant : given.a_traced_command_pi
     }
 
     [Fact] void should_add_the_tenant() => CommandSpan.GetTagItem(WellKnownTelemetryNames.Tenant).ShouldEqual(_tenant.Value);
+    [Fact] void should_add_the_aligned_tenant() => CommandSpan.GetTagItem(WellKnownTelemetryNames.TenantId).ShouldEqual(_tenant.Value);
+    [Fact] void should_record_duration_inside_the_operation_span() => Durations.Single().ActivityId.ShouldEqual(CommandSpan.Id);
 }

@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.PAT_WORKFLOWS }}
 
@@ -185,7 +185,7 @@ jobs:
 
       - name: Setup .Net
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             ${{ env.DOTNET8_VERSION }}
@@ -194,8 +194,9 @@ jobs:
 
       - name: Setup node
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
+          package-manager-cache: false
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 

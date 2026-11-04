@@ -80,7 +80,8 @@ public static partial class Generator
         bool emitInterfaces = false,
         bool useProxyFileSuffix = false,
         ICollection<string>? producedFiles = null,
-        string? endpointGroup = null)
+        string? endpointGroup = null,
+        ProxyFramework framework = ProxyFramework.React)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -132,8 +133,8 @@ public static partial class Generator
         var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
         message($"  Identity discovery in {phaseStopwatch.Elapsed}");
 
-        commands = commands.Where(c => !c.Type.IsExcluded()).ToList();
-        queries = queries.Where(q => !q.Type.IsExcluded()).ToList();
+        commands = commands.Where(c => !c.Type.IsExcluded()).Select(c => c with { IsFrameworkNeutral = framework == ProxyFramework.None }).ToList();
+        queries = queries.Where(q => !q.Type.IsExcluded()).Select(q => q with { IsFrameworkNeutral = framework == ProxyFramework.None }).ToList();
 
         message($"  Found {commands.Count} commands and {queries.Count} queries");
 

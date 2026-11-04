@@ -27,4 +27,5 @@ public class with_a_traced_snapshot_query : given.a_traced_query_pipeline
     [Fact] void should_record_the_duration_for_the_query() => Duration.Tags[WellKnownTelemetryNames.QueryName].ShouldEqual(_queryName.Value);
     [Fact] void should_record_the_duration_for_the_transport() => Duration.Tags[WellKnownTelemetryNames.QueryTransport].ShouldEqual(WellKnownTelemetryNames.SnapshotTransport);
     [Fact] void should_record_the_duration_as_a_success() => Duration.Tags[WellKnownTelemetryNames.QueryOutcome].ShouldEqual(WellKnownOperationOutcomes.Success);
+    [Fact] void should_record_duration_inside_the_operation_span() => Duration.ActivityId.ShouldEqual(QuerySpan.Id);
 }

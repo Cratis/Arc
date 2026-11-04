@@ -1,14 +1,18 @@
 // **DO NOT EDIT** - This file is an automatically generated file.
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { ChangeSet, ObservableQueryFor, Paging{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, SortingActions, SortingActionsForObservableQuery } from '@cratis/arc/queries';
+import { {{#unless IsFrameworkNeutral}}ChangeSet, {{/unless}}ObservableQueryFor{{#unless IsFrameworkNeutral}}, Paging{{/unless}}{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless IsFrameworkNeutral}}, QueryResultWithState{{/unless}}{{#if HasValidationRules}}, QueryValidator{{/if}}{{#unless IsFrameworkNeutral}}, Sorting{{/unless}}, SortingActions, SortingActionsForObservableQuery } from '@cratis/arc/queries';
 {{else}}
-import { ChangeSet, ObservableQueryFor, Paging{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting } from '@cratis/arc/queries';
+import { {{#unless IsFrameworkNeutral}}ChangeSet, {{/unless}}ObservableQueryFor{{#unless IsFrameworkNeutral}}, Paging{{/unless}}{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless IsFrameworkNeutral}}, QueryResultWithState{{/unless}}{{#if HasValidationRules}}, QueryValidator{{/if}}{{#unless IsFrameworkNeutral}}, Sorting{{/unless}} } from '@cratis/arc/queries';
 {{/if}}
+{{#unless IsFrameworkNeutral}}
 import { ObservableQueryWhen, SetPage, SetPageSize, SetSorting, useChangeStream, useObservableQuery, useObservableQueryWithPaging, useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging } from '@cratis/arc.react/queries';
+{{/unless}}
 {{else}}
-import { ObservableQueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
+import { ObservableQueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless IsFrameworkNeutral}}, QueryResultWithState{{/unless}}{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
+{{#unless IsFrameworkNeutral}}
 import { ObservableQueryWhen, useObservableQuery, useSuspenseObservableQuery } from '@cratis/arc.react/queries';
+{{/unless}}
 {{/if}}
 import { SliceLocation as ArcSliceLocation, ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
@@ -171,6 +175,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     }
 {{/if}}
 
+{{#unless IsFrameworkNeutral}}
 {{#if Parameters.[0]}}
 {{#if IsEnumerable}}
     static use(args?: {{Name}}Parameters, sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, SetSorting] {
@@ -252,4 +257,5 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     }
 {{/if}}
 {{/if}}
+{{/unless}}
 }

@@ -19,6 +19,20 @@ Configure generation through properties and items **inside the existing `.csproj
 - [Routing](routing.md): conventional model-bound route options and runtime alignment.
 - [Output behavior](output-behavior.md): incremental writes, full deletion, and cleanup limitations.
 
+## Framework selection
+
+React output is the default and is unchanged when this setting is omitted. For a non-React client, set:
+
+```xml
+<PropertyGroup>
+  <CratisProxiesFramework>none</CratisProxiesFramework>
+</PropertyGroup>
+```
+
+The executable accepts `--framework=none` or `--framework=react`; other values fail before generation. An MSBuild command-line override such as `-p:CratisProxiesFramework=none` takes precedence over the project setting.
+
+`none` emits the same command, query and observable-query classes, metadata, routes, validation and models, but without React imports or hook helpers (`use`, paging, suspense and change-stream hooks). Use their imperative `execute()`, `perform()` and `subscribe()` APIs with `@cratis/arc`; `@cratis/arc.react` is not required by these proxies. Changing the selection invalidates incremental generation state. This setting is independent of `CratisProxiesEmitInterfaces` and does not turn runtime proxy classes into interfaces.
+
 ## MSBuild reference
 
 | Property or item | Default / required metadata | Topic |
@@ -28,6 +42,7 @@ Configure generation through properties and items **inside the existing `.csproj
 | `CratisProxiesUseSourceFileAsOutputFile` | Off unless `true` | [Basic](basic.md) |
 | `CratisProxiesLibraryMode` | `false` | [Library mode](library-mode.md) |
 | `CratisProxiesEmitInterfaces` | `false` | [Emit interfaces](emit-interfaces.md) |
+| `CratisProxiesFramework` | `react`; `none` omits framework adapters | [Framework selection](#framework-selection) |
 | `CratisProxiesUseProxyFileSuffix` | `false` | [Proxy file suffix](proxy-file-suffix.md) |
 | `ExcludeType` item | `Include`, `TypeName` | [Exclusions](type-exclusions.md) |
 | `ExcludeNamespace` item | `Include`, `Namespace` | [Exclusions](type-exclusions.md) |

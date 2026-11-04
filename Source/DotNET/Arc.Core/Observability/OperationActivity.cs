@@ -89,7 +89,8 @@ internal static class OperationActivity
         var tenant = accessor?.ExplicitTenant ?? accessor?.Cached;
         if (tenant is not null && tenant != TenantId.NotSet)
         {
-            activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value);
+            activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value)
+                .SetTag(WellKnownTelemetryNames.TenantId, tenant.Value);
         }
     }
 

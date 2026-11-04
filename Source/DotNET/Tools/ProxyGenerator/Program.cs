@@ -10,7 +10,17 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    return 1;
+}
+ProxyFramework framework;
+try
+{
+    framework = FrameworkOption.Parse(args);
+}
+catch (ArgumentException exception)
+{
+    await Console.Error.WriteLineAsync($"error: {exception.Message}");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -186,7 +196,8 @@ try
         emitInterfaces,
         useProxyFileSuffix,
         producedFiles,
-        endpointGroup);
+        endpointGroup,
+        framework);
 }
 catch (Exception exception) when (exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
 {

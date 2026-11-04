@@ -1,6 +1,8 @@
 // **DO NOT EDIT** - This file is an automatically generated file.
 import { Command{{#if HasValidationRules}}, CommandValidator{{/if}} } from '@cratis/arc/commands';
+{{#unless IsFrameworkNeutral}}
 import { ClearCommandValues, SetCommandValues, useCommand } from '@cratis/arc.react/commands';
+{{/unless}}
 import { SliceLocation as ArcSliceLocation, PropertyDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{{Type}}} } from '{{Module}}';
@@ -127,7 +129,9 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     {{/if}}
     {{/Properties}}
 
+{{#unless IsFrameworkNeutral}}
     static use(initialValues?: I{{Name}}): [{{Name}}, SetCommandValues<I{{Name}}>, ClearCommandValues] {
         return useCommand<{{Name}}, I{{Name}}{{#if HasResponse}}, {{{ResponseType.Name}}}{{#if ResponseType.IsEnumerable}}[]{{/if}}{{/if}}>({{Name}}, initialValues);
     }
+{{/unless}}
 }

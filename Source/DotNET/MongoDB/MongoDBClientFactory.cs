@@ -41,6 +41,23 @@ public class MongoDBClientFactory(
     readonly ConcurrentDictionary<string, int> _connectionsAddedToPoolCount = new();
     readonly ConcurrentDictionary<string, int> _checkedOutConnectionsCount = new();
     readonly ConcurrentDictionary<string, int> _commandsCount = new();
+    readonly ConcurrentDictionary<string, IMeterScope<MongoDBClientFactory>> _alignedScopes = new();
+    readonly IMeter<MongoDBClientFactory>? _alignedMeter;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MongoDBClientFactory"/> class with additive MongoDB metering.
+    /// </summary>
+    /// <param name="serverResolver">The server resolver.</param>
+    /// <param name="meter">The legacy client meter.</param>
+    /// <param name="options">The MongoDB options.</param>
+    /// <param name="logger">The factory logger.</param>
+    /// <param name="alignedMeter">The meter for dotted instruments.</param>
+    public MongoDBClientFactory(
+        IMongoServerResolver serverResolver,
+        [FromKeyedServices(Internals.MeterName)] IMeter<IMongoClient> meter,
+        IOptions<MongoDBOptions> options,
+        ILogger<MongoDBClientFactory> logger,
+        IMeter<MongoDBClientFactory> alignedMeter) : this(serverResolver, meter, options, logger) => _alignedMeter = alignedMeter;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MongoDBClientFactory"/> class with a native client constructor.
@@ -112,6 +129,10 @@ public class MongoDBClientFactory(
     {
         var serverKey = settings.Server.ToString();
         var scope = meter.BeginScope(serverKey);
+        if (_alignedMeter is not null)
+        {
+            _alignedScopes[serverKey] = _alignedMeter.BeginScope(new Dictionary<string, object> { ["Server"] = serverKey });
+        }
 
         UpdateConnectionCount(serverKey, scope, 0);
         UpdateConnectionsAddedToPool(serverKey, scope, 0);
@@ -125,6 +146,7 @@ public class MongoDBClientFactory(
             {
                 UpdateConnectionCount(serverKey, scope, _connectedClientsCount[serverKey] - 1);
                 scope.FailedConnections();
+                if (_alignedScopes.TryGetValue(serverKey, out var aligned)) aligned.FailedConnections();
             })
             .Subscribe<ConnectionPoolAddedConnectionEvent>(_ => UpdateConnectionsAddedToPool(serverKey, scope, _connectionsAddedToPoolCount[serverKey] + 1))
             .Subscribe<ConnectionPoolRemovedConnectionEvent>(_ => UpdateConnectionsAddedToPool(serverKey, scope, _connectionsAddedToPoolCount[serverKey] - 1))
@@ -134,6 +156,7 @@ public class MongoDBClientFactory(
             {
                 UpdateCommandCount(serverKey, scope, _commandsCount[serverKey] + 1);
                 scope.AggregatedCommands();
+                if (_alignedScopes.TryGetValue(serverKey, out var aligned)) aligned.AggregatedCommands();
             })
             .Subscribe<CommandSucceededEvent>(_ => UpdateCommandCount(serverKey, scope, _commandsCount[serverKey] - 1))
             .Subscribe<CommandFailedEvent>(_ => UpdateCommandCount(serverKey, scope, _commandsCount[serverKey] - 1));
@@ -145,23 +168,27 @@ public class MongoDBClientFactory(
     {
         _connectedClientsCount[serverKey] = count;
         scope.OpenConnections(count);
+        if (_alignedScopes.TryGetValue(serverKey, out var aligned)) aligned.OpenConnections(count);
     }
 
     void UpdateConnectionsAddedToPool(string serverKey, IMeterScope<IMongoClient> scope, int count)
     {
         _connectionsAddedToPoolCount[serverKey] = count;
         scope.ConnectionsAddedToPool(count);
+        if (_alignedScopes.TryGetValue(serverKey, out var aligned)) aligned.ConnectionsAddedToPool(count);
     }
 
     void UpdateCheckedOutConnections(string serverKey, IMeterScope<IMongoClient> scope, int count)
     {
         _checkedOutConnectionsCount[serverKey] = count;
         scope.CheckedOutConnections(count);
+        if (_alignedScopes.TryGetValue(serverKey, out var aligned)) aligned.CheckedOutConnections(count);
     }
 
     void UpdateCommandCount(string serverKey, IMeterScope<IMongoClient> scope, int count)
     {
         _commandsCount[serverKey] = count;
         scope.Commands(count);
+        if (_alignedScopes.TryGetValue(serverKey, out var aligned)) aligned.Commands(count);
     }
 }

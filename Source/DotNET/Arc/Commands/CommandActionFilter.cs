@@ -40,6 +40,7 @@ public class CommandActionFilter(
         var commandContext = EstablishCommandContext(context);
         var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
         using var span = activitySource.OnCommand(routeTemplate);
+        span.Activity?.SetTag(WellKnownTelemetryNames.HttpRoute, routeTemplate);
         if (ShouldExecute(context) && context.IsAspNetResult())
         {
             await next();
