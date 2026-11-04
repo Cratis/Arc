@@ -11,6 +11,10 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandReadModelLookupAnal
 public class when_analyzing_lookup_keys
 {
     [Fact]
+    public async Task should_ignore_a_key_provider() =>
+        await Verify("[Command] public record Change(OwnerId Owner, MemberId From, MemberId To) { public Changed Handle([Cratis.Arc.Commands.LookUpBy<Cratis.Arc.Commands.CallerSubject>] MemberState state) => new(); }");
+
+    [Fact]
     public async Task should_warn_for_several_matching_properties() =>
         await Verify("[Command] public record Change(OwnerId Owner, MemberId From, MemberId To) { public Changed Handle(MemberState state) => new(); }",
             Warning().WithArguments("state", "Change", "From", "To", "not proven"));

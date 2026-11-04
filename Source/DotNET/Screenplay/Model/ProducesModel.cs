@@ -54,4 +54,7 @@ public record ProducesModel(
     /// Explicit and unprovable routing is never replaced with the command identifier.
     /// </summary>
     public bool UsesCommandContext { get; init; }
+
+    /// <summary>Gets the event properties whose supplied values could not be mapped declaratively.</summary>
+    internal IReadOnlyList<string> CodeMappedProperties { get; init; } = [];
 }

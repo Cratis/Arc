@@ -33,6 +33,7 @@ public record CommandContext(
     CancellationToken CancellationToken = default)
 {
     readonly SliceLocation? _sliceLocation;
+    ClaimsPrincipal? _authorizedPrincipal;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CommandContext"/> record.
@@ -87,7 +88,20 @@ public record CommandContext(
     /// <summary>
     /// Gets the principal selected by scheme authentication for the rest of this command execution.
     /// </summary>
-    public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
+    public ClaimsPrincipal? AuthorizedPrincipal
+    {
+        get => _authorizedPrincipal;
+        internal set
+        {
+            _authorizedPrincipal = value;
+            AuthorizedPrincipalSnapshot = value is null ? null : AuthorizationPrincipalIdentity.Capture(value);
+        }
+    }
+
+    /// <summary>
+    /// Gets the identity of <see cref="AuthorizedPrincipal"/> as it was when authorization selected it.
+    /// </summary>
+    internal PrincipalSnapshot? AuthorizedPrincipalSnapshot { get; private set; }
 
     /// <summary>
     /// Gets the preselected policy and scheme plan when a command must establish identity before its execution scopes.

@@ -7,6 +7,11 @@ namespace Cratis.Arc.OptionsBinding;
 /// The base of every parity spec: the reflection-free binder must leave the same options and raise the same failure as the
 /// reflection binder for the same configuration.
 /// </summary>
+/// <remarks>
+/// <see cref="ArcOptions"/> reads the process-wide derived types, and specs that configure Arc write them, so both instances must
+/// see the same value: the parity specs run in the non-parallel <c>MutatesTypeDiscovery</c> collection.
+/// </remarks>
+[Collection("MutatesTypeDiscovery")]
 public abstract class given_a_parity_run : Specification
 {
     protected ParityRun _run;

@@ -38,9 +38,12 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         var parameter = root?.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<ParameterSyntax>();
         var model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
+        if (HasKeyProvider(parameter, model, context.CancellationToken))
+        {
+            return;
+        }
         var argument = parameter?.AttributeLists.SelectMany(_ => _.Attributes)
-            .Where(attribute => model?.GetSymbolInfo(attribute, context.CancellationToken).Symbol is IMethodSymbol constructor &&
-                constructor.ContainingType.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute")
+            .Where(attribute => IsStringLookupAttribute(attribute, model, context.CancellationToken))
             .SelectMany(attribute => attribute.ArgumentList?.Arguments ?? default)
             .FirstOrDefault(_ => _.Expression is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression));
         if (argument is null || model?.GetDeclaredSymbol(parameter!, context.CancellationToken) is not IParameterSymbol symbol)
@@ -59,4 +62,12 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
             Title);
         context.RegisterCodeFix(action, diagnostic);
     }
+
+    static bool IsStringLookupAttribute(AttributeSyntax attribute, SemanticModel? model, CancellationToken cancellationToken) =>
+        model?.GetSymbolInfo(attribute, cancellationToken).Symbol is IMethodSymbol constructor &&
+        constructor.ContainingType.ToDisplayString() == "Cratis.Arc.Commands.LookUpByAttribute";
+
+    static bool HasKeyProvider(ParameterSyntax? parameter, SemanticModel? model, CancellationToken cancellationToken) =>
+        parameter is not null && model?.GetDeclaredSymbol(parameter, cancellationToken) is IParameterSymbol symbol &&
+        Cratis.Arc.Commands.CommandAttributeSymbols.ResolveKeyProvider(symbol).Provider is not null;
 }

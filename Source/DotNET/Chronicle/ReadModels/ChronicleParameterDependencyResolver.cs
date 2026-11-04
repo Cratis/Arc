@@ -31,7 +31,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             dependency = PerStreamReadModelBinding.Resolve(parameter.ParameterType, commandContext, serviceProvider, parameter);
             return true;
         }
-        if (!IsStoredLookup(parameter, isReadModel))
+        if (!RequiresParameterLookup(parameter, isReadModel))
         {
             return false;
         }
@@ -71,7 +71,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             var commandContext = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
             return ParameterDependencyResolution.Resolved(await PerStreamReadModelBinding.ResolveAsync(parameter.ParameterType, commandContext, serviceProvider, parameter));
         }
-        if (!IsStoredLookup(parameter, isReadModel))
+        if (!RequiresParameterLookup(parameter, isReadModel))
         {
             return ParameterDependencyResolution.NotResolved;
         }
@@ -153,6 +153,11 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
     }
 
+    static bool RequiresParameterLookup(ParameterInfo parameter, bool isReadModel) => isReadModel &&
+        (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On ||
+         CommandAttributePolicy.HasExplicitLookup(parameter) ||
+         Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
+
     static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
     {
         try
@@ -169,11 +174,6 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
         }
     }
-
-    static bool IsStoredLookup(ParameterInfo parameter, bool isReadModel) =>
-        isReadModel &&
-        (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On ||
-         Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
 
     bool Measure(IServiceProvider serviceProvider, ParameterInfo parameter)
     {

@@ -69,6 +69,11 @@ public class when_checking_stream_bindings
         Error().WithArguments("LookUpBy"));
 
     [Fact]
+    public Task should_refuse_a_key_provider() => Verify(Definitions + Route +
+        "[Command] public record Withdraw(AccountId Account, string Period) { public Withdrawn Handle([LookUpBy<CallerSubject>] Month month) => new(1); }",
+        Error().WithArguments("CallerSubject"));
+
+    [Fact]
     public Task should_not_infer_a_provided_parameter_route() => Verify(Definitions +
         "[Command] public record Withdraw(AccountId Account) { public Month Provide() => new(Account, 0); public Withdrawn Handle(Month month) => new(1); }");
 

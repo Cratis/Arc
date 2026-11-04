@@ -355,7 +355,7 @@ public static class ReadModelServiceCollectionExtensions
         AsObject(readModels.Release((TReadModel)readModel));
 
     static async Task<object> AsObject<T>(Task<T> task)
-        where T : class => await task;
+        where T : class => await task.ConfigureAwait(false);
 #endif
 
     [RequiresDynamicCode("Closes IReadModels.Release over a read model type only known at runtime.")]

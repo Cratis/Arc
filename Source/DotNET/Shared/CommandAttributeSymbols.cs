@@ -46,7 +46,8 @@ internal static class CommandAttributeSymbols
     {
         var attribute = Find(parameter, AttributePrecedencePolicy.LookUpByName);
         var property = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
-        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => PublicProperties(commandType).Any(_ => _.Name == name));
+        var provider = ResolveKeyProvider(parameter);
+        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => PublicProperties(commandType).Any(_ => _.Name == name), (provider.Provider is not null, provider.Conflict is not null));
     }
 
     /// <summary>
@@ -89,6 +90,26 @@ internal static class CommandAttributeSymbols
             {
                 yield return property;
             }
+        }
+    }
+
+    /// <summary>Recognizes a caller-key provider and conflicting lookup forms.</summary>
+    /// <param name="parameter">The injected parameter.</param>
+    /// <returns>The provider type and lookup conflict.</returns>
+    internal static (ITypeSymbol? Provider, string? Conflict) ResolveKeyProvider(IParameterSymbol parameter)
+    {
+        var providers = LookupDeclarations(parameter).Where(attribute => attribute.AttributeClass is { } type &&
+            $"{type.ContainingNamespace}.{type.OriginalDefinition.MetadataName}" == AttributePrecedencePolicy.LookUpByProviderName).ToArray();
+        var provider = providers.FirstOrDefault()?.AttributeClass?.TypeArguments.FirstOrDefault();
+        var conflict = providers.Length > 1 || (providers.Length > 0 && Find(parameter, AttributePrecedencePolicy.LookUpByName) is not null);
+        return (provider, conflict ? AttributePrecedencePolicy.LookupConflict : null);
+    }
+
+    static IEnumerable<AttributeData> LookupDeclarations(IParameterSymbol parameter)
+    {
+        for (ISymbol? current = parameter; current is not null; current = InheritedSymbol(current))
+        {
+            foreach (var attribute in current.GetAttributes()) yield return attribute;
         }
     }
 

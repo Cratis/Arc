@@ -48,7 +48,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
     {
         if (emission.Application.CommandReadMode is null)
         {
-            return new(emission, []);
+            return new(emission, []) { Model = model };
         }
 
         var diagnostics = new ScreenplayDiagnostics();
@@ -60,7 +60,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
             ReportUnmapped(diagnostics, refusals);
             if (refusals.Mapped.Count == 0)
             {
-                return new(current, diagnostics.All);
+                return new(current, diagnostics.All) { Model = withheld };
             }
 
             withheld = Withhold(withheld, refusals.Mapped, diagnostics);
@@ -72,7 +72,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
             ReportRemaining(diagnostics, Refusals(current.Source));
         }
 
-        return new(current, diagnostics.All);
+        return new(current, diagnostics.All) { Model = withheld };
     }
 
     static void ReportUnmapped(ScreenplayDiagnostics diagnostics, AttributedRefusals refusals)

@@ -20,4 +20,7 @@ public record ScreenplayGenerationResult(
     /// Gets a value indicating whether the document was generated without anything being reported as an error.
     /// </summary>
     public bool IsSuccess => !Diagnostics.Any(_ => _.Severity == ScreenplayDiagnosticSeverity.Error);
+
+    /// <summary>Gets verification with the original emission's analyzed read intent.</summary>
+    internal Verification.ScreenplayVerification? Verification { get; init; }
 }

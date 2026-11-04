@@ -19,6 +19,7 @@ internal static class TenancyOptionsBinding
     [
         Member.Of<TenancyOptions, TenantResolverType>("ResolverType", Leaves.TenantResolverType, static _ => _.ResolverType, static (o, v) => o.ResolverType = v),
         Member.Of<TenancyOptions, bool>("IngressValidatesTenant", Leaves.Bool, static _ => _.IngressValidatesTenant, static (o, v) => o.IngressValidatesTenant = v),
+        Member.Of<TenancyOptions, bool>("StrictValidatorMembership", Leaves.Bool, static _ => _.StrictValidatorMembership, static (o, v) => o.StrictValidatorMembership = v),
         Member.Of<TenancyOptions, string>("HttpHeader", Leaves.String, static _ => _.HttpHeader, static (o, v) => o.HttpHeader = v),
         Member.Of<TenancyOptions, string>("BaseDomain", Leaves.String, static _ => _.BaseDomain, static (o, v) => o.BaseDomain = v),
         Member.Of<TenancyOptions, string>("QueryParameter", Leaves.String, static _ => _.QueryParameter, static (o, v) => o.QueryParameter = v),

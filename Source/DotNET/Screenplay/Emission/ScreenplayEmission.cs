@@ -14,4 +14,8 @@ namespace Cratis.Arc.Screenplay.Emission;
 public record ScreenplayEmission(
     string Source,
     ApplicationSyntax Application,
-    IReadOnlyList<ScreenplayDiagnostic> Diagnostics);
+    IReadOnlyList<ScreenplayDiagnostic> Diagnostics)
+{
+    /// <summary>Gets the analyzed read intent carried only by generated emissions.</summary>
+    internal Verification.GeneratedCommandReads? CommandReads { get; init; }
+}

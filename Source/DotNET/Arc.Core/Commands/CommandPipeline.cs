@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Observability;
-using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -362,7 +361,7 @@ public class CommandPipeline(
 
     static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
     {
-        if (TenantMembershipDenied.IsCauseOf(exception))
+        if (UnauthorizedCause.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception))
         {
             return CommandResult.Unauthorized(correlationId);
         }
@@ -484,7 +483,7 @@ public class CommandPipeline(
         {
             throw;
         }
-        catch (Exception exception) when (TenantMembershipDenied.IsCauseOf(exception))
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
         {
             OperationActivity.RecordException(activity, exception);
             return (null, CommandResult.Unauthorized(GetCorrelationId()));
@@ -511,6 +510,7 @@ public class CommandPipeline(
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
         using var identityLease = new AuthorizationPrincipalLease();
+        using var snapshotLease = new AuthorizationPrincipalLease();
         CommandContext? commandContext = default;
         ICommandExecutionScope[]? scopes = default;
         var executionScopesCompleted = false;
@@ -563,9 +563,7 @@ public class CommandPipeline(
                 }
             }
 
-            identityLease.Attach(AuthorizationCommandIdentity.Enter(
-                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
-                scopeFactory));
+            identityLease.Attach(EnterCallerIdentity(serviceProvider, preparedAuthorization, false));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
 
@@ -613,7 +611,14 @@ public class CommandPipeline(
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
+            var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipalSnapshot);
+            snapshotLease.Attach(snapshot);
             result = await commandFilters.OnExecution(commandContext);
+            if (snapshot.MembershipDenied)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
             {
@@ -628,6 +633,13 @@ public class CommandPipeline(
 
             cancellationToken.ThrowIfCancellationRequested();
             var resolution = await argumentResolver.Resolve(commandHandler, commandContext, serviceProvider, commandContext.AllowedSeverity);
+
+            // Generated values run validators that can swallow the snapshot denial; reject before any such failure is reported.
+            if (snapshot.MembershipDenied)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             result.MergeWith(resolution.ControlResult);
             result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
@@ -658,6 +670,13 @@ public class CommandPipeline(
 
             // Read again: a context values provider or modifier can have resolved the tenant since the read above.
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
+
+            // The single choke point: a denied snapshot never reaches the handler.
+            if (snapshot.MembershipDenied)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             var response = await Handle(commandHandler, commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
@@ -848,6 +867,7 @@ public class CommandPipeline(
                 }
             }
 
+            using var identityGuard = EnterCallerIdentity(serviceProvider, preparedAuthorization, true);
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
             var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
@@ -868,7 +888,13 @@ public class CommandPipeline(
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
+            using var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipalSnapshot);
             result = await commandFilters.OnExecution(commandContext);
+            if (snapshot.MembershipDenied)
+            {
+                return CommandResult.Unauthorized(correlationId);
+            }
+
             result = FilterValidationResults(result, commandContext);
         }
         catch (InvalidAuthorizationConfiguration ex)
@@ -884,6 +910,15 @@ public class CommandPipeline(
         }
 
         return result;
+    }
+
+    IDisposable EnterCallerIdentity(IServiceProvider services, PreparedAuthorization? prepared, bool forValidation)
+    {
+        var principal = prepared is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : services.GetService<ICurrentPrincipalAccessor>()?.Current;
+        var provenance = prepared?.PrincipalChanged == true ? CommandCallerProvenance.SchemeSelected : CommandCallerProvenance.Ambient;
+        return forValidation
+            ? AuthorizationCommandIdentity.EnterForValidation(principal, scopeFactory, provenance)
+            : AuthorizationCommandIdentity.Enter(principal, scopeFactory, provenance);
     }
 
     CommandContextValues BuildContextValues(object command, IServiceProvider services, PreparedAuthorization? prepared)

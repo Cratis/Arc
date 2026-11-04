@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Bind a scalar argument
 
-Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope. Scalar values use the scalar conversion path; JSON arrays keep their element boundaries and Arc converts each element separately.
+To find an account by name, pass `name` to `Search` in the query string. Arc converts it to `AccountName` before the method applies the minimum-balance predicate. These model-bound HTTP readers are not ASP.NET MVC model binding: GET reads named values from the **query string**, not route values, while QUERY reads an arguments envelope. Scalar values use the scalar conversion path; JSON arrays keep their element boundaries and Arc converts each element separately.
 
 This alternative read-model declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider. The query searches by an exact account name and a minimum balance:
 
@@ -41,11 +41,13 @@ Arc converts the incoming name to `AccountName`; the predicate uses that domain 
 
 ## Supported input shapes
 
-The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose. If a supplied scalar or concept value cannot be converted to the declared parameter type, GET and QUERY reject it with HTTP 400 and a validation error naming the argument and its type; the query does not run. This also applies to nullable and defaulted parameters when a value is supplied: invalid input does not fall back to null or the default.
+The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose. If a supplied scalar or concept value cannot be converted to the declared parameter type, GET and QUERY reject it with HTTP 400 and a validation error naming the argument and its type; the query does not run. This also applies to nullable and defaulted parameters when a value is supplied: invalid input does not fall back to null or the default. Use the named validation error to correct the argument before trying the read again. Omitting a defaulted parameter is different from supplying an invalid value.
 
-It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported DTO shapes cannot be constructed by these readers; use a supported scalar or collection argument instead.
+Arc binds supported scalar values and collections of those values, including arrays and lists. It does **not** provide general nested-JSON DTO binding. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported DTO shapes cannot be constructed by these readers; use a supported scalar or collection argument instead.
 
 These limitations concern the supplied HTTP readers. Already-typed arguments passed directly to `IQueryPipeline`, custom readers/converters, and [MVC DTO binding](../controller-based/query-arguments.md) are different paths. FluentValidation's ability to traverse an object does not prove HTTP can construct that object.
+
+The following method-shape illustration assumes application domain types `CustomerId` and `AccountStatus`. Supplying a status uses the matching predicate in `GetAccountsByStatus`; omitting the nullable status searches across all statuses. It is not a standalone application declaration.
 
 ```csharp
 [ReadModel]
@@ -71,7 +73,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
         IMongoCollection<DebitAccount> collection)
     {
         return status.HasValue
-            ? collection.Find(a => a.Balance > 0).ToList()
+            ? GetAccountsByStatus(status.Value, collection)
             : collection.Find(_ => true).ToList();
     }
 }

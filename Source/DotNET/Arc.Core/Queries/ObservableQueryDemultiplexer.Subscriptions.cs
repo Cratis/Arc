@@ -296,7 +296,7 @@ public partial class ObservableQueryDemultiplexer
         {
             throw;
         }
-        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration || TenantMembershipDenied.IsCauseOf(exception))
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration || UnauthorizedCause.IsCauseOf(exception))
         {
             logger.ErrorProcessingMessage(exception);
             await NotifyAndComplete(callbacks, () => callbacks.OnUnauthorized(queryId, token));

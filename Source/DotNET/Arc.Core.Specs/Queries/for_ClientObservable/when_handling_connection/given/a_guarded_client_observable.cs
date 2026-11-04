@@ -55,7 +55,14 @@ public class a_guarded_client_observable : Specification
         _context.RequestServices.GetService(typeof(IOptions<ArcOptions>)).Returns(Options.Create(new ArcOptions { ExposeExceptionDetails = true }));
         _context.User.Returns(_principal);
 
-        _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler>();
+        _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler, IWebSocketMessageSender>();
+        ((IWebSocketMessageSender)_webSocketConnectionHandler)
+            .Send(Arg.Any<IWebSocket>(), Arg.Any<QueryResult>(), Arg.Any<SemaphoreSlim>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var error = await _webSocketConnectionHandler.SendMessage(call.Arg<IWebSocket>(), call.Arg<QueryResult>(), call.Arg<SemaphoreSlim>(), call.Arg<CancellationToken>());
+                return error is null ? WebSocketSendResult.Sent : WebSocketSendResult.Failed(error);
+            });
         _webSocketConnectionHandler
             .HandleIncomingMessages(Arg.Any<IWebSocket>(), Arg.Any<SemaphoreSlim>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>

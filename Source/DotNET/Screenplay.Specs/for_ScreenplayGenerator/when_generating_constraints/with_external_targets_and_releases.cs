@@ -84,14 +84,14 @@ public class with_external_targets_and_releases : Specification
     [Fact] void should_preserve_the_release() => _result.Source.ShouldContain("released by UserDeleted");
     [Fact] void should_compile_the_document() => _verification.Compiles.ShouldBeTrue();
     [Fact] void should_preserve_exactly_the_baseline_binding_limits_and_the_release_import_limit() => _verification.BindingDiagnostics.Select(_ => (_.Code, _.Message)).ShouldContainOnly([("PLAY0270", DomainMetadata), ("PLAY0268", PrimaryImportLimit), ("PLAY0390", PrimaryConstraintLimit), ("PLAY0268", ReleaseImportLimit)]);
-    [Fact] void should_report_the_same_standalone_code_and_severity_for_each_binding_limit() => _result.Diagnostics.Select(_ => (_.Code, _.Severity)).ShouldContainOnly([("SP0056", ScreenplayDiagnosticSeverity.Warning), ("SP0056", ScreenplayDiagnosticSeverity.Warning), ("SP0056", ScreenplayDiagnosticSeverity.Warning)]);
+    [Fact] void should_report_the_same_standalone_code_and_severity_for_each_binding_limit() => _result.Diagnostics.Select(_ => (_.Code, _.Severity)).ShouldContainOnly([("SP0056", ScreenplayDiagnosticSeverity.Error), ("SP0056", ScreenplayDiagnosticSeverity.Error), ("SP0056", ScreenplayDiagnosticSeverity.Error)]);
     [Fact] void should_preserve_the_binding_reasons_in_the_generator_diagnostics() => _verification.BindingDiagnostics.Where(_ => _.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).All(binding => _result.Diagnostics.Any(report => report.Message.Contains(binding.Message, StringComparison.Ordinal))).ShouldBeTrue();
     [Fact] void should_round_trip_stably() => Verification.RoundTrip.For(_verification.Application!).IsStable.ShouldBeTrue();
-    [Fact] void should_not_report_generation_errors() => _result.Diagnostics.Where(_ => _.Severity == ScreenplayDiagnosticSeverity.Error).ShouldBeEmpty();
+    [Fact] void should_fail_generation_for_residual_binding_errors() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_compile_the_baseline_application_source() => Analyzed.ErrorsIn(_baselineCompilation).ShouldBeEmpty();
     [Fact] void should_import_the_baseline_primary_target() => _baselineResult.Source.ShouldContain("import Partners.Contracts.UserRenamed");
     [Fact] void should_compile_the_baseline_document() => _baselineVerification.Compiles.ShouldBeTrue();
     [Fact] void should_round_trip_the_baseline_stably() => Verification.RoundTrip.For(_baselineVerification.Application!).IsStable.ShouldBeTrue();
     [Fact] void should_pin_the_baseline_binding_limits() => _baselineVerification.BindingDiagnostics.Select(_ => (_.Code, _.Message)).ShouldContainOnly([("PLAY0270", DomainMetadata), ("PLAY0268", PrimaryImportLimit), ("PLAY0390", PrimaryConstraintLimit)]);
-    [Fact] void should_pin_the_baseline_standalone_diagnostic_treatment() => _baselineResult.Diagnostics.Select(_ => (_.Code, _.Severity)).ShouldContainOnly([("SP0056", ScreenplayDiagnosticSeverity.Warning), ("SP0056", ScreenplayDiagnosticSeverity.Warning)]);
+    [Fact] void should_pin_the_baseline_standalone_diagnostic_treatment() => _baselineResult.Diagnostics.Select(_ => (_.Code, _.Severity)).ShouldContainOnly([("SP0056", ScreenplayDiagnosticSeverity.Error), ("SP0056", ScreenplayDiagnosticSeverity.Error)]);
 }

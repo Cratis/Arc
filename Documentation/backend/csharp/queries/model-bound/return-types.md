@@ -7,7 +7,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Discovery contract
 
-For an `[ReadModel]` type `T`, a query method must return one of these shapes. One outer `Task<TResult>` is also supported, including around a subject. A supported return shape is necessary, not sufficient: the method must satisfy the [static-method requirements](static-methods.md#method-requirements), including **no parameter of type `T` or nullable `T?`**. Static self-reduction methods therefore remain helpers, not endpoints.
+Choose the return shape for the read you need: one model, a collection, a query Arc can page, or a stream that can produce later values. The table lists the shapes Arc discovers on a read-model type `T`. One outer `Task<TResult>` is also supported, including around a subject. A supported return shape is necessary, not sufficient: the method must satisfy the [static-method requirements](static-methods.md#method-requirements), including **no parameter of type `T` or nullable `T?`**. Static self-reduction methods therefore remain helpers, not endpoints.
 
 | Declared return type | Behavior |
 | --- | --- |
@@ -24,7 +24,7 @@ For an `[ReadModel]` type `T`, a query method must return one of these shapes. O
 
 With MongoDB, materialize a fluent query using `ToList()` or `ToListAsync()` before returning a collection. `collection.Find(...)` itself is an `IFindFluent`, not `IEnumerable<T>`. For [automatic paging](paging.md), return `collection.AsQueryable()` instead of materializing early.
 
-A null model-bound result is a successful query with null data, not an automatic 404. An empty list is a successful empty collection. An exception is a failed result; do not convert storage failures into either successful absence shape. [Controller null handling](../controller-based/return-types.md#nullable-return-types) differs.
+When the model-bound query succeeds, null data means no model matched; it is not an automatic 404. An empty list is a successful empty collection. Check the [result verdict](../query-pipeline.md#query-result-metadata) before interpreting either absence shape. An exception is a failed result; do not convert storage failures into null or an empty list. [Controller null handling](../controller-based/return-types.md#nullable-return-types) differs.
 
 ## Custom return types
 

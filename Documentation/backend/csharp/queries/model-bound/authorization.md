@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Choose the right authorization surface
 
-For model-bound queries, use attributes from **`Cratis.Arc.Authorization`**. The default evaluator checks whether the current principal is authenticated and, when roles are specified, belongs to at least one of those roles.
+Decide who may run the read separately from which rows they may receive. For model-bound queries, use attributes from **`Cratis.Arc.Authorization`**. The default evaluator checks whether the current principal is authenticated and, when roles are specified, belongs to at least one of those roles. The [role example below](#require-a-role) protects access to the query; [ownership](#ownership-is-a-separate-rule) needs an additional rule.
 
 Register a native scoped policy using [Core named policies](../../core/authorization.md#register-a-named-policy), then put `[Authorize(Policy = "ActiveSubscription")]` on the read model or a query method. Arc awaits every named policy before invoking the method, whether the call comes from HTTP, the query pipeline, or a new hub subscription. Unknown and duplicate policies fail host startup. Method-level declarations replace type-level declarations, while stacked attributes on one declaration all apply. The selected principal must be authenticated, even when the policy itself would allow anonymous access. `AuthorizationPolicyContext.ReceivedAt` matches the executing `QueryContext.ReceivedAt` even when a scheme selects a fresh scope or authorization is evaluated repeatedly. Arc captures a new receipt for each hub subscribe operation, not for the WebSocket or SSE connection; see [query context](../query-pipeline.md#query-context-and-renderers).
 
@@ -16,7 +16,7 @@ On ASP.NET Core, both Arc and Microsoft's authorization attributes can name ASP.
 
 ## Require a role
 
-Use the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) with an authenticated host and the configured MongoDB provider. This replaces the earlier `DebitAccount` declaration:
+Require `AccountReader` to call `AllAccounts`, and a different role for the overdrawn-account read. Use the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) with an authenticated host and the configured MongoDB provider. This replaces the earlier `DebitAccount` declaration:
 
 ```csharp
 using System.Collections.Generic;
@@ -54,7 +54,7 @@ For Arc's built-in attributes:
 
 Do not combine `[AllowAnonymous]` with `[Authorize]`/`[Roles]` on the same target, from either attribute family: the evaluator rejects that combination as ambiguous, and analyzer [ARC0019](../../code-analysis/index.md#arc0019-conflicting-authorization) reports it at build time.
 
-Use `[Authorize]` for authentication alone and `[Roles("Admin", "Auditor")]` for authentication plus any listed role. A denied model-bound query does not invoke its method and produces `isAuthorized: false`. Direct HTTP normally maps that verdict to 403; hub denial is an `Unauthorized` message.
+Use `[Authorize]` for authentication alone and `[Roles("Admin", "Auditor")]` for authentication plus any listed role. A denied model-bound query does not invoke its method and produces `isAuthorized: false`. Direct HTTP normally maps that verdict to 403; hub denial is an `Unauthorized` message. If the read is denied, check the selected identity and the query's role or policy requirement. Do not interpret missing data in a denied result as an account that was not found.
 
 ## Ownership is a separate rule
 

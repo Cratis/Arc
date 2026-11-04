@@ -59,15 +59,17 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var analysis = analyzer.Analyze(ordered, resolved);
         var candidate = emitter.Emit(analysis.Model, resolved);
         var admitted = new ProtectedReadAdmission(emitter, _verifier).Admit(analysis.Model, resolved, candidate);
-        var emission = admitted.Emission;
+        var productions = new UnboundProductionAdmission(emitter, _verifier).Admit(admitted.Model ?? analysis.Model, resolved, admitted.Emission);
+        var emission = productions.Emission;
 
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
         diagnostics.AddRange(admitted.Diagnostics);
-        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain, resolved.AuthoringOnlyConstructs);
+        diagnostics.AddRange(productions.Diagnostics);
+        var verification = ReportDocumentThatDoesNotCompile(emission, analysis.Diagnostics, diagnostics, resolved, productions.Verification);
 
-        return new(emission.Source, analysis.Model, diagnostics.All);
+        return new(emission.Source, analysis.Model, diagnostics.All) { Verification = verification };
     }
 
     /// <inheritdoc/>
@@ -77,11 +79,12 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     /// <summary>
     /// Reads the printed document back and reports syntax and unexpected semantic binding errors.
     /// </summary>
-    /// <param name="source">The printed document.</param>
+    /// <param name="emission">The printed document and its analysis context.</param>
     /// <param name="analyzed">What analysis reported, which says whether the source it read compiled.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
-    /// <param name="location">Where to report against.</param>
-    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
+    /// <param name="options">The resolved generation options.</param>
+    /// <param name="verified">Verification already performed by production admission.</param>
+    /// <returns>The verification, unless untrustworthy source analysis suppresses it.</returns>
     /// <remarks>
     /// Everything else reported names something the application declared that the language cannot hold. This names
     /// the generator being wrong, which is why it runs on every generation rather than on request - the only way a
@@ -100,34 +103,34 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     /// language rejects with nothing wrong reported, which is the one outcome this exists to make impossible.
     /// </para>
     /// </remarks>
-    void ReportDocumentThatDoesNotCompile(
-        string source,
+    ScreenplayVerification? ReportDocumentThatDoesNotCompile(
+        ScreenplayEmission emission,
         IEnumerable<ScreenplayDiagnostic> analyzed,
         ScreenplayDiagnostics diagnostics,
-        string? location,
-        bool authoringOnlyConstructs)
+        ScreenplayOptions options,
+        ScreenplayVerification? verified)
     {
         if (analyzed.Any(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile && _.Severity == ScreenplayDiagnosticSeverity.Error))
         {
-            return;
+            return null;
         }
 
-        var verification = _verifier.Verify(source);
+        var verification = verified ?? GeneratedCommandReads.Verify(_verifier, emission);
         if (verification.Compiles)
         {
             foreach (var warning in verification.BindingDiagnostics.Where(diagnostic => diagnostic.Code == "PLAY0689"))
             {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnprovenGeneratedConceptRule, $"{warning.Code}: {warning.Message}", $"{location}:{warning.Location.Line}");
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnprovenGeneratedConceptRule, $"{warning.Code}: {warning.Message}", $"{options.Domain}:{warning.Location.Line}");
             }
-            foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
+            foreach (var error in verification.UnexpectedBindingErrors(options.AuthoringOnlyConstructs))
             {
-                diagnostics.Warning(
+                diagnostics.Error(
                     ScreenplayDiagnosticCodes.DocumentDidNotBind,
                     $"The generated document did not bind - {error.Code}: '{error.Message}' on line {error.Location.Line}, column {error.Location.Column}. That is the generator being wrong rather than anything the source declared, and the document is returned as it stands so the line can be read",
-                    location);
+                    options.Domain);
             }
 
-            return;
+            return verification;
         }
 
         var first = verification.Errors[0];
@@ -135,6 +138,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         diagnostics.Error(
             ScreenplayDiagnosticCodes.DocumentDidNotCompile,
             $"The generated document did not compile - {verification.Errors.Count} error(s), the first being '{first.Message}' on line {first.Location.Line}. That is the generator being wrong rather than anything the source declared, and the document is returned as it stands so the line can be read",
-            location);
+            options.Domain);
+        return verification;
     }
 }

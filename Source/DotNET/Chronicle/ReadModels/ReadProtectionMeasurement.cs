@@ -125,7 +125,7 @@ internal sealed class ReadProtectionMeasurement
             lock (_gate)
             {
                 _advisory[type] = advisory is null ? null : advisory.Reason ?? "Declared advisory";
-                _explicitLookups[type] = parameter.IsDefined(typeof(LookUpByAttribute), true);
+                _explicitLookups[type] = CommandAttributePolicy.HasExplicitLookup(parameter);
             }
             if (!PerStreamReadModelBinding.IsDeclared(type)) Classify(type, advisory?.Reason, advisory is not null);
             return;

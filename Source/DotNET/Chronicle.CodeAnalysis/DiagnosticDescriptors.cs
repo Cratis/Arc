@@ -374,7 +374,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0031_LookupOnNonReadModel = new(
         id: "ARCCHR0031",
         title: "Invalid read-model lookup",
-        messageFormat: "LookUpBy on parameter '{0}' requires a read model, but '{1}' is not a read-model type. Remove LookUpBy or inject a read model.",
+        messageFormat: "LookUpBy on parameter '{0}' {1}",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,

@@ -7,7 +7,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Model-bound execution
 
-`IQueryPipeline` performs a query by fully qualified name. Generated model-bound endpoints and hub subscriptions use it. Database/provider code remains responsible for producing data; Arc does not turn a database read into a Chronicle projection.
+Generated model-bound endpoints and hub subscriptions call `IQueryPipeline` with the query's fully qualified name. Use the result metadata below to interpret the read before following the execution and composition details. The database or provider still produces the data; the pipeline does not turn an ordinary read into a Chronicle projection.
 
 ```mermaid
 flowchart LR
@@ -25,6 +25,51 @@ flowchart LR
 A non-success filter verdict stops execution before the query method. With Arc's built-in (staged) filters, an authorization denial also stops before the query method's dependencies are resolved from the container. It does not imply no collaborators ran: paging validation, performer lookup, and argument conversion occur before authorization, and a custom filter implementation that is not staged resolves dependencies before its filters run. Custom filters/dependencies are application code, not guaranteed side-effect-free.
 
 A null method result can remain a successful model-bound result. For a stream, the pipeline passes the wrapper onward; transport handling decides how to consume and deliver values.
+
+## Query result metadata
+
+The backend `Cratis.Arc.Queries.QueryResult` is **nongeneric**, with `object Data`. Generated TypeScript query results can be typed; that does not create a C# `QueryResult<T>` API. Normal query methods return data rather than constructing this infrastructure envelope.
+
+| JSON field | Meaning |
+| --- | --- |
+| `data` | Returned data; can be null, and can be omitted/null on later hub delta frames |
+| `paging` | `page` (int), `size` (int), `totalItems` (long), `totalPages` (computed int) |
+| `correlationId` | Correlation identifier |
+| `isReady` | Whether a result is available; false is distinct from failure |
+| `isAuthorized` | Authorization verdict |
+| `isValid` | True when `validationResults` is empty |
+| `hasExceptions` | True when `exceptionMessages` is nonempty |
+| `isSuccess` | `isReady && isAuthorized && isValid && !hasExceptions` |
+| `validationResults` | Validation entries with severity, message, and members |
+| `exceptionMessages`, `exceptionStackTrace` | Error information, subject to the transport/host's exception-detail handling |
+| `changeSet` | Optional collection delta; see [transfer modes](change-stream.md) |
+
+`PagingInfo` is `PagingInfo(int Page, int Size, long TotalItems)`. `totalPages` is zero for size zero, otherwise `Ceiling(totalItems / size)`. `PagingInfo.NotPaged` is `(0, 0, 0)` and is used for ordinary unpaged pipeline results. Observable snapshots and streaming emissions can instead report the query context's total count with page and size zero. `totalPages` remains zero when size is zero. There are no `hasNext`, `hasPrevious`, or response `pageSize` fields.
+
+Illustrative complete success envelope under camelCase serialization (the identifiers and data are examples, not a captured server response):
+
+```json
+{
+  "data": [{ "id": "account-1", "name": "Savings", "balance": 100 }],
+  "paging": { "page": 0, "size": 1, "totalItems": 2, "totalPages": 2 },
+  "correlationId": "12345678-1234-1234-1234-123456789012",
+  "isReady": true,
+  "isSuccess": true,
+  "isAuthorized": true,
+  "isValid": true,
+  "hasExceptions": false,
+  "validationResults": [],
+  "exceptionMessages": [],
+  "exceptionStackTrace": "",
+  "changeSet": null
+}
+```
+
+Check the verdict before consuming `data`: a ready result alone does not mean success. For a denied read, check the selected identity and the query's access requirement. For invalid input, correct the argument named in `validationResults`. For an exception, retain the `correlationId` for investigation rather than treating the failure as an empty result.
+
+Default direct model-bound HTTP maps success to 200, authorization denial to 403, validation failure to 400, not-ready to 202, and other failures to 500. Observable waiting also has a 408 timeout path. Hub frames and SSE control POSTs have their own [protocol semantics](observable-query-demultiplexer.md); do not infer their status from this table.
+
+This envelope and this status mapping are part of Arc's [shared HTTP contract](/arc/http-contract/) and are identical on the JVM backend, down to the precedence between authorization, validation, and readiness. What a client must not assume is identical is covered in [where the implementations differ](/arc/http-contract/#where-the-implementations-differ) - in particular [observable snapshot readiness](/arc/http-contract/#observable-http-snapshot-readiness) and [unknown fields in the QUERY envelope](/arc/http-contract/#unknown-fields-in-the-query-envelope-and-in-query-arguments).
 
 ## Controller-specific path
 
@@ -73,49 +118,6 @@ services.AddTransient<IQueryPipeline, QueryPipeline>();
 `AuthorizationDeclarations` resolves each query's authorization declarations, including fallback requirements, from `IInstancesOf<>` of the anonymous, attribute and fallback evaluators, so register Cratis type discovery (`IInstancesOf<>`) as well; without it the pipeline cannot authorize and fails. Supply the pipeline's constructor services: `ICorrelationIdAccessor`, `IQueryContextManager`, `IQueryFilters`, `IQueryPerformerProviders`, `IQueryRenderers`, `IReadModelInterceptors`, `IDiscoverableValidators`, and `IActivitySource<QueryPipeline>`. Supply `CurrentPrincipalAccessor`, `IAuthorizationPolicyRuntime`, `TenantIdAccessor`, and `ITenantIdResolver` for `AuthorizationPrincipalScope`; the two concrete accessors also need `IHttpRequestContextAccessor` and `ITenantIdResolver`, respectively. Register a runtime appropriate to your host; `ArcAuthorizationPolicyRuntime` does not authenticate named schemes. Pass an execution-scoped `IServiceProvider` to `IQueryPipeline.Perform`. The pipeline resolves `AuthorizationPrincipalScope` only when authorization supplies a selected principal, so a successful ordinary query does not prove that the scope is registered. `Begin` remains internal; host code should not manipulate it directly.
 
 If you want all Core services rather than manual composition, `IServiceCollection.AddCratisArcCore()` registers these services and the rest of Arc Core. It does not configure the ASP.NET Core host or map endpoints; see [Core configuration](../configuration/index.md).
-
-## Query result metadata
-
-The backend `Cratis.Arc.Queries.QueryResult` is **nongeneric**, with `object Data`. Generated TypeScript query results can be typed; that does not create a C# `QueryResult<T>` API. Normal query methods return data rather than constructing this infrastructure envelope.
-
-| JSON field | Meaning |
-| --- | --- |
-| `data` | Returned data; can be null, and can be omitted/null on later hub delta frames |
-| `paging` | `page` (int), `size` (int), `totalItems` (long), `totalPages` (computed int) |
-| `correlationId` | Correlation identifier |
-| `isReady` | Whether a result is available; false is distinct from failure |
-| `isAuthorized` | Authorization verdict |
-| `isValid` | True when `validationResults` is empty |
-| `hasExceptions` | True when `exceptionMessages` is nonempty |
-| `isSuccess` | `isReady && isAuthorized && isValid && !hasExceptions` |
-| `validationResults` | Validation entries with severity, message, and members |
-| `exceptionMessages`, `exceptionStackTrace` | Error information, subject to the transport/host's exception-detail handling |
-| `changeSet` | Optional collection delta; see [transfer modes](change-stream.md) |
-
-`PagingInfo` is `PagingInfo(int Page, int Size, long TotalItems)`. `totalPages` is zero for size zero, otherwise `Ceiling(totalItems / size)`. `PagingInfo.NotPaged` is `(0, 0, 0)` and is used for ordinary unpaged pipeline results. Observable snapshots and streaming emissions can instead report the query context's total count with page and size zero. `totalPages` remains zero when size is zero. There are no `hasNext`, `hasPrevious`, or response `pageSize` fields.
-
-Illustrative complete success envelope under camelCase serialization (the identifiers and data are examples, not a captured server response):
-
-```json
-{
-  "data": [{ "id": "account-1", "name": "Savings", "balance": 100 }],
-  "paging": { "page": 0, "size": 1, "totalItems": 2, "totalPages": 2 },
-  "correlationId": "12345678-1234-1234-1234-123456789012",
-  "isReady": true,
-  "isSuccess": true,
-  "isAuthorized": true,
-  "isValid": true,
-  "hasExceptions": false,
-  "validationResults": [],
-  "exceptionMessages": [],
-  "exceptionStackTrace": "",
-  "changeSet": null
-}
-```
-
-Default direct model-bound HTTP maps success to 200, authorization denial to 403, validation failure to 400, not-ready to 202, and other failures to 500. Observable waiting also has a 408 timeout path. Hub frames and SSE control POSTs have their own [protocol semantics](observable-query-demultiplexer.md); do not infer their status from this table.
-
-This envelope and this status mapping are part of Arc's [shared HTTP contract](/arc/http-contract/) and are identical on the JVM backend, down to the precedence between authorization, validation, and readiness. What a client must not assume is identical is covered in [where the implementations differ](/arc/http-contract/#where-the-implementations-differ) - in particular [observable snapshot readiness](/arc/http-contract/#observable-http-snapshot-readiness) and [unknown fields in the QUERY envelope](/arc/http-contract/#unknown-fields-in-the-query-envelope-and-in-query-arguments).
 
 ## Streaming boundary
 

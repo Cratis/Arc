@@ -20,30 +20,9 @@ internal static class ReturnedProductionShape
     /// <param name="body">The handler body.</param>
     /// <param name="model">The model binding envelopes.</param>
     /// <returns>Whether return reachability is proven.</returns>
-    internal static bool Reaches(ExpressionSyntax expression, SyntaxNode body, SemanticModel model)
-    {
-        if (expression.Ancestors().TakeWhile(node => node != body).Any(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
-        {
-            return false;
-        }
-        for (SyntaxNode? node = expression; node is not null; node = node.Parent)
-        {
-            if (node is ExpressionSyntax value && !ValueConversions.Preserves(value, model, method => method.ContainingType.Is("Cratis.Monads.Result`2")))
-            {
-                return false;
-            }
-            if (!SupportedAncestor(node, expression, model))
-            {
-                return false;
-            }
-            if (node is ReturnStatementSyntax || node == body)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    internal static bool Reaches(ExpressionSyntax expression, SyntaxNode body, SemanticModel model) =>
+        !expression.Ancestors().TakeWhile(node => node != body).Any(node => node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax) &&
+        (ReturnedEventList.Carries(expression, body, model) || ReachesInline(expression, body, model));
 
     /// <summary>Finds an inline tuple whose entire effect set reaches the returned expression.</summary>
     /// <param name="returned">The handler's directly returned expression.</param>
@@ -89,10 +68,38 @@ internal static class ReturnedProductionShape
     /// </summary>
     /// <param name="type">The contextual slot type.</param>
     /// <returns>Whether the slot can contain returned effects.</returns>
-    internal static bool IsEffect(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) ||
-        type.Is(EventWrapperType.MetadataName) ||
-        (type is IArrayTypeSymbol array && IsEffectArray(array)) ||
-        (type is INamedTypeSymbol named && (named.Is("System.Collections.Generic.List`1") || named.Is("System.Collections.Generic.IEnumerable`1")) && IsEffect(named.TypeArguments[0])));
+    internal static bool IsEffect(ITypeSymbol? type) => type is not null &&
+        (EventReader.IsEvent(type) || IsEnvelope(type) || IsSequenceEffect(type));
+
+    static bool ReachesInline(ExpressionSyntax expression, SyntaxNode body, SemanticModel model)
+    {
+        for (SyntaxNode? node = expression; node is not null; node = node.Parent)
+        {
+            if (node is ExpressionSyntax value && !ValueConversions.Preserves(value, model, method => method.ContainingType.Is("Cratis.Monads.Result`2")))
+            {
+                return false;
+            }
+            if (!SupportedAncestor(node, expression, model))
+            {
+                return false;
+            }
+            if (node is ReturnStatementSyntax || node == body)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static bool IsEnvelope(ITypeSymbol type) => type.Is(EventWrapperType.MetadataName) || type.Is(ReturnedEventList.ConcurrencyEvents);
+
+    static bool IsSequenceEffect(ITypeSymbol type) => type switch
+    {
+        IArrayTypeSymbol array => IsEffectArray(array),
+        INamedTypeSymbol named when named.Is("System.Collections.Generic.List`1") || named.Is("System.Collections.Generic.IEnumerable`1") => IsEffect(named.TypeArguments[0]),
+        _ => false
+    };
 
     static bool IsEffectArray(IArrayTypeSymbol array) =>
         array.ElementType.SpecialType == SpecialType.System_Object || IsEffect(array.ElementType);
@@ -195,6 +202,16 @@ internal static class ReturnedProductionShape
         if (expression is not BaseObjectCreationExpressionSyntax creation || model.GetTypeInfo(creation).Type is not { } type)
         {
             return false;
+        }
+
+        return IsConstructedEffect(creation, type, model);
+    }
+
+    static bool IsConstructedEffect(BaseObjectCreationExpressionSyntax creation, ITypeSymbol type, SemanticModel model)
+    {
+        if (type.Is(ReturnedEventList.ConcurrencyEvents))
+        {
+            return creation.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault()?.Body is { } body && ReturnedEventList.Read(body, model) is not null;
         }
 
         return EventReader.IsEvent(type) ? InlineProductionShape.IsSupported(creation, model) : ExplicitEventDestination.Read(creation, model) is not null;

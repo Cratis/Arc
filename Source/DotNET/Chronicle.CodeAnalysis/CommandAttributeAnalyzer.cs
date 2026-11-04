@@ -85,17 +85,14 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
             ReportInert(context, parameter, "Unprotected has no effect on a non-read-model parameter");
         }
 
-        var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
-        if (lookup?.ConstructorArguments.FirstOrDefault().Value is not string propertyName)
-        {
-            return;
-        }
+        var propertyName = LookupProperty(context, parameter);
+        if (propertyName is null) return;
 
         var command = ReadProtectionSymbols.CommandFor(method) ?? method.ContainingType;
         var resolution = CommandAttributeSymbols.ResolveLookup(command, parameter, mayBeModel);
         if (!mayBeModel)
         {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, parameter.Type.Name));
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, $"requires a read model, but '{parameter.Type.Name}' is not a read-model type. Remove LookUpBy or inject a read model."));
             return;
         }
 
@@ -113,6 +110,38 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         // Explicit lookup keys are canonicalized independently of the model's CLR Id type at runtime.
         // Even non-concept values have the runtime's ToEventSourceId/ToString fallback.
     }
+
+    static string? LookupProperty(SymbolAnalysisContext context, IParameterSymbol parameter)
+    {
+        var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
+        var propertyValue = lookup?.ConstructorArguments.FirstOrDefault().Value;
+        return AnalyzeKeyProvider(context, parameter) ? null : propertyValue as string;
+    }
+
+    static bool AnalyzeKeyProvider(SymbolAnalysisContext context, IParameterSymbol parameter)
+    {
+        var provider = CommandAttributeSymbols.ResolveKeyProvider(parameter);
+        if (provider.Provider is null) return false;
+        var reason = ProviderRefusal(parameter, provider.Conflict, context.Compilation);
+        if (reason is not null)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, reason));
+        }
+        return true;
+    }
+
+    static string? ProviderRefusal(IParameterSymbol parameter, string? conflict, Compilation compilation)
+    {
+        if (conflict is not null) return "is invalid: only one lookup form may be declared";
+        if (IsProvablyNotReadModel(parameter.Type)) return $"requires a read model, but '{parameter.Type.Name}' is not a read-model type. Remove LookUpBy or inject a read model.";
+
+        // Missing source-visible backing does not rule out a projection in a referenced assembly.
+        return IsUnsupportedProviderType(parameter.Type, compilation) ? "is only supported for Chronicle read models" : null;
+    }
+
+    static bool IsUnsupportedProviderType(ITypeSymbol type, Compilation compilation) =>
+        RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.ReadModels.DecisionRead`1", compilation) ||
+        ChronicleStateSymbols.Implements(type, "MongoDB.Driver.IMongoCollection`1", compilation);
 
     /// <summary>
     /// Allows unseen domain models because a projection or reducer in another project may back them.
