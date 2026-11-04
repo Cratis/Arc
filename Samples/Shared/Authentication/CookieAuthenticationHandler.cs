@@ -6,6 +6,8 @@ using System.Text.Json;
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
+using Cratis.Execution;
+using Microsoft.Extensions.Hosting;
 
 namespace Samples.Authentication;
 
@@ -14,7 +16,14 @@ namespace Samples.Authentication;
 /// client principal from a cookie. This enables authentication for transports that cannot send
 /// custom HTTP headers, such as Server-Sent Events (EventSource) and WebSocket handshakes.
 /// </summary>
-public class CookieAuthenticationHandler : IAuthenticationHandler
+/// <remarks>
+/// WARNING: This handler trusts an unsigned, client-supplied cookie, so any caller can impersonate any user.
+/// It exists for local demos only and must be registered only in the Development environment.
+/// Never copy it into an application. Handlers are discovered automatically, so the handler itself
+/// ignores every request outside the Development environment.
+/// </remarks>
+/// <param name="environment">The optional host environment; when absent, the ASPNETCORE_ENVIRONMENT variable decides.</param>
+public class CookieAuthenticationHandler(IHostEnvironment? environment = null) : IAuthenticationHandler
 {
     /// <summary>
     /// The name of the cookie that carries the base64-encoded client principal.
@@ -24,6 +33,11 @@ public class CookieAuthenticationHandler : IAuthenticationHandler
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
+        if (!(environment?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment))
+        {
+            return Task.FromResult(AuthenticationResult.Anonymous);
+        }
+
         if (!context.Cookies.TryGetValue(CookieName, out var cookieValue) ||
             string.IsNullOrWhiteSpace(cookieValue))
         {

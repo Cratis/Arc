@@ -9,11 +9,13 @@ public class a_published_arc_core : Specification
 {
     protected PublishedArcCore _arcCore;
 
+    protected virtual string HostEnvironment => "Development";
+
     async Task Establish()
     {
         if (Environment.GetEnvironmentVariable("CRATIS_ARC_PUBLISHED_ARCCORE") is not null)
         {
-            _arcCore = await PublishedArcCore.Start();
+            _arcCore = await PublishedArcCore.Start(HostEnvironment);
         }
     }
 

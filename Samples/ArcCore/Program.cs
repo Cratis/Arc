@@ -23,7 +23,7 @@ builder
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
     });
 
-builder.Services.AddSingleton<IAuthenticationHandler, CookieAuthenticationHandler>();
+// CookieAuthenticationHandler is discovered automatically and only authenticates in the Development environment.
 builder.Services.AddSingleton<IAuthenticationHandler, MicrosoftIdentityPlatformHeaderAuthenticationHandler>();
 
 var app = builder.Build();
