@@ -8,6 +8,7 @@
     </PropertyGroup>
     <ItemGroup>
         <Compile Remove="Fixtures/**/*.cs" />
+        <EmbeddedResource Include="Identity/ForwardedIdentityV2/Vectors/forwarded-identity-v2-vectors.json" LogicalName="ForwardedIdentityV2Vectors.json" />
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />

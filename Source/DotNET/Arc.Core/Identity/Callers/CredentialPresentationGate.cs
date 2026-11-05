@@ -22,14 +22,18 @@ internal sealed class CredentialPresentationGate
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Isolated cardinality decision. Today an envelope and its forwarded bearer are always multiple credentials.
-    /// A later v2 source may claim a cryptographically covered bearer; mere co-presence is never coverage.
+    /// Isolated cardinality decision. A v2 envelope may carry a bearer for its verifier to bind.
+    /// Mere co-presence is never proof of coverage; v1 envelopes remain separate credentials.
     /// </summary>
     /// <param name="presented">The copied credential set.</param>
     /// <returns>A presentation refusal, or null when exactly one credential is present.</returns>
     internal static CallerRefusal? DecideMultipleCredentials(CredentialPresentation presented)
     {
-        if (HasRepeatedCredentialFields(presented) || HasBearerAndEnvelope(presented))
+        if (HasRepeatedCredentialFields(presented))
+        {
+            return CallerRefusal.MultipleCredentials;
+        }
+        if (HasBearerAndEnvelope(presented) && !IsV2WithBearer(presented))
         {
             return CallerRefusal.MultipleCredentials;
         }
@@ -68,6 +72,9 @@ internal sealed class CredentialPresentationGate
     static bool HasRepeatedCredentialFields(CredentialPresentation presented) => presented.Authorization.Count > 1 || presented.Envelope.Values.Any(values => values.Count != 1);
 
     static bool HasBearerAndEnvelope(CredentialPresentation presented) => presented.Authorization.Count != 0 && presented.Envelope.Count != 0;
+
+    static bool IsV2WithBearer(CredentialPresentation presented) => presented.Authorization.Count == 1 && presented.Envelope.Count == 1 &&
+        presented.Envelope.Values.Single().Count == 1 && presented.Envelope.Values.Single()[0].StartsWith("v2.", StringComparison.Ordinal);
 
     static CredentialPresentation Classify(CredentialPresentation presented)
     {

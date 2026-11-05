@@ -3,7 +3,7 @@
 
 namespace Cratis.Arc.Identity.Callers.for_CredentialPresentationGate.when_inspecting;
 
-/// <summary>Vector 22; envelope coverage is not implemented in v1.</summary>
+/// <summary>Vector 22; v1 envelope and bearer remain separate credentials.</summary>
 public class with_envelope_and_bearer : given.a_gate
 {
     void Establish()
