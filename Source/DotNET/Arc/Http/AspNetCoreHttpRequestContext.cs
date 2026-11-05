@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.AspNetCore.Http;
@@ -13,10 +14,13 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// ASP.NET Core implementation of <see cref="IHttpRequestContext"/>.
 /// </summary>
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
-public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest
+public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders
 {
     readonly AsyncLocal<Selection?> _selected = new();
     JsonSerializerOptions? _jsonOptions;
+
+    /// <inheritdoc/>
+    bool ICanPreserveCallerCredentialHeaders.PreservesDuplicateCredentialHeaders => true;
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query => httpContext.Request.Query.ToDictionary(

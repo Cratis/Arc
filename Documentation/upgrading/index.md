@@ -6,6 +6,12 @@ description: Check whether your Cratis Arc upgrade needs changes to forwarded id
 When upgrading Cratis Arc, check the guides below for behavior your application relies on. They explain
 which code or deployment settings need attention and how to check the result before deploying the upgrade.
 
+These migration guides describe C# APIs and host behavior. For other backends,
+use the [JVM parity reference](/arc/backend/kotlin/reference/parity/),
+[TypeScript capability reference](/arc/backend/typescript/reference/capabilities/),
+or [Go parity reference](/arc/go/parity/) to establish which behavior applies;
+do not apply a .NET registration or diagnostic to another host.
+
 | If your application relies on… | Follow this guide |
 | --- | --- |
 | Forwarded identity headers or anonymous access to discovery endpoints outside Development | [Secure defaults](secure-defaults.mdx): review the ingress trust boundary and choose authenticated or disabled discovery before considering anonymous access. |

@@ -16,7 +16,9 @@ find callers that need updating.
 
 This client workflow does not require a particular database or event sourcing. Your backend can use
 [current-state storage](/arc/arc-without-event-sourcing/), or integrate with
-[Cratis Chronicle](/arc/backend/csharp/chronicle/) to store events and build read models from them.
+Cratis Chronicle to store events and build read models from them. Choose the
+[Chronicle integration for your backend](/arc/backend/#pick-your-language); configuration
+and supported behavior differ.
 
 ## How the pieces fit
 
@@ -32,8 +34,9 @@ Start with a command or query you want to call from the browser:
 
 1. Define its input and result on the backend.
 2. Configure generation using the [C#](/arc/backend/csharp/proxy-generation/getting-started/),
-   [Kotlin or Java](/arc/backend/kotlin/guides/typescript-proxies/), or
-   [TypeScript](/arc/backend/typescript/proxy-generation/getting-started/) guide.
+   [Kotlin or Java](/arc/backend/kotlin/guides/typescript-proxies/),
+   [TypeScript](/arc/backend/typescript/proxy-generation/getting-started/), or
+   [Go](/arc/go/backend/go/generation/typescript/) guide.
 3. Import the generated client and call its static `.use()` hook from your React component.
 
 Each backend has its own generation commands, metadata inputs, and output paths. The React examples
@@ -44,8 +47,10 @@ The clients use the same `@cratis/arc` runtime, but backend capabilities and gen
 Use the [capability matrix](/arc/capabilities/) for C#, Kotlin, and Java, the
 [JVM parity reference](/arc/backend/kotlin/reference/parity/) for JVM differences, and the
 [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/) for the
-[TypeScript backend](/arc/backend/typescript/). Sharing a client runtime does not make the backends
-interchangeable.
+[TypeScript backend](/arc/backend/typescript/). For Go, check the
+[parity reference](/arc/go/parity/): bounded generated-client and mounted React tests
+do not establish full browser, reconnect, or React-wrapper parity. Sharing a client
+runtime does not make the backends interchangeable.
 
 ## Execute a command from React
 
