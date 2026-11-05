@@ -13,6 +13,7 @@ public class when_dispatching : Specification
     readonly List<CredentialVerification> _unsupported = [];
     readonly List<CredentialVerification> _credentialRefusals = [];
     CredentialVerification _browser;
+    CredentialVerification _delegatedBrowser;
     CredentialVerification _missingPerson;
     CredentialVerification _pat;
     CredentialVerification _bearer;
@@ -24,7 +25,9 @@ public class when_dispatching : Specification
 
     async Task Because()
     {
-        var vector = ForwardedIdentityV2Vectors.Named("credential-kind-browser-session");
+        var vector = VerificationFixture.DirectBrowser();
+        var delegated = ForwardedIdentityV2Vectors.Named("credential-kind-browser-session");
+        _delegatedBrowser = await VerificationFixture.Source(delegated).Verify(VerificationFixture.Presentation(delegated), CancellationToken.None);
         var persons = new PersonDirectory();
         _browser = await VerificationFixture.Source(vector, persons: persons).Verify(VerificationFixture.Presentation(vector), CancellationToken.None);
         _personCalls = persons.Calls;
@@ -53,6 +56,8 @@ public class when_dispatching : Specification
         }
     }
 
+    [Fact] void should_refuse_the_browser_vector_at_source_level_without_authoritative_delegation() => _delegatedBrowser.Refusal.ShouldEqual(CallerRefusal.UnsupportedProfile);
+    [Fact] void should_not_return_facts_for_the_delegated_browser_vector() => _delegatedBrowser.Facts.ShouldBeNull();
     [Fact] void should_map_browser_account_through_the_directory() => _browser.Facts!.Person!.Value.ShouldEqual("persisted-person");
     [Fact] void should_lookup_the_person_once() => _personCalls.ShouldEqual(1);
     [Fact] void should_not_promote_the_raw_subject_into_a_person() => _browser.Facts!.Person!.Value.ShouldNotEqual(_browser.Facts.AccountKey!.Subject);

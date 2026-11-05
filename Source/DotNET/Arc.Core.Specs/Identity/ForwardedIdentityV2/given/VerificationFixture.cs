@@ -33,6 +33,13 @@ internal static class VerificationFixture
         return sign ? Sign(changed) : changed;
     }
 
+    internal static Vector DirectBrowser()
+    {
+        var vector = ForwardedIdentityV2Vectors.Named("credential-kind-browser-session");
+        vector = Header(vector, "x-cratis-act", null, false);
+        return Header(vector, "x-cratis-grant-id", null);
+    }
+
     internal static string Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     internal static string Base64(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 

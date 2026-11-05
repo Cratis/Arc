@@ -43,7 +43,7 @@ internal sealed class ForwardedIdentityV2CredentialSource(
         if (result.Bearer?.Facts is { } bearerFacts) return CredentialVerification.Verified(bearerFacts);
         var context = result.Context!;
         if (context.CredentialKind == CallerCredentialKind.PersonalAccessToken) return Refuse(ForwardedIdentityV2Rejection.Credential);
-        if (context.CredentialKind != CallerCredentialKind.BrowserSession) return CredentialVerification.Refused(CallerRefusal.UnsupportedProfile);
+        if (!IsDirectBrowser(context)) return CredentialVerification.Refused(CallerRefusal.UnsupportedProfile);
         var account = new CallerAccountKey(context.Issuer!, context.Subject!);
         var found = await persons.Find(account, cancellationToken);
         if (found.Person is not { } person) return CredentialVerification.Refused(CallerRefusal.MissingRequiredField);
@@ -57,6 +57,8 @@ internal sealed class ForwardedIdentityV2CredentialSource(
             Proof = context.SenderBinding
         });
     }
+
+    static bool IsDirectBrowser(ForwardedIdentityV2Context context) => context.CredentialKind == CallerCredentialKind.BrowserSession && context.Actor is null && context.GrantId is null;
 
     CredentialVerification Refuse(ForwardedIdentityV2Rejection reason)
     {

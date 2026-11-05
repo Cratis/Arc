@@ -16,14 +16,24 @@ internal static class ForwardedIdentityV2ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="settings">The explicit installation settings.</param>
     /// <returns>The same collection for chained registration.</returns>
+    /// <exception cref="InvalidOperationException">No nonce store was explicitly registered.</exception>
     internal static IServiceCollection AddForwardedIdentityV2(this IServiceCollection services, ForwardedIdentityV2Settings settings)
     {
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IForwardedIdentityNonceStore))) throw new InvalidOperationException("Forwarded identity v2 requires an explicitly registered nonce store.");
         services.AddSingleton(settings);
-        services.TryAddSingleton<IForwardedIdentityNonceStore, ProcessLocalForwardedIdentityNonceStore>();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IForwardedBearerVerifier, ForwardedBearerVerifierAdapter>();
         services.TryAddScoped<ForwardedIdentityV2Verifier>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IVerifiedCredentialSource, ForwardedIdentityV2CredentialSource>());
+        return services;
+    }
+
+    /// <summary>Explicitly selects single-process replay protection without replacing an existing store.</summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The same collection for chained registration.</returns>
+    internal static IServiceCollection AddProcessLocalForwardedIdentityNonceStore(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IForwardedIdentityNonceStore, ProcessLocalForwardedIdentityNonceStore>();
         return services;
     }
 }
