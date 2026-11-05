@@ -103,5 +103,5 @@ public static class GraphDatabaseName
         });
 
     static string Hash(string value) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..HashLength];
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..HashLength].ToLowerInvariant();
 }
