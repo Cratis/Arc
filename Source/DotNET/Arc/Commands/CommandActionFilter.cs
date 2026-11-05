@@ -31,6 +31,20 @@ public class CommandActionFilter(
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        if (context.ActionDescriptor.Parameters.Any(parameter => RequiresApproval(parameter.ParameterType)) ||
+            context.ActionArguments.Values.Any(argument => argument is not null && RequiresApproval(argument.GetType())))
+        {
+            using var approvalReceipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
+            var approvalContext = EstablishCommandContext(context);
+            PublishResult(context, null, new CommandResult<object>
+            {
+                CorrelationId = approvalContext.CorrelationId,
+                IsAuthorized = false,
+                AuthorizationFailureReason = ApprovalGate.RefusalReason
+            });
+            return;
+        }
+
         if (context.HttpContext.Request.Method != HttpMethod.Post.Method)
         {
             await next();
@@ -39,18 +53,6 @@ public class CommandActionFilter(
 
         using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
         var commandContext = EstablishCommandContext(context);
-        if (context.ActionDescriptor.Parameters.Any(parameter => ApprovalGate.RequiresApproval(parameter.ParameterType)) ||
-            context.ActionArguments.Values.Any(argument => argument is not null && ApprovalGate.RequiresApproval(argument.GetType())))
-        {
-            PublishResult(context, null, new CommandResult<object>
-            {
-                CorrelationId = commandContext.CorrelationId,
-                IsAuthorized = false,
-                AuthorizationFailureReason = ApprovalGate.RefusalReason
-            });
-            return;
-        }
-
         var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
         using var span = activitySource.OnCommand(routeTemplate);
         span.Activity?.SetTag(WellKnownTelemetryNames.HttpRoute, routeTemplate);
@@ -61,6 +63,11 @@ public class CommandActionFilter(
         }
 
         await ExecuteCommand(context, next, commandContext);
+
+        bool RequiresApproval(Type type) =>
+            ApprovalGate.RequiresApproval(type) ||
+            (context.HttpContext.RequestServices?.GetService<IModelMetadataProvider>()?.GetMetadataForType(type).ElementMetadata?.ModelType is { } elementType &&
+             ApprovalGate.RequiresApproval(elementType));
     }
 
     static async Task ExecuteCommand(ActionExecutingContext context, ActionExecutionDelegate next, CommandContext commandContext)

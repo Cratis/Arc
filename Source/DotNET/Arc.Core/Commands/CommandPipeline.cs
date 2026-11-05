@@ -626,17 +626,30 @@ public class CommandPipeline(
                 return await CompleteExecutionScopes(result);
             }
 
-            // Approval-requiring commands never reach argument resolution or the handler; until an approval package is registered they are refused.
-            var approval = await ApprovalGate.ForExecution(commandContext, serviceProvider);
-            if (approval is not null)
-            {
-                return await CompleteExecutionScopes(approval);
-            }
-
             if (preparedAuthorization is null && commandContext.AuthorizedPrincipal is not null)
             {
                 // Dynamically supplied scheme metadata was not visible before execution scopes began.
                 throw new InvalidAuthorizationConfiguration($"Command '{command.GetType()}' selected an authentication scheme after execution scopes began.");
+            }
+
+            if (ApprovalGate.RequiresApproval(command.GetType()))
+            {
+                if (!HasCurrentAuthorizationVerdict())
+                {
+                    return await CompleteExecutionScopes(CommandResult.AuthorizationConfigurationFailure(correlationId));
+                }
+
+                if (snapshot.MembershipDenied)
+                {
+                    return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+                }
+
+                // Approval can begin only after authorization, and never reaches argument resolution or the handler.
+                var approval = await ApprovalGate.ForExecution(commandContext, serviceProvider);
+                if (approval is not null)
+                {
+                    return await CompleteExecutionScopes(approval);
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -664,16 +677,21 @@ public class CommandPipeline(
             // permission to invoke the handler. Re-resolve even after a successful no-policy filter: a custom
             // evaluator can change requirements on the same target between the filter and invocation. A cached
             // no-policy marker would hide that change. This repeats declaration lookup, not policy evaluation.
-            var currentDeclaration = (serviceProvider.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(command.GetType());
-            var missingVerdict = commandContext.AuthorizedExecution is null &&
-                (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true ||
-                 currentDeclaration.RequiresAsynchronousEvaluation);
-            if (missingVerdict ||
-                (commandContext.AuthorizedExecution is { } verdict &&
-                 !verdict.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(), currentDeclaration)))
+            if (!HasCurrentAuthorizationVerdict())
             {
                 return await CompleteExecutionScopes(CommandResult.AuthorizationConfigurationFailure(correlationId));
+            }
+
+            bool HasCurrentAuthorizationVerdict()
+            {
+                var currentDeclaration = (serviceProvider.GetService<AuthorizationDeclarations>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(command.GetType());
+                var missingVerdict = commandContext.AuthorizedExecution is null &&
+                    (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true ||
+                     currentDeclaration.RequiresAsynchronousEvaluation);
+                return !missingVerdict &&
+                    (commandContext.AuthorizedExecution is not { } verdict ||
+                     verdict.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(), currentDeclaration));
             }
 
             // Read again: a context values provider or modifier can have resolved the tenant since the read above.

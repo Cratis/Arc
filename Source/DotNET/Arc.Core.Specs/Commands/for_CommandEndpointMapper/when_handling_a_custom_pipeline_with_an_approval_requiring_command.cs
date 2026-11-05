@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Queries.for_QueryEndpointMapper.given;
@@ -13,9 +15,13 @@ namespace Cratis.Arc.Commands.for_CommandEndpointMapper;
 public class when_handling_a_custom_pipeline_with_an_approval_requiring_command
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task should_refuse_execute_and_validate_without_entering_the_pipeline(bool registerFlow)
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    public async Task should_refuse_execute_and_validate_without_entering_the_pipeline(bool registerFlow, bool authorized, bool supportedConfiguration)
     {
         var pipeline = Substitute.For<ICommandPipeline>();
         var flow = Substitute.For<IApprovalFlow>();
@@ -32,11 +38,17 @@ public class when_handling_a_custom_pipeline_with_an_approval_requiring_command
         mapper.MapCommandEndpoints(mappingServices);
         var correlationIdAccessor = Substitute.For<ICorrelationIdAccessor>();
         correlationIdAccessor.Current.Returns(CorrelationId.New());
+        var authorization = Substitute.For<IAuthorizationEvaluator>();
+        authorization.IsAuthorized(typeof(ProtectedCommand)).Returns(authorized);
         var registrations = new ServiceCollection()
             .AddLogging()
             .AddSingleton(pipeline)
             .AddSingleton(Options.Create(new ArcOptions()))
-            .AddSingleton(correlationIdAccessor);
+            .AddSingleton(correlationIdAccessor)
+            .AddSingleton(authorization)
+            .AddSingleton(new AuthorizationDeclarations(
+                new KnownInstancesOf<IAnonymousEvaluator>([]),
+                new KnownInstancesOf<IAuthorizationAttributeEvaluator>(supportedConfiguration ? [] : [new PolicyDeclaration()])));
         if (registerFlow) registrations.AddSingleton(flow);
         await using var services = registrations.BuildServiceProvider();
         foreach (var endpoint in mapper.Mapped)
@@ -47,8 +59,9 @@ public class when_handling_a_custom_pipeline_with_an_approval_requiring_command
             context.ReadBodyAsJson(typeof(ProtectedCommand), Arg.Any<CancellationToken>()).Returns(new ProtectedCommand());
             await endpoint.Handler(context);
             context.Received(1).SetStatusCode(403);
+            var expectedReason = authorized && supportedConfiguration ? ApprovalGate.RefusalReason : string.Empty;
             await context.Received(1).WriteResponseAsJson(
-                Arg.Is<object?>(value => value is CommandResult && ((CommandResult)value).AuthorizationFailureReason == ApprovalGate.RefusalReason),
+                Arg.Is<object?>(value => value is CommandResult && !((CommandResult)value).IsAuthorized && !((CommandResult)value).HasExceptions && ((CommandResult)value).AuthorizationFailureReason == expectedReason),
                 Arg.Any<Type>(),
                 Arg.Any<CancellationToken>());
         }
@@ -59,4 +72,12 @@ public class when_handling_a_custom_pipeline_with_an_approval_requiring_command
 
     [RequiresApproval]
     public record ProtectedCommand;
+
+    class PolicyDeclaration : IAuthorizationAttributeEvaluator
+    {
+        public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(Type type) => null;
+        public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(MethodInfo method) => null;
+        public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
+            type == typeof(ProtectedCommand) ? [AuthorizationRequirement.FromAttribute(null, "Protected", null)] : [];
+    }
 }
