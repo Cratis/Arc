@@ -14,6 +14,11 @@ public static class WellKnownConnectionStorage
     public const string MongoDB = "MongoDB";
 
     /// <summary>
+    /// Neo4j graph database. A resolved connection string is a Bolt URI, and a resolved database names a graph database.
+    /// </summary>
+    public const string Neo4j = "Neo4j";
+
+    /// <summary>
     /// Microsoft SQL Server, including Azure SQL.
     /// </summary>
     public const string SqlServer = "SqlServer";
