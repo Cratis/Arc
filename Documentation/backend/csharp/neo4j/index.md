@@ -1,0 +1,25 @@
+---
+title: Neo4j graph access in Cratis Arc
+description: Read a Neo4j property graph from Cratis Arc commands and queries with a tenant-aware session, database naming shared with Chronicle, and strongly typed concept mapping.
+---
+
+Cratis Arc's Neo4j integration gives commands and queries a session on the graph database of the current tenant. Add `Cratis.Arc.Neo4j` to inject an `IGraphSession` into model-bound queries, a command's `Provide()` method and ordinary services, with the same convenience the MongoDB integration gives documents. You can use it without Chronicle or event sourcing.
+
+A graph is what events leave behind: Chronicle's Neo4j graph sink writes nodes and relationships from graph projections, and nobody writes to it directly. Arc reads it. That is why the session is a read session by default.
+
+## Start with a read
+
+Follow [getting started](./getting-started.md) to install the package, connect your host to a server and run the first query.
+
+## Read the right graph
+
+- [Tenancy](./tenancy.md): the database naming Arc and Chronicle share, and the single-database mode for development.
+- [Connection resolution](./connection-resolution.md): choose a server, database or credentials for each tenant.
+
+## Write the queries
+
+- [Querying](./querying.md): run Cypher through the session and map the rows to your types.
+- [Concepts](./concepts.md): bind `ConceptAs<T>` values as parameters and get them back in results.
+- [Testing](./testing.md): substitute the session in specifications and command scenarios.
+
+If your documents live in MongoDB instead, see the [MongoDB integration](../mongodb/index.md). Both follow the same [tenancy](../tenancy/index.md) model.

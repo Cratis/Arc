@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc connection resolution for tenant storage
-description: "Cratis Arc connection resolution selects each tenant's MongoDB or EF Core destination and credentials through templates, an HTTP endpoint or application code."
+description: "Cratis Arc connection resolution selects each tenant's MongoDB, Neo4j or EF Core destination and credentials through templates, an HTTP endpoint or application code."
 ---
 
 Cratis Arc connection resolution selects the server, database and connection identity for a tenant when the configured connection is not enough. Use it when tenant databases follow a naming rule, live on different servers, or need credentials supplied by another service.
@@ -18,7 +18,7 @@ Resolution has two optional slots, and both take the same kind of resolver:
 
 Arc starts from the configured connection, applies the `Connection` result, then applies the `Identity` result. A part set later wins. For example, leave `Connection` at its default and configure only `Identity` to fetch credentials without moving the database. Both slots accept the same response shape, so either can return destination or identity parts; their names describe the intended split.
 
-The storage integration determines which returned parts it applies. In Arc's MongoDB and EF Core integrations, a resolved `Schema` is not applied. Choose a database destination for isolation through connection resolution, or implement schema isolation separately in the application.
+The storage integration determines which returned parts it applies. In Arc's MongoDB, Neo4j and EF Core integrations, a resolved `Schema` is not applied. Choose a database destination for isolation through connection resolution, or implement schema isolation separately in the application.
 
 ```mermaid
 flowchart LR
@@ -208,6 +208,7 @@ An integration that configures its own `ConnectionResolution` uses that instead,
 ## Configure it for one storage
 
 - [MongoDB connection resolution](../mongodb/connection-resolution.md)
+- [Neo4j connection resolution](../neo4j/connection-resolution.md)
 - [Entity Framework Core connection resolution](../entity-framework/connection-resolution.md)
 
 After configuring resolution, verify where a named tenant and both default-tenant aliases actually connect. A resolved database replaces the default name; existing data does not move with the configuration. Continue with [database isolation](./database-resolvers.md) to check the destination and [tenant membership](./membership.md) to enforce who may use it.

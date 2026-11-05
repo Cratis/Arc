@@ -28,6 +28,8 @@
   href: application-calendar.md
 - name: MongoDB
   href: mongodb/toc.yml
+- name: Neo4j
+  href: neo4j/toc.yml
 - name: Entity Framework
   href: entity-framework/toc.yml
 - name: Proxy Generation
