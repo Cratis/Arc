@@ -1,16 +1,16 @@
 ---
 title: Signed forwarded identity v2
-description: Draft ES256 wire contract for AuthProxy identity attestation, authenticated TLS, and replay-sensitive Arc requests.
+description: ES256 wire contract for AuthProxy identity attestation, authenticated TLS, and replay-sensitive Arc requests.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-> **Draft — contract not final until owner sign-off**
+> **Status: Locked v1.** This wire contract is final; any change requires a new contract version.
 
 ## Concept and compatibility
 
-AuthProxy signs the identity facts it forwards; Arc verifies them with an app-specific public key. This reference specifies v2, not an already released configuration API. Signer and verifier owners must approve the contract before implementing it.
+AuthProxy signs the identity facts it forwards; Arc verifies them with an app-specific public key. This reference specifies the v2 wire contract, not an already released configuration API.
 
 Published v1 remains unchanged: `v1.<kid>.<ts>.<nonce>.<mac>`, HMAC-SHA256, with a 32-byte nonce and process-local replay detection. Existing opt-in integrations and explicitly named local-development profiles may retain v1. The production target is v2-only. A v2-only backend rejects v1 and unsigned forwarding; it never retries another version or falls back to native authentication after a failed forwarded credential. This fail-closed request policy is intentionally stricter than v1's authentication-scheme composition.
 
@@ -18,7 +18,7 @@ Sign every identity-bearing producer before switching a backend: YARP requests, 
 
 ## Normative vocabulary
 
-This draft depends on Identity's `identity-contract` version 1, Terms and §§2, 4–6. The relevant definitions below are reused verbatim; their presence does not claim that the Identity Draft is Locked.
+This contract depends on Identity's `identity-contract` version 1, Terms and §§2, 4–6. The relevant definitions below are reused verbatim.
 
 | Term | Definition |
 | --- | --- |
@@ -73,7 +73,7 @@ Unknown suffixes of either prefix are covered, and the edge strips them all befo
 
 `aud` is a canonical frame from the backend's trusted resource catalog configuration, not a header. In v2 it is exactly one 1–64-character ASCII slug matching `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`. Compare it exactly without normalization. This narrows v2's audience value grammar; it does not alter v1's existing audience grammar. The synthetic vectors bind `https://api.example.test` to `example-api` in their trusted catalog. The resource indicator URL is never substituted into the `aud` frame.
 
-v2 additionally covers these exact header names. These names and value rules are draft choices requiring owner sign-off:
+v2 additionally covers these exact header names. These names and value rules are part of the contract:
 
 | Header | Meaning and representation |
 | --- | --- |
@@ -101,7 +101,7 @@ Trim only outer HTTP OWS (SP and HTAB) on covered values. Preserve internal prin
 
 ## Verified caller construction and requiredness
 
-These headers map to the exact logical field names in the Arc verified-caller v1 draft; they do not define new OAuth claims or rename its record. Recognized envelope wire version `v2` selects a reviewed local verification profile; the caller record's `contractVersion` is `"1"`, not `"2"`. Unknown profiles are refused. `credentialKind` and non-secret `credentialId` come from the verified credential record. The product resolves `person` from the confirmed `accountKey` mapping; it never manufactures a product person from a display name. A service caller instead uses an allowlisted `servicePrincipal`, not a fabricated person or Actor.
+These headers map to the exact logical field names in the Arc verified-caller v1 contract; they do not define new OAuth claims or rename its record. Recognized envelope wire version `v2` selects a reviewed local verification profile; the caller record's `contractVersion` is `"1"`, not `"2"`. Unknown profiles are refused. `credentialKind` and non-secret `credentialId` come from the verified credential record. The product resolves `person` from the confirmed `accountKey` mapping; it never manufactures a product person from a display name. A service caller instead uses an allowlisted `servicePrincipal`, not a fabricated person or Actor.
 
 | Verified credential kind | Signed person and assurance fields | Other required context |
 | --- | --- | --- |

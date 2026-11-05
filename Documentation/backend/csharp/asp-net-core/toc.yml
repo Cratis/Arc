@@ -8,7 +8,7 @@
   href: microsoft-identity.md
 - name: Signed forwarded identity v1
   href: signed-forwarded-identity.md
-- name: Signed forwarded identity v2 (draft)
+- name: Signed forwarded identity v2
   href: signed-forwarded-identity-v2.md
 - name: Acting on behalf of a user
   href: acting-on-behalf-of.md

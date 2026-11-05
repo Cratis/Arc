@@ -7,7 +7,7 @@ Signed forwarding lets a provisioned ingress attest the identity headers it send
 
 See also [configuration](configuration.md), [Microsoft identity](microsoft-identity.md), and [on-behalf forwarding](acting-on-behalf-of.md).
 
-For the proposed ES256 contract, see [signed forwarded identity v2 (draft)](signed-forwarded-identity-v2.md). The v1 contract below is unchanged.
+For the ES256 contract, see [signed forwarded identity v2](signed-forwarded-identity-v2.md). The v1 contract below is unchanged.
 
 ## Configure a verifier
 
