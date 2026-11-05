@@ -58,6 +58,18 @@ Use TLS passthrough to Kestrel so it authenticates the immediate peer. Alternati
 
 This additional gate defaults to disabled for v1 compatibility. The internal v2 verifier always requires host-admitted immediate-hop evidence, even on replay-insensitive queries, before envelope parsing, bearer verification, or nonce reservation. V2 remains internal and is not a released configuration API. This implements the authenticated-TLS clause of the draft v2 contract.
 
+## Forwarding diagnostics
+
+Startup reports the accepted forms and certificate requirement for `Requests`, `IdentityDetails`, and
+`TenantList`. Runtime acceptance is reported once per process for each flow/form; refusals are limited
+to one warning per minute for each flow/reason. Only the canonical Arc discovery paths `/.cratis/me`
+and `/.cratis/tenants` receive the distinct `IdentityDetails` and `TenantList` labels. Custom AuthProxy
+identity-details or tenant-list URLs are classified as `Requests`; no forwarding header supplies or
+overrides that label. The admission policy is the same for every path.
+
+Valid signed v1 configurations without required transport certificates still start in either profile,
+but emit an advisory warning to restrict backend access or enable the certificate requirement.
+
 ## Wire contract v1
 
 Send exactly one `x-cratis-forwarded-identity-signature` field value:

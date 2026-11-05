@@ -84,6 +84,7 @@ internal sealed class ForwardedIdentityOptionsValidator(ILogger<ForwardedIdentit
     void Report(ArcOptions options, ForwardedIdentityPolicy policy)
     {
         if (policy.UnsignedV1) logger.UnsignedLocalDevelopment();
+        if (policy.SignedV1 && !options.ForwardedIdentity.ClientCertificate.Required) logger.SignedForwardingWithoutCertificate();
         if (options.ForwardedIdentityV2 && !options.ForwardedIdentity.ClientCertificate.Required) logger.V2WithoutCertificateLocalDevelopment();
         if (!options.TrustForwardedIdentityHeaders && HasConfiguredForwarding(options)) logger.ForwardingDisabledByMasterSwitch();
         logger.ForwardingPolicyAtStartup("Requests", options.Profile, policy.UnsignedV1, policy.SignedV1, policy.V2, options.ForwardedIdentity.ClientCertificate.Required);

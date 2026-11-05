@@ -10,6 +10,9 @@ internal static partial class ForwardedIdentityPolicyLogging
     [LoggerMessage(LogLevel.Warning, "Unsigned forwarded identity is enabled for LocalDevelopment only. Never expose this profile on a deployed host. Configure signed forwarding before deployment.")]
     internal static partial void UnsignedLocalDevelopment(this ILogger logger);
 
+    [LoggerMessage(LogLevel.Warning, "Signed forwarded identity is enabled without required transport certificates. Restrict backend access to the forwarding peer or configure ForwardedIdentity:ClientCertificate:Required=true.")]
+    internal static partial void SignedForwardingWithoutCertificate(this ILogger logger);
+
     [LoggerMessage(LogLevel.Warning, "Forwarded identity v2 is configured without required transport certificates in LocalDevelopment. Requests still require authenticated transport; this profile does not synthesize hop evidence.")]
     internal static partial void V2WithoutCertificateLocalDevelopment(this ILogger logger);
 

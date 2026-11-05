@@ -49,7 +49,7 @@ internal sealed class ForwardedIdentityDiagnostics(TimeProvider clock)
 
     static string Flow(IHttpRequestContext request) => request.Path.TrimEnd('/') switch
     {
-        "/.cratis/me" or "/.cratis/identity-details" => "IdentityDetails",
+        "/.cratis/me" => "IdentityDetails",
         "/.cratis/tenants" => "TenantList",
         _ => "Requests"
     };
