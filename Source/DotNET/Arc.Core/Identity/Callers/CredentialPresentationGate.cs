@@ -9,6 +9,8 @@ namespace Cratis.Arc.Identity.Callers;
 /// <summary>
 /// Refuses ambiguous or URI credentials before verification. Form-body credentials are not inspected: Arc commands and queries use JSON.
 /// Raw header values are copied once; neither flattened headers nor request identity can replace this input.
+/// Only the Bearer Authorization scheme is accepted in v1; the DPoP scheme is refused as MalformedAuthorization.
+/// DPoP sender-binding transport support is deferred to the PAT/workload work. Session cookies are not counted as credentials in v1.
 /// </summary>
 /// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 internal sealed class CredentialPresentationGate

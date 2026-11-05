@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Identity.Callers.given;
+using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.Identity.Callers.for_VerifiedCallerBuilder.when_building;
 
@@ -11,7 +12,7 @@ public class an_organization_automation : given.a_builder
     void Establish()
     {
         _facts = verified_facts.Service();
-        _tenant = null;
+        _tenant = TenantId.NotSet;
     }
     void Because() => Build();
 

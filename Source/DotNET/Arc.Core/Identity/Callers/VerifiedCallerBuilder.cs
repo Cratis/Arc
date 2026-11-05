@@ -167,7 +167,8 @@ internal sealed class VerifiedCallerBuilder(CallerResourceCatalog catalog)
     static bool ProofMatches(VerifiedCredentialFacts facts) => !string.IsNullOrWhiteSpace(facts.Cnf) &&
         !string.IsNullOrWhiteSpace(facts.Proof.Jti) && string.Equals(facts.Proof.KeyThumbprint, facts.Cnf, StringComparison.Ordinal);
 
-    static bool ValidTenant(TenantId? verified, TenantId? resolved) => verified == resolved &&
+    static bool ValidTenant(TenantId? verified, TenantId? resolved) => verified != TenantId.NotSet &&
+        verified == (resolved == TenantId.NotSet ? null : resolved) &&
         (verified is null || !string.IsNullOrWhiteSpace(verified.Value));
 
     CallerRefusal? CheckInstallation(VerifiedCredentialFacts facts, VerifiedCallerInstallation installation, TenantId? tenant)

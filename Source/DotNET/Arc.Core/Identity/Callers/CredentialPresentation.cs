@@ -7,6 +7,7 @@ namespace Cratis.Arc.Identity.Callers;
 /// A single copied set of presented credentials, not proof of authenticity. Contains sensitive transport values: never log it.
 /// Envelope v1 plus bearer are two credentials. A future v2 verifier may claim a bearer only after checking its signed exact-token hash;
 /// that future rule belongs in the gate's multiple-credential decision, not in header collection. No v2 coverage is implemented here.
+/// DPoP Authorization transport is a v1 non-goal and is refused as MalformedAuthorization; sender-binding support is deferred to the PAT/workload work.
 /// </summary>
 /// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 /// <param name="authorization">Copied authorization values.</param>

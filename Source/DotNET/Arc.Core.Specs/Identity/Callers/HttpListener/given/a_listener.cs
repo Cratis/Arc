@@ -17,14 +17,8 @@ public class a_listener : Specification
 
     internal async Task Inspect(string headers)
     {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
         var host = OperatingSystem.IsWindows() ? "localhost" : "127.0.0.1";
-        using var listener = new System.Net.HttpListener();
-        listener.Prefixes.Add($"http://{host}:{port}/");
-        listener.Start();
+        using var listener = StartListener(host, out var port);
         using var client = new TcpClient();
         await client.ConnectAsync(host, port);
         var wire = $"POST /mcp HTTP/1.1\r\nHost: {host}:{port}\r\nContent-Length: 0\r\n{headers}\r\n";
@@ -41,6 +35,32 @@ public class a_listener : Specification
         finally
         {
             received.Response.Close();
+        }
+    }
+
+    static System.Net.HttpListener StartListener(string host, out int port)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var probe = new TcpListener(IPAddress.Loopback, 0);
+            probe.Start();
+            port = ((IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+            var listener = new System.Net.HttpListener();
+            listener.Prefixes.Add($"http://{host}:{port}/");
+            try
+            {
+                listener.Start();
+                return listener;
+            }
+            catch (HttpListenerException)
+            {
+                listener.Close();
+                if (attempt == 3)
+                {
+                    throw;
+                }
+            }
         }
     }
 }
