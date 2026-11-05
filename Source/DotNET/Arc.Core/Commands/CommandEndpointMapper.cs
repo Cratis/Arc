@@ -5,6 +5,7 @@ using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Approvals;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -171,6 +172,10 @@ public static class CommandEndpointMapper
                         commandResult = validateOnly
                             ? await builtInPipeline.ValidateHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await builtInPipeline.ExecuteHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
+                    }
+                    else if (ApprovalGate.RequiresApproval(commandType))
+                    {
+                        commandResult = ApprovalGate.Refusal(correlationIdAccessor.Current);
                     }
                     else if (!CanExecuteWithCustomPipeline(context.RequestServices, commandType, logger))
                     {

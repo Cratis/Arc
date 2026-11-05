@@ -51,6 +51,24 @@ public record AllocateManagedIdentifier()
 
 Separate authorization attributes all apply. If your application also defines an `ApplicationRole.Auditor` member, `[Roles(nameof(ApplicationRole.Admin))]` together with `[Authorize(Roles = nameof(ApplicationRole.Auditor))]` requires both roles.
 
+## Requiring approval
+
+Mark a command with `[RequiresApproval]` from `Cratis.Arc.Identity.Approvals` when it needs approval before its handler can execute:
+
+```csharp
+using System;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Identity.Approvals;
+
+[Command, RequiresApproval]
+public record AllocateReviewedIdentifier
+{
+    public Guid Handle() => Guid.NewGuid();
+}
+```
+
+The requirement is inherited by derived command types. Until an approval package registers an approval flow, execution and validation are refused with HTTP 403 (`IsAuthorized` is `false`); neither `Provide()` nor `Handle()` runs. Existing authorization and validation rules still apply before approval begins. Custom pipelines and controller actions do not support approval handoff and refuse marked commands even when a flow is registered.
+
 ## Authorization results
 
 In an async caller with `ICommandPipeline pipeline` injected from `Cratis.Arc.Commands` and `System` imported, execute the managed command above:

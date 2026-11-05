@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
 using Cratis.Traces;
@@ -38,6 +39,18 @@ public class CommandActionFilter(
 
         using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
         var commandContext = EstablishCommandContext(context);
+        if (context.ActionDescriptor.Parameters.Any(parameter => ApprovalGate.RequiresApproval(parameter.ParameterType)) ||
+            context.ActionArguments.Values.Any(argument => argument is not null && ApprovalGate.RequiresApproval(argument.GetType())))
+        {
+            PublishResult(context, null, new CommandResult<object>
+            {
+                CorrelationId = commandContext.CorrelationId,
+                IsAuthorized = false,
+                AuthorizationFailureReason = ApprovalGate.RefusalReason
+            });
+            return;
+        }
+
         var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
         using var span = activitySource.OnCommand(routeTemplate);
         span.Activity?.SetTag(WellKnownTelemetryNames.HttpRoute, routeTemplate);

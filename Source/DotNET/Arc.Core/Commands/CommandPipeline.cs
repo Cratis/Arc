@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
@@ -625,6 +626,13 @@ public class CommandPipeline(
                 return await CompleteExecutionScopes(result);
             }
 
+            // Approval-requiring commands never reach argument resolution or the handler; until an approval package is registered they are refused.
+            var approval = await ApprovalGate.ForExecution(commandContext, serviceProvider);
+            if (approval is not null)
+            {
+                return await CompleteExecutionScopes(approval);
+            }
+
             if (preparedAuthorization is null && commandContext.AuthorizedPrincipal is not null)
             {
                 // Dynamically supplied scheme metadata was not visible before execution scopes began.
@@ -896,6 +904,10 @@ public class CommandPipeline(
             }
 
             result = FilterValidationResults(result, commandContext);
+            if (result.IsSuccess && ApprovalGate.ForValidation(commandContext, serviceProvider) is { } refusal)
+            {
+                result = refusal;
+            }
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
