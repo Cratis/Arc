@@ -9,7 +9,10 @@ Most Arc snags come down to a handful of causes. Here they are. If the slice use
 The fixes below are for C#. See [JVM troubleshooting](/arc/backend/kotlin/troubleshooting/)
 for Gradle, KSP, and Spring Boot, or [TypeScript proxy generation](/arc/backend/typescript/proxy-generation/getting-started/)
 and the [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/)
-for the Node.js backend. Do not apply the .NET build or discovery steps to those hosts.
+for the Node.js backend. For Go, use its
+[running application guide](/arc/go/backend/go/core/getting-started/) and
+[parity reference](/arc/go/parity/). Do not apply the .NET build or discovery steps
+to those hosts.
 :::
 
 ## My frontend can't find the generated proxy

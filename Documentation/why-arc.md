@@ -11,13 +11,13 @@ Event sourcing is a separate choice. Cratis generally favors it for information 
 
 ## What Arc gives you
 
-On C#, a command is a record with a `Handle()` method; on the JVM and TypeScript it has a `handle()` method. A query can be a method on a read model, the data shape returned to the caller. Arc maps those commands and queries to HTTP automatically.
+On C#, a command is a record with a `Handle()` method; on the JVM and TypeScript it has a `handle()` method. A query can be a method on a read model, the data shape returned to the caller. Go uses explicit metadata and typed adapters rather than those attributes or decorators; start with its [running application guide](/arc/go/backend/go/core/getting-started/). Arc maps registered commands and queries to HTTP.
 
 Configure proxy generation to produce typed clients for recognized commands and queries that are not excluded. On C#, set `CratisProxiesOutputPath`; type and namespace exclusions control what is included. The [proxy boundary guide](./understanding-the-proxy-boundary.mdx) explains what generation covers and how to regenerate after a contract change.
 
 Your command and query code uses the storage you configure: [Chronicle](/arc/backend/csharp/chronicle/) for event sourcing, [MongoDB](/arc/backend/csharp/mongodb/) or [EF Core / SQL](/arc/backend/csharp/entity-framework/) for current state on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on the JVM, or [MongoDB and Drizzle](/arc/backend/typescript/reference/capabilities/) on TypeScript. Chronicle adds its [command transaction semantics](/arc/backend/csharp/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
 
-On C#, Arc also supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Check each other backend's capability reference for its integration surface. Your application must configure trusted authentication, membership checks, storage isolation, and business constraints.
+On C#, Arc also supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Check the [capability matrix](/arc/capabilities/), [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/), and [Go parity reference](/arc/go/parity/) for each backend's integration surface and verification limits. Your application must configure trusted authentication, membership checks, storage isolation, and business constraints.
 
 ## Why CQRS and proxy generation?
 

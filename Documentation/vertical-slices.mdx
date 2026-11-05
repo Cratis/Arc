@@ -13,6 +13,11 @@ We recommend organizing an application by **feature**, with a folder per slice. 
 
 Use this layout when you want to follow a change from its input through persistence to the screen without moving between technical layers. The registration example below shows where those files go. For implementation steps, the [standalone Arc tutorial](/arc/tutorial/) builds a database-backed feature; the [capstone walkthrough](/build-a-full-app/) connects the wider Cratis stack.
 
+The file-tree examples use C# backend filenames and a React frontend. The layout
+convention is language-neutral: Kotlin, Java, TypeScript, and Go slices group the
+same responsibilities using their own source files and generation tools. Choose
+your [backend setup](/arc/backend/) before applying the implementation examples.
+
 ## The pain it removes
 
 In a layer-organized codebase, registering an author can involve files in several folders:

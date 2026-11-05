@@ -9,7 +9,7 @@ Use this approach for a bounded CRUD (create, read, update, delete) feature, suc
 
 ## The line between Arc and Chronicle
 
-Arc can sit on top of Chronicle; Chronicle never depends on Arc. A current-state slice uses Arc without that integration. Each backend has its own current-state integrations: [MongoDB](./backend/csharp/mongodb/index.md) and [Entity Framework](./backend/csharp/entity-framework/index.md) on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on JVM, and [MongoDB or Drizzle](/arc/backend/typescript/reference/capabilities/) on TypeScript. Chronicle adds the optional event-sourced path.
+Arc can sit on top of Chronicle; Chronicle never depends on Arc. A current-state slice uses Arc without that integration. Each backend has its own current-state integrations: [MongoDB](./backend/csharp/mongodb/index.md) and [Entity Framework](./backend/csharp/entity-framework/index.md) on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on JVM, [MongoDB or Drizzle](/arc/backend/typescript/reference/capabilities/) on TypeScript, and explicit providers in [Arc for Go](/arc/go/). Check Go's [parity reference](/arc/go/parity/) for each provider's verification limits. Chronicle adds the optional event-sourced path.
 
 ```mermaid
 flowchart TB
@@ -24,7 +24,7 @@ With current-state storage, the handler writes the data that queries read. With 
 ## A standalone slice, end to end
 
 :::note[Choose your backend]
-The document-store examples and host excerpts below have tabs for each backend. The proxy-generation and testing guidance that follows is .NET-specific. For JVM setup and testing see [Spring Data read models](/arc/backend/kotlin/guides/spring-data/) and [testing](/arc/backend/kotlin/guides/testing/); for TypeScript see [getting started](/arc/backend/typescript/getting-started/) and [testing](/arc/backend/typescript/testing/).
+The document-store examples and host excerpts below have C#, Kotlin, Java, and TypeScript tabs. Go examples are not included; use its [running application guide](/arc/go/backend/go/core/getting-started/) for explicit registration and handlers. The proxy-generation and testing guidance that follows is .NET-specific. For JVM setup and testing see [Spring Data read models](/arc/backend/kotlin/guides/spring-data/) and [testing](/arc/backend/kotlin/guides/testing/); for TypeScript see [getting started](/arc/backend/typescript/getting-started/) and [testing](/arc/backend/typescript/testing/).
 :::
 
 These excerpts show registering an author and listing authors live in MongoDB. For a runnable project, use [standalone .NET setup](./backend/csharp/getting-started/index.md) and its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/), [Kotlin setup](/arc/backend/kotlin/get-started/), [Java setup](/arc/backend/kotlin/get-started/java/), or [TypeScript setup](/arc/backend/typescript/getting-started/) for domain declarations, host, database configuration, and replica-set bootstrap. The explanation here does not replace those prerequisites.
