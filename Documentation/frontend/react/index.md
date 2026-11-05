@@ -1,6 +1,6 @@
 ---
 title: React
-description: Use generated Arc command and query proxies in React, with hooks for submitting changes and reading application state.
+description: Use generated Arc TypeScript proxies in React to submit commands, read query results and observe live updates through typed hooks and result state.
 ---
 
 Once your backend has a command to submit or a query to read, use its generated proxy in a React component. Arc's `.use()` hooks connect those typed contracts to rendering, so the component does not need its own HTTP client or duplicate request types.

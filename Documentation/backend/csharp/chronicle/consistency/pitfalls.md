@@ -1,6 +1,6 @@
 ---
 title: Pitfalls that fail silently
-description: The ways a rule stops holding without an error, with the analyzer that reports each and the fix.
+description: Diagnose silent consistency failures in Arc C# commands, including unprotected reads, ignored commit results, stream boundaries and analyzer fixes.
 ---
 
 Use this page when a rule holds in every test and still breaks in production. These failures do not raise an error. Failures that do raise one, such as a refused read or a conflict, are on [Refusals](./refusals.md).

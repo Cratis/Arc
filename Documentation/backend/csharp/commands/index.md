@@ -1,6 +1,6 @@
 ---
 title: Commands
-description: Change application state through standalone Arc commands, validation, and typed responses.
+description: Define C# commands in Arc to change application state with handlers, authorization, validation and typed results, without requiring event sourcing.
 ---
 
 Opening an account or adding a cart line needs input, a handler, and a result the caller can check. An Arc command keeps the input with the behavior that handles it. Arc supplies the HTTP endpoint, command result, and generated TypeScript proxy, so you do not repeat that plumbing for each operation.

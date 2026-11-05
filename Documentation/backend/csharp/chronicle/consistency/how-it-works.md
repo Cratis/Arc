@@ -1,6 +1,6 @@
 ---
 title: How read protection works
-description: What Arc does for each command under On, how a guard is derived from your reads, and how guards merge and widen.
+description: Trace Arc read protection for C# commands, from fresh decision reads to commit guards, including how multiple reads merge and widen protection.
 ---
 
 Use this page when you want to know exactly which events make a command fail, or why a guard is wider than you expected. You do not need it to use read protection. [Getting started](./getting-started.md) is enough.

@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc connection resolution for tenant storage
-description: "Cratis Arc connection resolution selects each tenant's MongoDB, Neo4j or EF Core destination and credentials through templates, an HTTP endpoint or application code."
+description: "Resolve tenant storage connections in Arc C# applications for MongoDB, Neo4j or EF Core using templates, HTTP endpoints or application code."
 ---
 
 Cratis Arc connection resolution selects the server, database and connection identity for a tenant when the configured connection is not enough. Use it when tenant databases follow a naming rule, live on different servers, or need credentials supplied by another service.

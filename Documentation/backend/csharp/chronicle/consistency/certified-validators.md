@@ -1,6 +1,6 @@
 ---
 title: Use decision tokens in validators
-description: Opt into fresh, provider-bound construction of validators for ProtectedDecision commands on untrimmed JIT runtimes.
+description: Configure provider-bound C# validators for Arc ProtectedDecision commands using explicit decision tokens, with untrimmed JIT runtime restrictions.
 ---
 
 Use this opt-in when a `[ProtectedDecision]` command outside read protection `On` needs a discoverable validator that takes `DecisionRead<T>` or the command-aware `IDecisionReads`. Prefer [plain read-model parameters under On](./validators.md) if you do not need explicit tokens.
