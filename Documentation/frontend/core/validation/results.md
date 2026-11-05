@@ -3,7 +3,9 @@ title: Validation Results
 description: Cratis Arc validation results describe command and query failures with severity, member paths, messages, rule state, and machine-readable reasons.
 ---
 
-Validation failures are returned in command/query results using a shared validation-result shape.
+A command or query result can contain validation items explaining why input was rejected or an operation could not proceed. Each item describes feedback, not the whole outcome: check the enclosing result for completion, authorization and exceptions as well.
+
+An empty validation array does not by itself establish success. A local validation failure can return before the server is contacted, so a local authorization value is not evidence that the server granted access.
 
 ## Result Item Shape
 
@@ -18,7 +20,7 @@ interface ValidationResult {
 }
 ```
 
-Example:
+Use `members` to associate feedback with the affected fields. For example, this rule failure identifies the email field:
 
 ```typescript
 {
@@ -41,6 +43,8 @@ When a required command property is `undefined` or `null`, the client returns `r
 Show authored rule messages only when suitable for your audience; map framework diagnostics, including the client's `rule` / `Required` results, to your own user-facing copy. `state` is application-authored metadata and must not contain secrets.
 
 ## Severity Levels
+
+Severity classifies the item; it does not tell you whether the operation ultimately ran:
 
 - `Error`
 - `Warning`

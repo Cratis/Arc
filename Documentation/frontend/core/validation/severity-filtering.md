@@ -5,6 +5,8 @@ description: Cratis Arc filters command validation by severity. Block warnings b
 
 Cratis Arc lets a command's UI stop on warnings before asking the user to proceed. The default client behavior allows warnings, so calling `execute()` and then asking for permission can be too late: a warning-only command may already have run. Choose the blocking threshold before the first execution attempt.
 
+For overridable advice, use the result's severity to decide whether to offer a confirmed retry. The workflow below blocks on warnings first; it does not ask for confirmation before every write.
+
 ## Filtering logic
 
 `command.execute(allowedSeverity?, ignoreWarnings?)` filters client validation results before sending a request. Without a declared `blockOnValidationSeverity` policy, it uses these rules:
