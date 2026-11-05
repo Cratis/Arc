@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using Cratis.Arc.Identity.Callers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -21,7 +22,7 @@ namespace Cratis.Arc.Http;
 /// </remarks>
 /// <param name="context">The <see cref="HttpListenerContext"/>.</param>
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
-public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext, ICanReadResponseHeaders, ICanReadForwardedIdentityRequest
+public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext, ICanReadResponseHeaders, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders
 {
     readonly Dictionary<object, object?> _items = [];
     JsonSerializerOptions? _jsonOptions;
@@ -82,6 +83,10 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         get => context.Response.StatusCode;
         set => context.Response.StatusCode = value;
     }
+
+    /// <inheritdoc/>
+    /// <remarks>HttpListener's last-value behavior cannot prove wire cardinality. Caller resolution must refuse this host.</remarks>
+    bool ICanPreserveCallerCredentialHeaders.PreservesDuplicateCredentialHeaders => false;
 
     JsonSerializerOptions JsonSerializerOptions => _jsonOptions ??= RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions;
 
