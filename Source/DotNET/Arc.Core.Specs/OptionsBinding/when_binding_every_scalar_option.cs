@@ -35,6 +35,7 @@ public class when_binding_every_scalar_option : given_a_parity_run
         ["Cratis:Arc:Introspection:RequireAuthentication"] = "true",
         ["Cratis:Arc:Introspection:Roles"] = "admin",
         ["Cratis:Arc:TrustForwardedIdentityHeaders"] = "true",
+        ["Cratis:Arc:Profile"] = "LocalDevelopment",
         ["Cratis:Arc:OnBehalfOf:Enabled"] = "true",
         ["Cratis:Arc:OnBehalfOf:Issuer"] = "issuer",
         ["Cratis:Arc:OnBehalfOf:ClockSkew"] = "00:00:10",

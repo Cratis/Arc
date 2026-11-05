@@ -17,6 +17,7 @@ internal static class ArcOptionsBinding
 
     static Member[] Members() =>
     [
+        Member.Of<ArcOptions, DeploymentProfile>("Profile", Leaves.DeploymentProfile, static _ => _.Profile, static (o, v) => o.Profile = v),
         Member.Of<ArcOptions, JsonSerializerOptions>("JsonSerializerOptions", JsonSerializerOptionsBinding.Bound, static _ => _.JsonSerializerOptions),
         Member.Of<ArcOptions, Execution.CorrelationIdOptions>("CorrelationId", CorrelationIdOptionsBinding.Bound, static _ => _.CorrelationId, static (o, v) => o.CorrelationId = v),
         Member.Of<ArcOptions, Tenancy.TenancyOptions>("Tenancy", TenancyOptionsBinding.Bound, static _ => _.Tenancy, static (o, v) => o.Tenancy = v),

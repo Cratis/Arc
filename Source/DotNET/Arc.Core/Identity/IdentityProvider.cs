@@ -140,7 +140,7 @@ public class IdentityProvider(
         var claimsPrincipal = context.User;
         var identityId = claimsPrincipal.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
         var identityName = claimsPrincipal.Identity?.Name;
-        if (string.IsNullOrEmpty(identityName) && options.Value.TrustForwardedIdentityHeaders && options.Value.ForwardedIdentity?.Enabled != true)
+        if (string.IsNullOrEmpty(identityName) && ForwardedIdentityPolicy.Read(options.Value).UnsignedV1)
         {
             var hop = ForwardedIdentityHop.Admit(context, options.Value);
             if (hop is ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated)

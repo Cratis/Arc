@@ -21,6 +21,7 @@ internal static class ForwardedIdentityV2ServiceCollectionExtensions
     {
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(IForwardedIdentityNonceStore))) throw new InvalidOperationException("Forwarded identity v2 requires an explicitly registered nonce store.");
         services.AddSingleton(settings);
+        services.PostConfigure<ArcOptions>(options => options.ForwardedIdentityV2 = true);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IForwardedBearerVerifier, ForwardedBearerVerifierAdapter>();
         services.TryAddScoped<ForwardedIdentityV2Verifier>();

@@ -3,7 +3,7 @@ title: Migrate to Cratis Arc secure defaults
 description: "Keep Cratis Arc secure defaults while upgrading: review forwarded identity header trust and choose how deployed hosts expose discovery endpoints."
 ---
 
-Cratis Arc now ignores unsigned forwarded identity headers unless you explicitly trust them, and
+Cratis Arc now requires verified forwarded identity in its default deployment profile, and
 requires authentication for discovery endpoints outside Development. When upgrading, review how requests
 reach your host and which tools read its discovery endpoints. Keep these defaults unless your deployment
 has a specific reason to override them.
@@ -11,7 +11,7 @@ has a specific reason to override them.
 Review both sections if your discovery tools sign in through forwarded headers: enabling discovery
 authentication does not by itself make Arc trust those headers.
 
-## Forwarded identity headers need an explicit opt-in
+## Forwarded identity requires signing by default
 
 Review this setting if users authenticate through the unsigned `x-ms-client-principal`,
 `x-ms-client-principal-id` and `x-ms-client-principal-name` headers. This includes ASP.NET Core hosts
@@ -34,18 +34,28 @@ ingress must strip caller-supplied identity headers and set its own. If the appl
 without that ingress, leave trust disabled and configure an authentication scheme that validates the
 caller instead.
 
-Only after confirming that boundary, opt in through the options you pass to `AddCratis` or `AddCratisArc`
-in a C# host:
+For a deployed host, enable `TrustForwardedIdentityHeaders` **and** configure
+[signed forwarded identity](../backend/csharp/asp-net-core/signed-forwarded-identity.md): a nonempty audience,
+1–8 distinct key IDs, and canonical base64 keys of exactly 32 decoded bytes. Arc validates this at startup;
+malformed enabled signing fails in either profile. The same policy applies to regular requests, identity
+details, and tenant-list forwarding. Unsigned EasyAuth headers now need AuthProxy or another compatible
+signer; there is no production unsigned-header escape hatch.
+
+For local development only, explicitly select `DeploymentProfile.LocalDevelopment` as well as trusting
+the headers. The profile is bound from `Cratis:Arc:Profile`; it is **not** inferred from `Development`,
+`DOTNET_ENVIRONMENT`, or `ASPNETCORE_ENVIRONMENT`. Local unsigned forwarding logs a warning. Never deploy
+this profile. For example, in a local C# host:
 
 <ArcBackendTabs snippet="upgrading/secure-defaults/trust-forwarded-identity-headers" variants="csharp" />
 
 Or in configuration, for example as the environment variable
-`Cratis__Arc__TrustForwardedIdentityHeaders=true`:
+`Cratis__Arc__Profile=LocalDevelopment` and `Cratis__Arc__TrustForwardedIdentityHeaders=true`:
 
 ```json
 {
   "Cratis": {
     "Arc": {
+      "Profile": "LocalDevelopment",
       "TrustForwardedIdentityHeaders": true
     }
   }
@@ -53,10 +63,17 @@ Or in configuration, for example as the environment variable
 ```
 
 `Cratis:Arc:Introspection:TrustForwardedIdentityHeaders` is now obsolete. Setting it still
-turns on the host-wide `TrustForwardedIdentityHeaders`, so a host that already set it keeps
-working. Move the setting to `Cratis:Arc:TrustForwardedIdentityHeaders`. Startup no longer
-refuses protected catalogs behind the header scheme, because the scheme authenticates
-nobody until the host opts in.
+turns on the host-wide `TrustForwardedIdentityHeaders`, but no longer makes unsigned forwarding valid
+in the default profile. Move the setting to `Cratis:Arc:TrustForwardedIdentityHeaders` and configure
+signing, or explicitly select the local-only profile while developing.
+
+With trust disabled, all forwarded identity forms—including v2—are ignored; native bearer, cookie,
+and other authentication schemes remain available. Configuring a signer or certificate policy with
+trust disabled logs a startup warning. Once signed v1 or v2 is configured, unsigned v1 is disabled.
+Explicit `V2Only` cannot coexist with enabled v1 signing. V2 requires authenticated transport in the
+default profile; a local startup exception does not create transport evidence or make v2 requests
+without it valid. Required certificate admission must always have usable initial trust material,
+including under `LocalDevelopment`; HttpListener cannot satisfy it.
 
 Check authentication through the ingress after changing the setting. Also confirm that callers cannot
 bypass it and submit their own identity headers. The opt-in applies to every request, not just discovery.

@@ -24,6 +24,12 @@ internal sealed class ForwardedIdentityClientCertificateTrust(string path, TimeP
     string? _hash;
     long _generation;
 
+    /// <summary>Gets the number of cached chain results for the current generation.</summary>
+    internal int CachedChainCount
+    {
+        get { lock (_gate) return _chains.Count; }
+    }
+
     /// <summary>Gets the successfully loaded bundle generation.</summary>
     internal long Generation
     {

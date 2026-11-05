@@ -29,6 +29,10 @@ internal sealed class ForwardedIdentityV2CredentialSource(
     async Task<CredentialVerification> IVerifiedCredentialSource.Verify(CredentialPresentation presentation, CancellationToken cancellationToken)
     {
         if (requests.Current is not { } request || request is not ICanReadForwardedIdentityRequest) return CredentialVerification.Refused(CallerRefusal.UnreadableCredentialHeaders);
+        if (request.RequestServices?.GetService(typeof(Microsoft.Extensions.Options.IOptions<ArcOptions>)) is not Microsoft.Extensions.Options.IOptions<ArcOptions> options || !ForwardedIdentityPolicy.Read(options.Value).V2)
+        {
+            return CredentialVerification.NotApplicable();
+        }
         if (!ForwardedIdentityHop.IsAdmitted(request)) return Refuse(ForwardedIdentityV2Rejection.Hop);
         var signatures = presentation.Envelope.Values.SelectMany(values => values).ToArray();
         if (signatures.Length != 1) return Refuse(ForwardedIdentityV2Rejection.Format);
@@ -41,13 +45,18 @@ internal sealed class ForwardedIdentityV2CredentialSource(
         if (snapshot is null) return Refuse(ForwardedIdentityV2Rejection.Headers);
         var result = await verifier.Verify(settings, snapshot, cancellationToken);
         if (result.Rejection is { } reason) return Refuse(reason);
-        if (result.Bearer?.Facts is { } bearerFacts) return CredentialVerification.Verified(bearerFacts);
+        if (result.Bearer?.Facts is { } bearerFacts)
+        {
+            ForwardedIdentityDiagnostics.Shared.Accepted(logger, request, "v2");
+            return CredentialVerification.Verified(bearerFacts);
+        }
         var context = result.Context!;
         if (context.CredentialKind == CallerCredentialKind.PersonalAccessToken) return Refuse(ForwardedIdentityV2Rejection.Credential);
         if (!IsDirectBrowser(context)) return CredentialVerification.Refused(CallerRefusal.UnsupportedProfile);
         var account = new CallerAccountKey(context.Issuer!, context.Subject!);
         var found = await persons.Find(account, cancellationToken);
         if (found.Person is not { } person) return CredentialVerification.Refused(CallerRefusal.MissingRequiredField);
+        ForwardedIdentityDiagnostics.Shared.Accepted(logger, request, "v2");
         return CredentialVerification.Verified(new(CallerPrincipalKind.Person, CallerCredentialKind.BrowserSession, new(context.CredentialId), new(settings.Resource, settings.Audience, installation.Environment!))
         {
             AccountKey = account,
@@ -63,7 +72,7 @@ internal sealed class ForwardedIdentityV2CredentialSource(
 
     CredentialVerification Refuse(ForwardedIdentityV2Rejection reason)
     {
-        logger.Rejected(reason);
+        if (requests.Current is { } request) ForwardedIdentityDiagnostics.Shared.Refused(logger, request, reason.ToString());
         return CredentialVerification.Refused(CallerRefusal.SourceRefused);
     }
 }

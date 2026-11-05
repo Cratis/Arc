@@ -32,6 +32,12 @@ public class ArcOptions
     }
 
     /// <summary>
+    /// Gets or sets the deployment safety profile, bound from <c>Cratis:Arc:Profile</c>.
+    /// Defaults to <see cref="DeploymentProfile.Default"/>; it is not inferred from the hosting environment.
+    /// </summary>
+    public DeploymentProfile Profile { get; set; }
+
+    /// <summary>
     /// Gets the <see cref="JsonSerializerOptions"/> configured for Arc.
     /// </summary>
     public JsonSerializerOptions JsonSerializerOptions { get; }
@@ -80,7 +86,9 @@ public class ArcOptions
     /// These headers are not signed: anyone who can reach the application directly can set them. Arc therefore
     /// ignores them, and treats the request as anonymous, unless the host opts in. Enable this only when every
     /// request reaches the application through an ingress that strips client-supplied identity headers and sets its
-    /// own, such as Azure App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy.
+    /// own. The default deployment profile also requires signed forwarding. Unsigned EasyAuth headers
+    /// require AuthProxy or another signer before reaching Arc; unsigned forwarding is available only in
+    /// <see cref="DeploymentProfile.LocalDevelopment"/>.
     /// </para>
     /// <para>
     /// Bound from <c>Cratis:Arc:TrustForwardedIdentityHeaders</c>. The obsolete
@@ -156,6 +164,11 @@ public class ArcOptions
     /// is still logged server-side and the correlation identifier is retained) to avoid leaking internal information.
     /// </remarks>
     public bool ExposeExceptionDetails { get; set; } = RuntimeEnvironment.IsDevelopment;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the internal v2 forwarding source is registered.
+    /// </summary>
+    internal bool ForwardedIdentityV2 { get; set; }
 
     /// <summary>
     /// Add a type info resolver, typically the application's source-generated <see cref="JsonSerializerContext"/>, to the

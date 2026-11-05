@@ -88,7 +88,6 @@ public static class WebApplicationBuilderExtensions
         builder.Services.AddHostedService<AuthorizationStartupValidation>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Options.IConfigureOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>, Cratis.Arc.Identity.ForwardedIdentityClientCertificateKestrelOptions>());
         builder.Services.TryAddSingleton<Cratis.Arc.Identity.ForwardedIdentityClientCertificateTrustStore>();
-        builder.Services.AddHostedService<Cratis.Arc.Identity.ForwardedIdentityHopStartupValidation>();
         builder.Services.AddIdentityProvider();
         OperationHttpContextAccessorRegistration.Add(builder.Services);
         var discoverableValidators = builder.Services.AddArcAspNetCore(Internals.Types);

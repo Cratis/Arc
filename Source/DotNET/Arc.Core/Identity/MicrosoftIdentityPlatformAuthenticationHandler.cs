@@ -14,8 +14,9 @@ namespace Cratis.Arc.Identity;
 /// Represents an <see cref="IAuthenticationHandler"/> for handling authentication in the context of Microsoft Identity Platform.
 /// </summary>
 /// <remarks>
-/// The forwarded identity headers are not signed. The handler ignores them, and the request stays anonymous, unless
-/// <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled because the host runs behind a trusted ingress.
+/// The handler ignores forwarded identity unless <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled.
+/// The default deployment profile requires signed forwarding; unsigned headers are available only with an explicit
+/// <see cref="DeploymentProfile.LocalDevelopment"/> profile behind a trusted local ingress.
 /// A request carrying <see cref="OnBehalfOfHeaders.ActorHeader"/> or <see cref="OnBehalfOfHeaders.AssertionHeader"/> fails
 /// authentication unless <see cref="OnBehalfOfOptions.Enabled"/> is set and its signed assertion verifies; when accepted,
 /// the actor becomes the <see cref="ClaimsIdentity.Actor"/> of the principal.
@@ -34,19 +35,27 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
         var hop = ForwardedIdentityHop.Admit(context, options.Value);
         if (hop is not (ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated))
         {
-            if (ForwardedIdentityHeaders.ArePresent(context)) ForwardedIdentityHopLogging.Shared.Report(_logger, hop, context);
+            if (ForwardedIdentityHeaders.ArePresent(context))
+            {
+                ForwardedIdentityHopLogging.Shared.Report(_logger, hop, context);
+                ForwardedIdentityDiagnostics.Shared.Refused(_logger, context, "hop");
+            }
             return Task.FromResult(AuthenticationResult.Anonymous);
         }
 
-        if (options.Value.ForwardedIdentity?.Enabled == true)
+        var policy = ForwardedIdentityPolicy.Read(options.Value);
+        if (ForwardedIdentityHeaders.IsV2(context) || (options.Value.TrustForwardedIdentityHeaders && !policy.UnsignedV1 && !policy.SignedV1)) return Task.FromResult(AuthenticationResult.Anonymous);
+        if (policy.SignedV1)
         {
             var signed = ForwardedIdentityAuthentication.Authenticate(context, options.Value, nameof(MicrosoftIdentityPlatformAuthenticationHandler), context.Path);
             if (signed.Failure is { } failure)
             {
-                ForwardedIdentityLogMessages.Rejected(_logger, failure);
+                ForwardedIdentityDiagnostics.Shared.Refused(_logger, context, failure);
                 return Task.FromResult(AuthenticationResult.Failed(failure));
             }
-            return Task.FromResult(signed.Principal is { } signedPrincipal ? AuthenticationResult.Succeeded(signedPrincipal) : AuthenticationResult.Anonymous);
+            if (signed.Principal is not { } signedPrincipal) return Task.FromResult(AuthenticationResult.Anonymous);
+            ForwardedIdentityDiagnostics.Shared.Accepted(_logger, context, "signed-v1");
+            return Task.FromResult(AuthenticationResult.Succeeded(signedPrincipal));
         }
 
         var headers = context.Headers;
@@ -62,6 +71,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
             if (UntrustedForwardedIdentityHeaders.ArePresent(headers.ContainsKey))
             {
                 UntrustedForwardedIdentityHeaders.Report(_logger);
+                ForwardedIdentityDiagnostics.Shared.Refused(_logger, context, "disabled");
             }
 
             return Task.FromResult(AuthenticationResult.Anonymous);
@@ -92,6 +102,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
         if (clientPrincipal == null)
         {
             const string invalidPrincipal = "Not authenticated - invalid representation of ClientPrincipal";
+            ForwardedIdentityDiagnostics.Shared.Refused(_logger, context, "principal");
             return onBehalfOf ? Reject(invalidPrincipal) : Task.FromResult(AuthenticationResult.Failed(invalidPrincipal));
         }
 
@@ -115,6 +126,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
 
         var principal = new ClaimsPrincipal(identity);
 
+        ForwardedIdentityDiagnostics.Shared.Accepted(_logger, context, "unsigned-v1");
         return Task.FromResult(AuthenticationResult.Succeeded(principal));
     }
 

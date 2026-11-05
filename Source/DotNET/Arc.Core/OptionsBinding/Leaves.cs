@@ -65,6 +65,11 @@ internal static class Leaves
     internal static readonly LeafType UriHostNameType = new(typeof(UriHostNameType), new EnumConverter(typeof(UriHostNameType)), static () => default(UriHostNameType));
 
     /// <summary>
+    /// Gets the leaf type for <see cref="DeploymentProfile"/>.
+    /// </summary>
+    internal static readonly LeafType DeploymentProfile = new(typeof(DeploymentProfile), new EnumConverter(typeof(DeploymentProfile)), static () => default(DeploymentProfile));
+
+    /// <summary>
     /// Gets the leaf type for <see cref="TenantResolverType"/>.
     /// </summary>
     internal static readonly LeafType TenantResolverType = new(typeof(TenantResolverType), new EnumConverter(typeof(TenantResolverType)), static () => default(TenantResolverType));

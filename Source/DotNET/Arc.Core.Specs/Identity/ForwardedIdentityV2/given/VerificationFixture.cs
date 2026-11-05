@@ -70,7 +70,7 @@ internal static class VerificationFixture
     {
         var request = (IHttpRequestContext)Substitute.For([typeof(IHttpRequestContext), typeof(ICanReadForwardedIdentityRequest), typeof(ICanPreserveCallerCredentialHeaders), typeof(ICanReadClientCertificate)], []);
         ((ICanReadClientCertificate)request).TransportClientCertificate.Returns(_ => vector.Inputs.AuthenticatedTls ? new X509Certificate2(_transport.Value.Certificate) : null);
-        var options = new ArcOptions { TrustForwardedIdentityHeaders = true };
+        var options = new ArcOptions { TrustForwardedIdentityHeaders = true, ForwardedIdentityV2 = true };
         options.ForwardedIdentity.ClientCertificate.Required = true;
         options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = _transport.Value.Authority.Bundle;
         options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("proxy.test");

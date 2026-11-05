@@ -25,7 +25,11 @@ public class when_the_host_trusts_forwarded_identity_headers : Specification
             .AddScheme<AuthenticationSchemeOptions, given.catalog_authentication_handler>("Clean", _ => { })
             .AddScheme<AuthenticationSchemeOptions, Identity.MicrosoftIDentityPlatformAuthHandler>("Headers", _ => { });
         builder.Services.AddAuthorization();
-        builder.AddCratisArc(options => options.TrustForwardedIdentityHeaders = true);
+        builder.AddCratisArc(options =>
+        {
+            options.Profile = DeploymentProfile.LocalDevelopment;
+            options.TrustForwardedIdentityHeaders = true;
+        });
         await using var app = builder.Build();
         var group = app.MapGroup("/group").RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = "Headers" });
         new AspNetCoreEndpointMapper(group).MapIntrospectionEndpoints(new IntrospectionOptions { RequireAuthentication = true });

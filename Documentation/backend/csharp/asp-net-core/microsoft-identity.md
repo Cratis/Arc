@@ -5,7 +5,7 @@ description: Authenticate forwarded Microsoft client principals in an ASP.NET Co
 
 Cratis Arc can reconstruct an authenticated principal from the Microsoft client-principal headers supplied by a trusted ingress. Use this integration when Azure App Service or Container Apps authentication (EasyAuth), or Cratis AuthProxy, authenticates callers before forwarding requests to your ASP.NET Core application.
 
-The ingress is the service in front of your application that receives those requests. The setup below trusts its unsigned identity headers, so it must strip caller-supplied identity headers, write its own replacements, and prevent direct backend access. Arc's handler reads these headers:
+The ingress is the service in front of your application that receives those requests. Deployed hosts must configure [signed forwarded identity](signed-forwarded-identity.md) and enable header trust. Unsigned EasyAuth headers require AuthProxy or another compatible signer; there is no production unsigned-header escape hatch. The local-development setup below trusts unsigned identity headers, so it must strip caller-supplied identity headers, write its own replacements, and prevent direct backend access. Arc's handler reads these headers:
 
 | Header                     | Description                                                                                                                                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -22,14 +22,18 @@ For local development without an identity provider, [generate a principal fixtur
 
 Register the header authentication handler with `AddMicrosoftIdentityPlatformIdentityAuthentication()`. It creates the request principal used by ASP.NET Core and Arc authorization; it does not decide which endpoints require that principal.
 
-This registration fragment is for an ASP.NET Core application using `Cratis.Arc`, not `ArcApplication`. Enable header trust only after establishing the ingress boundary described above:
+This registration fragment is for local development in an ASP.NET Core application using `Cratis.Arc`, not `ArcApplication`. Never deploy `LocalDevelopment`; use signed forwarding with the default profile instead. Enable header trust only after establishing the ingress boundary described above:
 
 ```csharp
 using Cratis.Arc;
 using Cratis.Arc.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddCratisArc(options => options.TrustForwardedIdentityHeaders = true);
+builder.AddCratisArc(options =>
+{
+    options.Profile = DeploymentProfile.LocalDevelopment;
+    options.TrustForwardedIdentityHeaders = true;
+});
 builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
 builder.Services.AddAuthorization();
 ```
@@ -38,12 +42,13 @@ The extension calls `AddAuthentication()` with the default scheme name `Microsof
 
 ### Trusting the forwarded headers
 
-Without signed forwarding enabled, the handler ignores these unsigned headers until the host opts in with `TrustForwardedIdentityHeaders`. It returns no authentication result, so the request stays anonymous unless another scheme authenticates it. Set the option in code, as above, or in configuration:
+The default `DeploymentProfile.Default` refuses startup when header trust is enabled without signed forwarding. Unsigned headers are available only with explicit `LocalDevelopment` and `TrustForwardedIdentityHeaders`; this logs a warning and must not be used on a deployed host. `Profile` is not inferred from the hosting environment. Set the local-only options in code, as above, or in configuration:
 
 ```json
 {
   "Cratis": {
     "Arc": {
+      "Profile": "LocalDevelopment",
       "TrustForwardedIdentityHeaders": true
     }
   }
@@ -52,7 +57,7 @@ Without signed forwarding enabled, the handler ignores these unsigned headers un
 
 This setting applies to every endpoint, including protected [introspection catalogs](../introspection/index.md). A host that calls `AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`) while the headers are not trusted logs a warning naming the setting on every startup. The built-in header handlers also warn on the first request carrying untrusted headers.
 
-If your ingress must sign forwarded identities, configure [signed forwarded identity](signed-forwarded-identity.md) as well. That mode also requires `TrustForwardedIdentityHeaders`, but refuses unsigned forwards once enabled. It needs a compatible signer; current unmodified AuthProxy does not produce that envelope. Check the signing guide's producer requirements before enabling it.
+For deployment, configure [signed forwarded identity](signed-forwarded-identity.md) with `TrustForwardedIdentityHeaders` and leave `Profile` at its secure default. Signing needs a valid audience and canonical 32-byte keys; invalid enabled configuration fails startup in both profiles. Signed v1 or v2 disables unsigned v1. Disabling header trust ignores every forwarded form, including v2, without disabling native authentication. Check the signing guide's producer requirements before enabling it.
 
 After building the application, add authentication and authorization middleware before activating Arc:
 

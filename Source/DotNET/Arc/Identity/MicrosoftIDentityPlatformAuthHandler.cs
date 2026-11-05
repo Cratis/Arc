@@ -79,10 +79,16 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         var hop = arcOptions is null ? ForwardedIdentityHopAdmission.NotRequired : ForwardedIdentityHop.Admit(requestContext, arcOptions.CurrentValue);
         if (hop is not (ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated))
         {
-            if (ForwardedIdentityHeaders.ArePresent(requestContext)) ForwardedIdentityHopLogging.Shared.Report(_logger, hop, requestContext);
+            if (ForwardedIdentityHeaders.ArePresent(requestContext))
+            {
+                ForwardedIdentityHopLogging.Shared.Report(_logger, hop, requestContext);
+                ForwardedIdentityDiagnostics.Shared.Refused(_logger, requestContext, "hop");
+            }
             return Task.FromResult(AuthenticateResult.NoResult());
         }
-        if (arcOptions?.CurrentValue.ForwardedIdentity?.Enabled == true)
+        var policy = arcOptions is null ? default : ForwardedIdentityPolicy.Read(arcOptions.CurrentValue);
+        if (ForwardedIdentityHeaders.IsV2(requestContext) || (arcOptions?.CurrentValue.TrustForwardedIdentityHeaders == true && !policy.UnsignedV1 && !policy.SignedV1)) return Task.FromResult(AuthenticateResult.NoResult());
+        if (policy.SignedV1 && arcOptions is not null)
         {
             return AuthenticateSigned(arcOptions.CurrentValue);
         }
@@ -97,6 +103,7 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
             if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
             {
                 UntrustedForwardedIdentityHeaders.Report(_logger);
+                ForwardedIdentityDiagnostics.Shared.Refused(_logger, requestContext, "disabled");
             }
 
             return Task.FromResult(AuthenticateResult.NoResult());
@@ -144,13 +151,15 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
+        ForwardedIdentityDiagnostics.Shared.Accepted(_logger, requestContext, "unsigned-v1");
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 
     Task<AuthenticateResult> AuthenticateSigned(ArcOptions options)
     {
+        var requestContext = new AspNetCore.Http.AspNetCoreHttpRequestContext(Context);
         var signed = ForwardedIdentityAuthentication.Authenticate(
-            new AspNetCore.Http.AspNetCoreHttpRequestContext(Context),
+            requestContext,
             options,
             Scheme.Name,
             Request.PathBase.Add(Request.Path).ToUriComponent(),
@@ -158,12 +167,12 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
             ForwardedIdentityReplays);
         if (signed.Failure is { } failure)
         {
-            ForwardedIdentityLogMessages.Rejected(_logger, failure);
+            ForwardedIdentityDiagnostics.Shared.Refused(_logger, requestContext, failure);
             return Task.FromResult(AuthenticateResult.Fail(failure));
         }
-        return Task.FromResult(signed.Principal is { } signedPrincipal
-            ? AuthenticateResult.Success(new AuthenticationTicket(signedPrincipal, Scheme.Name))
-            : AuthenticateResult.NoResult());
+        if (signed.Principal is not { } signedPrincipal) return Task.FromResult(AuthenticateResult.NoResult());
+        ForwardedIdentityDiagnostics.Shared.Accepted(_logger, requestContext, "signed-v1");
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(signedPrincipal, Scheme.Name)));
     }
 
     OnBehalfOfForward ForwardFrom(ArcOptions options) => new(

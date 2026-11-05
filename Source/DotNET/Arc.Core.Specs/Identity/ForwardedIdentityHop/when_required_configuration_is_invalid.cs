@@ -19,6 +19,7 @@ public class when_required_configuration_is_invalid : Specification
             new() { Required = true, AllowedDnsNames = ["authproxy.internal"] },
             new() { Required = true, TrustedCertificateAuthoritiesPath = authority.Bundle },
             new() { Required = true, TrustedCertificateAuthoritiesPath = authority.Bundle, AllowedDnsNames = ["authproxy.internal"], ReloadInterval = TimeSpan.Zero },
+            new() { Required = true, TrustedCertificateAuthoritiesPath = authority.Bundle, AllowedDnsNames = ["authproxy.internal"], ReloadInterval = TimeSpan.FromSeconds(1) },
             new() { Required = true, TrustedCertificateAuthoritiesPath = authority.Bundle + ".missing", AllowedDnsNames = ["authproxy.internal"] }
         };
         foreach (var candidate in candidates)
