@@ -31,6 +31,16 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
+        if (!ForwardedIdentityHopAdmission.Allows(options.Value, context))
+        {
+            if (UntrustedForwardedIdentityHeaders.ArePresent(context.Headers.ContainsKey) || context.Headers.ContainsKey(ForwardedIdentityEnvelope.Header))
+            {
+                _logger.HopRefused();
+                return Task.FromResult(AuthenticationResult.Failed("hop"));
+            }
+            return Task.FromResult(AuthenticationResult.Anonymous);
+        }
+
         if (options.Value.ForwardedIdentity?.Enabled == true)
         {
             var signed = ForwardedIdentityAuthentication.Authenticate(context, options.Value, nameof(MicrosoftIdentityPlatformAuthenticationHandler), context.Path);

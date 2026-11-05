@@ -9,6 +9,9 @@ namespace Cratis.Arc.Identity;
 /// <remarks>Also requires <see cref="ArcOptions.TrustForwardedIdentityHeaders"/>. Invalid enabled configuration fails forwarded authentication.</remarks>
 public class ForwardedIdentityOptions
 {
+    /// <summary>Gets or sets admission of the immediate forwarding peer's TLS certificate.</summary>
+    public ForwardedIdentityClientCertificateOptions ClientCertificate { get; set; } = new();
+
     /// <summary>
     /// Gets or sets a value indicating whether forwarded identity requires a valid v1 signature. Defaults to false.
     /// </summary>

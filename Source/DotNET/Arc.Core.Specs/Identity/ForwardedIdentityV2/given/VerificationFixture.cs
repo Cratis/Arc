@@ -13,7 +13,7 @@ internal static class VerificationFixture
 {
     internal static ForwardedIdentityV2Settings Settings(Inputs input) => new(input.Aud, "resource", input.RealmIssuer, input.TenantHeader, ForwardedIdentityV2Vectors.Fixture.TestKeys.SelectMany(key => key.KeyIds.Select(id => new KeyValuePair<string, ForwardedIdentityV2PublicKey>(id, ForwardedIdentityV2PublicKey.FromPem(id, key.PublicKeyPem)))).ToDictionary(), false);
 
-    internal static ForwardedIdentityV2Request Request(Vector vector) => new(vector.Inputs.Method, vector.Inputs.Path, vector.Inputs.Headers.Select(header => new ForwardedIdentityV2Header(header.Name, header.Value)).Append(new(ForwardedIdentityV2Envelope.Header, vector.Envelope)).ToArray(), vector.Inputs.ReplaySensitive);
+    internal static ForwardedIdentityV2Request Request(Vector vector) => new(vector.Inputs.Method, vector.Inputs.Path, vector.Inputs.Headers.Select(header => new ForwardedIdentityV2Header(header.Name, header.Value)).Append(new(ForwardedIdentityV2Envelope.Header, vector.Envelope)).ToArray(), vector.Inputs.ReplaySensitive, vector.Inputs.AuthenticatedTls);
 
     internal static Vector Sign(Vector vector)
     {
@@ -59,7 +59,8 @@ internal static class VerificationFixture
 
     internal static IHttpRequestContext RawRequest(Vector vector)
     {
-        var request = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders>();
+        var request = (IHttpRequestContext)Substitute.For([typeof(IHttpRequestContext), typeof(ICanReadForwardedIdentityRequest), typeof(ICanPreserveCallerCredentialHeaders), typeof(ICanReadAuthenticatedForwardingHop)], []);
+        ((ICanReadAuthenticatedForwardingHop)request).IsAuthenticatedForwardingHop.Returns(vector.Inputs.AuthenticatedTls);
         var raw = (ICanReadForwardedIdentityRequest)request;
         var snapshot = Request(vector);
         request.Items.Returns(new Dictionary<object, object?>());

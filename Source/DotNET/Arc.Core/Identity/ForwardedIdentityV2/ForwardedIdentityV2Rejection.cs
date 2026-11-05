@@ -43,5 +43,8 @@ internal enum ForwardedIdentityV2Rejection
     Store = 11,
 
     /// <summary>Nonce previously reserved.</summary>
-    Replay = 12
+    Replay = 12,
+
+    /// <summary>The immediate TLS peer was not authenticated.</summary>
+    Hop = 13
 }

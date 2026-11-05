@@ -75,6 +75,15 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
+        if (arcOptions is not null && !ForwardedIdentityHopAdmission.Allows(arcOptions.CurrentValue, new Cratis.Arc.AspNetCore.Http.AspNetCoreHttpRequestContext(Context)))
+        {
+            if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey) || Request.Headers.ContainsKey(ForwardedIdentityEnvelope.Header))
+            {
+                _logger.HopRefused();
+                return Task.FromResult(AuthenticateResult.Fail("hop"));
+            }
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
         if (arcOptions?.CurrentValue.ForwardedIdentity?.Enabled == true)
         {
             return AuthenticateSigned(arcOptions.CurrentValue);

@@ -13,13 +13,18 @@ internal sealed record ForwardedIdentityV2Request
     /// <param name="rawTarget">The raw origin-form target.</param>
     /// <param name="headers">The raw header occurrences.</param>
     /// <param name="replaySensitive">Whether to require atomic nonce reservation.</param>
-    internal ForwardedIdentityV2Request(string method, string rawTarget, IReadOnlyList<ForwardedIdentityV2Header> headers, bool replaySensitive)
+    /// <param name="authenticatedHop">Whether the host admitted the immediate TLS peer.</param>
+    internal ForwardedIdentityV2Request(string method, string rawTarget, IReadOnlyList<ForwardedIdentityV2Header> headers, bool replaySensitive, bool authenticatedHop = false)
     {
+        AuthenticatedHop = authenticatedHop;
         Method = method;
         RawTarget = rawTarget;
         Headers = Array.AsReadOnly(headers.ToArray());
         ReplaySensitive = replaySensitive;
     }
+
+    /// <summary>Gets whether the host admitted the immediate TLS peer.</summary>
+    internal bool AuthenticatedHop { get; }
 
     /// <summary>Gets the raw method.</summary>
     internal string Method { get; }
@@ -49,6 +54,6 @@ internal sealed record ForwardedIdentityV2Request
             if (name.Length > 32768 || values.Length != 1 || values[0] is not { } value || value.Length > 32768) return null;
             headers.Add(new(name, value));
         }
-        return new(request.Method, target, headers, true);
+        return new(request.Method, target, headers, true, ForwardedIdentityHopAdmission.IsAdmitted(request));
     }
 }

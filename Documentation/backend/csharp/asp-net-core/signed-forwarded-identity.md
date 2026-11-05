@@ -27,6 +27,35 @@ Custom HTTP hosts must implement `ICanReadForwardedIdentityRequest`, exposing ho
 
 **Cardinality is host-observed, not a wire-level guarantee.** ASP.NET Core exposes multiple observed values, including repeated names with different casing; Arc rejects them. Managed HttpListener exposes only the last observed value when a wire header is repeated. Earlier values are irrecoverable: the last observed value must be the signed value, otherwise no forwarded identity is established. A comma inside one observed value remains data, not a duplicate separator. Windows/http.sys wire behavior has **not been verified**. Ingresses should strip inbound identity headers and generate a single signed set; do not rely on this contract to detect repetitions already discarded by a host.
 
+## Immediate-hop client certificates
+
+Signed v1 integrations can additionally require an authenticated immediate TLS peer:
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "ForwardedIdentity": {
+        "ClientCertificate": {
+          "Required": true,
+          "TrustedCertificateAuthoritiesPath": "/certificates/authproxy-client-ca.pem",
+          "AllowedDnsNames": ["authproxy.internal"],
+          "ReloadInterval": "00:01:00"
+        }
+      }
+    }
+  }
+}
+```
+
+Configure Kestrel to request client certificates and AuthProxy to present its client certificate. Arc reads the actual Kestrel TLS peer (`ISslStreamFeature`), not `Request.IsHttps`, `X-Forwarded-Proto`, certificate-forwarding headers, or a forwarded `ITlsConnectionFeature`. It checks chain and validity against only the configured PEM CA bundle, requires the clientAuth EKU, and matches a DNS SAN exactly and ordinally. CN fallback, wildcard expansion, system-root fallback, and unrelated clients are not accepted. Handle revocation at the TLS listener or by operational CA/leaf rotation; Arc's custom-root check disables network revocation and downloads.
+
+The bundle is reread on the first admission check after each reload interval. Overlap old and new CAs in one PEM bundle, deploy the new client certificate, then remove the old CA. A missing, unreadable, empty, or malformed replacement closes admission instead of retaining stale trust. Required admission fails startup if the path, SAN allowlist, interval, or initial bundle is invalid. Diagnostics contain no path, subject, certificate bytes, or credential material.
+
+A TLS terminator must authenticate and protect the next hop too: the last hop into Kestrel must itself present an admitted client certificate. Restrict direct backend ingress; never turn an HTTP certificate-forwarding header into transport evidence. Native `HttpListener` hosts refuse startup with `ClientCertificate.Required=true`; use the ASP.NET Core/Kestrel adapter for mTLS.
+
+This additional gate defaults to disabled for v1 compatibility. The internal v2 verifier always requires host-admitted immediate-hop evidence, even on replay-insensitive queries, before envelope parsing, bearer verification, or nonce reservation. V2 remains internal and is not a released configuration API. This implements the authenticated-TLS clause of the draft v2 contract.
+
 ## Wire contract v1
 
 Send exactly one `x-cratis-forwarded-identity-signature` field value:

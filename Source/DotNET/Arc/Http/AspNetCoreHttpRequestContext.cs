@@ -5,7 +5,9 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity;
 using Cratis.Arc.Identity.Callers;
+using Microsoft.AspNetCore.Server.Kestrel.Core.Features;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.AspNetCore.Http;
@@ -14,10 +16,22 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// ASP.NET Core implementation of <see cref="IHttpRequestContext"/>.
 /// </summary>
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
-public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders
+public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders, ICanReadAuthenticatedForwardingHop
 {
     readonly AsyncLocal<Selection?> _selected = new();
     JsonSerializerOptions? _jsonOptions;
+
+    /// <inheritdoc/>
+    public bool IsAuthenticatedForwardingHop
+    {
+        get
+        {
+            var stream = httpContext.Features.Get<ISslStreamFeature>()?.SslStream;
+            if (stream is not { IsAuthenticated: true, IsEncrypted: true, RemoteCertificate: not null }) return false;
+            using var certificate = new System.Security.Cryptography.X509Certificates.X509Certificate2(stream.RemoteCertificate);
+            return httpContext.RequestServices.GetService<ForwardedIdentityClientCertificateTrustStore>()?.IsTrusted(certificate) == true;
+        }
+    }
 
     /// <inheritdoc/>
     bool ICanPreserveCallerCredentialHeaders.PreservesDuplicateCredentialHeaders => true;

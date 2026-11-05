@@ -18,6 +18,7 @@ internal sealed class ForwardedIdentityV2Verifier(IForwardedIdentityNonceStore n
     /// <returns>A complete result or fixed refusal reason.</returns>
     internal async Task<ForwardedIdentityV2Verification> Verify(ForwardedIdentityV2Settings settings, ForwardedIdentityV2Request request, CancellationToken cancellationToken)
     {
+        if (!request.AuthenticatedHop) return ForwardedIdentityV2Verification.Rejected(ForwardedIdentityV2Rejection.Hop);
         try
         {
             var envelope = ReadEnvelope(request);
