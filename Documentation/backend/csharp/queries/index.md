@@ -1,6 +1,6 @@
 ---
 title: Queries
-description: Read application state once or observe updates with Cratis Arc queries, without requiring event sourcing.
+description: Define C# queries in Arc to read application state once or observe updates, choosing model-bound or controller endpoints and typed frontend proxies.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->

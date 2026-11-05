@@ -1,6 +1,6 @@
 ---
 title: Select Neo4j databases by tenant
-description: Cratis Arc selects a Neo4j graph database from the event store and the current tenant's namespace, using the same naming algorithm as Chronicle's Neo4j graph sink.
+description: Select Neo4j databases in Arc C# applications using tenant namespaces, Chronicle-compatible naming, custom resolvers or single-database mode.
 ---
 
 Cratis Arc selects a Neo4j database using the configured event store and the namespace of the current tenant. Chronicle's Neo4j graph sink uses the same algorithm to choose the database it writes, so an Arc application reads the graph of its own namespace and sees nothing from the others.
