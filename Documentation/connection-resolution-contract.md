@@ -5,7 +5,7 @@ description: "Implement the REST contract for Arc and Chronicle storage connecti
 
 This page specifies the endpoint behind the `Http` connection resolver. When Arc or Chronicle needs a storage connection, it calls your endpoint and asks where to connect and who to connect as. The contract is the same for every storage, MongoDB and Neo4j as well as SQL Server, PostgreSQL and SQLite, and it is plain JSON over HTTP, so you can implement the endpoint in any language or platform.
 
-For how the resolver is configured on the caller's side, see [connection resolution](/arc/backend/csharp/tenancy/connection-resolution/). The calling host decides which values it sends in the request `scope`. Arc's are listed under [Scope values](#scope-values); Chronicle documents its own in [storage connection resolution](/chronicle/hosting/configuration/storage-connection-resolution/).
+For configuration of the C# Arc caller, see [connection resolution](/arc/backend/csharp/tenancy/connection-resolution/). This endpoint contract is language-neutral; that does not establish an `Http` resolver in every Arc backend. Check your backend's [capability reference](/arc/capabilities/) before configuring a caller. The calling host decides which values it sends in the request `scope`. The C# Arc caller's values are listed under [Scope values](#scope-values); Chronicle documents its own in [storage connection resolution](/chronicle/hosting/configuration/storage-connection-resolution/).
 
 ## Operation
 
@@ -42,7 +42,7 @@ Ignore properties you do not recognize. New ones may be added without notice.
 
 ### Scope values
 
-When Arc calls the endpoint, the scope holds one key:
+When the C# Arc resolver calls the endpoint, the scope holds one key:
 
 | Key | Value |
 | --- | --- |

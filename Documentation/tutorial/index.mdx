@@ -10,6 +10,8 @@ Build a library back office with Cratis Arc and React: register authors, catalog
 
 Start from a configured backend and database using [the prerequisites below](#what-youll-need), then connect the first screen. The tutorial includes C# and JVM paths plus a **[TypeScript backend](/arc/backend/typescript/)** with no published npm package and no claim of full parity. Follow the setup for your chosen backend; the examples are not interchangeable.
 
+[Arc for Go](/arc/go/) has a separate [running application guide](/arc/go/backend/go/core/getting-started/) and [TypeScript generation guide](/arc/go/backend/go/generation/typescript/). This tutorial does not yet have a Go path; check its [parity reference](/arc/go/parity/) before carrying a chapter's behavior across.
+
 Work through one vertical slice at a time: a command requests a change, a read model holds the data a screen needs, and a query reads it for React. A generated proxy is the TypeScript class the frontend uses to call that command or query. Regenerate proxies after backend changes, then type-check the frontend to catch structural mismatches.
 
 The tutorial writes directly to a database: MongoDB or EF Core on C#, Spring Data on the JVM, or MongoDB on TypeScript. This lets you learn CQRS, the separation of writes from reads, without setting up an event store. Cratis Chronicle is an optional event-sourcing integration.

@@ -1,11 +1,15 @@
 ---
 title: Migrate generated identifiers in Cratis Arc
-description: Move Cratis Arc identifier generation into server-owned Handle parameters, replace identity-source queues with named pins and check concept rules.
+description: Move C# Cratis Arc identifier generation into server-owned Handle parameters, replace identity-source queues with named pins and check concept rules.
 ---
 
-To make server-owned identifiers controllable in Cratis Arc command specs, move generation from inside
+To make server-owned identifiers controllable in C# Cratis Arc command specs, move generation from inside
 `Handle()` to a `[GeneratedValue]` parameter and pin that parameter by name. The identifier stays out of
 the client's request, while each scenario can choose the value it needs to assert.
+
+The APIs, analyzer diagnostics, and migration commands below are C#-specific.
+Other backends may express server-owned values differently; check their
+[capability references](/arc/capabilities/) before applying this migration.
 
 Use this guide when a handler creates an identifier inline or still depends on the removed
 `IIdentitySource` API. If you are replacing queued identities, also follow

@@ -7,11 +7,22 @@ import { Aside } from '@astrojs/starlight/components';
 
 Cratis Arc separates identity enrichment from operation authorization and tenant isolation. Use identity details to give the UI context about the signed-in user, authorization to decide which commands and queries that user may run, and tenant membership checks plus tenant-aware storage to control whose data those operations use.
 
+The boundaries below apply across backends, but authentication middleware, role
+metadata, and tenant enforcement are host-specific. API names and configuration
+links in the prose use C#; the example tabs also show JVM and TypeScript forms.
+For those hosts, continue with [JVM security](/arc/backend/kotlin/guides/security/)
+or [TypeScript identity](/arc/backend/typescript/identity/) and
+[authorization](/arc/backend/typescript/core/authorization/). Go has
+separate [identity](/arc/go/backend/go/identity/) and
+[authorization](/arc/go/backend/go/authorization/) guides. Check the
+[HTTP contract](/arc/http-contract/) and each backend's capability reference for
+status-code and enforcement differences.
+
 ## Who is the user — identity, enriched once
 
-Authentication establishes who the caller is and represents that identity as a `ClaimsPrincipal`, the server-side user object containing claims such as an id, a name, and roles. Identity enrichment adds application details, such as a display name or preferences, so the UI can show information relevant to that user.
+Authentication establishes who the caller is. In C#, that identity is represented by a `ClaimsPrincipal`, the server-side user object containing claims such as an id, a name, and roles. Identity enrichment adds application details, such as a display name or preferences, so the UI can show information relevant to that user.
 
-Implement `IProvideIdentityDetails<TDetails>` to supply those details. Arc passes an `IdentityProviderContext` containing the user's id, name, and claims, rather than the raw token. In this illustrative MongoDB fragment, the provider looks up a library member by that id. It assumes application-owned `Member` and `LibraryIdentity` types and the identity/provider imports:
+In C#, implement `IProvideIdentityDetails<TDetails>` to supply those details. Arc passes an `IdentityProviderContext` containing the user's id, name, and claims, rather than the raw token. In this illustrative MongoDB fragment, the provider looks up a library member by that id. It assumes application-owned `Member` and `LibraryIdentity` types and the identity/provider imports:
 
 <ArcBackendTabs snippet="understanding-identity-and-access/identity-provider" />
 
@@ -39,7 +50,7 @@ Authorization decides whether the caller may run an operation before its command
 
 <ArcBackendTabs snippet="understanding-identity-and-access/authorization" />
 
-`[Authorize]` requires an authenticated user. `[Roles("Librarian", "Admin")]` also requires authentication and accepts at least one of the listed roles. `[AllowAnonymous]` permits callers without signing in. The role name must match a role in the authenticated principal; declaring an enum member does not assign that role to anyone.
+In C#, `[Authorize]` requires an authenticated user. `[Roles("Librarian", "Admin")]` also requires authentication and accepts at least one of the listed roles. `[AllowAnonymous]` permits callers without signing in. The role name must match a role in the authenticated principal; declaring an enum member does not assign that role to anyone.
 
 For queries, a class-level declaration covers methods without their own declaration. A method-level declaration replaces the class-level requirements. Use this deliberately when making a query public or giving it a different role requirement.
 
@@ -51,7 +62,7 @@ Some rules depend on the data being accessed: a user may edit their own profile 
 
 A tenant is a customer or organization whose data your application keeps separate from others in the same deployment. A user may have permission to register authors without having permission to register them for every tenant. Operation authorization and tenant membership answer different questions.
 
-Arc selects a tenant id through a resolver, which reads a configured source such as a claim or header. A header resolver reads the supplied value; authenticating the caller first does not prove that the caller belongs to the tenant they selected. Register an application-owned `ITenantMembership` check to verify that relationship during request tenant resolution, or enforce membership at a trusted ingress (a proxy or gateway) before the request reaches the app. Arc does not automatically enforce membership without a registered check. The [tenant membership guide](/arc/backend/csharp/tenancy/membership/) explains registration and the check's scope.
+A host selects a tenant id through a resolver, which reads a configured source such as a claim or header. A header resolver reads the supplied value; authenticating the caller first does not prove that the caller belongs to the tenant they selected. On C#, register an application-owned `ITenantMembership` check to verify that relationship during request tenant resolution, or enforce membership at a trusted ingress (a proxy or gateway) before the request reaches the app. Arc does not automatically enforce membership without a registered check. The [tenant membership guide](/arc/backend/csharp/tenancy/membership/) explains registration and the check's scope.
 
 Storage isolation is a separate responsibility. Tenant-aware database routing, partitions, or application query filters must keep an allowed operation within the selected tenant's data. Resolving a tenant id does not add filters to every query or make every store tenant-aware. Verify both boundaries: a caller cannot select a tenant they do not belong to, and an allowed request cannot read or change another tenant's data.
 

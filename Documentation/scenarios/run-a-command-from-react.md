@@ -11,7 +11,7 @@ The generated proxy carries the command's shape and supported validation rules i
 
 ## Before you start
 
-Follow the [standalone backend](/arc/backend/csharp/getting-started/) and [full-stack tutorial setup](/arc/tutorial/first-slice/) through the React bootstrap. You need the `RegisterAuthor` command, its generated proxy, the Components dependencies, and the providers and dialog composition shown there. For the C# backend, generate the proxy with the configured Debug [proxy-generation build](/arc/backend/csharp/proxy-generation/getting-started/). This standalone flow does not require Cratis Chronicle.
+Follow your [backend's setup and proxy-generation guide](/arc/backend/) and the [full-stack tutorial setup](/arc/tutorial/first-slice/) through the React bootstrap. You need the `RegisterAuthor` command, its generated proxy, the Components dependencies, and the providers and dialog composition shown there. For the C# backend, generate the proxy with the configured Debug [proxy-generation build](/arc/backend/csharp/proxy-generation/getting-started/). This standalone flow does not require Cratis Chronicle.
 
 For an inline form instead of a dialog, [frontend getting started](/arc/frontend/react/getting-started/) shows Arc's `CommandForm` with Components fields and a route without Components.
 

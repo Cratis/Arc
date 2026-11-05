@@ -11,13 +11,14 @@ Cratis Arc is a full-stack CQRS framework that exposes backend commands and
 queries over HTTP and generates TypeScript clients for your frontend. CQRS
 separates requests to change data (commands) from requests to read it (queries).
 Arc handles validation and authorization around those requests. Write the backend
-in C#, Kotlin or Java, or TypeScript; each can generate a typed frontend client.
+in C#, Kotlin or Java, TypeScript, or Go; each has a TypeScript client generator,
+with different coverage and verification limits.
 You can use current-state storage or add event sourcing.
 
 <TopicHero
   icon="puzzle"
   eyebrow="Cratis Arc"
-  title="CQRS application framework for ASP.NET Core, Spring Boot, and Node.js"
+  title="CQRS application framework for C#, Kotlin, Java, TypeScript, and Go"
 >
 
 Keep one feature's command, read model, query, frontend, and specs together as a
@@ -41,7 +42,7 @@ before connecting your first screen.
 
 <CardGrid>
   <LinkCard title="Start an Arc host" href="#start-an-arc-host"
-    description="Add Arc to an ASP.NET Core, Spring Boot, or TypeScript host." />
+    description="Choose an ASP.NET Core, Spring Boot, Node.js, or Go host and check its supported capabilities." />
   <LinkCard title="Commands and queries" href="#commands-and-queries"
     description="Execute changes, expose reads, and generate the client contracts for both." />
   <LinkCard title="Frontend contracts" href="#frontend-contracts"
@@ -75,11 +76,13 @@ before connecting your first screen.
 
 ## Start an Arc host
 
-Arc runs on ASP.NET Core and Spring Boot; a third implementation for TypeScript
-on Node.js is [available from source](/arc/backend/typescript/), with no published npm
-package and no claim of full parity. Choose a backend below and compare the
-[backend capabilities](./capabilities.md) before relying on a shared example. The shared [HTTP contract](./http-contract.md)
-is verified for C# and JVM; TypeScript's coverage is documented separately.
+Arc has implementations for ASP.NET Core, Spring Boot, Node.js, and Go.
+The TypeScript backend is [available from source](/arc/backend/typescript/), with no
+published npm package. [Arc for Go](/arc/go/) records its supported contracts
+and verification limits separately. Neither claims full parity with C#. Choose a backend below and compare the
+[backend capabilities](./capabilities.md) before relying on a shared example. The shared
+[HTTP contract](./http-contract.md) is verified for C# and JVM; TypeScript and Go
+document their coverage separately.
 
 <CardGrid>
   <LinkCard
@@ -94,6 +97,10 @@ is verified for C# and JVM; TypeScript's coverage is documented separately.
     title="TypeScript on Node.js"
     href="/arc/backend/typescript/getting-started/"
     description="Build an Arc host from source; check its capability reference for supported APIs and limits." />
+  <LinkCard
+    title="Go"
+    href="/arc/go/backend/go/core/getting-started/"
+    description="Build a Go host; check its parity reference for verified contracts, proxy coverage, and limits." />
 </CardGrid>
 
 Starting the host verifies the setup path only. Commands, queries, generated
@@ -107,6 +114,8 @@ controller-based endpoints; the JVM implementation does not. The command and que
 validation, authorization, filters, execution scopes, result conversion, and
 HTTP exposure in C# and on the JVM. TypeScript implements a subset of these
 capabilities; consult its [capability reference](/arc/backend/typescript/reference/capabilities/).
+For Go pipelines, hosting, and generated clients, use the [Go guides](/arc/go/)
+and [parity reference](/arc/go/parity/), not the framework-specific APIs below.
 The [scenario recipes](/arc/scenarios/) show the same task, such
 as [validating a command](/arc/scenarios/validate-a-command/), with backend
 examples where the capability is available.
