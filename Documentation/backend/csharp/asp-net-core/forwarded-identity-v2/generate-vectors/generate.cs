@@ -15,10 +15,16 @@ using System.Text.RegularExpressions;
 var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
 var mode = args.FirstOrDefault() ?? "--verify";
 var selfTest = mode == "--self-test";
-if (selfTest) mode = "--verify";
+var exportIdentity = mode == "--export-identity";
+if (selfTest || exportIdentity) mode = "--verify";
+if (exportIdentity && args.Length != 3)
+{
+    Console.Error.WriteLine("Usage: --export-identity fixture.json output-directory");
+    return 2;
+}
 if (mode is not ("--verify" or "--regenerate"))
 {
-    Console.Error.WriteLine("Usage: dotnet run generate.cs -- [--verify|--regenerate|--self-test] [fixture.json]");
+    Console.Error.WriteLine("Usage: dotnet run generate.cs -- [--verify|--regenerate|--self-test|--export-identity] [fixture.json] [output-directory]");
     return 2;
 }
 var path = args.Length > 1 ? args[1] : "../forwarded-identity-v2-vectors.json";
@@ -33,7 +39,10 @@ if (mode == "--regenerate" || !File.Exists(path))
     var keys = File.Exists(path)
         ? JsonSerializer.Deserialize<Fixture>(File.ReadAllText(path), json)!.TestKeys
         : new[] { NewKey("signer", ["k1", "k1-alias"]), NewKey("wrong", ["k2"]) };
+    var previous = File.Exists(path) ? JsonSerializer.Deserialize<Fixture>(File.ReadAllText(path), json) : null;
     fixture = Vectors.Generate(keys);
+    // Preserve an existing signature whenever its canonical input and signing operation did not change.
+    if (previous is not null) fixture = Vectors.KeepUnchangedSignatures(fixture, previous);
     File.WriteAllText(path, JsonSerializer.Serialize(fixture, json) + "\n", new UTF8Encoding(false));
 }
 else
@@ -59,6 +68,13 @@ foreach (var item in fixture.Cases)
         }
         store = shared;
     }
+    var producer = Vectors.CanonicalResult(item.Inputs);
+    var consumer = Reference.CanonicalResult(item.Inputs);
+    if (producer != consumer)
+    {
+        Console.Error.WriteLine($"MISMATCH {item.Name}: independent canonicalization outcomes differ");
+        mismatches++;
+    }
     var actual = Reference.Verify(item, fixture.TestKeys, store);
     if (actual != item.Expected)
     {
@@ -77,16 +93,21 @@ if (selfTest)
 {
     var valid = fixture.Cases.Single(item => item.Name == "valid-v2");
     var poison = valid with { Envelope = valid.Envelope + "!" };
-    var tampered = valid with { Inputs = valid.Inputs with { Audience = "urn:example:poison" } };
+    var tampered = valid with { Inputs = valid.Inputs with { Aud = "other-api" } };
+    var bound = fixture.Cases.Single(item => item.Name == "matching-forwarded-bearer");
+    var swappedBearer = bound with { Inputs = bound.Inputs with { Headers = bound.Inputs.Headers.Select(h => h.Name == "Authorization" ? h with { Value = "Bearer TEST-ONLY-swapped-token" } : h).ToArray() } };
     if (Reference.Verify(valid, fixture.TestKeys, new NonceStore()).Result != "accept" ||
+        Reference.Verify(bound, fixture.TestKeys, new NonceStore()).Result != "accept" ||
+        Reference.Verify(swappedBearer, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "credential") ||
         Reference.Verify(poison, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "format") ||
         Reference.Verify(tampered, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "signature"))
     {
-        Console.Error.WriteLine("Self-test failed to detect planted format and binding violations.");
+        Console.Error.WriteLine("Self-test failed to accept controls or detect planted format, canonical binding and bearer binding violations.");
         return 1;
     }
-    Console.WriteLine("Self-test: accepted control and detected 2 planted violations.");
+    Console.WriteLine("Self-test: accepted 2 controls and detected 3 planted violations.");
 }
+if (exportIdentity && mismatches == 0) IdentityDelivery.Export(fixture, args[2], json);
 return mismatches == 0 ? 0 : 1;
 
 static TestKey NewKey(string name, string[] keyIds)
@@ -102,7 +123,7 @@ sealed record Fixture(string Warning, string Format, TestKey[] TestKeys, List<Ve
 sealed record Inputs(
     string Method,
     string Path,
-    string Audience,
+    string Aud,
     long Now,
     Header[] Headers,
     string TenantHeader = "x-example-tenant",
@@ -110,32 +131,40 @@ sealed record Inputs(
     bool AuthenticatedTls = true,
     bool StoreAvailable = true,
     bool StoreFull = false,
-    string Replica = "replica-a");
+    string Replica = "replica-a",
+    string RealmIssuer = "https://identity.example.test");
 sealed record Vector(string Name, Inputs Inputs, string Envelope, string SigningInput, Outcome Expected, string? ReplayGroup = null);
+sealed record CanonicalCheck(string? Bytes, string? Error);
 
 static partial class Vectors
 {
     [GeneratedRegex("%[a-fA-F0-9]{2}", RegexOptions.None, 100)]
     private static partial Regex PathEscapes();
+    static readonly string[] ContextHeaders = ["x-cratis-credential-kind", "x-cratis-credential-id", "x-cratis-issuer", "x-cratis-subject", "x-cratis-idp", "x-cratis-auth-time", "x-cratis-acr", "x-cratis-amr", "x-cratis-act", "x-cratis-grant-id", "x-cratis-policy-epoch", "x-cratis-sender-binding", "x-cratis-forwarded-token-sha256"];
+    static readonly string[] RequiredPrincipalHeaders = ["x-ms-client-principal", "x-ms-client-principal-id", "x-ms-client-principal-name"];
     const long Now = 1700000000;
     const string Nonce = "AAECAwQFBgcICQoLDA0ODw";
     static readonly BigInteger Order = BigInteger.Parse("0FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551", NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
     public static Fixture Generate(TestKey[] keys)
     {
-        var principal = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"identityProvider\":\"test\",\"userId\":\"user-test\",\"userDetails\":\"Test User\",\"userRoles\":[\"user\"],\"claims\":[]}"));
-        var input = new Inputs("POST", "/api/a%2fb//./task?x=1", "urn:example:app", Now,
+        const string subject = "8b167ad2-0f89-4c78-9d42-6d4580495d32";
+        var principal = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{{\"identityProvider\":\"https://login.example.test\",\"userId\":\"{subject}\",\"userDetails\":\"Test User\",\"userRoles\":[\"user\"],\"claims\":[]}}"));
+        var input = new Inputs("POST", "/api/a%2fb//./task?x=1", "example-api", Now,
         [
-            new("x-ms-client-principal", principal), new("x-ms-client-principal-id", "user-test"),
-            new("x-ms-client-principal-name", "Test User"), new("x-ms-client-principal-extension", "opaque"),
-            new("x-cratis-token-client-id", "client-test"), new("x-cratis-token-scope", "read,write"),
+            new("x-ms-client-principal", principal), new("x-ms-client-principal-id", subject),
+            new("x-ms-client-principal-name", "Test User"), new("x-ms-client-principal-extension", "opaque,extension"),
+            new("x-cratis-token-client-id", "client-test"), new("x-cratis-token-scope", "example:read example:write"),
             new("x-cratis-tenant-id", "tenant-test"), new("tenant-id", "tenant-test"),
             new("x-cratis-microservice", "service-test"), new("service-id", "service-test"),
             new("x-example-tenant", "tenant-test"), new("x-cratis-on-behalf-context", "opaque"),
-            new("x-cratis-credential-kind", "access-token"), new("x-cratis-credential-id", "credential-test"),
-            new("x-cratis-auth-time", "1699999900"), new("x-cratis-assurance", "urn:example:assurance:2"),
-            new("x-cratis-actor", "actor-test"), new("x-cratis-policy-epoch", "7"),
-            new("x-cratis-dpop-result", "verified")
+            new("x-cratis-credential-kind", "oauth-grant"), new("x-cratis-credential-id", "credential-test"),
+            new("x-cratis-issuer", "https://identity.example.test"), new("x-cratis-subject", subject), new("x-cratis-idp", "https://login.example.test"),
+            new("x-cratis-auth-time", "1699999900"), new("x-cratis-acr", "basic"),
+            new("x-cratis-amr", Base64Json("[\"pwd\"]")),
+            new("x-cratis-act", Base64Json("{\"iss\":\"https://actors.example.test\",\"sub\":\"agent-7\"}")),
+            new("x-cratis-grant-id", "grant-test"), new("x-cratis-policy-epoch", "7"),
+            new("x-cratis-sender-binding", Base64Json("{\"jkt\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\",\"jti\":\"proof-test\"}"))
         ]);
         var cases = new List<Vector>();
         var baseline = Signed("valid-v2", input, keys[0]);
@@ -165,7 +194,7 @@ static partial class Vectors
         }
         Changed("tamper-method", input with { Method = "PUT" }, "signature");
         Changed("tamper-path", input with { Path = "/api/changed" }, "signature");
-        Changed("wrong-audience", input with { Audience = "urn:example:other" }, "signature");
+        Changed("wrong-aud", input with { Aud = "other-api" }, "signature");
         Part("tamper-known-kid-same-public-key", 1, "k1-alias", "signature");
         Part("unknown-kid", 1, "missing", "key");
         Part("tamper-timestamp-still-fresh", 2, "1700000001", "signature");
@@ -210,7 +239,7 @@ static partial class Vectors
         }
         // A genuine v1 HMAC envelope, not merely a v2 envelope with its version changed.
         // The v1 HMAC key is public TEST-ONLY bytes 00..1f, never production key material.
-        var v1Input = input with { Headers = input.Headers.Where(h => !new[] { "x-cratis-credential-kind", "x-cratis-credential-id", "x-cratis-auth-time", "x-cratis-assurance", "x-cratis-actor", "x-cratis-policy-epoch", "x-cratis-dpop-result" }.Contains(h.Name)).ToArray() };
+        var v1Input = input with { Headers = input.Headers.Where(h => !ContextHeaders.Contains(h.Name)).ToArray() };
         var v1TestKey = Enumerable.Range(0, 32).Select(i => (byte)i).ToArray();
         var v1Nonce = Url(v1TestKey);
         var v1Canonical = SignerCanonical(v1Input, "k1", Now.ToString(CultureInfo.InvariantCulture), v1Nonce)
@@ -226,8 +255,12 @@ static partial class Vectors
         Envelope("envelope-over-limit", new string('a', 257), "format");
 
         Changed("header-duplicate-case-variant", input with { Headers = [.. input.Headers, new("X-MS-CLIENT-PRINCIPAL-ID", "user-test")] }, "headers");
-        Changed("covered-header-control", Set(input, "x-cratis-assurance", "value\nvalue"), "headers");
-        Changed("covered-header-nonascii", Set(input, "x-cratis-assurance", "é"), "headers");
+        Changed("covered-header-control", Set(input, "x-cratis-acr", "value\nvalue"), "headers");
+        Changed("covered-header-nonascii", Set(input, "x-cratis-acr", "é"), "headers");
+        Changed("covered-header-invalid-name", Set(input, "x-ms-client-principal-bad name", "x"), "headers");
+        Changed("covered-header-unicode-name", Set(input, "x-ms-client-principal-\u212A", "x"), "headers");
+        Changed("aud-is-not-resource-indicator", input with { Aud = "https://api.example.test" }, "request");
+        Changed("aud-invalid-case", input with { Aud = "Example-api" }, "request");
         Changed("method-lowercase", input with { Method = "post" }, "request");
         Changed("path-invalid-escape", input with { Path = "/api/%2" }, "request");
         Changed("path-absolute-form", input with { Path = "https://example.test/api" }, "request");
@@ -241,7 +274,8 @@ static partial class Vectors
         cases.Add(baseline with { Name = "uncovered-header-change", Inputs = Set(input, "x-uncovered", "ignored") });
         cases.Add(baseline with { Name = "header-name-case-and-order-normalized", Inputs = input with { Headers = input.Headers.Reverse().Select(h => h with { Name = h.Name.ToUpperInvariant() }).ToArray() } });
         cases.Add(baseline with { Name = "outer-sp-and-htab-trimmed", Inputs = input with { Headers = input.Headers.Select(h => h with { Value = " \t" + h.Value + "\t " }).ToArray() } });
-        var optional = input with { Headers = input.Headers.Where(h => !new[] { "x-cratis-auth-time", "x-cratis-assurance", "x-cratis-actor", "x-cratis-policy-epoch", "x-cratis-dpop-result" }.Contains(h.Name)).ToArray() };
+        var optional = input with { Headers = input.Headers.Where(h => !new[] { "x-cratis-amr", "x-cratis-act", "x-cratis-grant-id", "x-cratis-policy-epoch" }.Contains(h.Name)).ToArray() };
+        optional = Set(optional, "x-cratis-sender-binding", "none");
         cases.Add(Signed("optional-v2-evidence-absent", optional, keys[0]));
         var absent = Signed("v1-optional-absent", input with { Headers = input.Headers.Where(h => h.Name != "service-id").ToArray() }, keys[0]);
         cases.Add(absent);
@@ -250,24 +284,68 @@ static partial class Vectors
         Changed("missing-required-principal-name", input with { Headers = input.Headers.Where(h => h.Name != "x-ms-client-principal-name").ToArray() }, "headers");
         Changed("empty-required-principal-name", Set(input, "x-ms-client-principal-name", ""), "headers");
         Changed("too-many-covered-headers", input with { Headers = [.. input.Headers, .. Enumerable.Range(0, 65).Select(i => new Header($"x-ms-client-principal-extra-{i}", "x"))] }, "bounds");
-        Changed("canonical-bytes-over-limit", Set(input, "x-cratis-assurance", new string('a', 32768)), "bounds");
-        foreach (var name in new[] { "x-cratis-credential-kind", "x-cratis-credential-id" })
+        Changed("canonical-bytes-over-limit", Set(input, "x-cratis-acr", new string('a', 32768)), "bounds");
+        foreach (var name in new[] { "x-cratis-credential-kind", "x-cratis-credential-id", "x-cratis-issuer", "x-cratis-subject", "x-cratis-idp", "x-cratis-auth-time", "x-cratis-acr", "x-cratis-sender-binding", "x-cratis-grant-id" })
         {
             SignedChange("missing-" + name, input with { Headers = input.Headers.Where(h => h.Name != name).ToArray() }, "metadata");
         }
-        foreach (var name in input.Headers.Where(h => h.Name is "x-cratis-credential-kind" or "x-cratis-credential-id" or "x-cratis-auth-time" or "x-cratis-assurance" or "x-cratis-actor" or "x-cratis-policy-epoch" or "x-cratis-dpop-result").Select(h => h.Name))
+        foreach (var name in ContextHeaders.Where(name => name != "x-cratis-forwarded-token-sha256"))
         {
             SignedChange("empty-" + name, Set(input, name, ""), "metadata");
         }
         SignedChange("metadata-auth-time-leading-zero", Set(input, "x-cratis-auth-time", "01700000000"), "metadata");
         SignedChange("metadata-policy-epoch-overflow", Set(input, "x-cratis-policy-epoch", "9223372036854775808"), "metadata");
-        SignedChange("metadata-credential-kind-case", Set(input, "x-cratis-credential-kind", "Access-Token"), "metadata");
-        SignedChange("metadata-dpop-failure-not-signable", Set(input, "x-cratis-dpop-result", "failed"), "metadata");
+        SignedChange("metadata-credential-kind-case", Set(input, "x-cratis-credential-kind", "OAuth-Grant"), "metadata");
+        SignedChange("metadata-access-token-is-not-credential-kind", Set(input, "x-cratis-credential-kind", "access-token"), "metadata");
+        SignedChange("metadata-sender-binding-flag-not-evidence", Set(input, "x-cratis-sender-binding", "verified"), "metadata");
+        SignedChange("metadata-sender-binding-missing-proof-jti", Set(input, "x-cratis-sender-binding", Base64Json("{\"jkt\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\"}")), "metadata");
+        SignedChange("metadata-sender-binding-invalid-thumbprint", Set(input, "x-cratis-sender-binding", Base64Json("{\"jkt\":\"invalid\",\"jti\":\"proof-test\"}")), "metadata");
+        SignedChange("metadata-amr-not-array", Set(input, "x-cratis-amr", Base64Json("\"pwd\"")), "metadata");
+        SignedChange("metadata-act-not-object", Set(input, "x-cratis-act", Base64Json("\"actor-test\"")), "metadata");
+        SignedChange("metadata-act-missing-issuer", Set(input, "x-cratis-act", Base64Json("{\"sub\":\"agent-7\"}")), "metadata");
+        SignedChange("metadata-untrusted-realm-issuer", Set(input, "x-cratis-issuer", "https://other.example.test"), "metadata");
+        SignedChange("metadata-negative-policy-epoch", Set(input, "x-cratis-policy-epoch", "-1"), "metadata");
+        var rfcSubject = Set(input, "x-ms-client-principal-id", "UTF-8''" + subject);
+        cases.Add(Signed("valid-rfc8187-uuid-subject-binding", rfcSubject, keys[0]));
+        SignedChange("signed-subject-uppercase", Set(Set(input, "x-ms-client-principal", Base64Json($"{{\"userId\":\"{subject.ToUpperInvariant()}\",\"userRoles\":[],\"claims\":[]}}")), "x-ms-client-principal-id", subject.ToUpperInvariant()), "identity");
+        cases.Add(Signed("assurance-auth-time-integer-numericdate", Set(input, "x-cratis-auth-time", "-1"), keys[0]));
+        SignedChange("assurance-auth-time-fraction-refused", Set(input, "x-cratis-auth-time", "1699999900.5"), "metadata");
+        SignedChange("signed-account-key-subject-mismatch", Set(input, "x-cratis-subject", "091ee384-c4c8-4a09-b278-47aad8b8a8b2"), "identity");
+        foreach (var kind in new[] { "browser-session", "oauth-grant", "pat", "on-behalf-session", "machine-principal", "workload" })
+        {
+            var classified = Set(input, "x-cratis-credential-kind", kind);
+            if (kind is "machine-principal" or "workload")
+            {
+                classified = classified with { Headers = classified.Headers.Where(h => !new[] { "x-cratis-issuer", "x-cratis-subject", "x-cratis-idp", "x-cratis-auth-time", "x-cratis-acr", "x-cratis-amr", "x-cratis-act", "x-cratis-grant-id" }.Contains(h.Name)).ToArray() };
+                classified = Set(Set(classified, "x-ms-client-principal", Base64Json("{\"userId\":\"service-7\",\"userRoles\":[],\"claims\":[]}")), "x-ms-client-principal-id", "service-7");
+            }
+            cases.Add(Signed("credential-kind-" + kind, classified, keys[0]));
+            var required = kind is "machine-principal" or "workload"
+                ? new[] { "x-cratis-credential-id", "x-cratis-sender-binding" }
+                : new[] { "x-cratis-credential-id", "x-cratis-issuer", "x-cratis-subject", "x-cratis-idp", "x-cratis-auth-time", "x-cratis-acr", "x-cratis-sender-binding" };
+            if (kind == "on-behalf-session") required = [.. required, "x-cratis-act", "x-cratis-grant-id"];
+            foreach (var name in required) SignedChange(kind + "-missing-" + name, classified with { Headers = classified.Headers.Where(h => h.Name != name).ToArray() }, "metadata");
+        }
+        SignedChange("workload-cannot-fabricate-person-context", Set(input, "x-cratis-credential-kind", "workload"), "metadata");
+        const string token = "TEST-ONLY-forwarded-token.not-a-real-credential";
+        var bearer = Set(Set(Set(Set(input, "x-cratis-credential-kind", "browser-session"), "x-cratis-credential-id", "session-test"), "x-cratis-sender-binding", "none"), "Authorization", "Bearer " + token);
+        var withHash = Set(bearer, "x-cratis-forwarded-token-sha256", Url(SHA256.HashData(Encoding.UTF8.GetBytes(token))));
+        var matching = Signed("matching-forwarded-bearer", withHash, keys[0]);
+        cases.Add(matching);
+        Changed("mismatched-forwarded-bearer", Set(withHash, "Authorization", "Bearer TEST-ONLY-other-token"), "credential", matching);
+        SignedChange("forwarded-bearer-without-hash", bearer, "credential");
+        SignedChange("hash-without-forwarded-bearer", withHash with { Headers = withHash.Headers.Where(h => !h.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).ToArray() }, "credential");
+        Changed("duplicate-authorization-header", withHash with { Headers = [.. withHash.Headers, new("authorization", "Bearer " + token)] }, "credential", matching);
+        Changed("non-bearer-authorization", Set(withHash, "Authorization", "Basic TEST-ONLY"), "credential", matching);
+        Changed("bearer-token-whitespace-is-not-normalized", Set(withHash, "Authorization", "Bearer " + token + " "), "credential", matching);
+        cases.Add(matching with { Name = "bearer-scheme-case-is-not-token-data", Inputs = Set(withHash, "Authorization", "bearer " + token) });
+        Changed("tamper-x-cratis-forwarded-token-sha256", Set(withHash, "x-cratis-forwarded-token-sha256", Url(new byte[32])), "signature", matching);
+        SignedChange("signed-invalid-forwarded-token-hash", Set(withHash, "x-cratis-forwarded-token-sha256", "invalid"), "credential");
         SignedChange("signed-subject-mismatch", Set(input, "x-ms-client-principal-id", "other-user"), "identity");
         SignedChange("signed-malformed-principal", Set(input, "x-ms-client-principal", "not-base64"), "identity");
         SignedChange("signed-null-roles", Set(input, "x-ms-client-principal", Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"userId\":\"user-test\",\"userRoles\":null,\"claims\":[]}"))), "identity");
         var unicodePrincipal = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"userId\":\"user-é\",\"userRoles\":[],\"claims\":[]}"));
-        cases.Add(Signed("valid-rfc8187-subject-binding", Set(Set(input, "x-ms-client-principal", unicodePrincipal), "x-ms-client-principal-id", "UTF-8''user-%C3%A9"), keys[0]));
+        SignedChange("non-uuid-person-subject-rejected", Set(Set(input, "x-ms-client-principal", unicodePrincipal), "x-ms-client-principal-id", "UTF-8''user-%C3%A9"), "identity");
         SignedChange("invalid-rfc8187-subject", Set(input, "x-ms-client-principal-id", "UTF-8''user-%FF"), "identity");
         Changed("unauthenticated-hop", input with { AuthenticatedTls = false }, "hop");
         Changed("sensitive-store-unavailable", input with { StoreAvailable = false }, "store");
@@ -305,21 +383,56 @@ static partial class Vectors
         return new(name, input, $"v2.{kid}.{stamp}.{Nonce}.{Url(signature)}", canonical, new("accept", "ok"));
     }
 
-    // Producer implementation, deliberately not used by the reference verifier.
+    // Producer implementation: LINQ selection and string framing, never called by the consumer.
     static string SignerCanonical(Inputs input, string kid, string stamp, string nonce)
     {
-        var exact = new[] { "x-cratis-token-client-id", "x-cratis-token-scope", "x-cratis-tenant-id", "tenant-id", "x-cratis-microservice", "service-id", input.TenantHeader.ToLowerInvariant(), "x-cratis-credential-kind", "x-cratis-credential-id", "x-cratis-auth-time", "x-cratis-assurance", "x-cratis-actor", "x-cratis-policy-epoch", "x-cratis-dpop-result" };
-        var headers = input.Headers.Select(h => new Header(h.Name.ToLowerInvariant(), h.Value.Trim(' ', '\t')))
-            .Where(h => h.Name != "x-cratis-forwarded-identity-signature" && (h.Name.StartsWith("x-ms-client-principal", StringComparison.Ordinal) || h.Name.StartsWith("x-cratis-on-behalf", StringComparison.Ordinal) || exact.Contains(h.Name)))
-            .OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
+        if (input.Aud.Length is < 1 or > 64 || !AudienceSlug().IsMatch(input.Aud)) throw new Rejected("request");
+        if (!UpperMethod().IsMatch(input.Method)) throw new Rejected("request");
+        if (!input.Path.StartsWith('/') || input.Path.Any(c => c <= 32 || c >= 127 || c == '#')) throw new Rejected("request");
         var path = input.Path.Split('?')[0];
+        if (InvalidEscape().IsMatch(path)) throw new Rejected("request");
         path = PathEscapes().Replace(path, match => match.Value.ToUpperInvariant());
+        var exact = new[] { "x-cratis-token-client-id", "x-cratis-token-scope", "x-cratis-tenant-id", "tenant-id", "x-cratis-microservice", "service-id", input.TenantHeader.ToLowerInvariant() };
+        var selected = input.Headers.Where(h => !h.Name.Equals("x-cratis-forwarded-identity-signature", StringComparison.OrdinalIgnoreCase))
+            .Where(h => h.Name.StartsWith("x-ms-client-principal", StringComparison.OrdinalIgnoreCase) || h.Name.StartsWith("x-cratis-on-behalf", StringComparison.OrdinalIgnoreCase) || exact.Contains(h.Name.ToLowerInvariant()) || ContextHeaders.Contains(h.Name.ToLowerInvariant())).ToArray();
+        if (selected.Any(h => !HeaderToken().IsMatch(h.Name))) throw new Rejected("headers");
+        var headers = selected.Select(h => new Header(h.Name.ToLowerInvariant(), h.Value.Trim(' ', '\t'))).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
+        if (headers.Any(h => h.Value.Any(c => c < 32 || c > 126)) || headers.Select(h => h.Name).Distinct(StringComparer.Ordinal).Count() != headers.Length) throw new Rejected("headers");
+        if (headers.Length > 64) throw new Rejected("bounds");
+        if (RequiredPrincipalHeaders.Any(name => !headers.Any(h => h.Name == name && h.Value.Length > 0))) throw new Rejected("headers");
         var result = new StringBuilder("Cratis.AuthProxy.ForwardedIdentity.v2\n");
-        void Frame(string text) => result.Append(Encoding.UTF8.GetByteCount(text).ToString(CultureInfo.InvariantCulture)).Append(':').Append(text).Append('\n');
-        foreach (var text in new[] { input.Audience, kid, stamp, nonce, input.Method, path, headers.Length.ToString(CultureInfo.InvariantCulture) }) Frame(text);
+        void Frame(string text)
+        {
+            result.Append(Encoding.UTF8.GetByteCount(text).ToString(CultureInfo.InvariantCulture)).Append(':').Append(text).Append('\n');
+            if (Encoding.UTF8.GetByteCount(result.ToString()) > 32768) throw new Rejected("bounds");
+        }
+        foreach (var text in new[] { input.Aud, kid, stamp, nonce, input.Method, path, headers.Length.ToString(CultureInfo.InvariantCulture) }) Frame(text);
         foreach (var h in headers) { Frame(h.Name); Frame(h.Value); }
         return result.ToString();
     }
+
+    [GeneratedRegex("\\A[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\z", RegexOptions.None, 100)]
+    private static partial Regex AudienceSlug();
+    [GeneratedRegex("\\A[A-Z0-9!#$%&'*+.^_`|~-]+\\z", RegexOptions.None, 100)]
+    private static partial Regex UpperMethod();
+    [GeneratedRegex("%(?![0-9A-Fa-f]{2})", RegexOptions.None, 100)]
+    private static partial Regex InvalidEscape();
+    [GeneratedRegex("\\A[A-Za-z0-9!#$%&'*+.^_`|~-]+\\z", RegexOptions.None, 100)]
+    private static partial Regex HeaderToken();
+
+    public static CanonicalCheck CanonicalResult(Inputs input)
+    {
+        try { return new(SignerCanonical(input, "k1", "1700000000", Nonce), null); }
+        catch (Rejected error) { return new(null, error.Message); }
+    }
+
+    public static Fixture KeepUnchangedSignatures(Fixture current, Fixture previous)
+    {
+        var old = previous.Cases.ToDictionary(item => item.Name, StringComparer.Ordinal);
+        return current with { Cases = current.Cases.Select(item => old.TryGetValue(item.Name, out var prior) && item.SigningInput == prior.SigningInput && item.Expected == prior.Expected ? item with { Envelope = prior.Envelope } : item).ToList() };
+    }
+
+    static string Base64Json(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
     static Vector WithS(Vector source, bool high)
     {
@@ -341,13 +454,15 @@ sealed class Rejected(string reason) : Exception(reason);
 
 sealed class NonceStore
 {
-    readonly Dictionary<(string Audience, string Kid, string Nonce), decimal> _reservations = [];
+    readonly Dictionary<(string Aud, string Kid, string Nonce), decimal> _reservations = [];
 
-    public bool Reserve(string audience, string kid, string nonce, long timestamp, long now)
+    public object[] Snapshot() => _reservations.Select(entry => (object)new { entry.Key.Aud, entry.Key.Kid, entry.Key.Nonce, ExpiresAt = entry.Value }).ToArray();
+
+    public bool Reserve(string aud, string kid, string nonce, long timestamp, long now)
     {
         // Models one atomic insert and a shared durable store; not a production store implementation.
         foreach (var key in _reservations.Where(entry => entry.Value <= now).Select(entry => entry.Key).ToArray()) _reservations.Remove(key);
-        return _reservations.TryAdd((audience, kid, nonce), (decimal)timestamp + 61);
+        return _reservations.TryAdd((aud, kid, nonce), (decimal)timestamp + 61);
     }
 }
 
@@ -359,12 +474,12 @@ static partial class Reference
     [GeneratedRegex("\\A[A-Za-z0-9_-]+\\z", RegexOptions.None, 100)]
     private static partial Regex Base64UrlPattern();
 
-    [GeneratedRegex("\\A[a-z][a-z0-9-]{0,63}\\z", RegexOptions.None, 100)]
-    private static partial Regex CredentialKindPattern();
+    [GeneratedRegex("\\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\z", RegexOptions.None, 100)]
+    private static partial Regex SubjectPattern();
     static readonly HashSet<string> ExactHeaders = new(StringComparer.Ordinal)
     {
         "x-cratis-token-client-id", "x-cratis-token-scope", "x-cratis-tenant-id", "tenant-id", "x-cratis-microservice", "service-id",
-        "x-cratis-credential-kind", "x-cratis-credential-id", "x-cratis-auth-time", "x-cratis-assurance", "x-cratis-actor", "x-cratis-policy-epoch", "x-cratis-dpop-result"
+        "x-cratis-credential-kind", "x-cratis-credential-id", "x-cratis-issuer", "x-cratis-subject", "x-cratis-idp", "x-cratis-auth-time", "x-cratis-acr", "x-cratis-amr", "x-cratis-act", "x-cratis-grant-id", "x-cratis-policy-epoch", "x-cratis-sender-binding", "x-cratis-forwarded-token-sha256"
     };
 
     public static Outcome Verify(Vector vector, TestKey[] keys, NonceStore store)
@@ -384,11 +499,12 @@ static partial class Reference
             catch (CryptographicException) { /* Invalid scalars are a uniform signature rejection. */ }
             if (!verified) throw new Rejected("signature");
             Principal(headers);
-            Metadata(headers);
+            Metadata(headers, input.RealmIssuer);
+            BindForwardedBearer(input, headers);
             if (input.ReplaySensitive)
             {
                 if (!input.StoreAvailable || input.StoreFull) throw new Rejected("store");
-                if (!store.Reserve(input.Audience, envelope.Kid, envelope.Parts[3], envelope.Timestamp, input.Now)) throw new Rejected("replay");
+                if (!store.Reserve(input.Aud, envelope.Kid, envelope.Parts[3], envelope.Timestamp, input.Now)) throw new Rejected("replay");
             }
             return new("accept", "ok");
         }
@@ -396,6 +512,12 @@ static partial class Reference
     }
 
     public static string CanonicalFor(Vector vector) => Encoding.UTF8.GetString(Canonical(vector.Inputs, Parse(vector.Envelope).Parts).Bytes);
+
+    public static CanonicalCheck CanonicalResult(Inputs input)
+    {
+        try { return new(Encoding.UTF8.GetString(Canonical(input, ["v2", "k1", "1700000000", "AAECAwQFBgcICQoLDA0ODw"]).Bytes), null); }
+        catch (Rejected error) { return new(null, error.Message); }
+    }
 
     static (string[] Parts, string Kid, long Timestamp, byte[] Signature) Parse(string text)
     {
@@ -422,7 +544,7 @@ static partial class Reference
     // Consumer implementation: streaming frames, independent selection and path handling.
     static (byte[] Bytes, SortedDictionary<string, string> Headers) Canonical(Inputs input, string[] parts)
     {
-        if (string.IsNullOrWhiteSpace(input.Audience) || input.Audience.Length > 128 || input.Audience.Any(c => c < 32 || c > 126)) throw new Rejected("request");
+        if (input.Aud.Length is < 1 or > 64 || input.Aud[0] is < 'a' or > 'z' || input.Aud.Any(c => !(c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')) || input.Aud.Split('-').Any(segment => segment.Length == 0)) throw new Rejected("request");
         const string methodToken = "!#$%&'*+-.^_`|~";
         if (input.Method.Length == 0 || input.Method.Any(c => !(c is >= 'A' and <= 'Z' or >= '0' and <= '9') && !methodToken.Contains(c))) throw new Rejected("request");
         if (!input.Path.StartsWith('/') || input.Path.Any(c => c < 33 || c > 126 || c == '#')) throw new Rejected("request");
@@ -441,7 +563,7 @@ static partial class Reference
             var name = header.Name.ToLowerInvariant();
             if (name == "x-cratis-forwarded-identity-signature") continue;
             if (!name.StartsWith("x-ms-client-principal", StringComparison.Ordinal) && !name.StartsWith("x-cratis-on-behalf", StringComparison.Ordinal) && !ExactHeaders.Contains(name) && !name.Equals(input.TenantHeader, StringComparison.OrdinalIgnoreCase)) continue;
-            if (name.Length == 0 || name.Any(c => !(c is >= 'a' and <= 'z' or >= '0' and <= '9') && !methodToken.Contains(c))) throw new Rejected("headers");
+            if (header.Name.Length == 0 || header.Name.Any(c => !(c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9') && !methodToken.Contains(c))) throw new Rejected("headers");
             var value = header.Value.Trim(' ', '\t');
             if (value.Any(c => c < 32 || c > 126) || !headers.TryAdd(name, value)) throw new Rejected("headers");
         }
@@ -460,7 +582,7 @@ static partial class Reference
             stream.WriteByte(10);
             if (stream.Length > 32768) throw new Rejected("bounds");
         }
-        foreach (var value in new[] { input.Audience, parts[1], parts[2], parts[3], input.Method, new string(path), headers.Count.ToString(CultureInfo.InvariantCulture) }) Write(value);
+        foreach (var value in new[] { input.Aud, parts[1], parts[2], parts[3], input.Method, new string(path), headers.Count.ToString(CultureInfo.InvariantCulture) }) Write(value);
         foreach (var entry in headers) { Write(entry.Key); Write(entry.Value); }
         return (stream.ToArray(), headers);
     }
@@ -490,22 +612,130 @@ static partial class Reference
                 id = new UTF8Encoding(false, true).GetString(bytes.ToArray());
             }
             if (id != subject.GetString()) throw new Rejected("identity");
+            var service = headers.GetValueOrDefault("x-cratis-credential-kind") is "machine-principal" or "workload";
+            if (!service && !SubjectPattern().IsMatch(id)) throw new Rejected("identity");
+            if (!service && headers.TryGetValue("x-cratis-subject", out var explicitSubject) && explicitSubject.Length > 0 && explicitSubject != id) throw new Rejected("identity");
         }
         catch (Exception error) when (error is FormatException or JsonException or DecoderFallbackException or InvalidOperationException) { throw new Rejected("identity"); }
     }
 
-    static void Metadata(SortedDictionary<string, string> headers)
+    static void Metadata(SortedDictionary<string, string> headers, string realmIssuer)
     {
-        if (!headers.TryGetValue("x-cratis-credential-kind", out var kind) || !CredentialKindPattern().IsMatch(kind) ||
-            !headers.TryGetValue("x-cratis-credential-id", out var id) || id.Length == 0) throw new Rejected("metadata");
-        foreach (var name in new[] { "x-cratis-auth-time", "x-cratis-assurance", "x-cratis-actor", "x-cratis-policy-epoch", "x-cratis-dpop-result" })
+        try
         {
-            if (!headers.TryGetValue(name, out var value)) continue;
-            if (value.Length == 0) throw new Rejected("metadata");
-            if (name is "x-cratis-auth-time" or "x-cratis-policy-epoch" && !Unsigned(value, out _)) throw new Rejected("metadata");
-            if (name == "x-cratis-dpop-result" && value is not ("verified" or "not-applicable")) throw new Rejected("metadata");
+            var kind = Required(headers, "x-cratis-credential-kind");
+            if (kind is not ("browser-session" or "oauth-grant" or "pat" or "on-behalf-session" or "machine-principal" or "workload")) throw new Rejected("metadata");
+            _ = Required(headers, "x-cratis-credential-id");
+            var service = kind is "machine-principal" or "workload";
+            if (!service)
+            {
+                if (Required(headers, "x-cratis-issuer") != realmIssuer) throw new Rejected("metadata");
+                _ = Required(headers, "x-cratis-subject");
+                _ = Required(headers, "x-cratis-idp");
+                if (!NumericDate(Required(headers, "x-cratis-auth-time"))) throw new Rejected("metadata");
+                _ = Required(headers, "x-cratis-acr");
+            }
+            else if (headers.Keys.Any(name => name is "x-cratis-issuer" or "x-cratis-subject" or "x-cratis-idp" or "x-cratis-auth-time" or "x-cratis-acr" or "x-cratis-amr" or "x-cratis-act")) throw new Rejected("metadata");
+            foreach (var name in new[] { "x-cratis-idp", "x-cratis-auth-time", "x-cratis-acr", "x-cratis-amr", "x-cratis-act", "x-cratis-grant-id", "x-cratis-policy-epoch" })
+            {
+                if (headers.TryGetValue(name, out var value) && value.Length == 0) throw new Rejected("metadata");
+            }
+            if (headers.TryGetValue("x-cratis-policy-epoch", out var epoch) && !Unsigned(epoch, out _)) throw new Rejected("metadata");
+            if (headers.TryGetValue("x-cratis-amr", out var methods))
+            {
+                using var document = DecodeJson(methods);
+                if (document.RootElement.ValueKind != JsonValueKind.Array || document.RootElement.EnumerateArray().Any(method => method.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(method.GetString()))) throw new Rejected("metadata");
+            }
+            if (kind == "on-behalf-session") _ = Required(headers, "x-cratis-act");
+            if (headers.TryGetValue("x-cratis-act", out var actor))
+            {
+                using var document = DecodeJson(actor);
+                CheckActor(document.RootElement, 0);
+                _ = Required(headers, "x-cratis-grant-id");
+            }
+            var binding = Required(headers, "x-cratis-sender-binding");
+            if (binding != "none")
+            {
+                using var document = DecodeJson(binding);
+                var evidence = document.RootElement;
+                if (evidence.ValueKind != JsonValueKind.Object || evidence.EnumerateObject().Count() != 2 || !StringField(evidence, "jkt") || !StringField(evidence, "jti")) throw new Rejected("metadata");
+                try { _ = DecodeUrl(evidence.GetProperty("jkt").GetString()!, 32); }
+                catch (Rejected) { throw new Rejected("metadata"); }
+            }
         }
+        catch (Exception error) when (error is FormatException or JsonException or DecoderFallbackException or InvalidOperationException) { throw new Rejected("metadata"); }
+    }
+
+    static bool NumericDate(string value) => long.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var timestamp) && value == timestamp.ToString(CultureInfo.InvariantCulture);
+
+    static void BindForwardedBearer(Inputs input, SortedDictionary<string, string> headers)
+    {
+        var authorization = input.Headers.Where(header => header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var hasHash = headers.TryGetValue("x-cratis-forwarded-token-sha256", out var hash);
+        if (authorization.Length == 0)
+        {
+            if (hasHash) throw new Rejected("credential");
+            return;
+        }
+        if (authorization.Length != 1 || !hasHash || !authorization[0].Value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) throw new Rejected("credential");
+        var token = authorization[0].Value[7..];
+        var unpadded = token.TrimEnd('=');
+        if (unpadded.Length == 0 || unpadded.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '.' or '_' or '~' or '+' or '/'))) throw new Rejected("credential");
+        byte[] expected;
+        try { expected = DecodeUrl(hash!, 32); }
+        catch (Rejected) { throw new Rejected("credential"); }
+        if (!CryptographicOperations.FixedTimeEquals(expected, SHA256.HashData(Encoding.UTF8.GetBytes(token)))) throw new Rejected("credential");
+    }
+
+    static string Required(SortedDictionary<string, string> headers, string name) => headers.TryGetValue(name, out var value) && value.Length > 0 ? value : throw new Rejected("metadata");
+
+    static JsonDocument DecodeJson(string value) => JsonDocument.Parse(new UTF8Encoding(false, true).GetString(Convert.FromBase64String(value)));
+
+    static bool StringField(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString());
+
+    static void CheckActor(JsonElement actor, int depth)
+    {
+        if (depth > 8 || actor.ValueKind != JsonValueKind.Object || !StringField(actor, "iss") || !StringField(actor, "sub") || actor.EnumerateObject().Any(field => field.Name is not ("iss" or "sub" or "act"))) throw new Rejected("metadata");
+        if (actor.TryGetProperty("act", out var previous)) CheckActor(previous, depth + 1);
     }
 
     static bool Unsigned(string value, out long number) => long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out number) && value.Length <= 19 && value == number.ToString(CultureInfo.InvariantCulture);
+}
+
+static class IdentityDelivery
+{
+    public static void Export(Fixture fixture, string directory, JsonSerializerOptions json)
+    {
+        Directory.CreateDirectory(directory);
+        var groups = new Dictionary<string, NonceStore>(StringComparer.Ordinal);
+        foreach (var item in fixture.Cases)
+        {
+            var store = new NonceStore();
+            if (item.ReplayGroup is { } group)
+            {
+                if (!groups.TryGetValue(group, out var shared))
+                {
+                    shared = new NonceStore();
+                    groups.Add(group, shared);
+                }
+                store = shared;
+            }
+            var data = new
+            {
+                item.Name,
+                Description = "Synthetic TEST-ONLY forwarded identity contract case: " + item.Name.Replace('-', ' '),
+                Given = new
+                {
+                    VerificationKeys = fixture.TestKeys.Select(key => new { key.Name, key.KeyIds, key.PublicKeyPem }).ToArray(),
+                    item.Inputs,
+                    NonceReservations = store.Snapshot()
+                },
+                When = new { Action = "verify_forwarded_identity_v2", item.Envelope, item.SigningInput },
+                Then = new { Outcome = item.Expected.Result, item.Expected.Reason }
+            };
+            if (Reference.Verify(item, fixture.TestKeys, store) != item.Expected) throw new Rejected("delivery-state");
+            File.WriteAllText(Path.Combine(directory, item.Name + ".json"), JsonSerializer.Serialize(data, json) + "\n", new UTF8Encoding(false));
+        }
+        Console.WriteLine($"Exported {fixture.Cases.Count} Identity data vectors; public verification keys only.");
+    }
 }
