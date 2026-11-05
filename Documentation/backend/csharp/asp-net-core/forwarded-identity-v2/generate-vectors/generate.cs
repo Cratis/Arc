@@ -10,6 +10,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
@@ -96,16 +97,22 @@ if (selfTest)
     var tampered = valid with { Inputs = valid.Inputs with { Aud = "other-api" } };
     var bound = fixture.Cases.Single(item => item.Name == "matching-forwarded-bearer");
     var swappedBearer = bound with { Inputs = bound.Inputs with { Headers = bound.Inputs.Headers.Select(h => h.Name == "Authorization" ? h with { Value = "Bearer TEST-ONLY-swapped-token" } : h).ToArray() } };
+    var pat = fixture.Cases.Single(item => item.Name == "pat-bearer-caller-from-local-pat-verifier");
+    var refusedPat = pat with { Inputs = pat.Inputs with { VerifiedBearer = pat.Inputs.VerifiedBearer! with { Accepted = false } } };
+    var wrongAccount = bound with { Inputs = bound.Inputs with { VerifiedBearer = bound.Inputs.VerifiedBearer! with { AccountKey = new("https://other.example.test", bound.Inputs.VerifiedBearer!.AccountKey.Subject) } } };
     if (Reference.Verify(valid, fixture.TestKeys, new NonceStore()).Result != "accept" ||
-        Reference.Verify(bound, fixture.TestKeys, new NonceStore()).Result != "accept" ||
+        Reference.Verify(bound, fixture.TestKeys, new NonceStore()) != new Outcome("accept", "ok", "oauth-verifier") ||
+        Reference.Verify(pat, fixture.TestKeys, new NonceStore()) != new Outcome("accept", "ok", "pat-verifier") ||
+        Reference.Verify(refusedPat, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "credential") ||
+        Reference.Verify(wrongAccount, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "credential") ||
         Reference.Verify(swappedBearer, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "credential") ||
         Reference.Verify(poison, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "format") ||
         Reference.Verify(tampered, fixture.TestKeys, new NonceStore()) != new Outcome("reject", "signature"))
     {
-        Console.Error.WriteLine("Self-test failed to accept controls or detect planted format, canonical binding and bearer binding violations.");
+        Console.Error.WriteLine("Self-test failed to accept controls or detect planted format, canonical binding, bearer binding and bearer verification violations.");
         return 1;
     }
-    Console.WriteLine("Self-test: accepted 2 controls and detected 3 planted violations.");
+    Console.WriteLine("Self-test: accepted 3 controls and detected 5 planted violations.");
 }
 if (exportIdentity && mismatches == 0) IdentityDelivery.Export(fixture, args[2], json);
 return mismatches == 0 ? 0 : 1;
@@ -118,7 +125,9 @@ static TestKey NewKey(string name, string[] keyIds)
 
 sealed record TestKey(string Name, string[] KeyIds, string PrivateKeyPem, string PublicKeyPem);
 sealed record Header(string Name, string Value);
-sealed record Outcome(string Result, string Reason);
+sealed record Outcome(string Result, string Reason, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CallerSource = null);
+sealed record AccountKey(string Issuer, string Subject);
+sealed record VerifiedBearerResult(string Verifier, AccountKey AccountKey, bool Accepted = true);
 sealed record Fixture(string Warning, string Format, TestKey[] TestKeys, List<Vector> Cases);
 sealed record Inputs(
     string Method,
@@ -132,7 +141,8 @@ sealed record Inputs(
     bool StoreAvailable = true,
     bool StoreFull = false,
     string Replica = "replica-a",
-    string RealmIssuer = "https://identity.example.test");
+    string RealmIssuer = "https://identity.example.test",
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] VerifiedBearerResult? VerifiedBearer = null);
 sealed record Vector(string Name, Inputs Inputs, string Envelope, string SigningInput, Outcome Expected, string? ReplayGroup = null);
 sealed record CanonicalCheck(string? Bytes, string? Error);
 
@@ -329,8 +339,9 @@ static partial class Vectors
         SignedChange("workload-cannot-fabricate-person-context", Set(input, "x-cratis-credential-kind", "workload"), "metadata");
         const string token = "TEST-ONLY-forwarded-token.not-a-real-credential";
         var bearer = Set(Set(Set(Set(input, "x-cratis-credential-kind", "browser-session"), "x-cratis-credential-id", "session-test"), "x-cratis-sender-binding", "none"), "Authorization", "Bearer " + token);
-        var withHash = Set(bearer, "x-cratis-forwarded-token-sha256", Url(SHA256.HashData(Encoding.UTF8.GetBytes(token))));
-        var matching = Signed("matching-forwarded-bearer", withHash, keys[0]);
+        var accountKey = new AccountKey(input.RealmIssuer, subject);
+        var withHash = Set(bearer, "x-cratis-forwarded-token-sha256", Url(SHA256.HashData(Encoding.UTF8.GetBytes(token)))) with { VerifiedBearer = new("oauth-verifier", accountKey) };
+        var matching = Signed("matching-forwarded-bearer", withHash, keys[0]) with { Expected = new("accept", "ok", "oauth-verifier") };
         cases.Add(matching);
         Changed("mismatched-forwarded-bearer", Set(withHash, "Authorization", "Bearer TEST-ONLY-other-token"), "credential", matching);
         SignedChange("forwarded-bearer-without-hash", bearer, "credential");
@@ -339,6 +350,26 @@ static partial class Vectors
         Changed("non-bearer-authorization", Set(withHash, "Authorization", "Basic TEST-ONLY"), "credential", matching);
         Changed("bearer-token-whitespace-is-not-normalized", Set(withHash, "Authorization", "Bearer " + token + " "), "credential", matching);
         cases.Add(matching with { Name = "bearer-scheme-case-is-not-token-data", Inputs = Set(withHash, "Authorization", "bearer " + token) });
+        var oauth = Set(withHash, "x-cratis-credential-kind", "oauth-grant");
+        cases.Add(Signed("oauth-bearer-caller-from-oauth-verifier", oauth, keys[0]) with { Expected = new("accept", "ok", "oauth-verifier") });
+        SignedChange("bound-bearer-without-verifier-result", oauth with { VerifiedBearer = null }, "credential");
+        SignedChange("bound-oauth-bearer-verification-refused", oauth with { VerifiedBearer = new("oauth-verifier", accountKey, Accepted: false) }, "credential");
+        var differentSubject = accountKey with { Subject = "091ee384-c4c8-4a09-b278-47aad8b8a8b2" };
+        var differentIssuer = accountKey with { Issuer = "https://other.example.test" };
+        SignedChange("bound-oauth-bearer-account-subject-mismatch", oauth with { VerifiedBearer = new("oauth-verifier", differentSubject) }, "credential");
+        SignedChange("bound-oauth-bearer-account-issuer-mismatch", oauth with { VerifiedBearer = new("oauth-verifier", differentIssuer) }, "credential");
+        // Public zero-payload PAT fixture from the Arc PAT proposal, never an issued credential.
+        const string patToken = "direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748";
+        var pat = Set(Set(Set(withHash, "x-cratis-credential-kind", "pat"), "Authorization", "Bearer " + patToken), "x-cratis-forwarded-token-sha256", Url(SHA256.HashData(Encoding.UTF8.GetBytes(patToken)))) with { VerifiedBearer = new("pat-verifier", accountKey) };
+        cases.Add(Signed("pat-bearer-caller-from-local-pat-verifier", pat, keys[0]) with { Expected = new("accept", "ok", "pat-verifier") });
+        SignedChange("pat-namespace-bearer-with-browser-session-envelope", Set(pat, "x-cratis-credential-kind", "browser-session"), "credential");
+        SignedChange("pat-namespace-bearer-with-oauth-grant-envelope", Set(pat, "x-cratis-credential-kind", "oauth-grant"), "credential");
+        var malformedPat = "DIRECT_PAT_unsupported-TEST-ONLY";
+        SignedChange("pat-namespace-case-insensitive-before-format", Set(Set(oauth, "Authorization", "Bearer " + malformedPat), "x-cratis-forwarded-token-sha256", Url(SHA256.HashData(Encoding.UTF8.GetBytes(malformedPat)))), "credential");
+        SignedChange("pat-envelope-local-verification-refused", pat with { VerifiedBearer = new("pat-verifier", accountKey, Accepted: false) }, "credential");
+        SignedChange("pat-envelope-cannot-select-oauth-verifier", pat with { VerifiedBearer = new("oauth-verifier", accountKey) }, "credential");
+        SignedChange("bound-pat-account-subject-mismatch", pat with { VerifiedBearer = new("pat-verifier", differentSubject) }, "credential");
+        SignedChange("bound-pat-account-issuer-mismatch", pat with { VerifiedBearer = new("pat-verifier", differentIssuer) }, "credential");
         Changed("tamper-x-cratis-forwarded-token-sha256", Set(withHash, "x-cratis-forwarded-token-sha256", Url(new byte[32])), "signature", matching);
         SignedChange("signed-invalid-forwarded-token-hash", Set(withHash, "x-cratis-forwarded-token-sha256", "invalid"), "credential");
         SignedChange("signed-subject-mismatch", Set(input, "x-ms-client-principal-id", "other-user"), "identity");
@@ -500,13 +531,13 @@ static partial class Reference
             if (!verified) throw new Rejected("signature");
             Principal(headers);
             Metadata(headers, input.RealmIssuer);
-            BindForwardedBearer(input, headers);
+            var callerSource = BindForwardedBearer(input, headers);
             if (input.ReplaySensitive)
             {
                 if (!input.StoreAvailable || input.StoreFull) throw new Rejected("store");
                 if (!store.Reserve(input.Aud, envelope.Kid, envelope.Parts[3], envelope.Timestamp, input.Now)) throw new Rejected("replay");
             }
-            return new("accept", "ok");
+            return new("accept", "ok", callerSource);
         }
         catch (Rejected error) { return new("reject", error.Message); }
     }
@@ -668,14 +699,17 @@ static partial class Reference
 
     static bool NumericDate(string value) => long.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var timestamp) && value == timestamp.ToString(CultureInfo.InvariantCulture);
 
-    static void BindForwardedBearer(Inputs input, SortedDictionary<string, string> headers)
+    [GeneratedRegex("^[a-z0-9-]+_pat_", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+    private static partial Regex PatNamespace();
+
+    static string? BindForwardedBearer(Inputs input, SortedDictionary<string, string> headers)
     {
         var authorization = input.Headers.Where(header => header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).ToArray();
         var hasHash = headers.TryGetValue("x-cratis-forwarded-token-sha256", out var hash);
         if (authorization.Length == 0)
         {
             if (hasHash) throw new Rejected("credential");
-            return;
+            return null;
         }
         if (authorization.Length != 1 || !hasHash || !authorization[0].Value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) throw new Rejected("credential");
         var token = authorization[0].Value[7..];
@@ -685,6 +719,20 @@ static partial class Reference
         try { expected = DecodeUrl(hash!, 32); }
         catch (Rejected) { throw new Rejected("credential"); }
         if (!CryptographicOperations.FixedTimeEquals(expected, SHA256.HashData(Encoding.UTF8.GetBytes(token)))) throw new Rejected("credential");
+        return VerifiedBearerCallerSource(input, headers, PatNamespace().IsMatch(token));
+    }
+
+    static string VerifiedBearerCallerSource(Inputs input, SortedDictionary<string, string> headers, bool patNamespace)
+    {
+        if (patNamespace && headers["x-cratis-credential-kind"] != "pat") throw new Rejected("credential");
+        var callerSource = patNamespace ? "pat-verifier" : "oauth-verifier";
+        // Injected result of verifying this exact bearer, not authority derived from signed headers.
+        var bearer = input.VerifiedBearer;
+        if (bearer?.Accepted != true || bearer.Verifier != callerSource) throw new Rejected("credential");
+        // Principal already requires both nonempty signed account-key fields.
+        var signedAccountKey = new AccountKey(headers.GetValueOrDefault("x-cratis-issuer", ""), headers.GetValueOrDefault("x-cratis-subject", ""));
+        if (signedAccountKey != bearer.AccountKey) throw new Rejected("credential");
+        return callerSource;
     }
 
     static string Required(SortedDictionary<string, string> headers, string name) => headers.TryGetValue(name, out var value) && value.Length > 0 ? value : throw new Rejected("metadata");
@@ -731,7 +779,7 @@ static class IdentityDelivery
                     NonceReservations = store.Snapshot()
                 },
                 When = new { Action = "verify_forwarded_identity_v2", item.Envelope, item.SigningInput },
-                Then = new { Outcome = item.Expected.Result, item.Expected.Reason }
+                Then = new { Outcome = item.Expected.Result, item.Expected.Reason, item.Expected.CallerSource }
             };
             if (Reference.Verify(item, fixture.TestKeys, store) != item.Expected) throw new Rejected("delivery-state");
             File.WriteAllText(Path.Combine(directory, item.Name + ".json"), JsonSerializer.Serialize(data, json) + "\n", new UTF8Encoding(false));

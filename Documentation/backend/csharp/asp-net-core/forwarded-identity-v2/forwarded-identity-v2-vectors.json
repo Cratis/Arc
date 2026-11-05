@@ -21285,13 +21285,22 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
-      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.zBsBt9nuWWjYBDAugmpODcIYez1rCmOCTlBCwCviWE34Fm6buWagh53OnHeEkadLvb8YF3jCXk29wa4k-T25xQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
       "expected": {
         "result": "accept",
-        "reason": "ok"
+        "reason": "ok",
+        "callerSource": "oauth-verifier"
       },
       "replayGroup": null
     },
@@ -21414,7 +21423,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
@@ -21664,7 +21681,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw._obUArsqPb8np4mrWtapshLX-KAWwf1F9ogmPXW2ankLkyS2WtMsh7cJGgIt6fUA7ZxAHu2rGUOt2mFdR4P_eg",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
@@ -21797,7 +21822,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
@@ -21926,7 +21959,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
@@ -22055,7 +22096,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
@@ -22184,13 +22233,1797 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
-      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.zBsBt9nuWWjYBDAugmpODcIYez1rCmOCTlBCwCviWE34Fm6buWagh53OnHeEkadLvb8YF3jCXk29wa4k-T25xQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
       "expected": {
         "result": "accept",
-        "reason": "ok"
+        "reason": "ok",
+        "callerSource": "oauth-verifier"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "oauth-bearer-caller-from-oauth-verifier",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer TEST-ONLY-forwarded-token.not-a-real-credential"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.PevvXM0fqZsDFAtuJg0bZ9QvNJ8cNFIpjex4TxXMb7UIYIjc07loBsNUThJdTdbzs3UyVzB6yG7sfXd1sUnudw",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "accept",
+        "reason": "ok",
+        "callerSource": "oauth-verifier"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "bound-bearer-without-verifier-result",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer TEST-ONLY-forwarded-token.not-a-real-credential"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test"
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.CIXWBGFXtZawQm1zRf6UniCHgL0rA-GIarJsWVmkkMkoi9JPBppuGjbvJmrg0svhkkB7l1kb1zn-_2nMOkUmlg",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "bound-oauth-bearer-verification-refused",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer TEST-ONLY-forwarded-token.not-a-real-credential"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": false
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.gxn9jhr6WQbDD9wyFBCOvFY1NaTmiNLMLSf2mNVhF2eEbHQSQb0JRDtL6l6ZhZfINXozLIFmPTzZEER41MAIyQ",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "bound-oauth-bearer-account-subject-mismatch",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer TEST-ONLY-forwarded-token.not-a-real-credential"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "091ee384-c4c8-4a09-b278-47aad8b8a8b2"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.SCAqQSVpq4UMrPUGOzs4gWbKom41szl_teMOfZxUN2ApAyJtHTjkK47qeNE8TdvX9qw7pvNXd0h2W6wawvY7ow",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "bound-oauth-bearer-account-issuer-mismatch",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer TEST-ONLY-forwarded-token.not-a-real-credential"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://other.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.NFs4Qm_GZIGKLj9_jBpqxhpe3pIUee8Uc-zmzPwNHi7YIWpv-3w2-Q7gkCdOHT0erQC1X3WQhlK84wXWH4yYLg",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "pat-bearer-caller-from-local-pat-verifier",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "pat"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "pat-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.bMIouupytNCzjtFbN9akxGEZ3K9vAzutQKhiOPzy12krKjGUukYh-51XcuJTTp2vWppT8ra-BXlDblgTKL4oqA",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n3:pat\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "accept",
+        "reason": "ok",
+        "callerSource": "pat-verifier"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "pat-namespace-bearer-with-browser-session-envelope",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "browser-session"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "pat-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.fZrNXCZmUNyj3CUFNKDpD2Lzh80wOeaOuBkJ37YL_tXlUnb60Rr7iZvkFB6N5vHHdFeSHd9vlHanaTk1QPhsLQ",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "pat-namespace-bearer-with-oauth-grant-envelope",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "pat-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.I1UNZm_3-5Vh7NHe93bF5GWR1AVYDAKLSs3Cts_lBAuIq1n8WfEhEQXX5wjmt4ifkKBP9upq4AOAq4_oamnyBw",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "pat-namespace-case-insensitive-before-format",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "oauth-grant"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer DIRECT_PAT_unsupported-TEST-ONLY"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "uxq1xrQ3ZNVepUSByOC4zTzmZTJiGlcRdczYQzt2fhE"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.MT_KoZ0iNgPdrsMpNV3Cw6Z-nKiTF0v2eLAhN-Xl2ASEo7kycFkoBd9gn0e9Ap2vhaZpRsjGYNSZsYouFUkp6A",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n11:oauth-grant\n31:x-cratis-forwarded-token-sha256\n43:uxq1xrQ3ZNVepUSByOC4zTzmZTJiGlcRdczYQzt2fhE\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "pat-envelope-local-verification-refused",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "pat"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "pat-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": false
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.f9ZSJVHnoMTzLvxiLU9blYnjEXJe_3TZo8mVnwWrGJOhDLaD1KsmomiyTPgGE0WqWrH2EHK74TENi8bxHzPOtw",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n3:pat\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "pat-envelope-cannot-select-oauth-verifier",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "pat"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.MnC2nf3kiMnT00UJBM7riF-nCnez_Kt-c4t3o_1nMUAVoF8-TuM8G22OMRGOxyrQkqGB8OLY-TRQBz4YTIwm2A",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n3:pat\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "bound-pat-account-subject-mismatch",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "pat"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "pat-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "091ee384-c4c8-4a09-b278-47aad8b8a8b2"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.gkL57LW0EbocQNdgU_aE7PzJyNZu8o4mJjEJG4NRE-0r-e3OCkMat0GUeNcEcLEKUnivtNZHddHB964nMzDhVQ",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n3:pat\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
+      },
+      "replayGroup": null
+    },
+    {
+      "name": "bound-pat-account-issuer-mismatch",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {
+            "name": "x-ms-client-principal",
+            "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"
+          },
+          {
+            "name": "x-ms-client-principal-id",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-ms-client-principal-name",
+            "value": "Test User"
+          },
+          {
+            "name": "x-ms-client-principal-extension",
+            "value": "opaque,extension"
+          },
+          {
+            "name": "x-cratis-token-client-id",
+            "value": "client-test"
+          },
+          {
+            "name": "x-cratis-token-scope",
+            "value": "example:read example:write"
+          },
+          {
+            "name": "x-cratis-tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "tenant-id",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-microservice",
+            "value": "service-test"
+          },
+          {
+            "name": "service-id",
+            "value": "service-test"
+          },
+          {
+            "name": "x-example-tenant",
+            "value": "tenant-test"
+          },
+          {
+            "name": "x-cratis-on-behalf-context",
+            "value": "opaque"
+          },
+          {
+            "name": "x-cratis-issuer",
+            "value": "https://identity.example.test"
+          },
+          {
+            "name": "x-cratis-subject",
+            "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          {
+            "name": "x-cratis-idp",
+            "value": "https://login.example.test"
+          },
+          {
+            "name": "x-cratis-auth-time",
+            "value": "1699999900"
+          },
+          {
+            "name": "x-cratis-acr",
+            "value": "basic"
+          },
+          {
+            "name": "x-cratis-amr",
+            "value": "WyJwd2QiXQ=="
+          },
+          {
+            "name": "x-cratis-act",
+            "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="
+          },
+          {
+            "name": "x-cratis-grant-id",
+            "value": "grant-test"
+          },
+          {
+            "name": "x-cratis-policy-epoch",
+            "value": "7"
+          },
+          {
+            "name": "x-cratis-credential-id",
+            "value": "session-test"
+          },
+          {
+            "name": "x-cratis-sender-binding",
+            "value": "none"
+          },
+          {
+            "name": "x-cratis-credential-kind",
+            "value": "pat"
+          },
+          {
+            "name": "Authorization",
+            "value": "Bearer direct_pat_v1_0000000000000000000000000000000000000000000000000000000000000000_000eb748"
+          },
+          {
+            "name": "x-cratis-forwarded-token-sha256",
+            "value": "fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks"
+          }
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "pat-verifier",
+          "accountKey": {
+            "issuer": "https://other.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.yTui1U6G2WmiUY5Z7oalOGdBnWPIbzTDFnyia3aG6U0UrP97LoaisUAEu0wIONHfX4NGN6-GQH_Z2IGSBAieeA",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n3:pat\n31:x-cratis-forwarded-token-sha256\n43:fWd-cIBMBggI3AtMiTnYqqusKUyXaR9nYECdFjQ_2Ks\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {
+        "result": "reject",
+        "reason": "credential"
       },
       "replayGroup": null
     },
@@ -22313,7 +24146,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wpwqME2pD1gNO9E1kTul250ZPduqmZOHxlSixt4Y9uWhtPn7i6wEo0xsytazPLH4RbMEdsg64NT_PnD-PnNhXQ",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n43:oE7VEbKFPPhLDMKET07Q5lTVeLOz4fK3qYYgZhgxWP4\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
@@ -22442,7 +24283,15 @@
         "storeAvailable": true,
         "storeFull": false,
         "replica": "replica-a",
-        "realmIssuer": "https://identity.example.test"
+        "realmIssuer": "https://identity.example.test",
+        "verifiedBearer": {
+          "verifier": "oauth-verifier",
+          "accountKey": {
+            "issuer": "https://identity.example.test",
+            "subject": "8b167ad2-0f89-4c78-9d42-6d4580495d32"
+          },
+          "accepted": true
+        }
       },
       "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.LPMnaAEFSwD9L3lflJS75Gi73qK3H1_5xPSGrexBfiUjvliPI6fCr6X53BnpS7_bJP5UcKbkyEzLPM5OC_7WFg",
       "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:25\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n12:session-test\n24:x-cratis-credential-kind\n15:browser-session\n31:x-cratis-forwarded-token-sha256\n7:invalid\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n4:none\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
