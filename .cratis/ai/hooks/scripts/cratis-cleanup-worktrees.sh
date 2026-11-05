@@ -99,16 +99,16 @@ if [ "$SELFTEST" = 1 ]; then
     chk "fresh worktree kept"          '[ -d "$t/wt-fresh" ]'
     chk "fresh branch kept"            'git rev-parse -q --verify refs/heads/fresh >/dev/null'
     chk "main kept"                    'git rev-parse -q --verify refs/heads/main >/dev/null'
-    chk "report names the removal"     'printf "%s" "$out" | grep -q "removed worktree"'
+    chk "report names the removal"     'grep -q "removed worktree" <<<"$out"'
     chk "work records kept"            '[ -f "$t/wt-records/.ai-work/.handoff" ]'
     chk "work records branch kept"     'git rev-parse -q --verify refs/heads/records >/dev/null'
-    chk "work records reason reported" 'printf "%s" "$out" | grep -Fq "has untracked work records (.ai-work/)"'
+    chk "work records reason reported" 'grep -Fq "has untracked work records (.ai-work/)" <<<"$out"'
     chk "empty work records removed"   '[ ! -d "$t/wt-empty-records" ]'
     chk "locked worktree kept"         '[ -d "$t/wt-locked" ]'
     chk "locked branch kept"           'git rev-parse -q --verify refs/heads/locked >/dev/null'
-    chk "locked reason reported"       'printf "%s" "$out" | grep -Fq "worktree $t/wt-locked (locked): locked"'
+    chk "locked reason reported"       'grep -Fq "worktree $t/wt-locked (locked): locked" <<<"$out"'
     chk "locked detached kept"         '[ -d "$t/wt-locked-detached" ]'
-    chk "locked detached reported"     'printf "%s" "$out" | grep -Fq "worktree $t/wt-locked-detached (detached): locked"'
+    chk "locked detached reported"     'grep -Fq "worktree $t/wt-locked-detached (detached): locked" <<<"$out"'
     out=$(printf '%s' '{"hook_event_name":"SessionStart"}' | "$self" --no-fetch --include-work-records --hook 2>&1) || { echo "FAIL: hook exit $?"; echo "$out"; exit 1; }
     chk "hook ignores opt-in"          '[ -f "$t/wt-records/.ai-work/.handoff" ]'
     out=$("$self" --no-fetch --include-work-records 2>&1) || { echo "FAIL: opt-in exit $?"; echo "$out"; exit 1; }
@@ -159,12 +159,19 @@ cached_pulls() {
 }
 take_lock() {
     mkdir "$state/lock" 2>/dev/null && return 0
-    local modified retired acquired
-    read -r _ modified < <(lock_stat "$state/lock")
+    local inode modified retired acquired current
+    read -r inode modified < <(lock_stat "$state/lock")
     [[ "$modified" =~ ^[0-9]+$ ]] && [ "$now" -ge "$((modified + 900))" ] || return 1
     # Rename atomically: a killed reclaimer can leave only a retired directory, never a blocking marker.
     retired="$state/lock.stale.$$.$RANDOM"
     mv "$state/lock" "$retired" 2>/dev/null || return 1
+    read -r current _ < <(lock_stat "$retired")
+    if [ "$current" != "$inode" ]; then
+        # Another reclaimer replaced the stale directory. Restore its lock if possible;
+        # never acquire or delete a directory that was not the stale one we inspected.
+        [ -e "$state/lock" ] || mv "$retired" "$state/lock" 2>/dev/null
+        return 1
+    fi
     acquired=1
     mkdir "$state/lock" 2>/dev/null && acquired=0
     rm -rf "$retired"
@@ -283,9 +290,10 @@ in_use=$(git worktree list --porcelain | sed -n 's#^branch refs/heads/##p')
 planned_branches=$(printf '%s\n' "${PLAN_BRANCH[@]+"${PLAN_BRANCH[@]}"}")
 while IFS='|' read -r b bsha; do
     if [ -z "$b" ] || [ "$b" = "$default_local" ]; then continue; fi
-    if printf '%s\n' "$in_use" | grep -qx "$b"; then
+    # Drain producers under pipefail: grep -q can turn a match into a SIGPIPE failure.
+    if printf '%s\n' "$in_use" | grep -x "$b" >/dev/null; then
         [ "$DRY" = 0 ] || continue
-        printf '%s\n' "$planned_branches" | grep -qx "$b" || continue
+        printf '%s\n' "$planned_branches" | grep -x "$b" >/dev/null || continue
     fi
     plan_item branch "$b" "$bsha" "$b"
 done < <(git for-each-ref --format='%(refname:short)|%(objectname)' refs/heads)
@@ -308,7 +316,7 @@ git worktree prune >/dev/null 2>&1
 for ((i=0; i<${#PLAN_KIND[@]}; i++)); do
     kind=${PLAN_KIND[i]}; path=${PLAN_PATH[i]}; sha=${PLAN_SHA[i]}; br=${PLAN_BRANCH[i]}; ev=${PLAN_EVIDENCE[i]}
     if [ "$kind" = branch ]; then
-        git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | grep -qx "$br" && continue
+        git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | grep -x "$br" >/dev/null && continue
     fi
     if [ -z "$ev" ]; then
         if [ "$kind" = worktree ]; then note_kept "worktree $path (${br:-detached}): work not delivered to $default"
