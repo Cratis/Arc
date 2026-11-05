@@ -22,6 +22,17 @@ To place tenants on other servers or databases, or give them their own credentia
 
 The suffix selects a database; it does not check caller membership or grant database permissions. Reject unauthorized tenant selections before accessing tenant-scoped services. Resolve collections within the intended tenant's scope rather than retaining them in a singleton, where later requests could reuse the wrong destination. See [MongoDB tenancy](../mongodb/tenancy.md).
 
+## Neo4j database naming
+
+With the optional [Arc Neo4j integration](../neo4j/tenancy.md), `DefaultGraphDatabaseNameResolver` names the graph database from the configured event store and the tenant's namespace, using the algorithm Chronicle's Neo4j graph sink uses to choose the database it writes:
+
+```text
+{EventStore}                  // TenantId.NotSet or TenantId.Default
+{EventStore}-{TenantId}       // any other tenant, lower-cased and sanitized
+```
+
+Names are lower-cased, sanitized to `[a-z0-9-]`, and a name that sanitizing changed or that is too long gets a hash suffix. The same note applies as for MongoDB: the name selects a database; it does not check caller membership. Place tenants elsewhere with [Neo4j connection resolution](../neo4j/connection-resolution.md).
+
 ## Entity Framework Core database naming
 
 Arc's EF Core registration uses the configured connection string, including in pooled context registration. It does **not** automatically append the tenant ID or create a database per tenant. To connect each tenant to its own database, server or identity, configure [connection resolution](./connection-resolution.md); Arc then resolves the connection for the current tenant every time it opens.

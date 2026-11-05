@@ -125,6 +125,8 @@ The resolved parts apply differently to each storage:
 | `Identity` access token | A `MONGODB-OIDC` credential that refreshes through the resolver | `SqlConnection.AccessToken` (Entra ID) | Used as the password |
 | `Schema` | Not used | Not applied | Not applied |
 
+Neo4j (see [Neo4j connection resolution](../neo4j/connection-resolution.md)) takes a Bolt URI as `ConnectionString`, a graph database name as `Database`, a basic credential from an `Identity` password and a bearer token from an `Identity` access token. It does not use `Schema`.
+
 A resolved `Database` replaces default naming completely. With the template above, `acme` selects `tenant-acme`, while either default-tenant alias supplies `Default` and selects `tenant-Default`. Data under the old names stays there, so plan the data migration before changing the rule.
 
 EF Core resolves when a connection opens, not when a context is created. The interceptor applies each resolution over the originally configured connection string, not a previous tenant's resolved string. Still check pooled-context reuse and any tenant-specific state your application keeps on the context.

@@ -61,4 +61,6 @@ builder.UseCratisMongoDB(configureMongoDB: mongodb =>
 
 Use a custom resolver to match existing database names or include an environment or region in the name. Check the result for both default aliases and a named tenant before directing application traffic to the new layout.
 
+The [Neo4j integration](../neo4j/tenancy.md) names graph databases per event store and namespace by a different, shared algorithm.
+
 A name resolver only changes the database name; it does not configure sharding or change the server or credentials. For tenant-specific servers or credentials, continue with [connection resolution](./connection-resolution.md).

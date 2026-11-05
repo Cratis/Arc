@@ -9,7 +9,7 @@ Cratis Arc tenancy gives request code a current tenant ID so one application can
 
 A request for tenant `acme` needs two answers before it reaches storage: may this caller use `acme`, and where does `acme`'s data live? A header or claim can supply the ID, but the application still needs an authorization decision and a storage design that agree with it.
 
-Keep selection, membership authorization and storage isolation separate. Arc resolves the ID and exposes it through tenant context. Register an application-owned [`ITenantMembership` check](./membership.md) to verify the caller, or enforce that boundary at a trusted ingress. The MongoDB integration supplies tenant-aware database naming; EF Core isolation is application-owned. The optional Chronicle integration maps tenants to event-store namespaces. Storage naming never replaces membership checks.
+Keep selection, membership authorization and storage isolation separate. Arc resolves the ID and exposes it through tenant context. Register an application-owned [`ITenantMembership` check](./membership.md) to verify the caller, or enforce that boundary at a trusted ingress. The MongoDB and [Neo4j](../neo4j/tenancy.md) integrations supply tenant-aware database naming; EF Core isolation is application-owned. The optional Chronicle integration maps tenants to event-store namespaces. Storage naming never replaces membership checks.
 
 ```mermaid
 flowchart LR

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Neo4j.Testing</AssemblyName>
+        <RootNamespace>Cratis.Arc.Neo4j.Testing</RootNamespace>
+        <Description>Testing utilities for Cratis Arc applications that read a Neo4j graph: substitute the tenant-aware graph session in specifications and command scenarios.</Description>
+        <PackageTags>cratis;arc;neo4j;graph;testing</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Neo4j/Neo4j.csproj" />
+        <ProjectReference Include="../Testing/Testing.csproj" />
+    </ItemGroup>
+</Project>

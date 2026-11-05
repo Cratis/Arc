@@ -1,9 +1,9 @@
 ---
 title: Connection resolution contract
-description: "The language-neutral REST contract an endpoint implements to tell Arc and Chronicle where to connect and which identity to use, for MongoDB and SQL storage."
+description: "The language-neutral REST contract an endpoint implements to tell Arc and Chronicle where to connect and which identity to use, for MongoDB, Neo4j and SQL storage."
 ---
 
-This page specifies the endpoint behind the `Http` connection resolver. When Arc or Chronicle needs a storage connection, it calls your endpoint and asks where to connect and who to connect as. The contract is the same for every storage, MongoDB as well as SQL Server, PostgreSQL and SQLite, and it is plain JSON over HTTP, so you can implement the endpoint in any language or platform.
+This page specifies the endpoint behind the `Http` connection resolver. When Arc or Chronicle needs a storage connection, it calls your endpoint and asks where to connect and who to connect as. The contract is the same for every storage, MongoDB and Neo4j as well as SQL Server, PostgreSQL and SQLite, and it is plain JSON over HTTP, so you can implement the endpoint in any language or platform.
 
 For how the resolver is configured on the caller's side, see [connection resolution](/arc/backend/csharp/tenancy/connection-resolution/). The calling host decides which values it sends in the request `scope`. Arc's are listed under [Scope values](#scope-values); Chronicle documents its own in [storage connection resolution](/chronicle/hosting/configuration/storage-connection-resolution/).
 
@@ -34,7 +34,7 @@ The caller sends one request per storage, purpose and scope, and caches the answ
 
 | Property | Type | Required | Description |
 | --- | --- | --- | --- |
-| `storage` | string | Yes | The kind of storage being connected to: `MongoDB`, `SqlServer`, `PostgreSql` or `Sqlite`. Treat it as an open set and answer an unknown value with `204` or an error. |
+| `storage` | string | Yes | The kind of storage being connected to: `MongoDB`, `Neo4j`, `SqlServer`, `PostgreSql` or `Sqlite`. Treat it as an open set and answer an unknown value with `204` or an error. |
 | `purpose` | string | Yes | `Runtime` for reading and writing data, `Schema` for schema changes such as migrations or creating tables. Use it to hand out a more privileged identity for `Schema` only. |
 | `scope` | object | Yes | String keys to string values identifying what is being connected, such as a tenant. Never `null`, possibly empty. The keys depend on the calling host. |
 
@@ -80,8 +80,8 @@ Every property is optional and may be left out or set to `null`.
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `connectionString` | string | Replaces the configured connection string, in the native format of the storage: a `mongodb://` or `mongodb+srv://` URI for MongoDB, an ADO.NET style string for SQL Server, PostgreSQL and SQLite. |
-| `database` | string | The database to use. Replaces the database in the connection string. For SQLite this is the database file. |
+| `connectionString` | string | Replaces the configured connection string, in the native format of the storage: a `mongodb://` or `mongodb+srv://` URI for MongoDB, a Bolt URI such as `bolt://` or `neo4j+s://` for Neo4j, an ADO.NET style string for SQL Server, PostgreSQL and SQLite. |
+| `database` | string | The database to use. Replaces the database in the connection string. For SQLite this is the database file. For Neo4j this is the name of the graph database. |
 | `schema` | string | The schema to use, for storage that has schemas. Ignored where the calling host does not support placing data in a schema. |
 | `identity` | object | Who to connect as. Replaces any identity resolved before it as a whole. See [Identity](#identity). |
 | `expiresAt` | string | When this answer stops being valid, as an ISO 8601 date and time with an offset. Set it whenever you return a short-lived credential. |
@@ -101,6 +101,7 @@ Return either a user name and password, or an access token. How each storage use
 | Storage | `userName` + `password` | `accessToken` |
 | --- | --- | --- |
 | MongoDB | SCRAM authentication against the connection string's `authSource`, else its database, else `admin` | `MONGODB-OIDC` authentication. The caller asks you again when the driver needs a fresh token. |
+| Neo4j | Basic authentication | A bearer token. The caller asks you again when the server rejects the token or it has expired. |
 | SQL Server | SQL authentication | Entra ID token authentication. The token must be issued for `https://database.windows.net/`. |
 | PostgreSQL | Password authentication | Sent as the password, as Azure Database for PostgreSQL and Amazon RDS IAM authentication expect. |
 | SQLite | Ignored | Ignored |
@@ -169,7 +170,7 @@ components:
         storage:
           type: string
           description: The kind of storage. An open set.
-          examples: [MongoDB, SqlServer, PostgreSql, Sqlite]
+          examples: [MongoDB, Neo4j, SqlServer, PostgreSql, Sqlite]
         purpose:
           type: string
           enum: [Runtime, Schema]

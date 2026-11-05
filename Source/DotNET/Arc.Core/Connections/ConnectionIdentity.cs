@@ -8,7 +8,7 @@ namespace Cratis.Arc.Connections;
 /// </summary>
 /// <remarks>
 /// Set either a user name and password, or an access token. An access token is used as an Entra ID token for SQL
-/// Server, as the password for PostgreSQL and as an OIDC token for MongoDB.
+/// Server, as the password for PostgreSQL and as an OIDC token for MongoDB and as a bearer token for Neo4j.
 /// </remarks>
 /// <param name="UserName">Optional user name.</param>
 /// <param name="Password">Optional password.</param>

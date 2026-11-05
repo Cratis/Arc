@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Neo4j.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Neo4j</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Neo4j/Neo4j.csproj"/>
+        <ProjectReference Include="../Neo4j.Testing/Neo4j.Testing.csproj"/>
+    </ItemGroup>
+</Project>

@@ -25,4 +25,6 @@ Follow [getting started](./getting-started.md) to install the package, connect y
 - [Tenancy](./tenancy.md): database naming and scope boundaries.
 - [Connection resolution](./connection-resolution.md): choose a server, database, or credentials for each tenant.
 
+Graph data lives in Neo4j rather than MongoDB; the [Neo4j integration](../neo4j/index.md) gives the same tenant-aware convenience for a property graph.
+
 Observation refreshes query results when stored documents change; it is not an event log. Storing a document does not append Chronicle events. If you need event sourcing as well, continue with the separate [Chronicle integration](../chronicle/index.md).

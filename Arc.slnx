@@ -36,6 +36,9 @@
         <Project Path="Source\DotNET\EntityFrameworkCore.PostgreSql.Specs\EntityFrameworkCore.PostgreSql.Specs.csproj" />
         <Project Path="Source\DotNET\MongoDB\MongoDB.csproj" />
         <Project Path="Source\DotNET\MongoDB.Specs\MongoDB.Specs.csproj" />
+        <Project Path="Source\DotNET\Neo4j\Neo4j.csproj" />
+        <Project Path="Source\DotNET\Neo4j.Specs\Neo4j.Specs.csproj" />
+        <Project Path="Source\DotNET\Neo4j.Testing\Neo4j.Testing.csproj" />
         <Project Path="Source\DotNET\Swagger\Swagger.csproj" />
         <Project Path="Source\DotNET\OpenApi\OpenApi.csproj" />
         <Project Path="Source\DotNET\OpenApi.Specs\OpenApi.Specs.csproj" />
@@ -72,6 +75,7 @@
         <Project Path="Samples\ArcCore\ArcCore.csproj" />
         <Project Path="Samples\ArcCore.Specs\ArcCore.Specs.csproj" />
         <Project Path="Samples\Core\Core.csproj" />
+        <Project Path="Samples\Neo4j\Neo4j.csproj" />
         <Project Path="Samples\Chronicle\Chronicle.csproj" />
         <Project Path="Samples\Layered\Layered.csproj" />
         <Project Path="Samples\Layered.Contracts\Layered.Contracts.csproj" />
