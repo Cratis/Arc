@@ -13,7 +13,7 @@ Enable both `Cratis:Arc:TrustForwardedIdentityHeaders` and `Cratis:Arc:Forwarded
 
 You may configure 1–8 keys with distinct, case-sensitive IDs. Invalid enabled configuration fails forwarded authentication. With signing enabled there is no unsigned fallback: missing, malformed, expired, replayed, or incorrectly signed credentials do not establish forwarded identity, name, roles, or actor. Without signing enabled, existing forwarded-header behavior is unchanged, including the default distrust of forwarded identity headers.
 
-**Deploy a compatible signer before enabling this mode.** Automatic AuthProxy signing is a later slice. Current unmodified AuthProxy signs neither YARP forwards nor its direct identity-details and tenant-list HTTP calls for this contract. Those workflows are incompatible with signed-only Arc targets until all relevant producers support signing.
+**Deploy a compatible signer before enabling this mode.** AuthProxy 2.44.0 and later can sign the identity it forwards as an opt-in, per backend service: proxied requests, bearer-route requests, identity-details calls and tenant-list calls. Arc 22.168.0 and later verifies those envelopes. Signing is off by default, so configure it in AuthProxy for every backend that runs in signed-only mode. Any other producer that forwards identity to a signed-only Arc target must sign as well, or its requests do not establish identity.
 
 Use TLS and restrict backend ingress. A shared-key verifier can also forge identities; provision service-specific secrets with least-privilege access. Synchronize clocks. This attests identity and bindings, not tenant existence, tenant membership, request-body integrity, or authorization.
 

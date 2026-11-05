@@ -1,6 +1,6 @@
 ---
 title: Understanding the proxy boundary
-description: How generated proxies keep an Arc backend and React frontend in step, with a C# example and links to JVM and TypeScript generator setup.
+description: How generated proxies keep an Arc backend and React frontend in step, with backend-specific setup for C#, JVM, TypeScript, and Go.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -11,7 +11,7 @@ The proxy boundary is that generated contract between the backend and its consum
 
 ## One source of truth
 
-The backend declaration defines the contract used to generate the proxy. In the C# example below, the `RegisterAuthor` record defines the shape; JVM and TypeScript backends use their own declarations and generators. Change the declaration and regenerate to update the frontend types.
+The backend declaration defines the contract used to generate the proxy. In the C# example below, the `RegisterAuthor` record defines the shape; JVM, TypeScript, and Go backends use their own declarations and generators. Change the declaration and regenerate to update the frontend types.
 
 ```mermaid
 flowchart LR
@@ -35,6 +35,8 @@ Generating from the same types catches structural drift at compile time when you
    On **Kotlin and Java**, apply the `io.cratis.arc` Gradle plugin and configure `cratisArc { proxies { } }` as in [TypeScript proxies](/arc/backend/kotlin/guides/typescript-proxies/). A **KSP annotation processor** runs as part of compilation and records what it found in an artifact manifest, and the `generateArcProxies` Gradle task turns that manifest into TypeScript.
 
    On **TypeScript**, `arc-proxygenerator` reads backend TypeScript source with `--project` and `--artifacts`, and writes client proxies and optionally server metadata. Run your application's generation script when declarations change; see [TypeScript generator setup](/arc/backend/typescript/proxy-generation/getting-started/). That backend has its own [capability reference](/arc/backend/typescript/reference/capabilities/), not a guarantee of parity with C# or JVM.
+
+   On **Go**, follow [TypeScript generation](/arc/go/backend/go/generation/typescript/) for the explicit metadata and typed adapter workflow. Its [parity reference](/arc/go/parity/) separates supported generated-client checks from unverified browser and React behavior; the tabs here do not include a Go example.
 
    Namespace folders, source-file placement, and index output depend on each backend's generator configuration.
 

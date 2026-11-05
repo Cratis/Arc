@@ -1,12 +1,16 @@
 ---
 title: Migrate to Cratis Arc secure defaults
-description: "Keep Cratis Arc secure defaults while upgrading: review forwarded identity header trust and choose how deployed hosts expose discovery endpoints."
+description: "Keep C# Cratis Arc hosts secure while upgrading: review forwarded identity header trust and choose how deployed hosts expose discovery endpoints."
 ---
 
-Cratis Arc now ignores unsigned forwarded identity headers unless you explicitly trust them, and
+C# Cratis Arc hosts now ignore unsigned forwarded identity headers unless you explicitly trust them, and
 requires authentication for discovery endpoints outside Development. When upgrading, review how requests
 reach your host and which tools read its discovery endpoints. Keep these defaults unless your deployment
 has a specific reason to override them.
+
+This guide's registration APIs and environment defaults are C#-specific. For
+other backends, check the [backend capability references](/arc/capabilities/) and
+your host's authentication configuration rather than copying the .NET settings.
 
 Review both sections if your discovery tools sign in through forwarded headers: enabling discovery
 authentication does not by itself make Arc trust those headers.

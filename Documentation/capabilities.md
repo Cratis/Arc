@@ -1,6 +1,6 @@
 ---
 title: Capability matrix
-description: Which Arc capabilities exist in each backend implementation - C#, Kotlin, and Java - with the boundary of every partial answer.
+description: Compare Arc capabilities for C#, Kotlin, and Java, with separate TypeScript and Go references and the boundary of every partial answer.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved. -->
@@ -11,12 +11,20 @@ This matrix covers two backend implementations: [C# on ASP.NET Core](/arc/backen
 capability exists in the language you work in before you design around it.
 
 :::note[Arc for TypeScript]
-[Arc for TypeScript](/arc/backend/typescript/), a third implementation for Node.js, is
+[Arc for TypeScript](/arc/backend/typescript/) on Node.js is
 available from source, with no published npm package. It is not in this matrix: a column
 here needs evidence behind every cell.
 Its [capability reference](/arc/backend/typescript/reference/capabilities/) gives the status
 of each capability, the spec or check that proves it, and where it deliberately differs from
 Arc on .NET. It makes no full-parity claim.
+:::
+
+:::note[Arc for Go]
+[Arc for Go](/arc/go/) is not in this matrix. Its
+[parity reference](/arc/go/parity/) records supported contracts, executable evidence,
+and deliberate differences, including bounded TypeScript proxy and React checks.
+Use that evidence before applying a shared recipe; Go-owned hosting tests do not
+establish full C# or browser parity.
 :::
 
 Each cell was checked against that implementation's source, public API, and tests, not

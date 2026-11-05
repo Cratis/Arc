@@ -12,7 +12,7 @@ The common sections apply to both implementations. Where behavior differs, see
 both behaviors so a client author can see the edge before hitting it.
 
 :::note[Arc for TypeScript]
-A third implementation, [Arc for TypeScript](/arc/backend/typescript/) on Node.js, is
+[Arc for TypeScript](/arc/backend/typescript/) on Node.js is
 available from source, with no published npm package. The statements on this page are verified for the C# and JVM implementations.
 Arc for TypeScript follows this contract for the capabilities it implements, and a paired
 suite checks a bounded set of routes against a C# host. Where it differs, for example by
@@ -21,6 +21,14 @@ caller on a protected operation when authentication handlers are configured, its
 [HTTP contract reference](/arc/backend/typescript/reference/http-contract/) and
 [capability reference](/arc/backend/typescript/reference/capabilities/#deliberate-differences)
 say so.
+:::
+
+:::note[Arc for Go]
+[Arc for Go](/arc/go/) records its supported wire behavior and paired snapshot
+checks in its [parity reference](/arc/go/parity/). Those bounded checks do not
+verify every route, command, identity, or streaming behavior on this page. Use
+Go's implementation guides for hosting and generation; do not treat this C#/JVM
+contract as a full Go conformance claim.
 :::
 
 :::note[This is the contract, not a host guide]
