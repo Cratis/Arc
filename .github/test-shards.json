@@ -72,6 +72,7 @@
       "Source/DotNET/EntityFrameworkCore.Specs": 5,
       "Source/DotNET/EntityFrameworkCore.SqlServer.Specs": 56,
       "Source/DotNET/MongoDB.Specs": 11,
+      "Source/DotNET/Neo4j.Specs": 2,
       "Source/DotNET/OpenApi.Specs": 2,
       "Source/DotNET/Screenplay.Embedded.Specs": 19,
       "Source/DotNET/Screenplay.Specs": 68,
@@ -163,6 +164,7 @@
         "Source/DotNET/Chronicle.CodeAnalysis.Specs",
         "Source/DotNET/Chronicle.Specs",
         "Source/DotNET/MongoDB.Specs",
+        "Source/DotNET/Neo4j.Specs",
         "Source/DotNET/Screenplay.Embedded.Specs",
         "Source/DotNET/Testing.Specs"
       ]

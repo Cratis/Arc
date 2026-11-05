@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Neo4j</AssemblyName>
+        <RootNamespace>Cratis.Arc.Neo4j</RootNamespace>
+        <Description>Tenant-aware Neo4j graph access for Cratis Arc: pooled drivers, graph database naming per event store and namespace, scoped sessions, connection resolution and strongly typed concept mapping.</Description>
+        <PackageTags>cratis;arc;cqrs;neo4j;graph;cypher;aspnetcore;queries</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <InternalsVisibleTo Include="Cratis.Arc.Neo4j.Specs" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Cratis.Fundamentals" />
+        <PackageReference Include="Neo4j.Driver" />
+        <PackageReference Include="Microsoft.Extensions.Logging" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>

@@ -59,6 +59,7 @@
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
+    <PackageVersion Include="Neo4j.Driver" Version="6.5.1" />
     <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
          NuGet still orders it above 0.50.4, depending on it forces every consumer that also pulls a
