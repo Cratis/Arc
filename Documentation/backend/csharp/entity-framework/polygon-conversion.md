@@ -1,13 +1,13 @@
 ---
-title: Polygon conversion
-description: Explicitly convert geographic boundaries to JSON strings and understand validation limits.
+title: Entity Framework Core Polygon conversion
+description: Store a Cratis Polygon as a plain JSON string with AsPolygon(), while handling boundary validation and spatial column mapping separately.
 ---
 
-A polygon represents an exterior boundary and optional holes. Arc's `AsPolygon()` converts the record to a plain JSON string. It is not automatically applied by `BaseDbContext` and is not native spatial mapping.
+Use Arc's `AsPolygon()` to store an area's exterior boundary and optional holes as a plain JSON string in Entity Framework Core. Configure the property explicitly: `BaseDbContext` does not apply this converter automatically. The string conversion does not provide native spatial mapping.
 
 ## Define and configure an area
 
-Model declaration:
+Define an area with a `Cratis.Geospatial.Polygon` property:
 
 ```csharp
 using Cratis.Geospatial;
@@ -25,7 +25,7 @@ Inside `OnModelCreating`, with `Cratis.Arc.EntityFrameworkCore` and `Microsoft.E
 modelBuilder.Entity<ServiceArea>().Property(area => area.Boundary).AsPolygon();
 ```
 
-Construction fragment inside a method:
+Inside a method, construct the boundary from a closed exterior ring. This example has no holes:
 
 ```csharp
 var boundary = new Polygon(
@@ -38,13 +38,13 @@ var boundary = new Polygon(
     Holes: []);
 ```
 
-Plain JSON conversion writes `Shell` and `Holes`; rings contain `Coordinates` arrays of objects with `Longitude` and `Latitude`. It does not write GeoJSON's `type` and nested numeric coordinate arrays.
+The stored JSON has `Shell` and `Holes` properties. Each ring contains a `Coordinates` array of objects with `Longitude` and `Latitude`. This differs from GeoJSON, the geographic JSON format that uses a `type` property and nested numeric coordinate arrays.
 
 ## Validate boundaries yourself
 
-Neither the Fundamentals records nor `AsPolygon()` enforce ring closure, minimum point count, winding, or freedom from self-intersection. Your application must validate the geometry it requires. Use closed rings with at least three distinct vertices and a repeated closing point when targeting GeoJSON-compatible storage.
+Neither the `Cratis.Geospatial` records nor `AsPolygon()` validates that a ring closes, has enough points, runs in the required direction, or avoids crossing itself. Validate the geometry your application requires before saving it. For GeoJSON-compatible rings, use at least three distinct vertices and repeat the first point at the end; this does not turn the converter's output into GeoJSON.
 
-The converter does not add a structural value comparer. Replace values deliberately and test change tracking when arrays or rings are modified. Do not promise SQL translation for containment or intersection from string conversion alone.
+The converter does not add a structural value comparer to compare the contents of arrays and rings. Replace values deliberately and verify EF change tracking when those contents change. String conversion alone does not translate containment or intersection queries into SQL.
 
 ## Migrations
 

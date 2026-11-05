@@ -1,6 +1,6 @@
 ---
 title: Type mapping
-description: .NET-to-TypeScript model types, runtime metadata, and enum generation.
+description: Cratis Arc maps .NET command and query types to TypeScript, with runtime field metadata, numeric enums, collection types, and mapping overrides.
 ---
 
 The proxy generator translates the .NET types on your commands, queries and read models into TypeScript types on the generated proxies. This page records that translation, so you can tell from the C# what the browser will actually receive.

@@ -1,48 +1,39 @@
 ---
-title: "2. Make it trustworthy"
-description: "Reject a blank or duplicate author name with a value-type validator and a business rule, and watch the reason appear in the React form."
+title: "2. Validate author names with Cratis Arc"
+description: "Reject blank and duplicate author names with Cratis Arc validators, enforce uniqueness in the database, and show validation messages in the React form."
 ---
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
-We left chapter 1 with a working slice and an honest problem: a librarian can register an author with a blank name, or the same author twice, and nothing stops them. A trustworthy app has to be able to say *no* — clearly, and as early as possible.
+Reject blank and duplicate author names before saving them, then show the librarian why registration failed. In Cratis Arc, a validator on `AuthorName` checks the value itself; a validator on `RegisterAuthor` checks whether that name already exists. A database constraint protects uniqueness when two registrations race.
 
-There are two different kinds of "no" here, and Arc handles them in two different places:
-
-- **"That input is malformed."** A blank name is wrong on its face — you don't need to look at anything else to know it. That's a *validation* rule, and it belongs on the value.
-- **"That input collides with what already exists."** A duplicate name is only wrong relative to the rest of the system. That's a *business rule*, and it needs to consult state.
-
-Let's add both. This chapter extends the files and imports from [chapter 1](/arc/tutorial/first-slice/). On C#, put each validator in its own file under `src/Authors/` with `namespace Library.Authors;`; choose the same database branch. On the JVM, put each validator in its own file in the same package as the command and mark it `@Component` so Spring registers it. On TypeScript, put the validators under the `Features/` root used by both `discover()` and the generator; regenerate the metadata so the host discovers them. Name comparison is exact in this lesson, not case-folded or normalized.
+Continue with the files and imports from [chapter 1](/arc/tutorial/first-slice/). On C#, put each validator in its own file under `src/Authors/` with `namespace Library.Authors;`; choose the same database branch. On the JVM, put each validator in its own file in the same package as the command and mark it `@Component` so Spring registers it. On TypeScript, put the validators under the `Features/` root used by both `discover()` and the generator; regenerate the metadata so the host discovers them. Name comparison is exact in this lesson, not case-folded or normalized.
 
 ## Validate the value, once
 
-Your first instinct might be to validate `Name` inside a `RegisterAuthor` validator. But think about it: *every* command that takes an `AuthorName` wants the same guarantee — never blank. Arc lets you state that rule **on the value type itself**, so it's enforced everywhere an `AuthorName` is used, and you never write it twice.
+A blank name is invalid without consulting the database. Put that rule on the `AuthorName` concept, the type that wraps the name's underlying string, so commands carrying it share the rule instead of declaring it separately.
 
+Write a `ConceptValidator` for the value type. On C#, it applies [FluentValidation](https://docs.fluentvalidation.net/) rules to the concept's underlying `Value`. The JVM implementation reads that value through `value()`, while TypeScript targets `name.value` with `notEmpty()`:
 
-1. **Write a `ConceptValidator` for the value type.** On C# it reaches into the concept's underlying `Value` and applies ordinary [FluentValidation](https://docs.fluentvalidation.net/) rules; on the JVM it implements Arc's `ConceptValidator` interface and reads the same underlying value through `value()`; on TypeScript the rule targets `name.value` with `notEmpty()`:
+<ArcBackendTabs snippet="tutorial/validation/author-name-rule" />
 
-   <ArcBackendTabs snippet="tutorial/validation/author-name-rule" />
-
-   That's the whole change. C# discovers the validator by convention, with no registration at all; the JVM one is an ordinary Spring bean, so `@Component` is all the wiring it needs. TypeScript discovers the decorated validator under `Features/` when you regenerate metadata and restart the host. From then on, any command carrying an `AuthorName` rejects a blank one before the handler ever runs.
-
+C# discovers the validator by convention; you do not register it manually. Spring registers the JVM validator through `@Component`. On TypeScript, regenerate metadata and restart the host to discover the decorated validator under `Features/`. The command pipeline then rejects a blank `AuthorName` before calling the handler.
 
 ## Reject the duplicate against existing state
 
-Uniqueness is the harder kind of "no", because it depends on what's already there. Input validation can't answer it — you have to look in the database. That's a job for a **`CommandValidator`**, which validates a whole command and, because Arc constructs it from the container, can take the dependencies it needs to check state.
+A nonblank name can still duplicate an existing author. Use a `CommandValidator` for this rule: it validates the registration request and can use a database dependency to check existing state.
 
+The validator asks the database whether an author already carries this name and rejects the command if one exists:
 
-1. **Write a `CommandValidator` that asks the database.** Every backend takes the dependency it needs and looks for an author already carrying this name; if one exists, the command is rejected:
+<ArcBackendTabs snippet="tutorial/validation/duplicate-name-rule" />
 
-   <ArcBackendTabs snippet="tutorial/validation/duplicate-name-rule" />
+C# awaits the database lookup in FluentValidation's `MustAsync` predicate. The JVM validator awaits its repository in the suspending `validate` function; its shared fluent rules do not support asynchronous predicates. TypeScript uses `mustAsync` and resolves the application-owned `AuthorRepository` token from `currentServices()` inside the rule. Keep that resolution there: validators are constructed during host preflight, before a tenant exists, so constructor-injecting the tenant-scoped MongoDB repository would fail startup.
 
-   The two shapes genuinely differ, and it is worth seeing why. C# expresses the lookup as FluentValidation's `MustAsync` predicate. Arc.Kotlin has no async predicate rule to reach for — its shared fluent surface is deliberately limited to literal rules — so the JVM sibling is the plain imperative `CommandValidator` bean, whose `validate` is already a suspending function and can simply await the repository. TypeScript uses `mustAsync` on the command's name and resolves the application-owned `AuthorRepository` token from `currentServices()` **inside** the rule. Arc constructs validators during host preflight, before there is a tenant; constructor-injecting a tenant-scoped MongoDB repository would fail startup. Every backend returns the same rejection to the caller.
+Keep the handler's chapter-1 write unchanged. The validator runs first; if it fails, `Handle()` on C# or `handle` on the JVM and TypeScript never executes.
 
-   The handler doesn't change — `Handle()` on C# and `handle` on the JVM and TypeScript still perform the chapter-1 write. The validator runs first; if it fails, the handler never executes.
+On the relational branch, the .NET validator injects the context instead of the collection. The JVM and TypeScript validators still ask their repository; its persistence implementation supplies the relational lookup:
 
-   **On the relational branch**, the .NET validator injects the context instead of the collection. The JVM and TypeScript validators still ask their repository; its persistence implementation supplies the relational lookup:
-
-   <ArcBackendTabs snippet="tutorial/validation/relational-duplicate-name-rule" />
-
+<ArcBackendTabs snippet="tutorial/validation/relational-duplicate-name-rule" />
 
 ## Install the database constraint
 
@@ -65,20 +56,18 @@ For the **disposable SQLite tutorial database**, stop the host, remove only `Lib
 </TabItem>
 </Tabs>
 
-These constraints belong to each store, not to Arc. On the JVM, Spring Data MongoDB index operations or a JPA unique constraint applied by your schema tooling provide the hard guarantee; on TypeScript, create the MongoDB index at startup or apply the Drizzle schema change through a migration. The validator gives the friendly message, and the database constraint holds under a race.
-
 <Aside type="caution" title="A race is not automatically a validation result">
 The unique index prevents the second write, but this lesson does not translate a provider duplicate-key exception into a field validation message. A racing loser can receive an exception result. Production code should catch only the specific duplicate-constraint violation and translate it to a typed validation failure; unrelated storage failures must remain errors. Moving the same pre-check into `Handle()` would not make it atomic.
 </Aside>
 
 ## The UI already knows
 
-Here's the part that feels like a gift. You didn't touch the React code from chapter 1 — but the form now validates.
+Keep the React form from chapter 1. After proxy regeneration, the C# and TypeScript generators include the concept's portable `notEmpty` rule in the frontend validator. `CommandDialog` can then disable confirmation for a blank name without a server round trip.
 
-When you wrote the `ConceptValidator`, the C# and TypeScript proxy generators extracted its portable `notEmpty` rule into the generated TypeScript too, so the `CommandDialog` runs it **on the client** and disables the confirm button on a blank name — no round trip. The uniqueness rule can't run on the client (it has to look in the database), so it runs on the server; when it rejects, the message comes back through the same proxy and `CommandDialog` renders it against the form — *"An author with that name is already registered."* — because the dialog wires command results to fields for you.
+The uniqueness check still needs the database. When the server rejects a duplicate, the generated proxy returns the validation result and `CommandDialog` displays "An author with that name is already registered." against the name field.
 
 :::caution[Client-side rules are declared differently on the JVM]
-The server half of this works the same across backends, and so does the form: a rejected command comes back through the same generated proxy and lands on the same field. The **client** half is not. An imperative Kotlin `ConceptValidator` or `CommandValidator` is server-only; registering the bean does not invent a TypeScript rule. To have the blank-name rule run in the browser too, declare it as a literal rule in a [`FluentModelValidator`](/arc/backend/kotlin/guides/validation/), which KSP does extract into the generated validator. That surface is bounded on purpose — literal string, collection, and numeric rules, no predicates and nothing asynchronous — so a rule like uniqueness stays server-side on every backend anyway.
+The JVM's imperative `ConceptValidator` and `CommandValidator` examples run on the server only. Their failures still reach the form, but registering those beans does not generate a browser rule. To disable confirmation for a blank name before submission, declare a literal rule in a [`FluentModelValidator`](/arc/backend/kotlin/guides/validation/), which KSP extracts into the generated validator. It supports literal string, collection, and numeric rules, without predicates or asynchronous checks. Keep the database lookup in the server validator.
 :::
 
 This is a fragment of `AddAuthor` from chapter 1; retain its imports and per-operation `const [id] = useState(() => Guid.create())` initialization. Mount a new dialog instance for each registration.
@@ -89,16 +78,16 @@ This is a fragment of `AddAuthor` from chapter 1; retain its imports and per-ope
 </CommandDialog>
 ```
 
-One rule on the value type, one rule on the command, and both ends of the app honor them — because the validation, like the types, flows from one source.
-
 ## Verify the rejection paths
 
-Rebuild the backend to regenerate validation metadata — `dotnet build -c Debug` on C#, `./gradlew generateArcProxies` on the JVM, or `npm run generate` on TypeScript — then run the frontend type-check/build. Open a new dialog: blank Name must keep confirmation disabled. Submit a new name successfully; open another dialog and submit that exact name again. Expect a server validation message and no additional row. Confirm the unique index/schema step succeeded separately — a friendly duplicate rejection alone does not prove concurrency protection.
+Regenerate validation metadata with `dotnet build -c Debug` on C#, `./gradlew generateArcProxies` on the JVM, or `npm run generate` on TypeScript. Restart the backend with the validators and database constraint in place, then run the frontend type-check/build.
+
+Open a new dialog and leave Name blank. On C# and TypeScript, confirmation should stay disabled. On the JVM, expect a server rejection when submitting the imperative validator example; confirmation is disabled locally only if you also declared the fluent browser rule described above.
+
+Submit a new name successfully, then open another dialog and submit that exact name again. Expect a server validation message and no additional row. Confirm index creation or schema application succeeded separately: a friendly duplicate rejection alone does not prove concurrency protection.
 
 ## What you built
 
-- An `AuthorNameValidator` that guards the **value type**, enforced everywhere an `AuthorName` is used — and, on C# and TypeScript, also run client-side through the generated proxy.
-- A `RegisterAuthorValidator` **business rule** that checks existing state in the database, with a unique index behind it for the hard guarantee.
-- A React form that surfaces every server rejection with no extra frontend code, plus the client-side rules the backend chose to share.
+Author registration now checks the name before writing, reports validation failures in the existing form, and relies on the database constraint to prevent concurrent duplicates. These are separate checks: the validator explains a rejection to the librarian; the constraint protects stored data.
 
-Our author is trustworthy now. But an author with no books is a lonely thing. Next we'll give them a catalog — a second feature that *relates* to this one. [Let's add books →](/arc/tutorial/books-and-relationships/)
+Keep this project for [adding books →](/arc/tutorial/books-and-relationships/). The next chapter gives each book an author id and uses it to read that author's catalog.

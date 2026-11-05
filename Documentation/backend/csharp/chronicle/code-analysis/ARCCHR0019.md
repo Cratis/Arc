@@ -1,6 +1,6 @@
 ---
 title: ARCCHR0019 - Read-model fold may be exposed as a query
-description: Preview explicit endpoint selection when a conventional query resembles a fold.
+description: ARCCHR0019 in Cratis Arc warns when a conventional query resembles a read-model fold; preview endpoint changes before choosing explicit queries.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved. -->

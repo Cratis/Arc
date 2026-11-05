@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0035: Protected aggregate is committed too early"
-description: Complete the protected unit only after the outer decision is finished.
+description: ARCCHR0035 warns about early aggregate commits in Cratis Arc under On, including commits before later reads or appends and commits in nested commands.
 ---
 
 ## Rule

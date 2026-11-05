@@ -1,11 +1,11 @@
 ---
-title: Database isolation
-description: Distinguish MongoDB tenant naming from application-owned EF Core isolation and optional Chronicle namespaces.
+title: Cratis Arc tenant database isolation
+description: Cratis Arc names MongoDB databases by tenant; EF Core needs an isolation design, and the Chronicle integration maps tenants to namespaces.
 ---
 
-For a side-by-side walkthrough of all three integrations, see [tenancy end to end](./end-to-end.md).
+Cratis Arc's tenant context selects separate storage only when the integration uses it. MongoDB adds a tenant suffix by default, EF Core keeps the configured connection, and the optional Chronicle integration selects an event-store namespace.
 
-Resolving a tenant ID selects a context. Whether that context selects separate storage depends on the integration; it does not prove that the caller may access the tenant.
+Before accessing that storage, verify that the caller may use the selected tenant. Register an application-owned [`ITenantMembership` check](./membership.md) or enforce membership at a trusted ingress. For a request-to-storage walkthrough of all three integrations, see [tenancy end to end](./end-to-end.md).
 
 ## MongoDB database naming
 
@@ -20,18 +20,20 @@ For a base name `MyDatabase`, both `TenantId.NotSet` and `TenantId.Default` sele
 
 To place tenants on other servers or databases, or give them their own credentials, use [connection resolution](./connection-resolution.md) instead of a custom name resolver.
 
-Database naming separates destinations; it does not check membership or database permissions. Reject unauthorized tenant selections before accessing tenant-scoped services, and avoid singleton capture of tenant-scoped collections. See [MongoDB tenancy](../mongodb/tenancy.md).
+The suffix selects a database; it does not check caller membership or grant database permissions. Reject unauthorized tenant selections before accessing tenant-scoped services. Resolve collections within the intended tenant's scope rather than retaining them in a singleton, where later requests could reuse the wrong destination. See [MongoDB tenancy](../mongodb/tenancy.md).
 
 ## Entity Framework Core database naming
 
 Arc's EF Core registration uses the configured connection string, including in pooled context registration. It does **not** automatically append the tenant ID or create a database per tenant. To connect each tenant to its own database, server or identity, configure [connection resolution](./connection-resolution.md); Arc then resolves the connection for the current tenant every time it opens.
 
-Choose and implement relational isolation in the application: separate connections/databases, schemas, or appropriately enforced tenant filtering. Verify tenant selection, all read/write paths, and pooled-context reuse for that design. A tenant context by itself does not make an ordinary `DbContext` tenant-aware. See [EF Core configuration](../entity-framework/automatic-database-hookup.md); this page does not prescribe an untested pooled-context isolation recipe.
+Choose relational isolation to match your application: separate connections or databases, schemas, or enforced tenant filtering in shared tables. Check every read and write path, including pooled-context reuse. Reading a tenant ID alone does not make an ordinary `DbContext` tenant-aware, and connection resolution does not add tenant filters. See [EF Core configuration](../entity-framework/automatic-database-hookup.md) for registration.
 
 ## Chronicle event store namespace
 
-Only when you enable the optional [Chronicle integration](../chronicle/tenancy.md) does Arc's tenant context select a Chronicle event-store namespace. That is separate from MongoDB/EF Core storage behavior and is not a standalone Arc requirement.
+Enable the optional [Chronicle integration](../chronicle/tenancy.md) when the application uses Chronicle. Its namespace resolver maps a named tenant to a namespace with the same name; both `TenantId.NotSet` and `TenantId.Default` select Chronicle's `Default` namespace.
+
+The Chronicle kernel controls the physical storage behind that namespace. Arc's MongoDB and EF Core connection settings do not configure the kernel, so align both destinations if the application reads read models that Chronicle writes.
 
 ## Verify the boundary
 
-Test unset, named default, and two named tenants, including concurrent requests and reused scopes/pools. Verify both permission rejection and the actual storage destination. Test caches and background execution too; storage naming alone cannot prevent cross-tenant data from a wrongly reused service instance.
+Test an unset tenant, the named default, and two named tenants. Include concurrent requests, reused scopes or pools, caches and background work. Check the actual storage destination as well as the tenant ID: a correctly resolved ID cannot repair a service instance that still points at another tenant's data. Verify membership denials separately from destination selection.

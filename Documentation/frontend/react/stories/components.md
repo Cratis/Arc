@@ -1,6 +1,6 @@
 ---
 title: Story Components Reference
-description: Reference for the Story Components available for building consistent Storybook stories, with their props.
+description: Cratis Arc React story components provide containers, sections, grids, dividers, and badges for Storybook, with size and styling props.
 ---
 
 This page documents all available components for building Storybook stories.
@@ -16,7 +16,7 @@ A container component for wrapping stories with consistent spacing and styling.
   - `sm`: 600px max width
   - `md`: 1200px max width
   - `lg`: 1400px max width
-  - `full`: currently uses the same container class as `md` (1200px max width), not unrestricted width. A distinct full-width style is a runtime follow-up candidate.
+  - `full`: Uses the same container class as `md` (1200px max width), not unrestricted width.
 - `asCard`: boolean - Render as a card with background and border (default: false)
 - `className`: string - Additional CSS classes
 
@@ -50,6 +50,7 @@ A section component for grouping related content with consistent vertical spacin
 ### Props
 
 - `children`: React.ReactNode - The content to render
+- `className`: string - Additional CSS classes (optional)
 
 ### Example
 
@@ -80,6 +81,7 @@ A responsive grid container for displaying multiple items.
 ### Props
 
 - `children`: React.ReactNode - Grid items to render
+- `className`: string - Additional CSS classes (optional)
 
 ### Example
 
@@ -142,9 +144,9 @@ A status badge component for displaying colored labels.
 ### Variants
 
 - `success`: Green badge for positive states
-- `warning`: Yellow/orange badge for cautionary states
+- `warning`: Amber badge for cautionary states
 - `error`: Red badge for error states
-- `info`: Blue badge for informational states
+- `info`: Cyan badge for informational states
 
 ### Usage Guidelines
 

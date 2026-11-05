@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0028: Chronicle read is not proven protected"
-description: Raw reads and explicit allowances in On command bodies.
+description: ARCCHR0028 warns when Cratis Arc commands or validators call raw Chronicle reads, detached reads or explicit read bypasses under On.
 ---
 
 ## Rule

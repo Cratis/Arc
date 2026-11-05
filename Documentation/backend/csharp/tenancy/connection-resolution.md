@@ -1,20 +1,24 @@
 ---
-title: Connection resolution
-description: "Choose per tenant which server, database and identity a MongoDB or Entity Framework Core connection uses, from configuration, a template, an endpoint or code."
+title: Cratis Arc connection resolution for tenant storage
+description: "Cratis Arc connection resolution selects each tenant's MongoDB or EF Core destination and credentials through templates, an HTTP endpoint or application code."
 ---
 
-Your platform places each tenant's database somewhere: a server, a database name, maybe its own credentials or a short-lived access token. With one configured connection string, Arc cannot follow that placement. MongoDB only appends the tenant to a database name, and Entity Framework Core uses the same connection for everyone.
+Cratis Arc connection resolution selects the server, database and connection identity for a tenant when the configured connection is not enough. Use it when tenant databases follow a naming rule, live on different servers, or need credentials supplied by another service.
 
-Connection resolution lets Arc ask instead. When a connection is needed, Arc describes **what** it connects for (the storage, the tenant and the purpose), and a resolver answers with the parts it knows. Everything it leaves out stays as configured.
+Without connection resolution, Arc's default MongoDB integration appends the tenant to the configured database name, while Entity Framework Core keeps the same configured connection for every tenant. With resolution enabled, Arc describes the storage type, tenant and connection purpose to a resolver. The resolver returns the parts to replace; omitted parts keep their configured values.
+
+Authorize the caller's use of the tenant before accessing storage. A database credential authenticates the application's connection, not the caller's membership. Register an application-owned [`ITenantMembership` hook](./membership.md) or enforce membership at a trusted ingress.
 
 ## Two slots, one shape
 
 Resolution has two optional slots, and both take the same kind of resolver:
 
-- **`Connection`**: where to connect. This is the connection string, the database and the schema.
-- **`Identity`**: who to connect as. This is a user name and password, or an access token.
+- `Connection` supplies destination parts: a connection string, database or schema.
+- `Identity` supplies connection credentials: a user name and password, or an access token.
 
-Arc starts from the configured connection, applies what the `Connection` slot resolves, and then applies what the `Identity` slot resolves. A part set later wins. This is what makes the common split a configuration choice: keep the connection string from configuration and fetch only the identity from your platform. The reverse works too, and so does resolving both.
+Arc starts from the configured connection, applies the `Connection` result, then applies the `Identity` result. A part set later wins. For example, leave `Connection` at its default and configure only `Identity` to fetch credentials without moving the database. Both slots accept the same response shape, so either can return destination or identity parts; their names describe the intended split.
+
+The storage integration determines which returned parts it applies. In Arc's MongoDB and EF Core integrations, a resolved `Schema` is not applied. Choose a database destination for isolation through connection resolution, or implement schema isolation separately in the application.
 
 ```mermaid
 flowchart LR
@@ -51,7 +55,7 @@ public record ConnectionIdentity(string? UserName = null, string? Password = nul
 
 Every part is optional, and `ResolvedConnection.Unchanged` means "keep everything as configured". The identity is replaced as a whole, so a password from one slot never ends up next to an access token from the other.
 
-A custom resolver is one method:
+A custom resolver implements `Resolve`. This fragment assumes an application-owned `ITenantDirectory` whose `Find` method returns a database name and an expiry:
 
 ```csharp
 using Cratis.Arc.Connections;
@@ -67,7 +71,7 @@ public class TenantConnections(ITenantDirectory directory) : IConnectionResolver
 }
 ```
 
-`ITenantDirectory` stands in for your own service. Select the resolver in code; Arc creates it through dependency injection, so its constructor can take any registered service:
+The lookup uses the tenant in `request.Scope`; its returned database replaces default naming. Register your directory service, then select the resolver in code. Arc creates the resolver through dependency injection:
 
 ```csharp
 builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
@@ -147,13 +151,13 @@ Cratis__Arc__ConnectionResolution__Identity__Http__Authentication__ClientId=<man
 Cratis__Arc__ConnectionResolution__Identity__Http__Authentication__Scope=api://<app-id>/.default
 ```
 
-Without the package registered, `AzureCredential` fails at startup and tells you to call `AddAzureConnectionResolverAuthentication()`. To get tokens some other way, implement `IConnectionResolverAccessTokenProvider` and register it in the service collection.
+Without the package registered, selecting `AzureCredential` fails when Arc creates the resolver and tells you to call `AddAzureConnectionResolverAuthentication()`. To get tokens some other way, implement `IConnectionResolverAccessTokenProvider` and register it in the service collection.
 
 Your endpoint must validate the token; see [Security](../../../connection-resolution-contract.md#security) in the contract.
 
 ## Caching and credentials
 
-Arc keeps each resolution **in memory only**, keyed by storage, purpose and tenant. It never keys or logs by credential. An entry lives until its `ExpiresAt`, renewed one minute early, or for `CacheDuration` (five minutes by default) when the resolver gave no expiry. Set `CacheDuration` to `00:00:00` to resolve on every connection.
+Arc caches each resolution in memory, keyed by storage, purpose and tenant, never by credential. It does not log credentials. An entry expires one minute before its `ExpiresAt`, or after `CacheDuration` when the resolver supplies no expiry. The default duration is five minutes; set it to `00:00:00` to resolve on every connection.
 
 When a connection fails to authenticate, Arc drops the cached entry, so the next attempt resolves again and picks up rotated credentials. The failed attempt itself is not retried.
 
@@ -206,4 +210,4 @@ An integration that configures its own `ConnectionResolution` uses that instead,
 - [MongoDB connection resolution](../mongodb/connection-resolution.md)
 - [Entity Framework Core connection resolution](../entity-framework/connection-resolution.md)
 
-Connection resolution chooses a destination; it does not authorize the tenant. Keep rejecting tenants a caller may not use before any storage is touched, as described in [database isolation](./database-resolvers.md).
+After configuring resolution, verify where a named tenant and both default-tenant aliases actually connect. A resolved database replaces the default name; existing data does not move with the configuration. Continue with [database isolation](./database-resolvers.md) to check the destination and [tenant membership](./membership.md) to enforce who may use it.

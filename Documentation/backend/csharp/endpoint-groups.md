@@ -1,11 +1,11 @@
 ---
-title: Endpoint groups
-description: Serve internal commands and queries only on a local port of their own, separate from the public API.
+title: "Cratis Arc endpoint groups: separate internal APIs"
+description: Serve internal Cratis Arc commands and queries on assigned local ports, configure group route prefixes, and generate proxies for each endpoint group.
 ---
 
-**Goal:** some commands and queries are for internal callers only, such as an operations tool or another service inside the cluster. You want them on a port the public never reaches, while the rest of the API stays where it is.
+Cratis Arc endpoint groups serve selected commands and queries only on assigned local ports. Use a group when an operations tool or another internal service needs endpoints that should not be routed through the public API. Tag the commands, read models, or query methods, then configure both the server listener and the group's port assignment.
 
-An endpoint group does that. Tag the commands, read models or individual queries that belong to a group, give the group a local port, and Arc serves them on that port only.
+Groups control where an endpoint is reachable, not who may call it. Keep [authorization](authorizing-commands-and-queries.md) on protected commands and queries, and configure the network to keep group ports private.
 
 > [!WARNING]
 > The port is the boundary only if the network makes it one. Never expose or forward a group port to the public network, and never let a reverse proxy route public traffic to it. Arc decides by the local port of the connection, which is only as trustworthy as the network in front of it.
@@ -32,7 +32,7 @@ To place every command and read model in an assembly in one group, put the attri
 [assembly: Cratis.Arc.EndpointGroup("internal")]
 ```
 
-An attribute on a type wins over one on its assembly. Commands and read models without the attribute are in the default group and are served exactly as before.
+An attribute on a type wins over one on its assembly. Commands and read models with neither attribute belong to the default group.
 
 ## Put one query in a group
 
@@ -58,7 +58,7 @@ Method-level grouping applies only to query methods and MVC controller actions. 
 
 ## Assign a port to the group
 
-Listen on a separate port for the group, and assign it in the Arc options:
+The group assignment does not create a server listener. Configure the ASP.NET Core host to listen on both the public and internal ports, then assign the internal port in Arc's options:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -131,7 +131,7 @@ The decision is made while routing chooses an endpoint, from the local port of t
 
 The default group is not served on group ports. Set `options.EndpointGroups.ServeDefaultGroupOnGroupPorts = true` if internal callers should also reach the default endpoints on the group port.
 
-MVC controllers follow the same rule: put `[EndpointGroup]` on the controller class or its assembly, and every action of the controller is served only on the ports of that group. An attribute on an individual action overrides the controller's group without changing its siblings. A grouped controller or action without an assigned port now stops startup instead of being served on no port; assign a port before starting the host.
+MVC controllers follow the same rule: put `[EndpointGroup]` on the controller class or its assembly, and every action of the controller is served only on the ports of that group. An attribute on an individual action overrides the controller's group without changing its siblings. A grouped controller or action without an assigned port stops startup; assign a port before starting the host.
 
 Endpoints you map yourself, such as minimal API endpoints, are not affected by endpoint groups.
 
@@ -162,4 +162,4 @@ The proxy generator emits the default group only. Model-bound query proxies foll
 </PropertyGroup>
 ```
 
-When you run the generator yourself, pass `--endpoint-group=<name>` instead.
+When you run the generator yourself, pass `--endpoint-group=<name>` instead. Continue with [proxy generation](proxy-generation/index.md) to configure the generation step for the client that will call this group.

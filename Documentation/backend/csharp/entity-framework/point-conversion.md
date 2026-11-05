@@ -1,13 +1,13 @@
 ---
-title: Point conversion
-description: Store a Cratis Point explicitly without confusing JSON conversion and spatial column types.
+title: Entity Framework Core Point conversion
+description: Store a Cratis Point with AsPoint() in Entity Framework Core, and choose between plain JSON strings, JSON properties, and spatial columns.
 ---
 
-To store a location, first choose its representation. Arc's `AsPoint()` converts a `Cratis.Geospatial.Point` to a JSON **string**; it does not install a native spatial provider or select a JSON SQL column type. `BaseDbContext` does not call it automatically.
+Use Arc's `AsPoint()` to store a `Cratis.Geospatial.Point` location as a plain JSON string in Entity Framework Core. Configure it explicitly; `BaseDbContext` does not call it automatically. If you need native spatial queries instead, choose a compatible provider mapping before creating the column.
 
 ## Configure string conversion
 
-These are complete model/context declarations. This example derives from plain `DbContext`, which Arc's automatic discovery does not discover. Register it explicitly in your [configured Arc host](./getting-started.md) and apply your schema separately.
+Define the entity and context below, then register the context in your [configured Arc host](./getting-started.md). This example derives from plain `DbContext`, so Arc's automatic context discovery will not register it. The explicit registration follows the declarations; apply your database schema separately.
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
@@ -41,7 +41,7 @@ using Microsoft.Extensions.DependencyInjection;
 services.AddDbContextWithConnectionString<StoreDbContext>("Data Source=store.db");
 ```
 
-`AsPoint()` takes no database argument. It uses plain `System.Text.Json`, not MongoDB's GeoJSON serializer. For `new Point(Longitude: -122.4194, Latitude: 37.7749)`, the converted value is:
+`AsPoint()` takes no database argument. It uses plain `System.Text.Json`, not the GeoJSON format used for geographic data. For `new Point(Longitude: -122.4194, Latitude: 37.7749)`, the converted value is:
 
 ```json
 {"Longitude":-122.4194,"Latitude":37.7749}
@@ -57,16 +57,16 @@ The converter does not validate coordinate ranges. Validate longitude/latitude i
 | JSON property | `[Json]` with `BaseDbContext` or `ApplyJsonConversion` | JSON conversion options and provider-specific JSON column mapping; see [JSON conversion](./json.md) |
 | Spatial migration | `AddPointColumn`, `AddLineStringColumn`, `AddPolygonColumn` | Spatial SQL type declarations on PostgreSQL/SQL Server, text on SQLite; not a geometry value converter |
 
-Do not apply both string and `[Json]` conversion to the same property. Their serializer options are separate. Neither path promises translated distance, intersection, or nested-coordinate LINQ queries.
+Choose one conversion per property: do not apply both string and `[Json]` conversion. Their serializer options and stored formats are separate. Neither conversion alone provides SQL translation for distance, intersection, or nested-coordinate LINQ queries.
 
 ## Migration usage
 
-Arc has **no `PointColumn()` helper for `CreateTable`**. A string-converted point can use an ordinary string column, aligned with your model mapping. The separate `MigrationBuilder.AddPointColumn` method selects:
+For a string-converted point, use an ordinary string column aligned with your model mapping. Arc has no `PointColumn()` helper for `CreateTable`. The separate `MigrationBuilder.AddPointColumn` method selects these types:
 
 | PostgreSQL | SQL Server | SQLite |
 | --- | --- | --- |
 | `geometry(Point, 4326)` | `geography` | `TEXT` |
 
-This is a schema helper, **not a complete native spatial recipe**. Pairing its PostgreSQL/SQL Server columns with `AsPoint()` is not supported by an automatic adapter. Native spatial usage requires a compatible provider mapping, database prerequisites (such as PostGIS), migrations, and round-trip tests designed by your application.
+`AddPointColumn` declares a column; it does not configure native spatial conversion. Arc provides no automatic adapter between its PostgreSQL/SQL Server spatial columns and `AsPoint()`'s JSON string. For native spatial storage, configure a compatible provider mapping and database prerequisites, such as PostGIS for PostgreSQL, then verify migrations and save/load behavior for your application.
 
 See [adding columns](./migrations-add-columns.md), [LineString conversion](./linestring-conversion.md), and [Polygon conversion](./polygon-conversion.md).

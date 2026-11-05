@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0003: Reactor must not reach the default event log"
-description: A reactor appends to the default event log directly instead of returning the events from its handler method.
+description: ARCCHR0003 in Cratis Arc warns when a reactor reaches the default event log directly instead of returning events from its handler.
 ---
 
 ## Rule

@@ -1,20 +1,17 @@
 ---
-title: Invariant Culture
-description: Make an ASP.NET Core Arc host use invariant culture with UseInvariantCulture() so parsing and formatting do not depend on machine settings.
+title: Configure invariant culture in Cratis Arc
+description: Use invariant culture defaults in an ASP.NET Core Arc host so culture-sensitive parsing and formatting do not depend on machine settings.
 ---
 
-Arc provides a `.UseInvariantCulture()` extension method that configures your application to use invariant culture throughout, ensuring consistent and predictable behavior regardless of the host machine's regional settings.
+Cratis Arc's `UseInvariantCulture()` extensions set invariant culture defaults for an ASP.NET Core host and its requests. Use them when culture-sensitive parsing and formatting should follow the same conventions across machines, rather than each machine's regional settings. Explicit culture choices in your code can still override those defaults.
 
 ## Why Invariant Culture?
 
-Modern distributed applications run across different machines, containers, and cloud regions—each potentially configured with different regional settings. Without explicit culture configuration, operations like number parsing, date formatting, or string comparisons may produce inconsistent results depending on where the code runs.
+A service can move between machines with different regional settings. If its code uses the current culture implicitly, the same date or number text can be interpreted differently after deployment.
 
-Invariant culture supplies predictable defaults for culture-sensitive code; explicit per-call or per-thread culture choices can still override them:
+Invariant culture gives that code a common default: number formatting uses `.` as the decimal separator, and culture-sensitive date formatting and parsing use invariant conventions. It does not choose a time zone. Comparisons that use the current culture use invariant rules; this does not turn them into ordinal comparisons.
 
-- **DateTime formatting and parsing** uses invariant conventions by default; it does not choose a time zone
-- **Number formatting and parsing** produces consistent results (e.g., decimal separator is always `.`)
-- **String comparisons and sorting** are culture-independent
-- **Serialization and deserialization** still follows each serializer's contract and explicit options
+Serialization still follows the serializer's contract and explicit options. In particular, JSON numeric syntax is already culture-independent.
 
 ## Configuration
 
@@ -34,7 +31,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-> **Important**: Call `app.UseInvariantCulture()` before any middleware that processes request data to ensure invariant culture is applied to all incoming requests.
+Place `app.UseInvariantCulture()` before middleware that parses or formats request data. Middleware that runs earlier will not have the request culture set by this extension.
 
 ## What Gets Configured
 
@@ -51,7 +48,7 @@ Calling `UseInvariantCulture()` on the application:
 
 ## Practical Example
 
-Consider an API that accepts a price value. Without invariant culture, `"1,5"` might parse as `1.5` on a European machine but fail on an English-locale machine. Invariant culture stabilizes culture-sensitive parsing defaults. JSON numeric values already use JSON's culture-independent syntax; request localization does not define that wire format. This complete ASP.NET `Program.cs` example receives a numeric JSON `price`:
+For a price supplied as text, the meaning of a comma depends on the culture used to parse it. Setting invariant defaults removes the host's regional settings from that decision. A numeric JSON `price` is different: its wire format is defined by JSON, not request localization. This complete ASP.NET `Program.cs` example shows where to configure culture alongside such an endpoint:
 
 ```csharp
 using Cratis.Arc;
@@ -79,11 +76,6 @@ record ProductRequest(decimal Price, DateOnly ExpiryDate);
 
 ## When to Use
 
-Invariant culture is recommended for:
+Choose invariant defaults for services that exchange machine-readable data or run across machines with different regional settings. If an operation intentionally reads or produces localized text, pass the required culture explicitly instead of relying on the host default.
 
-- **APIs and services** that exchange data between systems
-- **Applications deployed in multiple regions** or cloud environments
-- **Data processing pipelines** where consistency is critical
-- **Any scenario** where culture-sensitive behavior could lead to bugs or data inconsistencies
-
-It is generally safe to apply invariant culture in back-end services, as the locale-specific formatting should be handled on the client side (e.g., a frontend application) rather than in the API itself.
+For MVC inputs assembled from several HTTP sources, continue with [FromRequest binding](from-request.md). Culture configuration and binding precedence solve different problems; check both when defining the endpoint's input contract.

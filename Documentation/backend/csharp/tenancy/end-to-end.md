@@ -1,9 +1,9 @@
 ---
-title: Tenancy end to end
-description: Follow one tenant from request to storage with MongoDB, Entity Framework Core and Chronicle, what happens by default, and how connection resolution changes it.
+title: Cratis Arc tenancy from request to storage
+description: Follow a Cratis Arc tenant through selection, membership checks and storage placement, with defaults for MongoDB, EF Core and Chronicle.
 ---
 
-A tenant passes through three separate decisions before any data is read or written. Arc and the storage integrations each own part of it, and the defaults differ per storage. This page follows one tenant through all of them.
+A Cratis Arc request needs a tenant ID, a decision that the caller may use it, and a storage destination. Follow tenant `acme` through those decisions to see which defaults you can use and where your application must supply membership checks or storage configuration.
 
 ```mermaid
 flowchart LR
@@ -15,14 +15,14 @@ flowchart LR
 | Decision | Owner | Details |
 | --- | --- | --- |
 | **Selection** | Arc | [Resolving tenant IDs](./resolvers.md) from a header, claim, subdomain or your own resolver |
-| **Membership** | Your application | Reject tenants the caller may not use, before any storage is touched |
+| **Membership** | Your application or trusted ingress | [Verify caller-to-tenant membership](./membership.md) before accessing tenant storage |
 | **Placement** | The storage integration | [Naming by default](#what-you-get-by-default), or [connection resolution](./connection-resolution.md) when your platform decides |
 
-Arc resolves a tenant and exposes it. It does not authorize it. That check is yours.
+A resolver selects a candidate tenant; it does not establish caller membership. Arc can enforce your application's decision through a registered `ITenantMembership` hook. Without that hook or membership enforcement at a trusted ingress, selecting `acme` does not stop an unauthorized caller from using it.
 
 ## What you get by default
 
-Resolve the tenant from a claim and nothing else needs configuring for selection:
+This configuration selects the tenant from the `tenant_id` claim. Authentication must validate the identity supplying that claim, and membership authorization must establish that it permits the caller to use the tenant:
 
 ```json
 {
@@ -42,16 +42,16 @@ Each storage then reacts differently to the same tenant:
 | Storage | What a named tenant `acme` gets | Default or unset tenant |
 | --- | --- | --- |
 | **MongoDB** | The database `<Database>+acme`. Collections in that scope come from it | The bare `<Database>` |
-| **Entity Framework Core** | **Nothing.** Every tenant uses the one configured connection string. Isolation is yours to build | The same connection |
+| **Entity Framework Core** | The configured connection, unchanged. Isolation is yours to configure | The same connection |
 | **Chronicle** | The event store namespace `acme`, used verbatim | The `Default` namespace |
 
-MongoDB and Chronicle separate tenants for you. EF Core does not, which is the usual surprise. A tenant context alone does not make an ordinary `DbContext` tenant-aware.
+MongoDB's default naming and the optional Chronicle integration use the tenant ID to choose separate destinations. EF Core does not change its connection by default. An ordinary `DbContext` remains unaware of tenant context until your isolation design uses it.
 
-Unset and default tenants deliberately select the default database or namespace and are not rejected. If your application must not serve data without a tenant, reject the request yourself.
+Without a membership rule that rejects them, unset and default tenants select the default database or namespace. If your application requires a tenant, make that decision explicit in your membership check.
 
 ### Reading the tenant yourself
 
-Inject `ITenantIdAccessor` where a service needs to branch on the tenant. This reads context only and does not authorize it:
+Inject `ITenantIdAccessor` where a service needs the current tenant. Arc applies any registered request membership hooks when resolving the candidate, but this fragment only checks whether an ID is set; it is not a membership rule:
 
 ```csharp
 using Cratis.Arc.Tenancy;
@@ -66,7 +66,7 @@ For off-request work, select the tenant first as described in [tenant context ac
 
 ## Let your platform decide placement
 
-Default naming suits a team that owns its database server. When a platform provisions each tenant's database, on its own server and with its own credentials, switch to [connection resolution](./connection-resolution.md). When a connection is needed, Arc describes **what** it is for (the storage, the tenant and the purpose), and a resolver answers with the parts it decides.
+Use [connection resolution](./connection-resolution.md) when the default names no longer describe where tenant data lives, or when each tenant needs its own server or credentials. Arc sends the storage type, tenant and connection purpose to a resolver. The answer can replace the destination or identity while leaving the other configured parts intact.
 
 Resolution has two slots with one shape: `Connection` decides where to connect, and `Identity` decides who connects. Nothing changes until you configure one.
 
@@ -125,10 +125,9 @@ The resolved parts apply differently to each storage:
 | `Identity` access token | A `MONGODB-OIDC` credential that refreshes through the resolver | `SqlConnection.AccessToken` (Entra ID) | Used as the password |
 | `Schema` | Not used | Not applied | Not applied |
 
-Two nuances matter most:
+A resolved `Database` replaces default naming completely. With the template above, `acme` selects `tenant-acme`, while either default-tenant alias supplies `Default` and selects `tenant-Default`. Data under the old names stays there, so plan the data migration before changing the rule.
 
-- **A resolved `Database` replaces the default naming completely.** Tenant `acme` is no longer `<Database>+acme`, and the default tenant resolves as `Default`. Data stored under the old names stays there, so treat switching as a data migration.
-- **EF Core resolves when a connection opens, not when a context is created.** A pooled context never reuses a connection resolved for an earlier tenant.
+EF Core resolves when a connection opens, not when a context is created. The interceptor applies each resolution over the originally configured connection string, not a previous tenant's resolved string. Still check pooled-context reuse and any tenant-specific state your application keeps on the context.
 
 See [MongoDB](../mongodb/connection-resolution.md) and [Entity Framework Core](../entity-framework/connection-resolution.md) for each storage. A storage that configures its own `ConnectionResolution` replaces the application-wide one as a whole. They are not merged.
 
@@ -151,7 +150,9 @@ The Chronicle integration maps the tenant to a namespace and nothing more. Where
 - The kernel's `storage.connectionResolution` does not change what your Arc application connects to.
 - A single platform endpoint can answer both. Arc sends the tenant as its scope, and the kernel sends `kind`, `eventStore` and `namespace`.
 
-Keep them aligned when your application reads read models Chronicle writes. Chronicle projects into its read model database for the namespace. Your application reads through MongoDB or EF Core and its own resolution. Both must reach the same database. By default MongoDB lines up: Arc's `<Database>+<tenant>` equals Chronicle's read model name when `Database` is the event store name, and both use the bare name for the default tenant. With resolution, point both at the same placement. Reads that reach the wrong database come back empty rather than failing.
+Align these settings when your application reads read models that Chronicle writes. Chronicle projects into its read-model database for the namespace; the application reaches that database through its own MongoDB or EF Core configuration.
+
+With default MongoDB naming, Arc's `<Database>+<tenant>` matches Chronicle's read-model name when `Database` is the event store name. Both use the bare name for the default tenant. With connection resolution, point both at the same destination. A MongoDB read from a nonexistent database can return no data instead of reporting a placement error.
 
 Read Chronicle's [Tenancy](/chronicle/tenancy/) for the kernel side, including how MongoDB and SQL differ in naming, limits and permanent bindings.
 
@@ -167,7 +168,7 @@ Read Chronicle's [Tenancy](/chronicle/tenancy/) for the kernel side, including h
 
 ## Checklist
 
-- Verify membership before selecting a tenant, because Arc selects but does not authorize.
+- Verify the caller's membership in the selected tenant before accessing storage, using `ITenantMembership` or a trusted ingress.
 - Do not capture tenant-scoped collections, contexts or services in singletons.
 - Include the tenant id in cache keys, logs and telemetry.
 - Test an unset tenant, the default tenant and two named tenants, including concurrent requests and reused scopes.

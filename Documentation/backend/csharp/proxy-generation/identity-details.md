@@ -1,71 +1,60 @@
 ---
-title: Identity details type generation
-description: Generate runtime model classes from strongly typed identity providers.
+title: Cratis Arc proxies — generate identity details
+description: Generate TypeScript model classes from Cratis Arc identity providers so the frontend can read custom identity details with runtime deserialization metadata.
 ---
 
-The proxy generator can automatically discover and generate TypeScript types for your custom identity details. This enables type-safe access to identity information in your frontend application.
+Cratis Arc generates TypeScript models for custom identity details when a provider implements `IProvideIdentityDetails<TDetails>`. Use this interface to keep the frontend's details model tied to the C# type instead of maintaining a separate TypeScript definition.
 
 ## Overview
 
-When you implement a strongly-typed identity details provider using `IProvideIdentityDetails<TDetails>`, the proxy generator will:
-
-1. Discover all implementations of `IProvideIdentityDetails<TDetails>` in your assemblies
-2. Extract the `TDetails` type parameter
-3. Generate TypeScript representations of these types
-4. Include them in the standard proxy output alongside commands and queries
+The generic argument `TDetails` tells the generator which model the provider returns. With [proxy generation configured](getting-started.md), that model and the types it references join the output alongside commands and queries. You do not need a command or query to reference the details model for it to be discovered.
 
 ## The generic interface
 
-Arc provides this generic interface declaration (an API reference excerpt, not a type to redeclare in your application):
+Arc provides the following interface. This is an API reference excerpt, not a type to redeclare in your application:
 
 ```csharp
 public interface IProvideIdentityDetails<TDetails> : IProvideIdentityDetails
     where TDetails : class;
 ```
 
-This interface extends the base `IProvideIdentityDetails` interface but adds type information that the proxy generator can discover and use.
+The generic interface extends `IProvideIdentityDetails` without adding methods. Your provider still implements the base interface's `Provide` method; `TDetails` supplies the type information used during generation.
 
-For detailed information on implementing identity providers, see the [Identity documentation](../identity/index.md).
+If you have not implemented a provider yet, follow the [Identity documentation](../identity/index.md), then return here to connect its details type to the frontend.
 
 ## How discovery works
 
-The proxy generator scans all loaded assemblies for classes that:
+The proxy generator scans the project assemblies it loads for concrete, non-abstract classes implementing `IProvideIdentityDetails<TDetails>`. It extracts `TDetails` from each matching provider and processes it like other complex model types.
 
-1. Are concrete (non-abstract) classes
-2. Implement `IProvideIdentityDetails<TDetails>`
-3. Have a valid type argument for `TDetails`
-
-The `TDetails` type is then processed like any other complex type, generating a corresponding TypeScript **class with serialization metadata** by default. Plain interface output is a separate CLI mode; see [library mode](Configuration/library-mode.md).
+By default, the result is a TypeScript class with serialization metadata: `@field` decorators that tell the runtime how to reconstruct its properties from JSON. Plain [interface output](Configuration/emit-interfaces.md) is a separate option, not the default; [library mode](Configuration/library-mode.md) controls which additional types are collected.
 
 ## Generated artifacts
 
-For each identity details type discovered, the generator creates:
+For each discovered details type, the default output includes:
 
-1. **TypeScript class**: A model matching the C# type structure, with `@field` metadata for deserialization
-2. **Nested Types**: Any complex types referenced by the details type
-3. **Export entry**: Added to the appropriate `index.ts` file when index generation is enabled
+- A TypeScript model class matching the C# type's properties, with `@field` metadata for deserialization.
+- Models for referenced complex types, subject to the usual type mappings and exclusions.
+- An export in the appropriate `index.ts` file when index generation is enabled.
+
+Keep these files generator-owned. When the C# details type changes, regenerate the proxies and compile the frontend rather than editing the generated class.
 
 ## Benefits of using the generic interface
 
-| Feature                | `IProvideIdentityDetails`        | `IProvideIdentityDetails<TDetails>`              |
-| ---------------------- | -------------------------------- | ------------------------------------------------ |
-| Runtime behavior       | Identical                        | Identical                                        |
-| Details-type discovery | No generic details type declared | Generic argument identifies the type to generate |
-| Proxy generation       | No type generated                | TypeScript type generated                        |
-| Frontend type safety   | Manual typing required           | Automatic type safety                            |
+| Feature                | `IProvideIdentityDetails`                 | `IProvideIdentityDetails<TDetails>`              |
+| ---------------------- | ---------------------------------------- | ------------------------------------------------ |
+| Runtime behavior       | Identical                                | Identical                                        |
+| Details-type discovery | No generic details type declared         | Generic argument identifies the type to generate |
+| Proxy generation       | Provider does not identify a details type | Details type included in generation              |
+| Frontend typing        | Handwritten or discovered elsewhere      | Use the generated details model                  |
 
 ## Best practices
 
-1. **Use the Generic Interface**: Always prefer `IProvideIdentityDetails<TDetails>` over the base interface to enable proxy generation.
+Use the generic interface when your provider returns a known details type. Keep that type focused on the data the UI needs; the generator produces a model, not a translation of C# methods or business logic. A C# record is one way to represent an immutable details payload.
 
-2. **Keep Types Simple**: Identity details types should be simple DTOs without complex logic or dependencies.
-
-3. **Avoid Sensitive Data**: Never include sensitive information like tokens or passwords in identity details.
-
-4. **Use Records**: Consider using C# records for immutable identity detail types.
+Identity details are sent to the client. Do not put passwords, tokens or other secrets in them, and enforce authorization on the backend rather than trusting the UI's copy.
 
 ## Frontend integration
 
-The generated TypeScript types can be used with the identity system in `@cratis/arc/identity`. The types ensure that your frontend code has compile-time type safety when accessing identity details.
+Use the generated class with the identity system in `@cratis/arc/identity`. For React consumers, pass it as the details constructor when configuring [React identity](../../../frontend/react/identity.md); that guide shows how to read the details and handle loading or absent values.
 
-Pass the generated class as the details constructor when configuring [React identity](../../../frontend/react/identity.md). A TypeScript interface alone carries no runtime field metadata. Identity details are client-visible UI data, not an authorization boundary.
+The class provides both a TypeScript shape for frontend code and runtime field metadata for deserialization. A TypeScript interface alone has no constructor or field metadata, and a type annotation does not guarantee that the backend supplied details.

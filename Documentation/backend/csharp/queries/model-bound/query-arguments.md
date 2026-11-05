@@ -1,6 +1,6 @@
 ---
 title: Model-bound query arguments
-description: Scalar HTTP binding, optional arguments, reserved keys, and explicit paths.
+description: Cratis Arc binds model-bound query arguments from GET query strings or QUERY bodies, with scalar conversion, defaults, and reserved keys.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.

@@ -1,6 +1,6 @@
 ---
 title: 'ARCCHR0015: Command handler must not return a nullable event'
-description: Reject an event-producing command explicitly instead of declaring an optional event result.
+description: ARCCHR0015 in Cratis Arc warns when a command handler declares a nullable event result; reject the command explicitly instead of returning null.
 ---
 
 ## Rule

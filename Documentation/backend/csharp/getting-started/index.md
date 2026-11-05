@@ -3,9 +3,9 @@ title: Set up a standalone Arc backend
 description: Create an ASP.NET Core project with Arc, start with SQLite through EF Core or choose MongoDB, and configure Debug proxy generation without Chronicle.
 ---
 
-A librarian needs to register an author and see the saved name in the catalog. Start with that backend before adding a screen. This path uses **ASP.NET Core and standalone Arc**: no Chronicle package, event store, or Cratis template is required. Use **SQLite through EF Core** for a first run without a database server; MongoDB is an alternative below. Choose one storage branch and keep it through the next lesson.
+Set up an ASP.NET Core backend for a library app and configure generated TypeScript clients before adding a UI. This is standalone Arc: no Chronicle package, event store, or Cratis template is required. Use **SQLite through EF Core** for a first run without a database server; MongoDB is an alternative below. Choose one storage branch and keep it through the next lesson. You'll define the author command and query there, then check that a write can be read back.
 
-The [lightweight Arc.Core host](../core/getting-started.md) is a separate hosting option; do not mix its bootstrap with this one.
+Use this page for ASP.NET Core. The [lightweight Arc.Core host](../core/getting-started.md) has a separate setup; do not mix its bootstrap with this one.
 
 ## Create the project
 
@@ -32,9 +32,9 @@ Add this property group and item group inside `Library.csproj`:
 </ItemGroup>
 ```
 
-The namespace root removes `Library` from **output folders only**, placing `Library.Authors` under `src/Authors`; API routes still retain the default `/api/library/...` prefix. Source-file mode groups query proxies into their read model's file (`Author.ts`) instead of separate query files (`AllAuthors.ts`).
+This configuration keeps generated clients beside the feature code. The namespace root removes `Library` from **output folders only**, placing `Library.Authors` under `src/Authors`; API routes still retain the default `/api/library/...` prefix. Source-file mode groups query proxies into their read model's file (`Author.ts`) instead of separate query files (`AllAuthors.ts`). When following a frontend example using separate query files, import `AllAuthors` from `./Authors/Author` for this setup.
 
-The generator runs **after compilation** and uses the assembly and PDB source paths. An output path enables it; installing Arc alone does not. Use Debug builds for the following checkpoints. See [proxy configuration](../proxy-generation/Configuration/index.md) before changing routes or output layout.
+A proxy is the generated TypeScript class that calls a backend command or query. The generator runs after compilation, reading the assembly and its PDB debugging information to locate source files. Setting an output path enables it; installing Arc alone does not. Use Debug builds for the following checkpoints, and regenerate after backend contract changes before type-checking the frontend. See [proxy configuration](../proxy-generation/Configuration/index.md) before changing routes or output layout.
 
 Create `GlobalUsings.cs` at the project root:
 
@@ -143,6 +143,6 @@ Database/collection creation happens on the first write. The validation chapter 
 
 ## Next checkpoint
 
-The project is configured but its domain types are not defined yet. Continue to [Your first command and query](./your-first-command.mdx), choose the same database branch, then build and run. That page gives the observable success checkpoint before you add React.
+You have configured the host, storage, and proxy output. The project still needs the author types referenced by the setup, so continue to [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) before building. Keep the same database branch. That lesson supplies the missing types and a curl write/read check, so you can verify the backend before adding React.
 
 The [full-stack tutorial](/arc/tutorial/) continues from that backend. The `dotnet new cratis` template is an optional **Arc + Chronicle** scaffold, not a prerequisite for this standalone path; use [Chronicle integration](../chronicle/index.md) when you intentionally choose event sourcing.

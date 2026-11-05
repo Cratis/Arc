@@ -1,26 +1,31 @@
 ---
-title: Why Arc
-description: The problem Arc solves, why it leans on CQRS and proxy generation, and how it keeps a full-stack app type-safe end to end.
+title: Why choose Cratis Arc for CQRS applications
+description: Choose Cratis Arc when you want backend commands and queries to define generated TypeScript clients, without maintaining a separate HTTP client.
 ---
 
-Building a modern full-stack application means making the same decisions over and over: how do commands get validated, how do queries get shaped, how does the React frontend learn the exact types the backend expects, and how do you keep all of it in sync as the code changes. Most teams answer these with a stack of libraries and a layer of hand-written glue — controllers, DTOs, fetch wrappers, validation duplicated on both sides.
+Choose Cratis Arc when you want backend commands and queries to define the contracts your TypeScript frontend calls. Arc is a full-stack CQRS framework: it separates requests that change data from requests that read it, exposes them over HTTP, and generates typed clients. For those contracts, you do not maintain a separate API client.
 
-Arc answers them once, with conventions, so you can spend your time on behavior instead of plumbing.
+Consider adding a field to an author-registration form. Without generation, the backend request, frontend type, and HTTP wrapper may each need an edit. With Arc, you change the backend contract, regenerate its TypeScript proxy, and type-check the frontend to find callers that no longer match. You still test the behavior at runtime.
 
-For Cratis, event sourcing is usually the default persistence architecture for information systems, and Chronicle is where that lives. Arc's job is different: it gives you the CQRS boundary for information going into and out of the system, then generates the frontend contract from that boundary. CQRS and event sourcing fit together naturally, but one does not require the other.
+Event sourcing is a separate choice. Cratis generally favors it for information systems, with Cratis Chronicle storing and processing the events. Arc can use that integration, but it can also put commands and queries over a current-state database or application services. You can adopt Arc's frontend contract workflow without adopting an event log.
 
 ## What Arc gives you
 
-- **Commands and queries as the unit of work.** On C#, a command is a record with a `Handle()` method; on the JVM and TypeScript it has a `handle()` method. A query can be a method on a read model. Arc maps them to HTTP automatically.
-- **Generated TypeScript proxies.** Every command and query becomes a typed client your React code calls. Change a command's shape on the backend and regenerate the client; the frontend types change with it — the compiler catches the mismatch, not your users.
-- **Pluggable persistence.** Commands and queries use the storage you configure — for example, [Chronicle](/arc/backend/csharp/chronicle/) for event sourcing, [MongoDB](/arc/backend/csharp/mongodb/) or [EF Core / SQL](/arc/backend/csharp/entity-framework/) for current state on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on the JVM, or [MongoDB and Drizzle](/arc/backend/typescript/reference/capabilities/) in the TypeScript source preview. Chronicle adds its [command transaction semantics](/arc/backend/csharp/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
-- **The cross-cutting integration points.** On C#, Arc supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Check each other backend's capability reference for its integration surface. Configure trusted authentication, membership checks, storage isolation, and business constraints for your application.
+On C#, a command is a record with a `Handle()` method; on the JVM and TypeScript it has a `handle()` method. A query can be a method on a read model, the data shape returned to the caller. Arc maps those commands and queries to HTTP automatically.
 
-## Why CQRS and proxy generation
+Configure proxy generation to produce typed clients for recognized commands and queries that are not excluded. On C#, set `CratisProxiesOutputPath`; type and namespace exclusions control what is included. The [proxy boundary guide](./understanding-the-proxy-boundary.mdx) explains what generation covers and how to regenerate after a contract change.
 
-The two ideas reinforce each other. CQRS separates the thing you *do* (a command) from the thing you *see* (a query/read model), which keeps each side simple and independently optimizable. Proxy generation then makes that separation safe across the network: because the client is generated from the backend's own declarations, there is no second source of truth to drift.
+Your command and query code uses the storage you configure: [Chronicle](/arc/backend/csharp/chronicle/) for event sourcing, [MongoDB](/arc/backend/csharp/mongodb/) or [EF Core / SQL](/arc/backend/csharp/entity-framework/) for current state on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on the JVM, or [MongoDB and Drizzle](/arc/backend/typescript/reference/capabilities/) on TypeScript. Chronicle adds its [command transaction semantics](/arc/backend/csharp/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
 
+On C#, Arc also supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Check each other backend's capability reference for its integration surface. Your application must configure trusted authentication, membership checks, storage isolation, and business constraints.
+
+## Why CQRS and proxy generation?
+
+A command to register an author needs the values required to make that change. A catalog query can return the fields a screen needs to display. CQRS lets those contracts have different shapes. Proxy generation carries each shape into the frontend, so a change to one can be checked against its callers. Regeneration followed by frontend type-checking can catch structural mismatches; it does not prove runtime behavior or compatibility between deployed versions.
+
+:::note[CQRS and event sourcing]
 CQRS is often associated with event sourcing because events are a natural write-side model and projections are a natural read-side model. But CQRS is not event sourcing. Arc can put that boundary over current-state storage or optional Chronicle; Chronicle can store and process events without Arc. Integrations differ by backend.
+:::
 
 ```mermaid
 flowchart LR
@@ -34,10 +39,16 @@ That diagram is the direct-database setup, useful for bounded current-state slic
 
 ## Vertical slices, not layers
 
-Arc doesn't impose a folder structure, but it's built to make one shine: organize the application by **feature**, with a folder per slice inside it — the shape [event modeling](/event-modeling/) gives you. Everything for one behavior — the command, the read model and query it serves, the React component that renders it, and the specs that prove it — then lives in one folder, and you read a feature top to bottom instead of hunting across `Commands/`, `Handlers/`, `DTOs`, and `Clients/`.
+A vertical slice keeps one behavior's code together: its command, read model and query, React component, and specs. For an author-registration feature, you can follow the input from the form through the write and back to the author list in one folder. You do not have to trace it across `Commands/`, `Handlers/`, `DTOs`, and `Clients/`.
+
+Arc does not require this folder structure. It is the convention used in the tutorial, with features divided into slices using [event modeling](/event-modeling/). Follow that path if you want the code layout to match the behavior you are building.
+
+## When to keep a simpler boundary
+
+If a few controller actions and an existing client already meet your needs, you may not need Arc's command/query conventions or a proxy-generation step. Arc fits when you want those contracts to drive the frontend too, and are willing to include regeneration and frontend type-checking in your workflow. For a C# comparison, see [MediatR, MVC, and Arc](./backend/csharp/coming-from-mediatr-and-mvc.md); for other backends, check the [capability matrix](./capabilities.md) before choosing an integration.
 
 ## Where to start
 
-- Build your first feature with [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript source preview](/arc/backend/typescript/getting-started/).
+- Build your first feature with [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or [TypeScript from source](/arc/backend/typescript/getting-started/).
 - Walk the full database-backed path in the [Arc tutorial](/arc/tutorial/).
 - Need the wider stack? [Why developers choose Cratis](/why-cratis/) shows how Arc, Chronicle, Components, and the tools fit together.

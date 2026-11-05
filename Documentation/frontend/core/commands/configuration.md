@@ -1,6 +1,6 @@
 ---
 title: Command Configuration
-description: Configure command microservice routing and API base path per command instance or once through the React Arc root.
+description: Configure command routing in Cratis Arc with a microservice header, API base path, and origin per TypeScript instance or through the React Arc provider.
 ---
 
 Configure a command's service-routing header and API base path when its endpoint is behind a gateway or hosted under a path prefix. Set these values per instance for core TypeScript usage, or through the React `<Arc>` provider for commands created by React hooks.
@@ -43,7 +43,11 @@ const result = await command.execute();
 
 This assumes the command's required values have already been supplied. The request goes to `https://api.example.com/api/v1/users/register` and carries the service-routing header. If a generated route already contains `/api`, do not add that segment again in the base path.
 
-Core command constructors initially copy `microservice`, `apiBasePath`, and `origin` from `Globals`; setters replace those instance values. React's `useCommand` applies the nearest provider's values when it creates the command. Changing `Globals` later does not reconfigure an existing instance, and a manually constructed command does not read React context.
+Core command constructors initially copy `microservice`, `apiBasePath`, and `origin` from `Globals`; setters replace those instance values. Changing `Globals` later does not reconfigure an existing instance, and a manually constructed command does not read React context.
+
+React's `useCommand` applies the nearest provider's `microservice`, `apiBasePath`, `origin`, and `httpHeadersCallback` when it creates the command. Later provider changes synchronize onto the same instance during commit, before layout effects, including child layout effects. The command retains its draft and change-tracking baseline; a suspended or abandoned render does not apply the pending configuration.
+
+Requests already in flight keep the URL and headers built when they started. The next request uses the committed configuration and calls the current headers callback. Removing a provider's routing values clears them to empty strings; removing its headers callback restores an empty custom-header callback.
 
 Recommended global setup:
 

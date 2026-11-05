@@ -1,9 +1,11 @@
 ---
-title: Two entities
-description: A rule over two entities at once, written as two read model parameters in a validator and one batch with one event for each entity.
+title: Cratis Arc consistency across two entities
+description: Check book stock and a member's loan limit in Cratis Arc, then append both events atomically or reject the command without writing either.
 ---
 
-Use this when one rule depends on the state of two entities: a member's loan limit and a book's last copy, or a course's capacity and a student's limit.
+Protect both read-model parameters in Cratis Arc when a command depends on two entities. Borrowing a book must leave both the book's stock and the member's loan count valid. Read both before deciding, then append an event to each entity in one atomic batch.
+
+Enable [read protection at assembly level](../getting-started.md#1-turn-read-protection-on) before using these examples. Both commands assume `On`; their validators alone do not protect the decision from concurrent changes.
 
 | | |
 | --- | --- |
@@ -77,9 +79,11 @@ guard isbn:   types=[BookAdded, BookBorrowed], after <tail before the BookStock 
 guard member: types=[LoanTaken, LoanReturned], after <tail before the MemberLoans read>
 ```
 
-The validator reads and checks both entities. `Handle()` says only what happens. Both guards are checked in the one atomic append. If either side changed, nothing is written and the message names the model that changed.
+`[LookUpBy]` selects the book and member from the command's properties. The validator checks the stock and loan count before `Handle()` returns the two events. A member with no loan history has a count of zero for this rule; a book with no stock history is unavailable.
 
-Things to get right:
+With a copy available and fewer than three active loans, the command appends `BookBorrowed` to the book and `LoanTaken` to the member. If either rule fails, it appends neither. If a matching event changes either entity after its read, the atomic append rejects both events and the concurrency message names the model that changed.
+
+Keep the event destinations aligned with the reads:
 
 - Each `EventForEventSourceId` carries its own destination. No `ICanProvideEventSourceId` is needed, including when `Handle()` returns these values inside a `Result` or a `Task` ([ARCCHR0002](../../code-analysis/ARCCHR0002.md)).
 - Each entity gets an event of its own type. `BookBorrowed` goes to the book and `LoanTaken` goes to the member. Do not write the same event type to both: each model would fold the other entity's copy.
@@ -94,11 +98,11 @@ It is tempting to build `MemberLoans` from the book's events, keyed by the membe
 BorrowBook reads 'loans' (MemberLoans) keyed by an event property, so read protection cannot guard it. If it is only context, mark it [Unprotected("why")]. Otherwise append a fact to the entity it is keyed by, or use a constraint.
 ```
 
-The fix is the example above: append `LoanTaken` to the member.
+Append `LoanTaken` to the member, as in the example above, so the member's history contains every fact needed for its loan count. Adding another read cannot make a model keyed by an event property protectable.
 
 ## A course and a student
 
-Course capacity and a per-student limit use the same pattern.
+Use the same pattern when a course has limited seats and each student may join at most three courses. The course needs an existing capacity record; a student without course history starts with a count of zero.
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -164,13 +168,17 @@ guard course:  types=[CourseDefined, SeatTaken], after <tail before the CourseSe
 guard student: types=[CourseJoined], after <tail before the StudentCourses read>
 ```
 
-A decision on a key guards that key even when the command writes only to another one. A competing subscription for the student conflicts with this command.
+With a free seat and a student below the limit, the command appends one `SeatTaken` to the course and one `CourseJoined` to the student. A missing or full course, or a student already in three courses, produces the corresponding validation message and writes neither event. A competing subscription that changes either protected model before commit also prevents both appends.
+
+A command's protected read guards the key it reads even when that command appends only to a different entity. The keys read, not just the append destinations, determine what can conflict.
 
 Chronicle writes one event for each entity. A model of the Dynamic Consistency Boundary would write one event that carries both tags; Chronicle has no tags in a guard, so the fact is two events in one atomic append. See [Chronicle: when one fact becomes two events](/chronicle/dynamic-consistency-boundary/chronicle/#when-one-fact-becomes-two-events).
 
 ## What does not hold
 
 This guards exactly the keys you read. If the set of keys can grow, for example a limit across loans that each live on their own book stream, a new key enters nobody's guard. Model such a limit on one key that carries all the facts, as `MemberLoans` does.
+
+Use [state-dependent command specs](./testing.md) to check the accepted case and each rule's rejection separately, including that a rejection appends no events.
 
 ## Related
 

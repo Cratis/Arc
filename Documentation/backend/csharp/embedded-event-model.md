@@ -1,9 +1,11 @@
 ---
-title: Browse your embedded event model
-description: Generate Screenplay documents during compilation and expose a read-only event-model explorer in an ASP.NET Core application.
+title: "Cratis Arc embedded event model: browse your application"
+description: Embed generated Screenplay documents in your Cratis Arc application and browse a read-only event-model board without a separately maintained diagram.
 ---
 
-To inspect the model behind a running application without keeping a separate diagram up to date, embed its generated Screenplay documents during the build. `Cratis.Arc.Screenplay.Embedded` adds a read-only explorer at `/.cratis/event-model` with project, module, and feature navigation.
+Cratis Arc's embedded event-model explorer lets you browse the commands, events, and read models recovered from your application's source. The build embeds generated Screenplay documents, text files describing that model, and `Cratis.Arc.Screenplay.Embedded` serves them as a read-only board at `/.cratis/event-model`. Use it to understand a feature without maintaining a separate diagram.
+
+The explorer reads embedded documentation, not stored events or live application data. Its view reflects the source used for the build and the constructs the generator can recover.
 
 ## Quickstart
 
@@ -32,7 +34,7 @@ To inspect the model behind a running application without keeping a separate dia
 
 See [Security](#security) before exposing the viewer beyond your local development machine.
 
-This is source-derived documentation, not a view of stored events or live application data. Use it to review a feature's command/event/read-model flow, orient yourself in an unfamiliar codebase, or compare a scoped feature with the whole application without maintaining a second diagram. It uses the same analysis as [Screenplay generation](generating-a-screenplay.md); its limitations and diagnostics still apply.
+Select a feature to follow its commands through events to read models, or open the assembly document for the wider model. The explorer uses the same analysis as [Screenplay generation](generating-a-screenplay.md); check that page's supported constructs and diagnostics when something you expect is absent.
 
 Arc does not require event sourcing. An ordinary command that returns a response has no event card. Commands that produce recognized Chronicle events show those events, including events declared in another slice; state-view slices show the events they consume.
 
@@ -84,7 +86,7 @@ app.MapCratisEventModel(typeof(MyApplicationMarker).Assembly);
 
 ## Keep it out of release builds
 
-Endpoint mapping and resource generation are separate switches. An unmapped explorer cannot be requested, but generated resources still reside in the assembly unless you disable generation.
+Decide separately whether a build should contain model documents and whether the application should serve them. Removing the endpoint mapping prevents requests to the explorer; it does not remove resources already embedded in the assembly.
 
 To generate documents only in Debug, add this to your application project:
 
@@ -99,7 +101,7 @@ A direct reference to `Cratis.Arc.Screenplay.Embedded` enables generation by def
 ## Cap validated generation for an older consumer
 
 The embedded generator uses the same validated-generation admission as standalone Screenplay generation.
-String-backed strategies with fully recoverable concept rules need ESM v20. To keep documents below
+String-backed strategies with fully recoverable concept rules need v20 of Screenplay's executable semantic model (ESM). To keep documents below
 that boundary for an older consumer, set:
 
 ```xml
@@ -150,7 +152,7 @@ Slice identification comes from recognized application artifacts, not a fixed li
 
 ## Security
 
-The viewer is development-only by default: the metapackage's automatic hosting requires both a non-optimized (Debug) build and `IHostEnvironment.IsDevelopment()` at runtime. A Debug build deployed to Production or Staging no longer exposes the viewer automatically.
+With the metapackage's default automatic hosting, the viewer is exposed only for a non-optimized (Debug) build running with `IHostEnvironment.IsDevelopment()`. A Debug build deployed to Production or Staging does not expose it automatically.
 
 :::caution[The event model reveals application structure]
 The viewer is read-only, but its documents describe commands, events, read models, and feature boundaries. The default does not require authentication in Development. Do not expose it to untrusted callers, including on a shared development host.
@@ -179,7 +181,7 @@ builder.Services.AddCratisEventModelViewer(options =>
 
 ## Explore the model
 
-The solid sidebar lists each assembly and its module/feature documents. Selecting a document opens a read-only board to the right; its initial camera centers and fits the model. The lower-right rounded toolbar controls zoom and the minimap. Pan and zoom freely after opening a document: the initial fit does not keep overriding your camera.
+Choose an assembly, module, or feature in the sidebar to open its read-only board. The board initially fits the selected model. Use the lower-right toolbar to adjust zoom or the minimap, then pan to the slice you want to inspect; the initial fit does not keep resetting your view.
 
 ![Read-only event-model board with command and event cards, the solid project sidebar, and lower-right zoom controls](images/embedded-event-model-board.png)
 
@@ -193,7 +195,7 @@ These choices are stored in your browser's local storage and restored on the nex
 
 Each slice shows the specifications the document declares for it, in declaration order. A specification is drawn as cards: the events given before it, what it does, the events it expects and the errors it expects (`then denied` appears as an error named `denied`). What it does is the slice's own command when it runs it, with the values it sets; any other action is named for its kind, such as `append AuthorRegistered` or `clock 2026-10-05T08:00:00Z`, with its values. An event stated `for` a source carries that source in its card's name.
 
-What a specification states that has no card travels in its header, after its name: the caller, the clock, generated values, read models given or expected, read models expected to be absent, the response `then returns` expects, query results, operations, and stream routes. Nothing a specification states is dropped, so the board and the generated source always say the same thing. The board does not run specifications; it has no run outcome to show.
+What a specification states that has no card travels in its header, after its name: the caller, the clock, generated values, read models given or expected, read models expected to be absent, the response `then returns` expects, query results, operations, and stream routes. Use the header alongside the cards to read the specification's declared context and expectations. These are declarations, not test results: the board does not run specifications.
 
 ![Upper-right View menu showing detail level, property visibility, and visualization choices](images/embedded-event-model-view-options.png)
 
@@ -217,7 +219,7 @@ The board is a visualization, not another inference engine. Where its card model
 
 ## Serve the explorer from another host
 
-Everything the explorer answers comes from types you can use without mapping its routes. A tool that views an application from the outside — the Cratis CLI's `cratis view` does exactly this — serves the same viewer over documents it reads from a built assembly or generates in memory:
+You can reuse the explorer without mapping routes in the application being inspected. For example, the Cratis CLI's `cratis view` serves the viewer over documents read from a built assembly or generated in memory. A custom host can use the same types:
 
 | Type | Package | Role |
 | --- | --- | --- |

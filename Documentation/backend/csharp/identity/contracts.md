@@ -1,6 +1,6 @@
 ---
 title: Identity Contracts
-description: Reference for IdentityProviderContext and IdentityDetails, the input and output of an identity details provider.
+description: IdentityProviderContext and IdentityDetails define the identity input, authorization decision and domain details for Cratis Arc identity providers.
 ---
 
 Identity providers work with two key contracts: `IdentityProviderContext` as input and `IdentityDetails` as output.

@@ -1,7 +1,7 @@
 ---
 uid: Arc.Testing.CommandScenario
 title: Command scenarios
-description: Configure and execute standalone command scenarios, and assert precise validation and authorization outcomes.
+description: Cratis Arc command scenarios run the real pipeline in tests to check validation, authorization, dependencies, and operation outcomes.
 ---
 
 `CommandScenario<TCommand>` exercises Arc's real command pipeline. Use it when a direct `Handle()` call would miss validation, authorization, dependency resolution, or execution scopes. It also executes returned [command operations](../commands/operations/index.md) and their eligible compensation with the services you register; it is not a recording-only simulator. Follow [testing operations](./command-operations.md) for a complete failure/recovery lesson. It complements fast decision specs; it is not a requirement for every command test. Start with [the decision-and-pipeline lesson](./command-decisions.md), or use [Testing](./index.md) to choose the right boundary. This page is the scenario API reference.

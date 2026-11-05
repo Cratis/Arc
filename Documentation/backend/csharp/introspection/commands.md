@@ -1,6 +1,6 @@
 ---
 title: Introspection Commands Endpoint
-description: Reference for GET /.cratis/commands, which returns metadata and payload schemas for discovered command handlers.
+description: Cratis Arc's GET /.cratis/commands endpoint returns discovered command metadata and JSON Schemas for command payloads, not final runtime routes.
 ---
 
 The commands introspection endpoint returns metadata for discovered command handlers, not the final runtime route table.

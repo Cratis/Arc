@@ -1,20 +1,17 @@
 ---
-title: Entity mapping
-description: Discover EF entity configurations through Arc context registration.
+title: Configure EF Core entity mappings in Cratis Arc
+description: Define EF Core keys, constraints and relationships in entity configuration classes, then use Cratis Arc registration to apply them to your context.
 ---
 
-The Arc provides a clean, organized way to configure your Entity Framework Core entities through the `IEntityTypeConfiguration<T>` interface from Microsoft.EntityFrameworkCore.
-This approach separates entity configuration from your DbContext, making your code more maintainable.
+Cratis Arc applies EF Core entity mappings from `IEntityTypeConfiguration<T>` classes when you use `BaseDbContext` with Arc context registration. Put keys, constraints and relationships in those classes to keep each entity's mapping separate from the context.
 
 ## Overview
 
-Entity mapping in the Arc allows you to define how your entities are configured for Entity Framework Core in dedicated classes.
-These entity configurations are automatically discovered and applied when your DbContext is created, eliminating the need to override `OnModelCreating` in every DbContext
-that inherits from the [`BaseDbContext`](./base-db-context.md).
+Create one configuration class per entity type and expose the entity through a public `DbSet<T>` property on your context. During model creation, [`BaseDbContext`](./base-db-context.md) asks Arc's entity registrar for the matching configuration. You do not need to repeat those mappings in `OnModelCreating`.
 
 ## Creating Entity Configurations
 
-To create an entity configuration, implement the `IEntityTypeConfiguration<T>` interface for your entity type:
+Implement EF Core's `IEntityTypeConfiguration<T>` for the entity you want to map. This `User` mapping makes names and email addresses required, gives email a unique index, and relates users to orders:
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
@@ -50,13 +47,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
 ## Automatic Discovery and Registration
 
-Entity configurations are automatically discovered and registered when your application starts. The Arc:
+Register the context through Arc's helpers so EF's options carry the application service provider and entity registrar. The registrar discovers `IEntityTypeConfiguration<T>` implementations, finds the map for each public `DbSet<T>` property, and resolves that map through dependency injection during model creation.
 
-1. **Discovers all implementations** of `IEntityTypeConfiguration<T>` in your application
-2. **Registers them with dependency injection** so they can have dependencies injected
-3. **Applies them automatically** during `OnModelCreating` in your DbContext
-
-This happens with `BaseDbContext` **and Arc context registration**, which supplies the entity registrar through the options' application service provider. Inheritance alone does not supply that service. Model declaration fragment:
+The following context exposes both entities. With Arc registration, the matching configurations are applied without an `OnModelCreating` override. Inheriting from `BaseDbContext` alone does not supply the registrar.
 
 ```csharp
 public class MyDbContext : BaseDbContext
@@ -74,7 +67,7 @@ public class MyDbContext : BaseDbContext
 
 ## Dependency Injection Support
 
-Entity configurations support dependency injection, allowing you to inject services that might be needed for configuration:
+A configuration class can take constructor dependencies. Here, `IConfiguration` supplies the maximum name length instead of fixing it in the mapping:
 
 ```csharp
 public class UserConfiguration : IEntityTypeConfiguration<User>
@@ -103,6 +96,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
 ### Complex Property Configuration
 
+Use an owned entity when a value such as a shipping address belongs to its order and should be mapped through that relationship. This example also defines a computed total column:
+
 ```csharp
 public class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
@@ -125,9 +120,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 }
 ```
 
-For JSON metadata, mark the entity property with `[Json]` from `Cratis.Arc.EntityFrameworkCore.Json`; `BaseDbContext` discovers it through `ApplyJsonConversion`. There is no Arc `HasJsonConversion()` property extension. The computed-column SQL above is SQL Server-specific; adapt it for other providers. These mapping fragments assume your application's entity declarations.
+The computed-column expression uses SQL Server syntax; adapt it for another provider. These examples assume your application's entity declarations.
+
+If you want an object stored as JSON rather than through owned-entity mapping, mark the property with `[Json]` from `Cratis.Arc.EntityFrameworkCore.Json`. `BaseDbContext` discovers it through `ApplyJsonConversion`; there is no Arc `HasJsonConversion()` property extension.
 
 ### Multiple Entity Configurations
+
+Keep mappings for different entities in separate classes. The product mapping below sets decimal precision and excludes soft-deleted rows from normal queries; the category mapping defines a parent-child relationship:
 
 ```csharp
 public class ProductConfiguration : IEntityTypeConfiguration<Product>
@@ -173,39 +172,30 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
 ### Organization
 
-- **One entity configuration per entity**: Keep each entity configuration focused on a single entity type
-- **Descriptive naming**: Use clear names like `UserConfiguration`, `OrderConfiguration`, etc.
-- **Logical grouping**: Place entity configurations in a dedicated folder (e.g., `Configuration/` or `Mapping/`)
+Use one configuration per entity type: Arc's registrar builds a dictionary keyed by that type, so multiple discovered maps for the same entity are not supported. Naming the class `UserConfiguration` or `OrderConfiguration` makes the matching entity easy to find. Keep it beside the entity or in a mapping folder according to your application's organization.
 
 ### Configuration Guidelines
 
-- **Configure all aspects**: Include keys, properties, relationships, and constraints
-- **Be explicit**: Don't rely on conventions for critical configurations
-- **Use meaningful names**: Configure table and column names explicitly when needed
-- **Document complex logic**: Add comments for complex mapping logic
+Map the constraints your application depends on. In the `User` example, `IsRequired()` and the length limits define valid column values, while the unique email index prevents duplicate email addresses. Set table and column names explicitly when integrating with an existing schema rather than relying on EF's naming conventions.
 
 ### Performance Considerations
 
-- **Index configuration**: Configure indexes for frequently queried properties
-- **Query filters**: Use global query filters for soft delete patterns
-- **Relationship loading**: Configure loading behavior for relationships
+Choose indexes from the queries the application actually runs, then inspect those queries against the database. A global query filter such as `!p.IsDeleted` changes which rows normal queries return; it is not an index or a substitute for checking query performance.
 
 ## Integration with BaseDbContext
 
-When you inherit from `BaseDbContext`, entity configurations are automatically applied during model creation. The base class:
+If a configuration is not applied, check that the context exposes the entity through a public `DbSet<T>` and is registered through Arc. The registrar matches those set properties to discovered configurations; it does not apply every configuration to every context.
 
-1. Discovers all `DbSet<T>` properties on your DbContext
-2. Looks for corresponding `IEntityTypeConfiguration<T>` implementations
-3. Applies the configurations during `OnModelCreating`
-
-Arc registration supplies the registrar needed for this discovery. Keep entity configuration dependencies suitable for cached EF models: do not use request-specific tenant state to shape a pooled context's model.
+Keep constructor dependencies suitable for cached EF models. A configuration value such as the maximum name length shapes the model, not an individual request. Do not use request-specific tenant state to shape a pooled context's model.
 
 ## Migration Support
 
-Entity configurations determine the EF Core model used by migrations. When you change them:
+Ensure your design-time context creation supplies the same mappings and conversion options as runtime registration. A directly constructed context without the application service provider does not automatically discover maps, so a migration generated from it may not represent the runtime model.
 
-1. Run `dotnet ef migrations add <MigrationName>` to create a migration
-2. The migration will include all changes from your entity configurations
-3. Run `dotnet ef database update` to apply the changes
+After changing a mapping:
 
-Ensure your design-time context creation supplies the same entity mappings and conversion options as runtime registration. A directly constructed context without the application service provider does not automatically discover maps.
+1. Run `dotnet ef migrations add <MigrationName>` to create a migration.
+2. Review the generated operations against the intended schema change, especially constraints and provider-specific SQL.
+3. Run `dotnet ef database update` against the intended database to apply the reviewed migration.
+
+For changes involving wrapped values or Guid storage, check [concept conversion](./concept-as-conversion.md) and [Guid conversion](./guid-conversion.md) before applying the migration.

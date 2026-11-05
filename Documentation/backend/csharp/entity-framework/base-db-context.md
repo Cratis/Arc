@@ -1,13 +1,13 @@
 ---
-title: Base DbContext
-description: Understand which model conventions BaseDbContext applies and what registration adds.
+title: Use BaseDbContext for EF Core mapping in Arc
+description: Use Cratis Arc's BaseDbContext to apply JSON, ConceptAs and Guid conversions, and register the context so entity configurations are discovered.
 ---
 
-`BaseDbContext` removes repeated model conversion setup. Use it with Arc's context registration helpers so entity-map discovery and application services are also available.
+Cratis Arc's `BaseDbContext` applies JSON, `ConceptAs<T>` and Guid conversions so you do not repeat them in every EF Core context. Register the context through Arc's helpers to also apply your `IEntityTypeConfiguration<T>` entity mappings.
 
 ## Define and register a context
 
-Model declarations (supply your application's `Customer` entity):
+Inherit from `BaseDbContext`, pass the options to its constructor, and expose your application's `Customer` entity through a `DbSet<Customer>`:
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
@@ -19,7 +19,7 @@ public class StoreDbContext(DbContextOptions<StoreDbContext> options) : BaseDbCo
 }
 ```
 
-Registration fragment in an existing host:
+Register the context in your existing host's service collection:
 
 ```csharp
 services.AddDbContextWithConnectionString<StoreDbContext>(
@@ -39,9 +39,9 @@ During `OnModelCreating`, the base context applies:
 
 Relevant types include owned entities, types directly exposed through `DbSet<T>`, and entity types referenced directly or through generic properties on those set types. Types stored exclusively inside JSON are excluded from relational concept/Guid mapping.
 
-**Geometry conversion is not automatic.** Configure `AsPoint()`, `AsLineString()`, or `AsPolygon()` explicitly, or choose the separate `[Json]` path. See [point conversion](./point-conversion.md) for the storage distinctions.
+For geometry properties, configure `AsPoint()`, `AsLineString()`, or `AsPolygon()` explicitly; the base context does not apply those conversions. Choose the separate `[Json]` path if you want JSON storage instead. See [point conversion](./point-conversion.md) to choose a representation.
 
-[Entity maps](./entity-mapping.md) are applied only when an `IEntityTypeRegistrar` is available through the options' application service provider. Arc registration wires this up. Directly constructing a context, or ordinary EF registration without the corresponding services/options, is not equivalent.
+Arc registration supplies an `IEntityTypeRegistrar` through EF's application service provider. `BaseDbContext` uses it to apply [entity maps](./entity-mapping.md) before the conversions. If maps are missing from the model, check registration first: constructing the context directly or using ordinary EF registration without those services and options does not supply the registrar.
 
 ## Pooling and customization
 
@@ -49,4 +49,4 @@ Arc's helpers register a pooled `IDbContextFactory<T>` and a scoped context. Con
 
 If you override `OnModelCreating`, call `base.OnModelCreating(modelBuilder)` to retain the conventions. Configuration ordering matters: configure explicit overrides after the base call where appropriate.
 
-Pooling does not provide tenant isolation. The helpers capture a connection string rather than resolving one per request. See [registration and provider limits](./getting-started.md#scope-and-provider-limits).
+For tenant-specific databases or identities, configure connection resolution rather than changing pooled options. Arc resolves those values when a connection opens, including on a reused context. See [registration and provider limits](./getting-started.md#scope-and-provider-limits) before choosing a tenant isolation strategy.

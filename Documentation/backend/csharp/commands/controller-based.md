@@ -1,13 +1,15 @@
 ---
-title: Controller-based commands
-description: Use Arc command result wrapping with ASP.NET Core MVC actions.
+title: Cratis Arc commands with ASP.NET Core controllers
+description: Use ASP.NET Core MVC actions as Cratis Arc commands, returning command results while keeping MVC routing, binding, authorization, and filters.
 ---
 
-When an existing HTTP API needs MVC action control, a controller action can represent the command. This is a different execution path from a model-bound `[Command]` record: ASP.NET Core handles routing, binding, authorization, and action invocation.
+Controller-based commands let an ASP.NET Core MVC action return a Cratis Arc command result while MVC owns routing, binding, authorization, and action invocation. Choose this path when extending an existing controller API or when you need MVC's action-level control.
+
+Use a [model-bound `[Command]` record](./model-bound/index.md) instead when you want the same command to run through `ICommandPipeline` from HTTP or application code. Controller actions do not pass through that pipeline automatically.
 
 ## Define the action
 
-This complete controller declaration reuses the shared cart concepts and fully implemented `ICartService` from the [service-backed example](./model-bound/index.md#a-service-backed-command). Configure Arc's MVC integration and register that service in your host. `AddCartLine` is a body DTO, not a model-bound command.
+The controller below reuses the shared cart concepts and `ICartService` implementation from the [service-backed example](./model-bound/index.md#a-service-backed-command). Configure Arc's MVC integration and register that service in your host. `AddCartLine` is a data transfer object (DTO) for the request body, not a model-bound command.
 
 ```csharp
 using Microsoft.AspNetCore.Mvc;
@@ -35,7 +37,7 @@ MVC authorization runs before body binding. Arc converts formatter ModelState pa
 
 ## Bypassing command result wrappers
 
-By default Arc wraps controller POST results in a `CommandResult`. Use Arc's `[AspNetResult]` when you intentionally need ASP.NET's result behavior instead. See [without wrappers](../asp-net-core/without-wrappers.md) for its namespace and usage.
+By default Arc wraps controller POST results in a `CommandResult`. If an action needs ASP.NET's own result behavior, mark it with Arc's `[AspNetResult]`. See [without wrappers](../asp-net-core/without-wrappers.md) for its namespace and usage.
 
 POST controller commands run [execution scopes](./command-execution-scopes.md) before publishing their command result. Scopes do not run for `[AspNetResult]` actions, validation-only requests, or requests rejected by model-state validation. With Chronicle, a refused commit returns HTTP 400 or 500 and clears the response instead of reporting success. A controller that captures `unitOfWorkManager.Current` in its constructor still holds the request unit; resolve the current unit during action execution to use the command's unit of work.
 
@@ -54,4 +56,4 @@ Arc's MVC convention adds a validation selector for the `[HttpPost]` action abov
 
 The validation route accepts the same body and runs through ASP.NET Core binding and filters, but Arc skips the action itself. It therefore does not call `ICartService.AddItem`. Preconditions checked only inside that service are not pre-flight validation rules.
 
-See [pre-flight command validation](./command-validation.md#controller-based-commands) for route prerequisites, side-effect limits, and differences from model-bound validation. Use Microsoft ASP.NET Core authorization attributes on controllers/actions; [Arc model-bound authorization](./model-bound/authorization.md) documents its separate attribute contract.
+Follow [pre-flight command validation](./command-validation.md#controller-based-commands) to check route prerequisites and understand which code still runs during validation. Protect controllers and actions with Microsoft ASP.NET Core authorization attributes; [Arc model-bound authorization](./model-bound/authorization.md) uses a separate attribute contract.

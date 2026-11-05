@@ -7,7 +7,7 @@
 - name: CQRS without event sourcing
   href: arc-without-event-sourcing.mdx
 - name: Vertical slices
-  href: vertical-slices.md
+  href: vertical-slices.mdx
 - name: Understanding the proxy boundary
   href: understanding-the-proxy-boundary.mdx
 - name: Understanding identity and access

@@ -1,15 +1,15 @@
 ---
-title: Browser
-description: Use the INavigation and ILocalStorage abstractions in view models instead of browser globals, and know their current limits.
+title: Cratis Arc MVVM browser services
+description: Inject navigation and local storage into Cratis Arc view models, save browser preferences, and account for navigation callback and lifetime limits.
 ---
 
-When working with view models in the MVVM pattern, you typically want to avoid direct dependencies on browser globals like `window`, `document`, or `localStorage`. This makes your code more testable and maintainable. Cratis Arc provides abstracted interfaces for common browser functionality that can be injected into your view models.
+Cratis Arc provides `ILocalStorage` and `INavigation` so view models can save browser preferences or react to URL changes through injected dependencies. Use them after [setting up the MVVM context](./mvvm-context.md). The implementations still use browser APIs; injection lets you supply stand-ins when testing the view model separately.
 
 ## Available Interfaces
 
 ### INavigation
 
-The `INavigation` interface provides a way to observe URL changes in your application without directly accessing the browser's navigation APIs.
+Inject `INavigation` when a view model needs notification of URL changes. It observes navigation; it has no method for navigating to another page. Check its callback and lifetime limits below before subscribing from a view that can unmount.
 
 ```typescript
 export type UrlChangedCallback = (url: string, previousUrl: string) => void;
@@ -49,7 +49,7 @@ When every navigation must be observed exactly once, use your router's location 
 
 ### ILocalStorage
 
-The `ILocalStorage` interface provides access to browser local storage following the standard `Storage` interface:
+Inject `ILocalStorage` to read and write browser storage without reaching for the global `localStorage` in the view model. It follows the standard `Storage` interface:
 
 ```typescript
 export abstract class ILocalStorage implements Storage {
@@ -87,27 +87,21 @@ export class PreferencesViewModel {
 }
 ```
 
+`savePreference()` writes a string under the supplied key, and `loadPreference()` returns that string or `null`. The injected service is the native storage object, so storage restrictions and browser errors still apply. `clearAllPreferences()` calls `clear()`, which removes every local-storage entry for the origin, not only entries created by this view model. Use `removeItem(key)` when you only intend to remove one preference.
+
 ## Dependency Injection Setup
 
-These browser interfaces are automatically registered when you initialize the MVVM bindings. The registration happens in the `Bindings.initialize()` method:
-
-- `INavigation` is registered as a singleton with the `Navigation` implementation
-- `ILocalStorage` is registered as an instance pointing to the browser's native `localStorage`
-
-You don't need to manually register these - they're available as soon as you set up your MVVM context.
+The [MVVM context](./mvvm-context.md) calls `Bindings.initialize()` for you. It registers `INavigation` as a singleton backed by `Navigation`, and `ILocalStorage` as the browser's native `localStorage` instance. Neither service is scoped to one mounted view, and neither needs a manual registration in that view.
 
 ## Benefits
 
-Using these abstracted interfaces provides several advantages:
-
-1. **Testability**: You can easily mock these interfaces in your unit tests
-2. **Decoupling**: Your view models don't directly depend on browser globals
-3. **Consistency**: All browser interactions go through well-defined interfaces
-4. **Type Safety**: Full TypeScript support with proper typing
+Keeping browser access in constructor dependencies lets a view model test supply a storage stand-in or trigger a navigation callback without changing the real page. It also makes the dependency visible when reading the class. The abstraction does not change the underlying storage format or add navigation cleanup.
 
 ## Example: Complete View Model
 
-Here's a complete example showing both interfaces in use:
+The following class stores observed URLs under `visitedUrls` and restores them on construction. It illustrates both services, not an exact navigation history: repeated DOM mutations can append the same URL, and the navigation callback cannot be unsubscribed. Prefer the router's location API for a history tied to a mounted view.
+
+The example also assumes the stored value is valid JSON containing an array. Validate or recover from stale browser data before using this storage pattern in your application.
 
 ```typescript
 import { injectable, inject } from 'tsyringe';

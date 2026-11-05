@@ -1,4 +1,7 @@
-# Signed forwarded identity
+---
+title: Signed forwarded identity
+description: Cratis Arc verifies signed forwarded identity headers with HMAC-SHA256, binding identity to the request method and path with process-local replay checks.
+---
 
 Signed forwarding lets a provisioned ingress attest the identity headers it sends to Arc, using HMAC-SHA256. It is opt-in, server-side only, and disabled by default on both ASP.NET Core and HttpListener.
 

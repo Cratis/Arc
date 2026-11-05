@@ -1,6 +1,6 @@
 ---
 title: Introspection Queries Endpoint
-description: Reference for GET /.cratis/queries, which returns metadata and argument schemas for discovered query performers.
+description: Cratis Arc's GET /.cratis/queries endpoint returns discovered query metadata and JSON Schemas for query arguments, not final runtime routes.
 ---
 
 The queries introspection endpoint returns metadata for discovered query performers, not the final runtime route table.

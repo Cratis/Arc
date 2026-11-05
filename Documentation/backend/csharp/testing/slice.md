@@ -1,6 +1,6 @@
 ---
 title: Slice testing API
-description: Seed command state, execute once, and assert the outcome through a framework-neutral Slice facade.
+description: Cratis Arc Slice tests seed command state, execute the real pipeline once, and assert command results and appended events without a framework base class.
 ---
 
 Use `Slice<TCommand>` to express a command test as given state, one execution, and outcome assertions without a test-framework base class. It wraps [command scenarios](command-scenario.md), so the command runs through Arc's real pipeline rather than calling `Handle()` directly. The same scenario limits apply: this does not test HTTP routing, authentication middleware, or a production Chronicle server.

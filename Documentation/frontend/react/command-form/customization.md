@@ -1,9 +1,9 @@
 ---
-title: Customization
-description: Customize CommandForm titles, messages, field containers, decorators, and tooltips using their actual prop contracts.
+title: CommandForm labels, errors, and presentation
+description: Customize Cratis Arc CommandForm labels, error messages, containers, and tooltips without changing the command's values or validation rules.
 ---
 
-Change presentation without creating another command instance. CommandForm exposes rendering components for individual fields and context for form-level summaries. The examples below use the generated `UpdateProfile` from the [overview](./index.md).
+Customize Cratis Arc `CommandForm` through its rendering props when you need different labels, error messages, or field layout without changing how the command executes. Use form context for summaries that span fields. The examples use the generated `UpdateProfile` from the [setup page](./index.md); they keep the existing form-owned command.
 
 ## Custom titles
 
@@ -11,7 +11,7 @@ Change presentation without creating another command instance. CommandForm expos
 
 ## Custom error rendering
 
-Use `showErrors={false}` to hide automatic field messages and form-level exception feedback, including any custom `exceptionDisplayComponent`, without invoking that replacement. Validation, result state, and execution callbacks still work. This complete component adds a descendant summary that reads the same form's displayed validation results, including non-field failures:
+To collect validation messages in one place, hide automatic feedback with `showErrors={false}` and render a summary inside the form. This also hides form-level exception feedback and prevents a custom `exceptionDisplayComponent` from being invoked; it does not disable validation or execution callbacks. The summary below reads the same form's displayed validation results, including failures not attached to a field:
 
 ```tsx
 import { CommandForm, InputTextField, useCommandFormContext } from '@cratis/arc.react/commands';
@@ -47,7 +47,9 @@ export function ProfileForm() {
 }
 ```
 
-There is no `instance.errors` dictionary. Read `commandResult.validationResults` or use `getFieldError('email')` for the first field message. Hooks must be **below** the form provider. `showErrors` does not clear validation, change `isValid`, or suppress messages that a custom field or summary chooses to render itself. This summary handles validation results only; if you hide automatic feedback, provide your own safe exception feedback as well. Keep rule messages suitable for end users and raw diagnostics in trusted handling.
+Read messages from `commandResult.validationResults`, or call `getFieldError('email')` for the first field message; there is no `instance.errors` dictionary. Keep the component using these hooks beneath the form provider. `showErrors={false}` neither clears validation nor hides markup rendered by a custom field or summary.
+
+This summary covers validation, not exceptions. If you hide automatic feedback, also provide [safe exception feedback](#safe-exception-feedback). Rule messages should be suitable for users; send raw diagnostics only to trusted handling.
 
 ## Custom field container
 
@@ -59,7 +61,7 @@ A container receives exactly these props:
 | `errorMessage` | `string \| undefined` | First field message; undefined when `showErrors` is false. |
 | `children` | `React.ReactNode` | The field content, including the default title if `showTitles` is true. |
 
-This complete renderer keeps the title supplied in `children` and adds a border/message:
+The container below adds a border and error message while retaining the title already supplied in `children`:
 
 ```tsx
 import { type FieldContainerProps } from '@cratis/arc.react/commands';
@@ -74,7 +76,7 @@ export function BorderedField({ errorMessage, children }: FieldContainerProps) {
 }
 ```
 
-Set `fieldContainerComponent={BorderedField}` on your form. If your container renders `title` itself, also set `showTitles={false}` to avoid duplicate titles. Extra props such as `helpText` are **not** automatically passed simply because you add them to a custom interface.
+Set `fieldContainerComponent={BorderedField}` on your form to use it. If you change the container to render `title` itself, also set `showTitles={false}` so the title appears only once. Adding a property such as `helpText` to a custom interface does not make the form pass it; the container receives the props listed above.
 
 A custom container owns field error rendering: the form does not also render `errorDisplayComponent` outside it. Choose either a container-owned message or the normal error display, rather than expecting both to compose.
 
@@ -105,7 +107,7 @@ Set `fieldDecoratorComponent={InlineDecorator}` on the form. A custom decorator 
 
 ## Custom error display
 
-Without a custom container, `errorDisplayComponent` replaces the default field message element. This complete renderer uses the actual interface:
+If you want to replace only the field message, use `errorDisplayComponent` without a custom container. The renderer receives the field name and selected errors:
 
 ```tsx
 import { type ErrorDisplayProps } from '@cratis/arc.react/commands';
@@ -208,12 +210,9 @@ For a Tailwind application, supply typed `FieldDecoratorProps`/`ErrorDisplayProp
 
 ## Combining customizations
 
-Choose the ownership boundary deliberately:
+Start with the smallest replacement that meets the design. An error renderer changes messages without taking over field layout; a custom container owns both layout and field error rendering. A custom decorator takes over the icon, description, and tooltip path, so it replaces rather than wraps the default tooltip integration.
 
-1. Keep default titles or render them yourself, not both.
-2. Let either the form's error renderer or a custom container own field messages.
-3. Let a custom decorator own icon/description/tooltip composition, or use the default decorator plus `tooltipComponent`.
-4. Keep blocking rules in command validation. Changing presentation does not change execution semantics.
+Keep one owner for each title and message to avoid duplicate output. These choices change presentation, not blocking rules or execution behavior. If the input itself needs a different value or event API, build a [custom field adapter](./custom-fields.md) instead.
 
 ## See also
 

@@ -1,9 +1,9 @@
 ---
 title: BSON serializers
-description: Understand Arc's BSON representations, precision limits, and serializer registration.
+description: Cratis Arc registers MongoDB BSON serializers for .NET types, with type-specific storage representations, precision limits, and null handling.
 ---
 
-Cratis Applications provides a comprehensive set of custom serializers for MongoDB to handle common .NET types that don't have built-in MongoDB support or need special handling.
+Cratis Arc provides a comprehensive set of custom serializers for MongoDB to handle common .NET types that don't have built-in MongoDB support or need special handling.
 
 ## Built-in Serializers
 
@@ -100,7 +100,7 @@ public class TypedDocument
 
 ## Guid Configuration
 
-One of the most important default configurations is for `System.Guid`. MongoDB historically used a legacy GUID representation that could cause issues. Cratis Applications configures Guids to use the standard representation:
+One of the most important default configurations is for `System.Guid`. MongoDB historically used a legacy GUID representation that could cause issues. Cratis Arc configures Guids to use the standard representation:
 
 ```csharp
 // This is done automatically during setup

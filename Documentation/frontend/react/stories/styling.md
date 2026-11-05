@@ -1,9 +1,9 @@
 ---
 title: Styling Reference
-description: Reference for the stylesheet, CSS variables, and utility classes behind Arc.React Story Components.
+description: Cratis Arc React story styling uses CSS variables and utility classes for themes, spacing, layout, and badges, loaded with one stylesheet import.
 ---
 
-The story components use a comprehensive set of CSS variables and utility classes for consistent theming.
+Cratis Arc React story components use CSS variables and utility classes for theming, spacing, and layout.
 
 ## Where the styling comes from
 
@@ -15,13 +15,8 @@ once, in your Storybook preview:
 import '@cratis/arc.react/stories/styles.css';
 ```
 
-That is the whole setup. Import it before your own theme so your rules win, and every variable and class
-below becomes yours to override from ordinary CSS.
-
-The components do not import the stylesheet themselves, and that is deliberate. Doing so would put the
-stylesheet's path into the package's compiled JavaScript, which only resolves when the package is built by
-the bundler that copies the file alongside it - and not when a TypeScript project reference builds it, where
-no such copy happens. One import you can see beats an import that works in some builds and not others.
+The components do not import the stylesheet themselves. Import it before your own styles, then override
+the variables and classes below in your CSS.
 
 ## CSS Variables
 
@@ -54,9 +49,9 @@ The color variables switch between the dark and light palettes when the page's `
 #### Semantic Colors
 
 - `--color-success`: Success state color (typically green)
-- `--color-warning`: Warning state color (typically yellow/orange)
+- `--color-warning`: Warning state color (amber)
 - `--color-error`: Error state color (typically red)
-- `--color-info`: Info state color (typically blue)
+- `--color-info`: Info state color (cyan)
 
 ### Spacing
 
@@ -112,9 +107,9 @@ Pre-built CSS classes you can use directly in your stories.
 
 - `.story-badge`: Base badge style
 - `.story-badge-success`: Green success badge
-- `.story-badge-warning`: Yellow/orange warning badge
+- `.story-badge-warning`: Amber warning badge
 - `.story-badge-error`: Red error badge
-- `.story-badge-info`: Blue info badge
+- `.story-badge-info`: Cyan info badge
 
 ## Usage Examples
 

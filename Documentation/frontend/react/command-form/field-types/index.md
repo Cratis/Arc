@@ -1,21 +1,40 @@
 ---
-title: Field types
-description: Choose a built-in CommandForm control and distinguish binding props from command validation rules.
+title: CommandForm field types and binding
+description: Choose a React CommandForm field for your command property, bind it with a typed accessor, and distinguish display defaults from payload values.
 ---
 
-Built-in fields synchronize values with the surrounding form and display its validation messages. Import them from `@cratis/arc.react/commands` and render them inside `CommandForm`.
+Cratis Arc's React `CommandForm` fields bind user input to command properties and show validation feedback from the form. Choose a control that emits the property's value type, import it from `@cratis/arc.react/commands`, and render it inside `CommandForm`.
+
+## Available fields
+
+Start with the value your command expects. Use a text input for a short string, a text area for longer content, and a checkbox for a boolean. For a fixed set of choices, use a select for string IDs or radio fields when you need to retain typed option values.
+
+| Field | Choose it for |
+| --- | --- |
+| [InputTextField](./input-text-field.md) | Strings; text, email, password, date/time text, color, URL, telephone, and search. Date/time inputs still emit strings. |
+| [NumberField](./number-field.md) | Numeric entry; empty or invalid native input converts to zero. |
+| [TextAreaField](./text-area-field.md) | Multi-line strings. |
+| [CheckboxField](./checkbox-field.md) | Boolean checked state. |
+| [RadioButtonField](./radio-button-field.md) | One typed option, placed individually alongside other radio buttons bound to the same property. |
+| [RadioGroupField](./radio-group-field.md) | A list of typed options for one property. |
+| [RangeField](./range-field.md) | A numeric slider with a value display. |
+| [SelectField](./select-field.md) | String values from a native select; option IDs are stringified. |
+
+If an empty numeric field must mean “no value” rather than zero, use a [custom field adapter](../custom-fields.md) with an explicit conversion. A built-in `NumberField` cannot preserve that distinction.
 
 ## Type safety
 
-Use an explicit command type for fields created by `asCommandFormField`. This **field fragment** assumes imports for `InputTextField` and your generated `UpdateProfile` class with a string `name` property:
+The `value` prop is a function that identifies a command property, not the input's current text. For fields created by `asCommandFormField`, supply the command type so TypeScript can check the property name. This field fragment assumes imports for `InputTextField` and your generated `UpdateProfile` class with a string `name` property:
 
 ```tsx
 <InputTextField<UpdateProfile> value={c => c.name} title="Name" />
 ```
 
-Omitting both the generic and an accessor parameter annotation leaves `c` as `unknown`. The generic checks property names; most field accessors return `unknown`, so it does not guarantee the selected property's value type matches the control. Use simple property accessors, not computed or nested expressions.
+Here, the form reads and updates `name` on its command instance. Omitting both the generic and an accessor parameter annotation leaves `c` as `unknown`. Most field accessors return `unknown`, so checking the property name does not guarantee its value type matches the control. Match the control to the property using the table above.
 
-Radio fields infer the selected value type from the accessor itself. This **field fragment** expects a generated `UserSettingsCommand` whose `role` accepts `'reader'` or `'admin'`:
+Use a simple accessor such as `c => c.name`. The form infers a top-level property name from the accessor; it does not traverse nested objects. For a computed accessor, supply `fieldName` explicitly to identify the top-level command property.
+
+Radio fields infer the selected value type from the accessor itself, so their option values are checked against that type. This field fragment expects a generated `UserSettingsCommand` whose `role` accepts `'reader'` or `'admin'`:
 
 ```tsx
 <RadioGroupField
@@ -33,7 +52,9 @@ Radio fields infer the selected value type from the accessor itself. This **fiel
 | Prop | Type | Contract |
 | --- | --- | --- |
 | `value` | Property accessor | Required; selects the command property. |
-| `title` | `string` | Field title shown by the default title renderer. |
+| `fieldName` | `string` | Optional explicit property name; takes precedence over accessor inference. |
+| `id` | `string` | Optional control or group-container ID; otherwise the form generates one. |
+| `title` | `string` | Optional field title; the form renders it when `showTitles` is enabled. |
 | `required` | `boolean` | Overrides the control's inferred required flag, not the command's validation rules. |
 | `icon` | `React.ReactElement` | Optional icon decoration. |
 | `description` | `string` | Optional description/tooltip decoration. |
@@ -41,36 +62,26 @@ Radio fields infer the selected value type from the accessor itself. This **fiel
 | `currentValue` | `unknown` (typed for radios) | Explicit field seed; undefined supplies nothing. Binding supplies the live value internally. |
 | `initialValue`, `noInitialValue`, `populationKey` | Population metadata | See [Data loading](../data-loading.md#per-field-control). |
 
-Fields default to required when their generated `PropertyDescriptor.isOptional` is false (and also when no descriptor is resolved). This sets an input attribute. CommandForm has `noValidate`, so it does **not** enforce browser required/type/range constraints on submit. Payload presence validation checks null/undefined, not empty strings or false booleans. Use explicit [command validation rules](../validation.mdx#required-fields).
+The control's `required` flag comes from the generated `PropertyDescriptor.isOptional`: a non-optional property makes the control required. With no resolved descriptor, the flag defaults to true. Setting `required={false}` only changes that control flag; it does not make the command property optional.
 
-`onValueChange`, `onBlur`, descriptor, and field-name props participate in internal binding. Custom adapters must forward the injected blur handler. Do not attach a public `onBlur` and assume it overrides or composes with the form's injected validation callback; use the form's interaction callbacks or an adapter that preserves forwarding.
+CommandForm uses `noValidate`, so browser required, type, and range constraints do not enforce validation on submit. The command's payload presence check rejects null or undefined for non-optional payload properties, but not empty strings or false booleans. To require nonempty text or an explicitly checked box, define [command validation rules](../validation.mdx#required-fields).
+
+The form supplies the live value, property descriptor, and change and blur handlers internally. A public `onBlur` does not override or compose with the injected validation handler. Use the form's [interaction callbacks](../index.md#props-reference) for application reactions. If you build a custom adapter, forward the injected `onBlur` to preserve blur validation.
 
 ## Field state
 
-- Edits update the command through the form setter and advance its revision.
-- Silent validation updates form validity; `validateOn` controls when displayed errors are refreshed.
-- Most controls add an invalid border; `RangeField` currently does not vary its border with invalid state, though the form still displays its message.
-- Display defaults do not seed payload values. Define intentional initial values on the form.
+An edit updates the command through the form setter and advances the form's revision so bound fields render the new value. Silent validation updates form validity without necessarily showing messages. The form's `validateOn` setting controls when displayed errors are refreshed; see [validation timing](../validation.mdx).
 
-## Available fields
+A control's display fallback does not initialize the command. For example, an uninitialized checkbox can look unchecked while the command property remains undefined. Fields created by `asCommandFormField` use their fallback only for undefined, not null. Define intentional payload values with the form's `initialValues`, or use a field's `currentValue` as an explicit seed. An undefined seed supplies nothing. See [data loading](../data-loading.md) for seed precedence and reactive updates.
 
-| Field | Value and control |
-| --- | --- |
-| [InputTextField](./input-text-field.md) | Strings; text, email, password, date/time text, color, URL, telephone, and search. |
-| [NumberField](./number-field.md) | Numbers; empty/invalid native text input converts to zero. |
-| [TextAreaField](./text-area-field.md) | Multi-line strings. |
-| [CheckboxField](./checkbox-field.md) | Boolean checked state. |
-| [RadioButtonField](./radio-button-field.md) | One typed option for a property. |
-| [RadioGroupField](./radio-group-field.md) | A list of typed options for a property. |
-| [RangeField](./range-field.md) | Numeric slider with value display. |
-| [SelectField](./select-field.md) | String values from a native select; option IDs are stringified. |
+Most controls add an invalid border when they have a displayed error. `RangeField` does not change its border for invalid state; the form can still show its validation message.
 
 ## Styling
 
-Most fields use full-width inline layout, `0.75rem` padding, and `0.375rem` rounded borders. Theme colors use CSS variables with some fallbacks; application CSS must define any variables or utility classes you rely on. There is no automatic UI-library installation or comprehensive accessible label/error association. For explicit control IDs, ARIA props, or unsupported native attributes, use [custom fields](../custom-fields.md).
+Built-in fields accept `className` and `style`, applied to the control or its wrapper depending on the field. Most use full-width inline layout, `0.75rem` padding, and `0.375rem` rounded borders. Theme colors use CSS variables with some fallbacks; define the variables and utility classes your application relies on. These controls do not require a UI library.
+
+For single-input fields, the form associates `title` with the control's ID. For `RadioGroupField`, it uses the title as the group's accessible name, and each option has its own label. If you hide titles, provide an accessible name yourself. An explicit `id` is supported, but additional ARIA props, error-message associations, or unsupported native attributes may need a [custom field adapter](../custom-fields.md).
 
 ## See also
 
-- [CommandForm overview](../index.md)
-- [Validation](../validation.mdx)
-- [Creating custom fields](../custom-fields.md)
+To place these fields in a complete form, continue with the [CommandForm overview](../index.md). For rules and message timing, use the [validation guide](../validation.mdx). If the built-in controls cannot represent your value or input behavior, follow [Creating custom fields](../custom-fields.md).

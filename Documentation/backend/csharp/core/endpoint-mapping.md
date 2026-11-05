@@ -1,13 +1,13 @@
 ---
-title: Endpoint mapping
-description: Map manual lightweight HTTP endpoints and understand their authentication and routing limits.
+title: Map manual HTTP endpoints in Cratis Arc.Core
+description: Add GET and POST handlers to a Cratis Arc.Core service, use the request context, and configure authentication without entering command or query pipelines.
 ---
 
-Arc maps commands and queries automatically. For a health check or a small custom HTTP operation, you can map a handler directly. A manual handler does **not** enter the command/query pipelines unless you explicitly call them.
+Use `MapGet` or `MapPost` in a `Cratis.Arc.Core` service when you need a health check or custom HTTP operation outside Arc's automatically mapped commands and queries. A manual handler does not enter their pipelines unless you call them explicitly, so it does not inherit pipeline validation or authorization.
 
 ## Basic usage
 
-This runnable `Program.cs` checkpoint assumes a console project with `Cratis.Arc.Core` installed, as in [getting started](getting-started.md):
+Start with a console project containing `Cratis.Arc.Core`, as in [getting started](getting-started.md). This complete `Program.cs` maps a public health check:
 
 ```csharp
 using Cratis.Arc;
@@ -25,7 +25,7 @@ app.MapGet("/health", context => context.Write("OK"),
 await app.RunAsync();
 ```
 
-`curl http://localhost:5000/health` returns `OK`. `UseCratisArc()` schedules listener startup; omitting it leaves this program without the listener activation required by `RunAsync()`.
+Start the service, then call `curl http://localhost:5000/health`; the response is `OK`. Keep `UseCratisArc()` even for manual endpoints: it schedules listener startup so `RunAsync()` can serve requests.
 
 ## Method signatures
 
@@ -40,7 +40,7 @@ The current lightweight mapping matches literal paths, not route-template parame
 
 ## Working with IHttpRequestContext
 
-The following **mapping fragment** belongs before `RunAsync()` in the checkpoint:
+To read a query parameter and return JSON, add this mapping before `RunAsync()` in the example above:
 
 ```csharp
 app.MapGet("/lookup", async context =>
@@ -67,15 +67,19 @@ For `/lookup?id=123`, the result is `{"id":"123"}`. Other context members includ
 | `Name` | Endpoint identifier and OpenAPI operation ID |
 | `Summary` | Documentation text |
 | `Tags` | Documentation grouping |
-| `AllowAnonymous` | Whether lightweight authentication middleware lets an unauthenticated request proceed |
+| `AllowAnonymous` | Lets the request proceed even if authentication fails |
+| `RequireAuthentication` | Throws `AuthenticationRequiredWithoutHandlers` when no authentication handler is available |
+| `Roles` | Comma-separated roles; the authenticated caller must have at least one |
 
-With authentication handlers available, `AllowAnonymous: false` requires a successful authentication result. **With no handlers, current middleware proceeds without authentication.** Metadata is not a role policy and does not run Arc command/query authorization. See [authentication limits](authentication.md#endpoint-enforcement-and-limits).
+With authentication handlers available, an endpoint without `AllowAnonymous: true` requires successful authentication. The middleware returns 401 if authentication fails and 403 if the principal lacks every role listed in `Roles`. `AllowAnonymous: true` bypasses both checks.
 
-For private manual endpoints, also check the authenticated principal and application permission before accessing data, or invoke the appropriate authorized pipeline. For webhooks, verify the provider's signature over the original payload using its supported library **before** processing it. Merely reading a signature header is not verification.
+With no handlers, the middleware proceeds unless `RequireAuthentication = true`, in which case it throws instead. For private manual endpoints, set that property and leave `AllowAnonymous` false. Merely leaving `AllowAnonymous` at its default is not protection against a missing authentication setup. See [authentication limits](authentication.md#endpoint-enforcement-and-limits).
+
+These metadata checks do not run Arc command/query authorization policies. Before accessing private data, check any application-specific permission against the authenticated principal, or invoke the appropriate authorized pipeline. For webhooks, verify the provider's signature over the original payload using its supported library before processing it. Reading a signature header alone is not verification.
 
 ## Integration with OpenAPI
 
-In the checkpoint, add `using Cratis.Arc.OpenApi;` and call `app.MapOpenApi()` before `RunAsync()`. This exposes `/openapi.json`. The lightweight document describes routes and metadata, not complete body schemas, and is anonymously accessible by default. See [Core OpenAPI](openapi.md) for its limits and the separate ASP.NET implementation.
+To describe these routes, add `using Cratis.Arc.OpenApi;` and call `app.MapOpenApi()` before `RunAsync()`. This exposes `/openapi.json` anonymously. The document includes routes and metadata, not complete body schemas; review [Core OpenAPI](openapi.md) before exposing it or using it with client tooling. That page also distinguishes the separate ASP.NET implementation.
 
 ## See also
 

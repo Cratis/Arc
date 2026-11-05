@@ -1,24 +1,19 @@
 ---
-title: Invariant Culture
-description: Make an Arc.Core host use invariant culture with UseInvariantCulture() so parsing and formatting do not depend on machine settings.
+title: Set invariant culture in Cratis Arc.Core services
+description: Set invariant default cultures in a Cratis Arc.Core service so culture-sensitive parsing and formatting use the same conventions across machines.
 ---
 
-Arc.Core provides a `.UseInvariantCulture()` extension method on `IHostBuilder` that configures the application to use invariant culture throughout, ensuring consistent and predictable behavior regardless of the host machine's regional settings.
+Set invariant default cultures in a `Cratis.Arc.Core` service when culture-sensitive parsing and formatting should not depend on the machine's regional settings. Invariant culture supplies a shared set of conventions; code that explicitly selects another culture still uses that choice.
 
 ## Why Invariant Culture?
 
-Applications running in distributed environments—different machines, containers, or cloud regions—may be configured with different regional settings. Without explicit culture configuration, operations like number parsing, date formatting, or string comparisons may produce inconsistent results depending on where the code runs.
+A worker parsing the same decimal text on two machines can interpret it differently if each machine supplies a different current culture. Setting an invariant default removes that dependency for operations that use the current culture.
 
-Invariant culture supplies a predictable default for code that uses the current culture; explicit per-call or per-thread culture choices can still override it:
-
-- **DateTime formatting and parsing** uses invariant conventions by default; it does not choose a time zone
-- **Number formatting and parsing** produces consistent results (e.g., decimal separator is always `.`)
-- **String comparisons and sorting** are culture-independent
-- **Serialization and deserialization** still follows each serializer's contract and explicit options
+Number formatting and parsing then use invariant conventions, including `.` as the decimal separator. Date formatting and parsing also use invariant conventions, but the setting does not select a time zone. Culture-sensitive string comparisons and sorting use invariant rules; they do not become ordinal comparisons. Serialization still follows each serializer's contract and explicit options.
 
 ## Configuration
 
-For an `ArcApplication`-based host (a worker or console service), set the default thread cultures to invariant before building the application:
+For an `ArcApplication` console service or worker, set both default thread cultures before building the application:
 
 ```csharp
 using System.Globalization;
@@ -36,7 +31,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-For a generic host, the `UseInvariantCulture()` extension on `IHostBuilder` does the same thing in one call:
+For a generic .NET host built with `IHostBuilder`, `UseInvariantCulture()` sets the same defaults in one call. This fragment builds the host; it does not start it or activate Arc HTTP endpoints:
 
 ```csharp
 using Cratis.Arc;
@@ -54,19 +49,14 @@ Both approaches set:
 - `CultureInfo.DefaultThreadCurrentCulture` to `CultureInfo.InvariantCulture`
 - `CultureInfo.DefaultThreadCurrentUICulture` to `CultureInfo.InvariantCulture`
 
-This ensures that all threads in the application, including background threads and thread pool threads, use invariant culture by default.
+These properties supply defaults for threads, including background and thread-pool threads, that have not been assigned a culture explicitly. They do not override an explicit culture set by application code.
 
 ## When to Use
 
-Invariant culture is recommended for:
+Use invariant defaults for workers and backend data processing when machine-local formatting is not part of the input or output contract. This is useful when the same service runs on machines with different regional settings.
 
-- **Background services and workers** that process data without a web request context
-- **Applications deployed in multiple regions** or cloud environments
-- **Data processing pipelines** where consistency is critical
-- **Any scenario** where culture-sensitive behavior could lead to bugs or data inconsistencies
-
-It is generally safe to apply invariant culture in back-end services, as locale-specific formatting should be handled on the client side rather than in the service itself.
+If a service accepts localized user input or produces localized output, choose that culture explicitly at the parsing or formatting boundary. An invariant process default does not replace the user's locale, a time-zone decision, or an explicit serialization contract.
 
 ## ASP.NET Core Applications
 
-If you are building an ASP.NET Core application, use the `WebApplicationBuilder` extension instead, which additionally configures the ASP.NET Core request localization middleware. See [Invariant Culture for ASP.NET Core](../asp-net-core/invariant-culture.md) for details.
+For an ASP.NET Core application, use its `WebApplicationBuilder` extension instead. That setup also configures request localization middleware; follow [Invariant Culture for ASP.NET Core](../asp-net-core/invariant-culture.md) rather than applying this host's setup to web requests.

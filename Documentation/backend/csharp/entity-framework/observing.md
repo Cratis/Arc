@@ -1,9 +1,9 @@
 ---
-title: Observe a DbSet
-description: Observe EF query results with explicit provider prerequisites and lifecycle limits.
+title: Observe Entity Framework Core query results
+description: Use Cratis Arc to refresh Entity Framework Core query results after changes, with provider-specific notifications and an owned observation lifetime.
 ---
 
-Once ordinary EF reads work, observation can refresh a result when the underlying table changes. Arc combines in-process SaveChanges interception with optional provider notifications. **SQLite does not poll external writes.**
+Cratis Arc's Entity Framework Core observation refreshes query results when it detects changes to the underlying table. Use it after ordinary EF reads work, when clients need updated results without requesting each refresh. Arc detects writes through its SaveChanges interceptor and, where configured, database notifications; SQLite does not detect external writes.
 
 ## Configure the host
 
@@ -14,9 +14,9 @@ services.AddEntityFrameworkCoreObservation();
 services.AddDbContextWithConnectionString<OrdersDbContext>("Data Source=orders.db");
 ```
 
-Arc's context helpers add the observation interceptor when those services are available. For ordinary EF registration, add `.AddObservation(serviceProvider)` in the two-argument options callback. The context must also be resolvable from a fresh scope: observation resolves its concrete type for initial and subsequent queries.
+Arc's context helpers add the observation interceptor when those services are available. With ordinary EF registration, add `.AddObservation(serviceProvider)` in the options callback that receives both the service provider and options builder. Register the context's concrete type so observation can resolve it in a fresh dependency-injection scope for the initial query and each refresh.
 
-Keep the normal Arc registration **and activation**. `Observe()` accesses Arc's initialized service provider and current query context; adding EF services alone is not a complete observation host.
+Keep normal Arc registration and activation in the host. `Observe()` uses Arc's initialized service provider and current query context, which carries client paging and sorting. Registering EF services alone is not enough.
 
 ## Observe results
 
@@ -28,7 +28,9 @@ var customer = dbContext.Customers.ObserveSingle(customer => customer.Email == e
 var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId);
 ```
 
-`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, they emit `null` and keep the subscription open: initially (a late subscriber replays that `null`), after a delete, and after an update moves the entity out of the filter. This matches MongoDB's single-document observation. Treat `null` as "not found" on the client. Observation supports EF Core indexer primary keys on named shared-type sets such as `dbContext.Set<Dictionary<string, object?>>("PropertyBag")`. `ObserveById()` filters on a mapped public CLR `Id` property when one exists; otherwise it falls back to a single, non-shadow EF primary key. Collection and single-entity observation use that primary key for identity, falling back to a mapped public CLR `Id` for composite, keyless, or shadow-key entities. Shadow-only keys without a usable CLR `Id` fail at observation setup.
+`Observe()` returns `ISubject<IEnumerable<TEntity>>`, a Reactive Extensions (Rx) subject that publishes the current collection. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, the single-entity methods emit `null` and keep the subscription open. This applies to the initial read, a delete, or an update that moves the entity out of the filter. A subscriber joining later receives the current value, including `null`. Treat `null` as "not found" on the client.
+
+`ObserveById()` filters on a mapped public CLR `Id` property when one exists; otherwise it uses the entity's observation key. Observation uses a single, non-shadow EF primary key for identity, falling back to a mapped public CLR `Id` for composite, keyless, or shadow-key entities. Shadow-only keys without a usable CLR `Id` fail at setup. Indexer primary keys are supported on named shared-type sets such as `dbContext.Set<Dictionary<string, object?>>("PropertyBag")`.
 
 To customize loading, use the second callback:
 
@@ -38,11 +40,11 @@ var orders = dbContext.Orders.Observe(
     configure: set => set.Include(order => order.Lines));
 ```
 
-Arc applies the filter and current query-context paging/sorting to the configured query, including sorting by mapped indexer properties. Initial querying is synchronous and can throw before a subject is returned. Later re-query errors are logged, not sent as `OnError` to subscribers.
+Arc applies the filter and current query-context paging and sorting to the configured query, including sorting by mapped indexer properties. The initial query runs synchronously and can throw before a subject is returned. Later query failures are logged and sent to subscribers through `OnError`, ending the observation and initiating cleanup. Cancellation and disposal exceptions during teardown do not fault the subject.
 
 ### Compose a primary observation with auxiliary sources
 
-When a query combines observations from several DbSets, client paging and sorting belong to the primary source. Existing composed queries must opt in on each auxiliary observation to get this behavior; otherwise those observations still use the client query context. Pass `ignoreQueryContext: true` to an auxiliary observation to read **all** entities matching its filter without client paging or sorting. This also prevents that source from writing the query's `TotalItems`, both at startup and on changes:
+When combining observations from several DbSets, choose which source owns client paging, sorting, and the total count. Leave that primary observation unchanged. On each supporting observation, pass `ignoreQueryContext: true` to read all entities matching its filter without client paging or sorting. This also prevents the supporting source from writing the query's `TotalItems` at startup or on changes. Without the option, every observation uses the client query context:
 
 ```csharp
 var primary = dbContext.Orders.Observe();
@@ -51,7 +53,9 @@ var selected = dbContext.Customers.ObserveSingle(customer => customer.Email == e
 var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId, ignoreQueryContext: true);
 ```
 
-These query-method fragments assume the `dbContext`, `email`, and `customerId` from the examples above. The option is available on filtered and filterless `Observe` and `ObserveSingle` calls, as well as `ObserveById`; the optional `configure` callback still works. The primary observation keeps its usual paging, sorting, and `TotalItems` behavior; **you** decide which source is primary. `TotalItems` describes the primary DbSet's filtered count, not the size of an arbitrary result you derive by combining sources. If your composed result has different pagination semantics, compute its count explicitly rather than treating a DbSet's count as the composed count.
+These fragments use the `dbContext`, `email`, and `customerId` from the earlier examples. The option works on filtered and filterless `Observe` and `ObserveSingle` calls, and on `ObserveById`; you can still supply `configure`.
+
+`TotalItems` describes the primary DbSet's filtered count. It does not count an arbitrary result derived by combining sources. If combining them changes how the result should be paged, compute that result's count explicitly.
 
 ## Provider capabilities
 
@@ -71,13 +75,11 @@ Notifications cause a query refresh; they are not a durable change log. Do not a
 
 ## Lifetime and disposal
 
-Arc's streaming transports dispose their observer subscriptions when clients disconnect; they do **not** complete the EF subject. EF producer cleanup is tied to subject completion, so returning a raw EF subject does not give its producer a disconnect-driven lifetime. An HTTP snapshot, including `waitForFirstResult=true`, does not close this ownership gap.
+An observation owns callbacks and database-notifier resources beyond an individual subscriber. Arc's streaming transports dispose their subscriptions when clients disconnect, but they do not complete the EF subject. Returning a raw EF subject therefore does not release those resources on disconnect. An HTTP snapshot, including `waitForFirstResult=true`, does not change that ownership.
 
 Before exposing EF observation through an observable query, establish an application-owned producer lifetime and test disconnects, concurrent clients, and shutdown. Do not complete a shared subject just because one client leaves: that would stop other clients too.
 
-For a subject you own directly, retain both the subject and subscription and **complete the subject** when finished. Disposing the Rx subscription alone does not stop this EF observation implementation.
-
-Lifecycle fragment inside an asynchronous method:
+For a subject you own directly, retain both the subject and subscription, then complete the subject when finished. Disposing the Rx subscription alone does not stop EF observation. The following fragment belongs inside an asynchronous method:
 
 ```csharp
 var subject = dbContext.Orders.Observe(order => order.IsPending);
@@ -96,6 +98,8 @@ Completion initiates notifier/interceptor cleanup; it is not an awaitable guaran
 
 ## Scope and isolation
 
-Observation recreates scopes for reads. Arc's pooled EF registrations keep the configured connection string; they do not infer per-tenant databases from the current tenant. Validate your application's tenant strategy across initial reads, notification callbacks, and pooled reuse before using observation in a multi-tenant application.
+Observation creates fresh scopes for reads and captures the subscribing tenant and connection purpose. It restores that context when a notification causes a refresh. When connection resolution is configured, Arc's context registrations add an interceptor that resolves the connection for the current tenant and purpose each time it opens, including pooled reuse.
 
-Continue with [read-only contexts](./read-only.md) and [registration](./getting-started.md).
+This does not by itself establish tenant isolation for every notification path. Database notifiers use the connection string captured from the observing context, and in-process callbacks are registered by table name and schema. Verify your tenant strategy across initial reads, external notifications, callbacks from other tenants, and pooled reuse.
+
+Use [read-only context registration](./read-only.md) if the observed context is for queries only. For the host and provider setup used here, return to [Entity Framework Core registration](./getting-started.md).

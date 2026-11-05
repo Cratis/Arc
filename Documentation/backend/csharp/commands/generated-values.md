@@ -1,15 +1,17 @@
 ---
-title: Generated values
-description: Give command handlers server-owned identifiers, codes and secrets without adding them to the request contract.
+title: Cratis Arc generated values for command handlers
+description: Use GeneratedValue parameters to create server-owned identifiers, codes, and secrets in Cratis Arc commands, with validation and values you can pin in specs.
 ---
 
-A registration command needs a new customer identity chosen by the server, not supplied in the
-request. Calling `CustomerId.New()` inside the handler hides that choice from a spec that needs to pin
-the value. Adding a `CustomerId` command property gives the client the choice instead.
+Cratis Arc's `[GeneratedValue]` parameters give a command handler server-owned values without adding
+them to the request contract. Arc generates and validates each value before calling `Handle()`, then
+captures the accepted value for specs. Use them when the server should choose an identifier, code, or
+secret and a spec needs to pin that choice.
 
-Mark a Handle parameter with `[GeneratedValue]` to make it server-owned. Arc generates and validates
-it before calling `Handle()`, then captures the accepted value for specs. It is not part of the request
-contract. A standalone handler can return the identifier without appending an event or using Chronicle.
+For example, a registration command needs a new customer identity. Calling `CustomerId.New()` inside
+the handler hides the choice from the spec; adding a command property hands the choice to the client.
+A generated handler parameter keeps it server-owned and testable. The handler can return the identifier
+without appending an event or using Chronicle.
 
 The examples follow the shop from the [Generated values tutorial](/generated-values/) and
 [Generated Values Shop sample](https://github.com/Cratis/Samples/tree/main/GeneratedValues/Shop).
@@ -37,7 +39,7 @@ public record CustomerId(string Value) : EventSourceId<string>(Value), IGenerata
 }
 ```
 
-The command then asks for it as a Handle parameter. The request carries only the customer's name:
+The command asks for it as a `Handle()` parameter. The request carries only the customer's name:
 
 ```csharp title="Shop/Customers/Registration/RegisterCustomer.cs"
 using Cratis.Arc.Commands.ModelBound;
@@ -132,21 +134,20 @@ public record PlaceOrder(CustomerId CustomerId)
 public record OrderPlaced(CustomerId CustomerId);
 ```
 
-Arc passes `CommandContext.ReceivedAt` as `GenerationContext.Now`, so every generated value uses the
-command's captured received time instead of a second clock read. It also maps
-`ITenantIdAccessor.Current` to `GenerationContext.Tenant`: `TenantId.NotSet` and `TenantId.Default` become
+Arc passes `CommandContext.ReceivedAt` as `GenerationContext.Now`, giving context-aware strategies the
+command's captured received time instead of requiring another clock read. It supplies the command's
+tenant as `GenerationContext.Tenant`: `TenantId.NotSet` and `TenantId.Default` become
 `GenerationContext.DefaultTenant` (the zero-GUID string), and named tenants use their `Value`.
 
-The shop's `OrderId` takes its time from the command and has **no tenant in the value**. A TypeID has no
-tenant slot, and `GenerateValue.TypeId("order", context)` reads only `context.Now`. When a value really
-must carry the tenant, declare a separate concept, such as a `TenantOrderId` built as
-`$"{context.Tenant}-{GenerateValue.Ulid(context)}"`. Namespaces already isolate tenants in most
-applications, so this is rarely needed. See
+The shop's `OrderId` takes its time from the command but contains no tenant. A TypeID has no tenant
+slot, and `GenerateValue.TypeId("order", context)` reads only `context.Now`. If your value must carry
+the tenant, declare a separate concept, such as a `TenantOrderId` built as
+`$"{context.Tenant}-{GenerateValue.Ulid(context)}"`. See
 [Context-dependent values](/fundamentals/csharp/generating-values/context/) for the contract.
 
-Three rules to keep in mind:
+When implementing that contract:
 
-- If a type implements both interfaces, **Arc always calls the context form**. Its plain `New()` is never
+- If a type implements both interfaces, Arc always calls the context form. Its plain `New()` is never
   selected by Arc, and [ARC0027](../code-analysis/ARC0027.md) warns about it.
 - A default `ReceivedAt` throws `MissingGenerationTime`, even when a custom strategy ignores time. A manually
   constructed command context must supply its received time; Arc never substitutes `UtcNow`.
@@ -172,9 +173,9 @@ public record ApiKey(string Value) : ConceptAs<string>(Value), IGeneratable<ApiK
 }
 ```
 
-Chronicle records a command's property values on the causation of every event it appends.
-`[NotAudited]` on the concept leaves any command property of that type out of the causation chain, and
-that is **all** it does. It does not protect event payloads, command responses or logs.
+Chronicle records command property values in event causation, the context that links an event to the
+command that produced it. `[NotAudited]` on the concept leaves command properties of that type out of
+that context. It does not protect event payloads, command responses, or logs.
 `IssueApiKey` returns a generated key as its response. Its event goes to the customer, not to the key:
 
 ```csharp title="Shop/Customers/ApiKeys/IssueApiKey.cs"
@@ -225,9 +226,10 @@ returned by `Provide()`, or registered in dependency injection, never overrides 
 Unmarked parameters keep their normal Provide and dependency injection behavior.
 
 The Arc source generator registers a typed factory for each accessible generatable type. Commands compiled
-without it can use a cached reflection fallback under the JIT. When dynamic code is unavailable, a missing
-factory fails at handler construction with `MissingGeneratedValueFactory`, naming the command and
-parameter. This factory path alone does not make the whole application NativeAOT-compatible.
+without it can use a cached reflection fallback with just-in-time (JIT) compilation. When dynamic code is
+unavailable, a missing factory fails at handler construction with `MissingGeneratedValueFactory`, naming
+the command and parameter. This factory path alone does not make the whole application compatible with
+NativeAOT, .NET's native ahead-of-time compilation.
 
 ## Validation and captures
 
@@ -236,9 +238,9 @@ concept's discoverable validator from the command's scoped provider and runs it 
 the command's cancellation token. Any failing rule, including Warning or Information, rejects either a
 generated or fixture-pinned value with `GeneratedValueRejected`.
 
-Caller severity thresholds do not turn these failures into advice. A server-selected value breaking a
-concept rule is a server defect, not invalid request input: the command result contains an exception,
-not a 400 validation failure. Screenplay's reference makes the same distinction.
+Caller severity thresholds cannot permit these failures. A server-selected value breaking a concept
+rule is a server defect, not invalid request input: the command result contains an exception rather
+than a 400 validation failure.
 
 `CommandContext.GeneratedValues` exposes validated captures in parameter resolution order. Each entry has a
 zero-based `Order`, a `Name`, its declared `Type`, its `Value`, and the immutable `Freshness` policy.
@@ -253,23 +255,22 @@ captures of secrets like the secret.
 
 ## When not to use it
 
-`[GeneratedValue]` is for new values that only the server should decide. It is the wrong tool when:
+Keep caller-selected references on command properties. The customer to update or order to cancel
+identifies existing state; generating a replacement would not preserve the caller's choice. Services
+and read models also remain ordinary `Handle()` dependencies.
 
-- **The client chooses the identifier.** A customer to update, an order to cancel and any reference the
-  caller supplies belong on command properties. Marking them generated would discard what the caller sent.
-- **You need idempotency.** A repeated invocation can generate a different value. Retrying a successful
-  registration can therefore create another customer, depending on the handler and storage. Accept and
-  enforce a client-supplied idempotency key when retries must not repeat the change.
-- **You need gapless or human-sequenced numbers.** Random and time-ordered values are unique in practice,
-  not consecutive. An invoice number with no gaps needs a counter, not a strategy.
-- **The value is an authorization decision.** A generated value does not exist during authorization or
-  validation, so a rule cannot read it. A short code such as `InviteCode` is not proof of identity either:
-  pair it with an expiry and a check.
-- **You need a service or a read model.** Inject those as ordinary Handle dependencies.
+Generation does not make a command idempotent: a repeated invocation can choose a different value.
+Retrying a successful registration may create another customer, depending on the handler and storage.
+Accept and enforce a client-supplied idempotency key when retries must not repeat the change.
 
-Enforce storage uniqueness where the operation requires it; generating a value does not prove it is
-absent from storage. Time-ordered values, UUIDv7 included, reveal their creation time and are not
-monotonic within a millisecond.
+Random and time-ordered identifiers are not consecutive numbers. If invoice numbers must have no gaps,
+use a coordinated counter rather than a generation strategy. Enforce storage uniqueness wherever the
+operation requires it; generation does not prove a value is absent from storage. Time-ordered values,
+UUIDv7 included, reveal their creation time and are not monotonic within a millisecond.
+
+Generated values are unavailable to the command's earlier authorization and input-validation filters.
+They cannot supply evidence for those decisions. A short code such as `InviteCode` is not proof of
+identity either; pair it with an expiry and a check.
 
 ## Guard a generated append target
 
@@ -279,10 +280,10 @@ of stream or event type. Occupancy produces `ConcurrencyViolation` with `ReasonD
 Arc does not rerun `Handle()`.
 
 `[GeneratedValue(Freshness = GeneratedValueFreshness.Unguarded)]` opts out while keeping generation and
-validation. Values used only in a response or payload add no scope. Direct user calls to unit-of-work
-append APIs inside `Handle()` are not automatically guarded. See
-[Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for supported paths, explicit-scope merging,
-version requirements and the direct-write workaround.
+validation. Values used only in a response or payload add no scope. Direct unit-of-work and transactional
+append calls receive the guard when they use the command's actual unit of work, not an arbitrary new unit
+or external store. See [Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for supported paths,
+explicit-scope merging, and version requirements.
 
 ## Analyzers
 
@@ -297,13 +298,14 @@ Startup validation remains in place for commands compiled without the analyzers.
 
 ## Custom factories in a generated model
 
-Use this section when recovering a Screenplay model from the C# application, not when choosing how a
-standalone handler receives its value. Runtime generation and model recovery have different limits.
+If you are recovering a Screenplay model from your C# application, check whether its factories can be
+represented in the executable semantic model (ESM). A factory that works at runtime is not necessarily
+recoverable as model behavior. You do not need model recovery to use generated handler parameters.
 
 Arc executes your concept's generation contract at runtime; Screenplay recovery recognizes only the
 [documented factory forms](../generating-a-screenplay.md#recovering-generation-strategies). A custom
 helper or external dependency can be valid Arc code without a recoverable Screenplay strategy. Self-contained
-String bodies, including multi-statement factories using `context.Now`, tenant formatting and
+String factory bodies, including multi-statement factories using `context.Now`, tenant formatting and
 `GenerateValue.*(context)`, recover as inline `generate rule` bodies in ESM v21. The Cratis C# target binds
 ValueGeneration to Fundamentals' `Cratis.Concepts.GenerationContext`; passing that context to a Fundamentals
 API is target-bound, not a promise of portability to other providers. Rule bodies never become generated
@@ -342,5 +344,5 @@ for the admission and fallback details.
 - [Pin generated values in command specs](../testing/generated-values.md) so a spec can choose the value or assert its time part.
 - [Migrate generated identifiers](../../../upgrading/generated-values.mdx) when handlers still call `New()` inside `Handle()`.
 - [Generating a Screenplay](../generating-a-screenplay.md#recovering-generation-strategies) to see which strategies Arc recovers into a model.
-- [Generated values, from Screenplay to running app](/generated-values/) for the whole path across products.
-- Inspect captures through the [command context](command-context.md).
+- [Generated values, from Screenplay to running app](/generated-values/) to follow one value across the products involved.
+- [Inspect generated captures in the command context](command-context.md) when diagnosing a command invocation.

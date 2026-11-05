@@ -1,11 +1,11 @@
 ---
-title: Test a command's decision and its pipeline
-description: Learn when to call Handle directly and when to use CommandScenario, using the same standalone Arc command.
+title: Cratis Arc command testing from decision to pipeline
+description: Test a Cratis Arc command's calculation directly, then use CommandScenario to check validation and dependency resolution without Chronicle.
 ---
 
-A shipping quote has two different things to prove: **the calculation is right**, and **Arc validates the input and supplies the rate before calculating it**. You do not need a server to prove either one—but they are different tests.
+Test a Cratis Arc command's decision by calling `Handle()` directly. Use `CommandScenario` when you also need to prove that Arc validates the input and supplies the handler's dependencies. Neither approach requires Cratis Chronicle, a database, or an HTTP server.
 
-In this lesson, write a fast direct spec for the decision, then a `CommandScenario` spec for the pipeline. Neither requires Chronicle or a database.
+This lesson uses a shipping quote to show the difference. First check the calculation with a supplied rate. Then run the same command through Arc to check rate acquisition and rejection of an invalid weight.
 
 ## Create the projects
 
@@ -73,7 +73,7 @@ public class ParcelWeightValidator : ConceptValidator<ParcelWeight>
 
 ## Specify the decision directly
 
-For a state-dependent decision, call the command's `Handle(readModel)` directly with the state it needs. To prove pipeline behavior, use `CommandScenario<TCommand>` and `Given.ForEventSource(id).ReadModel(state)`, including for a protected plain read-model parameter. Specs give state and assert outcomes; they never configure decision reads or simulate competing appends. Arc and Chronicle prove concurrency handling in their own specs. See [Give a protected read model its state](./chronicle.md#give-a-protected-read-model-its-state).
+Supply the rate yourself so this spec can fail only on the calculation, not on rate acquisition or framework configuration.
 
 Create `Shipping.Specs/for_QuoteShipping/when_quoting_shipping_directly.cs`:
 
@@ -102,7 +102,7 @@ Run:
 dotnet test Shipping.Specs --filter FullyQualifiedName~when_quoting_shipping_directly
 ```
 
-The spec passes when the decision returns `ShippingCost(10)`. There is no service container, rate-card substitute, HTTP server, or framework harness in this test. Add decision cases here when the calculation gains thresholds, rounding rules, or different tariffs.
+The expected result is `ShippingCost(10)`: 2.5 kilograms at four currency units per kilogram. Add cases alongside this one when the calculation gains thresholds, rounding rules, or different tariffs. Keep rate acquisition out of those cases so a failure points to the decision.
 
 Cratis Specifications gives the example a readable shape: `Because()` performs the action, and `should_...` names the expected behavior. Use `Establish()` for setup when a case needs it and `Destroy()` for owned resources.
 
@@ -151,7 +151,7 @@ public class when_quoting_shipping_through_arc : Specification
 }
 ```
 
-Here the boundary matters: `Execute()` runs Arc's filters, resolves `Provide()` and its service, supplies the rate to `Handle()`, and processes the response. Register the application dependency before the first execution; the scenario builds its service provider lazily. It discovers validators rather than requiring the test to register each one.
+`Execute()` now checks the connection the direct spec left out. It runs Arc's filters, resolves the rate-card service for `Provide()`, supplies the returned rate to `Handle()`, and processes the response. Register the substitute before the first execution because the scenario builds its service provider on first use. Arc discovers the concept validator; the spec does not register it.
 
 The cast uses the handler's actual response type. `CommandScenario.Execute()` returns the non-generic `CommandResult`; it does not have its own `Execute<TResponse>()` overload. An unsuccessful result need not contain a typed response. See [the scenario reference](./command-scenario.md#package-and-api).
 
@@ -205,10 +205,12 @@ The six facts cover three different questions: the calculation, successful pipel
 
 ## What you have proved—and what comes next
 
-You have fast tests for the decision and focused tests for Arc's composition. You have **not** tested an HTTP route, authentication middleware, or a production rate-card implementation. Test those where they are introduced rather than adding infrastructure to every arithmetic case.
+The direct spec checks the calculation; the scenario specs check validation and dependency resolution. HTTP routing, authentication middleware, and the production rate-card implementation still need tests at their own boundaries. They need not be part of every arithmetic case.
 
 For inline service side effects, prefer [command operations](../commands/operations/index.md). `Handle()` can return the work it intends to perform, and Arc manages execution and optional compensation. [Test command operations](./command-operations.md) extends this lesson with direct declaration specs and real `CommandScenario` recovery tests.
 
 A handler that writes directly through a service remains supported; unit specs can use a substitute to inspect the call. Such a handler is testable, but it is not a pure function. The [service-backed command recipe](../../../scenarios/test-a-command.mdx) shows the pipeline-level counterpart.
 
-With Chronicle, a handler can instead return a domain event as its decision; a scenario must then prove how the integration appends it. Continue to [test an event-sourced command](./event-sourced-commands.md), or return to [choosing a test boundary](./index.md#choose-the-boundary-that-can-catch-the-bug).
+If your command uses Chronicle state, keep the same split: call `Handle(readModel)` directly for the decision, then seed state in a scenario to test the pipeline. [Give a protected read model its state](./chronicle.md#give-a-protected-read-model-its-state) shows how to supply a plain read-model parameter without configuring decision tokens or competing writes.
+
+For a handler that returns a domain event, continue to [test an event-sourced command](./event-sourced-commands.md). That lesson checks the separate append contract. Return to [choosing a test boundary](./index.md#choose-the-boundary-that-can-catch-the-bug) if the behavior you need to prove belongs elsewhere.

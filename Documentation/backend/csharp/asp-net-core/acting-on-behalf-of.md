@@ -1,14 +1,16 @@
 ---
-title: Acting on behalf of a user
-description: Verify on-behalf sessions signed by Cratis AuthProxy, authorize as the represented user, and record the actor and the user on every event.
+title: Act on behalf of a user with Cratis Arc
+description: Verify sessions forwarded by Cratis AuthProxy, authorize as the represented user, and retain both identities in Chronicle event metadata.
 ---
 
-A support person, or an agent, sometimes has to sign in as a user to see what that user sees. The user grants the access; Cratis AuthProxy starts the session and forwards it to Arc. Inside such a request two identities matter:
+Cratis Arc can authorize a request as a represented user while retaining the support person or agent who acted on that user's behalf. Cratis AuthProxy starts and forwards the session; Arc verifies its signed assertion, then keeps both identities on the request principal:
 
-- The **represented user** decides what the request is allowed to do. Roles, tenant and authorization are that user's.
-- The **actor** is who actually acts. The audit trail has to name them.
+- The represented user supplies the request's roles and authorization identity. Tenant selection still needs the application's membership checks.
+- The actor identifies who performed the action. The actor's roles do not authorize the request.
 
-Once you turn on-behalf forwarding on, Arc verifies AuthProxy's signed assertion and keeps both identities. The represented user is the request principal, and the actor is attached to it. With [Chronicle](../chronicle/index.md), every event appended in the session records the actor as its `causedBy` identity, on behalf of the represented user.
+With the [Cratis Chronicle integration](../chronicle/index.md), event metadata records the actor as `causedBy`, on behalf of the represented user. This lets an audit trail distinguish the person receiving support from the person doing the work.
+
+Before enabling forwarding, establish the [trusted-ingress boundary](microsoft-identity.md#trusting-the-forwarded-headers). AuthProxy must strip inbound identity and on-behalf headers, and callers must not bypass it to reach the backend. The configuration below covers the RSA-signed (RS256) on-behalf assertion. If [signed forwarded identity](signed-forwarded-identity.md) is also enabled, its separate envelope must validate too.
 
 ## The forwarded headers
 
@@ -18,9 +20,9 @@ AuthProxy forwards an on-behalf session with the usual [Microsoft identity heade
 | ------------------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `x-ms-client-principal`        | The represented user            | Base64 (standard alphabet, padded) of the UTF-8 JSON [client principal](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data) |
 | `x-ms-client-principal-id`     | The represented user            | The user's identifier: plain text when it is printable US-ASCII, otherwise the RFC 8187 form `UTF-8''` followed by percent-encoded UTF-8. Once decoded, must equal the `userId` of `x-ms-client-principal` |
-| `x-ms-client-principal-name`   | The represented user            | The user's name, as plain text                                                                                                                                    |
+| `x-ms-client-principal-name`   | The represented user            | The user's name; AuthProxy uses plain text when printable US-ASCII, otherwise RFC 8187 `UTF-8''` followed by percent-encoded UTF-8                                  |
 | `x-cratis-on-behalf-actor`     | The actor                       | Base64 (standard alphabet, padded) of the UTF-8 JSON client principal of the actor, in the same shape as `x-ms-client-principal`                                  |
-| `x-cratis-on-behalf-assertion` | The signed binding of the above | A compact RS256 JWS, described in [What Arc verifies](#what-arc-verifies)                                                                                         |
+| `x-cratis-on-behalf-assertion` | The signed binding of the above | A compact JSON Web Signature (JWS) using RS256, described in [What Arc verifies](#what-arc-verifies)                                                                                         |
 
 The actor's client principal uses the same fields as the represented user's:
 
@@ -87,9 +89,13 @@ builder.AddCratisArc(options =>
 });
 ```
 
-`Issuer` and `Audience` are AuthProxy's `OnBehalf:Attestation:Issuer` and `OnBehalf:Attestation:Audience`, and each signing key pairs AuthProxy's key identifier with its public key. `Service` is the name AuthProxy knows this application by, as written in AuthProxy's `Services` configuration. It is optional: leave it empty and Arc does not check which service an assertion was issued for. Set it when AuthProxy fronts more than one service with the same signing keys, issuer and audience, so an assertion issued for a request to another service is refused here. `ClockSkew` defaults to 30 seconds.
+Set `Issuer` and `Audience` to AuthProxy's `OnBehalf:Attestation:Issuer` and `OnBehalf:Attestation:Audience`. Each signing key pairs AuthProxy's key identifier with its public key. `ClockSkew` defaults to 30 seconds.
 
-Every signing key must be an RSA public key of at least 2048 bits in PEM form. Arc refuses a private key, so the signing secret never ends up in the application's configuration. Configure several keys to rotate: add the new public key before AuthProxy signs with it, and remove the old one once AuthProxy no longer does. When the configuration cannot be used (no issuer, audience or keys, a blank or duplicate key identifier, a private, short or unreadable key), every on-behalf forward fails, and an ASP.NET Core host that registers the Microsoft Identity Platform scheme logs an error naming the problem at startup.
+`Service` is the name of this application in AuthProxy's `Services` configuration. Leaving it empty disables the service check. Set it when AuthProxy fronts several services with the same keys, issuer, and audience, so Arc refuses an assertion issued for another service.
+
+Every signing key must be an RSA public key of at least 2048 bits in PEM form. Arc refuses private keys; keep the signing secret in AuthProxy. For rotation, add the new public key before AuthProxy starts signing with it. Retain the old public key until assertions signed with it can no longer be accepted, then remove it.
+
+Missing issuer, audience, or keys, blank or duplicate key identifiers, and private, short, or unreadable keys make the configuration unusable. Every on-behalf forward then fails authentication. An ASP.NET Core host that registers the Microsoft Identity Platform scheme also logs an error naming the configuration problem at startup.
 
 ## What Arc verifies
 
@@ -111,19 +117,19 @@ The actor must also be a valid client principal with a `userId` that differs fro
 
 ### What this guarantees
 
-A forward that passes was issued by the holder of a configured private key, for this application, within the last five minutes, for exactly these identity headers, in the tenant the request names (and, with `Service` configured, for this service), and is used once per application instance. A caller who can reach the application directly cannot add an actor to their own request, swap the actor or the represented user on a captured forward, or move a forward to another tenant.
+An accepted forward has a valid signature from a configured key and passes the lifetime, identity, tenant-header, and replay checks above. When `Service` is configured, it also binds the assertion to that service. Changing the actor, represented user, or named tenant on a captured forward invalidates those bindings.
 
-It does not guarantee more than that:
+Keep these limits in mind when deploying more than one instance or deciding which request fields to bind:
 
 - The replay check is in memory and per process. With several instances, a captured assertion can be replayed once to each other instance within its lifetime. The five-minute ceiling, and AuthProxy's 60-second default lifetime, bound that window.
 - Without `htm` and `htu` in the token, a captured forward can be replayed to another endpoint of the same application, once per instance, within its lifetime.
-- The represented user's identity headers themselves are trusted on the same terms as for every other forwarded request: through `TrustForwardedIdentityHeaders`. Signing every forwarded identity, not only on-behalf forwards, is tracked in [Cratis/Arc#2837](https://github.com/Cratis/Arc/issues/2837).
+- Without signed forwarding enabled, ordinary represented-user identity headers rely on `TrustForwardedIdentityHeaders` and the ingress boundary. For the separate signing contract, see [signed forwarded identity](signed-forwarded-identity.md) ([Cratis/Arc#2837](https://github.com/Cratis/Arc/issues/2837)).
 
 AuthProxy must still strip every inbound `x-cratis-on-behalf-*` and `x-ms-client-principal*` header and set its own only for a session it started.
 
 ## When Arc rejects the request
 
-The actor and assertion headers are never ignored the way untrusted identity headers are: a request carrying either of them is authenticated as an on-behalf forward or not at all. Failing authentication means the request has no principal. It never runs as the represented user or as the actor, but it is not rejected outright:
+In the header authentication path described here, either on-behalf header requires a valid on-behalf forward. Arc does not ignore it and continue as an ordinary forwarded user. A failed forward establishes neither the represented user nor the actor as the principal. Authentication failure alone does not reject every HTTP request:
 
 - An endpoint that requires an authenticated user answers `401`. In ASP.NET Core that is an endpoint with `[Authorize]`, a policy or a fallback policy. In a `Cratis.Arc.Core` host with an authentication handler, it is every endpoint that does not allow anonymous access.
 - An endpoint that allows anonymous access runs, without a principal.
@@ -146,7 +152,7 @@ Both the ASP.NET Core scheme (`AddMicrosoftIdentityPlatformIdentityAuthenticatio
 
 ## Reading the actor
 
-Authorization needs nothing new: `[Authorize]`, `[Roles]` and policies see the represented user, because the principal is that user. The actor is the [`ClaimsIdentity.Actor`](https://learn.microsoft.com/dotnet/api/system.security.claims.claimsidentity.actor) of the principal's identity, and two extension methods in `Cratis.Arc.Identity` read it:
+Keep [authorization requirements](authorization.md) on the operation. `[Authorize]`, `[Roles]`, and policies evaluate the represented user, not the actor. The actor is stored in [`ClaimsIdentity.Actor`](https://learn.microsoft.com/dotnet/api/system.security.claims.claimsidentity.actor) on the principal's identity. Two extension methods in `Cratis.Arc.Identity` read it:
 
 | Method                           | Returns                                                         |
 | -------------------------------- | --------------------------------------------------------------- |

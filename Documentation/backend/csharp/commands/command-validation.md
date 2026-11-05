@@ -1,15 +1,17 @@
 ---
-title: Pre-flight command validation
-description: Check authorization and input without invoking a command's Provide or Handle methods.
+title: Cratis Arc pre-flight command validation
+description: Use Cratis Arc pre-flight validation to check authorization and input before submitting a command, without invoking its Provide or Handle methods.
 ---
 
-Check a form before submission when the user needs feedback without attempting the change. Arc's `Validate` operation returns a `CommandResult` from pre-flight checks and skips the command handler. Use that result to explain what currently blocks the request. Submit the command separately when the user proceeds; the check reserves no state and cannot guarantee that execution will succeed.
+Cratis Arc's pre-flight validation checks authorization and input without running the command handler. Use `Validate` to give a form feedback before the user submits a change, then read its `CommandResult` to explain what currently blocks the request.
+
+Submit the command separately when the user proceeds. The check reserves no state, so successful validation does not guarantee successful execution.
 
 ## Backend support
 
-For a model-bound command, inject `ICommandPipeline` and call `Validate`. Choose the scope-free form when Arc should own a fresh DI scope, or pass an existing `IServiceProvider` when you intend to share that scope and manage its lifetime. Both forms have optional severity and cancellation overloads.
+For a model-bound command, inject `ICommandPipeline` and call `Validate`. Choose the scope-free form when Arc should own a fresh dependency injection (DI) scope, or pass an existing `IServiceProvider` when you intend to share that scope and manage its lifetime. Both forms have optional severity and cancellation overloads.
 
-This complete caller uses the [service-backed `AddItemToCart`](./model-bound/index.md#a-service-backed-command) definition and shared cart concepts. Configure its validators and authorization requirements separately:
+The caller below uses the [service-backed `AddItemToCart`](./model-bound/index.md#a-service-backed-command) definition and shared cart concepts. Configure the command's validators and authorization requirements separately:
 
 ```csharp
 using System.Threading.Tasks;
@@ -26,20 +28,20 @@ Await the task before displaying feedback. Use `IsSuccess` for the overall verdi
 
 ## What runs
 
-The model-bound validation path finds the handler, builds context values, establishes a context, and runs command filters. Authorization preparation can reject a request before that work. Within the filter chain, authorization filters precede ordinary filters and unsuccessful results short-circuit the chain. Applicable [severity filtering](./validation-severity-filtering.md) determines which validation failures remain blocking.
+For model-bound commands, Arc finds the handler, builds context values, establishes a command context, and runs command filters. Authorization preparation can reject a request before context construction. Within the filter chain, authorization filters run first. Denials, exceptions, and blocking validation failures stop the chain; permitted validation failures allow later filters to run. The effective [severity policy](./validation-severity-filtering.md) determines which validation failures block.
 
 It skips:
 
-- `Provide()` and handler argument resolution;
+- `Provide()` and handler argument resolution, including generated values;
 - `Handle()`;
 - response value handlers;
-- execution scopes' `Begin` and `Complete` callbacks.
+- execution scopes' `Begin`, `BeginAsync`, and `Complete` callbacks.
 
 A pre-flight request can still construct a validator and read its dependencies. Context providers and custom filters also execute application code. Keep those collaborators safe to call repeatedly, including before the authorization-filter verdict; skipping the handler does not make them side-effect free or prevent them from revealing sensitive information.
 
 ## Model-bound endpoints
 
-Arc adds `/validate` alongside a model-bound command's execute route. For example, **if the mapped execute route is** `/api/carts/add-item-to-cart`, validation is `POST /api/carts/add-item-to-cart/validate` with the same command payload. The base route depends on namespace/path configuration; it is not inferred from this example URL.
+Arc adds `/validate` alongside a model-bound command's execute route. If your mapped execute route is `/api/carts/add-item-to-cart`, send the same payload to `POST /api/carts/add-item-to-cart/validate`. Check your namespace and path configuration for the actual base route; the example URL does not establish it.
 
 Both endpoints send a successfully bound command through model-bound command filters. An unbound body takes a different refusal path: authentication, roles, and explicitly resource-free policies are checked before returning `malformedRequest` with the failing member when available. Resource-dependent policies and authorization command filters need a command instance, so they do not run on that path; see [command input binding](./input-binding.md). Even with a valid body, pre-flight cannot evaluate business decisions that exist only in `Provide()`, `Handle()`, or a service invoked by them.
 
@@ -67,4 +69,4 @@ After a successful check, make the eventual `Execute` call and inspect its resul
 
 ## Frontend usage
 
-Use [core command validation](../../../frontend/core/commands/validation.md) or [React command validation](../../../frontend/react/commands/validation.md) for pre-flight feedback. For warning confirmation, use an explicit warning-blocking first threshold as described in [severity filtering](./validation-severity-filtering.md#confirm-a-warning).
+Connect the form through [core command validation](../../../frontend/core/commands/validation.md) or [React command validation](../../../frontend/react/commands/validation.md). If the user must confirm a warning, make the first check block warnings; [severity filtering](./validation-severity-filtering.md#confirm-a-warning) shows the two-request flow.

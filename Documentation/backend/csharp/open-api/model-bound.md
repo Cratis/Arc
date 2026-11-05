@@ -1,6 +1,6 @@
 ---
 title: Model-Bound Operations
-description: How Arc's transformers describe model-bound command and query endpoints in Microsoft.AspNetCore.OpenApi documents.
+description: Cratis Arc adds OpenAPI transformers for model-bound commands and queries, with limits on command response inference and query operation matching.
 ---
 
 Arc supports minimal API-style endpoints for commands and queries, called *model-bound operations*. These endpoints are registered automatically by the Arc infrastructure and follow a convention-based naming scheme (`Execute<TypeName>`).

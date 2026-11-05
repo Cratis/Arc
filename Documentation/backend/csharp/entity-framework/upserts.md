@@ -1,22 +1,36 @@
 ---
-title: Upserts
-description: Choose tracked persistence or an immediate, atomic provider-native upsert.
+title: Choose tracked or native upserts in Cratis Arc
+description: Use Cratis Arc's EF Core upserts to defer writes until SaveChangesAsync or execute a native SQL upsert immediately on supported mappings.
 ---
 
-`Cratis.Arc.EntityFrameworkCore` provides two upsert APIs on `DbSet<TEntity>`.
-Both match the complete primary key configured in the EF model.
+An upsert inserts a row if its key is new or updates the row with that key.
+Cratis Arc's `Cratis.Arc.EntityFrameworkCore` package offers tracked upserts that
+wait for `SaveChangesAsync` and native upserts that execute immediately on supported
+mappings. Both APIs extend `DbSet<TEntity>` and match the complete primary key
+configured in the EF model.
 
 ## Tracked upserts
 
-`await context.Items.Upsert(item)` keeps the existing tracked behavior: it finds an
-existing entity, copies values into its tracked instance, or marks a new entity as
-added. Call `SaveChangesAsync` to persist it. This is a read followed by a write,
-not an atomic database upsert; concurrent inserts can still conflict.
+Choose `Upsert` when the write should wait for `SaveChangesAsync` alongside your
+other tracked changes. After `await context.Items.Upsert(item)`, the change is
+prepared in the context, not yet written to the database.
+
+The lookup checks locally tracked entities first, then queries the database if
+needed. If it finds an existing entity, it copies the supplied values into that
+tracked instance; otherwise, it marks the supplied entity as added. Call
+`SaveChangesAsync` to persist the change. The lookup and later write are separate
+operations, so concurrent inserts can still conflict.
 
 ## Native upserts
 
-`await context.Items.UpsertAsync(item, cancellationToken)` executes one parameterized
-SQL statement on supported relational mappings:
+Choose `UpsertAsync` when you need the database to match the key and write the row
+in one atomic statement. On supported relational mappings,
+`await context.Items.UpsertAsync(item, cancellationToken)` executes the provider's
+SQL immediately, without waiting for `SaveChangesAsync`. Check the
+[tracking and fallback rules](#change-tracking-and-fallback) before relying on this
+behavior: unsupported providers or mappings use tracked persistence instead.
+
+The native path executes one parameterized statement:
 
 | Provider | Statement |
 | -------- | --------- |
@@ -37,10 +51,12 @@ context's connection and current transaction and honors the cancellation token.
 
 ### Change tracking and fallback
 
-Native execution is immediate: **do not call `SaveChangesAsync` to persist the
-upsert**. It does not attach the supplied entity, reconcile already tracked
-instances, or refresh store-generated properties. Reload previously tracked
-instances before relying on their values. Pending tracked changes are not flushed.
+After a native upsert completes, the SQL has already executed; `SaveChangesAsync`
+is not needed to persist that upsert. Pending tracked changes are not flushed.
+Native execution does not attach the supplied entity, reconcile already tracked
+instances, or refresh store-generated properties. An entity you loaded earlier
+can therefore still hold its old values. Reload previously tracked instances
+before relying on their values.
 
 Use application-assigned keys and single-table scalar mappings for native
 execution. Other providers, unset generated keys, SQL Server identity columns,
@@ -50,3 +66,6 @@ the tracked upsert and **require `SaveChangesAsync`**. Properties whose generate
 value is still unset also use the tracked fallback so EF can apply database defaults.
 The fallback does not provide the native path's concurrency guarantee. Choose the
 tracked `Upsert` explicitly when consistent deferred persistence is required.
+
+If you need to configure the keys or properties used by an upsert, continue with
+[entity mapping](./entity-mapping.md).

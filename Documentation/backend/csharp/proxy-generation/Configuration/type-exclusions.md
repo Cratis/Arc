@@ -1,6 +1,6 @@
 ---
 title: Type exclusions
-description: Omit selected types and namespaces from proxy output.
+description: Cratis Arc proxy exclusions omit C# types and namespace patterns from generated TypeScript without changing backend authorization or endpoints.
 ---
 
 Exclusions apply to command/query descriptor types, transitively collected models, and [library-mode](library-mode.md) types. They control generation, **not backend authorization or endpoint exposure**. Ensure remaining proxies do not reference an excluded type without a suitable replacement mapping.

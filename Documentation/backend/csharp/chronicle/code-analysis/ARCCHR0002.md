@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0002: Ambiguous command identity"
-description: A command has several properties that can be its event source id, and nothing says which one to use.
+description: ARCCHR0002 in Cratis Arc warns when a command has multiple candidate event source id properties without an explicit identity decision.
 ---
 
 ## Rule

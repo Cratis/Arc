@@ -1,34 +1,19 @@
 ---
-title: Messaging
-description: Let separate MVVM features communicate through the messenger, and scope messaging to part of a page.
+title: Cratis Arc MVVM messaging and scopes
+description: Publish typed messages between Cratis Arc view models, choose a messenger scope for list-detail screens, and release subscriptions when a view is disposed.
 ---
 
-At times you want to allow multiple features on a page to know about changes that happens in one component.
-A common scenario is a list + detail scenario where you typically have a list and when you click an item you
-get the details of it somewhere else on the page.
+Cratis Arc's messenger lets one view model notify another without holding a reference to it. Use it for interactions such as selecting a user in a list and displaying that user in a separate details view. The list publishes a message; the details view subscribes and updates its own state.
 
-With React you would typically create a context and wrap the components needing the same information in
-a React context. The problem with this is that you are having to create these different contexts, which creates
-a set of boiler plate code that has little value and you need to put it into the correct place in the
-rendering hierarchy. This creates a logical coupling in your application and is error prone when changing
-structure.
+Messaging carries notifications, not retained screen state. Subscribers receive messages published while they are subscribed; a details view mounted after a selection will not receive that earlier selection. Keep state in a shared model or pass it through props when a late-mounted view needs the current value.
 
-With the MVVM model this doesn't really work either, as the contexts aren't available to the view model.
-With publish/subscribe, components can use their view models to
-publish messages that can be subscribed to by other parts of your system that lives on the page.
-
-This creates for a more decoupled approach and making your code and structure easier to change.
+Before using the examples, configure [TSyringe](./tsyringe.md) and the [MVVM/router host](./mvvm-context.md). Both views should use `withViewModel()` so their constructor dependencies receive the messenger for the surrounding scope.
 
 ## IMessenger
 
-In Cratis Arc the system that deals with this is called `IMessenger`.
-It has a method called `publish()` for publishing messages, and one for subscribing called `subscribe()`.
-Both of these methods work on types and require a runtime type like a `class` to be the message type.
-The implementation is provided by Arc core (`@cratis/arc/messaging`) and wired into MVVM bindings.
+Inject `IMessenger` to publish and subscribe. The implementation comes from Arc core (`@cratis/arc/messaging`); the MVVM import below re-exports the same token. Subscription matching uses the message's runtime constructor, so define a class rather than a TypeScript interface.
 
-Below is an example of the view models for two components, one listing items and the other holding details.
-
-These illustrative files assume an application-owned `User` model in `./User`. Define the shared message once in `UserSelected.ts` and import that same class in publisher and subscriber:
+These examples assume your application has a `User` model in `./User`. Define `UserSelected` once in `UserSelected.ts`, then import that same class in both view models. Two separately declared classes with identical properties are different message types:
 
 ```ts
 import { User } from './User';
@@ -38,7 +23,7 @@ export class UserSelected {
 }
 ```
 
-Then for the list component we would typically have something like the following:
+The list view model publishes an instance when the user selects a row:
 
 ```ts
 import { IMessenger } from '@cratis/arc.react.mvvm/messaging';
@@ -58,10 +43,7 @@ export class UsersListViewModel {
 }
 ```
 
-Whenever a selection is done, the view would call the `selectUser()` method, which
-would then publish the message.
-
-For the details component, the view model would then need to subscribe to this:
+Wire the list view's selection handler to `selectUser(user)`. The details view model subscribes to `UserSelected` and retains the returned RxJS `Subscription` so it can stop receiving messages on disposal:
 
 ```ts
 import { IMessenger } from '@cratis/arc.react.mvvm/messaging';
@@ -87,21 +69,19 @@ export class UserDetailsViewModel {
 }
 ```
 
-With this, the details view model will subscribe to the `UserSelected` message and set the state of the
-view model accordingly. The subscriber receives the **published message instance**, not its nested `user` payload. Retain the subscription and unsubscribe in `detached()` when the view model is disposed. With `<Arc development>` set, `detached()` is not guaranteed to run on unmount; see [view model lifecycle](./using-view-model.md#view-model-lifecycle).
+With both views mounted in the same scope, selecting a row assigns the selected user to `UserDetailsViewModel.user`. Render that property inside the details view's `withViewModel()` boundary to observe its changes. The handler receives the published `UserSelected` instance, so it reads `message.user`, not properties of `User` directly.
+
+The `detached()` method releases the subscription when the view model is disposed. With `<Arc development>`, ordinary unmounts skip disposal, so a removed details view can remain subscribed. Do not rely on `detached()` to release resources in that mode; see the [view model lifecycle](./using-view-model.md#view-model-lifecycle) for the exact boundary.
 
 ## Scoped messaging
 
-When using Arc React, the root `<Arc />` provides a root messenger.
-You can add nested scopes with `MessengerScope` from `@cratis/arc.react/messaging`.
-View models resolved with `withViewModel()` receive the nearest scoped messenger automatically, and fall back to the root messenger.
+The root `<Arc />` provides the application messenger. To keep a list-detail interaction local, import `MessengerScope` from `@cratis/arc.react/messaging` and wrap both views in one `<MessengerScope>`. `withViewModel()` injects the nearest scoped messenger; without a local scope, it uses the Arc root messenger. Keep the publisher and subscriber under the same wrapper unless you deliberately want messages to cross scope boundaries.
 
-By default:
+Two props control propagation:
 
-- Messages do not bubble to parent scopes.
-- Messages from parent scopes trickle down to child scopes recursively.
+- `bubbleToParent` defaults to `false`. Set it to `true` when messages published inside this scope should also reach its parent.
+- `trickleDownToChildren` defaults to `true`. Set it to `false` on a scope whose messages should not propagate into its child scopes.
 
-Override behavior through:
+By default, a nested scope receives messages from its parent but does not publish back to it. A parent that receives a bubbling message can also send it to sibling scopes when its downward propagation is enabled. Choose these directions deliberately if more than one list-detail pair appears on a page.
 
-- `bubbleToParent`
-- `trickleDownToChildren`
+Unmounting `MessengerScope` removes its messenger from the parent's child scopes. That does not replace unsubscribing the handlers your view models own. Once the scope is placed, use [the view model binding guide](./using-view-model.md) to connect the list and details renderers.

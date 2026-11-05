@@ -1,22 +1,32 @@
 ---
-title: Pin generated values in command specs
-description: Choose server-generated identifiers by name in command scenarios, fix the clock and tenant, and inspect validated captures.
+title: Pin generated values in Cratis Arc command specs
+description: Pin server-generated values in Cratis Arc command specs for exact assertions, or explicitly allow generation to test factories with a fixed clock and tenant.
 ---
 
-A spec for `PlaceOrder` cannot assert on an order identifier that the server invents at random. It also
-should not make the caller supply one just so the spec can. With a
-[generated Handle parameter](../commands/generated-values.md), the request contract stays unchanged and the
-spec chooses the value with `PinGeneratedValue`.
+Use `PinGeneratedValue` in a Cratis Arc command scenario when a spec needs an exact server-generated value
+without adding it to the request. Scenarios are strict by default: an unpinned generated parameter fails
+the command unless you call `AllowGeneration()`.
 
-The examples use the shop from the [Generated Values Shop sample](https://github.com/Cratis/Samples/tree/main/GeneratedValues/Shop),
-specs from its `Shop.Specs` project. Use `Cratis.Arc.Testing` and import `Cratis.Arc.Testing.Commands`; the
-shop's specs also import `Cratis.Arc.Chronicle.Testing.Commands` for `ShouldHaveAppendedEvent`. For a
-standalone setup, follow the [testing quick start](index.md#try-a-standalone-command-spec).
+For `PlaceOrder`, pinning the [generated Handle parameter](../commands/generated-values.md) lets a spec
+check that the response and appended event use the same order identifier. The caller still supplies only
+the customer. Pinning bypasses the factory, so use [generation with a fixed clock](#fix-the-clock-and-tenant)
+when the factory's behavior is what you need to prove.
+
+The examples come from `Shop.Specs` in the
+[Generated Values Shop sample](https://github.com/Cratis/Samples/tree/main/GeneratedValues/Shop).
+For standalone scenarios, use `Cratis.Arc.Testing` and import `Cratis.Arc.Testing.Commands`; follow the
+[testing quick start](index.md#try-a-standalone-command-spec) for setup. The shop also uses
+`Cratis.Arc.Chronicle.Testing` and imports `Cratis.Arc.Chronicle.Testing.Commands` to check event appends
+with `ShouldHaveAppendedEvent`.
 
 ## Pin the identifier before executing
 
-`PlaceOrder` has a generated `orderId` parameter. The spec pins it by that name, executes the command and
-checks that the handler received the pin:
+`PlaceOrder` has a generated `orderId` parameter. Set its pin in `Establish()`, before `Because()` executes
+the command. Pins and generation policy cannot change after execution begins, and a fixed clock must be
+configured before validation too. The [configuration rules](#finish-configuration-before-the-first-execution)
+cover both cases.
+
+This spec checks the returned identifier and the event source that received the order:
 
 ```csharp title="Shop.Specs/Orders/Placing/for_PlaceOrder/when_placing_an_order/with_a_pinned_order_id.cs"
 using Shop.Orders.Placing;
@@ -40,9 +50,10 @@ public class with_a_pinned_order_id : Specification
 }
 ```
 
-Run `dotnet test`. The facts prove that the handler receives your pin and that the event lands on it.
-The pin does not call `OrderId.New()` at all, and it still passes through normal concept validation. Arc
-captures only values that pass that validation, not rejected or unresolved values.
+Run `dotnet test` in the sample's spec project. The response should equal `_orderId`, and `OrderPlaced`
+should be appended to that identifier with the supplied customer. The pin bypasses `OrderId.New()` but
+still passes through normal concept validation. Arc records the value in `GeneratedValues` only after
+that validation succeeds; rejected or unresolved values are not captured.
 
 Pin names are case-sensitive and match the attribute name, `orderId` here, or the C# parameter name when
 the attribute has none. Supply the actual concept, not its underlying string: an incompatible or null pin
@@ -51,7 +62,8 @@ expected and actual types, never the pinned value.
 
 ## Keep scenarios strict or opt into generation
 
-Scenarios are strict by default. A spec that forgets the pin fails, and the failure says how to fix it:
+Leave generation disabled when a spec depends on known identifiers. If a generated parameter has no pin,
+the command fails with an exception outcome that explains how to configure it:
 
 ```csharp title="Shop.Specs/Orders/Placing/for_PlaceOrder/when_placing_an_order/without_a_pin.cs"
 public class without_a_pin : Specification
@@ -69,13 +81,13 @@ public class without_a_pin : Specification
 }
 ```
 
-An unpinned generated parameter fails the command with a `GeneratedValueNotPinned` exception outcome in
-`CommandResult`; `Execute` does not throw it to your spec. This is deliberate: a spec that silently accepts
-random values would pass for the wrong reasons.
+The missing pin appears as `GeneratedValueNotPinned` in `CommandResult`; `Execute` does not throw it to
+your spec. Assert that exception outcome, not a validation failure. This default keeps a forgotten pin
+from silently introducing random values into a test.
 
-When the exact identifier is irrelevant, call `AllowGeneration()` before executing. It applies to unpinned
-values throughout the scenario, including nested commands, and explicit pins still win. This fragment uses
-`PlaceOrder` and `OrderId`:
+When the exact identifier is irrelevant, call `AllowGeneration()` before executing. This opts the whole
+scenario into normal generation for unpinned values, including nested commands. Explicit pins still win.
+The following fragment executes `PlaceOrder` twice and inspects the captured `OrderId` values:
 
 ```csharp
 using var scenario = new CommandScenario<PlaceOrder>().AllowGeneration();
@@ -91,9 +103,10 @@ A pin supplies the same value on every execution; it is not a queue of identifie
 For a guarded generated append target, reusing an occupied pin rejects the command with
 `ConcurrencyViolation` and `ReasonDetail = "GeneratedIdentifierCollision"`.
 
-`Last<T>(name)` selects the latest capture with that name and **declared** type, failing if none exists.
-`All<T>(name)` returns a read-only snapshot in resolution order across executions, or an empty list.
-Both include validated pins and nested-command captures. Avoid logging or tracing these values.
+Use the generated parameter's declared type when reading captures. `Last<T>(name)` selects the latest
+capture with that name and type, failing if none exists. `All<T>(name)` returns a read-only snapshot in
+resolution order across executions, or an empty list. Both include validated pins and nested-command
+captures. Avoid logging or tracing these values.
 
 ## Prove a generated-identifier collision
 
@@ -129,8 +142,9 @@ See [Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for whole-so
 
 ## Fix the clock and tenant
 
-`OrderId` takes its time from the command, so its time part is something a spec can assert. Configure the
-scenario's clock and tenant, allow generation, and read the time back out of the generated TypeID:
+To test the factory, allow generation instead of pinning the whole identifier. The shop's `OrderId`
+factory uses the command's received time to build a TypeID, a prefixed identifier with a UUIDv7 suffix.
+Fix the scenario's clock and tenant before execution, then read the timestamp back from the identifier:
 
 ```csharp title="Shop.Specs/Orders/Placing/for_PlaceOrder/when_placing_an_order/with_a_fixed_clock_and_tenant.cs"
 using Cratis.Arc.Tenancy;
@@ -176,9 +190,8 @@ measurements remain real, and direct calls to `DateTimeOffset.UtcNow` or `TimePr
 replaced. `Tenant(TenantId)` scopes both execution and validation to that tenant and restores the caller's
 tenant afterwards. Both apply to nested commands and stay local to the scenario.
 
-The fixed tenant is part of the context but not of this `OrderId`: a TypeID has no tenant slot, so the
-tenant only scopes the execution. A concept that builds the tenant into its value is the case where a
-tenant assertion is worth writing.
+The fixed tenant scopes this execution but does not appear in `OrderId`: a TypeID has no tenant slot.
+Assert a tenant's contribution to a generated value only when the concept actually includes it.
 
 A fixed clock does **not** fix the random suffix of UUIDv7, ULID or TypeID. Assert the time and tenant
 parts, or pin the whole concept when you need an exact value. `Clock(default)` is not a request to use the
@@ -251,10 +264,11 @@ validation too. Pins and captures are local to each scenario.
 
 ## Make pins recoverable into Screenplay
 
-When you [generate a Screenplay](../generating-a-screenplay.md#recovering-generation-strategies), the
-generator turns pins into `for "<value>"` fixtures or `generated <name> = "<value>"` lines, and it needs a
-concrete literal for that. The shop's specs use literals for this reason: `new OrderId("order_01m4t7txm0fgx9p7tehmp6mprg")`
-and `new CustomerId("cus_01m4t7txm0hrn5rwemy2dkwtgq")`. A pin built from `X.New()` cannot be recovered.
+If you [generate a Cratis Screenplay model](../generating-a-screenplay.md#recovering-generation-strategies)
+from these specs, use literal pins. The generator turns them into `for "<value>"` fixtures or
+`generated <name> = "<value>"` lines, so it must be able to read the concrete value from the source.
+That is why the shop uses `new OrderId("order_01m4t7txm0fgx9p7tehmp6mprg")` and
+`new CustomerId("cus_01m4t7txm0hrn5rwemy2dkwtgq")`. A pin built from `X.New()` cannot be recovered.
 
 Direct concept construction and one-hop stable fields with literal initializers are recoverable. Text must
 match the recovered strategy: NanoID's alphabet and size, ULID's uppercase Crockford encoding, TypeID's
@@ -264,7 +278,8 @@ shop's `when_starting_a_cart` spec does.
 
 A mismatched shape, computed or repeated pin, conditional configuration, nested-command pin or
 `AllowGeneration()` leaves the scenario out with `SP0039`, and its command keeps any admitted generation
-contract. Non-default strategies need an ESM v15 cap or later, and Screenplay v15 rejects reuse of a
+contract. Non-default strategies need a maximum executable semantic model (ESM) version of v15 or later,
+and Screenplay v15 rejects reuse of a
 generated identifier whose event source already has facts. These checks do not add strategy-shape
 validation to Arc's runtime pins, which use normal concept validation.
 

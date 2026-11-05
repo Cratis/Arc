@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0025: Keyless command reads Chronicle state"
-description: Detect automatically injected read models looked up by a newly generated command identity.
+description: ARCCHR0025 in Cratis Arc warns when a keyless command reads Cratis Chronicle state, including injected models looked up by a newly generated id.
 ---
 
 ## Rule

@@ -1,23 +1,22 @@
 ---
-title: Frontend
-description: How Arc turns your backend commands and queries into typed React hooks — call your backend like a local function, with validation and live updates included.
+title: "Cratis Arc frontend: use generated TypeScript clients"
+description: Use generated Cratis Arc TypeScript clients to call commands, read queries, and build React screens against your backend's contracts.
 ---
 
 import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-Building a React frontend against a backend usually means writing the same plumbing over and over: a
-`fetch` call here, a hand-written request type there, validation rules copied from the server, and a
-pile of state to track whether the request is in flight, succeeded, or failed. Every time the backend
-changes, you go hunting for the frontend code that drifted out of sync.
+Cratis Arc generates TypeScript clients from your backend's command and query contracts, so your
+frontend can submit changes and read data through typed APIs instead of hand-written HTTP calls.
+In React, the generated clients provide hooks for using those contracts in components.
 
-Arc removes that whole layer. C#, JVM, and the [TypeScript source preview](/arc/backend/typescript/)
-can generate typed TypeScript proxies from backend commands and queries. On the
-frontend you import a proxy and call its `.use()` hook — request and response
-types and supported client-safe validation rules come along. Regenerate after a
-backend change and type-check the frontend to catch structural drift. The
-frontend uses the same `@cratis/arc` runtime, but backend capabilities and
-generator coverage differ. Check the [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/)
-before applying a C# or JVM example to the preview.
+A command asks the backend to change something; a query reads data. A generated client, also called
+a proxy, carries the request and response types into your editor, along with validation rules the
+generator can safely extract. Regenerate after a backend change, then type-check the frontend to
+find callers that need updating.
+
+This client workflow does not require a particular database or event sourcing. Your backend can use
+[current-state storage](/arc/arc-without-event-sourcing/), or integrate with
+[Cratis Chronicle](/arc/backend/csharp/chronicle/) to store events and build read models from them.
 
 ## How the pieces fit
 
@@ -29,20 +28,37 @@ flowchart LR
     API --> CS
 ```
 
-You write the backend once. Configure and run that backend's proxy generator to emit a typed client;
-TypeScript generation is an explicit source-based step, not implicit in every backend build. Your React
-code consumes it through each proxy's static `.use()` hook — and because the types flow across the
-boundary, there is no DTO to keep in sync and no untyped JSON to second-guess.
+Start with a command or query you want to call from the browser:
+
+1. Define its input and result on the backend.
+2. Configure generation using the [C#](/arc/backend/csharp/proxy-generation/getting-started/),
+   [Kotlin or Java](/arc/backend/kotlin/guides/typescript-proxies/), or
+   [TypeScript](/arc/backend/typescript/proxy-generation/getting-started/) guide.
+3. Import the generated client and call its static `.use()` hook from your React component.
+
+Each backend has its own generation commands, metadata inputs, and output paths. The React examples
+below use C# output paths; use the imports your generator actually writes. Follow its setup guide for
+frontend dependencies and configuration, even if you only instantiate the generated classes without hooks.
+
+The clients use the same `@cratis/arc` runtime, but backend capabilities and generator coverage differ.
+Use the [capability matrix](/arc/capabilities/) for C#, Kotlin, and Java, the
+[JVM parity reference](/arc/backend/kotlin/reference/parity/) for JVM differences, and the
+[TypeScript capability reference](/arc/backend/typescript/reference/capabilities/) for the
+[TypeScript backend](/arc/backend/typescript/). Sharing a client runtime does not make the backends
+interchangeable.
 
 ## Execute a command from React
 
-A command is an intent to change something — *open an account*, *check out a book*. You define it on
-the backend; Arc generates a proxy whose static `.use()` hook gives you an instance, explicit React value updates, change tracking,
-and execution. The following backend fragment assumes the application's `AccountId`, `AccountHolder`, `Account`, and its persistence registration; it is not a complete backend bootstrap.
+To open an account, define a command with the account's identity and owner. These backend fragments
+write current state directly: C# inserts a MongoDB document, while Kotlin, Java, and TypeScript save
+through an application-supplied repository. They assume your application's `AccountId`, `AccountHolder`,
+`Account`, and persistence registration; they are not a complete backend setup.
 
 <ArcBackendTabs snippet="frontend/index/open-account" />
 
-The generated clients use the same frontend runtime, so the React side below is written once:
+The handler writes the account; the frontend submits the command's input through its generated
+client. This React component creates an account identity, binds the owner field, and reports whether
+execution succeeded:
 
 ```tsx
 // Frontend — the generated proxy, driven by its static .use() hook
@@ -79,21 +95,31 @@ export const OpenAccountForm = () => {
 };
 ```
 
-The `.use()` hook returns `[command, setValues, clearValues]`. Use the setter for reliable per-edit React rendering; raw assignment is change tracking, not a guarantee of every render or automatic validation. Set required properties explicitly: here a Guid-based `AccountId` needs a Fundamentals `Guid`, created once for this operation. A reusable create form must start a fresh operation after success, as the [getting-started checkpoint](/arc/frontend/react/getting-started/) shows.
+The `.use()` hook returns `[command, setValues, clearValues]`. Use `setValues` when an input changes
+so React renders the updated value. Assigning a command property directly tracks changes, but does not
+guarantee a render for every edit or automatically run validation. Here the Guid-based `AccountId`
+needs a Fundamentals `Guid`, created once for this operation. After success, the form disables further
+submission with that identity. The [getting-started checkpoint](/arc/frontend/react/getting-started/)
+shows the reset pattern for repeated submissions.
 
-Call `command.execute()` and check `result.isSuccess`. The button tracks in-flight and successful completion explicitly, not `hasChanges`: a rejected request can update the change-tracking baseline, so that flag alone can disable a needed retry. See [execution baseline limitations](./react/commands/data-binding.md#execution-baseline-limitations). Supported projected validation rules run on the client; server validation remains authoritative. Not every backend rule can be projected.
+The component checks `result.isSuccess` before displaying “Account opened.” and leaves a failed
+submission available to retry. Keep that save status explicit: `hasChanges` compares edits with a
+baseline, and a successful execution accepts the submitted values as that baseline. It does not
+replace the command result. See [execution baseline limitations](./react/commands/data-binding.md#execution-baseline-limitations)
+for change-tracking guidance. Supported generated validation rules run on the client, but the server
+still validates the command; some backend rules cannot be projected to the client.
 
 <Aside type="tip" title="Don't hand-roll forms">
-    For real forms, reach for the [Command form](./react/command-form/) fields and the
-    [Components](/components/) library's `CommandDialog` instead of wiring inputs by hand — they bind to
-    the command, surface validation, and handle the in-flight state for you.
+    To build a larger form, use [Command form](./react/command-form/) fields or the
+    [Components](/components/) library's `CommandDialog`. They bind fields to the command and display
+    validation feedback; the dialog also handles execution and in-flight state.
 </Aside>
 
 ## Show live data with an observable query
 
-A query reads data. An *observable* query keeps reading — its `.use()` hook holds a live connection and
-re-renders your component whenever the underlying read model changes, so your UI stays current without
-polling.
+Use an observable query when a screen needs to follow changes after its first read. The backend
+supplies a stream of results, and the generated `.use()` hook subscribes to it. When that source emits
+changed data, React renders the new result without polling.
 
 ```tsx
 import { AllAccounts } from './api/accounts/AllAccounts';
@@ -111,23 +137,34 @@ export const AccountsList = () => {
 };
 ```
 
-The result is a `QueryResultWithState` — `accounts.data` holds the rows, with `isPerforming`, `hasData`,
-and validation state alongside. The backend must supply an emitting observable source, such as MongoDB `Observe()` on C# or an `ObservableSource` on TypeScript. When that source emits changed data, subscribed consumers receive the new list without polling. A command write alone does not establish this live connection; see [backend observable queries](/arc/backend/csharp/queries/model-bound/observable-queries/).
+The hook returns a `QueryResultWithState`: `accounts.data` holds the rows, while `isPerforming`,
+`hasData`, and validation state describe the result. This excerpt shows only the rows; before treating
+them as a successful result, handle readiness, authorization, validation, and failure states in your
+screen. [React observable queries](./react/queries/observable-queries.md) covers those states and the
+connection setup.
+
+A command write alone does not produce a live update. The backend needs a source that observes or
+publishes the relevant changes, such as MongoDB `Observe()` on C# or an `ObservableSource` on TypeScript.
+The [backend observable query guide](/arc/backend/csharp/queries/model-bound/observable-queries/)
+explains the C# contract; use your backend's query guide for its supported stream types.
 
 ## Two ways to build: hooks or MVVM
 
-Most screens are simplest with the **hooks** shown above — they keep state in the component and read
-naturally. For complex, stateful screens you can opt into a **Model-View-ViewModel** structure that
-moves logic into a view model class.
+Start with the hooks shown above to keep state beside the markup that uses it. If a screen develops
+substantial view logic you want to test or reuse independently, Model-View-ViewModel (MVVM) gives that
+logic a view model class.
 
 | Reach for… | When |
 | --- | --- |
-| [Hooks](./react/) | The default. Forms, lists, and most screens — less boilerplate, state stays in the component. |
+| [Hooks](./react/) | Forms and lists where state belongs in the component. |
 | [MVVM for React](./react/mvvm/) | Complex screens with substantial view logic you want to test and reuse apart from the markup. |
 
 Start with hooks; move a screen to MVVM only when its logic outgrows the component.
 
 ## Where to go next
+
+For your first screen, follow Getting started (React) to configure Arc, submit a command, and display
+a query result. If that is already working, choose the guide for the interaction you need next.
 
 <CardGrid>
     <LinkCard title="Getting started (React)" href="./react/getting-started/" description="Wire Arc into a React app and call your first command and query." />

@@ -1,6 +1,6 @@
 ---
 title: 'ARCCHR0018: Event stream id template is only resolved for commands'
-description: A reactor has an [EventStreamId] value with {Property} placeholders, but only Arc commands resolve them.
+description: ARCCHR0018 in Cratis Arc warns when a reactor uses {Property} placeholders in [EventStreamId], since only commands resolve those templates.
 ---
 
 ## Rule

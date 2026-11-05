@@ -1,20 +1,18 @@
 ---
-title: Core
-description: The framework-agnostic TypeScript layer beneath Arc's React hooks, and when to use it directly outside React.
+title: Cratis Arc core TypeScript runtime
+description: Use Cratis Arc's core TypeScript runtime to execute commands and queries outside React, read identity, and coordinate UI messages with explicit cleanup.
 ---
 
-The core is Arc's frontend layer **beneath React** — the framework-agnostic TypeScript that the React
-hooks build on. Most apps consume it indirectly through [React](../react/index.md); reach for it
-directly when you're working outside React (a service layer, a worker, a vanilla-TS integration) or you
-need lower-level control over how commands and queries execute.
+Cratis Arc's core frontend runtime lets TypeScript code execute commands, retrieve query results, read the current identity, and exchange in-memory messages without React hooks. Use it directly for a browser service layer or a non-React UI where your code needs to control execution and cleanup.
 
-| Topic | What it covers |
+For React components, start with the [React integration](../react/index.md). Its hooks build on the same core APIs and connect their lifetimes to components. The core pages are useful when you need to understand the behavior behind a hook or take ownership of that lifecycle yourself.
+
+| Task | Start here |
 | ------- | ----------- |
-| [Commands](./commands/index.md) | Instantiating and executing commands without React — the runtime behind the hooks. |
-| [Queries](./queries/index.md) | Retrieving data and subscribing to observable queries at the core level. |
-| [Validation](./validation/index.md) | The validation rules and results that flow through commands and queries. |
-| [Identity](./identity.md) | The user-context primitives the higher layers expose. |
-| [Messaging](./messaging.md) | The messaging and communication patterns Arc uses under the hood. |
+| Send a state-changing request and inspect its result | [Commands](./commands/index.md) |
+| Fetch data or receive updates from an observable query | [Queries](./queries/index.md) |
+| Check input and interpret validation results | [Validation](./validation/index.md) |
+| Display the current user and refresh identity after a change | [Identity](./identity.md) |
+| Notify another part of the UI without a direct reference to it | [Messaging](./messaging.md) |
 
-Building UI? You almost certainly want [React](../react/index.md) instead — it wraps everything here in
-hooks.
+Commands and queries communicate with backend endpoints. Messaging stays in memory within the frontend; it does not send a command or record a domain event. Identity also comes from the backend, but the browser keeps the resolved response until you refresh or clear it. Follow the identity and messaging pages when you need to decide when to reload user context or release subscriptions.

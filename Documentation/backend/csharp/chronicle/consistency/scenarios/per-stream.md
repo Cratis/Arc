@@ -1,9 +1,11 @@
 ---
-title: One stream
-description: Enforce a monthly limit with a per-stream read model and a validator, or check raw facts with a stream decision.
+title: Cratis Arc consistency for one stream
+description: Enforce a monthly withdrawal limit in Cratis Arc with a per-stream model, or use a stream decision to record a report approval only once.
 ---
 
-Use a per-stream read model when a rule depends on the folded state of one stream on the command's own route. October's withdrawals should not make November's command conflict. Declare the model's stream, take it as a plain parameter, and put the rule in a validator. Under `On`, Arc guards that stream.
+Use a per-stream read model in Cratis Arc when a rule depends on one stream's accumulated state, such as an account's withdrawals for a month. The command's route selects the month, so October's withdrawals do not make November's command conflict. Under read protection `On`, Arc guards the stream used by the validator.
+
+Start with an [Arc application connected to Chronicle](../../add-event-sourcing.mdx). The monthly example enables `On` on the command itself. If you only need to check whether a fact is present in a short history, use the [stream decision](#a-period-approval) example instead.
 
 ## Choose the boundary
 
@@ -74,19 +76,25 @@ public class WithdrawValidator : CommandValidator<Withdraw>
 }
 ```
 
-The model keeps the account as its `Id`; the month selects the fold, not a new model key. Chronicle makes the model passive, so a stored instance never mixes months. Arc resolves `{Month}` before constructing the validator. A missing or blank `Month` returns `400` naming that property, without reading. The validator rejects an exceeded limit; `Handle()` only returns the event.
+`MonthlyWithdrawals` adds the month's `MoneyWithdrawn` amounts into `Total`. It keeps the account as its `Id`; the month selects which events to fold, not a new model key. Chronicle makes the model passive, meaning it is folded for the selected stream instead of maintained as a stored whole-account instance.
+
+Arc resolves `{Month}` before constructing the validator. A missing or blank `Month` returns `400` naming that property, without reading. With a monthly total of `4900`, an amount of `100` passes and appends one `MoneyWithdrawn` to that month. An amount of `101` returns `Monthly limit reached` and appends nothing. A month without history reaches the nullable parameter as `null`, which this rule treats as zero.
+
+Read protection guards the event types and route used by that fold:
 
 ```text
 guard account: types=[MoneyWithdrawn], sourceType=BankAccount, streamType=Transactions, streamId=2026-10, after <position before the read>
 ```
 
-If another withdrawal arrives in October after the validator's read, commit returns `400`, `concurrencyViolation`, `ReadChanged`, and writes nothing. November activity does not conflict. Validator and `Handle()` parameters of the same model share one enrolled fold and released instance. A cached read is still checked when it is enrolled again.
+If two commands read `4900` for October and each tries to withdraw `100`, a successful append by one invalidates the other's guard. The losing commit returns `400`, `concurrencyViolation`, `ReadChanged`, and writes nothing. November activity does not conflict.
+
+If both the validator and `Handle()` take the same model, they share one enrolled fold and released instance. A cached read is still checked when it is enrolled again.
 
 Under `Off` and `Measure`, the same parameter folds only that month but supplies no guard. Measure reports the stream dimensions and `coarsened` when another read drops them. Existing models without the stream declaration keep their existing behavior.
 
 ### Query one month
 
-`ForMonth` is a model-bound query on the `[ReadModel]` record above. It calls the plain stream overload, which takes the source and stream types from the declaration. It returns October for that account, not a stored whole-account total. It guards nothing. Do not use a key-only lookup, collection read or `Watch` for this model; Chronicle refuses them.
+Use `ForMonth` to show the total for one account and month outside the command. This model-bound query calls the plain stream overload, taking the source and stream types from the declaration. Querying October returns that account's October total and enrolls no guard. A key-only lookup cannot identify the month; Chronicle refuses it, collection reads and `Watch` for this model.
 
 ### Keep the route exact
 
@@ -131,9 +139,13 @@ public record ApproveReport(ReportId Report, string Owner, string Month)
 }
 ```
 
-The decision reads and guards `Approval/owner-1:2026-10` for this report. Any competing event in that stream after the read refuses the append, including the first append. Another month does not conflict. The whole stream crosses the wire, so keep it short. The empty append is an identical retry: approval was already recorded, so nothing is written or checked again.
+For owner `owner-1` and month `2026-10`, the decision reads `Approval/owner-1:2026-10` for this report. If `ReportApproved` is absent, the handler returns one approval with a guard for that stream. Any competing event there after the read rejects the append, including a race to record the first approval. Another month does not conflict.
+
+If approval is already present, `decision.Append([])` returns no events and no guard: the retry records nothing and performs no further concurrency check. The whole stream crosses the wire for the read, so keep this history short.
 
 Choose a stream decision or a per-stream validator, not both. The validator reads before `Provide()`; a later stream-decision boundary may not cover it and is refused with `ExplicitScopeDoesNotCoverReads`. [ARCCHR0036](../../code-analysis/ARCCHR0036.md) warns about that combination. An aggregate plus a per-stream read of the same source is refused too.
+
+To specify the monthly limit or approval behavior, seed events on the command's route and check the resulting event or rejection. [Specify a state-dependent rule](./testing.md) explains the scenario setup without simulating concurrent writers.
 
 ## Related
 

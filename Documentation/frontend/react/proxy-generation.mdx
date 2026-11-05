@@ -3,9 +3,9 @@ title: Consume generated proxies
 description: Use backend-generated command and query contracts from React without a hand-written API client.
 ---
 
-A backend change should produce a compiler error where your frontend needs updating, not a surprise in production. Arc generates TypeScript command, query, and model types from discovered endpoints — for the shared frontend runtime. Run the generator for your backend, then update your consumers; never edit generated files.
+Use generated proxies when a React component needs to call an Arc command or query. Arc generates TypeScript command, query, and model types from discovered endpoints for the shared frontend runtime. You import those modules instead of maintaining request shapes and transport code yourself.
 
-You get completion for command fields and query arguments, typed responses, and compiler-guided repairs after a backend rename. The generated modules also give you concrete contracts to navigate instead of hand-maintained request shapes.
+After a backend declaration changes, run its generator and type-check the frontend. A renamed property can then produce a compiler error at the component that still uses it. This feedback depends on regeneration; it does not check whether deployed client and server versions agree. Change backend declarations and regenerate rather than editing generated files.
 
 ## Set up the frontend
 
@@ -15,11 +15,11 @@ Current generated command and query modules import both `@cratis/arc` and `@crat
 npm install @cratis/fundamentals @cratis/arc @cratis/arc.react react react-dom
 ```
 
-Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the C# [backend proxy-generation reference](../../backend/csharp/proxy-generation/index.md), the JVM [TypeScript proxies guide](/arc/backend/kotlin/guides/typescript-proxies/), or the TypeScript source preview's [generator setup](/arc/backend/typescript/proxy-generation/getting-started/).
+Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the C# [backend proxy-generation reference](../../backend/csharp/proxy-generation/index.md), the JVM [TypeScript proxies guide](/arc/backend/kotlin/guides/typescript-proxies/), or the TypeScript backend's [generator setup](/arc/backend/typescript/proxy-generation/getting-started/).
 
 ## Commands use your application services
 
-Arc is a standalone CQRS framework. A command can call an ordinary service and return a response; it does not need events or an event log.
+Arc is a standalone CQRS (Command Query Responsibility Segregation) framework: commands change state and queries read it. A command can call an ordinary service and return a response; it does not need events or an event log.
 
 This backend fragment assumes your application implements and registers the account service. That interface is application-owned, not an Arc API:
 
@@ -27,7 +27,7 @@ This backend fragment assumes your application implements and registers the acco
 
 The named concepts keep account names and balances distinct in backend signatures. Their generated client properties use the underlying primitive — here `string` and `number` — so the form does not need to construct concept objects. Keep each concept in its own file when organizing your application.
 
-After generation, use the proxy from a React component. This consumer fragment assumes its generated import path is `./generated/OpenDebitAccount`:
+After generation, import the proxy into a React component. This consumer fragment assumes its generated import path is `./generated/OpenDebitAccount`. It supplies the account name and balance, executes the command from the button handler, and logs the response only on success:
 
 ```tsx
 import { OpenDebitAccount } from './generated/OpenDebitAccount';
@@ -51,7 +51,7 @@ export function OpenAccountButton() {
 
 An ordinary `Guid`/`UUID` response remains a supported response and maps to Fundamentals `Guid`. The [Chronicle integration](../../backend/csharp/chronicle/commands/index.md) adds optional event-sourcing behavior; it does not redefine generic Arc responses.
 
-The command hook returns `[command, setValues, clearValues]`. Set required content explicitly. The setter edits properties; it does not reset the change-tracking baseline. See [data binding](./commands/data-binding.md).
+The command hook returns `[command, setValues, clearValues]`. Set required content explicitly, as the example does for `name` and `initialBalance`. The setter edits properties; it does not reset the change-tracking baseline. The button above demonstrates execution, not a complete form: add pending state and feedback for unsuccessful results before using it for account entry. See [data binding](./commands/data-binding.md) and [command results](../core/commands/command-result.md).
 
 ## Queries follow the backend result shape
 
@@ -66,6 +66,6 @@ See [query usage](./queries/usage.mdx) for argument positions and the complete t
 
 ## Live and Suspense consumers
 
-Observable proxies subscribe to an emitting backend source. MongoDB observation is one option; Chronicle is another optional integration. A database write does not become a live notification without that source wiring. Both [SSE and WebSocket](./queries/observable-query-multiplexing.md) support direct and shared-hub modes.
+Use observable proxies when the screen should follow changes from an emitting backend source. MongoDB observation is one option; Chronicle is another optional integration. A database write does not become a live notification without that source wiring. Both [Server-Sent Events (SSE) and WebSocket](./queries/observable-query-multiplexing.md) support direct and shared-hub modes.
 
 All generated queries expose `.useSuspense()`. Suspense handles initial waiting and selected failures, not every unsuccessful result: keep validation/readiness handling in the component. Read [Suspense limitations](./queries/suspense-queries.md) before adding an error boundary or retry control.

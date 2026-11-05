@@ -1,6 +1,6 @@
 ---
 title: File tracking and cleanup
-description: How inline metadata identifies stale proxies and where preservation guarantees stop.
+description: Cratis Arc uses inline metadata to find stale generated TypeScript proxies; output flags do not disable orphan cleanup or protect every barrel.
 ---
 
 When you rename a backend artifact, its old TypeScript file must disappear or consumers can keep importing a client that no longer has an endpoint. Arc identifies those stale files with inline metadata, rather than a separate JSON index.

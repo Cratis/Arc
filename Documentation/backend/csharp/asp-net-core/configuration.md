@@ -1,6 +1,6 @@
 ---
-title: Configuration
-description: Configure Arc in an ASP.NET Core host through appsettings.json or code, including route generation and JSON settings.
+title: ASP.NET Core configuration in Cratis Arc
+description: Configure Cratis Arc in ASP.NET Core with appsettings.json or code, including API routes, tenant resolution, and JSON serialization.
 ---
 
 Cratis Arc can be configured both through `appsettings.json` and programmatically to customize its behavior. The main configuration is handled through the `ArcOptions` class.

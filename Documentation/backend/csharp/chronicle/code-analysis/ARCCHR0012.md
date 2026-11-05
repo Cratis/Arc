@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0012: Immediate append bypasses protected decision"
-description: Stage events for the owning command's guarded commit.
+description: ARCCHR0012 in Cratis Arc reports immediate IEventLog appends that bypass a protected command decision; stage events for the guarded commit.
 ---
 
 ## Rule

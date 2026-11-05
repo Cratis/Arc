@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0036: Exact scope coverage of a protected read is not proven"
-description: Exact scopes must cover the same-source reads they accompany.
+description: ARCCHR0036 warns when exact concurrency scopes in Cratis Arc are not proven to cover protected reads on the command source in Measure or On.
 ---
 
 ## Rule

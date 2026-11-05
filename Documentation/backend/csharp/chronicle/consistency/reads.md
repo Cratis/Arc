@@ -1,17 +1,21 @@
 ---
-title: Reads under read protection
-description: "Learn which command reads are protected, advisory, refused or unguarded under On, and how to declare an advisory read or choose a parameter's key."
+title: Cratis Arc protected command reads
+description: "Under On, Cratis Arc guards supported command reads with Chronicle. Choose a read key, declare advisory reads, and understand what stays unguarded."
 ---
 
-Use this page when you want to know what a read in a command becomes under `On`, how to mark one as advisory, or how to choose which key a parameter reads. Under `Off`, plain read-model parameters remain unguarded; explicit `[ProtectedDecision]` commands with `DecisionRead<T>` still guard their declared decision reads.
+Under read protection `On`, Cratis Arc resolves supported read-model parameters as fresh reads guarded by Cratis Chronicle. Chronicle folds the model by applying its events, then checks for relevant changes before commit. If those events changed after the read, the command is rejected instead of writing from an out-of-date decision.
 
-Prefer a plain read-model `Handle` parameter, then `[LookUpBy]` for a command property key, then a per-stream model for the command route. Only when supported parameters cannot express a key or stream id, take `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature; see the [stream example](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
+`Off` leaves plain read-model parameters unguarded. `Measure` keeps those reads unguarded while reporting what `On` would protect or refuse. Explicit `[ProtectedDecision]` commands with `DecisionRead<T>` still guard their declared decision reads outside `On`.
+
+Start with a plain read-model `Handle()` parameter. Use `[LookUpBy]` when a command property supplies its key, or a per-stream model when the rule concerns the command's stream route. If supported parameters cannot express the key or stream id, take `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()`. That path needs an ARCCHR0040 suppression with a reason and a link to the tracking feature; see the [stream example](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
 
 ## Four classes of read
 
+A read is protected only when Chronicle can guard the facts it supplies to the command. Marking a read advisory accepts that it may be stale; it does not make an unsupported read safe for a decision.
+
 | Class | What it is | Under `On` |
 | --- | --- | --- |
-| **Protected** | A read-model parameter, or an explicit computed-key read in `Handle()`, that Chronicle can guard | Read fresh, and enrolled as a guard before your code sees the value |
+| **Protected** | A read-model parameter, or an explicit computed-key read in `Handle()`, that Chronicle can guard | Read fresh, with a guard registered before your code sees the value |
 | **Advisory** | A read you marked `[Unprotected("why")]` | A stored read that guards nothing. The reason goes to telemetry |
 | **Refused** | Any other read Arc or Chronicle can see | The command fails with a `500` that names the read and the fix |
 | **Unknown** | A dependency Arc cannot see: a service, another database, an HTTP call | Outside the guard. Never reported as protected |
@@ -38,9 +42,9 @@ Prefer a plain read-model `Handle` parameter, then `[LookUpBy]` for a command pr
 | An aggregate and a plain read of the same source | **Refused**. A plain read of a different source is fine |
 | A service, another database, HTTP | **Unknown** |
 
-Reads inside a validator constructor follow the same rules. See [Validators](./validators.md).
+Validator constructor parameters follow the same read rules. Use a [validator](./validators.md) when the model supplies a state-dependent rule that must pass before `Handle()` runs.
 
-[Refusals](./refusals.md) lists each refusal with its message and fix. [How it works](./how-it-works.md) explains what a protected read guards.
+If a read is refused, find its message and fix in [Refusals](./refusals.md). For the event boundary each guard covers, read [How it works](./how-it-works.md).
 
 ## Missing models and invalid keys
 
@@ -60,7 +64,7 @@ This setting is separate from `ProtectedReadModelKeyOptions.Strict`, which requi
 
 ## Declare an advisory read
 
-`[Unprotected("why")]` is the opt-out. Write the reason as a sentence a reviewer can judge. The reason goes to telemetry as `advisory_read`.
+Use `[Unprotected("why")]` for context the command may accept as stale, not for state that must hold when it commits. Write a reason that lets a reviewer judge that choice. Arc records it in telemetry as `advisory_read`.
 
 | Place | Covers | Notes |
 | --- | --- | --- |
@@ -95,9 +99,9 @@ public record SellBook(Isbn Isbn)
 }
 ```
 
-Here `stock` is protected and `price` is not. The guard of this command covers `BookSold` for the book and nothing else.
+In `SellBook`, `stock` is protected and `price` is advisory. The command copies the price seen by this read, accepting that it may change before commit. Only `BookSold` events for this book are covered by the command's guard.
 
-Do not use `[Unprotected]` to silence a refusal you do not understand. A refusal means Chronicle could not guard that read exactly. Marking it advisory makes the rule depend on a stale value again.
+Before marking a refused read advisory, find out why Chronicle cannot guard it. If the command relies on that value to decide whether it may proceed, opting out leaves the rule dependent on a potentially stale value.
 
 A command cannot declare both `[ProtectedDecision]` and `[Unprotected]`, and cannot combine a command-level `[ReadProtection(ReadProtectionMode.On)]` or `Measure` with a command-level `[Unprotected]`. Arc fails the command with `CommandCannotBeBothProtectedAndUnprotected` or `ConflictingReadProtection`. [ARCCHR0029](../code-analysis/ARCCHR0029.md) reports both at build time.
 
@@ -155,7 +159,7 @@ public class TransferValidator : CommandValidator<Transfer>
 }
 ```
 
-Each parameter is its own guard: one on the event source `From`, one on the event source `To`. Without the attributes, `Transfer` has two properties of the model's `Id` type, and `AmbiguousReadModelLookup` refuses it ([ARCCHR0023](../code-analysis/ARCCHR0023.md) reports it at build time).
+Under `On`, the validator guards both accounts: `source` reads `From`, and `target` reads `To`. This lets it check the withdrawal and deposit against the state of the account each event will change. Without the attributes, `Transfer` has two properties of the model's `Id` type, so Arc refuses the ambiguous lookup with `AmbiguousReadModelLookup` ([ARCCHR0023](../code-analysis/ARCCHR0023.md) reports it at build time).
 
 `[LookUpBy]` names a public property of the command, including on a validator constructor parameter. Arc converts the value to the wire key; the property's CLR type need not equal the model's `Id` type. Concepts are unwrapped, `Guid` values are formatted as identifiers, and `EventSourceId`-derived values use their underlying key. For example, a `ConceptAs<Guid>` property can select a model with a `Guid Id`, and the reverse works too. Other values use the runtime's string conversion. Protected reads validate raw keys before conversion as described in [Missing models and invalid keys](#missing-models-and-invalid-keys).
 
@@ -163,13 +167,12 @@ A name that does not exist, or a parameter that is not a read model, is `Invalid
 
 ## The model must be keyed by the entity you append to
 
-A guard covers the events of one event source. A model keyed by an event property, for example `UsingKey(e => e.Member)` over events that are appended to the book, would read facts that live on another source. Chronicle refuses it, because a conflict on the member's events cannot be detected from the book.
+A guard covers the events of one event source, the entity to which events are appended. The model's key must identify that source. For example, `UsingKey(e => e.Member)` over events appended to books groups a member's loans across book sources. A guard on the member's events cannot detect changes on those books, so Chronicle refuses the read.
 
-The fix is to append a fact to the entity the model is keyed by. To count a member's loans, append `LoanTaken` to the member as well as `BookBorrowed` to the book, in one batch. See [two entities](./scenarios/two-entities.md).
+To guard a member's loan count, append `LoanTaken` to the member as well as `BookBorrowed` to the book, in one batch. The member model can then read facts stored on the source its guard watches. Follow [two entities](./scenarios/two-entities.md) for that pattern.
 
 ## Where to go next
 
-- [Refusals](./refusals.md)
-- [Protected reads in a generated Screenplay](../../generating-a-screenplay.md#protected-command-reads-and-esm-v25): how protected reads become `reads` and `require` in a `.play` document.
-- [Read models in commands](../read-models/injecting-into-commands.md): nullability, `Provide()` and the plain-read reference.
-- [Chronicle decision reads](/chronicle/read-models/decision-reads/): which projection shapes are admitted.
+If a supported read still fails, use [Refusals](./refusals.md) to identify the cause. For parameter binding and nullability outside protection, continue with [Read models in commands](../read-models/injecting-into-commands.md), which also covers `Provide()`.
+
+[Chronicle decision reads](/chronicle/read-models/decision-reads/) explains which projection shapes are admitted. If you generate a model document, [Protected reads in a generated Screenplay](../../generating-a-screenplay.md#protected-command-reads-and-esm-v25) shows how the declarations become `reads` and `require` in a `.play` document.

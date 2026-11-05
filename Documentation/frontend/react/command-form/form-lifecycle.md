@@ -1,13 +1,13 @@
 ---
-title: Form lifecycle
-description: Transform a command synchronously, handle results, and execute the edited form from external controls.
+title: CommandForm submission and result handling
+description: Submit the form-owned Cratis Arc command, handle returned results, and connect external Save controls or confirmation through the CommandForm handle.
 ---
 
-Use the form's execution path when you want its result display, callbacks, and busy state to agree. Calling a separately created command can save different values from the ones on screen.
+Submit through Cratis Arc `CommandForm` to execute the values being edited and keep result display, callbacks, and busy state connected to that attempt. For Save buttons outside the form, use its `formRef` handle rather than creating another command instance. A separate command can submit different values from those on screen.
 
 ## Command result callbacks
 
-This complete component uses the generated `UpdateProfile` and its ordinary `{ name, email }` response from [Validation](./validation.mdx#backend-validation). The response type below is an application type, not a framework API.
+Use result callbacks to decide what the user sees after submission. This example uses the generated `UpdateProfile` from [backend validation](./validation.mdx#backend-validation), whose handler returns `{ name, email }`. `ProfileDetails` describes that application response, not a framework API.
 
 ```tsx
 import { useState } from 'react';
@@ -41,11 +41,13 @@ export function ProfileForm() {
 
 The form first calls `onSuccess(response)` or `onFailed(result)`. It then checks, in order, `hasExceptions`, `!isAuthorized`, and `!isValid`, invoking `onException(messages, stackTrace)`, `onUnauthorized()`, and `onValidationFailure(validationResults)` as applicable. Several callbacks can run for the same result; the last message setter wins in this example.
 
-Callbacks describe **returned command results**. An unexpectedly thrown/rejected promise, including a throwing transformation or callback, is not converted to `onException`. Catch rejections when calling the imperative handle, as below. Do not display raw stack traces to end users. Navigate only in `onSuccess`, using the response contract your handler actually returns.
+These callbacks handle returned command results. A thrown exception or rejected promise, including one from a transformation or callback, is not converted to `onException`; catch it when calling the form handle, as in the parent-control example below. Navigate from `onSuccess`, using the response your handler actually returns, and keep raw stack traces out of user-facing messages.
 
 Nonempty custom field errors block submission, `onExecute()` and `formRef.execute()` before transformation or command execution. A blocked attempt publishes the same validation-failure result to `commandResult`, the caller and `onFailed`, then invokes `onValidationFailure`. It makes no HTTP request and does not enter the executing state. Errors set during `onBeforeExecute` are checked again before command execution.
 
-Editing custom errors updates the displayed custom failure. Clearing its last error restores the retained native result, or `undefined` if none exists; that can restore an earlier success, but does not execute or fire callbacks. A subsequent native/displayed result replaces the custom failure. Native field errors and silent validation remain separate, so clearing custom errors neither discards native errors nor leaves a custom failure in silent validity. Calling `commandInstance.execute()` directly bypasses this form-local gate.
+Custom errors and the command's own validation results are kept separately. Editing a custom error updates its displayed failure; clearing the last one restores the retained command result, or `undefined` if there is none. An earlier success can therefore reappear without another execution or callback. Clearing custom errors does not discard native field errors or put a custom failure into silent validity. A subsequent displayed command result replaces the custom failure.
+
+Calling `commandInstance.execute()` directly bypasses this form-local gate. Use submission, `onExecute()`, or `formRef.execute()` when those custom errors must block the attempt.
 
 ## Exception diagnostics and display
 
@@ -59,7 +61,7 @@ A descendant can supply a result through `useSetCommandResult`. The same safe di
 
 ## Before execute hook
 
-`onBeforeExecute` is a synchronous transformation: `(command: TCommand) => TCommand`. This alternative complete component trims the name before command validation and submission:
+Normalize values in `onBeforeExecute` when they need a synchronous adjustment before command validation and submission. Its contract is `(command: TCommand) => TCommand`. This example trims the name and returns the same executable instance:
 
 ```tsx
 import { CommandForm, InputTextField } from '@cratis/arc.react/commands';
@@ -83,7 +85,7 @@ export function ProfileForm() {
 }
 ```
 
-Return the executable instance. Do **not** return a boolean, a Promise, or `{ ...command }`: a spread object loses prototype methods such as `execute()` and does not preserve generated property accessors. There is no `beforeExecute` prop and no asynchronous cancellation contract. Confirm **before** invoking `formRef.current.execute()` instead.
+Return the executable instance, not a boolean, Promise, or `{ ...command }`. A spread object loses prototype methods such as `execute()` and does not preserve generated property accessors. This is not a cancellation hook, and there is no `beforeExecute` prop. If confirmation requires waiting for a dialog, ask before calling `formRef.current.execute()`.
 
 ## Reaching the form from a parent
 
@@ -166,7 +168,7 @@ Pass a stable ref from `useRef` or `useCallback`. An inline callback ref that se
 
 Do not debounce on `command.hasChanges`: it remains true across successive edits. Use actual field values or `commandVersion` in a descendant to schedule work, and clear timers on edits/unmount. Execute through `onExecute` or the form handle.
 
-A production autosave also needs serialization of saves, a pending revision, retry/error UI, and a policy for edits arriving during an in-flight save. The current command implementation snapshots its baseline after a completed server request **even on a failed result**, and that snapshot helper skips falsy values. Do not use `hasChanges` as a reliable “successfully persisted” indicator. Keep an application-owned last-successful snapshot/revision if you need that guarantee. [Advanced patterns](./advanced-patterns.md) describes these boundaries without pretending the form supplies an autosave transaction.
+Serialize saves and track pending revisions so a response can be matched to the edit it submitted. Provide retry/error feedback and decide what happens to edits made during a request. The command captures submitted values, including falsy ones, and advances its baseline only after a successful server result. That supports change tracking; it does not prove durable storage. Tie any “saved” message to the last-successful revision and your backend's persistence contract. Continue with [autosave boundaries](./advanced-patterns.md#autosave-boundaries) for the workflow outline.
 
 ## See also
 

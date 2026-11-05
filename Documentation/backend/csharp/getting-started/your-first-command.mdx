@@ -1,15 +1,17 @@
 ---
-title: Your first command and query
-description: "Complete the standalone ASP.NET Core setup with an author command, a database-backed read model and an observable query, then verify the backend and proxies."
+title: "Cratis Arc: write your first command and query"
+description: "Write and read an author with Cratis Arc in ASP.NET Core, verify that the data survives a restart, and check the generated TypeScript clients."
 ---
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-A librarian registers an author; the catalog should show it. Let's express that as one command that writes current state and one query that reads it. **No events are returned or appended in this lesson.**
+Use a Cratis Arc command to register an author and a query to read the saved author back. You'll finish the standalone library backend, verify that the author survives a restart, and generate the TypeScript clients for the next lesson. This example stores current state directly; it does not return or append events.
 
 ## Prerequisites
 
-Complete [Set up a standalone Arc backend](./index.md) first. It supplies packages, imports, ASP.NET Core hosting, storage settings, and the proxy-generator configuration. Continue in that same `Library/` project. Use **EF Core** below for the default SQLite setup, or **MongoDB** if you chose that alternative. Create each file once, using only your branch's version.
+Complete [Set up a standalone Arc backend](./index.md) first, then continue in the same `Library/` project. Use the **EF Core** tabs for the default SQLite setup, or **MongoDB** if you chose that alternative. Create each file once, using only your chosen database's version.
+
+Keep the setup's `GlobalUsings.cs`: `Cratis.Concepts` supplies `ConceptAs<T>`, `Cratis.Arc.Commands.ModelBound` supplies `[Command]`, `Cratis.Arc.Queries.ModelBound` supplies `[ReadModel]`, and `System.Reactive.Subjects` supplies `ISubject<T>`. The EF Core examples also use the setup's `Cratis.Arc.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore` imports; the MongoDB examples use `MongoDB.Driver`. You do not need the `Cratis` integration meta-package.
 
 ```mermaid
 flowchart LR
@@ -42,7 +44,7 @@ public record AuthorName(string Value) : ConceptAs<string>(Value)
 }
 ```
 
-These are standalone `ConceptAs<T>` values. `AuthorId` is not a Chronicle event-source identifier. The compiler distinguishes an author's id and name; JSON and the generated client use their underlying value types.
+`ConceptAs<T>` wraps a primitive value in a domain-specific type, so the compiler can distinguish an author's id from its name. JSON and generated clients use the underlying values: a GUID and a string. `AuthorId` identifies the stored author; it is not a Chronicle event-source identifier.
 
 ## Write the command
 
@@ -82,7 +84,7 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 </TabItem>
 </Tabs>
 
-`[Command]` exposes the record's `Handle()` as a command endpoint. Arc method-injects the collection or context; you do not register a separate handler. The explicit write is the effect; returning `Task` adds no response payload.
+`[Command]` exposes the record's `Handle()` as a command endpoint. Arc supplies the database context or collection through the method parameter, so you do not register a separate handler. The method saves the author before completing. Returning `Task` means there is no application-specific response payload; Arc still returns a command result that reports success or failure.
 
 <Aside type="tip" title="Separate the decision from the write">
 These direct database calls remain supported. When the write can be described from the command's inputs, prefer a pure `Handle()` that returns a command operation, with the collection or context injected into its `Execute()` method. Arc runs the declared work; database writes do not become automatically reversible. Follow [the migration recipe](../commands/operations/migrating.md) when you are ready to separate the two responsibilities.
@@ -134,7 +136,9 @@ public record Author(AuthorId Id, AuthorName Name)
 </TabItem>
 </Tabs>
 
-A static query on `[ReadModel]` becomes an endpoint. MongoDB observation uses change streams; SQLite uses this host's configured `SaveChanges` notifications, not arbitrary writes from another process. The host setup establishes their prerequisites.
+`Author` is the read model: the shape the client receives. Its static `AllAuthors()` method becomes a query endpoint. `Observe()` returns the current authors and subsequent changes to subscribers. MongoDB uses change streams, which need the replica set configured in the setup. SQLite uses this host's configured `SaveChanges` notifications and does not detect arbitrary writes from another process.
+
+The checkpoint below reads a single HTTP snapshot. You'll use a subscription to keep the browser's list updated in the next lesson.
 
 ## Build and run the checkpoint
 
@@ -167,21 +171,36 @@ The console should print `Now listening on: http://localhost:5000` and `Hosting 
 These tutorial endpoints allow anonymous reads and writes. Keep the host bound to `localhost`. Before exposing the app to other users, add [authentication and authorization](/arc/tutorial/authorization/) and configure tenant isolation if your app needs it.
 </Aside>
 
-Keep the host running. From a second terminal, call the routes the generated proxies use:
+Keep the host running. From a second terminal, register one author, then read the list through the routes the generated proxies use. The query parameter `waitForFirstResult=true` waits for the observable query's first result, which matters when MongoDB is still loading its initial snapshot.
 
 ```bash
 curl -s -X POST http://localhost:5000/api/library/authors/register-author \
   -H 'Content-Type: application/json' \
   -d '{"id":"8f7c7c52-2d5d-4c1e-9a55-0c1f2b8a6f10","name":"Ursula K. Le Guin"}'
-curl -s http://localhost:5000/api/library/authors/all-authors
+curl -s 'http://localhost:5000/api/library/authors/all-authors?waitForFirstResult=true'
 ```
 
-The command returns `"isSuccess":true`, and the query's `data` array contains the author. Run the command once: the id is the stored key, so repeating it reports a storage error rather than a second author. The routes come from the namespace (`Library.Authors`) plus the command or query name, and the generated `route` fields in `RegisterAuthor.ts` and `Author.ts` show the same paths. A 404 is a reason to compare those routes, not to edit the generated files.
+Check for `"isSuccess":true` in the command result and the query result. The query's `data` array should contain:
 
-Stop and restart the host with the same run command, then repeat **only the GET**. The author should still be present: SQLite keeps `library.db`, and MongoDB keeps the collection. This checks persistence, not just compilation. Nothing validates the name yet, so a blank name is also accepted until [chapter 2](/arc/tutorial/validation/) adds the rules.
+```json
+[
+  {
+    "id": "8f7c7c52-2d5d-4c1e-9a55-0c1f2b8a6f10",
+    "name": "Ursula K. Le Guin"
+  }
+]
+```
+
+Run the command once: the id is the stored key, so repeating it reports a storage error rather than a second author. If a request reports failure, read its `validationResults` and `exceptionMessages` and check the host log. A timeout waiting for the query's first result is a reason to check storage, including MongoDB's writable-primary check from the setup.
+
+The routes come from the namespace (`Library.Authors`) plus the command or query name. Compare a 404 with the generated `route` fields in `RegisterAuthor.ts` and `Author.ts`; do not edit the generated files. Without `waitForFirstResult=true`, a query that has not produced a result yet can return HTTP 202 with `"isReady":false` instead of the author list.
+
+Stop and restart the host from the same `Library/` directory with the same run command, then repeat **only the GET**. The author should still be present: SQLite keeps `library.db`, and MongoDB keeps the collection. You have now checked that the write reaches storage and can be read after a restart, before adding a UI. Nothing validates the name yet, so a blank name is also accepted until [chapter 2](/arc/tutorial/validation/) adds the rules.
 
 ## Continue in the browser
 
-[Your first full-stack slice](/arc/tutorial/first-slice/) continues this same project with a Vite bootstrap, Components dialog, providers, and dev proxy configuration; its backend blocks recap these files rather than creating a second copy. [Frontend getting started](/arc/frontend/react/getting-started/) is the **alternative for an existing Vite app**: an inline `CommandForm` with Components fields, plus a route without Components. Both use `./Authors/Author` for this setup's `AllAuthors` import.
+Continue to [Your first full-stack slice](/arc/tutorial/first-slice/) to register authors from a React dialog and see the list update without refreshing. That lesson adds Vite and the browser setup to this same project; its backend examples recap the files you already created, so do not create a second copy.
+
+If you already have a Vite app, use [Frontend getting started](/arc/frontend/react/getting-started/) instead. It uses an inline `CommandForm` and offers a route without Components. Both paths import `AllAuthors` from `./Authors/Author` with this setup's source-file proxy grouping.
 
 Go deeper in [Commands](/arc/backend/csharp/commands/) and [Queries](/arc/backend/csharp/queries/). If you later choose event sourcing, [add Chronicle explicitly](/arc/backend/csharp/chronicle/add-event-sourcing/); retaining a query's public contract is a migration goal, not a guarantee that its storage implementation never changes.

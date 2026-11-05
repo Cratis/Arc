@@ -1,11 +1,15 @@
 ---
-title: LineString serializer
-description: Store routes as GeoJSON and query them using driver geometry.
+title: Cratis Arc LineString storage and queries
+description: Store ordered routes as GeoJSON with Cratis Arc and find nearby paths using MongoDB driver geometry, without computing travel distance.
 ---
 
-Arc's `LineStringSerializer` stores a Cratis line as GeoJSON. Use it for paths, not for computed distance along a route. Complete [MongoDB setup](../getting-started.md) before these model/query fragments.
+Cratis Arc stores `Cratis.Geospatial.LineString` as a GeoJSON path so you can query for routes near a location or crossing a region. It preserves an ordered sequence of points; it does not compute distance traveled along a route.
+
+Complete [MongoDB setup](../getting-started.md) to register the BSON serializers, which convert model values to MongoDB's binary document format. The examples below add a route model and query fragments to that configured host.
 
 ## Usage
+
+Store the path on your route document:
 
 ```csharp
 using Cratis.Geospatial;
@@ -18,7 +22,7 @@ public class DeliveryRoute
 }
 ```
 
-Construction fragment inside a method:
+Inside a method, construct the path in travel order. Each point takes longitude first, then latitude:
 
 ```csharp
 var route = new LineString([
@@ -30,17 +34,17 @@ var route = new LineString([
 
 ## Storage format
 
-With camel-case naming, the path member is:
+With camel-case naming configured, Arc writes the path member as:
 
 ```json
 {"path":{"type":"LineString","coordinates":[[-122.4194,37.7749],[-122.4185,37.775],[-122.417,37.7755]]}}
 ```
 
-Provide at least two points in their intended order. The Cratis record/serializer does not validate that count or geographic ranges. MongoDB may reject invalid geometry when indexing or querying it.
+Each coordinate pair is `[longitude, latitude]`. Provide at least two points in their intended order and validate geographic ranges before storage. Neither the Cratis record nor the serializer checks the point count or ranges. MongoDB may reject invalid geometry when indexing or querying it.
 
 ## Querying
 
-For an `IMongoCollection<DeliveryRoute>` named `collection`, this method fragment finds nearby routes:
+To find routes near a location, query the path against a driver GeoJSON point. This method fragment uses an `IMongoCollection<DeliveryRoute>` named `collection`. Create the spatial index during setup, then use the filter when querying:
 
 ```csharp
 using MongoDB.Driver;
@@ -54,14 +58,14 @@ var nearby = await collection.Find(Builders<DeliveryRoute>.Filter.Near(
     route => route.Path, origin, maxDistance: 1000)).ToListAsync();
 ```
 
-The filter argument is a **driver GeoJSON point**, not a Cratis point. Perform index creation during setup. The radius is in meters for this GeoJSON query; it is not distance traveled along the line.
+The stored path is a Cratis `LineString`, while the query origin is a driver `GeoJsonPoint<GeoJson2DGeographicCoordinates>`. For this GeoJSON query, `maxDistance: 1000` sets a 1,000-meter proximity bound. It does not measure distance traveled along the line. Keep index creation out of the per-query path.
 
-To find routes crossing a region, use `GeoIntersects` with a driver GeoJSON polygon. `GeoWithin` instead asks whether the stored geometry is contained within the query area. See [polygon construction and queries](./polygon.md#querying).
+For routes crossing a region, use `GeoIntersects` with a driver GeoJSON polygon. Use `GeoWithin` when the stored geometry must be contained within the query area. [Polygon construction and queries](./polygon.md#querying) shows the polygon argument; using it in a filter does not require reading stored Cratis polygons.
 
 ## Limits
 
-Serialization supplies a GeoJSON shape, not validation, a routing engine, or guaranteed query translation from arbitrary geometry methods. Test boundary cases and spatial query results in your target MongoDB version.
+`LineStringSerializer` supplies the GeoJSON representation. Your application still owns geometry validation and routing logic, and arbitrary geometry methods are not guaranteed to translate into MongoDB queries. Check boundary cases and spatial results against your target MongoDB version.
 
-`LineString?` expresses CLR optionality only. Arc's current geometry BSON serializers neither serialize a null value nor read explicit BSON null. Design and test an omission policy or a null-aware member serializer before persisting optional geometry; a nullable annotation alone is insufficient. See [serializer null handling](../serializers.md#error-handling).
+If a path is optional, `LineString?` only makes the .NET property nullable. Arc's current geometry BSON serializers neither write a null value nor read explicit BSON null. Choose and test an omission policy or a null-aware member serializer before persisting optional paths. [Serializer null handling](../serializers.md#error-handling) explains the difference between an absent field and an explicit null.
 
-See [Point](./point.md) and [Polygon](./polygon.md) for the other supported geometry types.
+Use [Point storage and queries](./point.md) when each document needs one location. For service areas and other boundaries, read the [Polygon guide](./polygon.md), including its typed-read limitation.

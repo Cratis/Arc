@@ -1,6 +1,6 @@
 ---
 title: Validation extraction
-description: The supported subset of backend rules emitted into TypeScript proxies.
+description: Cratis Arc projects a supported subset of FluentValidation rules and DataAnnotations into TypeScript validators; server validation remains authoritative.
 ---
 
 Generated validators provide early feedback without duplicating simple rules by hand. They are a **projection of a supported subset**, not an equivalent execution of arbitrary backend validation. Keep the server authoritative: missing client rules do not mean a request is valid, and a local validation result does not establish server authorization.
@@ -15,7 +15,9 @@ The executable loads the compiled model, finds a matching validator, and instant
 2. Direct concept-property/parameter rules are additive, with identical rules deduplicated.
 3. DataAnnotations contribute only where neither of the above has contributed rules for that member.
 
-The current lookup selects the first matching validator type in the searched assembly. Do not rely on it aggregating several validators for the same model.
+Validator discovery walks the full base-type hierarchy of concrete validators, so direct inheritance from `AbstractValidator<T>` is not required. Supported hierarchies include `AbstractValidator<T>`, `BaseValidator<T>`, `DiscoverableValidator<T>`, `CommandValidator<T>`, `QueryValidator<T>`, and `ConceptValidator<T>`, including your own intermediate base classes. The generator searches the generated assembly, the model's assembly, and managed application dependencies that reference `Cratis.Arc.Core` directly or indirectly; framework assemblies are excluded. Shared validators in those dependencies can therefore contribute rules.
+
+The generator selects one validator per model, not an aggregate. A validator implementing `IDiscoverableValidator<T>` takes precedence over plain validators; more than one discoverable validator for the same model fails generation. If none is discoverable, the generator selects the first matching validator ordered by full type name using ordinal comparison. Validators must have a public constructor and be constructible during extraction, subject to the construction limits below.
 
 Controller-based queries use a separate lookup: the generator selects the first DTO whose properties match **all method parameters**, with the same property count, case-insensitive names, and identical types, preferring DTO names containing `Query` (case-insensitive). This lookup includes all method parameters, not just client-facing ones. It extracts rules from the selected DTO, including its supported annotations and concept-property rules. Direct parameter annotations are extracted only if that DTO contributes **no rules at all** (or no DTO matches), rather than as a per-parameter fallback. For example, one DTO rule on `Name` prevents a direct `[Required]` annotation on another parameter from being projected. Direct concept parameters are not independently projected; matching DTO concept properties can contribute rules through DTO extraction.
 

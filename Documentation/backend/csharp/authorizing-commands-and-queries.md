@@ -1,17 +1,19 @@
 ---
-title: Authorizing commands and queries
-description: Restrict who can run a command or read a query with role-based authorization, applied at the boundary.
+title: "Cratis Arc authorization: protect commands and queries"
+description: Protect Cratis Arc commands and queries with role or policy attributes, and use the command and query pipelines to enforce access checks.
 ---
 
-**Goal:** only certain users may perform an action or see certain data — "only a librarian can register an author," "only an admin sees the audit list." You want that enforced declaratively, not with `if` checks scattered through your logic.
+Cratis Arc checks role and policy attributes when a command or query runs through its pipeline. Use them when an action or a read needs an access rule, such as allowing only librarians to register authors. Direct C# calls to `Handle()` or a static query bypass these checks.
 
 ## Authorize at the boundary, not in the logic
 
-Authorization is a cross-cutting concern: it belongs at the edge, applied as an attribute, so your `Handle()` methods and read models stay focused on behavior. Arc enforces role attributes on **both** commands and query methods when invoked through its pipelines. Direct C# calls to `Handle()` or a static query bypass these checks. Use attributes from `Cratis.Arc.Authorization`; `[Roles]` requires authentication and at least one listed role. `[Authorize(Policy = "...")]` is enforced too, once you [register the named policy](core/authorization.md#register-a-named-policy); it requires authentication unless the policy registration explicitly opts into guest evaluation. Named `AuthenticationSchemes` work only on the [ASP.NET Core host](asp-net-core/authorization.md); the standalone Arc host fails at startup rather than ignoring them.
+Put the access rule on the command record or query method, using attributes from `Cratis.Arc.Authorization`. `[Roles]` requires an authenticated caller with at least one listed role, so your handler does not need to repeat that role check.
+
+For a named policy, use `[Authorize(Policy = "...")]` and [register the policy](core/authorization.md#register-a-named-policy). It requires authentication unless the registration explicitly opts into guest evaluation. Named `AuthenticationSchemes` work only on the [ASP.NET Core host](asp-net-core/authorization.md); the standalone Arc host fails at startup rather than ignoring them.
 
 ## Protect a command
 
-Put `[Roles(...)]` on the `[Command]` record. Arc checks the caller's roles before the command runs. These are illustrative type fragments using application-owned `AuthorId`, `AuthorName`, `UserRole`, and the optional MongoDB integration; they do not require Chronicle:
+Put `[Roles(...)]` on the `[Command]` record to check the caller before the command runs. This fragment uses application-owned `AuthorId`, `AuthorName`, and `UserRole` types with the optional MongoDB integration. It does not require Chronicle:
 
 ```csharp
 [Command]
@@ -29,7 +31,7 @@ The direct insert remains supported. For inline writes that can be declared befo
 
 ## Protect a query
 
-Query methods on a read model take the same attribute, so the read side is gated too:
+Apply the same attribute to a query method to restrict who can read its result:
 
 ```csharp
 [ReadModel]
@@ -43,12 +45,15 @@ public record Author([property: Key] AuthorId Id, AuthorName Name)
 
 ## Who the user is
 
-Roles used by the evaluator come from the authenticated `ClaimsPrincipal`, not the identity details. Arc integrates with ASP.NET Core authentication; its lightweight host has its own handlers. `IProvideIdentityDetails` supplies application-specific presentation details but does not add trusted claims or authorize every operation. Read the principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`. See the [Identity](./identity/) section for setting that up, and for generating a principal during local development so you can exercise authorized endpoints without a full login.
+The evaluator reads roles from the authenticated `ClaimsPrincipal`. Arc integrates with ASP.NET Core authentication, while its lightweight host has its own handlers. Read the principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`.
+
+Identity details serve a different purpose: `IProvideIdentityDetails` supplies application-specific presentation data, not trusted claims or permission to run an operation. Continue with [Identity](./identity/) to configure authentication or supply a principal during local development.
 
 ## Notes
 
-- **Multi-tenancy** requires three separate controls: [tenant selection](./tenancy/index.md), application membership authorization, and integration-specific storage isolation. Selecting a tenant ID alone does not restrict a user to their own data.
-- The generated TypeScript proxies respect the same rules — an unauthorized call fails the same way it would from any client.
+Selecting a tenant ID is not permission to access that tenant's data. A multi-tenant application also needs membership authorization and integration-specific storage isolation; [tenant selection](./tenancy/index.md) covers only the selection step.
+
+Generated TypeScript proxies call the same protected endpoints as other clients. Access checks happen on the server, not in the proxy.
 
 ## See also
 

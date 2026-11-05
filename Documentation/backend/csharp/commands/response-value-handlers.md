@@ -1,6 +1,6 @@
 ---
 title: Response value handlers
-description: How standalone Arc classifies scalar, tuple, and discriminated-union command results.
+description: Cratis Arc response value handlers process model-bound command results server-side while selecting a separate response value for the caller.
 ---
 
 A command may need both a response for its caller and server-side processing of another value. Response value handlers separate those responsibilities without requiring event sourcing.

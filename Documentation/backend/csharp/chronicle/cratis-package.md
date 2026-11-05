@@ -1,19 +1,15 @@
 ---
-title: Cratis package
-description: Bootstrap Arc, the Chronicle client, and identity; configure the server and optional read-model database separately.
+title: Set up Arc and Chronicle with the Cratis package
+description: Register Arc, the Chronicle client, and a header-based identity adapter with the Cratis package; configure the server and query storage separately.
 ---
 
-The `Cratis` package bootstraps Arc, the Chronicle client, and identity with one dependency and two host calls. It does not start the Chronicle server or install/configure Arc's MongoDB integration. Configure the server's sink and the application's query provider separately.
+Use the `Cratis` package to register Cratis Arc, the Cratis Chronicle client, and a header-based identity adapter in an ASP.NET Core application. Pair `builder.AddCratis()` with `app.UseCratis()`. You still need a running Chronicle server and separate configuration for its projection sink and your application's query provider.
 
 ## What is the Cratis Package?
 
-The `Cratis` package is a convenience package that bundles the whole stack:
+The `Cratis` package composes Arc's command and query infrastructure with Chronicle's client integration and Swagger/OpenAPI support. Choose it when you want that ASP.NET Core setup, including the identity adapter described below, without registering each part yourself.
 
-- **Arc Application Framework** — CQRS commands and queries, validation, multi-tenancy, proxy generation
-- **Chronicle Event Sourcing** — the event store **client** (connecting to a separately running Chronicle server), aggregates, projections, reactors, and reducers
-- **Swagger/OpenAPI** — automatic API documentation
-
-It exists to get you to a running, end-to-end event-sourced application without wiring each component yourself.
+For Arc without event sourcing, use `AddCratisArc()` on its own. If you need Chronicle but bring your own authentication, keep the `Cratis` package reference for the ASP.NET Core split-registration example under [Running Arc or Chronicle on their own](#running-arc-or-chronicle-on-their-own).
 
 ## Installation
 
@@ -48,13 +44,13 @@ app.Run();
 
 ## What AddCratis sets up for you
 
-`AddCratis` is opinionated — it makes a few decisions so you don't have to. Knowing them up front avoids surprises:
+`AddCratis()` calls `AddCratisArc()` and its ASP.NET Core `WithChronicle()` composition. The Chronicle client shares your application host and connects over gRPC to a separate Chronicle server, typically a `cratis/chronicle` container. The connection string selects that server; this registration never starts it.
 
-- **It adds a Chronicle _client_ — not the Chronicle engine.** `AddCratis` calls `AddCratisArc` and then `WithChronicle`, and `WithChronicle` registers the Chronicle **client**: a gRPC client that connects to a Chronicle **server running as its own separate process** — the `cratis/chronicle` container you deploy. Your application never runs the event store; it connects to one over gRPC using the connection string from configuration. When you read "Arc and Chronicle in one host," it's the _client_ that shares your host — the engine runs elsewhere.
-- **Microsoft Identity Platform authentication is wired automatically** (`AddMicrosoftIdentityPlatformIdentityAuthentication`), but it trusts the forwarded identity headers only after you opt in with `TrustForwardedIdentityHeaders`. Until then every request is anonymous. If you don't want identity baked in, wire Arc and Chronicle separately with `AddCratisArc` + `WithChronicle` instead of `AddCratis` — see [Running Arc or Chronicle on their own](#running-arc-or-chronicle-on-their-own).
-- **Chronicle is tenant-aware by default.** `WithChronicle` resolves the event store namespace per tenant (via `TenantNamespaceResolver`), so every event store is automatically scoped to the active tenant. See [Namespaces](/chronicle/namespaces/) for how the namespace becomes the tenancy boundary.
+The call also registers `AddMicrosoftIdentityPlatformIdentityAuthentication()`. That adapter ignores forwarded identity headers until you enable `TrustForwardedIdentityHeaders`, so requests remain anonymous by default. Use the trusted-ingress setup in the warning above or choose the split registration to supply your own authentication.
 
-There are always **two processes**: your application (Arc plus the Chronicle client) and the Chronicle server (the event store). `AddCratis` sets up the first and connects it to the second — it never starts the second for you.
+`WithChronicle()` registers `TenantNamespaceResolver`, which maps Arc's active tenant to a Chronicle namespace. An unset or default tenant maps to Chronicle's default namespace. Decide whether requests without a tenant may access that namespace; registration alone does not establish your access policy. See [Tenancy](tenancy.md) and [Namespaces](/chronicle/namespaces/).
+
+The process boundary is:
 
 ```mermaid
 flowchart LR
@@ -70,11 +66,11 @@ flowchart LR
 ```
 
 > [!NOTE]
-> The same `AddCratis` code connects to a local `cratis/chronicle` container in development and a shared Chronicle instance in production — only the connection string changes between environments. There is no in-process Chronicle to run, and you should not see event-store traffic served from inside your app. If you haven't started a `cratis/chronicle` container, your app has nothing to connect to.
+> The client can connect to a local server in development or a shared server in production. Configure the connection for each environment and make sure that server is running before using the event store.
 
 ## How Arc and Chronicle fit together
 
-The two halves connect at a single seam: an Arc **command** appends a Chronicle **event**, a Chronicle **projection** turns events into a **read model**, and an Arc **query** serves that read model back to the client.
+An Arc command returns an event recording a change. Chronicle appends it and a projection builds the read model, the state an Arc query serves to the client:
 
 ```mermaid
 flowchart LR
@@ -88,10 +84,10 @@ Arc and the Chronicle client share the application host and its configured integ
 
 ## Running Arc or Chronicle on their own
 
-`AddCratis` is the batteries-included front door, but the pieces underneath are independent — take just the part you need:
+Choose the composition that matches your persistence and authentication needs:
 
-- **Arc without an event store.** Call `AddCratisArc()` on its own and back your commands and queries with MongoDB or EF Core instead of Chronicle. You keep the full CQRS and proxy-generation experience with no event log. See [CQRS without event sourcing](../../../arc-without-event-sourcing.mdx).
-- **Arc + Chronicle without the baked-in identity.** Retain the **`Cratis` package reference** for this ASP.NET Core example. Call `AddCratisArc()` and add its ASP.NET Core `WithChronicle()` composition yourself. This is exactly what `AddCratis` does, minus `AddMicrosoftIdentityPlatformIdentityAuthentication()` — reach for it when you bring your own authentication. `Cratis.Arc.Chronicle` alone provides the generic-host integration, not all the ASP.NET Core extensions below.
+- Arc without an event store: call `AddCratisArc()` on its own and back your commands and queries with MongoDB or EF Core. You keep command/query separation and proxy generation without an event log. See [CQRS without event sourcing](../../../arc-without-event-sourcing.mdx).
+- Arc and Chronicle with your own authentication: retain the `Cratis` package reference for this ASP.NET Core example. Call `AddCratisArc()` and its ASP.NET Core `WithChronicle()` composition yourself, omitting `AddMicrosoftIdentityPlatformIdentityAuthentication()`. `Cratis.Arc.Chronicle` supplies the generic-host integration, not all ASP.NET Core extensions below.
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -108,10 +104,14 @@ app.Run();
 
 The explicit static call selects the ASP.NET Core `WithChronicle()` composition. It avoids an ambiguous call when both `Cratis.Arc` and `Microsoft.AspNetCore.Builder` extensions are in scope; the generic-host overload is a different setup surface.
 
-Both compositions resolve `IUnitOfWorkManager` as a scoped service from the selected `IEventStore.UnitOfWorkManager`. Commands therefore use that event store's configured lifecycle policy and the active tenant's namespace, not a separately constructed manager. Both also keep an `IUnitOfWorkManager` you register explicitly, in any order relative to `WithChronicle`, and with whatever lifetime you chose. Arc excludes only the manager registration it adds by convention, and registrations you make before `WithChronicle` or inside its Chronicle builder callback are kept. An explicit manager takes precedence for single-service resolution; when you register it after `WithChronicle`, the event store's manager is still registered too, so resolving all `IUnitOfWorkManager` services returns both. Configure `UnitOfWorkLifecyclePolicy` through the Chronicle options callback; do not register the enum as a service. The generic-host composition also supports a `WebApplicationBuilder` when using the `Cratis.Arc.Chronicle` package directly.
+The ASP.NET Core composition preserves Chronicle's scoped, deferred `IUnitOfWorkManager`. Resolving that manager or beginning a unit of work does not select the event store. Its first event-store operation binds the unit to the tenant active at that point, so authenticate before performing store operations. See [Request unit-of-work binding](tenancy.md#request-unit-of-work-binding).
+
+The generic-host composition instead resolves its scoped manager from `IEventStore.UnitOfWorkManager`. It also supports a `WebApplicationBuilder` when using `Cratis.Arc.Chronicle` directly, but it is a different registration path from the ASP.NET Core example above.
+
+Both paths preserve explicitly registered managers and their chosen lifetimes, including registrations made before `WithChronicle()` or inside its Chronicle builder callback. A manager registered afterward takes precedence for single-service resolution; resolving all managers can still return both registrations. Custom managers own their tenant-binding behavior. Configure `UnitOfWorkLifecyclePolicy` through the Chronicle options callback, not by registering the enum as a service.
 
 > [!IMPORTANT]
-> Running Arc without Chronicle is a valid setup — but only if you don't use Chronicle. If you call `AddCratisArc()` **without** `WithChronicle()` yet the project uses Chronicle (an aggregate root, reactor, reducer, projection, `[EventType]` event, or a command that injects `IEventLog`), the [ARCCHR0005](code-analysis/ARCCHR0005.md) analyzer flags it at **compile time**. Should it slip through (for example, setup lives in a separate host project), resolution then fails at runtime with a message that points at the same fix: add `WithChronicle()`, or switch to `AddCratis()`.
+> Chronicle types need Chronicle registration. If a project calls `AddCratisArc()` without `WithChronicle()` and uses aggregates, reactors, reducers, projections, `[EventType]` events, or `IEventLog`, [ARCCHR0005](code-analysis/ARCCHR0005.md) reports the missing setup at compile time. If the analyzer cannot see the host setup, runtime resolution can still fail. Add `WithChronicle()` or use `AddCratis()`; database-backed Arc applications that do not use Chronicle need neither.
 
 ## Advanced Configuration
 
@@ -217,7 +217,7 @@ Pooled context registration does not automatically select a database per Arc ten
 
 ## Program.cs composition
 
-This host-body fragment assumes the packages above, the relevant extension namespaces (`Cratis.Arc` and `Microsoft.AspNetCore.Builder`, plus Chronicle extensions used by your configuration), and configured authentication/server/sink connections. It composes registrations; it is not a standalone deployment checkpoint:
+Use this host-body fragment to combine MongoDB queries with a named Chronicle event store. It assumes the packages above, `Cratis.Arc` and `Microsoft.AspNetCore.Builder` imports, the Chronicle extensions used in your configuration, and configured authentication, server, and sink connections:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -233,16 +233,10 @@ app.UseCratis();
 app.Run();
 ```
 
-This is the same shape the `dotnet new cratis` full-stack template scaffolds.
+The `dotnet new cratis` full-stack template uses this builder/app composition. Its MongoDB branch also configures camel-case naming for the query provider, aligning it with Chronicle's naming policy. Keep both sides aligned when adapting the fragment.
 
 ## Next Steps
 
-Now that you have Cratis set up, you can:
+With the host registered, define a [command](../commands/index.md) to record a change and a [query](../queries/index.md) to read its projected state. [Aggregates](aggregates/index.md) cover decisions that need an entity's event history.
 
-- Define [Commands](../commands/index.md) to handle user actions
-- Create [Queries](../queries/index.md) to retrieve data
-- Build [Aggregates](aggregates/index.md) to model your domain
-- Configure [MongoDB](../mongodb/index.md) for read models and projections
-- Set up [tenancy](../tenancy/index.md) for your application
-
-For more advanced scenarios, explore the individual Arc and Chronicle components in the documentation.
+Before serving data, finish the [MongoDB query configuration](../mongodb/index.md) if you use that provider, and choose an [Arc tenant resolver](../tenancy/index.md) that matches your access policy.

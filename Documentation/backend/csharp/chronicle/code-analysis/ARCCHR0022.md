@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0022: Command-key aggregate on a generated append target"
-description: Align the aggregate's source with the generated target used for returned or appended events.
+description: ARCCHR0022 in Cratis Arc warns when a command injects an aggregate for its command key but returns or appends events for a generated target.
 ---
 
 ## Rule

@@ -1,9 +1,9 @@
 ---
-title: Get started with Entity Framework Core
-description: Add optional relational persistence to a standalone Arc application.
+title: Set up Entity Framework Core in Cratis Arc
+description: Add relational storage to a Cratis Arc host, define an EF Core context with named domain values, and choose automatic or explicit registration.
 ---
 
-When your Arc application needs relational storage, add `Cratis.Arc.EntityFrameworkCore`. It provides context registration, model conventions, and observation helpers. **Chronicle is not required**: commands can write through EF Core and queries can read the same database without event sourcing.
+Add `Cratis.Arc.EntityFrameworkCore` when your Cratis Arc commands and queries need relational storage. This setup registers an orders context with SQLite and maps named domain values to database columns. You can use EF Core without Chronicle or event sourcing; commands write through EF Core and queries read the same database.
 
 ## Add the integration
 
@@ -13,7 +13,7 @@ Start from a working [ASP.NET Core Arc host](../asp-net-core/index.md) or [light
 dotnet add package Cratis.Arc.EntityFrameworkCore
 ```
 
-The following is a startup fragment for an existing Arc builder, not a second complete host program. Import `Cratis.Arc` and `Cratis.Arc.EntityFrameworkCore`, plus your host's builder namespace (`Microsoft.AspNetCore.Builder` for ASP.NET Core).
+In your existing host's Arc configuration, call `WithEntityFrameworkCore` and set the connection string. Import `Cratis.Arc` and `Cratis.Arc.EntityFrameworkCore`, plus your host's builder namespace (`Microsoft.AspNetCore.Builder` for ASP.NET Core):
 
 ```csharp
 builder.AddCratisArc(configureBuilder: arc =>
@@ -25,11 +25,11 @@ builder.AddCratisArc(configureBuilder: arc =>
 });
 ```
 
-This selects SQLite, registers observation services, and discovers public `BaseDbContext` subclasses. It does **not** create your tables or apply migrations. Use your application's migration process before querying.
+The `Data Source=orders.db` connection string selects SQLite. Arc registers observation services and discovers public `BaseDbContext` subclasses, including the context you will define next. It does not create tables or apply migrations; use your application's migration process before querying.
 
 ## Define a context
 
-Give domain values names before using them in the entity. `OrderId` cannot be accidentally substituted for an unrelated integer identifier, and `OrderDescription` keeps the field's intent visible. Define these shared concepts once in the order feature, each in its own file:
+Define the order's identifier and description as `ConceptAs<T>` records: named wrappers around an integer and a string. Keep these shared concepts in the order feature, each in its own file:
 
 ```csharp
 using Cratis.Concepts;
@@ -47,7 +47,7 @@ public record OrderDescription(string Value) : ConceptAs<string>(Value)
 }
 ```
 
-These model declarations reuse those concepts and demonstrate the required options constructor:
+Define the order entity with those concepts, then expose it through `OrdersDbContext`. The context must pass its options to the base constructor:
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
@@ -65,15 +65,15 @@ public class Order
 }
 ```
 
-`BaseDbContext` applies concept value conversion, so the named values still map to primitive columns. Choose and test your application's key-allocation strategy rather than treating `OrderId.NotSet` as a stored identity. See [concept mapping](./concept-as-conversion.md).
+`BaseDbContext` converts `OrderId` to an integer column and `OrderDescription` to a string column. The entity keeps its named C# types. Choose how the application allocates order identifiers; `OrderId.NotSet` is a placeholder, not a stored identity strategy. See [concept mapping](./concept-as-conversion.md) for conversion details.
 
 With a nonempty connection string and `AutoDiscoverDbContexts = true` (the default), Arc registers discovered contexts through pooled factories and exposes each context as a scoped service. `ReadOnlyDbContext` subclasses receive read-only registration. `[IgnoreAutoRegistration]` excludes a context. With an empty connection string, discovery returns without registering contexts.
 
-A registration checkpoint is that a service scope can resolve `OrdersDbContext` and `IDbContextFactory<OrdersDbContext>`. Successful registration alone does not prove the database is reachable or its schema is ready.
+Check registration by resolving `OrdersDbContext` and `IDbContextFactory<OrdersDbContext>` from a service scope. Then apply your schema and check an ordinary database read and write. Resolving the services confirms registration, not database access or schema readiness.
 
 ## Customize registration
 
-For a context that needs a different connection or options, disable discovery and register it explicitly. This is an alternative startup fragment:
+Use explicit registration when a context needs its own options. Replace the earlier startup configuration with the following to disable discovery and enable detailed EF errors for `OrdersDbContext`. To use a different connection for a context, pass a connection string to the `AddDbContext<TContext>` overload.
 
 ```csharp
 builder.AddCratisArc(configureBuilder: arc =>
@@ -94,7 +94,7 @@ builder.AddCratisArc(configureBuilder: arc =>
 });
 ```
 
-The callback takes **two arguments**, `IServiceProvider` and `DbContextOptionsBuilder`. Avoid sensitive-data logging in production.
+The callback receives `IServiceProvider` and `DbContextOptionsBuilder`. Keep these options independent of request-scoped state because pooled contexts reuse them. Avoid sensitive-data logging in production.
 
 | Option | Default | Purpose |
 | --- | --- | --- |
@@ -107,7 +107,7 @@ The callback takes **two arguments**, `IServiceProvider` and `DbContextOptionsBu
 
 ## Direct service registration
 
-You can also use the registration helpers on `IServiceCollection`. This fragment assumes `services` belongs to your existing host:
+If you manage registration through your host's `IServiceCollection`, add observation services before the context helper:
 
 ```csharp
 services.AddEntityFrameworkCoreObservation();
@@ -116,12 +116,12 @@ services.AddDbContextWithConnectionString<OrdersDbContext>("Data Source=orders.d
 
 Import `Cratis.Arc.EntityFrameworkCore.Observe` and `Microsoft.Extensions.DependencyInjection` as well as the context namespaces above. The helper adds observation interceptors when observation services are available at options creation. Register everything before building the service provider.
 
-Direct EF registration is not a replacement for Arc host activation. In particular, `Observe()` uses Arc's initialized query context and service provider. Use the normal Arc bootstrap if you use Arc observation.
+Keep the normal Arc host bootstrap when using these helpers. In particular, `Observe()` needs Arc's initialized query context and service provider; registering EF services alone does not initialize them.
 
 ## Scope and provider limits
 
 The built-in connection detection supports SQLite, PostgreSQL, and SQL Server. See [automatic database hookup](./automatic-database-hookup.md) for connection patterns and assembly scanning.
 
-Pooled factories capture the configured connection string. They **do not automatically select a database per Arc tenant**. Tenant isolation requires an application-designed, tested strategy; do not capture request-scoped tenant state in pooled options or assume MongoDB database naming applies to EF.
+Without [connection resolution](./connection-resolution.md), pooled contexts use the configured connection string for every tenant. Configure resolution to select a tenant's database or identity when a connection opens, including on a reused context. Do not capture request-scoped tenant state in pooled options or assume MongoDB database naming applies to EF. Check tenant isolation across pooled reuse as part of your application's storage tests.
 
 Next, configure [entity mappings](./entity-mapping.md), choose [read-only behavior](./read-only.md), or add [observation](./observing.md) after verifying ordinary database reads and writes.

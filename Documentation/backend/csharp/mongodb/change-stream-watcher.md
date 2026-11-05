@@ -1,11 +1,11 @@
 ---
-title: Watch multiple collections with a shared change stream
-description: Join live results through Arc's per-database MongoDB watcher.
+title: Join live MongoDB collections in Cratis Arc
+description: Combine MongoDB collections into live query results with Cratis Arc's shared watcher, including database prerequisites, filters, and subscription lifetimes.
 ---
 
-The `IMongoDBWatcher` provides a single, process-wide MongoDB change stream connection per database. Instead of opening one change stream per collection, every observation shares one connection and funnels events from multiple collections through it. This reduces the number of open cursors and network connections, which matters when you observe many collections simultaneously.
+Use Cratis Arc's `IMongoDBWatcher` to combine several MongoDB collections into a live query result. It shares one change stream per database and client server/credential combination within the process, rather than opening a stream for each collection. A change stream notifies Arc when stored documents change so it can refresh the result.
 
-The `Observe()`, `ObserveSingle()` and `ObserveById()` [collection extensions](./observing-collections.md) use this shared stream too, so you do not have to inject the watcher to benefit from it. Inject it when you want to join several collections into one result.
+For a single collection, use the `Observe()`, `ObserveSingle()`, or `ObserveById()` [collection extensions](./observing-collections.md). They share the watcher too; inject it directly when you need to combine collections.
 
 ## How it works
 
@@ -18,7 +18,7 @@ graph LR
     B2 -->|Join + Select| S2[ISubject&lt;BookCatalog&gt;]
 ```
 
-`IMongoDBWatcher` is registered as a singleton automatically when you call `UseCratisMongoDB()`. It keeps one change stream per database per deployment: the key is the servers and credential of the client together with the database name, the same way Arc's client factory shares clients. The stream opens on the first observation of that database and later observations share it.
+[MongoDB setup](./getting-started.md) registers `IMongoDBWatcher` as a singleton. Each watch is keyed by the client's servers and credential together with the database name, matching how Arc's client factory shares clients. The first observation starts the stream; later observations with the same key share it.
 
 - `Observe<T>()` on the watcher resolves the database name and client from the current context, so tenants that resolve to different databases or servers get streams of their own.
 - The collection extensions (`Observe()`, `ObserveSingle()`, `ObserveById()`) watch the collection's own database with the client it belongs to. A collection from a client the application did not configure, such as another library's storage, is watched on the deployment it lives on.
@@ -31,20 +31,22 @@ A library or host that brings its own `IMongoDatabase` and observes its collecti
 services.AddMongoDBWatcher();
 ```
 
-It registers the same singleton `UseCratisMongoDB()` does, so calling both registers it once. Without the MongoDB configuration, `IMongoDBWatcher.Observe<T>()` throws `MongoDBWatcherNotConfigured`, because it has no configured database to watch; the collection extensions work, since they name their database themselves.
+Import `Microsoft.Extensions.DependencyInjection` for this registration method. It adds the same singleton as `UseCratisMongoDB()`, so calling both registers the watcher once. Without MongoDB configuration, the collection extensions still work because each collection supplies its database and client. Calling `IMongoDBWatcher.Observe<T>()` instead throws `MongoDBWatcherNotConfigured`: that method needs a configured database.
 
 ## Prerequisites
 
-- A MongoDB replica set or sharded cluster supporting change streams, with database-level watch/read permissions
-- Arc's MongoDB integration registered at startup, through either `builder.UseCratisMongoDB()` or `builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB())`; both register the watcher
+Before using the joined observations below, get ordinary MongoDB reads working and check both prerequisites:
 
-The examples below are service/query fragments using your application's `Book`, `Author`, and `Publisher` types. Import `Cratis.Arc.MongoDB` and `System.Reactive.Subjects`; the controller example additionally uses `Microsoft.AspNetCore.Mvc`. They are not complete host programs.
+- A MongoDB replica set or sharded cluster that supports change streams, with database-level watch and read permissions. A standalone server is not sufficient.
+- Arc's MongoDB integration registered at startup through either `builder.UseCratisMongoDB()` or `builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB())`. The watcher-only registration above is enough for collection extensions, but not for these `IMongoDBWatcher.Observe<T>()` examples.
+
+The examples are service and query fragments using your application's `Book`, `Author`, and `Publisher` types. Import `Cratis.Arc.MongoDB` and `System.Reactive.Subjects`; the controller also uses `Microsoft.AspNetCore.Mvc`. For a complete host setup, start with [getting started](./getting-started.md).
 
 ## Observing a single collection
 
-Inject `IMongoDBWatcher` and call `Observe<T>()` to start watching a collection. Chain `.Join<T2>()` to include additional collections, then call `.Select()` to combine them into a result subject.
+`IMongoDBWatcher.Observe<T>()` starts with one collection and returns a builder, not a subscribable result. This builder exposes `.Select()` after a `.Join<T2>()`, so use it when your result needs at least two collections. For a live result from just one collection, use the [collection extensions](./observing-collections.md) instead.
 
-Even when you only care about one collection, you must call `.Join<T2>().Select()` to materialize the subject — a single `Observe<T>()` alone returns a builder, not a subject.
+In this example, `Book` supplies the main data and `Author` supplies a lookup. `.Select()` combines both into a result subject: an object consumers can subscribe to for updated values.
 
 ### Example — watch one collection alongside a lookup
 
@@ -63,7 +65,7 @@ public class BookCatalogService(IMongoDBWatcher watcher)
 public record BookCatalog(IEnumerable<Book> Books, IEnumerable<Author> Authors);
 ```
 
-`Select()` is called once with the full current contents of each collection. Changes to any watched collection trigger a fresh joined snapshot, including inserts, updates, replacements, drops, deletes, and renames into or out of an observed namespace. Pending notifications may be coalesced: this is a live snapshot, not a delivery of every intermediate state.
+Arc initially reads each collection and calls your selector with those results. Changes to a watched collection trigger another read, including inserts, updates, replacements, drops, deletes, and renames into or out of an observed namespace. The collections are read separately, not as a single transactional snapshot. Pending notifications may be combined into one refresh, so the result represents current data rather than every intermediate state.
 
 ## Filtering observed documents
 
@@ -125,9 +127,11 @@ public class CatalogController(IMongoDBWatcher watcher) : Controller
 
 `IMongoDBWatcher` is a singleton. The host owns the singleton and disposes it at shutdown. A failed database watch reconnects with exponential backoff (one second up to 60 seconds), carrying its last resume token. An invalidation or an expired/invalid resume token discards that token, reopens the stream, and refreshes every joined observation. Tokens are held in memory, not as durable consumer checkpoints.
 
-Individual subjects returned by `Select()` run a background loop that is tied to the subject itself — the loop stops when the subject completes or errors. Unsubscribing all observers from a subject causes it to complete and cleans up its internal resources automatically.
+Each subject returned by `Select()` owns a background refresh loop. Completing or erroring the subject stops that loop. Removing the last subscriber also stops it and releases its resources, so create a new observation when you need to subscribe again.
 
-A failed joined snapshot is logged and retried up to five times, with delays of 1, 2, 4, 8, and 16 seconds. If all six attempts fail, Arc logs an error and retains the subscription; the next relevant database notification starts another snapshot attempt. Disposing the subject or removing its last subscriber cancels pending retries. Selector failures still terminate the result subject through `OnError`. These rules apply to the shared watcher, not the per-collection `IMongoCollection.Observe()` extension. Keep tenant-specific results inside their intended lifetime even though the watcher itself is singleton.
+A failed joined snapshot is logged and retried up to five times, with delays of 1, 2, 4, 8, and 16 seconds. If all six attempts fail, Arc logs an error and retains the subscription; the next relevant database notification starts another snapshot attempt. Disposing the subject or removing its last subscriber cancels pending retries. Selector failures terminate the result subject through `OnError`.
+
+These snapshot retry rules apply to joined observations, not the per-collection `IMongoCollection.Observe()` extension, even though both use the shared stream. Keep tenant-specific result subjects within the lifetime of the request or service that owns them; the singleton watcher's lifetime is not a reason to share those results across tenants.
 
 ## See also
 

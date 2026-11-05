@@ -1,23 +1,19 @@
 ---
-title: Generating a Screenplay
-description: "Arc reads your application's source and writes the event model it already describes as a .play file; this page says what the file contains and what it omits."
+title: "Cratis Arc Screenplay generation: recover your event model"
+description: Generate a Screenplay .play document from Cratis Arc C# source to review its event model, then use diagnostics to identify constructs left in code.
 ---
 
-An [event model](/event-modeling/) is the picture of your system: which commands change state, which events they produce, which read models those events build, and which reactors turn one thing into another. Teams draw it on a whiteboard at the start, and then the code moves on without it. Six months later the picture is fiction and nobody trusts it enough to open.
+Cratis Arc can generate a Screenplay `.play` document from your C# source so you can review the event model represented by the code. Use it when you have an existing application and want to trace commands, the events they produce, the read models built from those events, and the reactions that follow.
 
-**Screenplay** is a small language for writing that picture down as text — a `.play` file — so it can live in the repository next to the code it describes. Arc can _generate_ one from your application's source. The model stops being something you maintain by hand and becomes something you regenerate, the same way the [TypeScript proxies](/arc/understanding-the-proxy-boundary/) are regenerated rather than hand-written.
+[Event modeling](/event-modeling/) makes those relationships visible. Screenplay expresses them as text you can keep beside the implementation and regenerate after a change. The generated document describes constructs the analyzer can recover; it is not a complete translation of arbitrary C# behavior. Read its diagnostics alongside the model.
 
 ## Generated from source, not from a running system
 
-The generator reads a Roslyn compilation of your C# — the same thing the compiler sees. It never starts your application, connects to Chronicle, or looks at a deployed instance.
+The generator reads a Roslyn compilation, the source and symbols available to the C# compiler. It does not start your application or connect to Chronicle. You need the CLI, a compatible .NET/MSBuild environment, restored dependencies, and the build inputs needed for a meaningful compilation, but no running database.
 
-That choice is what makes the output useful:
+Keep the generated `.play` beside the source if you want to review model changes with implementation changes. Output ordering is explicit, so with the same compilation inputs, generator version, and options you can regenerate it and compare the result. A CI check can use that comparison to flag a document that needs updating.
 
-- **It works from a checkout, not a live store.** You still need the CLI, a compatible .NET/MSBuild environment, restored project dependencies, and the build inputs required to obtain a meaningful compilation. No running database or Chronicle connection is needed.
-- **It is diffable in a pull request.** A commit that adds a command shows up as a few lines added to the `.play`. Reviewers see the model change next to the code change, and "did this alter the event model?" becomes a question the diff answers.
-- **It is reproducible.** The same source always produces byte-identical output. Everything is ordered explicitly rather than by whatever order symbols happened to arrive in, so regenerating in CI and failing on a diff is a viable check.
-
-A runtime-derived model would answer a different question — what one deployed instance looks like right now — and would vary with configuration and environment. There is one model, and its source of truth is your source code.
+This answers what the analyzed source describes, not what a deployed instance is doing or which events it has stored.
 
 ```mermaid
 flowchart LR
@@ -35,13 +31,15 @@ The generator is used through the Cratis CLI, which ships separately from Arc:
 cratis screenplay generate ./MyApp/MyApp.csproj --file MyApp.play
 ```
 
-Point it at a project or a solution. A solution is one application rather than several, so its projects are read together into a single document — see [an application written as several projects](#an-application-written-as-several-projects). Anything the generator could not express is reported on the way out, and a run that reports an error exits non-zero — so a document nothing trustworthy went into never quietly looks fine. What the CLI has to do before it hands the source over is covered in [what the generator expects of its host](#what-the-generator-expects-of-its-host).
+Point the CLI at a project or solution and choose an output file that is not a hand-authored model. For a solution, it reads the projects together into one document; see [an application written as several projects](#an-application-written-as-several-projects).
 
-Because output is reproducible, a CI step can regenerate and fail when the committed `.play` no longer matches the source.
+Read the reported diagnostics before using the result. A run that reports an error exits non-zero. If the compilation is missing build inputs, follow [what the generator expects of its host](#what-the-generator-expects-of-its-host) rather than treating missing model elements as evidence that the code has none.
 
-## Nothing is dropped silently
+<a id="nothing-is-dropped-silently"></a>
 
-The gap between "what C# can say" and "what Screenplay can say" is real, and the worst thing a generator can do is paper over it. Every construct that cannot be expressed is reported as a located diagnostic — a stable code, a message you can act on, and where it came from — rather than quietly disappearing.
+## Read generation diagnostics
+
+Diagnostics explain where recognized source constructs cannot be represented faithfully. Each carries a stable code, a message, and a location so you can return to the relevant source. For example, a transport-specific query result does not describe a read-model shape:
 
 ```text
 Warning SP0019: The query 'Raw' returns 'IActionResult', which says how the result is
@@ -52,7 +50,9 @@ Diagnostics come in three severities. **Information** describes a limitation wit
 
 ## What the generator expects of its host
 
-The compatibility generator accepts either a Roslyn `Compilation` or a Generation `DotNetProjectCompilation`. It never opens a project file or loads a workspace, which is what lets it be driven from a CLI, from a specification, or from an editor. `DotNetProjectCompilation` adds the host-owned project role, authored syntax trees, and stable source-path context needed by neutral source adapters; the established compilation-only overloads remain available and produce the same `.play` bytes. The other side of that bargain is that **assembling the compilation the way a real build would is the caller's job** — the generator reads what it is handed and cannot tell a missing type from a type that was never written.
+If you are using the CLI, it supplies the compilation. If you are building your own host, pass either a Roslyn `Compilation` or a Generation `DotNetProjectCompilation` to the compatibility generator. The generator does not open project files or load a workspace; the host must assemble the compilation with the inputs a real build would use.
+
+`DotNetProjectCompilation` carries the host-owned project role, authored syntax trees, and stable source-path context needed by neutral source adapters. The compilation-only overloads remain available and produce the same `.play` bytes. Missing references or generated inputs can still limit what either overload recovers.
 
 Distinguish **workspace source generators** from **MSBuild-generated inputs**. `GetCompilationAsync` belongs to Roslyn `Project`, not `MSBuildWorkspace`. A workspace project compilation can already contain source-generator output; do not run the same generators over it again unconditionally. Arc's CLI uses `project.GetCompilationAsync(cancellationToken)` and separately restores missing resource sources/framework references where needed. MSBuild/custom-tool output such as resource designer files is not interchangeable with Roslyn generator output. Arc's TypeScript proxy generator is a post-build executable, not a C# source generator.
 
@@ -94,7 +94,7 @@ static Compilation RunGenerators(Project project, Compilation compilation)
 
 ### What happens when it does not
 
-Nothing is hidden, and nothing correct is thrown away. A compilation carrying errors is still analyzed, and `SP0024` says what happened — how many errors there were, the first of them, and how many artifacts came through anyway:
+The generator still analyzes a compilation that contains errors. `SP0024` reports the error count, the first error, and how many artifacts were recovered:
 
 ```text
 Warning SP0024: The source did not compile - 607 error(s), the first being 'The name
@@ -105,20 +105,18 @@ designer class usually means the compilation was handed over without the compile
 build generates (Accounts)
 ```
 
-Its **severity is decided rather than fixed**, because "the source did not compile" covers two outcomes that could not be further apart:
+Its severity depends on what was recovered:
 
-- **Warning** when at least one artifact was recovered from a declaration no compilation error sits inside. Those artifacts are described exactly as their source states them whatever failed elsewhere, so the run is successful and the document is worth keeping. A compilation missing its generated symbols lands here — the errors sit in code that declares no artifact, and the model is unaffected.
-- **Error** when none were, either because nothing was recovered at all or because every declaration something came out of is one the compiler could not make sense of. There is then no part of the document a reader could trust, and a host following the contract exits non-zero.
+- Warning: at least one artifact came from a declaration with no compilation error inside it.
+- Error: no artifacts were recovered, or every recovered artifact came from a declaration containing an error. A host following the contract exits non-zero.
 
-A count is used rather than a proportion deliberately: any threshold would make the same recovery pass for a large application and fail for a small one, and zero is the only number that means recovery was _prevented_ rather than merely dented.
-
-Either way the document is written out, so what was recovered can be read.
+The document is written in either case so you can inspect the recovered parts. A warning does not mean the application compiles or that the document is complete. Fix missing build inputs and compilation errors before relying on the recovered model.
 
 ### An application written as several projects
 
-Nothing says an application is one project. A layered one puts its contracts in a project of their own; a host sitting beside the bounded contexts it serves is two projects at least — and no single one of them describes the application. Pointed at any one, the generator would describe half of it and refer to events it never introduced.
+If contracts, application behavior, and hosting live in separate projects, analyze them together. Reading only one project can leave out declarations needed to understand its references.
 
-So `Generate` takes a list of compilations as well as a single one, and a host generating from a solution hands over one per project:
+`Generate` accepts a list of compilations as well as a single compilation. A host generating from a solution supplies one per project:
 
 ```csharp
 var result = generator.Generate([contracts, application, host], options);
@@ -133,15 +131,15 @@ var result = generator.Generate(projects, options);
 
 This project-aware compatibility overload intentionally delegates to the same established generator. The source context is carried for the neutral adapter path, not used to reinterpret legacy placement.
 
-What comes back is one document rather than one per project, because the boundaries between projects are a build concern rather than something the model has:
+The result is one document rather than one per project:
 
-- A namespace two projects declare into is **one slice**, whichever project each artifact sits in.
-- A concept is **declared once**, however many projects refer to it.
-- An event a sibling project declares is one the application **has**, so it is declared like anything else — not imported the way an event from a referenced package outside the application is.
+- A namespace shared by two projects becomes one slice.
+- A concept is declared once even when multiple projects refer to it.
+- An event declared in a sibling project is declared as part of the application, rather than imported like an event from a referenced package outside the analyzed set.
 
 Paths stay readable because they are written relative to the directory all the projects sit under rather than to each project's own root, so every path opens with the project it belongs to — `Library/Shipping/Dispatching/Dispatching.cs` beside `Library.Contracts/Ordering/Placing/Placing.cs`. Projects checked out in unrelated places share no such directory; each one's paths then fall back to its own root, and `SP0038` says so, because two files can then come out as the same path.
 
-The order the projects arrive in never reaches the document. Nothing decides what order a host enumerates a solution in, so they are sorted by assembly name before anything is read and the same projects always print the same bytes. Where that order has to decide something it says so: two projects declaring the same artifact name into one slice keep the first and report `SP0037`.
+Compilations are sorted by assembly name before analysis, with the first source path breaking ties, so host enumeration order does not determine the document order. If two projects declare the same artifact name in one slice, the generator keeps the first and reports `SP0037`.
 
 ## Inline events and destinations
 
@@ -206,7 +204,7 @@ Queries and projections referring to an omitted read model are withheld too, as 
 
 Dictionaries, constructed generic values such as `KeyValuePair<TKey, TValue>`, interfaces, abstract classes and other carried types without a Screenplay declaration are omitted with Warning `SP0030`, naming the property and its original type. This also applies to collections of those values and to properties inside carried records. Representable sibling properties remain. A carried record that loses every property cannot be declared; references to that emptied shape are omitted too. Abstract records with declarable properties remain supported.
 
-ESM v28 has no map, JSON, object or open-shape property type. The generator does not substitute `String`, invent a placeholder, or write a bare type name that nothing declares. The resulting declarations are partial descriptions, not equivalent replacements for the original C# contracts.
+Screenplay's executable semantic model (ESM) defines the constructs a generated document can express. ESM v28 has no map, JSON, object or open-shape property type. The generator does not substitute `String`, invent a placeholder, or write a bare type name that nothing declares. The resulting declarations are partial descriptions, not equivalent replacements for the original C# contracts.
 
 Behavior requiring a complete affected schema is withheld with Information `SP0030`: declarative commands, projections and reactions are not restated over fewer fields, and dependent screen data, tables and actions are left out. Queries remain when their parameters are representable; a query with an unnameable parameter is withheld rather than broadened. A scenario using an affected schema or withheld behavior is omitted in full with `SP0039`; fixtures and assertions are never silently trimmed. Review these diagnostics before using the generated document as a behavioral model.
 
@@ -554,7 +552,7 @@ Queries with the same name in different slices keep their names and bind by slic
 
 The classifier matches the complete reason after a declaration name, or the complete authoring-feature refusal message. Unknown or changed messages fail closed. Operand/type mismatches, undeclared operands, ambiguous references across slices, and invalid parent keys produce `SP0056` even when Screenplay reports them as `PLAY0268`.
 
-Standalone generation reports `SP0056` as **Warning**. Embedded generation compiles every scoped document independently, but binds only the final assembly/root document that holds the whole application. Scoped documents contain subsets of that document and symbolic imports the executable binder does not admit; they are compiled but semantically verified through the whole-application document, not bound in isolation. Embedded generation reports `SP0056` as **Information**, so MSBuild warnings-as-errors cannot break a consumer build because of a generator limitation. Arc's end-to-end CI gate takes the stricter responsibility: it fails on **any `SP0056`, regardless of severity**, or any unexpected binding error, and runs all three sample applications with authoring-only constructs both disabled and enabled. Accepting an admission limitation never exempts unresolved references, type mismatches, or other binding defects.
+Standalone generation reports `SP0056` as **Warning** when it withholds binding-invalid command productions and leaves them in the C# handler; remaining unexpected binding errors are **Error**. Embedded generation compiles every scoped document independently, but binds only the final assembly/root document that holds the whole application. Scoped documents contain subsets of that document and symbolic imports the executable binder does not admit; they are compiled but semantically verified through the whole-application document, not bound in isolation. Embedded generation reports `SP0056` as **Information**, so MSBuild warnings-as-errors cannot break a consumer build because of a generator limitation. Arc's end-to-end CI gate takes the stricter responsibility: it fails on **any `SP0056`, regardless of severity**, or any unexpected binding error, and runs all three sample applications with authoring-only constructs both disabled and enabled. Accepting an admission limitation never exempts unresolved references, type mismatches, or other binding defects.
 
 The document is still written out, so you can open it at the reported line and see what happened. If you hit this, it is a bug worth [reporting](https://github.com/Cratis/Arc/issues) — include the line, and the C# declaration it came from.
 
@@ -753,7 +751,7 @@ Identity and observation metadata survive even when the body stays code:
 
 Observation is not append routing. `[EventStreamId]` and `ICanProvideEventStreamId` choose where returned events append, not which events reach the reactor. Typed observation alone does not select that append route. Raw source/stream attributes and identity providers affect append routing when returned bare events use the reactor context. If every handler returns only explicit `EventForEventSourceId` destinations, commands, or no results, `[EventSourceType]` and `[FromEventSource<TSource>(stream)]` remain observation filters (`from Source` or `from Source.Stream`), without an `SP0065` append-route refusal. A provable two-argument explicit destination becomes a production with `for`; an unprovable destination keeps its `file` reference even when the filter is recovered. A bare event or event collection, including one handler in an otherwise explicitly routed reactor, keeps the existing append-route classification. Unproven results keep that conservative classification too. A handler returning bare events with non-default append routing or an identity provider stays a whole `file` trigger with `SP0065`: the released reaction evaluator appends unrouted facts, even though stream syntax exists.
 
-Chronicle appends a returned event collection atomically; a Screenplay reaction appends each fact separately. If a later event can be rejected, Screenplay could keep earlier facts that Chronicle would not append. A batch is stated only when no event after the first is targeted by a readable uniqueness constraint, no event before the last closes the stream, and every constraint's coverage is readable. Coverage includes all generic `On<T>` targets, class-level and property-level `[Unique]`, `[ClosesStream]`, and `ClosesStreamOn<T>`. Constraint configuration such as `PerEventStreamId()` does not make coverage unreadable, and `ReopenedBy<T>` does not add rejection targets. An unreadable constraint, including a visible implementation in a referenced binary, withholds batches but not single-event reactions. Referenced binaries use Roslyn's public metadata view: internal `IConstraint` implementations are not visible to this scan. Supply that project's source as an analyzed compilation for complete coverage rather than relying on internal declarations in a referenced package. Reactor scenarios reaching a withheld batch are omitted with `SP0039`.
+Chronicle appends a returned event collection atomically. When **ESM v22** is allowed, the generator selects Screenplay's atomic reaction-production mode for admitted multi-production reactions, including refusal branches. A later event may therefore have a uniqueness constraint: rejection must not leave earlier facts appended. Every constraint's coverage must be readable, and the batch's required rejecting constraints must remain declaratively represented in the emitted document. Batches where an event before the last closes the stream are still withheld. Coverage includes all generic `On<T>` targets, class-level and property-level `[Unique]`, `[ClosesStream]`, and `ClosesStreamOn<T>`. Constraint configuration such as `PerEventStreamId()` does not make coverage unreadable, and `ReopenedBy<T>` does not add rejection targets. An unreadable constraint, including a visible implementation in a referenced binary, withholds batches but not single-event reactions. Referenced binaries use Roslyn's public metadata view: internal `IConstraint` implementations are not visible to this scan. Supply that project's source as an analyzed compilation for complete coverage rather than relying on internal declarations in a referenced package. Unreadable or unrepresented rejecting constraints and early stream closing keep a batch file-backed with `SP0070`. Below a `MaximumExecutableModelVersion` cap of v22, a batch must still match legacy per-fact appends; a later uniqueness constraint that requires atomic mode therefore keeps it file-backed too. Reactor scenarios reaching a withheld batch are omitted with `SP0039`.
 
 Both metadata directives require ESM v10. A `MaximumExecutableModelVersion` cap below v10 withholds those directives and reports `SP0066` in both default and authoring mode. An otherwise recoverable handler returning only events keeps its `produces` body when only `runs as` is withheld: system identity applies to returned commands, not event appends. Effects that depend on a withheld identity or observation filter retain their source reference. The cap never substitutes an unfiltered or unauthorized executable effect.
 
@@ -919,7 +917,7 @@ For `[GeneratedValue]` parameters, `PinGeneratedValue` supplies the deterministi
 
 Legacy values created inside `Handle()` still cannot be pinned. Their commands with successful scenarios keep legacy productions or handler references without `generated` or `returns`, and `SP0052` says why. Explicit given event sources also preserve this legacy fallback. Validation and authorization rejection scenarios need no generation fixture because those checks precede generation. A cap below ESM v7 withholds responses and `then returns` as well. A scenario whose sources cannot be stated faithfully is omitted regardless of fallback.
 
-Expect the document to grow. On a real application this roughly doubled it, at about seven lines per scenario.
+Recovered scenarios add their setup, action, and assertions to the document. Review them with the model to see which examples were recovered and which diagnostics need attention.
 
 ### Reactor scenarios and the reactions a scenario sets off
 
@@ -984,7 +982,7 @@ This distinction is deliberate: the compatibility generator keeps existing consu
 
 ## Screens
 
-A [vertical slice](../../vertical-slices.md) puts the React component that realizes a slice's screen in the same folder as its C#. Roslyn syntax trees carry real file paths, so the generator knows where each slice's source lives and declares a `screen` for every `.tsx` component sitting next to it, named after the file:
+A [vertical slice](../../vertical-slices.mdx) puts the React component that realizes a slice's screen in the same folder as its C#. Roslyn syntax trees carry real file paths, so the generator knows where each slice's source lives and declares a `screen` for every `.tsx` component sitting next to it, named after the file:
 
 ```text
 slice StateView Listing
@@ -1129,7 +1127,7 @@ Duplicate literal paths, wildcard or optional paths, computed paths or elements,
 
 ## What is not expressed
 
-A `.play` is a description of an application, not a second copy of it. **It does not round-trip back to code**, and reading one will not tell you everything the code does. The losses run in both directions.
+A generated `.play` describes the model recovered from the analyzed source; it is not a lossless copy of the application. Rendering supported constructs back to code does not restore omitted behavior, custom implementations, or source detail. The limits below explain what remains outside the document.
 
 ### Screenplay constructs the generator cannot infer
 
@@ -1193,14 +1191,14 @@ These details can remain outside the document because the language has no counte
 | Unrepresentable command denial or failure | `ShouldNotBeAuthorized()` becomes `then denied` only with an emitted authorization gate, exact policies and caller, and no other outcome. Otherwise Warning `SP0039` names the missing caller, inexact policy, combined outcome, or denial not explained by any stated policy. Exception assertions and uncategorized failures remain unsupported. |
 | Unexpected generated-document binding errors | Standalone generation withholds the uniquely attributable command's productions and leaves its handler in code. Warning `SP0056` names the original binder code, message, line and column. Dependent successful scenarios and orphan declarations are pruned, and the document is verified again. Errors without a safe command/handler attribution remain in the returned text and are reported as Error `SP0056`. A document with only expected binding limits remains unchanged. Embedded generation is unchanged. |
 
-If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.
+If the generated `.play` is missing something you expected, start with the diagnostics, then compare the source with the supported shapes above. A construct outside the analyzer's recognized patterns may need to remain in code.
 
 ## When this is the wrong fit
 
-If you maintain a `.play` by hand as the _design_ your code is written against — modeling first, then implementing — generation is the wrong direction and will overwrite your intent. Generation suits the opposite flow: code exists, and you want the model it already describes, kept honest automatically.
+Do not generate over a hand-authored `.play` that defines the design you are implementing. That document states intent; generation recovers a model from existing code. Use a separate output file if you want to compare the two, and use the [embedded explorer](embedded-event-model.md) when your next task is to browse the recovered model in the application.
 
 ## Related
 
 - [Embedded event-model explorer](embedded-event-model.md) — generate documents during the build and browse them inside your ASP.NET Core application.
-- [Vertical slices](../../vertical-slices.md) — the folder shape the generator recovers slices from. A slice per namespace produces a far better document than artifacts sitting in the root namespace.
+- [Vertical slices](../../vertical-slices.mdx) — the folder shape the generator recovers slices from. A slice per namespace produces a far better document than artifacts sitting in the root namespace.
 - [Understanding the proxy boundary](/arc/understanding-the-proxy-boundary/) — the other thing Arc generates from the same source of truth.

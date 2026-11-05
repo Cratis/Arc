@@ -1,6 +1,6 @@
 ---
 title: Controller query route templates
-description: Define explicit MVC routes and bind resource identifiers from the path.
+description: Cratis Arc controller queries combine Route and HttpGet templates to bind resource identifiers from URL paths and constrain route values.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.

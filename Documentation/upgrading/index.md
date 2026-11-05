@@ -1,13 +1,16 @@
 ---
-title: Upgrading Arc
-description: Changes in Arc that can need an action from you when you upgrade, and what to do about each one.
+title: Upgrade Cratis Arc
+description: Check whether your Cratis Arc upgrade needs changes to forwarded identity, discovery access, generated identifiers or command scenarios.
 ---
 
-Most Arc upgrades need nothing from you. When a release changes a default or a behavior that an
-application can rely on, it gets a page here. Each page answers the question that matters most first:
-**does anything change for you?** It then names who is affected and the one change that keeps the
-previous behavior when you need it.
+When upgrading Cratis Arc, check the guides below for behavior your application relies on. They explain
+which code or deployment settings need attention and how to check the result before deploying the upgrade.
 
-| Change | What it means for you |
+| If your application relies on… | Follow this guide |
 | --- | --- |
-| [Secure defaults](secure-defaults.mdx) | Forwarded identity headers need an explicit opt-in before Arc trusts them, and discovery endpoints require authentication outside Development. |
+| Forwarded identity headers or anonymous access to discovery endpoints outside Development | [Secure defaults](secure-defaults.mdx): review the ingress trust boundary and choose authenticated or disabled discovery before considering anonymous access. |
+| Identifiers created inside `Handle()`, `IIdentitySource` or queued identities in command scenarios | [Generated identifiers](generated-values.mdx): move generation to server-owned parameters, replace queues with named pins and check concept rules. |
+
+Start with the behavior you use; you do not need to change an unrelated part of your application. For a
+deployed host, check authentication and discovery using its actual environment and ingress. For generated
+values, check both the handler and the scenarios that assert its result.

@@ -1,6 +1,6 @@
 ---
 title: Code analysis
-description: Build-time diagnostics for Arc's optional Chronicle integration, including their heuristics and boundaries.
+description: Cratis Arc's optional Chronicle integration provides ARCCHR diagnostics to catch command, reactor and read-model mistakes at build time, with code fixes.
 ---
 
 These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**, not to standalone Arc or every project that references pure Chronicle. They catch integration mistakes while you build, so a misplaced key, ambiguous identity, or unsupported handler shape is visible before a request reaches production.

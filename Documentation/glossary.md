@@ -1,9 +1,9 @@
 ---
-title: Glossary
-description: One precise line per Arc term, stated once so it means the same thing in every backend language and on the frontend.
+title: CQRS glossary for Cratis Arc
+description: Cratis Arc terms define commands, queries, validation, identity, tenancy, and generated proxies across backend languages and the frontend.
 ---
 
-Cratis Arc is an opinionated CQRS application framework with commands, queries, validation, authorization and generated TypeScript proxies for ASP.NET Core, Spring Boot and the TypeScript source preview.
+Cratis Arc is an opinionated CQRS application framework with commands, queries, validation, authorization and generated TypeScript proxies for ASP.NET Core, Spring Boot and the TypeScript backend.
 
 Arc is implemented for more than one backend language, and the same idea
 sometimes carries a different spelling in each. This page defines the idea. Where
@@ -14,7 +14,7 @@ Terms that belong to one implementation only live in that implementation's own
 glossary: [C#](/arc/backend/csharp/) and
 [Kotlin and Java](/arc/backend/kotlin/reference/glossary/). The
 [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/)
-covers the source preview's implemented and missing features.
+covers that backend's implemented and missing features.
 
 ## Write side
 
@@ -86,7 +86,7 @@ covers the source preview's implemented and missing features.
 
 - **Proxy generation** — producing the TypeScript client from the backend's own
   declarations through a configured generator, so regenerating and type-checking
-  can detect structural drift. TypeScript's source preview runs a source-based
+  can detect structural drift. The TypeScript backend runs a source-based
   generator explicitly; the emitted client targets the shared frontend runtime.
 - **Generated proxy** — the TypeScript command or query the frontend imports. It
   is build output, never edited by hand.

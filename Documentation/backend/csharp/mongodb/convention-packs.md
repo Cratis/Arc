@@ -1,22 +1,21 @@
 ---
-title: Convention packs
-description: Provide and filter process-wide MongoDB mapping conventions.
+title: Apply MongoDB convention packs in Cratis Arc
+description: Apply shared BSON mapping rules in Cratis Arc, filter them by document type, and handle missing or null collections on MongoDB read models.
 ---
 
-Convention packs apply consistent rules across MongoDB class maps. Arc discovers pack providers and filters during MongoDB setup. The examples below are provider/type declarations or illustrative configuration/test fragments for a configured host, not independent programs. Import `Cratis.Arc.MongoDB`, `MongoDB.Bson`, `MongoDB.Bson.Serialization`, `MongoDB.Bson.Serialization.Conventions`, and `MongoDB.Bson.Serialization.Serializers` as needed.
+Use MongoDB convention packs when several document types need the same BSON mapping rule, such as storing enums as strings or using a naming policy. Cratis Arc discovers your pack providers and type filters during [MongoDB setup](./getting-started.md), so you can define the rule once and decide which types it affects.
 
 ## What are Convention Packs?
 
-Convention packs are collections of conventions that MongoDB applies automatically to class maps during registration. They allow you to:
+A convention pack groups rules that the MongoDB driver applies when it builds a class map, the definition of how a .NET type is stored as BSON. Use a [class map](./class-mapping.md) for one document type's exceptions and a convention pack for a rule shared by several types.
 
-- **Apply consistent rules**: Ensure all classes follow the same patterns
-- **Reduce boilerplate**: Avoid repeating configuration in every class map
-- **Conditional application**: Apply different rules to different types
-- **System-wide changes**: Modify behavior across your entire application
+These registrations are process-wide. Choose them before serialization begins, and use type filters when a rule should apply only to part of the model. They are not per-tenant or per-request settings.
+
+The examples below are provider and type declarations or fragments for a configured host, not independent programs. Import `Cratis.Arc.MongoDB`, `MongoDB.Bson`, `MongoDB.Bson.Serialization`, `MongoDB.Bson.Serialization.Conventions`, and `MongoDB.Bson.Serialization.Serializers` as needed. Examples with application types such as `BaseDocument` need your own declarations.
 
 ## Built-in Convention Packs
 
-Cratis Applications automatically registers several convention packs:
+Arc registers the following packs during setup. You do not need to add them yourself.
 
 ### Naming Policy Convention
 
@@ -61,50 +60,36 @@ RegisterConventionAsPack(
 
 #### Why it exists — a separate serialization boundary
 
-This convention works for standalone Arc `[ReadModel]` documents too. Chronicle is one optional producer of the missing/null shapes described below, not a prerequisite for using the convention.
+A non-nullable collection declaration tells C# callers they can use `.Any()` or `.Select()` without a null check. Stored documents may still omit that field or contain an explicit `null`, causing those calls to fail at runtime.
 
-A read model that declares a child collection as a non-nullable `IEnumerable<T>` promises the type system that the
-value is there. The store is free to disagree. Chronicle's read model sink writes **no field at all** for a child
-collection that has never had an element, and can write an **explicit `null`** for one whose last element went away.
-Nullable reference analysis has already concluded the member can never be `null`, so nothing warns, and an unguarded
-`.Any()` / `.All()` / `.Select()` throws at runtime.
-
-Chronicle closes this for **its own reader** with a `JsonTypeInfo` modifier on its client's `JsonSerializerOptions`.
-That fix lives at Chronicle's serialization boundary and **does not reach the MongoDB driver**. Reading a read model
-through `IMongoCollection<T>` — the sanctioned way to query by anything other than the key, and what Arc's own
-server-side paging runs on — goes through the driver instead. This convention is the same guarantee, restated where
-the driver can honor it.
+This convention handles both stored shapes when the MongoDB driver reads a type marked `[ReadModel]`. It works for standalone Arc read models; Chronicle is not required. Rules applied by a JSON serializer do not configure BSON reads through `IMongoCollection<T>`, so this behavior belongs at the MongoDB serialization boundary.
 
 #### What it covers
 
-Both shapes a store can leave behind, through two different mechanisms:
+An absent field and an explicit null need different handling:
 
 | Stored shape | Mechanism | Result for a non-nullable member |
 | --- | --- | --- |
 | The field is **absent** from the document | a default value on the member map | an empty collection |
 | The field is present and holds **`null`** | a serializer wrapping the member's own | an empty collection |
 
-Both halves are needed: the driver never invokes a member's serializer for an element that is not in the document, and
-a default value is never consulted for one that is.
+The driver does not call a member's serializer for an absent field, and it does not consult a default value for a field that is present. The convention therefore supplies both a default and a serializer wrapper.
 
 #### What it deliberately leaves alone
 
-- **Nullable collections.** A member declared `IEnumerable<T>?` keeps the distinction between "no collection" and "an
-  empty collection", because that model asked for it. Absent stays `null`; a stored `null` stays `null`.
-- **Dictionaries.** `IDictionary<TKey, TValue>`, `IReadOnlyDictionary<TKey, TValue>`, and `Dictionary<TKey, TValue>`
-  are untouched.
-- **`string`.** It is an `IEnumerable<char>`, and the classic trap here would be handing it an empty list.
-- **Types without `[ReadModel]`.** The scoping is what keeps this from redefining what `null` means for every BSON
-  type in the process.
-- **Writing.** Serialization is unchanged — a collection that is `null` in memory is still written as `null`.
+The convention leaves these members and types to their normal mapping:
+
+- Nullable collections such as `IEnumerable<T>?`, which can distinguish null from empty.
+- Dictionaries, including `IDictionary<TKey, TValue>`, `IReadOnlyDictionary<TKey, TValue>`, and `Dictionary<TKey, TValue>`.
+- Strings, even though `string` implements `IEnumerable<char>`.
+- Types without `[ReadModel]`.
+
+It changes reads only. A collection that is null in memory is still written as BSON null.
 
 #### Supported collection shapes
 
 `IEnumerable<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `List<T>`,
-`ISet<T>`, `IReadOnlySet<T>`, `HashSet<T>`, and single-dimension arrays `T[]`. Interface-typed members are filled with
-a `List<T>` (or a `HashSet<T>` for the set interfaces). Any other collection type is left as the driver would leave
-it — the empty value is assigned straight into the member, so a shape that cannot be constructed safely is not guessed
-at.
+`ISet<T>`, `IReadOnlySet<T>`, `HashSet<T>`, and single-dimension arrays `T[]` are supported. Interface-typed members receive a `List<T>`, or a `HashSet<T>` for set interfaces. Other collection types keep their normal driver behavior because the convention needs to create an empty value assignable to the declared member type.
 
 #### Opting out
 
@@ -126,12 +111,10 @@ public record Parent(string Id, [property: BsonDefaultValue(null)] IEnumerable<C
 
 #### Things to know
 
-- **The default replaces whatever a property initializer set.** A member written as
-  `public IEnumerable<Child> Children { get; set; } = [];` still comes back empty, but as a `List<Child>` rather than
-  the `Child[]` the collection expression produced. A member whose initializer sets a **meaningful non-empty** default
-  would be silently emptied — use one of the opt-outs above for that member.
-- **Registration order matters.** A class map freezes its conventions the first time it is built, so this is
-  registered during `AddCratisMongoDB`, before anything can deserialize.
+For an absent or null field, the convention's empty value replaces a property initializer. A member initialized with
+`public IEnumerable<Child> Children { get; set; } = [];` receives an empty `List<Child>`. If an initializer supplies meaningful non-empty data, use one of the opt-outs above to retain that default.
+
+Register the integration before deserializing any documents. The driver freezes class maps when first used, so registering the convention afterward cannot update an already frozen map.
 
 ## Creating Convention Pack Providers
 
@@ -222,7 +205,7 @@ public class DomainConventionPackProvider : ICanProvideMongoDBConventionPacks
 
 ## Filtering Conventions
 
-You can control which types convention packs apply to using filters.
+Use a filter when a pack should apply only to selected document types. For example, keep a legacy type's stored names unchanged while applying the naming policy to new domain models. A pack applies to a type only when every filter includes it.
 
 ### ICanFilterMongoDBConventionPacksForType
 
@@ -432,7 +415,7 @@ The `RequiredFieldConvention` example controls omission on **writes**; it does n
 
 ### Automatic Discovery
 
-Convention pack providers are automatically discovered during setup and instantiated with `Activator.CreateInstance`; use parameterless constructors. The following discovery sketch describes internals, not extra startup code to paste:
+Arc discovers convention pack providers and filters during setup and instantiates both with `Activator.CreateInstance`. Give them usable parameterless constructors rather than constructor-injected services. The following sketch describes discovery; it is not additional startup code:
 
 ```csharp
 // This happens during UseCratisMongoDB()
@@ -445,7 +428,7 @@ var filters = types.FindMultiple<ICanFilterMongoDBConventionPacksForType>();
 
 ### Registration Order
 
-Convention packs are registered in the order they're provided. If multiple conventions affect the same aspect, later conventions may override earlier ones.
+Arc registers supplied packs before its built-in naming, extra-element, and read-model collection packs, then registers discovered class maps. Later member conventions can overwrite earlier choices, including choices made in a class map's `Configure` method. Filter conflicting packs or use `IgnoreConventions` rather than relying on provider discovery order.
 
 ### Filter Application
 
@@ -509,7 +492,7 @@ public class CachedFilter : ICanFilterMongoDBConventionPacksForType
 
 ## Testing Convention Packs
 
-You can test your convention packs to ensure they work correctly:
+After registering the integration and your providers, inspect the member maps to check which conventions applied. These test fragments assume your application's `DomainModel`, `IgnoredConventionsModel`, and test framework are available:
 
 ```csharp
 [Test]
@@ -613,7 +596,4 @@ public class ApiModelFilter : ICanFilterMongoDBConventionPacksForType
 
 ## Next Steps
 
-- Learn about [Class Mapping](class-mapping.md) for type-specific configurations
-- Explore [Concepts](concepts.md) for domain-driven design patterns
-- Understand [Naming Policies](naming-policies.md) for consistent property naming
-- Review [Serializers](serializers.md) for custom type handling
+Use [class mapping](class-mapping.md) when a rule belongs to one document type rather than a group. If the storage names or values still differ from what you expect, check [naming policies](naming-policies.md) and [serializers](serializers.md). For typed IDs and names that should be stored as primitive values, see [concepts](concepts.md).

@@ -1,11 +1,13 @@
 ---
-title: Tenant Membership
-description: Verify that the effective caller may use a tenant selected from a request.
+title: Cratis Arc tenant membership checks
+description: Register an application-owned ITenantMembership check in Cratis Arc to verify that callers may use the selected tenant before accessing its data.
 ---
 
-A caller sends `x-cratis-tenant-id: acme`. The header resolver selects `acme`, but the header does not prove that the caller belongs to it. Tenant existence is not caller membership: Cratis AuthProxy's optional tenant verification checks that the tenant exists, not that the caller belongs to it. Deploying Arc behind AuthProxy alone does not establish membership enforcement. Register an application-owned `ITenantMembership` check or enforce caller-to-tenant membership at a trusted ingress.
+Cratis Arc tenant membership checks verify that a caller may use the tenant selected from a request. If a caller sends `x-cratis-tenant-id: acme`, the header resolver selects `acme`; an application-owned `ITenantMembership` hook can allow or deny that selection before tenant data is accessed. Alternatively, enforce caller-to-tenant membership at a trusted ingress.
 
-Use only claims supplied by validated authentication and authoritative membership data. An anonymous identity or a low-privilege caller's claims do not establish permission to use a selected tenant; even an authenticated tenant claim must represent an authorized membership. Keep membership authorization separate from permission to perform an operation.
+A tenant's existence does not establish caller membership. Cratis AuthProxy's optional tenant-existence verification checks that the tenant exists, not that the caller belongs to it. That check alone does not establish membership enforcement for an Arc backend.
+
+Base the decision on validated authentication and authoritative membership data. A claim is useful only when its trusted issuer establishes the caller's permission to use that tenant. Membership then answers which tenant the caller may use; authorization for the requested operation remains a separate decision.
 
 ## Check membership in the application
 
@@ -28,15 +30,21 @@ public sealed class ClaimsTenantMembership : ITenantMembership
 }
 ```
 
-When Arc resolves the request tenant, it passes the normalized candidate and the effective principal to the hook. A caller with a trusted `tenant=acme` claim can use `acme`; a caller without it receives HTTP 403 when an Arc command or query tries to use that tenant. The sample also denies requests without a tenant header, because those resolve to `TenantId.NotSet`. A denial uses the normal unauthorized result without exception details, even if exception detail exposure is enabled.
+Arc passes the normalized candidate tenant and the effective caller's `ClaimsPrincipal` to the hook. In this example, an authenticated caller with a trusted `tenant=acme` claim can use `acme`. A caller without that claim receives HTTP 403 when an Arc command or query tries to use the tenant. Requests without the header resolve to `TenantId.NotSet`, which this implementation also denies. A denial uses the normal unauthorized result without exception details, even when exception detail exposure is enabled.
 
-The hook is optional, not convention-provided. Without a registration, resolver behavior remains unchanged and Arc does not automatically enforce membership. Registering multiple hooks requires **all** of them to allow the candidate. Returning `false`, throwing, or failing to resolve a registered hook denies access. An absent principal is represented by an unauthenticated `ClaimsPrincipal`; each hook decides whether to permit it. `TenantId.NotSet` is checked too: explicitly decide whether the application's default tenant is allowed.
+Register the hook explicitly; convention-based registration does not supply one. Without a registration, resolver behavior stays unchanged and Arc does not automatically enforce membership. If you register several hooks, all must allow the candidate. Returning `false`, throwing, or failing to resolve a registered hook denies access.
+
+When no principal is available, Arc passes an unauthenticated `ClaimsPrincipal`; the hook decides whether to allow it. Arc also checks `TenantId.NotSet`, so decide explicitly whether an unset tenant is permitted. Check `TenantId.Default` too if your rule must reject both default aliases.
 
 ### Keep the hook synchronous
 
-`ITenantIdAccessor.Current` is a synchronous property and can be used while constructing services. Consequently `ITenantMembership.IsMember` must be fast and synchronous: use trusted claims or in-memory membership data that was loaded before entering Arc. Do not perform I/O, block on an async task, or resolve `ITenantIdAccessor.Current` recursively from the hook. If membership needs a database lookup, preload it in authentication or request middleware before Arc tenant resolution.
+`ITenantIdAccessor.Current` is synchronous and may be read while constructing a service. Its membership hook must therefore answer synchronously too. Use trusted claims or in-memory membership data loaded before entering Arc. If membership requires a database lookup, preload that data in authentication or request middleware before tenant resolution. Do not perform I/O, block on an async task, or read `ITenantIdAccessor.Current` recursively from the hook.
 
-Hooks are resolved from the current request's service provider, so scoped registrations are supported. Arc resolves them once per request or observable-query subscription and reuses those instances only there, so a transient hook behaves like a scoped one within a request. The membership check itself still runs on every read. Verified reads are not cached: changing the effective principal or membership data does not reuse a previous successful check. During an authorized operation, Arc keeps its selected principal and tenant snapshot visible for that operation. Explicit `ITenantScope.Begin` scopes are trusted application code and bypass request membership checks; use them only after making the required authorization decision.
+Arc resolves hooks from the current request's service provider, so scoped registrations work. It resolves the instances once per request or observable-query subscription and reuses them only there. A transient registration consequently behaves like a scoped one within a request.
+
+Reusing a hook instance does not cache its decision. Each verified read checks the candidate and effective principal again, so changed membership data does not reuse a previous successful decision. During an authorized operation, Arc keeps the selected principal and tenant snapshot visible for that operation.
+
+Explicit `ITenantScope.Begin` scopes bypass request membership checks because they represent a tenant chosen by trusted application code. Make the required authorization decision before beginning one.
 
 ## Recognize the startup warning
 
@@ -62,12 +70,14 @@ Enable it only when the ingress enforces caller-to-tenant membership and direct 
 
 ## Membership denials in validators
 
-By default a `TenantMembershipDenied` thrown by a validator, for example by an injected tenant accessor, becomes a `ValidatorFailed` validation error. A raised allowed severity can drop that error. Set `Tenancy:StrictValidatorMembership` to `true` to make such a denial reject the operation as unauthorized instead. We recommend turning it on.
+By default, a `TenantMembershipDenied` thrown by a validator, for example through an injected tenant accessor, becomes a `ValidatorFailed` validation error. Raising the allowed validation severity can cause that error to be dropped. Set `Tenancy:StrictValidatorMembership` to `true` so a membership denial rejects the operation as unauthorized instead. Enable it when validator code can read the tenant.
 
 Reading the tenant through the validation context (`GetTenant()`) is always strict, whatever this setting is. See [reading the tenant and caller](../commands/validation.md#reading-the-tenant-and-caller).
 
 ## Boundary of the check
 
-Registering `ITenantMembership` opts in to server-side enforcement when request code resolves a tenant, including Arc HTTP command/query endpoints, ASP.NET Core controllers and native HTTP hosting. It is not blanket authorization for every endpoint. Arc checks observable WebSocket and SSE connections before upgrading or committing streaming headers when a hook is registered, and still checks each subscription's effective principal and tenant. An explicitly selected application tenant remains trusted. Membership is checked when a subscription starts, not on every emission; an application replacing Arc's tenant accessor is responsible for its own membership enforcement.
+Registering `ITenantMembership` opts in to server-side enforcement when request code resolves a tenant. That includes Arc HTTP command/query endpoints, ASP.NET Core controllers and native HTTP hosting, but it does not authorize every endpoint automatically. An application that replaces Arc's tenant accessor must provide its own membership enforcement.
 
-Background work without an HTTP request does not invoke the hook. Use an explicit tenant scope and make the authorization decision before starting that work. This feature does not infer memberships from arbitrary claims, add tenant filters to queries, or change database naming. [MongoDB database isolation](database-resolvers.md), tenant resolution and caller membership remain distinct responsibilities. Continue with [tenant context access](tenant-context.md) to use the verified tenant in application services.
+For observable queries, Arc checks WebSocket and SSE connections before upgrading or committing streaming headers when a hook is registered. It also checks each subscription's effective principal and tenant when the subscription starts, not on every emission. An explicitly selected application tenant remains trusted.
+
+Background work without an HTTP request does not invoke the hook. Make the authorization decision before starting that work, then use an explicit tenant scope. Membership checks do not infer permission from arbitrary claims, add tenant filters to queries, or change database naming. See [MongoDB database isolation](database-resolvers.md) for destination selection, or continue with [tenant context access](tenant-context.md) to use the tenant in application services.

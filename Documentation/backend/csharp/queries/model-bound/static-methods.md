@@ -1,6 +1,6 @@
 ---
 title: Static query methods
-description: Declaration, async execution, and discovery rules for model-bound queries.
+description: Cratis Arc exposes public static read-model queries by convention or explicit selection with RequireQueryAttribute and the Query attribute.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.

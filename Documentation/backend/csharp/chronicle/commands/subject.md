@@ -1,21 +1,19 @@
 ---
-title: Setting Subject on commands
-description: Tell Chronicle which compliance identity a command writes under, so PII is encrypted under the right key.
+title: Set Subject on Chronicle command events
+description: Set a Chronicle command's compliance subject when returned events belong to a different identity, and understand when a returned Subject takes effect.
 ---
 
-Use `Subject` on a Chronicle command when the compliance identity for returned events is different from the event source id. Arc passes the resolved subject as metadata for return-driven appends. This is separate from read-model decryption: `Release(instance)` resolves its subject from the instance, not from the command's subject.
+Set a command's `Subject` when returned events need a compliance identity other than their event source id. In Cratis Chronicle, the subject identifies whose key protects personally identifiable information (PII). An order can keep the order's event source id while its customer's subject supplies the encryption identity. Cratis Arc passes the subject as append metadata; you still annotate personal data on event properties or shared concepts.
 
-If you do not provide a command subject, Chronicle consults event-level subject metadata before the final event-source-id fallback. See the [subject resolution reference](../compliance/subject.md) for precedence and dependency timing.
+Without a command subject, Chronicle checks event-level subject metadata before falling back to the event source id. [Subject resolution](../compliance/subject.md) explains that precedence. Read-model decryption is separate: `Release(instance)` resolves its subject from the instance, not from the command.
 
-Aggregate `Apply()` does not forward the command-context subject in the current integration. Its events use Chronicle's event-level subject resolution and fallback. Setting or returning a subject on the command does not retag those events. See the [aggregate limitation](../compliance/subject.md#aggregate-apply-limitation).
+Aggregate `Apply()` also follows a separate path and does not forward the command-context subject. Setting or returning a command subject does not retag aggregate events; they use event-level subject resolution and fallback. See the [aggregate limitation](../compliance/subject.md#aggregate-apply-limitation) if your command writes through an aggregate.
 
-The examples are routing fragments with application domain types, not complete PII encryption examples. Annotate event properties or shared concepts independently when they contain personal data.
+The examples below show subject routing with application domain types. They are not complete PII encryption examples.
 
 ## Set Subject on the command
 
-When the subject is already part of the command, put it on the record itself.
-
-Implement `ICanProvideSubject` when you want the subject to be computed:
+Choose a command-level subject when the compliance identity is known before handling. Implement `ICanProvideSubject` to derive it from the command's properties. In this order example, `GetEventSourceId()` selects the order's history and `GetSubject()` selects the customer:
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -40,7 +38,7 @@ public record PlaceOrder(EventSourceId OrderId, CustomerId CustomerId, decimal A
 public record OrderPlaced(CustomerId CustomerId, decimal Amount);
 ```
 
-`GetEventSourceId()` selects the order explicitly, even if the application's `CustomerId` also derives from an event-source id. The event keeps that foreign customer reference; the order's own id is in event context.
+Selecting the order explicitly avoids ambiguity if `CustomerId` also derives from an event source id. The event payload keeps the customer reference; the order's own identity is in the event context.
 
 Use a `Subject` property directly when the command already has the final compliance identity:
 
@@ -86,7 +84,7 @@ Chronicle converts the `[Subject]` value to `Subject` by calling `ToString()`.
 
 ## Override Subject from Handle()
 
-Return `Subject` in the tuple from `Handle()` when the subject is decided inside the handler. A returned subject overrides any subject that was resolved from the command itself.
+Return `Subject` alongside the event when the handler decides the compliance identity. The returned subject overrides the command's earlier subject for return-driven appends, regardless of tuple order.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -110,8 +108,8 @@ public record RegisterDependent(EventSourceId HouseholdId, Guid PersonId, string
 public record DependentRegistered(Guid PersonId, string Name);
 ```
 
-The `Subject` value is append metadata. Chronicle does not treat it as the command response. A returned subject arrives after validators, `Provide()`, and handler dependencies have been resolved; it cannot change their earlier release or retag already-enrolled events.
+The `Subject` value is append metadata, not the caller's response. It arrives after validators, `Provide()`, and handler dependencies have been resolved, so it cannot change data already released to those dependencies or retag events already enrolled. Set the subject on the command when it must be available earlier.
 
 ## When to use this page
 
-This page focuses on setting subject values on command appends. For the compliance background and how subject affects PII encryption and decryption, see [Subject](../compliance/subject.md).
+Once the command routes events under the right subject, use the [compliance subject reference](../compliance/subject.md) to check event-level fallback and read-model release behavior. Setting an append subject alone does not model or annotate the personal data in those events.

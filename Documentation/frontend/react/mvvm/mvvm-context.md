@@ -1,16 +1,15 @@
 ---
-title: MVVM Context
-description: Set up the <MVVM> component that configures MobX and Tsyringe bindings, and place the router that view models need.
+title: Cratis Arc MVVM context setup
+description: Place the Cratis Arc MVVM provider and React Router around your views, and understand which configuration and dependencies are shared across the app.
 ---
 
-The MVVM solution in Cratis Arc is based on top of [mobx](https://mobx.js.org).
-In addition to being based on top of it, everything internal is expecting a certain behavior that
-needs to be configured for mobx for everything to work.
+The Cratis Arc `<MVVM>` component configures [MobX](https://mobx.js.org), the library that tracks view model state changes, and registers shared services with TSyringe. Place it near the application root before rendering views created with `withViewModel()`. It supplements your `<Arc>` host; it does not replace that host or provide routing.
 
-This is were the `MVVM` context comes into play. The Arc exposes a component that
-configures mobx and also ensures the necessary bindings for [tsyringe](./tsyringe.md) are configured.
+## Place MVVM and the router
 
-Include it in your application setup. Components created with `withViewModel()` also read route and query parameters through React Router's `useParams` and `useSearchParams`, so they must render inside a router. `react-router-dom` 7 is a peer dependency of `@cratis/arc.react.mvvm`, and `<MVVM>` does not provide a router itself:
+First configure [TSyringe's decorator metadata](./tsyringe.md). The MVVM package declares React and React DOM 18 or 19, and `react-router-dom` 7, as peer dependencies.
+
+Render the following `App` beneath your existing `<Arc>` provider. Every `withViewModel()` component must also be inside a router, even if that view does not use route parameters: the wrapper calls React Router's `useParams` and `useSearchParams` internally. If your application already has a router, keep it rather than nesting another one. This example shows the MVVM/router portion of the host:
 
 ```tsx
 import { BrowserRouter } from 'react-router-dom';
@@ -26,3 +25,17 @@ export const App = () => {
     );
 };
 ```
+
+## Understand what initialization shares
+
+`<MVVM>` calls `Bindings.initialize()`, which registers `INavigation` and `IIdentityProvider` as singletons, the browser's native `localStorage` as `ILocalStorage`, and a messenger instance. These registrations use TSyringe's shared container. Adding another `<MVVM>` subtree does not create an isolated set of services; use a [messenger scope](./messaging.md#scoped-messaging) when you need a local communication boundary.
+
+Initialization accesses browser storage, and the navigation service observes `document.body` when resolved. This setup needs a browser environment; do not treat it as a server-rendering provider.
+
+MobX configuration is application-wide too. By default, `<MVVM>` sets `enforceActions` to `'never'`, allowing view model methods to change observable state without explicit MobX actions. It also defers reactions to a microtask so they do not run synchronously during React rendering. The optional `mobx` prop overrides these defaults; changing it affects more than the nearest view.
+
+## Bind the first view
+
+Follow [using a view model](./using-view-model.md) to render a counter and change its state from a button. `withViewModel()` creates a child dependency container for the view and makes the resolved view model observable. That is the boundary for view-specific dependencies such as dialogs and the nearest messenger; the shared registrations above are not recreated per view.
+
+When a view owns subscriptions, give its view model a `detached()` method to release them on disposal. Ordinary unmount disposal is skipped with `<Arc development>`, so check the [view model lifecycle](./using-view-model.md#view-model-lifecycle) before relying on it.

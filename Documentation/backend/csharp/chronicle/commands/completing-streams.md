@@ -1,13 +1,13 @@
 ---
-title: Completing streams
-description: Return a stream completion from a command or reactor to prevent further events in that stream.
+title: Cratis Arc stream completion
+description: Return CompleteStream from a Cratis Arc command or reactor to close a named stream after commit and reject later appends to that stream.
 ---
 
-Return `CompleteStream` when a stream must accept no more events. Arc completes it after the command's returned events commit; your handler does not need to inject `IEventLog`.
+Return `CompleteStream` from a Cratis Arc command when a period or process has ended and its stream must accept no more events. Arc commits the command's returned events first, then closes the stream. Your handler does not need to inject `IEventLog`.
 
-A completed stream accepts no more events, which is a different tool from the append check of Chronicle's [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/): completion closes the stream, the boundary rejects an append that missed an event. A [command routed through an event source definition](./event-source-definitions.md) declares the stream it completes; [the per-process scenario](./event-source-definition-scenarios.md#a-stream-per-process) shows a complete example.
+Choose completion to stop future writes, not to protect a decision from concurrent changes. Chronicle's [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) checks whether an append missed an event; it does not close the stream. A [definition-routed command](./event-source-definitions.md) already declares the route completion uses. Follow [the per-process scenario](./event-source-definition-scenarios.md#a-stream-per-process) to apply this to customer onboarding.
 
-This requires the `Cratis.Arc.Chronicle` integration and Chronicle kernel **19.39 or later** for event-source-scoped completion. An older kernel fails the completion; Arc never falls back to closing every source. Import `Cratis.Arc.Chronicle.Streams` for the completion value.
+Event-source-scoped completion requires the `Cratis.Arc.Chronicle` integration and Chronicle kernel 19.39 or later. An older kernel fails the completion; Arc does not fall back to closing every source. Import `Cratis.Arc.Chronicle.Streams` for the completion value.
 
 ## Complete the command's routed stream
 
@@ -44,9 +44,9 @@ A `Default` or unset stream id cannot be completed for any stream type through A
 
 ## Understand the completion boundary
 
-A command with a declared key or a specified id from `ICanProvideEventSourceId` completes that source's stream, narrowed further by its resolved event source type when one is declared. An event source id supplied in the handler's response also scopes the completion. You do not need an owner-qualified stream-id template just to keep another entity's stream open; templates remain useful for composing stream ids from command properties.
+To close only one entity's stream, give the command a declared key, a specified id from `ICanProvideEventSourceId`, or an event source id in the handler's response. Arc also narrows the completion by the resolved event source type when one is declared. You do not need to repeat the entity id in a stream-id template just to keep other entities' streams open.
 
-A command **without a declared or response-supplied event source id**, including `EventSourceId.Unspecified`, retains the all-sources behavior: it closes that stream type and id across the entire event log. The id Arc generates internally for a keyless command does not scope its completion. Use that intentionally when closing a period for everyone. Per-event routing overrides do not change which event source owns the completion.
+To close a period for everyone, use a command without a declared or response-supplied event source id. This includes `EventSourceId.Unspecified`: completion closes that stream type and id across the entire event log. An id Arc generates internally for a keyless command does not narrow the completion, and per-event routing overrides do not change its owner. Check this distinction before using completion on a keyless command.
 
 Arc first commits the command's events, then calls Chronicle to complete the stream. If the append or commit fails, Arc does not complete it. Nested commands wait for the outer command's commit. Completing an already completed stream succeeds, making a repeated completion safe.
 
@@ -70,7 +70,7 @@ public class CompleteObservedPeriod : IReactor
 }
 ```
 
-Redelivery tolerates `AlreadyCompleted`. Other refusals become reactor side-effect failures. Chronicle does not support mixing this Arc completion with events in a tuple or collection. If a reaction must append final events and then complete, return a command that declares both instead. Replay also applies the completion; use Chronicle's `[OnceOnly]` only when the handler should deliberately skip replay.
+Redelivery tolerates `AlreadyCompleted`; other refusals become reactor side-effect failures. If the reaction must append final events as well as complete the stream, return a command that declares both. A reactor cannot mix this Arc completion with events in a tuple or collection. Replay also applies the completion. Use Chronicle's `[OnceOnly]` only when you intend the handler to skip replay.
 
 ## Assert completion in a command scenario
 

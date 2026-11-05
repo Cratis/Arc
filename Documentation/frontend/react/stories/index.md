@@ -1,55 +1,25 @@
 ---
-title: Story Components
-description: Why and how to use Arc.React Story Components for consistent Storybook stories, and how to load their stylesheet.
+title: Cratis Arc Storybook setup with story components
+description: Set up Cratis Arc story components in React Storybook stories with a shared stylesheet, reusable layouts, and explicit dark or light theme selection.
 ---
 
-## Overview
+Cratis Arc story components provide shared layouts for React stories in Storybook. Import their stylesheet once, then use the components to give stories the same spacing and card styles. Your Storybook configuration selects the dark or light palette.
 
-The Arc.React Story Components library provides a comprehensive set of reusable components and utilities designed specifically for creating beautiful, consistent Storybook stories. These components ensure that all your stories have a uniform look and feel while automatically adapting to both dark and light themes.
+<a id="overview"></a>
+<a id="motivation"></a>
 
-## Motivation
+Use these wrappers when several stories repeat the same container or section styling. The shared stylesheet lets you change that presentation in one place without changing the component each story demonstrates.
 
-When building component libraries, documentation through Storybook is essential. However, creating stories that look professional and consistent across different themes can be time-consuming and repetitive. Common challenges include:
+## Getting started
 
-- **Inconsistent Spacing**: Different stories use different padding and margins, making the documentation feel disjointed
-- **Theme Support**: Manual theme handling requires duplicate code and careful maintenance
-- **Layout Patterns**: Repeating the same container, grid, and section patterns across multiple stories
-- **Visual Hierarchy**: Ensuring consistent typography, colors, and visual structure
-- **Developer Experience**: Spending more time on story presentation than on showcasing the actual components
-
-## Solution
-
-The Story Components library solves these problems by providing:
-
-### Consistency
-
-Pre-built components with standardized spacing, sizing, and layout patterns ensure every story looks cohesive. Developers can focus on showcasing their components rather than styling containers.
-
-### Automatic Theme Adaptation
-
-Story components read their colors from CSS variables with a dark and a light palette. Your Storybook selects the palette by setting `data-theme` on the page; the stylesheet does not follow Storybook's theme or background by itself. See [theme support](theme-support.md#switching-themes) for wiring the backgrounds toolbar to it.
-
-### Reusable Patterns
-
-Common UI patterns like containers, grids, sections, badges, and dividers are available as ready-to-use components, reducing boilerplate and improving maintainability.
-
-### Beautiful by Default
-
-Thoughtfully designed defaults for colors, shadows, borders, and spacing mean your stories look professional out of the box.
-
-The stylesheet behind those defaults ships inside the package. Add one import to your Storybook preview and
-every component below is styled - see [Styling](styling.md).
-
-## Getting Started
-
-Load the stylesheet once, in your Storybook preview:
+Start with an existing React Storybook project that has `@cratis/arc.react` installed. Load the stylesheet once, in your Storybook preview; the components do not import it themselves:
 
 ```ts
 // .storybook/preview.ts
 import '@cratis/arc.react/stories/styles.css';
 ```
 
-Then import the components you need in your story files:
+Then import the components you need in your story files. This example assumes your story already defines the `Story` type and imports `MyComponent`:
 
 ```tsx
 import {
@@ -70,12 +40,34 @@ export const MyStory: Story = {
 };
 ```
 
-## What's Included
+With the stylesheet loaded, `asCard` gives this container a background, border, and shadow. If the wrapper has no card styling, check the preview import before adding styles to the story itself.
 
-- **[Components](components.md)**: Pre-built React components for common story layouts
-- **[Styling](styling.md)**: CSS variables and utility classes for consistent theming
-- **[Theme Support](theme-support.md)**: Automatic dark/light mode adaptation
+<a id="solution"></a>
+<a id="consistency"></a>
+<a id="reusable-patterns"></a>
+
+## Choose a story layout
+
+`StoryContainer` wraps a story with centered content and padding. Use `StorySection` to separate related examples, or `StoryGrid` to arrange examples in a responsive grid. `StoryBadge` labels a status, while `StoryDivider` separates groups with a horizontal line.
+
+<a id="beautiful-by-default"></a>
+
+### Shared styles
+
+The package stylesheet supplies the spacing, borders, and colors used by these wrappers. Override its CSS variables when you need different shared styles rather than repeating those values in each story.
+
+<a id="automatic-theme-adaptation"></a>
+
+## Match the Storybook theme
+
+The stylesheet defaults to a dark palette. Set `data-theme="light"` on an ancestor to select the light palette, or `data-theme="dark"` to select dark. Changing Storybook's background alone does not switch these variables. Follow [theme support](theme-support.md#switching-themes) to connect the backgrounds toolbar to the palette.
+
+## What's included
+
+- [Components](components.md) covers the layout components and their props.
+- [Styling](styling.md) lists the CSS variables and utility classes to override.
+- [Theme support](theme-support.md) explains palette selection and custom colors.
 
 ## Examples
 
-For comprehensive examples of all components and patterns, see the `StoryContainer.stories.tsx` file in the source code.
+For examples combining containers, sections, grids, and badges, see `StoryContainer.stories.tsx` in the source code.

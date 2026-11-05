@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0001: Incorrect aggregate root event handler signature"
-description: Aggregate root event handlers must follow one of the allowed On method signatures to be discovered.
+description: ARCCHR0001 in Cratis Arc reports aggregate root event handlers whose return type or parameters do not match a supported signature.
 ---
 
 ## Rule

@@ -1,13 +1,13 @@
 ---
-title: Validation severity filtering
-description: Choose which validation severities block execution and avoid executing warning-only commands before confirmation.
+title: Cratis Arc validation severity filtering
+description: Cratis Arc filters command validation by severity. Block warnings before asking for confirmation, and keep mandatory rules enforced on the server.
 ---
 
-Warnings are useful only if the UI knows whether they block the write. Arc's default allows warnings, so calling `execute()` and then asking for permission is too late for a warning-only command.
+Cratis Arc lets a command's UI stop on warnings before asking the user to proceed. The default client behavior allows warnings, so calling `execute()` and then asking for permission can be too late: a warning-only command may already have run. Choose the blocking threshold before the first execution attempt.
 
 ## Filtering logic
 
-`command.execute(allowedSeverity?, ignoreWarnings?)` applies these client rules and communicates the choice to the server:
+`command.execute(allowedSeverity?, ignoreWarnings?)` filters client validation results before sending a request. Without a declared `blockOnValidationSeverity` policy, it uses these rules:
 
 | Choice | Blocking client results |
 | --- | --- |
@@ -17,13 +17,19 @@ Warnings are useful only if the UI knows whether they block the write. Arc's def
 | `Unknown` | Information, Warning, and Error |
 | `ignoreWarnings: true` | Error only; overrides the severity choice |
 
-The numeric enum is `Unknown = 0`, `Information = 1`, `Warning = 2`, `Error = 3`. Explicit severity retains results **greater than** the allowed level. Do not pass Error as an override: it can filter all client errors, while the C# HTTP endpoint caps caller severity at Warning unless the command or host explicitly opts in. Mandatory business, integrity, and security requirements must remain server-enforced and non-overridable. Authorization is a separate pipeline decision, not merely a warning.
+The numeric enum is `Unknown = 0`, `Information = 1`, `Warning = 2`, `Error = 3`. An explicit severity blocks results greater than the allowed level. Passing `Unknown` therefore blocks Information, Warning, and Error, but does not itself block Unknown results.
+
+A generated proxy can also carry `blockOnValidationSeverity`, the minimum severity that must block execution. With that policy, results at or above its level block, Unknown results also block, and neither argument can relax the policy. A caller can still choose a stricter threshold.
+
+When a request is sent, the severity argument becomes the `X-Allowed-Severity` header; `ignoreWarnings: true` also sends `X-Ignore-Warnings: true`. The C# HTTP endpoint caps caller severity at Warning unless the command or host explicitly opts in. Do not pass Error as an override: without a declared client policy, it can filter out all client errors even though the server can still reject them.
+
+Keep mandatory business, integrity, and security requirements server-enforced and non-overridable. Authorization is a separate pipeline decision, not a warning the user can dismiss.
 
 ## Warning confirmation workflow
 
-If your rule is “ask only when warnings exist,” first execute with **Information** allowed, not the default. That attempt can execute immediately if there are no warnings/errors; it is an execution attempt, not a read-only preview. When warnings block it, require a nonempty warning-only result, no exceptions, and authorized status before offering an override.
+To ask only when warnings exist, first execute with Information allowed. That attempt can run the command immediately when there are no blocking results; it is not a read-only check. Offer confirmation only when the attempt failed with a nonempty set of Warning results, no exceptions, and authorized status.
 
-This standalone helper takes an already populated command and an application-owned confirmation function. Freeze the draft while it runs so confirmation applies to the same content:
+The helper below takes an already populated command and your application's confirmation function. Keep the draft unchanged while it runs so the user confirms the same content that will be submitted. The second attempt allows Warning results, but cannot override a declared policy that requires warnings to block:
 
 ```typescript
 import { ICommand, CommandResult } from '@cratis/arc/commands';
@@ -47,16 +53,16 @@ export async function executeWithWarningConfirmation<TContent, TResponse>(
 }
 ```
 
-A local warning can short-circuit before server authorization. The local `isAuthorized` value is therefore not proof that the server granted access; the final execution still must pass server authorization. Never interpret an empty validation array plus an authorization failure as “warnings only.”
+A local warning can stop the attempt before the server checks authorization. The local `isAuthorized` value therefore does not prove that the server granted access; the final execution must still pass server authorization. An empty validation array with an authorization failure is not a warning-only result.
 
-If the user must confirm **every** write, ask before the first execution, regardless of warnings. Do not use this helper as a universal preflight preview.
+If the user must confirm every write, ask before the first execution, regardless of warnings. This helper is for warning confirmation, not a universal preflight check.
 
 ## Why validate is not a warning-preview replacement
 
-`validate()` can stop at client rules without contacting the server, and server preflight uses its default severity filtering. It is not guaranteed to return all warnings or prove server authorization. Validators and filters remain application code and must independently avoid side effects. See [preflight validation](../commands/validation.md).
+`validate()` can stop at client rules without contacting the server. When it does reach the server, preflight uses its default severity filtering, so the call is not guaranteed to return every warning or prove server authorization. Validators and filters are application code and must independently avoid side effects. Use [preflight validation](../commands/validation.md) to understand what runs before the handler and what its result establishes.
 
 ## Server behavior and boundaries
 
-The generated C# endpoint caps the caller severity header at Warning by default, unless the command or host explicitly opts in. The command pipeline then applies its blocking-result policy; the opt-in cannot remove a declared blocking policy or the read-protection-On floor. Server policies and projected client rules can differ; always inspect the final result. A successful earlier preflight or confirmed warning does not reserve state or guarantee later execution success.
+After capping caller severity, the C# command pipeline applies its blocking-result policy. Opting in to a higher caller severity cannot remove a declared blocking policy or the Error blocking floor supplied by read protection set to On. Server policies and generated client rules can differ, so inspect the final result. A successful preflight or a confirmed warning does not reserve state or guarantee that a later execution will succeed.
 
 Use warnings only for genuinely overridable advice, not data integrity, access control, or regulatory requirements. See [backend severity filtering](../../../backend/csharp/commands/validation-severity-filtering.md) for the authoritative pipeline behavior and [command filters](../../../backend/csharp/commands/command-filters.md) for application-owned checks.

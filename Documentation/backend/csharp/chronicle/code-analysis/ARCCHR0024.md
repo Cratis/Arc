@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0024: Read-model shape cannot be protected"
-description: Source-visible admission refusals under Measure and On.
+description: ARCCHR0024 in Cratis Arc warns when a read-model parameter has a source-visible shape that Cratis Chronicle refuses to protect under Measure or On.
 ---
 
 ## Rule

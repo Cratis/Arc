@@ -1,6 +1,6 @@
 ---
 title: Refusals under read protection
-description: Every error read protection can return, what causes it, whether to retry, and how to fix it.
+description: Cratis Arc read protection returns retryable conflicts or configuration refusals. Find each failure's cause, HTTP status, and corrective action.
 ---
 
 Use this page when a command fails under read protection `On` and you want to know why and what to change. Read protection fails closed: when it cannot guard a read exactly, it refuses the command instead of running it unguarded.

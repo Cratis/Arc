@@ -1,15 +1,15 @@
 ---
-title: Observable Queries
-description: Use observable queries in React for real-time updates, and choose between hub-multiplexed and direct per-query connections.
+title: "Observable React queries: keep views up to date"
+description: "Keep React views updated with Cratis Arc observable queries, choose SSE, WebSocket or polling, and handle argument changes and server failures."
 ---
 
-Observable queries provide real-time updates in React through `useObservableQuery()` and generated proxy helpers. Arc supports both centralized hub routing and direct per-query connections.
+An observable query keeps a React view updated as the backend produces new results. Call the generated proxy's `use()` method, or the underlying `useObservableQuery()` hook, to subscribe rather than manually repeat an ordinary query.
 
-For backend implementation patterns, see [Controller-based Observable Queries](../../../backend/csharp/queries/controller-based/observable-queries.md), [Model-bound Observable Queries](../../../backend/csharp/queries/model-bound/observable-queries.md), and [Observable Query Hub](../../../backend/csharp/queries/observable-query-demultiplexer.md).
+Start with [query usage](./usage.mdx) for the component call and result handling. The backend must expose an observable query: use the [controller-based](../../../backend/csharp/queries/controller-based/observable-queries.md) or [model-bound](../../../backend/csharp/queries/model-bound/observable-queries.md) pattern that fits your application. Shared connections also need the [observable query hub](../../../backend/csharp/queries/observable-query-demultiplexer.md).
 
 ## Observable Query Transport
 
-By default, observable queries connect through centralized hub endpoints. Two props on the `<Arc>` component control this behavior.
+React's `<Arc>` provider defaults to Server-Sent Events (SSE) through a shared hub. SSE carries results from the server to the browser; the client sends subscription control requests separately. Choose a transport with `queryTransportMethod`, then use `queryDirectMode` if streaming queries need to connect to their own routes instead of the hub.
 
 ### `queryTransportMethod`
 
@@ -17,8 +17,8 @@ Selects the transport protocol used for observable queries.
 
 | Value | Description |
 | ------- | ------------- |
-| `QueryTransportMethod.ServerSentEvents` | Shared SSE hub at `/.cratis/queries/sse`, with subscribe/unsubscribe POSTs (React default). |
-| `QueryTransportMethod.WebSocket` | WebSocket hub transport. |
+| `QueryTransportMethod.ServerSentEvents` | SSE, using `/.cratis/queries/sse` and subscribe/unsubscribe POSTs in hub mode (React default). |
+| `QueryTransportMethod.WebSocket` | WebSocket, using `/.cratis/queries/ws` in hub mode. |
 | `QueryTransportMethod.Polling` | Repeated HTTP GET snapshots from each query's own URL, without a hub. |
 
 ```tsx
@@ -39,10 +39,9 @@ For polling, pass `queryTransportMethod={QueryTransportMethod.Polling}` to `<Arc
 
 ### `queryDirectMode`
 
-Controls whether observable queries connect directly to each query's own URL or route through the centralized hub.
+For SSE and WebSocket, leave `queryDirectMode` false to share hub connections across subscriptions. The hub routes each result back to the query that requested it.
 
-- When `false` (default): queries are routed through the centralized hub endpoint (`/.cratis/queries/sse` or `/.cratis/queries/ws` depending on `queryTransportMethod`).
-- When `true`: each observable query opens its own connection directly to the per-query URL, bypassing the hub entirely. This is useful during local development or when connecting to services that do not expose the centralized hub.
+Set it to true to connect each subscription to its query's own URL. Use this to inspect a per-query endpoint or connect to a host without hub endpoints. Direct mode keeps the selected transport: with React's default settings, the following example uses direct SSE, not WebSocket.
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
@@ -64,17 +63,17 @@ export const App = () => (
 
 ## Changing arguments, paging and sorting
 
-Non-Suspense observable hooks select a cache entry by query, arguments, page, page size and sort order. Changing any of these selects a matching subscription or starts one with the new settings. Two consumers on different pages do not share a subscription; matching consumers do.
+When a user changes a filter or page, non-Suspense observable hooks select a cache entry for the new query, arguments, page, page size and sort order. Matching consumers share a subscription; consumers on different pages do not.
 
-The result immediately shows the matching entry's cached result, if one exists. Otherwise it resets to the query's default value with `isReady: false` and `isPerforming: true` until a result arrives. Rows and failure status from the previous entry are not shown as the new result, and later pushes to the previous subscription do not update the component.
+The component immediately shows the new entry's cached result if one exists. Otherwise it shows the query's default value with `isReady: false` and `isPerforming: true` until a result arrives. The previous entry's rows and failure status are not presented as the new result, and its later updates no longer reach this component.
 
-A retained subscription stays live during the cache retention window. Returning to it shows its latest cached result without another subscribe. See [query instance caching](./query-instance-caching.md) for retention settings and [paging](./paging.md) for the paging and sorting controls.
+Subscriptions remain live during the cache retention window, which defaults to 30 seconds after the last consumer releases an entry. Returning within that window reuses its latest result and subscription. See [query instance caching](./query-instance-caching.md) to configure retention and [paging](./paging.md) to add navigation controls.
 
 ## Handle server-side observation failures
 
-For both SSE and WebSocket hub connections, a server `Error` message delivers a query result with `isReady: true`, `isSuccess: false`, `hasExceptions: true`, and the server error in `exceptionMessages`. For example, a MongoDB collection watch that cannot start because the database is unreachable reports a failure instead of leaving the hook waiting for its first result.
+A failed observation is not an empty collection. For both SSE and WebSocket hub connections, a server `Error` message produces a result with `isReady: true`, `isSuccess: false`, `hasExceptions: true`, and the server error in `exceptionMessages`.
 
-Check `result.hasExceptions` and show the error before treating missing data as an empty result. Normal unsubscribe and watch cancellation do not produce error results. An error result does not itself restart a failed backend observation; recovery requires a new observation. See [MongoDB observation errors and recovery limits](../../../backend/csharp/mongodb/observing-collections.md#errors-and-recovery-limits).
+Check `result.hasExceptions` before displaying an empty-state message. Receiving an error does not itself restart the failed backend observation; recovery requires a new observation. For MongoDB-backed queries, follow [observation errors and recovery limits](../../../backend/csharp/mongodb/observing-collections.md#errors-and-recovery-limits) to distinguish failures from normal watch cancellation.
 
 ## Related Pages
 

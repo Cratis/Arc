@@ -1,6 +1,6 @@
 ---
 title: Observable collection change streams
-description: Hub transfer modes, collection deltas, and their wire contract.
+description: Cratis Arc sends observable collection snapshots or deltas through its query hub, with stable item identities and configurable transfer modes.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->

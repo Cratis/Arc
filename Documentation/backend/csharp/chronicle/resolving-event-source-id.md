@@ -1,19 +1,21 @@
 ---
-title: Resolving EventSourceId
-description: How Arc's optional Chronicle integration selects command identity, and why response identity and query binding are separate stages.
+title: Resolve command EventSourceId in Arc and Chronicle
+description: Arc's Chronicle integration selects a stream identity before command dependencies run; returned identities and query arguments follow separate rules.
 ---
 
-The Chronicle integration selects an `EventSourceId` before a model-bound command runs. That identity selects its command-scoped read models and aggregate roots, and supplies the default target for returned events. It is not inferred from the authenticated user.
+The optional integration between Cratis Arc and Cratis Chronicle selects an `EventSourceId`, the identity of an entity's event stream, before a model-bound command runs. Use it to load the right command-scoped read models and aggregate roots and to target returned events. The authenticated user's identity does not select that stream.
+
+For a command that changes an existing entity, supply its stream identity in the command input. Returning an identity later cannot change which state the command used to make its decision.
 
 ## Resolution order for commands
 
 1. An `ICanProvideEventSourceId` implementation supplies the identity explicitly.
 2. Otherwise, Arc selects the first matching public property: an `EventSourceId`, an `EventSourceId<T>`-derived type, or a property carrying Chronicle's `[Key]`. A matching positional constructor parameter can carry `[Key]` too.
-3. With no candidate, Arc generates a new identity for creation commands. A declared but unusable key is different: it can resolve to `EventSourceId.Unspecified` and fail dependency resolution.
+3. With no candidate, Arc generates a new identity. This suits creation commands; it does not locate an existing entity. A declared but unusable key can instead resolve to `EventSourceId.Unspecified` and fail dependency resolution.
 
-There is **no typed-property-before-keyed-property precedence**. Declare exactly one candidate or implement the provider. An arbitrary implicit conversion on a `ConceptAs<Guid>` does not make it a runtime identity candidate. Use a domain identity derived from `EventSourceId<Guid>` instead.
+Arc does not prefer a typed property over a `[Key]` property. Declare exactly one candidate or implement the provider so the selected stream is unambiguous. An implicit conversion on an ordinary `ConceptAs<Guid>` does not make it an identity candidate; derive the domain identity from `EventSourceId<Guid>` instead.
 
-The following is a complete command/type example; host registration and persistence configuration are described in [Cratis package](./cratis-package.md).
+In this command/type example, `AccountId` selects the stream and `OwnerName` is an ordinary domain value. Register the host and persistence as described in [Cratis package](./cratis-package.md):
 
 ```csharp
 using System;
@@ -47,11 +49,11 @@ public record OpenAccount(AccountId AccountId, OwnerName OwnerName)
 public record AccountOpened(OwnerName OwnerName);
 ```
 
-For a legacy primitive key, mark the command property with `Cratis.Chronicle.Keys.KeyAttribute`. Do not substitute `System.ComponentModel.DataAnnotations.KeyAttribute`; that is the provider-neutral Arc key convention, not the Chronicle resolver's attribute.
+`OpenAccount.AccountId` is recognized through its `EventSourceId<Guid>` base, so it needs no `[Key]` attribute. For a legacy primitive key, mark the command property with `Cratis.Chronicle.Keys.KeyAttribute`. `System.ComponentModel.DataAnnotations.KeyAttribute` belongs to Arc's provider-neutral key convention and is not the attribute this Chronicle resolver uses.
 
 ## Input identity versus response identity
 
-An `EventSourceId` or `EventSourceId<T>` response can override the default target for **return-driven appends** after `Handle()` finishes. It cannot retroactively reload a validator's read model, retarget an injected aggregate, or move events the aggregate already enrolled under its input identity.
+An `EventSourceId` or `EventSourceId<T>` response can override the default target for return-driven appends after `Handle()` finishes. By then, command dependencies have already used the input identity. The response cannot reload a validator's read model, retarget an injected aggregate, or move events that aggregate already enrolled.
 
 A raw `Guid` remains an ordinary response. A keyless command can legitimately return an unrelated confirmation Guid while events use the generated fallback. [ARCCHR0010](./code-analysis/ARCCHR0010.md) is a heuristic warning to check that intent, not a runtime prohibition. See [Returning EventSourceId](./commands/returning-event-source-id.md).
 
@@ -59,7 +61,7 @@ A raw `Guid` remains an ordinary response. A keyless command can legitimately re
 
 Ordinary model-bound queries bind arguments by name and convert them to their declared types. They do **not** invoke the Chronicle command-key resolver. A typed id helps conversion and type safety; `[Key]` on a query argument does not select a read model automatically.
 
-Reuse `AccountId` and `OwnerName` from the command example so the query preserves the same domain vocabulary. This query/type fragment assumes the MongoDB integration is registered. The filter, not a command-key convention, selects the document:
+This query reuses `AccountId` and `OwnerName` from the command example and assumes the MongoDB integration is registered. The `id` argument is bound by name. The explicit filter selects the document; the command-key resolver does not participate:
 
 ```csharp
 using Cratis.Arc.Queries.ModelBound;

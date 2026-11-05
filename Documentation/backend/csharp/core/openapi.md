@@ -1,13 +1,15 @@
 ---
-title: Lightweight OpenAPI specifications
-description: Expose route metadata with Arc.Core's built-in OpenAPI endpoint, without the ASP.NET integration package.
+title: Expose route metadata with Cratis Arc.Core OpenAPI
+description: Use MapOpenApi() in Cratis Arc.Core to expose routes and endpoint metadata as a basic OpenAPI document, without body schemas or ASP.NET Core.
 ---
 
-When you need a route catalog for a lightweight service, Core can generate a basic route document declaring OpenAPI 3.0, with the compatibility limitations below. This support is already in **`Cratis.Arc.Core`**. The separate `Cratis.Arc.OpenApi` package supplies [ASP.NET Core transformers](../open-api/index.md); it is not required for `ArcApplication.MapOpenApi()`.
+`MapOpenApi()` exposes a lightweight service's routes and endpoint metadata as a document declaring OpenAPI 3.0. Use it to inspect the HTTP surface of a `Cratis.Arc.Core` service, not to generate a complete typed client: it does not include request or response body schemas.
+
+The method is included in `Cratis.Arc.Core`. You do not need the separate `Cratis.Arc.OpenApi` package, which supplies [ASP.NET Core transformers](../open-api/index.md).
 
 ## Getting started
 
-This runnable `Program.cs` checkpoint assumes the console project from [getting started](getting-started.md):
+In the console project from [getting started](getting-started.md), use this complete `Program.cs` to map a health check and the document endpoint:
 
 ```csharp
 using Cratis.Arc;
@@ -31,7 +33,7 @@ app.MapOpenApi();
 await app.RunAsync();
 ```
 
-`curl http://localhost:5000/openapi.json` returns a document with `openapi: "3.0.0"` and a `/health` path, alongside Arc's mapped routes. Mapping the document does not register Arc services or start the listener; the bootstrap above does both.
+Start the service, then call `curl http://localhost:5000/openapi.json`. The document contains `openapi: "3.0.0"` and a `/health` path alongside Arc's mapped routes. Keep the host setup shown above: `MapOpenApi()` does not register Arc services or start the listener.
 
 ## Configuration options
 
@@ -43,7 +45,7 @@ await app.RunAsync();
 | `title` | `Arc Application` |
 | `version` | `1.0.0` |
 
-This **mapping fragment** replaces `app.MapOpenApi()` in the checkpoint:
+To change the document URL and API information, replace `app.MapOpenApi()` in the example above with:
 
 ```csharp
 app.MapOpenApi(
@@ -56,7 +58,7 @@ app.MapOpenApi(
 
 The generator reads currently registered routes when the document is requested. Endpoint metadata supplies operation IDs, summaries, and tags. The server URL is `/`. It emits generic 200, 401, and 500 response descriptions for each operation, not a comprehensive status contract.
 
-For metadata with `AllowAnonymous = false`, it emits a Bearer/JWT security requirement and scheme. That is a **fixed documentation convention**: it does not inspect or install your actual authentication mechanism. It may not describe an API-key or forwarded-header deployment accurately.
+For metadata with `AllowAnonymous = false`, it emits a Bearer/JWT security requirement and scheme. This is a fixed documentation convention, not detection or configuration of your authentication mechanism. If your service uses API keys or forwarded headers, the generated security description may not match it.
 
 ## Limitations and production access
 
@@ -67,7 +69,7 @@ For metadata with `AllowAnonymous = false`, it emits a Bearer/JWT security requi
 - If you choose to disable the QUERY transport, set `options.GeneratedApis.EnableQueryHttpMethod = false` in the `AddCratisArc` callback. Generated queries then accept GET only. This is an application transport choice, not a fix to the generator or a requirement to run Arc; verify clients do not depend on QUERY.
 - The public lightweight mapping helpers currently expose GET and POST, not ASP.NET's full routing API.
 
-Validate compatibility before importing the document into Postman or pointing a separately hosted Swagger UI at it. For richer ASP.NET type schemas, use [Cratis.Arc.OpenApi](../open-api/index.md) or [Cratis.Arc.Swagger](../asp-net-core/swagger.md), and review their documented limitations too.
+Before importing the document into Postman or pointing a separately hosted Swagger UI at it, check that the tool accepts the generated operations and that the security description matches your service. If you are using ASP.NET Core and need type schemas, continue with [Cratis.Arc.OpenApi](../open-api/index.md) or [Cratis.Arc.Swagger](../asp-net-core/swagger.md); each has its own setup and documented limits.
 
 ## See also
 

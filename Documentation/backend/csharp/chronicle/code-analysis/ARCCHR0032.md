@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0032: Inert or redundant read-protection declaration"
-description: Remove only declarations that do not change the resolved policy.
+description: ARCCHR0032 identifies inert or redundant read-protection declarations in Cratis Arc, including sealed non-command types and repeated Off policies.
 ---
 
 ## Rule

@@ -1,6 +1,6 @@
 ---
 title: Resolving Tenant IDs
-description: Reference for Arc's built-in tenant ID resolvers (header, query, claim, subdomain, fixed, and development).
+description: Cratis Arc resolves tenant IDs from headers, query parameters, claims, subdomains or fixed configuration; selection does not authorize membership.
 ---
 
 Arc resolves tenant IDs through pluggable strategies. Each request is evaluated by the configured resolver, and the resulting tenant ID becomes the active tenant context for the request lifecycle.
@@ -65,7 +65,7 @@ builder.AddCratisArc(options =>
 
 A host carries a tenant only when it is **exactly one label in front of the base domain**. A request to `acme.myapp.com` resolves the tenant as `acme`. A request to `myapp.com` falls back to the `X-Custom-Tenant` header. This pattern is useful for SaaS applications where each tenant is routed through its own subdomain.
 
-The number of labels in a host is never used to decide whether it carries a tenant, so the following all fall back to the header:
+With `myapp.com` as the base domain, the following hosts either resolve a tenant label or fall back to the configured header:
 
 | Host                                                                    | Resolved tenant |
 | ----------------------------------------------------------------------- | --------------- |

@@ -1,11 +1,11 @@
 ---
-title: Migrating from the identity cookie
-description: What changed when Arc stopped trusting and writing the .cratis-identity cookie, what keeps working during the transition, and what applications must change.
+title: Cratis Arc identity cookie migration
+description: Migrate Cratis Arc identity reads from the .cratis-identity cookie to /.cratis/me, update cache clearing, and handle mixed frontend and backend versions.
 ---
 
-Earlier versions of Arc wrote the identity to a `.cratis-identity` cookie: unsigned base64 JSON with `HttpOnly = false`. On the server, `IIdentityProvider.Get()`, `Get<TDetails>()` and `/.cratis/me` returned whatever that cookie decoded to before looking at the authenticated principal. In the browser, `IdentityProvider.getCurrent()` read it before asking the server. Anyone who could set the cookie, such as a browser user or a script on a sibling subdomain, therefore decided which identity the application reported. Any script on the page could also read the identity, roles and details from it.
+To migrate Cratis Arc identity handling, replace direct `.cratis-identity` cookie reads with Arc's identity APIs and make `/.cratis/me` reachable from the frontend. The backend now derives identity from the authenticated request, while the frontend fetches the presentation data from that endpoint and keeps it in memory.
 
-Arc now derives the identity only from the authenticated request, and the frontend gets it from `/.cratis/me`.
+Earlier versions wrote unsigned base64 JSON to `.cratis-identity` with `HttpOnly = false`, making it readable by scripts. The server's `IIdentityProvider.Get()`, `Get<TDetails>()` and `/.cratis/me` returned the decoded cookie before checking the authenticated principal, and the browser's `IdentityProvider.getCurrent()` read it before asking the server. A caller who could set that cookie could therefore choose the identity the application reported. The migration removes that cookie as a backend identity source; it does not make frontend presentation data a substitute for authorization.
 
 ## What changed
 
@@ -13,34 +13,41 @@ Arc now derives the identity only from the authenticated request, and the fronte
 | --- | --- | --- |
 | `Get()`, `Get<TDetails>()`, `/.cratis/me` | Returned the cookie when one was sent, otherwise the principal | Always the authenticated principal; a sent cookie is ignored. Without a principal, `/.cratis/me` answers 401. |
 | `/.cratis/me` response | JSON body plus a readable `.cratis-identity` cookie | JSON body only. A `.cratis-identity` cookie on the request is expired. |
-| `IProvideIdentityDetails` | Skipped while the browser held the cookie | Runs on every `/.cratis/me` call |
+| `IProvideIdentityDetails` | Skipped while the browser held the cookie | Runs on every authenticated `/.cratis/me` call |
 | `ModifyDetails` | Wrote the modified identity to the cookie | Changes the current response only |
-| `IdentityProvider.getCurrent()` in `@cratis/arc` | Read the cookie, and called `/.cratis/me` only without one | Calls `/.cratis/me` once and keeps the answer in memory. Reads the cookie only when `/.cratis/me` answers 404, and warns when it does. |
+| `IdentityProvider.getCurrent()` in `@cratis/arc` | Read the cookie, and called `/.cratis/me` only without one | Calls `/.cratis/me` and keeps a resolved identity in memory until refresh or cache clearing. An unresolved identity is not cached. Reads the cookie only when `/.cratis/me` answers 404, and warns when it does. |
 | `IdentityProvider.clearIdentityCookie()` | Expired the cookie | Deprecated; same as the new `clearCache()` |
 
 ## What keeps working during the transition
 
-The NuGet and npm packages do not have to be upgraded together:
+The NuGet and npm packages do not have to be upgraded together. Which part you upgrade first affects how an existing cookie is handled.
 
-- **New backend, earlier frontend.** The earlier frontend reads the cookie first and calls `/.cratis/me` when there is none, which is now always the case for new sessions because the new backend does not write it. A cookie left from before the upgrade lasts until the browser session ends or the frontend next calls `/.cratis/me`, for example through `refresh()`. That response expires it.
-- **Earlier backend, new frontend.** The new frontend asks `/.cratis/me`, which the earlier backend serves as before. An explicit `refresh()` expires the readable legacy cookie before requesting the identity, so the earlier backend recomputes it from the current credentials rather than returning stale identity, roles or details.
-- **Identity from a proxy in front of the application.** Cratis AuthProxy writes its own readable `.cratis-identity` cookie. When the browser's `/.cratis/me` request reaches the application, the identity comes from the forwarded principal. When nothing answers `/.cratis/me` (404), the new frontend falls back to the proxy's cookie and logs a warning in the browser console. After an explicit refresh answers 404, it restores the fallback cookie at the root path so the identity survives a page reload even if the proxy does not reissue it. `clearCache()` expires that cookie on logout. That fallback exists for the transition and will be removed in a future major version.
-- A 401 or 403 from `/.cratis/me` is never overruled by a cookie. The identity is reported as not set.
+With a new backend and an earlier frontend, the frontend still reads the cookie first. New sessions have no Arc-written cookie, so it asks `/.cratis/me`. An existing cookie can remain until the browser session ends or the frontend next calls `/.cratis/me`, for example through `refresh()`. That response expires it. If an earlier frontend still displays stale identity after the upgrade, make it request the endpoint instead of waiting for the session to end.
+
+With an earlier backend and a new frontend, the frontend asks `/.cratis/me`. An explicit `refresh()` expires the readable legacy cookie before making that request, so the earlier backend recomputes identity from the current credentials instead of returning the stale cookie.
+
+Cratis AuthProxy writes its own readable `.cratis-identity` cookie by default. If you use it, route the browser's `/.cratis/me` request to the application and configure trusted authentication for the forwarded principal. When that request returns 404, the new frontend falls back to the cookie and logs a browser-console warning. After an explicit refresh returns 404, it restores the fallback cookie at the root path so it survives a page reload even if the proxy does not reissue it. `clearCache()` expires that cookie on logout. This compatibility fallback will be removed in a future major version.
+
+A 401 or 403 from `/.cratis/me` is never overruled by a cookie. The frontend reports the identity as not set.
 
 ## What applications must change
 
-1. **Expose `/.cratis/me` to the frontend.** If the browser console shows the warning about reading the identity from the `.cratis-identity` cookie, the frontend cannot reach `/.cratis/me`. Arc maps this endpoint by default, with `DefaultIdentityDetailsProvider` when you have no custom provider. Check proxy routing and the frontend's `apiBasePath` and origin so the request reaches your Arc application, and make sure the proxy forwards the authenticated principal. Register a custom `IProvideIdentityDetails` only when you need application-specific details.
-2. **Stop reading the cookie yourself.** Code that reads `.cratis-identity` from `document.cookie`, or from the request on the server, must use `IdentityProvider.getCurrent()` or `useIdentity()` in the browser, and `IIdentityProvider.Get()` or `ICurrentPrincipalAccessor` on the server.
-3. **Replace `IdentityProvider.clearIdentityCookie()` with `IdentityProvider.clearCache()`.**
-4. **Replace `IdentityProvider.IdentityCookieName`** (.NET) and `IdentityProvider.CookieName` (TypeScript). Both are obsolete. A build that treats warnings as errors fails on the .NET constant until the reference is removed.
-5. **Make the details provider cheap enough to run on every `/.cratis/me` call.** Cache expensive lookups inside it if needed.
-6. **Proxies that write `.cratis-identity` should stop.** Nothing in Arc trusts it, and once the frontend reaches `/.cratis/me`, nothing reads it.
+1. Make `/.cratis/me` reachable from the frontend. A console warning about reading `.cratis-identity` means the request returned 404. Arc maps the endpoint by default and uses `DefaultIdentityDetailsProvider` when you have no custom provider. Check proxy routing, `apiBasePath`, and the frontend origin so the request reaches your Arc application with its authenticated principal. Add a custom `IProvideIdentityDetails` only when you need application-specific details or an entry decision.
+2. Replace direct cookie reads. In the browser, use `IdentityProvider.getCurrent()` or `useIdentity()`. On the server, use `IIdentityProvider.Get()` for presentation data, or `ICurrentPrincipalAccessor` when you need the trusted principal for authorization.
+3. Replace `IdentityProvider.clearIdentityCookie()` with `IdentityProvider.clearCache()` when clearing frontend identity, including at logout.
+4. Remove references to `IdentityProvider.IdentityCookieName` (.NET) and `IdentityProvider.CookieName` (TypeScript). Both are obsolete. A build that treats warnings as errors fails on the .NET constant until the reference is removed; code should no longer need the cookie name to read identity.
+5. Keep the details provider suitable for every authenticated `/.cratis/me` call. Cache expensive lookups inside it if needed, accounting for how long cached membership decisions may remain valid.
+6. Stop proxies from writing `.cratis-identity` once every frontend sharing the session reads identity from `/.cratis/me`. The Arc backend ignores the cookie, but an earlier frontend or a new frontend receiving 404 may still read it during the transition.
+
+Check the browser's network response after migration. An authenticated, authorized identity request should return JSON from `/.cratis/me` without a cookie-fallback warning. A 401 means the request has no authenticated principal; a 403 means the details provider rejected application entry. Neither should fall back to a cookie.
 
 ## Changes that cannot be made compatible
 
-- **Reading the cookie directly.** Code that read `.cratis-identity` itself, rather than through Arc, gets nothing once the backend is upgraded, because the backend no longer writes the cookie. Writing it again would bring back the exposure this change removes. Move that code to `/.cratis/me`.
-- **`ModifyDetails` across requests.** The modified details used to be stored in the client-controlled cookie and returned on the next request. Arc no longer trusts that cookie, so the change cannot be carried to the next request. Store such preferences through an authenticated operation and return them from your details provider.
-- **Identity before the first request.** The cookie let the first render show the identity without a round trip. The identity now arrives with the `/.cratis/me` response. Render a loading state until it does. In React, `useIdentity()` reports `isLoading`.
+Direct cookie readers stop receiving updates from the upgraded backend because it no longer writes `.cratis-identity`. Move them to `/.cratis/me` or the Arc identity APIs. Writing the cookie again would restore the script-readable data exposure this change removes.
+
+`ModifyDetails` changes only the current response. Previously, the client-controlled cookie carried modified details into later requests. Store durable preferences through an authenticated operation and return them from your details provider instead.
+
+The first render must wait for an identity request rather than reading a cookie synchronously. Render a loading state until the response arrives. In React, `useIdentity()` reports `isLoading`; the [frontend identity guide](../../../frontend/core/identity.md) explains how to consume the result.
 
 ## Related
 

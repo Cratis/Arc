@@ -1,9 +1,11 @@
 ---
-title: Process stream
-description: A process with ordered steps and an end, written as a stream per process, a stream decision for the order, and a completed stream for the end.
+title: Cratis Arc ordered steps in a process stream
+description: Use a Cratis Arc stream decision to enforce onboarding order, then complete the process stream so later commands cannot append to it.
 ---
 
-Use this when each process (an onboarding, an order fulfilment) has its own history, the steps must happen in order, and a finished process must accept nothing more.
+Use a process stream in Cratis Arc when each onboarding or order fulfillment needs an ordered history and an explicit end. A stream decision reads the process's events and guards the next append against competing changes. Completing the stream prevents later appends to that process.
+
+Start with an [Arc application connected to Chronicle](../../add-event-sourcing.mdx). Give each process its own `ProcessId` within the customer's `Onboarding` stream type. The example orders steps as `Identity`, `Address`, then `Consent`. `FinishOnboarding` only records the finish and requests completion; it does not check that those steps have happened.
 
 | | |
 | --- | --- |
@@ -61,21 +63,30 @@ public record FinishOnboarding(CustomerId Customer, string ProcessId)
 }
 ```
 
+`Provide()` reads the command's resolved route before `Handle()` counts the completed steps. The handler accepts only the next name in `_steps`. Its returned decision carries a guard over every event type in that process stream:
+
 ```text
 guard customer: any type, streamType=Onboarding, streamId=<process>, after <tail of the stream before the read>
 ```
 
 ## What holds
 
-- Two steps submitted at the same time: the second one conflicts, because the first appended to the stream after the second read it. Nothing is written for the loser.
-- After `FinishOnboarding`, Arc completes the stream once the command's events commit. A later append to that stream, from any command, fails with a validation result that names the closed stream. Another customer's process with the same id stays open.
-- The guard is the whole stream, on purpose. A process stream is short and every event in it matters to the next decision.
+Follow one process through these outcomes:
+
+- On an empty stream, `Identity` appends one `OnboardingStepCompleted`. `Address` and `Consent` can then follow in order.
+- On an empty stream, `Address` returns `The next step is 'Identity'.` After all three steps, another step returns `The next step is 'none'.` Neither rejection appends an event.
+- If two valid step commands decide from the same stream tail, the first successful append makes the other's guard fail. Nothing is written for the loser.
+- Once `FinishOnboarding` has committed its event and completed the stream, a later append from any command fails with a validation result naming the closed stream. Another customer's process with the same id stays open.
+
+The guard covers the whole stream because every event in this short process history matters to the next decision.
 
 ## What does not hold
 
-- Appending and completing are separate operations. If the process stops in between, the final event stays and the stream can stay open. Retrying only the completion is safe.
-- A stream that grows without end makes every step read more. Keep one stream for one process.
-- Declaring `Concurrency` on a stream does not make a rule hold. It makes the default append check wider. It is the right setting here because the stream decision, not the declaration, carries the rule. Declare it only for ledgers, numbering and process streams.
+Appending `OnboardingFinished` and completing the stream are separate operations. If execution stops between them, the final event remains but the stream can stay open. Retry only the completion; see [Completing streams](../../commands/completing-streams.md) for the completion behavior.
+
+Keep one stream for one process. Every step reads the process's history, so a stream that grows without end makes each decision read more. Declared `Concurrency` sets the default append check; it does not enforce step order by itself. Here, the handler checks the order and the stream decision protects the append.
+
+To specify which step is accepted or rejected, use [state-dependent command specs](./testing.md) with events seeded on the process route.
 
 ## Related
 

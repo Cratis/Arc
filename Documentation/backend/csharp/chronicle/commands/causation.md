@@ -1,26 +1,30 @@
 ---
-title: Causation
-description: A command's values are recorded on the causation of every event it appends, permanently — and how to keep a value out of that record.
+title: Cratis Arc command causation
+description: Cratis Arc records command names and values in event causation. Use PII and NotAudited annotations to keep sensitive values out of that audit record.
 ---
 
-Every event a command appends carries a causation chain saying how the work arrived: an HTTP request came in, a command ran, an aggregate root committed. Arc adds a link naming the command, and records **the values that command was asked to act on** alongside the name.
+Cratis Arc records the command's name and values in the causation chain of every event it appends. That chain explains what led to the event, so you can trace a purchase order back to the command invocation that raised it.
 
-Naming the command alone answers "which command produced this event." Recording the values answers "which invocation" — two purchase orders raised by the same command are otherwise indistinguishable on the chain.
+Before adding a command property, decide whether its value belongs in that audit record. Use `[PII]` for personal data or `[NotAudited]` for other values you need to exclude.
 
 > [!IMPORTANT]
-> The causation is written into the event log, and the event log is immutable. A value recorded there stays there for as long as the events do, is read by everything that ever replays them, and **cannot be taken back out by changing code**. Before adding a property to a command, decide whether its value belongs in a permanent audit record — and mark it [`[NotAudited]`](#keeping-a-value-out-of-the-record) if it does not.
+> Causation is stored in the immutable event log. Changing a command or adding an exclusion attribute later does not remove values already recorded. Review [which values to exclude](#keeping-a-value-out-of-the-record) before the command runs with sensitive data.
 
 ## Who caused the event
 
 When you execute a command inside `ISystemExecution.As(principal)` without an HTTP request, Chronicle records that authenticated principal as the event's `causedBy` identity. It uses the same claims as Chronicle's HTTP provider: `sub` for the subject, `name` for the name, and `preferred_username` for the username; missing name and username claims fall back to `principal.Identity.Name`.
 
-An active HTTP request keeps Chronicle's existing HTTP identity resolution; `ISystemExecution.As` does not replace its user. Outside HTTP, an explicitly selected non-System Chronicle identity still takes precedence. In a reactor, `ISystemExecution.As(principal)` replaces the System identity with the authenticated principal while preserving the triggering event's `OnBehalfOf` chain. Without an override scope, an explicitly selected System identity stays System; clearing it resumes principal resolution. Without an authenticated principal, Chronicle's identity stays unchanged.
+During an HTTP request, Chronicle keeps its HTTP identity resolution; `ISystemExecution.As` does not replace the request's user.
+
+Outside HTTP, an explicitly selected non-System Chronicle identity takes precedence. In a reactor, use `ISystemExecution.As(principal)` to replace the System identity while retaining the triggering event's `OnBehalfOf` chain. Without that override scope, an explicitly selected System identity stays System until you clear it. If there is no authenticated principal, Chronicle leaves the identity unchanged.
 
 ### When someone acts on behalf of the principal
 
 When the principal's identity has an actor (`ClaimsIdentity.Actor` is set), the recorded identity is a chain: the actor first, then the principal as its `OnBehalfOf`. Chronicle reports such an event's initiator as an agent acting on behalf of that user. This applies inside an HTTP request too, unless code has set an identity explicitly.
 
-This is a deliberate contract for every authentication scheme, not only [AuthProxy on-behalf sessions](../../asp-net-core/acting-on-behalf-of.md). A bearer token whose RFC 8693 `act` claim the JWT handler maps to `ClaimsIdentity.Actor` (for example a service exchanging a user's token) records the service as `causedBy`, on behalf of the token's subject. If a scheme in your application sets `ClaimsIdentity.Actor` for another purpose, the actor it sets is what the event log records as the cause.
+This mapping applies to every authentication scheme, including [AuthProxy on-behalf sessions](../../asp-net-core/acting-on-behalf-of.md). For example, a service can exchange a user's token and present a bearer token with an RFC 8693 `act` claim. If the JWT handler maps that claim to `ClaimsIdentity.Actor`, causation records the service as `causedBy`, acting on behalf of the token's subject.
+
+Check any authentication scheme that sets `ClaimsIdentity.Actor`: even if it uses the property for another purpose, the actor it supplies becomes the recorded cause.
 
 ## What gets recorded
 
@@ -45,12 +49,12 @@ the causation link carries:
 | `supplier`            | `ACME`                                 |
 | `amount`              | `1234.56`                              |
 
-Every readable public instance property is recorded, keyed by its camel-cased name. The values render as you would expect them to read:
+Arc records readable public instance properties under their camel-cased names, except excluded properties and names reserved for causation metadata. Values are formatted as follows:
 
 - A [concept](/fundamentals/csharp/concepts/) records the value it wraps, not the wrapper — `orderId` above is the id, not `{"Value":"…"}`.
 - Numbers and dates are written invariantly, dates round-trippably (`2026-02-26T11:03:00.0000000+00:00`), so a chain written in one locale reads the same in another.
 - A nested object or a collection is written as compact JSON. Exclusion is not recursive: `[PII]` or `[NotAudited]` on a nested member does not remove it from that JSON. Exclude the containing command property, its type, or the whole command when nested data is sensitive.
-- A property that is not set is left out entirely, rather than recorded as empty.
+- A null value is omitted. A value that cannot be read is also left out.
 
 ## Keeping a value out of the record
 
@@ -60,7 +64,7 @@ Two markings keep a top-level command value off the chain. The snippets below ar
 
 Arc excludes annotated top-level command values from causation. This does **not** remove them from an event you construct: event encryption separately requires PII metadata on the serialized event property/type or a shared concept.
 
-The marking is honored wherever it is written — on the property, on the command, on the positional parameter, and **on the concept**, so a concept marked once carries the marking to every command that uses it:
+You can mark the property, the command, the positional parameter or the property's type. Marking a shared concept applies the exclusion to every command property that uses it:
 
 ```csharp
 [PII("The name of a person")]
@@ -74,7 +78,7 @@ See [Compliance](../compliance/pii.md) for the full picture.
 
 ### Secrets — `[NotAudited]`
 
-Use `[NotAudited]` for a value that must not enter the audit record, such as a password or API key. `[PII]` also excludes annotated command values from causation; choose it based on privacy meaning, not a claim that secrets cannot be personal data. Payment-card information can be personal data. Neither annotation makes storing credentials in an event safe:
+Use `[NotAudited]` for values such as passwords or API keys that must not enter causation. Choose `[PII]` when the value represents personal data; the categories can overlap. Neither annotation makes storing credentials in an event safe:
 
 ```csharp
 [Command]
@@ -89,14 +93,14 @@ public record ChangePassword(
 
 Written on a positional parameter — `[NotAudited] string OldPassword` — it works the same way.
 
-Applied to a concept it travels with the value, the same way `[PII]` does — mark it once and every command that takes one is covered:
+Mark a shared concept to exclude it wherever a command uses it:
 
 ```csharp
 [NotAudited]
 public record ProviderApiKey(string Value) : ConceptAs<string>(Value);
 ```
 
-Applied to the command itself it excludes every property at once, which is the right answer when a command exists only to carry secrets, and stays right as properties are added to it later:
+Mark the whole command when none of its property values should be recorded. The exclusion also covers properties added later:
 
 ```csharp
 [Command]
@@ -104,19 +108,17 @@ Applied to the command itself it excludes every property at once, which is the r
 public record ResetCredentials(UserId User, string Password, string RecoveryCode);
 ```
 
-The command is still **named** on the chain either way. What is withheld is the values, never the fact that the command ran — an audit trail that hides which commands executed would not be an audit trail.
+Excluding values does not exclude the command's name. The chain still identifies which command produced the events.
 
 ## The analyzer
 
-[ARCCHR0009](../code-analysis/ARCCHR0009.md) reports a command property whose name reads like a secret and which is not marked. It is a name-based guess, which is normally a poor basis for a diagnostic — it earns its place here because the cost of a false positive is one attribute and the cost of a miss is a password in the event log forever.
+[ARCCHR0009](../code-analysis/ARCCHR0009.md) reports unmarked command properties whose names and types suggest secrets. It leaves a `DateTimeOffset` called `AccessTokenExpiresAt` alone because that value is a timestamp.
 
-It judges the type as well as the name, so a `DateTimeOffset` called `AccessTokenExpiresAt` is left alone — it is a timestamp, not a secret. When it is wrong the other way and a value that reads as a secret should be recorded, [suppress the diagnostic](../code-analysis/ARCCHR0009.md#when-the-rule-is-wrong) rather than marking it `[NotAudited]`, which would silence the warning by withholding a value you wanted.
-
-It will not catch a secret whose name does not say so. A property called `Value` holding an API key is invisible to it, and to any reviewer reading the model. The analyzer narrows the problem; it does not remove your judgment from it.
+If a reported value belongs in the audit record, [suppress the diagnostic](../code-analysis/ARCCHR0009.md#when-the-rule-is-wrong) rather than adding `[NotAudited]`: the attribute would withhold the value. Review the other properties yourself too. An API key stored in a property named `Value` will not be caught by a name-based check.
 
 ## Size
 
-A recorded value is cut short at 1024 characters, marked with `…` where it was cut. The causation travels on **every** event the command appends, so an unbounded value is written once per event — a value long enough to be truncated has stopped being an audit note and become a payload.
+Arc keeps the first 1024 characters of a long value and appends `…` to mark the truncation. Causation is repeated on every event the command appends, so keep recorded values small enough to serve as audit context rather than event payloads.
 
 ## Reading the chain
 

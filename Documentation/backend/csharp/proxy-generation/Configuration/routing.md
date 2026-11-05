@@ -1,6 +1,6 @@
 ---
-title: Routing
-description: Align conventional model-bound proxy routes with Arc runtime endpoint options.
+title: Proxy route configuration in Cratis Arc
+description: Cratis Arc proxy route settings control conventional model-bound URLs; align API prefixes, namespace segments, and name inclusion with the server.
 ---
 
 ## Which routes these settings affect

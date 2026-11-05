@@ -1,13 +1,13 @@
 ---
-title: Query scope
-description: Show local query activity using explicit state callbacks, without assuming nested scopes propagate notifications.
+title: "React query scope: track loading in a section"
+description: "Use Cratis Arc QueryScope to show one loading indicator for a React section, track request completion, and handle nested scopes and ViewModel state."
 ---
 
-A section can contain several queries but only need one loading indicator. Wrap that section in `QueryScope` and use its `setIsPerforming` callback to drive React state. `<Arc>` does not mount a query scope for you.
+`QueryScope` lets several queries in one React section drive a single loading indicator. Wrap the section in a scope and pass `setIsPerforming` to update React state when its own query work starts or finishes. `<Arc>` does not mount a query scope for you.
 
 ## Using query scope in React
 
-This composition fragment accepts a query-consuming panel as its child:
+This component accepts a query-consuming panel as its child. Its status message stays visible while the scope has active query work:
 
 ```tsx
 import { useState, type ReactElement } from 'react';
@@ -24,23 +24,25 @@ export function QueryPanel({ children }: { children: ReactElement }) {
 }
 ```
 
-The non-Suspense query hooks notify while starting requests/subscriptions. Ordinary queries track the request; observable queries track the wait for the first result, not the lifetime of the connection. A long-lived subscription is not permanently “loading.” Current Suspense hooks use separate resources and do not call QueryScope's performing notifications; use their loading boundary instead.
+Non-Suspense ordinary hooks track the request. Observable hooks track the wait for a new subscription's first result, not the lifetime of the connection, so a live feed does not remain permanently loading. Joining an already active subscription does not start a separate scope operation for each consumer.
+
+Suspense hooks use separate resources and do not send these scope notifications. Use a [query boundary fallback](./suspense-queries.md) for their loading UI.
 
 ## When an ordinary query stops performing
 
-Each execution of `useQuery` or `useQueryWithPaging` tells its scope it stopped performing exactly once. That happens at whichever comes first:
+Each execution of `useQuery` or `useQueryWithPaging` completes its scope operation exactly once: when the request settles, fails, or is retired because the component unmounted or started newer work. Changing arguments, paging or sorting can start that newer work, as can an explicit `perform` call.
 
-- **It settles.** The request returned a result, or it was superseded and the component adopted the result of the request that superseded it.
-- **It fails.** The request rejected or the network failed.
-- **It is retired.** The component unmounted, or it started a newer request — a new argument, page or sort order, or an explicit `perform` call. The newer request becomes the one the scope tracks.
+Matching consumers can share a query instance. If a later request replaces an earlier one, the earlier consumer remains performing while it waits to adopt the replacement's result or failure. Retiring an execution does not abort a request another mounted consumer still needs.
 
-Retiring never aborts a request another component is waiting on. When two components share a query and arguments, one component's request can supersede the other's. If the component that started the newer request unmounts, the remaining component still receives that request's result. If the waiting component unmounts, the request carries on for the component that started it. Either way, the scope of a component that left does not stay “loading.”
+If the consumer that started the replacement unmounts, the waiting consumer still receives the outcome. If the waiter unmounts instead, the request continues for the consumer that started it. The departed consumer's own scope operation ends in either case. See [query instance caching](./query-instance-caching.md) for the distinction between sharing an instance and broadcasting results.
+
+A retained observable subscription has different ownership: if it is still waiting for its first result when its last consumer leaves, its scope remains performing until that result arrives or cache eviction tears down the subscription.
 
 ## Hierarchical scopes
 
-Queries notify the nearest scope. An outer scope's `isPerforming` **getter** includes child scopes, but a child's start/completion notification does not call the parent's `setIsPerforming` callback. Consequently, a toolbar driven by the parent's callback does not automatically update for child-only activity.
+Queries notify the nearest scope. An outer scope's `isPerforming` getter includes child activity, but a child's start or completion does not call the parent's `setIsPerforming` callback. A toolbar driven only by the parent's callback therefore does not update for child-only activity.
 
-Keep queries under one scope when you need one reactive indicator, or explicitly combine each section's callback state. Parent notification propagation is a runtime follow-up candidate; getter aggregation alone is not reactive aggregation.
+For one reactive indicator, keep the contributing queries under one scope or explicitly combine each section's callback state. Reading the parent's getter can tell you the current state; it does not subscribe your component to changes.
 
 ## Query scope API
 
@@ -55,6 +57,6 @@ Keep queries under one scope when you need one reactive indicator, or explicitly
 
 ## Using query scope in view models
 
-MVVM can inject `IQueryScope`, and a view-model getter can read `scope.isPerforming`. However, `withViewModel` making the view model observable does not make the injected scope's mutable internals observable. For a reactive display, bridge explicit scope callbacks to state rather than relying on a computed getter alone.
+`withViewModel()` registers `IQueryScope` in the ViewModel child container, so an injected scope can supply its current `isPerforming` value. Making the ViewModel observable does not make the scope's mutable internals observable. For a reactive display, use `setIsPerforming` to update an observable property rather than relying on a computed getter alone.
 
-Continue with [query usage](./usage.mdx) or [command scopes](../commands/scope.md).
+For a single query's loading and failure UI, continue with [query usage](./usage.mdx). To track writes in a section, use [command scopes](../commands/scope.md).

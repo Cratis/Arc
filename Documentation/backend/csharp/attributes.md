@@ -1,6 +1,6 @@
 ---
 title: Attribute reference
-description: Every Arc attribute you write on a C# type, what it may be placed on, and what it changes.
+description: Cratis Arc C# attributes control command and query discovery, routing, authorization and validation, with optional Chronicle integration.
 ---
 
 Arc discovers what your application exposes from attributes on your own types.
@@ -8,9 +8,8 @@ This is the whole set you write, grouped by what it concerns. Attributes that
 come from Chronicle or Fundamentals rather than Arc are marked as such, because
 they arrive with a different package.
 
-For the Kotlin and Java equivalents, see its
-[annotation reference](/arc/backend/kotlin/reference/annotations/) — the concepts
-match, the spellings do not.
+For Kotlin and Java annotations and their contracts, see the
+[annotation reference](/arc/backend/kotlin/reference/annotations/).
 
 ## Artifacts
 
@@ -80,13 +79,19 @@ keep their existing behavior.
 | `[Roles]` | class, method | Requires **at least one** of the listed roles. |
 | `[AllowAnonymous]` | class, method | Opens a specific artifact or operation back up. |
 
-Apply them at class level to cover everything and override per method for the
-exceptions. An artifact with no authorization attribute is open to any caller
-unless your ASP.NET Core host configures a
-[fallback policy](asp-net-core/authorization.md), so protection is something you
-declare, not a default. A failure surfaces as
-`isAuthorized: false` in the result rather than as an exception, so the frontend
-can react to it.
+These attributes are in `Cratis.Arc.Authorization`. Apply them at class level
+for a shared declaration; an explicit method declaration replaces the class
+declaration. Every authorization attribute on the effective declaration must
+pass. Combining `[AllowAnonymous]` with a restriction on the same declaration
+is rejected as ambiguous.
+
+Without an explicit declaration, Arc consults any
+`IFallbackAuthorizationEvaluator` implementations for baseline requirements.
+Without those requirements, the pipeline allows any caller. An ASP.NET Core
+[fallback policy](asp-net-core/authorization.md) protects the HTTP boundary
+separately; it does not protect in-process pipeline calls. An authorization
+denial surfaces as `isAuthorized: false` in the result rather than as an
+exception, so the frontend can react to it.
 
 ## Validation
 
@@ -101,7 +106,7 @@ rather than with an attribute. See [validation](commands/validation.md).
 
 | Attribute | Valid on | Effect |
 |---|---|---|
-| `[IgnoreAutoRegistration]` | class | Keeps a type out of Arc's conventional discovery. |
+| `[IgnoreAutoRegistration]` | class | Excludes a type from automatic registration mechanisms that honor this marker. |
 | `[AspNetResult]` | controller, action | Returns an ASP.NET Core controller action's result directly instead of wrapping it in Arc's result envelope. It applies to controller-based endpoints only. |
 
 `[AspNetResult]` opts out of the envelope the generated client expects, so a

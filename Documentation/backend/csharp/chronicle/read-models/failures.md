@@ -1,6 +1,6 @@
 ---
 title: When read model resolution fails
-description: Every failure mode for a command-scoped Chronicle read model — what the client sees, what it means, and how to fix it.
+description: Cratis Arc reports read-model resolution failures as validation, authorization or configuration errors; identify the cause and fix command lookups.
 ---
 
 Read-model resolution distinguishes invalid input from missing infrastructure. For command-property and convention lookups, an unusable key or an absent required read model is a **validation failure (HTTP 400)**. A refused caller-derived key is an authorization failure instead. Missing service registrations and execution outside the command pipeline are configuration problems, not evidence that an entity does not exist.

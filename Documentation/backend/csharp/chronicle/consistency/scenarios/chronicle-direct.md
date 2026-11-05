@@ -1,9 +1,9 @@
 ---
-title: Chronicle used directly
-description: Guards written with IEventStore, IEventLog and IDecisionReads in endpoints, controllers and services of an Arc application, where nothing is enrolled for you.
+title: Use Chronicle consistency guards outside Arc commands
+description: Guard Chronicle reads and appends in endpoints, controllers and services outside Arc commands. Commit and check the result before returning success.
 ---
 
-Use this page when you write an endpoint, a controller action or a service that talks to Chronicle yourself. Chronicle gives you the same guards as inside a command. Arc's command pipeline does not run for you, so read protection is not on: you enrol the reads, check the results and commit before you respond.
+Cratis Chronicle consistency guards can protect an endpoint, controller action or service without an Arc command. Outside the Cratis Arc command pipeline, your code must enrol the decision reads and check the commit result before returning success. Arc's automatic command read protection does not run here.
 
 | You want | Shape |
 | --- | --- |
@@ -41,7 +41,7 @@ public record MemberLoans(
 
 ## A decision read on a detached append
 
-Read a `GetDetached` decision read from the event store and pass it to `AppendMany` in `guardedBy`.
+Use `GetDetached` to keep the read and append in one method without enrolling the read in a unit of work. Pass the returned decision read to `AppendMany` in `guardedBy` so the append checks the state used by the decision.
 
 ```csharp
 using Cratis.Chronicle;
@@ -73,7 +73,9 @@ public static class IssueBook
 }
 ```
 
-The boundary is captured before the fold, and the append is rejected if a `CopyAdded` or `BookIssued` arrived for the book since. `AppendMany` returns a result: a violation is a value, not an exception, so always check it. Check `GetDecisionConflicts()` before you build the response, and return your own message: a `DecisionConflict` carries the read model's `Type` and cannot be serialized as a response body. The batch must go to the event log of the same store and namespace, and needs at least one read.
+The read captures the log position before folding the book's events into `BookCopies`. If a `CopyAdded` or `BookIssued` arrives for that book after this boundary, the append is rejected.
+
+`AppendMany` returns a result: a concurrency violation is a value, not an exception. Check `GetDecisionConflicts()` before building the response, and return your own message. A `DecisionConflict` carries the read model's `Type` and cannot be serialized as a response body. The guarded batch must go to the event log of the same store and namespace, and needs at least one read.
 
 ## A unit of work with decision reads
 
@@ -117,16 +119,15 @@ public static class LoanEndpoints
 }
 ```
 
-Two parts matter:
+`Get<T>` needs an ambient unit of work: the Chronicle request middleware supplies one in an Arc app. `Transactional.Append` stages the event in that unit rather than writing it immediately.
 
-- `Get<T>` needs an ambient unit of work. In an Arc app the Chronicle request middleware begins one per request.
-- The middleware commits *after* the endpoint returns, and reports no concurrency violation. Commit with `IUnitOfWorkCompletionFeature.CommitAsync()` before responding and use the result, or the caller sees success for a write that was rejected.
+By default, the middleware completes the unit after the endpoint returns. Commit with `IUnitOfWorkCompletionFeature.CommitAsync()` and inspect the result while you can still choose the response. Otherwise, the endpoint can return success for a rejected write.
 
-Do not mix the two styles: a plain `eventLog.Append(...)` in the same request is written immediately and bypasses the guard.
+A plain `eventLog.Append(...)` in the same request does not join that unit of work. It writes immediately and bypasses the enrolled read's guard.
 
 ## A controller action
 
-A controller uses the same calls. It is not an Arc command, so the request unit of work and your code are all there is.
+A controller uses the same calls as an endpoint. Because it is not an Arc command, the action must commit the request's unit of work and turn any conflict into a response.
 
 ```csharp
 using Cratis.Chronicle.AspNetCore.Transactions;
@@ -162,7 +163,7 @@ public class MemberLoansController(IDecisionReads reads, IEventLog eventLog) : C
 
 ## An explicit scope captured before the facts
 
-When no decision-read model fits, capture the tail yourself, before you read the facts, and append with a scope built from it.
+When no decision-read model fits, capture the tail yourself: the sequence number of the account's latest event. Do this before reading the balance, then build the append's scope from that boundary.
 
 ```csharp
 using Cratis.Chronicle.Events;
@@ -205,7 +206,7 @@ public static class Withdraw
 }
 ```
 
-The order is the guard: the tail first, then the facts. Capture it after the facts and an event that arrived in between is invisible to the check. A `ConcurrencyScope` built without a sequence number, or with the builder but without `WithSequenceNumber` or `ExpectingNoMatchingEvent()`, is skipped by the kernel. In an Arc project, qualify Chronicle's `ConcurrencyScopeBuilder` (here with an alias): `Cratis.Arc.Chronicle.Commands` has a static class of the same name.
+Capture the tail before the facts. If you reverse that order, an event arriving between the balance read and the tail capture is invisible to the check. A `ConcurrencyScope` built without a sequence number, or with the builder but without `WithSequenceNumber` or `ExpectingNoMatchingEvent()`, is skipped by the kernel. In an Arc project, qualify Chronicle's `ConcurrencyScopeBuilder` (here with an alias): `Cratis.Arc.Chronicle.Commands` has a static class of the same name.
 
 ## A value claimed through the event source id
 

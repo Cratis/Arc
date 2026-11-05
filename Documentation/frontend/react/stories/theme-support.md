@@ -1,21 +1,21 @@
 ---
-title: Automatic Theme Support
-description: How Story Components switch between dark and light palettes through the data-theme attribute, and how to wire that to Storybook.
+title: Cratis Arc Storybook theme wiring
+description: Cratis Arc story components use data-theme to select dark or light colors. Connect that attribute to your Storybook background and custom styles.
 ---
 
-Story components read theme CSS variables, so their colors follow the selected dark or light theme.
+Cratis Arc story components select dark or light colors through the `data-theme` attribute. After loading the stylesheet, set this attribute to match your Storybook canvas background. The stylesheet does not detect Storybook's background or the operating system color scheme on its own.
 
-## How It Works
+## How it works
 
-Almost every color in the story components is read from a CSS custom property rather than written into a rule. The exception is the translucent badge backgrounds, which are fixed `rgba(...)` values; override `.story-badge-*` if you need them to match a custom palette.
-The stylesheet that ships with the package declares those properties twice - once for dark, once for light -
-so changing the theme changes one attribute and every component follows.
+Load the stylesheet once in your Storybook preview, as shown in [Getting started](index.md#getting-started). It defines CSS custom properties, which are named values such as `--color-text` that components read through `var(...)`. Selecting a palette changes the values inherited by those components.
 
-### Default Theme
+The translucent badge backgrounds use fixed `rgba(...)` values instead. Override `.story-badge-*` if you need those backgrounds to match a custom palette.
 
-The default theme is **dark mode**. This ensures a consistent baseline experience when viewing stories.
+### Default theme
 
-### Switching Themes
+Without a `data-theme` attribute, the stylesheet uses the dark palette.
+
+### Switching themes
 
 Set `data-theme` on `<html>` or `<body>`. `data-theme="light"` selects the light palette, `data-theme="dark"`
 selects the dark one, and no attribute at all leaves you with dark. Because the properties are inherited, the
@@ -27,42 +27,29 @@ attribute can also sit on a container to theme one part of a page:
 </script>
 ```
 
-The package deliberately does **not** read the operating system color scheme on its own. The palette has to
-agree with whatever paints the canvas behind it - the Storybook background, your own preview decorator - and
-only your Storybook configuration knows what that is. Deciding for you would produce dark text on a dark
-canvas for anyone whose machine disagreed with their toolbar.
+Keep palette selection in the configuration that controls your canvas background. A light palette chosen from the operating system setting could put dark text on a dark Storybook canvas if the toolbar selection differs.
 
-The Arc repository's own Storybook wires the two together: a snippet in its `.storybook/preview-head.html`
-watches the canvas background, measures its luminance, and sets `data-theme` to match - so the backgrounds
-toolbar drives the theme. Copy that approach if you want the same behavior in yours.
+For background-driven switching, the Arc repository's Storybook includes a script in `.storybook/preview-head.html`, under `Source/JavaScript/Arc.React`. It reads the body's computed background color, estimates its brightness, and sets `data-theme` on the body. The script observes style and class changes and also checks periodically.
 
-## Theme-Aware Design
+To use the same wiring, copy that script into your project's `.storybook/preview-head.html`. It is repository configuration, not part of the package stylesheet. When you change the canvas background, check that the body's `data-theme` attribute changes with it.
 
-### Color Adaptation
+## Theme-aware design
 
-Colors are the primary difference between themes:
+### Color adaptation
 
-- **Dark Mode**: Uses lighter text on darker backgrounds
-- **Light Mode**: Uses darker text on lighter backgrounds
+The dark palette supplies lighter text and darker backgrounds; the light palette supplies darker text and lighter backgrounds. Success, warning, error, and info text colors also have separate values for each palette. Check contrast in the context of your story, especially when overriding colors.
 
-All semantic colors (success, warning, error, info) have theme-appropriate variants to ensure proper contrast and readability.
+### Automatic adjustments
 
-### Automatic Adjustments
+Changing `data-theme` updates the inherited text, background, border, and status color variables. A card reads its background from `--color-background-secondary`, so that background follows the palette without a conditional in React. Spacing, radii, and shadows stay the same in both palettes, as do the primary and primary-hover color values.
 
-When switching themes, the following automatically update:
+## Developer experience
 
-- **Text Colors**: Primary, secondary, and muted text colors adjust for readability
-- **Background Colors**: Container, card, and input backgrounds adapt
-- **Border Colors**: Borders become lighter or darker based on the theme
-- **Shadows**: Box shadows are optimized for each theme
-- **Status Colors**: Success, warning, error, and info colors maintain proper contrast
+<a id="no-additional-code-required"></a>
 
-## Developer Experience
+### Use the selected palette
 
-### No Additional Code Required
-
-Beyond importing the stylesheet once and deciding when `data-theme` flips, you don't write any
-theme-switching logic. Simply use the provided components and CSS variables:
+Once your Storybook configuration sets `data-theme`, components that use the variables follow it without their own switching logic:
 
 ```tsx
 // This automatically works in both themes
@@ -72,9 +59,9 @@ theme-switching logic. Simply use the provided components and CSS variables:
 </StoryContainer>
 ```
 
-### Theme-Safe Custom Styles
+### Theme-safe custom styles
 
-When adding custom styles, use CSS variables to ensure theme compatibility:
+Use the same variables in custom story content. The first example reads its text and background colors from the selected palette; the second keeps the same colors in both themes:
 
 ```tsx
 // ✅ Good - Uses CSS variables
@@ -94,24 +81,22 @@ When adding custom styles, use CSS variables to ensure theme compatibility:
 </div>
 ```
 
-## Testing Your Stories
+## Testing your stories
 
-### Always Test Both Themes
+### Always test both themes
 
-To ensure your stories look great in all contexts:
+Check the story after wiring palette selection:
 
-1. **Start in Dark Mode**: Verify your story looks correct in the default theme
-2. **Switch to Light Mode**: Set `data-theme="light"` and check that all elements remain readable and visually appealing
-3. **Check Color Contrast**: Ensure text is legible against backgrounds in both themes
-4. **Verify Interactive States**: Hover, focus, and active states should work in both themes
+1. Open it with the default dark palette and inspect the text, cards, and borders.
+2. Set `data-theme="light"`, or select a light background if you connected the toolbar, and confirm the palette changes.
+3. Check text contrast against the backgrounds your story actually uses in both palettes.
+4. Inspect hover, focus, and active states in each palette.
 
-### Common Issues and Solutions
+### Common issues and solutions
 
-#### Issue: Poor Contrast in One Theme
+#### Issue: Poor contrast in one theme
 
-**Problem**: Text is hard to read in light mode but fine in dark mode.
-
-**Solution**: Use semantic text color variables instead of hard-coded values:
+If text is readable in dark mode but not in light mode, look for a fixed color in your custom styles. Use a text color variable so it can follow the palette:
 
 ```tsx
 // Instead of:
@@ -121,11 +106,9 @@ To ensure your stories look great in all contexts:
 <p style={{ color: 'var(--color-text-secondary)' }}>Text</p>
 ```
 
-#### Issue: Borders Not Visible
+#### Issue: Borders not visible
 
-**Problem**: Borders disappear or become too prominent when switching themes.
-
-**Solution**: Use border color variables:
+If a border disappears or becomes too prominent after switching themes, use the border color variable instead of a fixed shade:
 
 ```tsx
 // Instead of:
@@ -135,11 +118,9 @@ To ensure your stories look great in all contexts:
 <div style={{ border: '1px solid var(--color-border)' }}>Content</div>
 ```
 
-#### Issue: Custom Colors Don't Adapt
+#### Issue: Custom colors don't adapt
 
-**Problem**: Brand or custom colors don't change with the theme.
-
-**Solution**: Define theme-specific versions of your custom colors or use the primary color variable:
+Custom colors need their own values under the dark and light selectors if they must change with the palette. The primary color variable is available for shared accents, but its value is the same in both palettes. In this example, the button text changes through `--color-background`; the primary background color stays the same:
 
 ```tsx
 // For brand colors that should adapt:
@@ -153,22 +134,12 @@ To ensure your stories look great in all contexts:
 </button>
 ```
 
-## Best Practices
+## Best practices
 
-1. **Always Use Variables**: Prefer CSS variables over hard-coded color values
-2. **Test Both Themes**: Verify your stories in dark and light modes before committing
-3. **Semantic Colors**: Use semantic variables (`--color-text`, `--color-background`) instead of specific shades
-4. **Document Theme Considerations**: If a component has theme-specific behavior, document it
-5. **Consistent Patterns**: Follow the patterns established by existing story components
+Use variables named for their role, such as `--color-text` and `--color-background`, so custom content follows the surrounding story. If a component intentionally looks different in one theme, explain that behavior in its story so readers know what to expect.
 
-## Implementation Details
+## Implementation details
 
-The theme system is implemented using:
+The palette comes from the stylesheet exported as `@cratis/arc.react/stories/styles.css`. Dark color properties are declared on `:root` and `[data-theme='dark']`; light properties are declared on `[data-theme='light']`. Inheritance lets you select a palette on the page or on a smaller container, including a nested region with a different theme.
 
-- A stylesheet published inside `@cratis/arc.react`, reached through the `@cratis/arc.react/stories/styles.css`
-  export and imported once from your Storybook preview
-- CSS custom properties declared on `:root` for the dark palette and on `[data-theme='light']` for the light
-  one, which is why the attribute can sit on any ancestor and why your own CSS can override any of them
-- Nothing else - no runtime, no theme provider, no build step
-
-Developers using the story components don't need to understand these implementation details—the system works transparently.
+The stylesheet needs no React theme provider. Your Storybook configuration still owns setting the attribute, whether directly or through the background-watching script. For the available variables and overrides, continue to the [styling reference](styling.md).

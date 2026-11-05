@@ -1,11 +1,11 @@
 ---
-title: Specify command operation failure cases
-description: Test cancellation, execution-path validation rejection, missing compensation, and failed compensation through the real CommandScenario pipeline.
+title: Cratis Arc command operation failure tests
+description: Test cancellation, validation rejection, and incomplete compensation through Cratis Arc's CommandScenario pipeline with controlled providers.
 ---
 
-**Goal:** add focused regression specs for recovery boundaries that a successful booking test cannot cover. These recipes extend [testing command operations](./command-operations.md) and reuse its `SeatBooking` application declarations and spec packages.
+Use Cratis Arc's `CommandScenario` to check what happens when a command operation is canceled, input is rejected, or compensation cannot finish. A successful booking test cannot reveal whether later work stops or whether recovery continues after a compensator fails.
 
-Each case runs the real `CommandScenario` pipeline with a controlled provider. No command or operation implements a test-only error-handling path.
+These recipes extend [testing command operations](./command-operations.md) and reuse its `SeatBooking` declarations and spec packages. Each case controls the reservation provider while Arc runs the command pipeline and compensation, the business reversal of work already started. The application needs no test-only error-handling path.
 
 ## Share the scenario setup
 
@@ -47,7 +47,7 @@ public abstract class a_booking_scenario<TCommand> : Specification
 }
 ```
 
-The failure types below give the fault-injection cases precise messages to assert:
+Add these exception types so the specs can distinguish the original reservation failure from a failure during cancellation:
 
 ```csharp title="FailureCases/Failures.cs"
 using System;
@@ -60,7 +60,7 @@ public class CompensationFailure() : Exception("Cancel failed.");
 
 ## Cancel during execution without canceling cleanup
 
-Cancel the forward token from inside the controlled provider call. No delay or real network race is needed:
+Cancel the request token inside the provider's first reservation call. This makes cancellation happen after an operation starts, so the spec can check both that the next operation is skipped and that cleanup gets a separate token:
 
 ```csharp title="FailureCases/when_execution_is_canceled.cs"
 using System.Threading;
@@ -158,7 +158,7 @@ public class when_input_is_rejected : a_booking_scenario<BookSeat>
 }
 ```
 
-The specific validation message distinguishes the expected rejection from a missing provider or unrelated failure. Unlike a `Validate()` call alone, this exercises the rejection path of `Execute()`.
+The message identifies the rule that stopped execution. The untouched provider and empty operation list show that rejection happened before any reservation work. Calling `Validate()` alone would check validation, but not this path through `Execute()`.
 
 ## Make unavailable compensation observable
 
@@ -216,7 +216,7 @@ public class when_compensation_is_unavailable : a_booking_scenario<TryBookingWit
 }
 ```
 
-The example deliberately supplies no reversal for the first operation. Its purpose is to prove reporting—not to recommend omitting a necessary cancellation in a production booking flow.
+The first reservation has no compensator, so recovery must report `Incomplete` even though the other operation can be canceled. This case checks that the gap remains visible; a production booking flow still needs a cancellation wherever the business requires one.
 
 ## Continue recovery after one compensator fails
 
@@ -282,4 +282,6 @@ Run the failure cases:
 dotnet test SeatBooking.Specs --filter FullyQualifiedName~FailureCases
 ```
 
-These specs deliberately inject faults into collaborators; application operations still contain only their forward work and optional business reversal. For supported commit profiles and uncertain outcomes, continue with the [operation execution reference](../commands/operations/reference.md#commit-and-recovery).
+The cases check different failure paths without moving recovery logic into the command. When adding a regression case, assert the original failure alongside the provider calls and recovery outcome so an unrelated failure cannot satisfy it.
+
+For a failure after operations finish but before events commit, continue to [recovery after a Chronicle rejection](./command-operations-with-chronicle.md). For supported commit profiles and uncertain outcomes, use the [operation execution reference](../commands/operations/reference.md#commit-and-recovery).

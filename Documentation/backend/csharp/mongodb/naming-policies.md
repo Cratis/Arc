@@ -1,17 +1,19 @@
 ---
-title: Naming policies
-description: Configure MongoDB collection and member names before persisting data.
+title: Configure MongoDB collection and field names
+description: Configure how Cratis Arc names MongoDB collections and BSON fields, and keep queries aligned with stored names when using built-in or custom policies.
 ---
 
-Naming policies control collection and BSON member names. Configure them once before writing data; changing a policy does not rename existing fields or collections. Examples are policy declarations or startup/query fragments for the [configured host](./getting-started.md), not complete programs. Import `Cratis.Serialization` for `INamingPolicy` and `Cratis.Arc.MongoDB` for builder customization.
+Cratis Arc uses a naming policy to choose MongoDB collection names and field names in BSON, MongoDB's document format. Set the policy before writing data so reads and writes use the same names. Changing it later does not rename stored fields or collections; plan that change as a data migration.
+
+The examples extend the [configured host](./getting-started.md). Import `Cratis.Serialization` for naming policies and `Cratis.Arc.MongoDB` for builder customization. Custom policy excerpts focus on the MongoDB transformations; they are not complete programs.
 
 ## Overview
 
-Collection names and their members are named based on a naming policy (`INamingPolicy`). The framework provides flexible configuration options and built-in policies for common scenarios.
+An `INamingPolicy` supplies two MongoDB naming decisions: `GetReadModelName` selects a collection name from a type, and `GetPropertyName` selects each mapped field name. Arc's `database.GetCollection<T>()` extension uses the collection name; the naming convention applies field names during class mapping.
 
 ## Default Behavior
 
-The default naming policy does not alter the input, giving you the names exactly as defined in your types:
+The default policy leaves field names unchanged and pluralizes collection names. For example, `UserAccount` uses the `UserAccounts` collection, with the property names shown below. Pass `pluralizeReadModelNames: false` when constructing `DefaultNamingPolicy` if the collection should keep the singular type name.
 
 ```csharp
 public class UserAccount
@@ -26,14 +28,14 @@ public class UserAccount
 
 ### Camel Case Policy
 
-The most common naming policy is camel case, which converts PascalCase property names to camelCase:
+Use `WithCamelCaseNamingPolicy()` when stored names should start with a lowercase letter. It converts both property and collection names, so `UserAccount` uses `userAccounts`. Collection names remain plural unless you pass `pluralizeReadModels: false`.
 
 ```csharp
 builder.UseCratisMongoDB(configureMongoDB: builder => 
     builder.WithCamelCaseNamingPolicy());
 ```
 
-With camel case policy:
+The properties then use these stored field names:
 
 ```csharp
 public class UserAccount
@@ -46,9 +48,9 @@ public class UserAccount
 
 ## Custom Naming Policies
 
-You can create your own naming policy by implementing `INamingPolicy`. The interface has
-two members: `GetPropertyName` transforms a member name, and `GetReadModelName` transforms
-a type into a collection name:
+Implement `INamingPolicy` when the built-in policies do not match your stored data. The excerpt below converts property names and the simple type name to snake case. Unlike the built-in policies, this `GetReadModelName` implementation does not pluralize the collection name.
+
+The interface also exposes `JsonPropertyNamingPolicy`. The custom policy excerpts on this page omit that member to focus on MongoDB naming; supply it in your implementation, using `null` if no JSON property policy is needed. The snake-case excerpt also needs `System.Text` for `StringBuilder`.
 
 ```csharp
 public class SnakeCaseNamingPolicy : INamingPolicy
@@ -83,7 +85,7 @@ builder.UseCratisMongoDB(configureMongoDB: builder =>
     builder.WithNamingPolicy(new SnakeCaseNamingPolicy()));
 ```
 
-This also works when an application-defined policy requires constructor parameters. `CustomNamingPolicy` in this illustrative fragment is your own implementation, not an Arc type:
+Passing an instance lets you supply constructor arguments too. In this fragment, `CustomNamingPolicy` is an application-defined policy that accepts a prefix and suffix:
 
 ```csharp
 var namingPolicy = new CustomNamingPolicy(prefix: "app_", suffix: "_v1");
@@ -96,20 +98,11 @@ builder.UseCratisMongoDB(configureMongoDB: builder =>
 
 ### Convention Integration
 
-Naming policies are applied through the `NamingPolicyNameConvention`, which is automatically registered as a convention pack. This convention:
-
-1. **Applies to all members**: Processes every property and field in your classes
-2. **Uses configured policy**: Applies the naming policy you've configured
-3. **Integrates with filtering**: Respects convention pack filters and ignore attributes
+Arc registers `NamingPolicyNameConvention` as a convention pack. For each member the MongoDB driver maps, the convention passes its element name to your policy's `GetPropertyName`. Convention pack filters and ignore attributes determine which types receive that convention.
 
 ### Property Name Transformation
 
-The convention applies to:
-
-- **Public properties**: All public get/set properties
-- **Public fields**: Public field members (if configured)
-- **Nested objects**: Properties within embedded documents
-- **Collection elements**: Properties of objects within arrays
+The policy works on mapped members, including public properties and any fields included in the class map. Embedded documents and objects inside arrays use their own class maps, so their field names follow the policy when those types receive the convention too.
 
 ## Configuration Examples
 
@@ -168,11 +161,11 @@ public class ConditionalNamingPolicy : INamingPolicy
 
 ## Convention Pack Integration
 
-The naming policy is implemented as a MongoDB convention pack, which means:
+Use convention filtering when some document types must keep an existing storage format. Filtering the field-name convention does not change the collection name chosen by `GetReadModelName`.
 
 ### Illustrative registration
 
-The namespace filter below illustrates an application-specific convention registration; `MyApp.Models` is **not** Arc's automatic startup filter. Arc registers this convention using the configured convention-pack filters. Do not add this second registration after Arc initialization; customize Arc through the filtering mechanism below instead.
+This fragment shows how the MongoDB driver registers a convention with a namespace filter. Arc already registers its naming convention, so do not add this second registration after initialization. `MyApp.Models` is only an example namespace; customize Arc's registration with [convention pack filters](convention-packs.md#filtering-conventions).
 
 ```csharp
 // Illustrative application filter, not Arc's automatic registration
@@ -203,7 +196,7 @@ public class NoNamingPolicyForDTOs : ICanFilterMongoDBConventionPacksForType
 
 ## Ignore Naming Conventions
 
-For specific types that shouldn't use naming policies, use the `IgnoreConventions` attribute:
+To leave a type's field names unchanged by the policy, use the `IgnoreConventions` attribute. This does not change the collection name:
 
 ```csharp
 [IgnoreConventions(NamingPolicyNameConvention.ConventionName)]
@@ -216,7 +209,7 @@ public class LegacyDocument
 
 ## Impact on Queries
 
-Remember that naming policies affect how you write queries:
+Expression-based filters use the mapped property name, keeping the query aligned with your policy. When supplying a stored field name as a string, use the name in MongoDB, such as `userName` below.
 
 ### With Camel Case Policy
 
@@ -246,7 +239,7 @@ Please configure it using the WithNamingPolicy method.
 
 ### Null or Empty Names
 
-Naming policies should handle edge cases:
+Decide how a custom policy handles empty input before applying a transformation that indexes the first character. This method fragment returns blank names unchanged; `TransformName` represents your transformation:
 
 ```csharp
 public string GetPropertyName(string name)
@@ -263,7 +256,7 @@ public string GetPropertyName(string name)
 
 ### Consistency
 
-Choose one naming convention and apply it consistently across your application:
+Choose names that match your existing documents or the format you intend to store. Mixing conventions makes string-based queries harder to maintain:
 
 ```jsonc
 // Good: Consistent camelCase
@@ -283,7 +276,7 @@ Choose one naming convention and apply it consistently across your application:
 
 ### Consider External Systems
 
-If you're integrating with external systems that expect specific naming conventions, align your policy accordingly:
+If another system reads the same MongoDB documents, agree on the stored field names before choosing a policy. These builder fragments select snake case or camel case; they do not configure an HTTP API's JSON serialization:
 
 ```csharp
 // For systems expecting snake_case
@@ -295,7 +288,7 @@ builder.WithCamelCaseNamingPolicy();
 
 ### Performance Considerations
 
-Naming policies are called for every property during serialization setup, so keep them efficient:
+The driver applies field-name transformations while setting up class maps. Keep that work simple where it fits your naming rules. The following method fragments contrast a first-character conversion with a regex transformation:
 
 ```csharp
 // Good: Simple, efficient transformation
@@ -309,6 +302,4 @@ public string GetPropertyName(string name) =>
 
 ## Next Steps
 
-- Learn about [Class Mapping](class-mapping.md) for custom type configurations
-- Explore [Convention Packs](convention-packs.md) for advanced customization
-- Understand [Concepts](concepts.md) and how they work with naming policies
+Use [Class Mapping](class-mapping.md) when a type needs explicit member configuration, or [Convention Packs](convention-packs.md) to decide which types receive conventions. For strongly typed values stored inside documents, continue with [Concepts](concepts.md).

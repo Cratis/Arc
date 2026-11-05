@@ -1,11 +1,13 @@
 ---
-title: Queries
-description: Use Arc's low-level TypeScript query contracts for ordinary requests and observable subscriptions.
+title: Cratis Arc core queries without React
+description: Use Cratis Arc core queries directly in TypeScript to fetch typed data or subscribe to updates, with validation, cancellation, and readiness handling.
 ---
 
-Core queries in Arc are the low-level TypeScript and JavaScript primitives used to retrieve data from backend query endpoints. Ordinary queries use HTTP request and response semantics; observable queries subscribe to an emitting backend source. Neither requires Chronicle.
+Cratis Arc core queries let TypeScript services, view models, and non-React frontends read backend data through generated classes. Call `perform()` for one result or `subscribe()` on an observable query for updates, without constructing request URLs yourself. Neither requires Chronicle.
 
-This section focuses on contracts and runtime behavior in `@cratis/arc`. For React hook-based usage, see [React Queries](../../react/queries/index.md).
+Each result carries data alongside authorization, validation, and readiness information. Read those fields before using the data: an observable query that has not produced a result yet is different from a failed query. When you use the classes in `@cratis/arc` directly, you also own request cancellation and subscription cleanup. For React components, [React Queries](../../react/queries/index.md) covers the hooks built on these classes.
+
+Start with [Backend Integration](./integration.md) to call a generated query or subscribe to updates. Then use [Validation And Behavior](./validation-and-behavior.md) to handle missing arguments, superseded requests, and results that are not ready yet.
 
 ## Capabilities
 
@@ -13,8 +15,8 @@ This section focuses on contracts and runtime behavior in `@cratis/arc`. For Rea
 | ---------- | -------------- | ---------- |
 | Query contracts | `IQuery`, `IQueryFor`, sorting, paging, and typed execution | [Query Contracts](./contracts.md) |
 | Runtime configuration | Microservice routing, API base path, and observable transport mode | [Configuration](./configuration.md) |
-| Validation and behavior | Client-side validation, request behavior, and error categories | [Validation And Behavior](./validation-and-behavior.md) |
-| Backend integration | Controller-based/model-bound mapping and proxy generation | [Backend Integration](./integration.md) |
+| Validation and behavior | Required arguments, validation results, cancellation, and readiness | [Validation And Behavior](./validation-and-behavior.md) |
+| Backend integration | Calling generated proxies and managing observable subscriptions | [Backend Integration](./integration.md) |
 
 ## Related documentation
 

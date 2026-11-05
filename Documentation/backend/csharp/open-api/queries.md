@@ -1,6 +1,6 @@
 ---
-title: Queries
-description: How the OpenAPI query transformer describes Arc's QueryResult envelope, paging, and sorting for controller queries.
+title: Query response schemas in Cratis Arc OpenAPI
+description: Cratis Arc documents controller query responses with the QueryResult envelope in OpenAPI and adds paging parameters for declared enumerable returns.
 ---
 
 Arc queries return results wrapped in a `QueryResult` envelope that carries the data along with paging metadata and error information. The `QueryResultOperationTransformer` ensures this is accurately reflected in the generated API documentation.

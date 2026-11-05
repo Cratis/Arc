@@ -1,25 +1,23 @@
 ---
-title: Move inline work to a command operation
-description: Migrate a supported service-backed command to a pure decision and returned operation without changing its input or client response contract.
+title: Migrate inline command work to Cratis Arc operations
+description: Move a service write out of a Cratis Arc command handler while preserving its input and client response, then check execution and compensation.
 ---
 
-**Goal:** move an inline service write out of `Handle()` while keeping the same command input, endpoint, and caller response. Direct service-backed handlers remain supported; migrate when the work can be described before it executes and the separation makes the decision easier to test.
+Move an inline service write to a Cratis Arc command operation when `Handle()` can describe the work without needing its result. This migration keeps the booking command's input, endpoint, and caller response while making its decision testable without a reservation provider. Direct service-backed handlers remain supported when that separation does not fit.
 
-This recipe reuses the `ReservationId`, `SeatId`, `ISeatReservations`, and `ReserveSeat` declarations from [implementing an operation](./implementing.md). The two command definitions below are alternatives: compile the replacement instead of the original, not alongside it.
+Start with the `ReservationId`, `SeatId`, `ISeatReservations`, and `ReserveSeat` declarations from [implementing an operation](./implementing.md). The two command definitions below are alternatives. Replace the original with the new definition; do not compile both.
 
 ## Identify what the decision needs
 
-Separate three concerns before moving code:
+Before moving the write, trace the values `Handle()` needs to choose the work and construct its response. Those values can come from the command, read models, or data acquired through `Provide()`. The returned operation can then carry the inputs needed to perform the write.
 
-- **Inputs to the decision:** values on the command, read models, or data acquired through `Provide()`.
-- **The decision:** which operations and domain facts should result from those inputs.
-- **Execution:** the service writes performed by the returned operations.
+In this example, the caller already supplies `ReservationId`, so the response does not depend on the reservation service returning anything. If your provider creates the identifier or returns information the decision needs, this replacement will not preserve that behavior. Operations cannot feed a receipt back into a response that `Handle()` has already constructed.
 
-If the provider creates an identifier or returns information that the decision or response needs, do not hide that write inside `Provide()` to make `Handle()` appear pure. Operation execution does not return a receipt into an already-constructed response. Keep the direct service call when it is the right fit, or deliberately redesign the provider contract to accept an identifier allocated before the decision. Do not change identity or persistence semantics solely for syntactic purity.
+Keep the direct call when you need that result, or deliberately redesign the provider contract to accept an identifier allocated before the decision. Moving the write into `Provide()` would only hide the side effect. Do not change identity or persistence semantics just to make `Handle()` pure.
 
 ## Replace the forward call with a declaration
 
-The supported original command performs the reservation itself:
+The original handler awaits the provider call before returning the supplied reservation identifier:
 
 ```csharp
 using System.Threading;
@@ -41,7 +39,7 @@ public record BookSeat(ReservationId ReservationId, SeatId SeatId)
 }
 ```
 
-Replace that command definition with:
+Replace the service call with a `ReserveSeat` declaration, keeping the same response identifier:
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -56,9 +54,9 @@ public record BookSeat(ReservationId ReservationId, SeatId SeatId)
 }
 ```
 
-The response identifier is already an input, so returning it requires no provider result. The command now describes the reservation, and Arc executes the existing `ReserveSeat` operation through the same model-bound pipeline. Keep the existing `ISeatReservations` registration; add no separate operation-handler registration.
+The command now describes the reservation. Arc executes `ReserveSeat` through the model-bound pipeline using the existing `ISeatReservations` registration; no separate operation-handler registration is needed. Because the identifier was known before execution, the response can stay the same even though `Handle()` no longer calls the provider.
 
-The command name and input properties have not changed. After rebuilding the backend, the generated proxy still exposes a `ReservationId` response—not the tuple or operation. Direct C# callers of `Handle()` now receive a declaration; callers using `ICommandPipeline` continue to receive the actual execution result.
+The command name and input properties have not changed. After rebuilding the backend, the generated proxy still exposes a `ReservationId` response, excluding the server-consumed operation. Direct C# callers of `Handle()` now receive a tuple containing the declaration instead of awaiting the reservation. Keep execution callers on `ICommandPipeline`, which returns the outcome after operations and execution scopes complete.
 
 :::caution[Remove the old execution path]
 Do not call `Reserve()` in `Handle()` and also return `ReserveSeat`. Do not manually call the operation's `Execute()` before returning it. Either would perform the work twice. Moving the same write into `Provide()` also leaves it outside operation recovery.
@@ -68,28 +66,30 @@ Do not call `Reserve()` in `Handle()` and also return `ReserveSeat`. Do not manu
 
 If a custom `ICommandResponseValueHandler` exists only to perform this application side effect, the operation can replace that handler and its typed proxy marker. Remove the unused handler declaration rather than retaining redundant discovery and dependency requirements. Operation values are reserved for Arc's operation phase, not dispatched to ordinary response handlers again.
 
-Keep specialized response-value handlers for framework integrations and return-value interpretation. Keep returned Chronicle events for durable domain facts; do not wrap event appends in operations to bypass the Chronicle append contract. Keep reactors, outboxes, and durable workflows when the work must follow committed facts reliably.
+Specialized response value handlers still belong at the framework integration boundary, where they interpret returned values. With Cratis Chronicle, continue returning events for durable domain facts rather than wrapping appends in operations to bypass the append contract. Work that must follow committed facts still needs the delivery and recovery behavior of a reactor, outbox, or durable workflow.
 
 A controller action does not become an operation-aware command by returning an operation object. Use the [model-bound pipeline](../command-pipeline.md), or keep the controller's existing service interaction when its HTTP behavior is the requirement.
 
 ## Check scopes and compensation before enabling the new path
 
-An operation-bearing command uses the [supported scope profile](./reference.md#supported-scope-profile): flat execution, explicitly compatible scopes, and at most one deferred commit participant. Audit custom execution scopes and explicit aggregate commits before migrating. Do not label a committing scope as a nonparticipant merely to make the command run.
+Check custom execution scopes before switching callers to the replacement. These scopes surround the command with integration work such as transaction completion. Operations require explicitly compatible scopes and at most one deferred commit participant, as described in the [supported scope profile](./reference.md#supported-scope-profile). A scope that commits business changes must report that responsibility and its actual commit outcome; marking it as a nonparticipant does not make it safe.
 
-Review `ReserveSeat.Compensate()` as a domain operation, not a generic delete-on-error callback. The provider must protect ownership, conflicting request-key reuse, and previously finalized work, including when a reservation acknowledgment was lost. If a reversal is not meaningful, omit it and accept that failed execution may leave uncompensated work.
+Keep execution flat as well. A call to another command from `Execute()` or `Compensate()` is rejected. If the old handler coordinates nested commands, that composition needs review before this migration.
 
-Arc manages failure handling and recovery selection; you do not add a `try/catch` or rollback stack to the command.
+Review `ReserveSeat.Compensate()` as a business cancellation. It must handle an attempted reservation whose acknowledgment was lost, without canceling another owner's reservation or a previously finalized success. Check how the provider handles conflicting reuse of a request key. If no meaningful reversal exists, omit compensation and accept that failed execution may leave uncompensated work.
+
+With Chronicle, a known commit rejection can permit compensation, but a committed, unknown, or mixed outcome suppresses it. Explicit aggregate commits can therefore change whether recovery is allowed. Arc selects recovery and attempts eligible callbacks in reverse order; a failed `CommandResult` is not proof that all work was reversed. Review the [commit and recovery contract](./reference.md#commit-and-recovery) rather than adding a rollback stack to the command.
 
 ## Prove that behavior was preserved
 
-Use [operation specifications](../../testing/command-operations.md) at both boundaries:
+Compare the replacement with the old handler using [operation specifications](../../testing/command-operations.md):
 
-1. Call `Handle()` directly and assert the response identifier and operation data. No provider should be needed for this decision spec.
-2. Execute through `CommandScenario`, register a controlled provider, and assert the actual provider arguments and caller response.
-3. Inject a forward failure and assert the original failure, stopped execution, and eligible compensation—not only an unsuccessful result.
-4. Keep validation and authorization specs. Returning an operation does not replace either concern.
+1. Call `Handle()` directly and assert the response identifier and operation data without registering a provider.
+2. Execute through `CommandScenario` with a controlled provider. Check the actual provider arguments and the caller response, including that failed commands expose no response.
+3. Inject a forward failure. Assert that Arc preserves the original failure, stops later operations, and attempts eligible compensation, including for the operation that threw.
+4. Keep validation and authorization specs, since returning an operation does not replace those checks.
 5. With Chronicle, [exercise a real commit rejection](../../testing/command-operations-with-chronicle.md) and verify that rejected events do not persist.
 
-Review retry behavior in the injected provider as well. Arc does not automatically retry operations, but an HTTP resilience policy, database execution strategy, or driver may retry inside a provider call. Those policies still need ownership-safe idempotency.
+Review retry behavior in the injected provider as well. Arc does not automatically retry operations, but an HTTP resilience policy, database execution strategy, or driver may retry inside a provider call. Those policies need idempotency: repeating a request must not repeat its effect. They must also preserve ownership so a later failed attempt cannot cancel earlier finalized work. Compensation remains in-process and uses a cooperative timeout; it does not provide recovery after a crash.
 
 The migration is complete when the response and provider effects are preserved, the decision is independently testable, and the recovery boundary is explicit. For unexpected outcomes, use the [troubleshooting reference](./reference.md#troubleshooting).

@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0027: Refusal branch must return registered events or acknowledge"
-description: Correct statically invalid OnRefused callback results before they fail a reactor delivery.
+description: ARCCHR0027 warns about statically invalid OnRefused callback results in Cratis Arc, which fail a reactor delivery before branch events append.
 ---
 
 ## Rule

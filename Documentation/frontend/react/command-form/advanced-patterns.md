@@ -1,13 +1,13 @@
 ---
-title: Advanced patterns
-description: Add computed previews and external controls without creating a second command or assuming autosave guarantees.
+title: CommandForm extensions and save workflows
+description: Extend Cratis Arc CommandForm with computed displays, confirmation dialogs, and autosave while keeping edits and execution on one command instance.
 ---
 
-Once fields are bound, keep extensions on the same form instance. A preview reads context; a dialog footer uses the form handle. Neither needs an independently constructed command.
+Extend Cratis Arc `CommandForm` through its context or form handle so computed displays and save controls use the values being edited. Calling `useCommand(UpdateProfile)` separately creates another command instance; executing it can submit different values from those on screen.
 
 ## Computed fields
 
-This complete component expects a generated `CreateInvoice` with numeric `quantity` and `unitPrice` properties. The total is a **display preview**, not a trusted price calculation or a persisted command field.
+To show an invoice total as the user edits, read `quantity` and `unitPrice` from a descendant of the form. In this example, the generated `CreateInvoice` has those two numeric properties. `InvoicePreview` uses the zero-argument `useCommandInstance` hook to read the form-owned instance; the calculated amount is display-only and does not create or validate a persisted command field.
 
 ```tsx
 import { CommandForm, NumberField, useCommandInstance } from '@cratis/arc.react/commands';
@@ -31,13 +31,13 @@ export function InvoiceForm() {
 }
 ```
 
-The descendant rerenders after form field edits and reads their current values. Enforce valid quantities and authoritative prices in the backend; numeric input attributes and a JavaScript preview are not business validation. If you transform command values before execution, return the existing instance synchronously from [onBeforeExecute](./form-lifecycle.md#before-execute-hook).
+Changing either field updates the displayed total. Keep `InvoicePreview` beneath the form provider even if you add custom layout wrappers. The calculation helps the user review the invoice; the backend must still enforce valid quantities and authoritative prices. If values need normalization before submission, return the existing instance synchronously from [onBeforeExecute](./form-lifecycle.md#before-execute-hook).
 
 ## Integration with external libraries
 
-For a modal, page toolbar, or wizard footer, use the complete [parent-control example](./form-lifecycle.md#reaching-the-form-from-a-parent). It supplies both `formRef` (execution) and `onStateChange` (reactive busy state), and routes keyboard submission through the same confirmation gate.
+For a modal, page toolbar, or wizard footer, use the [parent-control example](./form-lifecycle.md#reaching-the-form-from-a-parent). Its `formRef` executes the form, while `onStateChange` keeps external controls in step with the busy state. Both Enter submission and the external button pass through the same asynchronous confirmation before execution.
 
-Keep the modal's open/close state in its owning component. Close only after `result.isSuccess` or `onSuccess`; validation or authorization failure should leave the edited form available for correction. Use the dialog API from your installed UI package rather than an invented modal abstraction. [Arc dialogs](../dialogs.md) and an optional Components integration are separate presentation choices; neither changes the CommandForm context boundary.
+Keep the modal's open/close state in its owning component and close only after `result.isSuccess` or `onSuccess`. A validation or authorization failure then leaves the editor open for correction. Use your installed UI package's dialog API; [Cratis Arc dialogs](../dialogs.md) and Cratis Components integration are separate presentation choices that retain the same form context.
 
 Load edit data with [query population](./data-loading.md#populating-a-form-from-a-query) or mount the form with resolved initial values. Passing a separate command instance as `initialValues` does not make that instance the form's executable command, and spreading a generated command does not copy its accessor-backed properties.
 
@@ -57,13 +57,13 @@ stateDiagram-v2
     Failed --> Waiting: Explicit retry or new edit
 ```
 
-Your implementation must decide how to snapshot edits, serialize requests, handle retries, preserve edits made during a save, and avoid resaving a failed revision in a loop. Run execution through the form to preserve its callbacks. Keep a last-successful revision or value snapshot outside the command when you need an accurate “saved” indicator.
+Serialize requests and track which revision each request submitted. Decide how to handle edits made during a save, and provide retry and failure feedback without repeatedly resaving a failed revision. Execute through the form to keep its callbacks and result display connected to each attempt. `hasChanges` can stay `true` across many edits, so it cannot tell a debounce timer when a new revision arrived.
 
-Current limitation: `Command.execute()` snapshots its baseline after a completed server request even when that result failed; its snapshot helper skips falsy values. It is therefore unsafe to infer persisted state solely from `hasChanges`. CommandForm also does not prevent overlapping submissions. These are runtime boundaries to account for, not behaviors a documentation example can repair.
+`Command.execute()` captures submitted values and advances its change-tracking baseline only after a successful server result, including falsy values such as `0` and `false`. That baseline is not proof of durable storage: success means what your handler's response contract says it means. Tie a “saved” indicator to a last-successful revision and the backend's persistence contract. CommandForm does not prevent overlapping submissions; your application must coordinate saves.
 
 ## Check the behavior
 
-Exercise empty, invalid, valid, in-flight, and rejected states. Also test rapid edits, responses arriving out of order, unmount while loading, keyboard submit, and canceling confirmation. A successful build does not establish that the edited values—not an independent command—were submitted.
+When checking the finished workflow, confirm that the request contains the values shown in the editor. Try an invalid submission and a rejected request: the editor should remain available for correction. Then check rapid edits, responses arriving out of order, unmounting while loading, Enter submission, and canceling confirmation. These interactions reveal problems that a build alone cannot catch.
 
 ## See also
 

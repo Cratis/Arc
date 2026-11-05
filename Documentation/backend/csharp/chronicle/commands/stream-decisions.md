@@ -1,13 +1,13 @@
 ---
-title: Stream decisions
-description: Read a routed stream and return events guarded at the tail used by the decision.
+title: Guard Chronicle commands with stream decisions
+description: Read a Chronicle stream at a captured revision and return events that fail to append if a competing write changes the history used by the command.
 ---
 
-When a command decides from events in one stream, inject `IStreamReads` in `Provide()` and return `decision.Append(...)` from `Handle()`. The returned events carry the read route and an exact concurrency scope. A competing append to that stream after the read rejects the command with a concurrency validation failure, including when both commands attempt the first append.
+A stream decision keeps a command's append tied to the Cratis Chronicle history it read. Inject `IStreamReads` in `Provide()` and return `decision.Append(...)` from `Handle()`. A nonempty append carries the read route and a concurrency scope: the expected revision and the stream it protects. A competing write after that revision rejects the command, even when both writers try to create the stream's first event.
 
-Use a stream decision when the facts are raw events in one routed stream. For a rule over the folded state of one or more event sources, take the read model as a parameter under [read protection](../consistency/getting-started.md) `On`; for uniqueness, use a constraint. The cost is the whole stream crossing the wire on every command, so keep streams short. [Choosing how a command's rule holds](../consistency/index.md) compares the mechanisms, and its [scenarios](../consistency/scenarios/per-stream.md#a-period-approval) show this one next to the others.
+Use this when your rule examines raw events in one routed stream. The whole stream crosses the wire for each command, so keep it short. If the rule needs state folded from events instead, take a read model parameter under [read protection](../consistency/getting-started.md) `On`. For uniqueness, use a constraint. [Choosing how a command's rule holds](../consistency/index.md) compares these options; the [period-approval scenario](../consistency/scenarios/per-stream.md#a-period-approval) shows the trade-off in a command.
 
-A stream decision is Chronicle's [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) over one stream: Arc captures the tail before it reads, and the append fails if a matching event arrived after it. [Choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) and [Chronicle's scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) show the same decision from Chronicle's side.
+Cratis Arc captures the stream's tail, its latest sequence number, before fetching events and uses it to guard the append. This is Chronicle's [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) over one stream. See [choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) and [Chronicle's scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) for the event-store side of that boundary.
 
 This guide assumes Chronicle is [configured for the application](../index.md). `IStreamReads` and `IEventRoutes` resolve by Arc's service conventions; no additional registration is needed.
 
@@ -39,9 +39,11 @@ public record ApproveReport(EventSourceId ReportId, string Owner, string Month)
 public record ReportApproved;
 ```
 
-The empty append represents an **identical retry**: approval was already recorded and there is nothing new to record. It returns no events and no scopes and succeeds without checking whether the stream changed again. Do not use this branch to hide a missing prerequisite or a rejected action, and do not return a nullable event. Reject invalid requests through validation.
+The empty branch in this example accepts an already-recorded approval as an identical retry. `decision.Append([])` returns no events and no scopes; it succeeds without checking for subsequent stream changes. It does not reject the command. If approving twice is invalid in your domain, return a [validation failure](./events.md#reject-a-command-without-recording-an-event) instead. Use the same explicit rejection for missing prerequisites, not an empty or nullable event.
 
-`StreamDecision.Events` contains `AppendedEvent` values; `EventsOf<TEvent>()` selects payloads and `Has<TEvent>()` checks for a type. The reader captures `Tail` **before** fetching events and discards events beyond that tail. `IsEmpty` means the tail was unavailable, and the scope uses `ExpectingNoMatchingEvent()` to protect the first append. Source type, stream type and stream id filters are identical for the read and guard.
+`StreamDecision.Events` contains `AppendedEvent` values. Use `EventsOf<TEvent>()` for payloads and `Has<TEvent>()` to check whether an event type is present.
+
+The reader captures `Tail` before fetching events and discards anything beyond that revision. `IsEmpty` means no tail was available; `ExpectingNoMatchingEvent()` then guards the first append. The read and guard use the same source type, stream type and stream id filters.
 
 If you need folded state on the command's own route, use a [per-stream read model](../consistency/scenarios/per-stream.md) declared with `[EventStream<TSource>(stream)]` as a plain parameter. Under `On` its read is guarded; `Off` and `Measure` read the same stream without a guard. A `DecisionRead<T>` parameter of that declared model also uses the command route. For another stream or source, use the command-aware [`IDecisionReads` stream overload](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream) directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature. Under `On`, or in a `[ProtectedDecision]` command, it enrolls in the same transaction. Models without a per-stream declaration keep their key-based injection.
 
@@ -67,17 +69,17 @@ Both read modes require a specified event source id, a specific stream type and 
 
 ## Combine a stream decision with a read
 
-A stream decision is an exact scope for its stream. Under read protection `On`, a command that also reads a model of the **same event source** needs a scope that covers what the read watches. A stream is narrower than a whole-source read, so the command is refused with `ExplicitScopeDoesNotCoverReads`, and [ARCCHR0036](../code-analysis/ARCCHR0036.md) reports it at build time. Read a different source, or read the stream through `IDecisionReads` with the same stream dimensions.
+An exact stream scope must cover every protected read that depends on it. Under read protection `On`, reading a whole-source model of the same event source adds a broader requirement than the stream scope can satisfy. Arc refuses that combination with `ExplicitScopeDoesNotCoverReads`; [ARCCHR0036](../code-analysis/ARCCHR0036.md) also reports it at build time. Read a different source, or use `IDecisionReads` with the same stream dimensions.
 
 ## Keep one exact scope per source
 
-Chronicle's `EventsWithConcurrencyScopes` labels scopes by event source id: one scope per id per command. It cannot carry separate guards for two stream ids of the same source. Use the stream-type-wide variant when that boundary matches the decision, or split the command. Do not combine two independent stream decisions for the same id and assume both tails are guarded.
+Arc's current `EventsWithConcurrencyScopes` response handler reads one scope per event source id through the response's `ConcurrencyScopes` accessor. Returning separate guards for two stream ids under the same source label therefore fails rather than protecting both tails. Use the stream-type-wide variant when it matches the rule, or split the command. Do not combine independent stream decisions for the same id and assume both are guarded.
 
 Exact scopes replace automatic concurrency capture. Remove `concurrency: true` from string routing attributes on a command returning `EventsWithConcurrencyScopes`; retain the routing values. A shared event source definition's concurrency policy stays on the definition, and the exact returned scope intentionally takes precedence. See [concurrency](./concurrency.md#exact-scopes-replace-automatic-capture).
 
 ## Seed and interfere on the same route
 
-Application specs give state and assert outcomes; they do not simulate competing writers. The command's stream-decision dependency automatically selects one in-process event log before seeding. This excerpt uses `ApproveReport` and `ReportApproved` from the first example:
+Start with a spec that seeds the routed history and checks the command's outcome. The stream-decision dependency selects one in-process event log before seeding, so the command reads the same log you arrange. This excerpt uses `ApproveReport` and `ReportApproved` from the first example:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
@@ -93,4 +95,4 @@ For a definition, use `scenario.EventRoutes.For<ReportSource>("approval").WithSt
 
 [Scenarios for each stream shape](./event-source-definition-scenarios.md#decide-against-the-stream) show a stream decision on a definition-routed command, and [how routing works](./event-source-definition-routing.md#the-concurrency-scope-arc-passes) explains the scope it passes.
 
-A nonempty decision append is guarded by its declared scope; the identical-retry branch deliberately returns no scope. Arc's framework specs prove conflict handling. For a specific, explicit framework-verification need, see the [advanced concurrency note](../../testing/chronicle.md#protected-decision-scenarios).
+Check both outcomes in your application specs: a new approval appends its event, while the example's identical-retry branch succeeds without another event. If your rule rejects repeat approvals, assert the validation failure instead. Arc's framework specs cover interference with the captured revision; application specs need not simulate competing writers. For an explicit framework-verification need, use the [advanced concurrency note](../../testing/chronicle.md#protected-decision-scenarios).

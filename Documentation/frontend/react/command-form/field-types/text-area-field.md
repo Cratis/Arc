@@ -1,6 +1,6 @@
 ---
 title: TextAreaField
-description: Bind a string command property to a multi-line text area.
+description: TextAreaField binds a string command property to a multiline text area in Cratis Arc React forms, with row and column sizing props.
 ---
 
 A multi-line string input. An undefined value displays as an empty string without seeding the command.

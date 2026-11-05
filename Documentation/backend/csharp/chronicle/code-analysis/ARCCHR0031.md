@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0031: Invalid read-model lookup"
-description: Use exactly one lookup form on a read-model parameter; string lookups must name a public instance command property.
+description: ARCCHR0031 rejects invalid read-model lookups in Cratis Arc; use one lookup form and a public instance command property for string lookups.
 ---
 
 ## Rule

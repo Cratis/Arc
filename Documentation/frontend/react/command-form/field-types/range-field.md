@@ -1,6 +1,6 @@
 ---
 title: RangeField
-description: Bind a numeric command property to a slider with a value display.
+description: RangeField binds a numeric command property to a native slider in Cratis Arc React forms, with min, max, step, and a value display.
 ---
 
 A native slider with its current value displayed beside it. Input range attributes constrain the control, not programmatically supplied command values; enforce range rules on the command.

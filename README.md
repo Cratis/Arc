@@ -1,10 +1,17 @@
-# Cratis Arc
+---
+title: "Cratis Arc: CQRS framework for ASP.NET Core"
+description: Cratis Arc is a CQRS framework for ASP.NET Core that exposes commands and queries over HTTP and generates TypeScript clients, without requiring event sourcing.
+---
 
-Arc is an open-source (MIT) opinionated CQRS application framework for ASP.NET Core with commands, queries, validation, authorization, and TypeScript proxy generation. It works without event sourcing, with optional Chronicle integration.
+<a id="cratis-arc"></a>
 
-Arc hosts application behavior, executes command and query pipelines, exposes recognized contracts over HTTP, and generates TypeScript clients for them. Its packages also cover observable queries, validation, identity and tenancy, React integration, current-state persistence, OpenAPI, analyzers, and testing. Chronicle event sourcing and Cratis Components are optional integrations.
+# Cratis Arc: CQRS framework for ASP.NET Core
 
-Arc reflects a broader Cratis conviction: application plumbing should not be the hard part. Commands, queries, validation, and authorization are written as plain, idiomatic .NET code, designed to reduce friction and boilerplate in service of productivity, quality, and reliability. Arc is part of one deliberately simple ecosystem — AI-friendly by design, with free [AI skills](https://github.com/Cratis/AI) for building with the stack.
+Cratis Arc is an open-source (MIT) CQRS application framework for ASP.NET Core. CQRS separates requests to change something (commands) from requests to read it (queries). Arc exposes those contracts over HTTP, handles validation and authorization, and generates TypeScript clients for the frontend. It works with current-state storage or optional Cratis Chronicle event sourcing.
+
+Build a feature as a vertical slice: keep its command, read model, query, frontend, and specs together. The backend defines the contracts; generated TypeScript proxies carry them into the frontend without a hand-written API client for those contracts. Observable queries let a screen subscribe to results as they change, with a configured observation source.
+
+Choose the packages your feature needs. Arc includes identity and tenancy, React integration, MongoDB and Entity Framework Core adapters, OpenAPI, analyzers, and testing helpers. Chronicle event sourcing and Cratis Components are optional integrations. Free [AI skills](https://github.com/Cratis/AI) provide guidance for building with the stack.
 
 [![NuGet](https://img.shields.io/nuget/v/Cratis.Arc?logo=nuget)](https://www.nuget.org/packages/Cratis.Arc)
 [![NPM](https://img.shields.io/npm/v/@cratis/arc?label=@cratis/arc&logo=npm)](https://www.npmjs.com/package/@cratis/arc)
@@ -36,7 +43,7 @@ Arc reflects a broader Cratis conviction: application plumbing should not be the
 | Persistence integration | MongoDB and Entity Framework Core current-state adapters plus optional Chronicle-backed event-sourced behavior |
 | Evaluation and tooling | OpenAPI, runtime introspection, analyzers, source generators, command scenarios, proxy-generation checks, Vite helpers, and ESLint rules |
 
-Each row is a documented capability area, not a promise of compatibility with every package, host, provider, browser, or product version.
+Use this table to find the capability you need, then check its package and documentation for your host, provider, browser, and versions. The rows do not establish compatibility for every combination.
 
 ## Choose a path
 
@@ -52,13 +59,13 @@ Arc documentation is organized around the job you need to complete:
 - [Add Chronicle event sourcing](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/chronicle/index.md) — events, projections, reducers, aggregates, reactors, concurrency, and Chronicle-specific testing.
 - [Inspect and verify the application boundary](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/introspection/index.md) — introspection, OpenAPI, analyzers, generated metadata, and command scenarios.
 
-The canonical Arc page remains the front door; product-owned documentation and source carry the detail.
+For a first feature, start the host below, then follow the command and query guides. If you already have an application, choose the path for the part you want Arc to handle.
 
 ## Arc does not require event sourcing
 
-Arc.Core does not depend on Chronicle. Commands and queries can use current-state persistence or application services without an event log. Choose the persistence and integrations that fit each application boundary.
+Arc.Core does not depend on Chronicle. A command can call an application service or write current state to a database; a query can read that state without an event log.
 
-The Chronicle integration is optional and supplies event-sourced behavior when configured. Arc retains its command, query, validation, authorization, and generated-contract boundary.
+Choose the optional Chronicle integration when you want to record events and derive state from them. Arc still handles commands, queries, validation, authorization, and generated frontend contracts.
 
 [Chronicle](https://github.com/Cratis/Chronicle) is Cratis's storage-agnostic event-sourcing database and runtime — MIT licensed and free to use; see the [Chronicle documentation](https://www.cratis.io/chronicle/) for its own scope and setup.
 
@@ -161,17 +168,17 @@ Fix a new diagnostic by replacing the unsafe path rather than suppressing it. Th
 
 ## The Cratis ecosystem
 
-Arc is part of [Cratis](https://www.cratis.io) — free, MIT-licensed tools for building event-sourced and CQRS applications.
+Arc is part of [Cratis](https://www.cratis.io) — a platform for building event-sourced and CQRS applications.
 
 - **[Chronicle](https://github.com/Cratis/Chronicle)** — event-sourcing database and runtime. Orleans-based kernel, pluggable storage (MongoDB default; PostgreSQL, SQL Server, SQLite, in-memory), language-agnostic gRPC contracts. [Docs](https://www.cratis.io/chronicle/)
-- **Chronicle clients** — first-class [.NET SDK](https://github.com/Cratis/Chronicle), plus [TypeScript](https://github.com/Cratis/Chronicle.TypeScript), [Kotlin/Java](https://github.com/Cratis/Chronicle.Kotlin), and [Elixir](https://github.com/Cratis/Chronicle.Elixir); [Python](https://github.com/Cratis/Chronicle.Python) coming soon (pre-alpha). AI agents connect through the [Chronicle MCP server](https://github.com/Cratis/Chronicle.Mcp).
+- **Chronicle clients** — first-class [.NET SDK](https://github.com/Cratis/Chronicle), plus [TypeScript](https://github.com/Cratis/Chronicle.TypeScript), [Kotlin/Java](https://github.com/Cratis/Chronicle.Kotlin), and [Elixir](https://github.com/Cratis/Chronicle.Elixir); [Python](https://github.com/Cratis/Chronicle.Python) coming soon. AI agents connect through the [Chronicle MCP server](https://github.com/Cratis/Chronicle.Mcp).
 - **Arc** (this repository) — opinionated CQRS framework for ASP.NET Core with commands, queries, validation, authorization, and TypeScript proxy generation. Works without event sourcing. [Docs](https://www.cratis.io/arc/)
 - **[Components](https://github.com/Cratis/Components)** — React components aligned with Arc patterns. [Docs](https://www.cratis.io/components/)
 - **[CLI](https://github.com/Cratis/cli) + Workbench** — inspect and diagnose Chronicle from the terminal or the browser. [Docs](https://www.cratis.io/cli/)
-- **Model-first layer (experimental)** — Studio, [Screenplay](https://github.com/Cratis/Screenplay), [Stage](https://github.com/Cratis/Stage), [Scene](https://github.com/Cratis/Scene), [Prologue](https://github.com/Cratis/Prologue)
-- **Supporting** — [Fundamentals](https://github.com/Cratis/Fundamentals), [Specifications](https://github.com/Cratis/Specifications), [Synopsis](https://github.com/Cratis/Synopsis), [Lens](https://github.com/Cratis/Lens), [Narrator](https://github.com/Cratis/Narrator), and free [AI tooling](https://github.com/Cratis/AI) (preview); Ensemble coming soon (pre-release)
+- **Model-first layer** — Studio, [Screenplay](https://github.com/Cratis/Screenplay), [Stage](https://github.com/Cratis/Stage), [Scene](https://github.com/Cratis/Scene), [Prologue](https://github.com/Cratis/Prologue)
+- **Supporting** — [Fundamentals](https://github.com/Cratis/Fundamentals), [Specifications](https://github.com/Cratis/Specifications), [Synopsis](https://github.com/Cratis/Synopsis), [Lens](https://github.com/Cratis/Lens), [Narrator](https://github.com/Cratis/Narrator), and free [AI tooling](https://github.com/Cratis/AI); Ensemble coming soon
 - **[Samples](https://github.com/Cratis/Samples)** — runnable event sourcing and CQRS samples for the whole stack
 
-Everything Cratis publishes today is MIT licensed and free to use.
+Arc is MIT licensed and free to use. Other Cratis products have their own licensing and access terms.
 
 Release notes and announcements: the [Cratis blog](https://blog.cratis.io).

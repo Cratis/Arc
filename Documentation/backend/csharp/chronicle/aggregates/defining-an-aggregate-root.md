@@ -1,13 +1,13 @@
 ---
-title: Defining an aggregate root
-description: Rebuild aggregate state with event handlers, apply new facts, and choose the correct commit boundary.
+title: Define an aggregate root in Arc
+description: Define an Arc aggregate root that rebuilds state from events, rejects invalid changes, and returns its commit result from a command handler.
 ---
 
-An aggregate makes a decision from an entity's event history. In Arc's optional Chronicle integration, derive from `Cratis.Arc.Chronicle.Aggregates.AggregateRoot`, apply facts with `Apply`, and rebuild state in event handlers. The factory supplies the mutation context; do not construct an aggregate yourself for production use.
+Define an aggregate root in Arc's Chronicle integration when an entity's rules are easier to express as methods over its event history. Derive from `Cratis.Arc.Chronicle.Aggregates.AggregateRoot`, rebuild state in event handlers, and call `Apply()` for each accepted change. Resolve the aggregate through command injection or `IAggregateRootFactory`; the factory supplies the context needed to replay and record events.
 
 ## State that survives replay
 
-This complete aggregate/type example records order quantities. `OnItemAdded` handles both replayed history and newly applied events, so the next decision sees the updated quantity.
+This example keeps an order's total quantity at or below 100. `AddItem` checks the requested change, while `OnItemAdded` updates the quantity for both replayed history and newly applied events. Keeping state changes in that handler means the next decision sees the same state whether the event was just applied or loaded from history.
 
 ```csharp
 using Cratis.Arc.Chronicle.Aggregates;
@@ -62,11 +62,11 @@ public class Order : AggregateRoot
 public record ItemAdded(ProductId ProductId, Quantity Quantity);
 ```
 
-Keep each concept in its own file in the application. `OrderId` and `ProductId` distinguish the target order from the referenced product; `Quantity` carries the amount being added. The event keeps the foreign product reference, while the order id lives in event context.
+Keep each concept in its own file in the application. `OrderId` and `ProductId` distinguish the target order from the referenced product; `Quantity` carries the amount being added. The event keeps the product reference, while the order id lives in event context.
 
-The bound assumes valid replayed state between 0 and 100; subtracting the current quantity avoids overflowing when the input is a very large positive integer.
+The quantity check assumes replayed state is already between 0 and 100. Subtracting the current quantity avoids overflowing when the input is a very large positive integer. This method rejects invalid new changes; it does not repair invalid history.
 
-`Apply` is asynchronous: always await it. Do not also return the same `ItemAdded` from a command; that would declare another append. Event handlers rebuild internal state only. Do not send notifications, call external systems, or append more events from a replay handler.
+Always await `Apply()`: it enrolls the event for commit and runs the handler that updates local state. Do not also return the same `ItemAdded` from a command, because that declares another append. Keep event handlers free of notifications, external calls, and further appends; they run again when history is replayed.
 
 Aggregate `Apply()` does not forward the command-context compliance subject. Its events use Chronicle's event-level subject resolution and fallback, even when the command sets or returns a subject. See the [aggregate subject limitation](../compliance/subject.md#aggregate-apply-limitation) before choosing the encryption identity.
 
@@ -95,7 +95,7 @@ Arc rejects an aggregate that names a stream its definition does not declare, a 
 
 ## Which events rehydration reads
 
-An aggregate root rebuilds its state from the events it handles, and its commit fails with a concurrency violation if an event arrived since it was loaded in any stream it read from. Whether it declares an event source decides how wide that is.
+Rehydration means replaying handled events to rebuild the aggregate's state. Before reading them, Arc captures the tail sequence number of the scope it will guard. Applied events carry that expectation, and commit rejects a concurrent append that matches the guard. The declaration and whether the aggregate already exists determine which events are read and which concurrent writes cause a conflict.
 
 | | Without `[EventSource<TSource>]` | With `[EventSource<TSource>]` |
 | --- | --- | --- |
@@ -103,7 +103,7 @@ An aggregate root rebuilds its state from the events it handles, and its commit 
 | The commit rejects a concurrent append | to any stream for the event source id: handled event types for an existing aggregate, any event type for a new aggregate or one without handlers | to its event source type and event stream type, in the event stream id passed to `Get<T>` or else in any |
 | Its own events are appended with | its event stream type, event stream id and event source type | the same, plus the declared event source |
 
-An aggregate without a declaration therefore picks up handled events appended for its id anywhere, for example straight to the event log or by another aggregate type, and its commit protects all of them. For an aggregate that already existed when loaded and has handlers, only a handled event type appended for the same id after loading causes a concurrency violation; a new aggregate keeps the any-event-type guard so a competing creation cannot succeed twice. Declare an event source when the aggregate owns one stream and other streams for the same id should neither shape its state nor block its commit.
+Without a declaration, handled events appended anywhere for the id can shape the aggregate's state, including events written directly to the log or by another aggregate type. An existing aggregate with handlers guards those handled types across streams. A new aggregate keeps an any-event-type guard so competing creations cannot both succeed. Declare an event source when the aggregate owns one stream and other streams for the same id should neither shape its state nor block its commit.
 
 ## Event handler signatures
 
@@ -120,15 +120,17 @@ Task On(TEvent @event, EventContext context)
 
 ## Injected read models are dependencies, not aggregate replay state
 
-Constructor injection can supply a registered read model, including an on-demand passive model. Its resolver controls its key and state. The aggregate factory's explicit id does not automatically become a new command context for those dependencies.
+Constructor injection can supply additional context through a registered read model, including an on-demand passive model. That model's resolver controls its key and state. Calling the aggregate factory with an explicit id does not change the command context used to resolve those dependencies.
 
-An injected model does not continually update when this aggregate applies events. Use aggregate handlers for state that must evolve during replay and mutation. For ordinary snapshot context, use [read-model injection](../read-models/index.md). Chronicle's projection and reducer interfaces are `IProjectionFor<T>` and `IReducerFor<T>`; they are not a special aggregate-state API.
+An injected model does not update when this aggregate applies events. Keep the quantity used by `AddItem`, and any other state that must evolve with the aggregate, in its event handlers. [Read-model injection](../read-models/index.md) explains how to acquire separate model state; Chronicle's `IProjectionFor<T>` and `IReducerFor<T>` are projection and reducer interfaces, not a special aggregate-state API.
+
+Acquiring a model also does not put it under the aggregate's concurrency guard. If the command must decide from that model, choose protection for the read explicitly. Under read protection `On`, a protected read of the same source as an aggregate is refused; see [what an aggregate guards](./injecting-into-commands.md#what-an-aggregate-guards) before combining them.
 
 ## Reporting failure and committing
 
-`Failed(message, severity)` accumulates aggregate validation results. `AggregateRoot.Commit()` checks them: an Error prevents that commit; Warning and Information results are included without blocking it.
+Call `Failed(message, severity)` when a change is not allowed, then stop that operation before applying its event, as `AddItem` does above. The call records a validation result; it does not throw or stop execution. `AggregateRoot.Commit()` checks the recorded results: Error severity prevents that commit, while Warning and Information results are included without blocking it.
 
-For the `Order` above, return the commit result so Arc can propagate these failures:
+Use the `Order` from a command and return its commit result so Arc can report those failures to the caller:
 
 ```csharp
 using Cratis.Arc.Chronicle.Aggregates;
@@ -157,11 +159,11 @@ Inside a command, `Commit()` commits the **shared command unit of work**, not ju
 
 ## Automatic completion and its current limitation
 
-The command pipeline can commit enrolled aggregate events automatically when the command result succeeds. That is useful when the command's own result carries all rejection decisions. However, automatic completion commits the unit of work directly: it does **not** call each aggregate's `Commit()` or collect its private `Failed(...)` results.
+The command pipeline can commit enrolled aggregate events automatically when the command result succeeds. That works when the command's own result carries every rejection decision. Automatic completion commits the unit of work directly; it does not call each aggregate's `Commit()` or collect its private `Failed(...)` results.
 
-Do not replace the explicit commit in this example with a `Task`-only handler. In particular, an aggregate that applies an event and later calls `Failed(...)` can leave enrolled events while the command still appears successful. Propagate failure through the command result before completion, or retain the explicit commit/result path above and accept its boundary. Multi-aggregate failure aggregation needs particular care; one aggregate's commit does not inspect another aggregate's private validation list.
+Keep the explicit commit in this example rather than changing it to a `Task`-only handler. If an aggregate applies an event and later calls `Failed(...)`, automatic completion can still commit that event when the command appears successful. Either propagate failure through the command result before completion or return the aggregate's explicit commit result. With multiple aggregates, each failure must reach the command outcome: one aggregate's commit does not inspect another's private validation list.
 
-Rehydration alone also does not prove a concurrency invariant. Test the revision captured by the aggregate path and the competing append behavior for your client/server versions; use append-time constraints or [exact concurrency scopes](../commands/events.md#events-with-exact-concurrency-scopes) when appropriate.
+Verify the decision boundary with a competing append, not just a replay test. The aggregate protects the scope described above, not every read or external dependency used by the command. Use append-time constraints or [exact concurrency scopes](../commands/events.md#events-with-exact-concurrency-scopes) when the rule needs a different boundary.
 
 ## Using the factory outside a command
 
@@ -184,4 +186,4 @@ public class OrderService(IAggregateRootFactory aggregates)
 
 The caller must inspect the result and manage the surrounding lifetime. This fragment is not an HTTP endpoint and does not supply Arc command validation or authorization by itself.
 
-For the full boundary, see [Transactional commands](../commands/transactional-commands.md); for injection and identity timing, see [Aggregate roots in commands](./injecting-into-commands.md).
+To use the aggregate as a `Handle()` dependency, continue with [Aggregate roots in commands](./injecting-into-commands.md). For how its pending events share a transaction with other command work, read [Transactional commands](../commands/transactional-commands.md).

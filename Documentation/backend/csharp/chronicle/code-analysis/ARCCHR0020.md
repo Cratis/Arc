@@ -1,6 +1,6 @@
 ---
 title: 'ARCCHR0020: Wrapper event stream is not declared'
-description: A literal per-event route names a stream its known event source definition does not declare.
+description: ARCCHR0020 in Cratis Arc warns when a literal per-event route names a stream that its known event source definition does not declare.
 ---
 
 ## Rule

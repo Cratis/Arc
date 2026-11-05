@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0026: Chronicle model read through a MongoDB collection"
-description: Identify collection dependencies whose model is recognizably backed by Chronicle.
+description: ARCCHR0026 flags MongoDB collection parameters holding Chronicle-backed models in Cratis Arc; severity rises from Info to Warning under On.
 ---
 
 ## Rule

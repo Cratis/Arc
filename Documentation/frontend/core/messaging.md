@@ -1,17 +1,15 @@
 ---
-title: Messaging
-description: Publish and subscribe to typed frontend messages with Messenger, including subscription cleanup and parent-child scope propagation.
+title: Cratis Arc frontend messaging lifecycle
+description: Cratis Arc Messenger coordinates frontend UI through typed in-memory messages. Subscribe before publishing, control scope, and clean up subscriptions.
 ---
 
-`Messenger` connects frontend publishers and subscribers through typed, in-memory messages. Use it for UI coordination, such as letting a details panel react to a selection, without coupling the publisher to the panel.
+Cratis Arc's `Messenger` lets one part of a frontend notify another through typed, in-memory messages. Use it when a customer selection should update a details panel without making the selection code hold a reference to that panel. Both parts use the same messenger, or connected scopes in a messenger hierarchy.
 
 ## IMessenger
 
-- `IMessenger` defines `publish(...)`, `subscribe(...)`, and propagation settings.
-- `Messenger` implements that contract with RxJS subscriptions.
-- `subscribe(MessageType, handler)` returns a subscription; call `unsubscribe()` when its owner no longer needs messages.
+`IMessenger` defines publishing, subscribing, and propagation settings. `Messenger` implements that contract and returns an RxJS subscription from `subscribe(MessageType, handler)`. The subscription connects a handler to future messages until you call `unsubscribe()`.
 
-Messages are matched by their constructor, not by a string name or a matching object shape. Publish an instance of the same class passed to `subscribe`; a plain object with identical properties does not have that constructor.
+Define a class for each message type and publish an instance of that class. Matching uses the exact constructor passed to `subscribe`, not a string name or an object's properties. A plain object with the same `customerId` property will not reach the `CustomerSelected` handler below.
 
 ```typescript
 import { Messenger } from '@cratis/arc/messaging';
@@ -30,11 +28,13 @@ subscription.unsubscribe();
 messenger.dispose();
 ```
 
-Register subscribers before publishing. This is a live message channel, not a replaying store: a later subscriber does not receive earlier selections. It also does not send messages to a backend or persist them as domain events.
+The example registers the details handler before publishing the selection, so the handler logs `customer-42`. It then releases the subscription and disposes the messenger. In an application, keep the subscription for as long as the panel needs updates and unsubscribe when the panel closes.
+
+Messages are delivered to current subscribers only. A panel that subscribes after the selection does not receive it; keep current selection state separately if the panel needs an initial value. Publishing also does not send a request to a backend or persist a domain event. Use a [command](./commands/index.md) for a backend state change.
 
 ## Scoped hierarchy
 
-Construct a child with `new Messenger(parent)` when a feature needs its own scope. A message is delivered locally, then follows these settings:
+Construct a child with `new Messenger(parent)` when a feature needs a local group of subscribers. The constructor registers the child with its parent. A published message reaches local subscribers first, then bubbles upward if enabled, and finally travels down to children if enabled.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
@@ -43,13 +43,13 @@ Construct a child with `new Messenger(parent)` when a feature needs its own scop
 
 ### Propagation and cleanup
 
-When a child bubbles a message to a parent that trickles, sibling scopes can receive it too; the sending child is excluded from that return path. Use propagation deliberately rather than assuming a child scope isolates every message.
+A child receives messages from its parent even when the child's own `trickleDownToChildren` is `false`; that setting stops delivery to the child's descendants. If the child also enables `bubbleToParent`, its locally published messages can reach sibling scopes through a parent that trickles. The sending child is excluded from that return path, so it does not receive the same message back from its parent.
 
-`dispose()` detaches a messenger from its parent. It does not replace subscription cleanup: keep and unsubscribe subscriptions when their handlers are no longer needed.
+When a feature closes, unsubscribe its handlers and call `dispose()` on its messenger to detach it from the parent. These are separate steps: `dispose()` removes the parent-child registration but does not unsubscribe local handlers or complete the local message stream.
 
 ## React usage
 
-React applications use the nearest messenger from context. `useOnMessage` handles subscription cleanup on unmount; `useMessenger` exposes the messenger for publishing. See [React Messaging](../react/messaging.md) for component examples and scope configuration.
+In React components, use `useOnMessage` to keep a subscription for the component's lifetime and clean it up on unmount. `useMessenger` returns the nearest messenger from context for publishing. Continue with [React Messaging](../react/messaging.md) to place scopes around a feature and connect its components.
 
 ## See also
 

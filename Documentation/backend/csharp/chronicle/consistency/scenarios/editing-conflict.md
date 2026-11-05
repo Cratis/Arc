@@ -1,13 +1,13 @@
 ---
-title: Editing conflict
-description: Reject a change when the document changed after the editor loaded it, with an explicit scope that carries the revision the client saw.
+title: Reject stale document edits in Arc
+description: An explicit concurrency scope lets an Arc rename command reject a stale edit when the document title changed after the editor loaded it.
 ---
 
-Use this when the client loaded a document, someone else may have changed it, and a save must not overwrite that change.
+A captured concurrency scope lets Cratis Chronicle reject an edit made against an older document title. When saving through Cratis Arc, send the revision the editor loaded with the rename command. The scope guards the title changes since that revision.
 
 | | |
 | --- | --- |
-| Rule | A rename is rejected if the document changed after the editor loaded it |
+| Rule | A rename is rejected if the title changed after the editor loaded it |
 | Mechanism | An explicit scope built from the revision the client sent, returned with `EventsWithConcurrencyScopes` |
 | Alternatives | A read model parameter when the conflict only matters within one request |
 | Not | `concurrency: true` alone: it reads the tail after `Handle()`, so it cannot carry the revision the user saw |
@@ -39,7 +39,9 @@ public record RenameDocument(DocumentId Document, string Title, ulong ExpectedRe
 guard document: types=[DocumentTitleChanged], after <ExpectedRevision>
 ```
 
-The scope fails the append if any `DocumentTitleChanged` for this document has a sequence number above `ExpectedRevision`. How the client learns the revision is part of your read model and query.
+The scope fails the append if any `DocumentTitleChanged` for this document has a sequence number above `ExpectedRevision`. Your read model and query must supply that revision to the client. On a conflict, show the newer title and let the user decide what to save.
+
+This example guards only title changes. To reject edits after other document changes, include the event types that represent those changes too.
 
 ## Under read protection
 

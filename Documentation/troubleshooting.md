@@ -1,6 +1,6 @@
 ---
-title: Troubleshooting
-description: Fixes for the issues that come up most when building with Arc — proxies, authorization, validation, and stale types.
+title: Troubleshoot C# applications with Cratis Arc
+description: Resolve C# application issues in Cratis Arc, including missing TypeScript proxies, stale types, disabled forms, authorization, and validation.
 ---
 
 Most Arc snags come down to a handful of causes. Here they are. If the slice uses the Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
@@ -9,7 +9,7 @@ Most Arc snags come down to a handful of causes. Here they are. If the slice use
 The fixes below are for C#. See [JVM troubleshooting](/arc/backend/kotlin/troubleshooting/)
 for Gradle, KSP, and Spring Boot, or [TypeScript proxy generation](/arc/backend/typescript/proxy-generation/getting-started/)
 and the [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/)
-for the source preview. Do not apply the .NET build or discovery steps to those hosts.
+for the Node.js backend. Do not apply the .NET build or discovery steps to those hosts.
 :::
 
 ## My frontend can't find the generated proxy

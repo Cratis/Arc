@@ -1,11 +1,11 @@
 ---
-title: Test command operations and compensation
-description: Specify operation decisions directly, then run real execution and compensation through CommandScenario with controlled dependencies.
+title: Cratis Arc command operation and compensation tests
+description: Test Cratis Arc operation declarations directly, then use CommandScenario to check provider calls and reverse-order compensation after failure.
 ---
 
-A booking test needs to answer more than "did the command return a reservation?" You also need to know that Arc calls the provider, stops after a failure, and compensates the work it started. Those are different boundaries—and you can test each without a server.
+Test Cratis Arc command operations directly to check what work a handler declares. Use `CommandScenario` to check that Arc executes that work and, after a failure, invokes compensation: the business reversal of work already started.
 
-In this lesson, first inspect the command's decision. Then exercise the real operation pipeline through `CommandScenario`, including a provider failure and reverse-order compensation. You do not write a rollback stack in the command or the spec.
+This lesson follows a seat booking from its returned decision to provider calls and reverse-order recovery. The reservation provider is substituted, so you need no server or Cratis Chronicle package. Arc manages the recovery sequence; neither the command nor the spec needs its own rollback stack.
 
 ## Set up the lesson
 
@@ -60,7 +60,7 @@ Run it:
 dotnet test SeatBooking.Specs --filter FullyQualifiedName~when_deciding_to_book
 ```
 
-Both facts pass without a service container or provider substitute. The record's value equality makes the operation intent directly inspectable. Calling `Handle()` did not execute `ReserveSeat.Execute()` or `Compensate()`.
+The two assertions check the returned identifier and the declared reservation. Record value equality lets you compare the operation's inputs directly. Calling `Handle()` does not execute `ReserveSeat.Execute()` or `Compensate()`, so this spec cannot tell you whether the provider is called.
 
 Add decision branches here when you introduce conditional reservations or additional operations. Use fixed inputs rather than the clock or randomly generated data when those would obscure the decision being specified.
 
@@ -104,7 +104,7 @@ public class when_reserving_directly : Specification
 }
 ```
 
-This tests your adapter, not Arc's orchestration. A direct method invocation does not automatically compensate on failure. The next specs cross that boundary deliberately.
+This checks how `ReserveSeat` maps its inputs to the provider request. It does not check Arc's execution order or automatic compensation; calling an operation directly does not run that orchestration. Use the next scenario to test the connection.
 
 ## Execute through CommandScenario
 
@@ -164,7 +164,7 @@ public class when_booking_through_arc : Specification
 }
 ```
 
-`CommandScenario` builds its provider lazily, so register substitutes before the first execution. It runs the actual command pipeline and operation invokers. The `Operations` snapshot reports entered invocations from the latest `Execute`; it is not a list of declarations that a recording stub pretended to execute.
+Register substitutes before the first execution, when `CommandScenario` builds its service provider. The scenario runs the command pipeline and operation invokers rather than recording declarations in a stub. Its `Operations` snapshot contains invocations that entered execution during the latest `Execute`, so you can distinguish planned work from work Arc actually started.
 
 The cast uses the actual response type. An operation failure may produce a result without a usable typed response, so check success before consuming responses in application code.
 
@@ -258,9 +258,9 @@ public class when_the_second_reservation_fails : Specification
 }
 ```
 
-The original failure, exact provider calls, skipped operation, and recovery observations prove different things. A lone `ShouldNotBeSuccessful()` could pass because a dependency was missing before any operation ran; the additional assertions prevent that false positive.
+The specific error and provider calls establish where execution stopped. The skipped third reservation checks that Arc started no later work, while the cancellation order checks recovery of both entered operations. A lone `ShouldNotBeSuccessful()` could also pass if a missing dependency prevented every operation from running.
 
-`Completed` means the required compensation callbacks returned. This substitute cannot prove that a production provider made cancellation durable or prevented a delayed reservation from appearing later.
+`Completed` means the required compensation callbacks returned, not that the command succeeded. A provider-backed test must still check durable cancellation and whether a delayed reservation can appear afterward.
 
 ## Add cancellation and rejection cases
 
@@ -280,12 +280,12 @@ Run all the specs:
 dotnet test SeatBooking.Specs
 ```
 
-You have specified the pure decision, the provider adapter, successful Arc composition, and reverse-order recovery after an execution failure. Your application code contains no error-handling stack.
+The direct specs check what work is declared and how the operation calls its provider. The scenario specs check that Arc connects those pieces and recovers in reverse order after a failure. Keep new decision branches in the direct specs; add scenario cases when the risk concerns execution or recovery.
 
 Continue with [operation failure cases](./command-operation-failures.md) for runnable cancellation, validation-rejection, missing-compensator, and failed-compensation specs. Backend `Recovery` and `OperationOutcomes` remain available to these tests; they are not serialized to frontend clients.
 
 At the provider boundary, also test a repeated request after a reservation was finalized: a failed new attempt must not cancel the earlier successful reservation. Verify conflicting key reuse, tenant/owner isolation, and delayed creation after cancellation. Substitutes cannot establish these external guarantees.
 
-For the optional Chronicle counterpart, [test recovery after a real constraint rejection](./command-operations-with-chronicle.md). That example combines an event and operation, seeds a conflict through the Chronicle scenario extension, and proves both non-commit and compensation. Already-committed or unknown outcomes must not trigger blind reversal. Do not infer actual server durability from a substitute's `Task.CompletedTask`.
+If the command also returns an event, [test recovery after a real Chronicle constraint rejection](./command-operations-with-chronicle.md). That example seeds a conflict and checks both non-commit and compensation. It covers a known rejection; already-committed or unknown outcomes need different handling, not blind reversal.
 
 Continue with the [operation reference](../commands/operations/reference.md) for exact supported signatures, flat-command limits, and recovery observations, or the [testing overview](./index.md) to select provider-backed integration tests.

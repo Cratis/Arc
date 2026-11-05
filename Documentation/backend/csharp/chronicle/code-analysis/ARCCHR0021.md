@@ -1,6 +1,6 @@
 ---
 title: 'ARCCHR0021: Use event source definition routing'
-description: Legacy wrapper route strings match a declared definition stream but omit its definition and concurrency policy.
+description: ARCCHR0021 in Cratis Arc suggests replacing legacy wrapper route strings with a matching event source definition to retain its concurrency policy.
 ---
 
 ## Rule

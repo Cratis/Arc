@@ -1,9 +1,9 @@
 ---
-title: Get started with MongoDB
-description: Add optional MongoDB persistence to standalone Arc with explicit connection settings.
+title: Set up MongoDB persistence in Cratis Arc
+description: Connect a Cratis Arc host to MongoDB, register injectable collections, and choose BSON mapping defaults before adding live queries.
 ---
 
-When an Arc command or query needs document storage, add `Cratis.Arc.MongoDB`. The integration supplies collection injection, BSON serializers, naming conventions, and observation. **Chronicle and event sourcing are not prerequisites.**
+Add `Cratis.Arc.MongoDB` when an Arc command or query needs to read or write MongoDB documents. This setup connects your host to a database and makes typed collections available through dependency injection. It does not require Chronicle or event sourcing.
 
 ## Install the optional provider
 
@@ -13,7 +13,7 @@ Start from a working [ASP.NET Core Arc host](../asp-net-core/index.md) or [light
 dotnet add package Cratis.Arc.MongoDB
 ```
 
-The MongoDB package currently references the ASP.NET shared framework as well as Arc Core, even though its persistence features do not require Chronicle.
+The package references the ASP.NET shared framework as well as Arc Core, so that framework must be available to your host.
 
 ## Configure connection settings
 
@@ -50,9 +50,11 @@ app.Run();
 
 `WithMongoDB()` works through `IArcBuilder`, including the lightweight host's `AddCratisArc` configuration callback. Retain that host's normal build, `UseCratisArc()`, and run sequence. For existing ASP.NET/generic-host code, `UseCratisMongoDB()` remains an alternative registration entry point; do not register both paths.
 
-A registration checkpoint is that a request/service scope can resolve `IMongoCollection<T>`. A successful database read additionally requires connectivity, permissions, and any application data you expect; starting the host does not populate collections.
+To check registration, resolve `IMongoCollection<T>` from a request or service scope, with `T` replaced by your document type. Then read a collection you can access. Resolving the service checks dependency injection; a read checks connectivity and permissions too. Starting the host does not populate collections.
 
 ## What gets configured
+
+Registration supplies these defaults for collection access and BSON, MongoDB's binary document format:
 
 - Scoped `IMongoClient`, `IMongoDatabase`, and `IMongoCollection<T>` access.
 - Default server/database resolvers and unchanged type/member naming.
@@ -60,11 +62,11 @@ A registration checkpoint is that a request/service scope can resolve `IMongoCol
 - Concept, date/time, geometry, and other [BSON serializers](./serializers.md).
 - Discovered [class maps](./class-mapping.md), [convention packs](./convention-packs.md), and filters.
 
-`DateTimeOffset` uses BSON UTC milliseconds by default: the original offset and submillisecond precision are not preserved. Naming and serializers are process-wide initialization, not per-request customization.
+Choose naming and serialization rules before writing documents. They are initialized once for the process, not customized per request. For example, `DateTimeOffset` uses BSON UTC milliseconds by default, so stored values lose the original offset and submillisecond precision.
 
 ## Customize defaults
 
-Alternative startup fragment; custom resolver types must implement the corresponding interfaces:
+To store collection and member names in camel case, use this alternative registration:
 
 ```csharp
 builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
@@ -75,7 +77,9 @@ Import `Cratis.Arc.MongoDB` for MongoDB builder customization methods. Use `With
 
 ## Collection access resilience
 
-`EnableResilience` defaults to `true`. Leave it enabled for Cosmos DB and when opening change streams before a collection exists. It handles "Collection not found" errors on async (`Task`-returning) collection calls, returning success, default values or empty cursors as appropriate; change streams return a cursor that waits for the collection. Synchronous collection calls bypass this behavior. Async calls also have a per-method concurrency limit of half the driver's connection pool, with a one-second acquire timeout that raises `TimeoutException`. This is not a retry policy or an AOT switch.
+`EnableResilience` defaults to `true`. Leave it enabled for Cosmos DB and when opening change streams before a collection exists. On async (`Task`-returning) collection calls, it handles "Collection not found" errors by returning success, default values, or empty cursors as appropriate. A change stream instead receives a cursor that waits for the collection.
+
+Synchronous calls bypass this behavior. Async calls have a per-method concurrency limit of half the driver's connection pool; waiting longer than one second for a slot raises `TimeoutException`. This option controls collection access, not retries or ahead-of-time (AOT) compilation.
 
 For workloads that need plain driver behavior, add this setting alongside your required `Server` and `Database` values:
 
@@ -98,11 +102,9 @@ builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
 
 With resilience disabled, you receive native exceptions and cancellation, the driver owns retries, and Arc adds no concurrency limit. Database and collection objects come directly from the driver. In either mode, disposing the root client does not dispose the process-shared client; disposing a request scope cannot invalidate later scopes. Derived clients returned by `WithReadConcern`, `WithReadPreference` or `WithWriteConcern` retain native driver behavior and ownership.
 
-Next, verify [concept serialization](./concepts.md) and [class mapping](./class-mapping.md). Add [collection observation](./observing-collections.md) only after ordinary reads work; change streams require a replica set or sharded cluster and appropriate permissions.
-
 ## Command logging
 
-When Trace logging is enabled for `MongoDBClientFactory` at startup, Arc logs one line per MongoDB command with the request id, command name, database, collection, duration, and, for failures, the exception type and server error code. It does not log document, update or filter values, nor the driver's failure message, because duplicate-key messages echo the key values.
+When Trace logging is enabled for `MongoDBClientFactory` at startup, Arc logs command start and completion metadata: request id, command name, database, collection, duration, and, for failures, the exception type and server error code. It does not log document, update or filter values, nor the driver's failure message, because duplicate-key messages echo the key values.
 
 To see full command bodies and failure messages while diagnosing a problem, opt in:
 
@@ -118,3 +120,5 @@ To see full command bodies and failure messages while diagnosing a problem, opt 
 
 > [!WARNING]
 > `LogCommandBodies` writes document and filter values to your logs. They may include personal data. Enable it only temporarily and never in production.
+
+Once ordinary reads work, check your document representations with [concept serialization](./concepts.md) and [class mapping](./class-mapping.md). To keep query results live, continue with [collection observation](./observing-collections.md). Change streams require a replica set or sharded cluster with database-level watch and read permissions; a standalone server is not sufficient.

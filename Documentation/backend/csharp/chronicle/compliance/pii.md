@@ -1,19 +1,19 @@
 ---
-title: PII
-description: Release encrypted read-model values through Arc's interception pipeline, with explicit subject, transport, and erasure boundaries.
+title: Cratis Arc PII release
+description: Cratis Arc releases encrypted personal values through read-model interception. Model the subject and handle erased values and release failures.
 ---
 
-When a query serves encrypted personal data, the caller needs usable values—not encryption plumbing in every query method. Arc's [read-model interception](../../queries/read-model-interception.md) integrates Chronicle's release operation into supported query responses and WebSocket/SSE emissions.
+Cratis Arc uses read-model interception to release, or decrypt, personally identifiable information (PII) protected by Cratis Chronicle before supported query responses reach the caller. Annotate the read model and identify the subject whose key encrypted its values, rather than writing decryption code in each query method.
 
-Observable HTTP snapshots currently bypass interception, including requests using `waitForFirstResult=true`. Choose and authorize each exposed response path deliberately; consult the interception coverage table rather than assuming a streaming guarantee also covers snapshots.
+Release applies to intercepted query responses, supported WebSocket/SSE emissions, and observable HTTP snapshots, including requests using `waitForFirstResult=true`. Check the [read-model interception coverage table](../../queries/read-model-interception.md) for the paths your application exposes. Interception does not authorize access; select only the rows and fields the caller may receive.
 
-For the full Chronicle-level guide on annotating types, identifying subjects, and honoring erasure requests, see [Chronicle compliance](/chronicle/compliance/).
+For event annotations, key management, and the wider erasure workflow, continue with [Chronicle compliance](/chronicle/compliance/). Encryption and release are mechanisms for that workflow, not automatic regulatory compliance.
 
 ## How It Works
 
-Chronicle encrypts `[PII]` properties at the event log boundary under the subject's encryption key. On intercepted paths, Arc calls `Release()` on `IReadModels`, keeping decryption out of individual query methods. Release is not authorization, and it cannot restore an erased key.
+Chronicle encrypts `[PII]` properties at the event log boundary under the subject's encryption key. The read model needs its own PII annotations, either on its properties or on shared concepts; an event annotation does not automatically annotate a projection's output. On intercepted paths, Arc calls `Release()` on `IReadModels` using the read model's schema and subject.
 
-Given a read model with a PII-annotated property:
+In this customer-profile model, `[Subject]` identifies whose key protects `ContactEmail`, while `[PII]` identifies the value to release:
 
 ```csharp
 public record CustomerProfile(
@@ -22,20 +22,21 @@ public record CustomerProfile(
     [PII] string ContactEmail);
 ```
 
-This is a model fragment; import `Cratis.Chronicle` and `Cratis.Chronicle.Compliance.GDPR` and supply the application's `CustomerId` concept. Query paths using Arc's read-model interception attempt release automatically. The instance's subject must match the encryption subject, and release is not an authorization check.
+This is a model fragment; import `Cratis.Chronicle` and `Cratis.Chronicle.Compliance.GDPR` and supply the application's `CustomerId` concept. `CustomerId` must resolve to the same subject used when encrypting the event value. Arc requests release automatically on intercepted paths, but release cannot restore an erased key.
 
 ## Behavior on Failure
 
-Distinguish erasure from an operational failure:
+An unchanged value, an erased value, and a failed request mean different things:
 
-- With no compliance metadata, the client returns the original instance without a release request. With no resolvable subject, it logs and returns the instance.
-- The server passes through values it does not recognize as encrypted. This is not retroactive encryption of historical plaintext.
-- For a genuinely encrypted value whose key was erased, the server releases an **empty string**, not the original ciphertext.
-- An error returned by the compliance service is logged and the client retains the original instance.
-- Transport, schema generation, decryption, or deserialization can still throw. In particular, test how empty released strings behave with your non-string concepts and converters.
+- A model without applicable schema metadata returns unchanged, without a release request.
+- A PII-only model with no resolvable subject returns unchanged. The client logs when it finds a subject-scoped value without a subject.
+- A value the server does not recognize as encrypted passes through unchanged. Adding an annotation does not encrypt historical plaintext.
+- A genuinely encrypted string value whose key was erased releases as an empty string, not the original ciphertext.
+- An error response from the compliance service is logged, and the client retains the original instance.
+- A transport, schema-generation, decryption, or deserialization failure can throw.
 
-Model the absence of erased values deliberately. Test response shapes and exception handling through the client and server together; successful compilation alone does not exercise release. See [Subject](./subject.md) for materialized and passive dependency paths.
+Decide how the client should display an erased email address and how the application should handle a failed release. Exercise both through the client and server together. Empty released strings can behave differently with non-string concepts and converters, so successful compilation is not enough to verify the response shape. Follow [Subject](./subject.md) when the same model is also a materialized or passive command dependency.
 
 ## Audit exclusion is a different boundary
 
-Command `[PII]` and `[NotAudited]` annotations can exclude command values from [causation](../commands/causation.md). A command annotation does not automatically annotate a newly constructed event. To encrypt persisted personal data, annotate the event's property/type or a shared concept used by that event. Neither attribute is a substitute for access control or removing secrets from nested audit payloads.
+Command `[PII]` and `[NotAudited]` annotations can exclude command values from [causation](../commands/causation.md), the recorded context of what caused an event. A command annotation does not automatically annotate a newly constructed event. To encrypt persisted personal data, annotate the event's property/type or a shared concept used by that event. Keep access controls and secrets handling separate, including for nested audit payloads.

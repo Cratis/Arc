@@ -1,11 +1,11 @@
 ---
-title: Combine request values with FromRequest
-description: Bind JSON and URL values into one MVC request model, then validate them together.
+title: Combine request values with Cratis Arc FromRequest
+description: Bind JSON, route, and query values into one MVC request model with Cratis Arc, then validate the merged input with explicit fallback rules.
 ---
 
-Use `[FromRequest]` when an MVC action needs a single input model assembled from JSON and URL values. Arc handles the merging, so the action and its validator can work with one object instead of stitching parameters together.
+Use Cratis Arc's `[FromRequest]` when an MVC action needs one input model assembled from JSON, route values, and query parameters. The action and its validator receive the merged object, so rules can check related values together.
 
-This is an ASP.NET Core integration feature, not the binding contract for model-bound Arc commands or queries. The binder is marked `RequiresUnreferencedCode` and `RequiresDynamicCode`, so a trimmed or NativeAOT application [turns controllers off](configuration.md#removing-mvc-from-a-trimmed-or-nativeaot-publish) and uses model-bound commands and queries instead.
+This is an ASP.NET Core integration feature, not the binding contract for model-bound Arc commands or queries. The binder is marked `RequiresUnreferencedCode` and `RequiresDynamicCode`, so a trimmed or NativeAOT application [turns controllers off](configuration.md#removing-mvc-from-a-trimmed-or-nativeaot-publish) and uses model-bound commands and queries instead. Before applying it to an existing action, check the precedence below: merging can change which client-supplied value wins.
 
 ## Overview
 
@@ -17,7 +17,7 @@ See [default values and fallback](#default-values-and-fallback) when zero, false
 
 ### Basic Usage
 
-In an existing ASP.NET Core Arc application, declare the request model and use it in your controller action:
+The following fragments belong in an existing ASP.NET Core Arc application with MVC controllers registered and mapped. Declare the request model, then use it as the controller action's parameter:
 
 ```csharp
 using Cratis.Arc.ModelBinding;
@@ -57,6 +57,8 @@ The action receives `UserId = 123`, `NotifyUser = true`, and the name and email 
 > A non-default body value can also override a merged route ID. When the URL must identify the resource being changed, bind that ID separately with `[FromRoute]` and use it in the authorization and update—not the merged property.
 
 ### Fallback Scenarios
+
+Property initializers can prevent URL values from filling in missing JSON fields. In this controller fragment, `Page`, `PageSize`, and `Category` all start with non-default values:
 
 ```csharp
 public class SearchRequest
@@ -132,12 +134,9 @@ An explicit JSON zero or false can therefore be replaced by a route/query value.
 
 ## Benefits
 
-- **Cross-parameter validation:** a rule can check related values together—for example, require an email address when the request asks to notify the user.
-- **One validation model:** the validator receives the combined input, regardless of which request source supplied each value.
-- **Less controller plumbing:** the action receives one model instead of assembling it from separate parameters.
-- **Focused validator specs:** test rules directly with request objects; use separate HTTP tests to verify binding.
+A merged model lets a validator check values that arrived from different sources. For example, a notification flag from the query string can require an email address from JSON. The controller no longer has to assemble those values before applying the rule.
 
-Adding merging can change an existing endpoint's contract. Keep the precedence deliberate and test the request combinations your clients use.
+Test those rules directly with request objects. Keep separate HTTP tests for binding, because a validator test cannot tell you whether a route value or body value reached the model.
 
 ### Validation Scenarios
 
@@ -210,10 +209,7 @@ Model binding and client generation have separate requirements. Check the [proxy
 
 ## Best Practices
 
-- Use `[FromRequest]` when combining request sources reduces manual binding work.
-- Keep fallback-eligible properties unset until merging finishes.
-- Document the permitted sources and precedence for your clients.
-- Validate the merged input and authorize the resource before writing.
+Keep properties at their type's default value when they need URL fallback, and apply application defaults after merging. Document the permitted sources and precedence for clients. Before writing, validate the merged input and authorize the resource using the authoritative identifier, bound separately when the URL must decide which resource changes.
 
 ## Limitations
 

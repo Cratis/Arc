@@ -1,9 +1,11 @@
 ---
-title: Slice context
-description: Read the module, feature and slice a React component is rendered in with useSliceContext(), resolved from commands, queries, slice folders or an explicit override.
+title: Cratis Arc React slice context
+description: Read a React component's module, feature and slice with useSliceContext(), using generated proxy metadata, folder locations or an explicit boundary.
 ---
 
-A report button, a help link or an error panel often needs to know which part of the application it is shown in. Passing the module, feature and slice down as props to every such component is tedious, and the values drift from the backend namespaces they describe. `useSliceContext()` gives any component that location without the developer passing anything.
+Cratis Arc's `useSliceContext()` tells a React component which module, feature and slice it is rendered in. Use it in a report button, help link or error panel that needs to identify its part of the application without receiving location props through every parent.
+
+The hook reads a slice scope, a boundary in the React tree that resolves a location for the components inside it. In this example, `report` is your application's reporting callback:
 
 ```tsx
 import { useSliceContext } from '@cratis/arc.react/slices';
@@ -23,29 +25,26 @@ The hook returns a `SliceLocation` with `module`, `feature` and `slice`. When no
 
 ## Where the location comes from
 
-The location is resolved from slice scopes in the React tree. `<Arc>` provides the root scope, so the hook works anywhere inside it. Outside `<Arc>` and any `<Slice>`, it returns `SliceLocation.empty`.
+`<Arc>` provides the root scope. Commands and queries register their generated proxy's location on the nearest scope while their component is mounted. Shared components in that scope see the same location, even when nested inside other components. This applies to `useCommand`, `useQuery`, `useQueryWithPaging`, `useObservableQuery`, `useObservableQueryWithPaging`, `useChangeStream` and the suspense query hooks. [View models](#view-models) register the proxies resolved through their container too.
 
-Four sources feed a scope:
+For a component with no commands or queries, the [`SliceLocationPlugin`](#resolve-from-slice-folders-at-build-time) can derive a location from its folder. You can also declare a location with `<Slice module="..." feature="..." slice="...">`.
 
-- **Commands and queries in use.** `useCommand`, `useQuery`, `useQueryWithPaging`, `useObservableQuery`, `useObservableQueryWithPaging`, `useChangeStream` and the suspense query hooks register the slice location of their proxy on the nearest scope while the component is mounted. Every component rendered in that scope, including shared components nested inside other components, sees it.
-- **View models.** A component made with `withViewModel` from `@cratis/arc.react.mvvm` registers the slice locations of the commands and queries resolved for its view model, the same way the hooks do. See [view models](#view-models).
-- **The slice folder of a component.** With the [`SliceLocationPlugin`](#resolve-from-slice-folders-at-build-time) in your Vite configuration, exported components in slice folders render within a scope for their folder: the component itself, and everything it renders, sees the folder location.
-- **An explicit override.** `<Slice module="..." feature="..." slice="...">` sets the location for everything rendered within it.
+Outside both `<Arc>` and a `<Slice>` boundary, the hook returns `SliceLocation.empty`.
 
 When commands and queries from different slices are in use in the same scope, the scope keeps the parts they agree on, from the module down. A page using `Billing/Invoices/Pay` and `Billing/Invoices/Listing` resolves to module `Billing`, feature `Invoices` and an empty slice. When they do not even share a module, the scope falls back to its enclosing scope.
 
 ### Precedence
 
-1. **Explicit override.** An enclosing `<Slice>` with a location wins over everything nested within it, until a deeper explicit `<Slice>` takes over. Commands, queries and slice folders within it are ignored.
-2. **Slice folder.** The folder location is used, refined by commands and queries registered within it when their location lies on the folder's path, compared part by part. A feature page in `Billing/Invoices` that uses the `Pay` command resolves to `Billing/Invoices/Pay`; a command from `Sales/Orders`, or from the nested feature `Billing/Invoices.Recurring`, does not change it.
-3. **Commands and queries in use**, combined as described above.
-4. **The enclosing scope**, when a scope has none of the above.
+1. An explicit `<Slice>` location wins until a deeper explicit `<Slice>` takes over. Commands, queries and slice folders inside it do not change the location.
+2. A folder location is refined by registered commands and queries only when their location lies on its path, compared part by part. A page in `Billing/Invoices` using `Pay` resolves to `Billing/Invoices/Pay`. Neither `Sales/Orders` nor the distinct feature `Billing/Invoices.Recurring` changes it.
+3. Without an override or folder location, registered command and query locations are combined as described above.
+4. With no local location, the scope falls back to its parent.
 
-The location from commands and queries is registered when the component using them has mounted, so the first render of a component sees the location from its enclosing scope and the hook updates it right after. Suspense query hooks register once the component stops suspending. A query hook given `isEnabled: false` registers nothing until it is enabled.
+Registration happens after the component mounts, so its first render sees the enclosing scope's location before the hook updates. Suspense query hooks register once the component stops suspending. A query with `isEnabled: false` contributes no location until enabled.
 
 ## View models
 
-`withViewModel` registers, on the nearest scope, the slice location of every command and query proxy the dependency container resolves for the view model: constructor-injected commands and queries, and those the view model resolves through its container later. A view model that injects `PayInvoice` and `AllInvoices` gives the scope `Billing/Invoices`, the parts the two agree on.
+If you use `withViewModel` from `@cratis/arc.react.mvvm`, it registers the command and query proxies resolved through that view model's dependency container. This covers constructor injection and later resolutions through the same container. Injecting `PayInvoice` and `AllInvoices`, for example, gives the scope their common location, `Billing/Invoices`.
 
 Commands and queries the view model creates with `new`, or resolves from the root `container` instead of the one it was given, are not seen. Register those yourself with `useRegisterSliceLocation(SliceLocation.ofType(PayInvoice))` in the component, or wrap it in a `<Slice>`.
 
@@ -83,7 +82,7 @@ Parts you leave out are empty. You can also pass a `SliceLocation` instance, for
 
 ## Resolve from slice folders at build time
 
-Arc applications keep the React components of a vertical slice in the slice folder, next to the backend code. `SliceLocationPlugin` from `@cratis/arc.vite/slices` maps that folder to a slice location, so components in slice folders without commands or queries, such as feature composition pages, also provide a location:
+If you keep a feature's React components beside its backend code, `SliceLocationPlugin` can derive their location from the folder. This gives a composition page a location even if it has no command or query of its own. Add the plugin from `@cratis/arc.vite/slices` and configure the roots that contain your modules:
 
 ```ts
 // vite.config.ts
@@ -102,7 +101,7 @@ export default defineConfig({
 });
 ```
 
-The plugin lives in its own entry point because it parses modules with the native `oxc-parser`; importing `EmitMetadataPlugin` from `@cratis/arc.vite` does not load it.
+This example uses `Features` as its root. Choose roots for your own folder layout rather than copying that name unchanged. The plugin has a separate entry point because it loads the native `oxc-parser`; importing `EmitMetadataPlugin` from `@cratis/arc.vite` does not load the slice plugin.
 
 | Option | Description |
 | --- | --- |
@@ -123,7 +122,9 @@ The first folder below a root is the module, the last is the slice and those in 
 | `Features/Billing/Invoices/Invoices.tsx` | `Billing` | `Invoices` | _(empty)_ |
 | `Features/Billing/Billing.tsx` | `Billing` | _(empty)_ | _(empty)_ |
 
-This differs on purpose from how the backend maps a namespace that is too shallow, where the deepest parts are filled (see [slice location](../../backend/csharp/proxy-generation/Configuration/slice-location.md#how-it-is-resolved)). A command or query always lives in a slice, so a short namespace still names its slice; a component in a feature folder belongs to the feature, not to a slice. Configure `roots` and `segmentsToSkip` to match the `NamespaceRoot` and `CratisProxiesSegmentsToSkip` of your backend, and keep slices three levels deep, so both sides agree.
+The backend fills the deepest parts of a short namespace, as explained in [slice location](../../backend/csharp/proxy-generation/Configuration/slice-location.md#how-it-is-resolved). Folder mapping fills from the module down so a component in a feature folder belongs to that feature, not to a slice.
+
+Align `roots` and `segmentsToSkip` with your backend's `NamespaceRoot` and `CratisProxiesSegmentsToSkip`. A module/feature/slice layout gives both mappings three levels to work with. If you use a shallower layout, compare the folder location with the generated proxy's `sliceLocation` before relying on them to match.
 
 ### What the plugin changes
 
@@ -145,19 +146,21 @@ export const Pay = withSliceLocation(function Pay(props: PayProps) {
 
 The wrapped component renders the original inside a slice scope for its folder, so the component's own `useSliceContext()` reads the folder location and its own command and query hooks register within that scope. The wrapper keeps the component's name and `displayName`, forwards refs to `forwardRef` components, and stays a `memo` component when given one.
 
-A function counts as a component only by what the function itself returns: every value it returns must be JSX, `null` or `undefined`, possibly through `?:`, `&&`, `||`, `??` or a constant declared in the function, and at least one must be JSX. Functions nested in it are never looked into, so a store such as `create(set => ({ render: () => <div /> }))` or a function returning column definitions with JSX renderers is left alone. Exported functions, and exported calls given such a function, such as `memo(...)`, `forwardRef(...)` or `withViewModel(...)`, are wrapped. Named exports must start with an uppercase letter. Classes, async functions and unexported components are left alone.
+The plugin identifies components from the function's own return values. Every return must resolve to JSX, `null` or `undefined`, and at least one must be JSX. It follows `?:`, `&&`, `||`, `??` and local constants, but does not inspect nested functions. A store such as `create(set => ({ render: () => <div /> }))` or a function returning column definitions is therefore left alone.
+
+It wraps exported component functions and exported calls given such a function, including `memo(...)`, `forwardRef(...)` and `withViewModel(...)`. Named exports must start with an uppercase letter. Classes, async functions and unexported components are not wrapped.
 
 An exported function declaration becomes a constant, so it is no longer hoisted: code at the top level of the same module that uses the component before its declaration fails. Use it after the declaration, or move the component to its own module.
 
 ### Fast Refresh
 
-The component goes first in the `withSliceLocation(...)` call because React Fast Refresh, in both `@vitejs/plugin-react` and `@vitejs/plugin-react-swc`, looks only into the first argument of a call to find a component. It registers both the original function and the exported wrapper, so editing a component keeps its state as before. Every export stays a function with an uppercase name, or a `memo` or `forwardRef` component, so the module is still accepted as a Fast Refresh boundary. Keep `SliceLocationPlugin` in the plugin list; it runs before the React plugin on its own.
+Keep `SliceLocationPlugin` in the plugin list; it runs before the React plugin automatically. The transform puts the component first in `withSliceLocation(...)` so both `@vitejs/plugin-react` and `@vitejs/plugin-react-swc` can find it for Fast Refresh. The wrapper preserves component names and keeps `memo` and `forwardRef` components recognizable to React's refresh handling.
 
 :::caution[Keep shared components out of the roots]
 A slice scope follows the rendered tree, not where an element was created. A shared component in a slice folder, such as a panel that renders its `children`, would give those children its own folder location. Keep shared components outside the roots, or leave their folders out with `exclude`.
 :::
 
-Without the plugin, everything else on this page still works; only the folder source is missing.
+The plugin is optional. Without it, command and query registration and explicit `<Slice>` boundaries still resolve locations; only folder-derived locations are missing.
 
 ## API
 

@@ -1,6 +1,6 @@
 ---
 title: Change stream
-description: Consume snapshot changes from enumerable observable queries, with exact generated overloads and Full/Delta limitations.
+description: Cratis Arc's React useChangeStream hook exposes added, replaced, and removed items from observable query snapshots, with Full and Delta modes.
 ---
 
 A live list consumer sometimes needs additions, replacements, and removals instead of the latest full array. `useChangeStream` exposes those changes as React state. It is a snapshot-delta view, **not an audit log or an operation-by-operation database stream**. Arc does not require MongoDB or Chronicle for it.
@@ -31,7 +31,7 @@ The raw hook takes `(query, args?, getKey?, sorting?, isEnabled = true)` and ret
 | `replaced` | Current items whose stable keys match but serialized content changed |
 | `removed` | Previously present items no longer in the snapshot |
 
-For local comparison, `getKey` enables replacement detection. Without it, full JSON content identifies items, so edits appear as removal plus addition. Reordering alone is not an item-content change. The return value is the latest change state, not a queue of every intermediate event.
+For local comparison, `getKey` enables replacement detection. Without it, full JSON content identifies items, so edits appear as removal plus addition. Reordering alone is not an item-content change. The return value is retained React state, not a queue of every intermediate event: when a local Delta comparison finds no changes, the hook keeps the previous change set rather than returning empty arrays. Do not interpret a later render as a new change notification.
 
 Disabling the hook suppresses its automatic subscription/change processing, not all cache creation; see [conditional queries](./conditional-queries.md).
 
@@ -41,7 +41,7 @@ Processing follows this order:
 
 1. If a result includes a server `changeSet`, use it directly, **even in local Full mode**.
 2. Otherwise, the first processed snapshot or local `ObservableQueryTransferMode.Full` returns all current items as `added` and empty replacement/removal arrays.
-3. Otherwise, local Delta mode compares previous and current snapshots.
+3. Otherwise, local Delta mode compares previous and current snapshots, updating the returned state only when additions, replacements, or removals are found.
 
 Configure the mode through `<Arc observableQueryTransferMode={ObservableQueryTransferMode.Full}>`, importing the enum from `@cratis/arc`, before establishing subscriptions. This global setting also travels in shared-hub subscription requests: the server sends full snapshots in Full mode, or an initial snapshot followed by delta-only collection updates in Delta mode. It is not isolated by nested providers, and it does not select SSE versus WebSocket or guarantee operation-level transport fidelity.
 

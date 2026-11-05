@@ -1,23 +1,22 @@
 ---
-title: Use the HTTP QUERY method
-description: Move scalar query arguments into a request body without silently falling back to URLs.
+title: Use HTTP QUERY for Cratis Arc queries
+description: Send Cratis Arc query arguments in a JSON request body, configure generated clients, and choose whether unsupported QUERY requests may fall back to GET.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Long search text can exceed practical URL limits. Arc's generated model-bound query endpoints support HTTP `QUERY` with an arguments body as an alternative to GET. It returns the same query result contract; it does not turn a read into a command.
+HTTP `QUERY` lets a Cratis Arc model-bound query read its arguments from a JSON body instead of a URL. Use it for long search text or inputs you do not want in a query string. It returns the same query result contract as GET and remains a read, not a command.
 
-> [!WARNING]
-> If an argument must stay out of URLs, choose **explicit `QueryHttpMethod.Query`**, not `Auto` or the length-based fallback resolver. Auto can retry with GET and put those arguments in the URL. Bodies can also be logged: configure logging/redaction and use HTTPS. Authentication credentials belong in your normal authorization headers or cookies, not query arguments.
+If an argument must stay out of URLs, choose explicit `QueryHttpMethod.Query`. `Auto` and the length-based resolver can retry with GET, putting the arguments in the URL. A body can still be logged, so configure logging redaction and use HTTPS. Keep authentication credentials in your normal authorization headers or cookies, not in query arguments.
 
 ## Prerequisites
 
-Use a generated **model-bound** endpoint with QUERY enabled and a network path that accepts the verb. Arc does not automatically add QUERY handling to every MVC GET action. Built-in QUERY binding remains [scalar argument conversion](model-bound/query-arguments.md), not arbitrary nested DTO/array deserialization.
+Start with a generated model-bound endpoint with QUERY enabled, and check that your proxy or gateway accepts the verb. Arc does not automatically add QUERY handling to MVC GET actions. The body reader supports [scalar arguments and supported collections](model-bound/query-arguments.md), not arbitrary nested DTO deserialization.
 
 ## Declare the transport in CSharp
 
-Complete type example for an existing Arc host with a registered MongoDB collection:
+This product search runs in an existing Arc host with a registered MongoDB collection. The attribute tells its generated client to use QUERY by default:
 
 ```csharp
 using System.Linq;
@@ -38,11 +37,11 @@ public record Product(string Id, string Name)
 }
 ```
 
-The generated proxy defaults to QUERY. The attribute can also be put on the read-model type, with method-level choice taking precedence. It sets a **client default**, not a server-side ban on GET; both generated verbs remain available. Add [input validation](validation.md) and authorization appropriate to the data before deployment.
+You can put the attribute on the read-model type to set a default for its queries; a method-level choice takes precedence. This is a client default, not a server-side ban on GET. Both generated verbs remain available while QUERY is enabled. Before exposing private data, add [input validation](validation.md) and [query authorization](model-bound/authorization.md). Changing the verb does not add access checks.
 
 ## Opt in from the client
 
-Application-startup fragment for all generated queries without an explicit per-query override:
+To choose QUERY application-wide, set the global default at startup. It applies when a query has no explicit override and no global resolver selects another method:
 
 ```typescript
 import { Globals } from '@cratis/arc';
@@ -61,9 +60,7 @@ Use `QueryHttpMethod.Auto` only when the arguments are safe in either transport.
 
 ## Choose the transport per query
 
-The exported `lengthBasedQueryHttpMethod({ threshold: 2000 })` resolver uses GET for short URLs and Auto for longer ones. It is a compatibility/length heuristic, **not a privacy rule**.
-
-Application-startup fragment:
+When URL length is the concern, the exported `lengthBasedQueryHttpMethod({ threshold: 2000 })` resolver uses GET for short URLs and Auto for longer ones. Configure it at application startup:
 
 ```typescript
 import { Globals } from '@cratis/arc';
@@ -86,11 +83,11 @@ For the declared product query, this is the complete request envelope:
 }
 ```
 
-`paging` and `sorting` are optional. Each argument is converted through the scalar converter; putting an object or array inside `arguments` does not make it bind as a complex parameter. Model-bound readers do not bind route placeholders; use the explicit path and arguments shown here.
+`paging` and `sorting` are optional; page numbers start at zero. Arguments bind by parameter name. Supported collection parameters can receive JSON arrays, while ordinary scalar parameters use scalar conversion. Putting an object in `arguments` does not make an arbitrary DTO parameter bindable. Model-bound readers do not bind route placeholders, so use the explicit path and named arguments shown here.
 
 ## Call it with cURL
 
-Runnable against a host exposing the example path, with its actual origin and normal credentials supplied:
+With the example endpoint running, send the envelope as JSON. Replace the origin and supply the application's normal credentials if the query is protected:
 
 ```bash
 curl --include --request QUERY 'https://localhost:5001/api/products/search' \
@@ -98,7 +95,9 @@ curl --include --request QUERY 'https://localhost:5001/api/products/search' \
   --data '{"arguments":{"searchText":"widgets"},"paging":{"page":0,"pageSize":20}}'
 ```
 
-The response has the same [QueryResult fields](query-pipeline.md#query-result-metadata) as GET. Generated QUERY responses set `Cache-Control: no-store`; that is not a guarantee that intermediaries or application logs never record the request body.
+Read the response using the same [QueryResult fields](query-pipeline.md#query-result-metadata) as GET. An invalid argument or validation verdict returns 400; a query authorization denial returns 403. With explicit QUERY, a 405 or 501 is a failure to diagnose in the server or network path, not a reason for the client to retry with GET.
+
+Generated QUERY responses set `Cache-Control: no-store`. This controls response caching; it does not prevent intermediaries or application logs from recording the request body.
 
 ## Cross-origin and server configuration
 

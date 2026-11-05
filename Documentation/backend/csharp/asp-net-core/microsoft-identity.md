@@ -1,15 +1,11 @@
 ---
-title: Microsoft Identity
-description: Build application identity details from Microsoft identity platform headers supplied by a trusted ingress.
+title: Microsoft identity headers in Cratis Arc
+description: Authenticate forwarded Microsoft client principals in an ASP.NET Core Arc host, with explicit ingress trust and separate endpoint authorization.
 ---
 
-Cratis' Arc provides a way to easily work with providing an object that represents properties the application finds important for describing
-the logged in user. The purpose of this is to provide details about the logged in user on the ingress level of an application and letting it
-provide the details on the request going in. Having it on the ingress level lets you expose the details to all microservices behind the ingress.
+Cratis Arc can reconstruct an authenticated principal from the Microsoft client-principal headers supplied by a trusted ingress. Use this integration when Azure App Service or Container Apps authentication (EasyAuth), or Cratis AuthProxy, authenticates callers before forwarding requests to your ASP.NET Core application.
 
-The values provided by the provider are values that are typically application specific and goes beyond what is already found in the token representing the user.
-This is optimized for working with Microsoft Azure well known HTTP headers passed on by the different app services, such as Azure ContainerApps or WebApps.
-Internally, it is based on the following HTTP headers to be present.
+The ingress is the service in front of your application that receives those requests. The setup below trusts its unsigned identity headers, so it must strip caller-supplied identity headers, write its own replacements, and prevent direct backend access. Arc's handler reads these headers:
 
 | Header                     | Description                                                                                                                                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -17,23 +13,16 @@ Internally, it is based on the following HTTP headers to be present.
 | x-ms-client-principal-id   | The unique identifier from the identity provider for the identity. A value in the RFC 8187 form `UTF-8''` followed by percent-encoded UTF-8, which AuthProxy uses for an identifier that is not printable US-ASCII, is decoded |
 | x-ms-client-principal-name | The name of the identity, typically resolved from claims within the token                                                                                                                                                   |
 
-> Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
-> deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
-> a browser extension. Read more about [generating principal tokens for local development](../development/generating-principal.md).
-
-The token in the `x-ms-client-principal` should be a base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
+For local development without an identity provider, [generate a principal fixture](../development/generating-principal.md) and inject it as request headers, for example with a browser extension. The `x-ms-client-principal` value must be the base64-encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
 
 > [!WARNING]
 > Use these headers only behind ingress that authenticates callers, strips caller-supplied identity headers, writes trusted replacements, and prevents direct backend access. Base64 is not a signature. Generated principals are local test fixtures, not credentials to accept on an internet-facing service. The identity Arc returns from enrichment is likewise not an authentication ticket.
 
 ## Authentication / Authorization
 
-To get the Microsoft Client Principal supported in your backend, the Arc offers an `AuthenticationHandler` that supports the HTTP headers and
-does the right thing to put ASP.NET Core and every `HttpContext` in the right state.
+Register the header authentication handler with `AddMicrosoftIdentityPlatformIdentityAuthentication()`. It creates the request principal used by ASP.NET Core and Arc authorization; it does not decide which endpoints require that principal.
 
-You can add this by calling the `AddMicrosoftIdentityPlatformIdentityAuthentication()` method on your services.
-
-This is a registration fragment for an ASP.NET Core application using `Cratis.Arc` (not `ArcApplication`):
+This registration fragment is for an ASP.NET Core application using `Cratis.Arc`, not `ArcApplication`. Enable header trust only after establishing the ingress boundary described above:
 
 ```csharp
 using Cratis.Arc;
@@ -45,14 +34,11 @@ builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
 builder.Services.AddAuthorization();
 ```
 
-The above code will then also call the `.AddAuthentication()` with the default scheme name (**MicrosoftIdentityPlatform**) and register
-the appropriate `AuthenticationHandler` for that scheme.
+The extension calls `AddAuthentication()` with the default scheme name `MicrosoftIdentityPlatform` and registers its handler. Pass a string argument to the extension if you need a different scheme name.
 
 ### Trusting the forwarded headers
 
-Registering the scheme is not enough on its own. Because the headers are not signed, the handler ignores them and returns no result, so
-requests stay anonymous unless another scheme authenticates them, until the host opts in with `TrustForwardedIdentityHeaders`. Set it in
-code, as above, or in configuration:
+Without signed forwarding enabled, the handler ignores these unsigned headers until the host opts in with `TrustForwardedIdentityHeaders`. It returns no authentication result, so the request stays anonymous unless another scheme authenticates it. Set the option in code, as above, or in configuration:
 
 ```json
 {
@@ -64,16 +50,11 @@ code, as above, or in configuration:
 }
 ```
 
-Opt in only when every request reaches the application through an ingress that strips caller-supplied identity headers and sets its own,
-such as Azure App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy. A host that calls
-`AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`) while the headers are not trusted logs a warning
-that names this setting on every startup. The built-in header handlers also warn on the first request that carries untrusted headers.
-The setting applies to every endpoint,
-including protected [introspection catalogs](../introspection/index.md).
+This setting applies to every endpoint, including protected [introspection catalogs](../introspection/index.md). A host that calls `AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`) while the headers are not trusted logs a warning naming the setting on every startup. The built-in header handlers also warn on the first request carrying untrusted headers.
 
-You can override the scheme name on the extension method by passing your own string as an argument.
+If your ingress must sign forwarded identities, configure [signed forwarded identity](signed-forwarded-identity.md) as well. That mode also requires `TrustForwardedIdentityHeaders`, but refuses unsigned forwards once enabled. It needs a compatible signer; current unmodified AuthProxy does not produce that envelope. Check the signing guide's producer requirements before enabling it.
 
-For it to be appropriately setup, you'll need to enable the default authentication and authorization on your app, like below:
+After building the application, add authentication and authorization middleware before activating Arc:
 
 ```csharp
 var app = builder.Build();
@@ -87,12 +68,7 @@ This establishes the host authentication mechanism; apply [authorization require
 
 ## Knowing which identity provider signed the caller in
 
-The `x-ms-client-principal` payload carries an `identityProvider` field describing the provider the ingress
-authenticated the caller with. Without it, everything downstream sees is a set of claims that look the same whether
-they came from Entra ID or GitHub — so the application has no way to tell one federation apart from another.
-
-Arc keeps that value on the reconstructed principal as a claim, so both normal request authorization and the
-`/.cratis/me` identity resolution can read it:
+The `identityProvider` field in `x-ms-client-principal` identifies the provider reported by the ingress, such as Entra ID or GitHub. Arc copies that value into a claim on the reconstructed principal. Request authorization and `/.cratis/me` identity resolution can read it:
 
 ```csharp
 using Cratis.Arc.Identity;
@@ -111,37 +87,15 @@ public class IdentityProviderReader(IHttpContextAccessor httpContextAccessor)
 | Value       | The exact `identityProvider` value the ingress forwarded, for example `aad` or `github`                  |
 | When absent | The forwarded principal carried no `identityProvider` field, or the field held only blank characters     |
 
-The claim type is **reserved for Arc**. The `x-ms-client-principal` header is base64, not a signature, so any caller
-that can reach the application can put whatever it likes in the serialized payload — including a claim of this very
-type. Arc therefore removes every claim of the reserved type from the deserialized payload, ignoring casing, _before_
-writing its own value.
+Arc reserves this claim type. Before writing its value, Arc removes claims of that type from the forwarded payload, ignoring casing. This prevents a forwarded claim from displacing the value copied from `identityProvider`.
 
 > [!WARNING]
-> **What the strip guarantees is single provenance, not authenticity.** When a nonblank provider value is supplied, the claim carries exactly one value,
-> and that value always comes from one place — the `identityProvider` field of the forwarded principal — so a claim of
-> the reserved type passed through by the ingress or by the identity provider can never displace it. It does **not**
-> make the value trustworthy. The same unsigned header carries that field too, and Arc does not check who sent the
-> header, so a caller that can reach the application authors the whole document; the strip only decides which of its
-> fields wins. **Trust this claim exactly as far as you trust the `x-ms-client-principal` header itself — that is,
-> only insofar as your ingress is the only thing that can set it.** Terminate the header at the ingress and reject or
-> overwrite an inbound one; nothing inside Arc can do that for you.
+> Removing duplicate claims establishes where the value came from, not whether it is authentic. In the unsigned setup above, a caller with direct backend access can forge the entire payload, including `identityProvider`. Trust the claim only when your ingress is the only source of the header. Reject or overwrite inbound identity headers there and prevent callers from bypassing it.
 
-Read the claim with `FindFirst` or `FindAll`, as in the example above, and **never normalize the claim type yourself**.
-Those lookups compare the claim type the same way the strip does, so what they return is exactly what Arc wrote.
-Enumerating `User.Claims` and folding the type with `ToUpperInvariant()` or `Trim()` widens the match beyond what was
-removed — a forged type differing only by Unicode case folding (`urn:cratiſ:arc:identity:provider`, U+017F) or by
-trailing whitespace then matches, and because forwarded claims are added before Arc's own, a `FirstOrDefault()` over
-that widened set returns the forgery.
+Read the claim with `FindFirst` or `FindAll`, as in the example. These lookups compare claim types the same way Arc does when removing forwarded copies. Do not normalize claim types yourself: applying `ToUpperInvariant()` or `Trim()` while enumerating `User.Claims` widens the match to types Arc did not remove. A forged type using Unicode case folding (`urn:cratiſ:arc:identity:provider`, U+017F) or trailing whitespace can then match. Since forwarded claims precede Arc's own claim, `FirstOrDefault()` over that widened set can return the forgery.
 
 > [!IMPORTANT]
-> The value is the exact `identityProvider` field the ingress forwarded, verbatim and untrimmed — Arc neither
-> interprets nor normalizes it. What it _means_ is therefore the ingress's choice, not Arc's. Cratis AuthProxy
-> forwards the canonical provider key, the same value it publishes as its own `urn:cratis:identity:provider-key`
-> claim, so in a canonical AuthProxy deployment the two carry identical values. Another ingress may forward an
-> authentication scheme name or a provider display name that changes when the provider is renamed. **Arc guarantees
-> neither**, so use this claim for telling federations apart, for diagnostics, and for provider-aware behavior. If you
-> need a durable provider key, read the claim the ingress publishes for that purpose — `urn:cratis:identity:provider-key`
-> in an AuthProxy deployment — rather than this one. Arc copies such ingress-authored claims through untouched.
+> Arc copies `identityProvider` verbatim, without trimming or interpreting it. A canonical AuthProxy deployment forwards its canonical provider key, also published as `urn:cratis:identity:provider-key`. Other ingresses may supply a scheme name or a display name that changes when renamed. Use Arc's claim for diagnostics and provider-aware behavior, but do not assume its value is a durable key. When you need one, use the ingress's designated claim, such as `urn:cratis:identity:provider-key` in AuthProxy. Arc copies that ingress-authored claim through untouched.
 
 ## Acting on behalf of a user
 
@@ -149,6 +103,4 @@ When Cratis AuthProxy forwards a session in which a support person or an agent a
 
 ## Identity Details
 
-For information about providing additional identity details for logged-in users, including authorization checks and custom identity information, see the [Identity documentation](../identity/index.md).
-
-Use Arc's identity-details provider to add application information to the principal supplied by Microsoft Identity. Those details help the UI; authorization still checks the authenticated principal.
+Once authentication is configured, use [identity details](../identity/index.md) to supply application-specific information to the UI. Those details are presentation data, not an authentication ticket or additional authorization claims. Protect operations through [authorization requirements](authorization.md) on the authenticated principal.

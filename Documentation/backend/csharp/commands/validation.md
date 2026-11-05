@@ -1,17 +1,19 @@
 ---
-title: Command validation
-description: Validate model-bound command input with property annotations or FluentValidation.
+title: Cratis Arc command validation with annotations or FluentValidation
+description: Cratis Arc validates model-bound command input before handling. Use property annotations or FluentValidation to return field feedback to callers.
 ---
 
-When input is incomplete, return useful feedback before performing work. Arc's model-bound pipeline runs validation filters before `Provide()` and `Handle()`. Blocking results stop execution and appear in `CommandResult.ValidationResults`; their members are reported as camelCase field paths, including results returned from `Provide()` or `Handle()` (`Name` becomes `name`, and `Items[0].Name` becomes `items[0].name`).
+Cratis Arc validates model-bound command input before `Provide()` and `Handle()` run, so callers can correct rejected fields before the handler performs work. Use property annotations for simple field rules or FluentValidation when a rule needs application policy or several conditions.
 
-Validation is not authorization, and a pre-flight check cannot guarantee that state remains unchanged. Read [severity filtering](./validation-severity-filtering.md) before relying on a rule as a non-overridable guard.
+Blocking results stop execution and appear in `CommandResult.ValidationResults`. Member names are camelCase field paths: `Name` becomes `name`, and `Items[0].Name` becomes `items[0].name`. Results returned later from `Provide()` or `Handle()` use the same member naming.
+
+Validation supplies input feedback, not permission to execute. Use authorization for access control, and read [severity filtering](./validation-severity-filtering.md) before relying on a validation rule that must not be waived. A pre-flight check also cannot guarantee that state stays unchanged before execution.
 
 ## Data annotations
 
-For positional records, explicitly target the generated **properties**. Arc's command filter uses object-property validation, not constructor-parameter metadata.
+On a positional record, use `property:` to put annotations on the generated properties. Arc's command filter reads those properties, not constructor-parameter metadata.
 
-This complete command allocates a `Guid`; it does not persist a business record:
+The following complete command allocates a `Guid` without persisting a business record:
 
 ```csharp
 using System;
@@ -27,17 +29,17 @@ public record AllocateLabeledIdentifier(
 }
 ```
 
-An empty `Label` or an out-of-range `Copies` produces validation errors before `Handle()`, at the default severity threshold. Constructor annotations such as `[Required] string Label` do not provide the property metadata this filter reads. MVC record binding has different metadata rules; do not apply this advice mechanically to [controller-based commands](./controller-based.md).
+At the default severity threshold, an empty `Label` or an out-of-range `Copies` stops the command with validation errors before `Handle()`. Omitting `property:`, as in `[Required] string Label`, leaves the annotation on the constructor parameter where this filter cannot use it. [Controller-based commands](./controller-based.md) use MVC record binding, which has different metadata rules.
 
-For command types with generated validation metadata, annotations on `ConceptAs<T>` properties validate the underlying `.Value`. This includes `[Required]`, `[Range]`, `[StringLength]`, `[MinLength]`, `[MaxLength]`, and `[RegularExpression]`. A nullable concept passes absence-tolerant rules unless you add `[Required]`. Annotated model-bound query parameters use the same generated value readers.
+If a field uses `ConceptAs<T>`, a typed wrapper around a value, generated validation metadata lets annotations validate its underlying `.Value`. This supports `[Required]`, `[Range]`, `[StringLength]`, `[MinLength]`, `[MaxLength]`, and `[RegularExpression]`. Add `[Required]` when absence itself must fail: a nullable concept otherwise passes rules that tolerate absence. Annotated model-bound query parameters use the same generated value readers.
 
-Types from other assemblies without generated metadata, and types skipped by the generator, keep the existing object-validation behavior: annotations receive the concept object rather than its value. In that fallback path, `[StringLength]` on a non-null concept throws instead of producing a validation result. Use a FluentValidation validator for those types.
+Use FluentValidation for concept properties on types without generated metadata, including types from other assemblies that lack it and types the generator skips. Their annotations receive the concept object instead of its value. On that fallback path, `[StringLength]` on a non-null concept throws rather than returning field feedback.
 
 ## FluentValidation
 
-Choose FluentValidation when a rule needs more than a property annotation, such as a service dependency or several conditions. Derive the validator from `CommandValidator<T>`. Arc discovers it with the application's types; no per-validator registration is needed under normal Arc discovery.
+Derive a FluentValidation validator from `CommandValidator<T>`. Arc discovers it among the application's types, so you do not normally register each validator individually.
 
-Use the same command type for the following alternative. The validator enforces the two field rules and adds a maximum label length; it does not change what the handler does:
+This alternative validates the same `AllocateLabeledIdentifier` command. It keeps the label and copies rules, then adds a maximum label length without changing the handler:
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -53,11 +55,11 @@ public class AllocateLabeledIdentifierValidator : CommandValidator<AllocateLabel
 }
 ```
 
-Remove duplicate annotations if you select FluentValidation for those same rules, so one rejected field does not receive duplicate feedback. The [proxy generator](../proxy-generation/validation.md) extracts supported rules for early client feedback. Keep the server validator even when a client checks the field: services and custom logic do not automatically become equivalent client-side checks.
+If you choose FluentValidation for these rules, remove the matching annotations so the caller does not receive duplicate feedback. The [proxy generator](../proxy-generation/validation.md) extracts supported rules for early client feedback. Keep the server validator: a client-side field check does not replace service dependencies or custom server logic.
 
 ## Validator dependencies
 
-Supply a registered service through the validator's constructor when the rule needs application policy. Arc resolves it from the command scope, also used for `Provide()` and `Handle()` dependencies. In this example the policy is a length limit, not a storage lookup:
+When a rule needs application policy, accept a registered service in the validator's constructor. Arc resolves it from the same command scope used for `Provide()` and `Handle()` dependencies. This alternative validator takes a length-limit policy; it does not read storage:
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -74,19 +76,21 @@ public class LabelPolicyValidator : CommandValidator<AllocateLabeledIdentifier>
 }
 ```
 
-Register the policy in the host so discovery can construct the validator. This is a host registration fragment, with `Microsoft.Extensions.DependencyInjection` imported:
+Register the policy in the host so Arc can construct the validator. The following registration fragment assumes `Microsoft.Extensions.DependencyInjection` is imported:
 
 ```csharp
 builder.Services.AddSingleton(new LabelPolicy(80));
 ```
 
-An unresolved non-nullable dependency produces an exception outcome, not ordinary field feedback. Check the host registration if the rule cannot be constructed. Nullable dependency parameters may receive null when no value can be resolved; use them only when the rule deliberately handles absence. Making a required service nullable conceals a configuration error.
+If Arc cannot resolve a non-nullable dependency, the command returns an exception outcome instead of field feedback. Check the host registration when construction fails. A nullable parameter may receive null when no value can be resolved; use it only when the rule deliberately handles absence, not to hide a missing required service.
 
-A service that reads storage must actually implement that lookup. Arc.Core does not assume projected event state or supply persistence for arbitrary dependency types. For provider-specific current-state resolution, see [use current state in a command](../../../scenarios/use-current-state-in-a-command.mdx). [Chronicle read-model injection](../chronicle/read-models/injecting-into-commands.md) is an optional integration, not the default validator dependency model.
+If the rule needs stored state, supply a service that performs the lookup or configure a read-model provider. Arc.Core does not assume projected event state or provide persistence for arbitrary dependency types. Follow [use current state in a command](../../../scenarios/use-current-state-in-a-command.mdx) for provider-specific resolution. [Chronicle read-model injection](../chronicle/read-models/injecting-into-commands.md) requires the optional integration; it is not the default dependency model.
 
 ## Reading the tenant and caller
 
-A validator can read who is calling and which tenant the operation runs for without constructor dependencies. The extension methods on `IValidationContext` are `GetTenant()`, `GetCausedBy()` and `IsSystem()`:
+Use the `IValidationContext` extension methods `GetTenant()`, `GetCausedBy()` and `IsSystem()` when a rule needs the current tenant or caller without a constructor dependency. A tenant identifies the customer or organization whose operation is running.
+
+The following FluentValidation fragment assumes an `ArchiveDocument` command with a `Reason` property. For Arc command discovery, use `CommandValidator<ArchiveDocument>` as the base class, as in the earlier examples. The caller check supplies feedback only: enforce signed-in access with an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace), not this overridable validation message:
 
 ```csharp
 using Cratis.Arc.Validation;
@@ -101,23 +105,23 @@ public class ArchiveDocumentValidator : AbstractValidator<ArchiveDocument>
 }
 ```
 
-Arc takes one snapshot of the tenant and the caller for each command or query. Filters, generated values and child validators (`SetValidator`, `RuleForEach`, `ChildRules`) share it. A command or query started from inside another one gets its own snapshot, and the outer one is current again when the inner one completes. The snapshot is resolved on first read, so a tenant or principal switch inside a validator does not change what it reads.
+Arc gives each command or query one snapshot of its tenant and caller, shared by filters, generated values and child validators (`SetValidator`, `RuleForEach`, `ChildRules`). A nested command or query gets its own snapshot; when it completes, the outer snapshot becomes current again. Values resolve on first read, so switching tenant or principal inside a validator does not change values already read from the snapshot.
 
-Keep these points in mind:
+The snapshot also determines when these reads can succeed:
 
 - Reading outside Arc's command or query pipeline (a bare `ValidatorInvoker.Invoke`, a custom `IValidatorInvoker`, or MVC controller model validation) throws `OperationSnapshotUnavailable`. The operation is then unauthorized (403), and no allowed validation severity can hide it.
 - `GetTenant()` returns the resolved tenant, or `TenantId.NotSet` when none was resolved. It is membership-verified only when an `ITenantMembership` hook is registered; see [tenant membership](../tenancy/membership.md). When the caller's membership is denied, or the caller's claims were changed in place after the operation began, the read fails closed and the operation is unauthorized.
-- `GetCausedBy()` is Arc's view of the caller. An anonymous caller is `CausingIdentity.Anonymous` here, while Chronicle's audit `CausedBy` for the same operation may be `System`. Do not use it as the audit record.
+- `GetCausedBy()` is Arc's view of the caller; an anonymous caller is `CausingIdentity.Anonymous`. Chronicle resolves event authorship separately, so do not use this validation-context value as the event's audit record.
 
 ## Choosing a rejection phase
 
-Keep a field rule in validation when it must also run during pre-flight checks. Put a decision that needs handler-only data in the later phase that owns it, and expect pre-flight to miss that decision.
+Keep a field rule in a validator when the caller needs it during pre-flight checks, before execution. A decision that needs data available only during handling belongs later, but pre-flight cannot report that decision.
 
 - Use a validator for input feedback before data provisioning and execution.
 - Use `Provide()` to fetch handler data after filters; it can return validation control values to short-circuit. See [provide data to a command](../../../scenarios/provide-data-to-a-command.mdx).
 - Use a singular `ValidationResult` alternative from `Handle()` for a decision made during handling. See [response value handlers](./response-value-handlers.md). A failure returned after a service write does not undo that write.
 - Use an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace) for access control, not an overridable validation rule.
 
-Submit an invalid command and inspect the returned validation results before considering the rule finished. A failure at the default threshold prevents handling; a successful result from the identifier example only means it allocated a response, not that anything was persisted. If a rule must always block, configure its server-side severity policy rather than relying on the caller's threshold.
+Check the rule with an invalid command and inspect the returned validation results. At the default threshold, a blocking error prevents handling. Success from the identifier example means a response was allocated; nothing was persisted. If the rule must always block, configure its server-side severity policy rather than relying on the caller's threshold.
 
-For early feedback without invoking `Provide()` or `Handle()`, continue to [pre-flight command validation](./command-validation.md).
+Once the validator returns the expected feedback, add [pre-flight command validation](./command-validation.md) to let callers check input without invoking `Provide()` or `Handle()`.

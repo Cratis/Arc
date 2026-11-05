@@ -1,9 +1,9 @@
 ---
-title: Rules that need no guard
-description: When a rare violation is acceptable, a hint is enough, the data is external, or the key has a long history, and what to do instead of a guard.
+title: Arc consistency without guarding every read
+description: Leave hints and external values unguarded, repair acceptable violations, or shorten event histories while keeping the guard on a business rule.
 ---
 
-Use this page before you add a guard to a rule that does not need one. Each section says what you give up.
+Cratis Arc consistency guards protect state that must remain valid until commit. Hints may be stale, external values cannot be guarded by Cratis Chronicle, and some violations can be repaired later. A long history is a different problem: shorten the history you read while keeping the rule guarded.
 
 ## A rare violation you can repair
 
@@ -56,7 +56,7 @@ Returning `null` records nothing. `[OnceOnly]` keeps the repair out of replays. 
 
 | | |
 | --- | --- |
-| Rule | Show "no copies left" before the user submits |
+| Rule | Warn before submitting a reservation when the book has ten reservations |
 | Mechanism | A query, or a validator over a read marked `[Unprotected("why")]` |
 | What you give up | The hint can be stale. The rule is enforced elsewhere |
 
@@ -92,13 +92,13 @@ public class ReserveBookValidator : CommandValidator<ReserveBook>
 }
 ```
 
-The reason is the part a reviewer reads. State what holds the rule instead.
+The `[Unprotected]` reason tells a reviewer where the real rule is enforced. This excerpt assumes the reservation-limit constraint is configured separately; the advisory validator alone does not enforce the limit under concurrency.
 
 ## External data
 
 | | |
 | --- | --- |
-| Rule | A purchase uses the current price, and a book can be bought only while a copy is available |
+| Rule | Record the quoted price, and sell a book only while a copy is available |
 | Mechanism | `Provide()` fetches the price. A read model parameter guards your own state. The price goes into the event |
 | What you give up | The external value is not guarded. The event records what the decision used |
 
@@ -145,7 +145,7 @@ public class SellCopyValidator : CommandValidator<SellCopy>
 }
 ```
 
-`IPriceList` is an unknown dependency. Read protection guards the stock and nothing about the price.
+Read protection cannot inspect the `IPriceList` dependency. Under `On`, the stock read is guarded, but the price can change after `Provide()` returns. `CopySold` records the quote the command used.
 
 ## A hot key with a long history
 
@@ -153,7 +153,7 @@ public class SellCopyValidator : CommandValidator<SellCopy>
 | --- | --- |
 | Rule | A room accepts at most 20 bookings a month |
 | Mechanism | Key the model by the period that bounds the rule, not by the room |
-| What you give up | Nothing. A guarded read folds the key's history every time, so keep it short |
+| What changes | The room's history is split across monthly event sources; the monthly limit stays guarded |
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -186,7 +186,7 @@ public class BookRoomValidator : CommandValidator<BookRoom>
 }
 ```
 
-Each month is a new event source, so each decision folds at most one month of bookings. The key must not be blank or `*`, must be trimmed, and must not contain `#`.
+Each room-month is a separate event source, so a guarded decision folds only that month's bookings for the room. Use read protection `On` to guard the validator's `RoomMonth` read. The key must not be blank or `*`, must be trimmed, and must not contain `#`.
 
 ## Related
 

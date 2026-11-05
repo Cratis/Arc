@@ -1,9 +1,15 @@
 ---
-title: Return a result or an error
-description: "Return response data or a typed validation failure from a standalone Arc command, and tell response handling apart from optional Chronicle event persistence."
+title: Return a result or error from a Cratis Arc command
+description: Return a value or validation feedback from a Cratis Arc command, check the result on the client, and keep persistence separate from response data.
 ---
 
-**Goal:** explicitly write through a database or service, then return a value the caller needs — or a typed rejection. Arc.Core does not append events just because a returned object has an event-like name.
+A Cratis Arc command can return the identifier of a newly registered author or validation feedback explaining why registration failed. Write through your database or application service, then return what the caller needs. Returning a value does not persist it; event appends require the separate Cratis Chronicle integration.
+
+## Before you start
+
+Use a configured standalone Arc application and an author registration command. The C# handler below replaces the handler from the [MongoDB tutorial](/arc/backend/csharp/getting-started/your-first-command/) and uses its domain types and collection setup. Add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the C# command file. The JVM and TypeScript fragments instead expect an application-owned `AuthorRepository` with name lookup and save methods.
+
+Keep the database unique index from [validation](/arc/tutorial/validation/). It enforces uniqueness when two requests try to register the same name.
 
 ## Choose a standalone result
 
@@ -15,16 +21,18 @@ fragments below show their corresponding handler contracts.
 | Complete without response data         | `void`, `Task`, or `ValueTask`                                |
 | Give the caller a value                | that value, or `Task<T>` / `ValueTask<T>`                     |
 | Succeed with data or reject validation | `Result<TResponse, ValidationResult>` (possibly asynchronous) |
-| Give the caller several pieces of data | one ordinary response DTO containing those values |
+| Give the caller several pieces of data | one response data transfer object (DTO) containing those values |
 | Combine a response with server-side work | a tuple containing one ordinary response and operations or other server-handled values |
 
-The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/csharp/getting-started/your-first-command/). On C#, add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
+Replace the handler with a name check followed by an insert. If the name already exists, give the caller a validation message associated with the name field:
 
 <ArcBackendTabs snippet="scenarios/return-a-result-or-error/handle-result" />
 
-The backends reject differently, and it is worth being explicit about it. C# declares the alternative in the signature with `Result<TResponse, ValidationResult>`. Arc.Kotlin has no `Result<,>` type and no handler return shape that carries both a client response type and a rejection, because the generated proxy and OpenAPI metadata need exactly one client response leaf. The JVM way is to throw an application exception implementing `io.cratis.arc.validation.ValidationFailure`: the command pipeline converts it into the same validation feedback a validator would produce, without leaking the exception message or stack trace. An ordinary exception still becomes an exception result. TypeScript's `handle()`
-returns `rejected(validation(message, members))` for a typed failure, or the
-response value on success; it does not use C#'s `Result<,>` signature.
+C# declares success and rejection alternatives with `Result<TResponse, ValidationResult>`. The other backends use different contracts; do not copy that signature into their handlers.
+
+On the JVM, keep one client response type for the generated proxy and OpenAPI metadata. Throw an application exception implementing `io.cratis.arc.validation.ValidationFailure` to reject. The pipeline exposes its validation feedback, not its exception message or stack trace. An ordinary exception still becomes an exception result.
+
+TypeScript returns `rejected(validation(message, members))` for a typed failure, or the response value on success.
 
 The insert is the persistent effect; the `AuthorId` is response data. The pre-check gives a friendly failure but is **not atomic**. Keep the database unique index from [validation](/arc/tutorial/validation/) and explicitly translate its duplicate-write failure if you need friendly errors under races. Other storage exceptions remain exception results; do not disguise them as ordinary validation.
 
@@ -36,11 +44,17 @@ When the work and caller response are already decided, the C# backend can return
 
 ## Read it on the client
 
-After regenerating the proxy, `execute()` returns a `CommandResult` (a response-bearing result for this signature). Check `isSuccess` before using `response`; otherwise inspect `validationResults`, `isAuthorized`, and exception information. The [command-result contract](/arc/frontend/core/commands/command-result/) documents these independently — success is not synonymous with absence of validation errors.
+Regenerate the command proxy after changing the response contract. Its `execute()` returns a `CommandResult` containing the response for this signature. Check `isSuccess` before using `response`; on failure, inspect `validationResults`, `isAuthorized`, and exception information. The [command-result contract](/arc/frontend/core/commands/command-result/) explains these fields: a command can fail for reasons other than validation.
+
+## Check the result
+
+Submit an unused author name. Expect success, the returned `AuthorId`, and a stored author with that identifier. Submit the same name again: expect validation feedback associated with the name field and no second author from this request.
+
+This checks the sequential path, not concurrency protection. The pre-check can pass in two requests at once; the unique index must reject the duplicate write. Use a [command test](./test-a-command.mdx) to assert the stored or delegated work as well as the result.
 
 ## Optional: event results with Chronicle
 
-On C#, only after configuring [Arc + Chronicle](/arc/backend/csharp/chronicle/) do registered-event response handlers append events. These are **integration signatures**, not replacements for a standalone write:
+If you want to record an event rather than insert an author directly, configure [Arc + Chronicle](/arc/backend/csharp/chronicle/) first. On C#, its registered-event response handlers append events using these integration signatures; standalone Arc does not interpret an event-like class name as a request to persist it:
 
 | Integrated intention                  | Return shape and prerequisite                                                                                   |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |

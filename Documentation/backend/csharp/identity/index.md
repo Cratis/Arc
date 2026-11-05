@@ -1,20 +1,15 @@
 ---
-title: Identity
-description: How Arc composes application identity details from an authenticated principal for the frontend, and how that differs from authorization.
+title: Cratis Arc identity enrichment
+description: Cratis Arc adds application-specific display details to an authenticated principal for the frontend, while backend authorization stays separate.
 ---
 
-Arc identity support composes domain-specific details from an authenticated request principal and presents them to frontend clients. It does not modify or validate the provider's token. Authentication, pipeline authorization, and identity presentation are separate concerns.
+Cratis Arc identity enrichment adds application-specific details, such as a display name, to the identity your frontend shows. It starts from the authenticated request principal, the server-side representation of the caller, and returns presentation data through `/.cratis/me`. It does not validate or modify the authentication provider's token.
 
 ## Overview
 
-Provider identities often lack application-specific display information. Arc lets you compose it in the backend and publish a consistent frontend payload. A details provider can make an application-entry decision; it runs for every identity request. Protect commands and queries independently with [pipeline authorization](../core/authorization.md).
+Use an `IProvideIdentityDetails` implementation when the frontend needs information that the authenticated principal does not contain. Arc invokes it for each authenticated identity request and combines its details with the principal's identity and roles. Without a custom provider, `DefaultIdentityDetailsProvider` allows authenticated callers through this step and returns empty details.
 
-Key capabilities:
-
-- Enrich provider identity with domain-specific details
-- Supply an application-entry decision on every identity request
-- Return a single consolidated identity payload
-- Present details to frontend clients through `/.cratis/me`
+A custom provider can also check whether an authenticated user may enter the application. Returning `IsUserAuthorized = false` makes `/.cratis/me` answer 403. That decision controls the identity response, not access to individual commands or queries. Protect those operations with [pipeline authorization](../core/authorization.md).
 
 ```mermaid
 flowchart LR
@@ -33,8 +28,8 @@ flowchart LR
 
 | Topic | Description |
 | ------- | ----------- |
-| [Provider Flow](./provider-flow.md) | Endpoint mapping, provider implementation, request flow, and frontend integration. |
-| [Identity Contracts](./contracts.md) | `IdentityProviderContext` and `IdentityDetails` structures used by providers. |
-| [IdentityProvider Service](./identity-provider-service.md) | Advanced runtime identity retrieval and mutation with `IIdentityProvider`. |
-| [Development and Topologies](./development-and-topologies.md) | Development endpoints plus single-service and multi-service composition patterns. |
-| [Migrating from the Identity Cookie](./migrating-from-the-identity-cookie.md) | What changed when Arc stopped trusting the `.cratis-identity` cookie, and what to change. |
+| [Provider Flow](./provider-flow.md) | Add display details and understand the responses from `/.cratis/me`. |
+| [Identity Contracts](./contracts.md) | Look up the provider's `IdentityProviderContext` input and `IdentityDetails` output. |
+| [IdentityProvider Service](./identity-provider-service.md) | Read identity presentation data in backend code or change the current response. |
+| [Development and Topologies](./development-and-topologies.md) | Supply development user and tenant rosters, or plan cross-service composition. |
+| [Migrating from the Identity Cookie](./migrating-from-the-identity-cookie.md) | Move cookie readers to the endpoint and handle mixed package versions. |

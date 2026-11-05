@@ -1,6 +1,6 @@
 ---
 title: Basic options
-description: Output location, namespace trimming, source-file grouping, and model decorators.
+description: Configure Cratis Arc proxy output paths, namespace trimming, source-file grouping, and headers; learn how generated decorator metadata works.
 ---
 
 The XML blocks on this page are fragments to place inside your existing `.csproj`'s `Project` element.

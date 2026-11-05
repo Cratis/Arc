@@ -1,15 +1,15 @@
 ---
-title: Integrate with Chronicle
-description: Add Chronicle's event-sourced write path to an Arc application while keeping Arc's commands, queries, identity, tenancy, and generated proxies.
+title: Integrate Cratis Arc with Cratis Chronicle
+description: Add event sourcing to an Arc application with Cratis Chronicle, keeping command and query contracts while configuring storage and identity.
 ---
 
-`Cratis.Arc.Chronicle` connects Arc's command pipeline to [Cratis Chronicle](https://github.com/Cratis/Chronicle). Commands can return events for automatic appending, resolve projected state as dependencies, and use tenant context to select an event-store namespace. Arc continues to generate TypeScript clients from the command and query contracts.
+Cratis Arc's optional Chronicle integration lets commands record business changes as events in [Cratis Chronicle](https://github.com/Cratis/Chronicle). Use it when a feature needs a history of what happened, not just its latest database state. Arc still owns the command and query contracts and generates their TypeScript clients.
 
-Arc does not require Chronicle, and Chronicle does not require Arc. That independence is useful for adoption and bounded current-state slices. In a full Cratis information system, though, this integration is the natural pairing: Arc gives the CQRS boundary and Chronicle keeps the event-sourced facts underneath it.
+Arc and Chronicle can each run independently. You can keep database-backed features alongside event-sourced ones and adopt Chronicle for one slice at a time. Start with [Add event sourcing to an Arc slice](/arc/backend/csharp/chronicle/add-event-sourcing/) if you already have a working feature; the references below explain the integration's behavior.
 
 ## How the two fit together
 
-The frameworks meet at one seam: an Arc **command** appends a Chronicle **event**, a Chronicle **projection** folds events into a **read model**, and an Arc **query** serves that read model back — with the generated TypeScript proxy carrying both ends to React.
+An Arc command handles a request to change something and returns an event recording that change. A Chronicle projection builds a read model from those events: the state an Arc query serves to the client. Generated TypeScript proxies let React execute the command and read the query result.
 
 ```mermaid
 flowchart LR
@@ -19,26 +19,23 @@ flowchart LR
     RM -->|query| UI
 ```
 
-Reading that loop in code:
+In code, a `[Command]` record carries inputs as properties and makes its decision in `Handle()`. Return an `[EventType]` event and the integration appends it. The [return signature](commands/events.md) determines how single events, collections, tuples, `Result<,>` values, and empty responses are handled. Prefer returned events; [transactional commands](commands/transactional-commands.md) explains when explicit appends are needed.
 
-- **A command writes by _returning_.** A `[Command]` record carries the command's inputs as its **properties**, and the decision lives in a `Handle()` method on the record. Whatever `Handle()` **returns** is what Chronicle does with it — return an `[EventType]` event and it's appended; the [return signature](commands/events.md) (a single event, several, a tuple, a `Result<,>`, or nothing) decides the outcome. Returning events is the recommended path; [transactional commands](commands/transactional-commands.md) documents explicit append alternatives and their boundaries.
-- **The event source id picks the stream.** Every event belongs to one **event source** — one entity's stream of history. Chronicle resolves that id from the command: a `[Key]` parameter, an `EventSourceId` or `EventSourceId<T>`-derived property, or `ICanProvideEventSourceId`. See [Resolving EventSourceId](resolving-event-source-id.md).
-- **The read model is projected, then queried.** A `[ReadModel]` record declares the shape you want; `[FromEvent<T>]`, `[SetFrom<T>]`, and `[SetValue<T>]` map events onto its properties and Chronicle keeps it **materialized** in the configured sink (MongoDB by default). An Arc query — a static method on the read model, often returning an observable so the UI stays live — serves it through the generated proxy. See [Read Models](read-models/index.md).
-- **The loop closes: a command can read the state it helped build.** When a decision depends on what's already true, the command doesn't query for it — Arc resolves the read model for the command's key and hands it to the validator, `Provide()`, or `Handle()` as a parameter. See [Use current state in a command](/arc/scenarios/use-current-state-in-a-command/).
+Each event belongs to an event source, the entity whose history it records. The command's event source id selects that stream before command dependencies are resolved. Declare one identity candidate or provide it explicitly through `ICanProvideEventSourceId`; [Resolving EventSourceId](resolving-event-source-id.md) explains the selection rules.
 
-So the round-trip is: a fact happens (command → event), it's folded into state (projection → read model), and the UI reads it (query → proxy) — and the next command can read that same state to decide. Each piece is one of the topics below.
+A `[ReadModel]` record declares the state to query. Attributes such as `[FromEvent<T>]`, `[SetFrom<T>]`, and `[SetValue<T>]` describe how events update it. Chronicle materializes that state in the configured sink. Your query must read from the corresponding storage. A materialized query can lag behind an append; returning an event does not mean every query already sees it.
+
+When a later command needs state to make a decision, Arc can resolve a read model for its key and supply it to a validator, `Provide()`, or `Handle()`. Follow [Use current state in a command](/arc/scenarios/use-current-state-in-a-command/) for that path instead of adding a client-side query round-trip.
 
 ## What it provides
 
-Without this package, Arc and Chronicle are independent. With it:
+Choose the host setup before adding event-sourced types. The [`Cratis` package](cratis-package.md) composes Arc, the Chronicle client, and a header-based identity adapter for ASP.NET Core. Use `AddCratisArc()` with `WithChronicle()` when you want to configure authentication yourself. The `Cratis.Arc.Chronicle` package supplies the generic-host integration; the package guide distinguishes it from the ASP.NET Core composition.
 
-- **Commands return events** — `Handle()` methods on commands can return event records directly; the package appends them to the correct event log automatically.
-- **Event source resolution** — command input metadata selects the stream identity; authenticated identity and ordinary query binding are separate.
-- **Read models backed by projections** — Chronicle backing artifacts supply materialized or passive state. A materialized query can lag behind an append.
-- **Tenant-aware event stores** — each tenant's event log and projections are namespaced automatically, matching Arc's tenancy model.
-- **Compliance integration** — read-model interception requests PII release; append subjects come from command/event metadata, not automatically from authenticated identity. See the compliance reference for failure and passive-path limits.
-- **Aggregate support** — aggregate roots are discoverable and invocable via the standard command pipeline, with Chronicle managing the event stream and rehydration.
-- **Current state as a command dependency** — a command's `CommandValidator<>`, `Provide()`, and `Handle()` can each take the read model Chronicle projected for the command's key as an ordinary parameter, so a state-dependent decision needs no query round-trip.
+Both setups connect to a separately running Chronicle server. Configure that connection and the server's projection sink, then register the query provider your application uses to read the materialized data. Installing the client does not start the server or configure an application database.
+
+The integration also makes aggregate roots available through the command pipeline and maps Arc's tenant context to Chronicle namespaces. [Tenancy](tenancy.md) explains the default-namespace fallback and the separate access-policy and query-storage responsibilities.
+
+Stream identity, authenticated identity, and compliance subjects have different jobs. Command metadata selects the event stream; compliance metadata supplies append subjects. Read-model interception requests release of personally identifiable information (PII). Consult [Compliance](compliance/index.md) for failure behavior and passive-read limits before using that path for protected data.
 
 ## Topics
 

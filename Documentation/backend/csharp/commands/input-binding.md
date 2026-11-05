@@ -1,6 +1,6 @@
 ---
 title: Command input binding
-description: Understand malformed command input, authorization precedence, and explicit-offset date-time binding.
+description: Cratis Arc reports malformed command input as validation results after applicable authorization checks and can require explicit date-time offsets.
 ---
 
 A malformed date or a string sent for a number is not a failed business rule: Arc could not construct the command. Model-bound execute and `/validate` endpoints report this as a validation result with `reason: "malformedRequest"`, after the authorization checks that can run without a command instance.

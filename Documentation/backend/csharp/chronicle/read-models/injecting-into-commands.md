@@ -1,17 +1,17 @@
 ---
-title: Read models in commands
-description: Take a Chronicle read model as a dependency in a CommandValidator, a Provide method, or a Handle method — and declare what a missing instance means.
+title: Inject read models into Cratis Arc commands
+description: Inject Chronicle state into a Cratis Arc validator, Provide, or Handle method. Choose lookup keys, handle missing models, and apply read protection.
 ---
 
-A command's `Handle()` may take any service dependencies. It reads state by declaring the read models it needs as parameters. Direct `IDecisionReads` or `DecisionRead<T>` parameters are almost never needed for supported acquisition shapes. [Command state inputs](command-state-inputs.md) explains the available bindings, protection modes, and gaps that justify a reasoned ARCCHR0040 suppression.
+Inject a Chronicle read model when a Cratis Arc command needs state to reject a request, prepare its inputs, or decide which event to produce. Declare the model in a validator constructor, `Provide()`, or `Handle()`; Arc loads the instance for the selected key before your code uses it.
 
-A command can take the read model Arc resolved for its key in three places: the constructor of a `CommandValidator<TCommand>`, a `Provide()` method, and a `Handle()` method. All three resolve from the same command scope, so all three see the same instance.
+The ordinary command-key dependency is shared across those three positions in the same command scope. Explicit lookups can select other instances. Start with a plain model parameter rather than `IDecisionReads` or `DecisionRead<T>`; [Command state inputs](command-state-inputs.md) explains the bindings and the acquisition gaps that justify an advanced reader.
 
 :::caution[A plain read guards nothing under Off]
-Under read protection `Off`, the default, an injected read model is a **plain read**: it returns a snapshot, captures no boundary and guards nothing, in a validator, in `Provide()` and in `Handle()` alike. Under `On`, the same parameter is read fresh and guarded. The next major version of Arc makes `On` the default; see [The default changes in the next major version](../consistency/index.md#the-default-changes-in-the-next-major-version). Use a constraint for uniqueness. See [Choosing how a command's rule holds](../consistency/index.md) and [Getting started with read protection](../consistency/getting-started.md).
+Under read protection `Off`, the default, a plain model parameter supplies a snapshot but captures no boundary to guard a later append. This applies in a validator, `Provide()`, and `Handle()`. Under `On`, Arc reads supported models fresh and guards the append; unsupported models are refused. The next major version of Arc makes `On` the default; see [The default changes in the next major version](../consistency/index.md#the-default-changes-in-the-next-major-version). For uniqueness, use an append-time constraint. [Choosing how a command's rule holds](../consistency/index.md) explains the choice; [Getting started with read protection](../consistency/getting-started.md) shows the setup.
 :::
 
-Which one to use is a question about *what the state is for*. These are focused dependency fragments using application read models, events, and commands; declarations without `Handle()` show only the validator's input shape, not complete runnable commands.
+Choose the position by what you need the state to do. The examples below are dependency fragments using application read models, events, and commands. Declarations without `Handle()` show the validator's input shape, not a complete runnable command.
 
 | Position | Use it when | The state is… |
 | --- | --- | --- |
@@ -21,15 +21,17 @@ Which one to use is a question about *what the state is for*. These are focused 
 
 ## Choose how a command reads state
 
-Use the first shape that expresses the key:
+First establish [which provider owns the model](./other-providers.md#which-provider-resolves-a-read-model). For a Chronicle-owned model, choose the binding that expresses its identity:
 
-1. Take the read model as a plain `Handle` parameter. Use `[ReadProtection(ReadProtectionMode.On)]` where the rule must hold under concurrency.
-2. Use `[LookUpBy(nameof(Command.Property))]` when a command property supplies another model's key.
-3. Use `[LookUpBy<CallerSubject>]` when the selected caller's exact `sub` claim supplies the key, or a custom provider for another caller claim. No client-supplied command property is needed.
-4. Declare a per-stream model and take it as a plain parameter when state belongs to the command's stream.
-5. Only when no parameter can express the key or stream id, take `IDecisionReads` (or `DecisionRead<T>`) directly in `Handle()` and suppress ARCCHR0040 with a reason and a link to the tracking feature. See the [stream example](#read-a-projection-within-one-stream).
+| State you need | Declaration |
+| --- | --- |
+| The instance for the command's event source | A plain read-model parameter |
+| An instance identified by another public command property | `[LookUpBy(nameof(Command.Property))]` on the parameter |
+| The instance for the selected caller | `[LookUpBy<CallerSubject>]` for the exact `sub` claim, or an application claim provider |
+| State belonging to the command's declared stream | A per-stream model taken as a plain parameter |
+| A key or stream id none of those bindings can express | `IDecisionReads` or `DecisionRead<T>` directly in `Handle()`, with a reasoned ARCCHR0040 suppression and tracking-feature link |
 
-New application code does not take `IDecisionReads` or `DecisionRead<T>` in `Handle()`. Those advanced shapes remain supported, but the plain parameter keeps the decision independent of acquisition and makes it directly specifiable.
+Use `[ReadProtection(ReadProtectionMode.On)]` when a supported state read must guard the later append. The key binding does not enable that policy. Keep advanced readers for acquisition gaps, such as the [stream example](#read-a-projection-within-one-stream); a plain parameter keeps the decision independent of loading state.
 
 ## In a validator
 
@@ -69,11 +71,13 @@ public record UseReducerReadModelInHandle(EventSourceId AccountId)
 }
 ```
 
-The injection signature is the same for classic reducers, [self-reducing models](./index.md#self-reducing-read-models) (Chronicle 19.58.0+), fluent projections, and model-bound projections, including passive models. A self model needs no separate reducer registration in Arc: Chronicle's discovered reducer set supplies it. Existing instances are read through `IReadModels` and released before injection; absent self-model state resolves to null. Under `Off`, none of these snapshots protects a later append against concurrent changes. Under `On`, a model that read protection can guard is read fresh and guarded, and a reducer that it cannot guard is refused. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
+Use the same parameter shape for classic reducers, [self-reducing models](./index.md#self-reducing-read-models) with Chronicle 19.58.0+, fluent projections, and model-bound projections, including passive models. A self model needs no separate reducer registration in Arc: Chronicle's discovered reducer set supplies it.
+
+Under `Off`, Arc loads existing instances through `IReadModels` and releases them before injection; absent self-model state resolves to null. These snapshots do not protect a later append against concurrent changes. Under `On`, Arc reads supported models fresh and guards the append, refusing reducers it cannot protect. See [materialized and passive paths](./index.md#materialized-and-passive-paths) for freshness and release differences.
 
 ## Key a read by the caller
 
-Use the generic attribute on a read-model `Handle` parameter when the caller owns the state. This dependency fragment uses the same `LedgerBalance` and `LedgerSettled` application types as above:
+Use a caller-derived key when the model belongs to the authenticated caller rather than an identity the client can choose. The generic lookup attribute reads the selected caller snapshot, so the command needs no client-supplied key property. This fragment uses the same `LedgerBalance` and `LedgerSettled` application types as above:
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -87,8 +91,6 @@ public record SettleMyLedger
 }
 ```
 
-An override's lookup declaration replaces the same declaration on the base method; different provider types or a mix of provider and property lookups remain conflicts.
-
 `CallerSubject` reads exactly `sub`; it does not map `NameIdentifier`, fall back to a name, or inspect actor-chain claims. It requires an authenticated, non-system caller and one distinct non-empty value. Repeated identical values are one value; different values are ambiguous. Claim types and values use ordinal comparison.
 
 For an application claim, derive from the abstract `CallerClaim`:
@@ -99,13 +101,17 @@ using Cratis.Arc.Commands;
 public sealed class CallerLogin() : CallerClaim("login");
 ```
 
-Then use `[LookUpBy<CallerLogin>]` on the read-model parameter. For a computed key, implement `IReadModelKeyProvider.Resolve(ReadModelKeyContext)` and return `ReadModelKeyLookup.Found(key)`, `.Missing` or `.Ambiguous`. `Found(null)` is invalid; a default result is missing. The context contains only the immutable `Caller` and target `ReadModelType`. `Caller.Single(claimType)` applies the same distinct-value rule. A provider must be a stateless, thread-safe class with a public parameterless constructor. One instance is shared: no services, DI, IO or ambient principal access is available to it.
+Then use `[LookUpBy<CallerLogin>]` on the read-model parameter. For a computed key, implement `IReadModelKeyProvider.Resolve(ReadModelKeyContext)` and return `ReadModelKeyLookup.Found(key)`, `.Missing`, or `.Ambiguous`. `Found(null)` is invalid; a default result is missing. `Caller.Single(claimType)` applies the same distinct-value rule as `CallerSubject`.
+
+A provider receives only the immutable `Caller` and target `ReadModelType`. It must be a stateless, thread-safe class with a public parameterless constructor because Arc shares one instance. It cannot use services, dependency injection, IO, or an ambient principal. If acquiring the key needs any of those, this provider shape does not fit.
 
 Arc captures the selected caller before command context providers run. A scheme-selected principal or an on-behalf-of represented identity is the caller, not the actor. Later observable principal replacement or in-place claim mutation refuses resolution. This also applies to validation preflight and validation nested in execution.
 
 The key selects the instance in `Off`, `Measure` and `On`; it does not enable protection. `Off` and `Measure` remain unguarded. Under `On`, the existing admission, freshness and concurrency checks still apply. `[Unprotected]` exempts guarding, not caller/key checks. A provider key must have safe, non-empty exact wire text in every mode: wildcard, unspecified, surrounding whitespace and ambiguous `#` text are refused.
 
-A missing or ambiguous key, changed caller or throwing provider is an authorization refusal. There is no convention or client-key fallback, even for nullable parameters. Once a valid key is found, ordinary nullable-versus-required model absence rules apply. Do not combine the generic and string attributes, or declare two providers. A `Provide()` value of the parameter's type is a declaration error (`InvalidLookUpBy`) and never replaces the caller-keyed read. Neither form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
+A missing or ambiguous key, changed caller, or throwing provider produces an authorization refusal. Arc does not fall back to a convention or client key, even for a nullable parameter. Only after a valid key is found do the ordinary nullable-versus-required absence rules apply.
+
+Declare one lookup form: do not combine the generic and string attributes or declare two providers. An override replaces the same lookup declaration on its base method; different provider types or mixed forms remain conflicts. A `Provide()` value of the parameter's type causes `InvalidLookUpBy` rather than replacing the caller-keyed read. Neither lookup form can redirect a per-stream model away from the command's own source. See [lookup failures](./failures.md#readmodelkeyresolutiondenied).
 
 ## In `Provide()`
 
@@ -127,7 +133,7 @@ Use this shape when the projected state has to be combined with something fetche
 
 ## Nullable means you handle absence
 
-The key on a command identifies *which* read model instance to resolve. It does not prove that instance exists. Nullability is how you declare what absence means, and Arc behaves differently for each choice.
+A valid key identifies which instance to load; it does not prove the instance exists. Use nullability to declare whether your code handles missing state. A nullable parameter does not allow a missing or invalid key, and passive projections can return a default-valued instance rather than null when no events match.
 
 ### Nullable — absence is a business condition
 
@@ -236,7 +242,7 @@ Read models never emit events. Under `Off`, materialized models can lag and pass
 
 ## Decision reads for event-dependent commands
 
-Under read protection `On`, a plain `T` parameter in `Handle()`, `Provide()` or a validator constructor is a guarded read. Nothing else is needed on the command. [Getting started](../consistency/getting-started.md) shows the whole path, and [Reads](../consistency/reads.md) lists what each read becomes.
+Under read protection `On`, a supported plain `T` parameter in `Handle()`, `Provide()`, or a validator constructor becomes a guarded read unless explicitly marked unprotected. You do not need to replace it with a token parameter. [Getting started](../consistency/getting-started.md) shows the setup, and [Reads](../consistency/reads.md) lists what each read becomes.
 
 | You write | Under `Off` or `Measure` | Under `On` |
 | --- | --- | --- |
@@ -253,7 +259,9 @@ A conflict returns `concurrencyViolation` with the detail `ReadChanged`, and the
 
 ### Existing advanced commands marked [ProtectedDecision]
 
-The following is existing, advanced usage, not the recommended shape for new application code. Prefer a plain read-model parameter under `On`. An existing command that is not under `On` can opt in on its own with `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`) before injecting `DecisionRead<T>` into `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature; use `.Instance` and `.Exists`. Inject the command-aware `IDecisionReads` and call `Get<T>(otherKey)` to guard a different event source. The profile is fixed when the Arc pipeline enters each command, including nested commands. An unmarked command under `Off` keeps its plain reads, and `IDecisionReads.GetDetached<T>` returns a detached snapshot as Chronicle's own reader does. Inside a `[ProtectedDecision]` command `GetDetached<T>` is refused, because a detached snapshot is not enrolled in the decision. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation.
+For new code, prefer a plain read-model parameter under `On`. Existing commands outside `On` can opt in individually with `[ProtectedDecision]` from `Cratis.Arc.Chronicle.ReadModels`. Those commands take `DecisionRead<T>` in `Handle()` with a reasoned ARCCHR0040 suppression and tracking-feature link, then use `.Instance` and `.Exists`. To guard a different event source, use the command-aware `IDecisionReads.Get<T>(otherKey)`.
+
+Arc fixes the protection profile when the pipeline enters each command, including nested commands. An unmarked command under `Off` keeps its plain reads, and `IDecisionReads.GetDetached<T>` returns a detached snapshot as Chronicle's own reader does. Inside a `[ProtectedDecision]` command, `GetDetached<T>` is refused because that snapshot is not enrolled in the decision. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation.
 
 By default, a `[ProtectedDecision]` command outside `On` runs a discoverable validator only if it has one public, parameterless constructor. [Certified validator construction](../consistency/certified-validators.md) opts dependency-taking validators into fresh construction in a native Microsoft DI scope: use `DecisionRead<T>` or the command-aware `IDecisionReads`, not a plain read-model parameter. This capability requires an untrimmed JIT runtime. Under `On`, validators with plain read-model parameters remain allowed without that opt-in. See [Validators and read protection](../consistency/validators.md#commands-marked-protecteddecision).
 
@@ -274,7 +282,9 @@ public class RenameLedgerValidator : CommandValidator<RenameLedger>
 
 ### What is guarded
 
-A guarded read requires a model that Chronicle admits for direct, event-source-keyed event-log reads with a supported key conversion and a known, nonempty event-type set. Flat projections, unfiltered reducers and self-reducing models without constructor dependencies other than `ILogger<T>` are admitted. Reducers with a filter or other dependencies, joins, nested or child sources, `FromEvery`, by-property keys, stream-keyed projections read as a plain parameter, open-ended event types and Pinned generation delivery are refused. The model needs an `Id` property of a string-like or `Guid` type, which is matched to the command's key or to a `[LookUpBy]` property.
+Before guarding a read, Chronicle checks whether it can fold the model from the event log and identify the events that could change it. The model needs a supported event-source key conversion, a known nonempty event-type set, and an `Id` property of a string-like or `Guid` type matching the selected lookup key.
+
+Flat projections, unfiltered reducers, and self-reducing models without constructor dependencies other than `ILogger<T>` are admitted. Reducers with filters or other dependencies are refused, as are joins, nested or child sources, `FromEvery`, by-property keys, stream-keyed projections read as a plain parameter, open-ended event types, and Pinned generation delivery. Making a model injectable does not remove these protection limits.
 
 Revisions, redactions, projection definition changes, other event sequences, external state and writes that bypass the kernel's append path are not guarded. A guard detects every matching event appended through the kernel, whoever wrote it. An unguarded writer's own decision is not protected.
 
@@ -338,9 +348,9 @@ Constructor injection, validators built by synchronous factories, other `IServic
 
 ## Read models from other providers
 
-Injection is not Chronicle-only. A read model backed by Entity Framework Core or MongoDB is injected into a command exactly the same way, and everything on this page — the three positions, and what nullability means — applies unchanged.
+Entity Framework Core and MongoDB can also supply read-model dependencies in a validator, `Provide()`, or `Handle()`. Their missing-instance behavior follows the same nullable-versus-required choice.
 
-What differs is where the read model is loaded from and what key loads it, including how a command declares its key when there is no Chronicle to resolve one. See [Read models from other providers](./other-providers.md).
+The provider still controls loading and key conversion. Chronicle's protected event reads do not make an EF Core row or MongoDB document part of its guarded commit. Use [Read models from other providers](./other-providers.md) to configure ownership and declare a command key without Chronicle.
 
 ## Testing
 
