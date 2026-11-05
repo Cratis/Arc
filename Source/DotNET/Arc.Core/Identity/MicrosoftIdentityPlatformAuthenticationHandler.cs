@@ -31,13 +31,10 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
-        if (!ForwardedIdentityHopAdmission.Allows(options.Value, context))
+        var hop = ForwardedIdentityHop.Admit(context, options.Value);
+        if (hop is not (ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated))
         {
-            if (UntrustedForwardedIdentityHeaders.ArePresent(context.Headers.ContainsKey) || context.Headers.ContainsKey(ForwardedIdentityEnvelope.Header))
-            {
-                _logger.HopRefused();
-                return Task.FromResult(AuthenticationResult.Failed("hop"));
-            }
+            if (ForwardedIdentityHeaders.ArePresent(context)) ForwardedIdentityHopLogging.Shared.Report(_logger, hop, context);
             return Task.FromResult(AuthenticationResult.Anonymous);
         }
 

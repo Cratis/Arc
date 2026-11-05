@@ -11,19 +11,20 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace Cratis.Arc.Identity.ForwardedIdentityHop;
+namespace Cratis.Arc.Identity.for_ForwardedIdentityHop;
 
 public class when_exercising_the_real_kestrel_hop : Specification
 {
     readonly Dictionary<string, HttpStatusCode?> _outcomes = [];
     readonly List<X509Certificate2> _certificates = [];
     string _bundle;
+    string _serverFingerprint;
 
     async Task Because()
     {
@@ -34,38 +35,44 @@ public class when_exercising_the_real_kestrel_hop : Specification
         var clientA = Leaf(rootA, "authproxy.internal", true);
         var clientB = Leaf(rootB, "authproxy.internal", true);
         var server = Leaf(rootA, "localhost", false);
+        _serverFingerprint = server.GetCertHashString(HashAlgorithmName.SHA256);
         _bundle = Path.Combine(Path.GetTempPath(), $"arc-kestrel-hop-{Guid.NewGuid():N}.pem");
-        File.WriteAllText(_bundle, rootA.ExportCertificatePem());
+        await File.WriteAllTextAsync(_bundle, rootA.ExportCertificatePem());
         var options = ForwardedIdentityForSpecs.Options();
         options.ForwardedIdentity.ClientCertificate = new()
         {
             Required = true,
             TrustedCertificateAuthoritiesPath = _bundle,
             AllowedDnsNames = ["authproxy.internal"],
-            ReloadInterval = TimeSpan.FromTicks(1)
+            ReloadInterval = TimeSpan.FromSeconds(5)
         };
         var monitor = Substitute.For<IOptionsMonitor<ArcOptions>>();
         monitor.CurrentValue.Returns(options);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
+        var clock = new Clock();
+        builder.Services.AddSingleton<TimeProvider>(clock);
+        builder.Services.AddSingleton<IConfigureOptions<KestrelServerOptions>, ForwardedIdentityClientCertificateKestrelOptions>();
+        builder.Services.AddCertificateForwarding(forwarding =>
+        {
+            forwarding.CertificateHeader = "X-Forwarded-Client-Cert";
+            forwarding.HeaderConverter = _ => clientA;
+        });
         builder.Services.AddSingleton(monitor);
         builder.Services.AddSingleton(Options.Create(options));
         builder.Services.AddSingleton<ForwardedIdentityClientCertificateTrustStore>();
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
             kestrel.Listen(IPAddress.Loopback, 0);
-            kestrel.Listen(IPAddress.Loopback, 0, listen => listen.UseHttps(new HttpsConnectionAdapterOptions
-            {
-                ServerCertificate = server,
-                ClientCertificateMode = ClientCertificateMode.AllowCertificate,
-                // Deliberately admit hostile TLS clients at the listener: Arc must enforce its own policy.
-                ClientCertificateValidation = (_, _, _) => true
-            }));
+            kestrel.Listen(IPAddress.Loopback, 0, listen => listen.UseHttps(server));
         });
         await using var app = builder.Build();
         app.Services.GetRequiredService<ForwardedIdentityClientCertificateTrustStore>().ValidateConfiguration();
-        app.MapPost("/{**path}", async context =>
+        app.UseCertificateForwarding();
+        app.Run(async context =>
         {
+            // Force the actual forwarding middleware to materialize its spoofed TLS feature.
+            _ = await context.Connection.GetClientCertificateAsync();
             var schemeOptions = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
             schemeOptions.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions());
             var handler = new MicrosoftIDentityPlatformAuthHandler(schemeOptions, monitor, NullLoggerFactory.Instance, UrlEncoder.Default);
@@ -93,15 +100,19 @@ public class when_exercising_the_real_kestrel_hop : Specification
             _outcomes["wrong-eku"] = await Send(wrongEku, tls);
             _outcomes["http-spoof"] = await Send(missing, clear, true);
             _outcomes["tls-spoof"] = await Send(missing, tls, true);
-            File.WriteAllText(_bundle, rootA.ExportCertificatePem() + "\n" + rootB.ExportCertificatePem());
+            await File.WriteAllTextAsync(_bundle, rootA.ExportCertificatePem() + "\n" + rootB.ExportCertificatePem());
+            clock.Advance();
             _outcomes["overlap-a"] = await Send(admitted, tls);
             _outcomes["overlap-b"] = await Send(otherCa, tls);
-            File.WriteAllText(_bundle, rootB.ExportCertificatePem());
+            await File.WriteAllTextAsync(_bundle, rootB.ExportCertificatePem());
+            clock.Advance();
             _outcomes["retired-a"] = await Send(admitted, tls);
             _outcomes["current-b"] = await Send(otherCa, tls);
-            File.WriteAllText(_bundle, "malformed");
+            await File.WriteAllTextAsync(_bundle, "malformed");
+            clock.Advance();
             _outcomes["bad-bundle"] = await Send(otherCa, tls);
-            File.WriteAllText(_bundle, rootB.ExportCertificatePem());
+            await File.WriteAllTextAsync(_bundle, rootB.ExportCertificatePem());
+            clock.Advance();
             _outcomes["recovered"] = await Send(otherCa, tls);
         }
         finally
@@ -119,18 +130,25 @@ public class when_exercising_the_real_kestrel_hop : Specification
     [Fact] void should_accept_the_real_trusted_peer() => _outcomes["trusted"].ShouldEqual(HttpStatusCode.OK);
     [Fact] void should_refuse_all_hostile_tls_peers() => new[] { "unrelated", "wrong-ca", "missing", "expired", "wrong-eku" }.All(Refused).ShouldBeTrue();
     [Fact] void should_ignore_forwarded_transport_headers_on_http_and_tls() => new[] { "http-spoof", "tls-spoof" }.All(Refused).ShouldBeTrue();
-    [Fact] void should_support_live_ca_rotation_and_recovery() => new[] { "overlap-a", "overlap-b", "current-b", "recovered" }.All(name => _outcomes[name] == HttpStatusCode.OK).ShouldBeTrue();
-    [Fact] void should_fail_closed_after_root_removal_or_a_bad_reload() => new[] { "retired-a", "bad-bundle" }.All(Refused).ShouldBeTrue();
+    [Fact] void should_support_live_ca_rotation_and_recovery() => new[] { "overlap-a", "overlap-b", "current-b", "bad-bundle", "recovered" }.All(name => _outcomes[name] == HttpStatusCode.OK).ShouldBeTrue();
+    [Fact] void should_refuse_the_removed_authority() => Refused("retired-a").ShouldBeTrue();
+
+    sealed class Clock : TimeProvider
+    {
+        DateTimeOffset _now = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => _now;
+        internal void Advance() => _now += TimeSpan.FromSeconds(5);
+    }
 
     bool Refused(string name) => _outcomes[name] is null or HttpStatusCode.Unauthorized;
 
-    static HttpClient Client(X509Certificate2? certificate)
+    HttpClient Client(X509Certificate2? certificate)
     {
         var handler = new SocketsHttpHandler
         {
             SslOptions = new SslClientAuthenticationOptions
             {
-                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                RemoteCertificateValidationCallback = (_, remote, _, _) => remote?.GetCertHashString(HashAlgorithmName.SHA256) == _serverFingerprint,
                 ClientCertificates = certificate is null ? [] : [certificate]
             }
         };

@@ -54,6 +54,6 @@ internal sealed record ForwardedIdentityV2Request
             if (name.Length > 32768 || values.Length != 1 || values[0] is not { } value || value.Length > 32768) return null;
             headers.Add(new(name, value));
         }
-        return new(request.Method, target, headers, true, ForwardedIdentityHopAdmission.IsAdmitted(request));
+        return new(request.Method, target, headers, true, ForwardedIdentityHop.IsAdmitted(request));
     }
 }

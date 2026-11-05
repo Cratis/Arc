@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Identity.ForwardedIdentityHop.given;
+using Cratis.Arc.Identity.for_ForwardedIdentityHop.given;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace Cratis.Arc.Identity.ForwardedIdentityHop;
+namespace Cratis.Arc.Identity.for_ForwardedIdentityHop;
 
 public class when_required_configuration_is_invalid : Specification
 {
@@ -32,5 +32,5 @@ public class when_required_configuration_is_invalid : Specification
         }
     }
 
-    [Fact] void should_refuse_every_invalid_required_configuration() => _failures.All(failure => failure is OptionsValidationException).ShouldBeTrue();
+    [Fact] void should_refuse_every_invalid_required_configuration() => _failures.TrueForAll(failure => failure is OptionsValidationException).ShouldBeTrue();
 }

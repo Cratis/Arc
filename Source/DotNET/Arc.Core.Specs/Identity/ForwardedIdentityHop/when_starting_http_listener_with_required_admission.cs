@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace Cratis.Arc.Identity.ForwardedIdentityHop;
+namespace Cratis.Arc.Identity.for_ForwardedIdentityHop;
 
 public class when_starting_http_listener_with_required_admission : Specification
 {

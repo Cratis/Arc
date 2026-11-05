@@ -12,7 +12,7 @@ public sealed class ForwardedIdentityClientCertificateOptions
     /// <summary>Gets or sets the PEM bundle of trusted client-certificate authorities. System roots are never used.</summary>
     public string? TrustedCertificateAuthoritiesPath { get; set; }
 
-    /// <summary>Gets or sets the exact, ordinal DNS SAN names admitted for the forwarding peer.</summary>
+    /// <summary>Gets or sets the DNS SAN names admitted for the forwarding peer. Wildcards and common-name fallback are disabled.</summary>
     public IList<string> AllowedDnsNames { get; set; } = [];
 
     /// <summary>Gets or sets how often the authority bundle is reloaded.</summary>

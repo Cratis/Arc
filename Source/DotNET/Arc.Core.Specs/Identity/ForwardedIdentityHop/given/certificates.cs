@@ -4,7 +4,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
-namespace Cratis.Arc.Identity.ForwardedIdentityHop.given;
+namespace Cratis.Arc.Identity.for_ForwardedIdentityHop.given;
 
 public sealed class certificates : IDisposable
 {

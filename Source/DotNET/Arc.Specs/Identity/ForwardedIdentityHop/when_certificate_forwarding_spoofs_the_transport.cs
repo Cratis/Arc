@@ -6,7 +6,7 @@ using System.Security.Cryptography.X509Certificates;
 using Cratis.Arc.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication;
 
-namespace Cratis.Arc.Identity.ForwardedIdentityHop;
+namespace Cratis.Arc.Identity.for_ForwardedIdentityHop;
 
 public class when_certificate_forwarding_spoofs_the_transport : for_ForwardedIdentityAuthentication.given.a_signed_handler
 {
@@ -28,5 +28,5 @@ public class when_certificate_forwarding_spoofs_the_transport : for_ForwardedIde
     }
 
     [Fact] void should_not_accept_a_forwarded_tls_feature() => _admitted.ShouldBeFalse();
-    [Fact] void should_refuse_signed_forwarding_without_the_real_tls_peer() => _result.Failure.Message.ShouldEqual("hop");
+    [Fact] void should_refuse_signed_forwarding_without_the_real_tls_peer() => _result.None.ShouldBeTrue();
 }

@@ -7,9 +7,9 @@ namespace Cratis.Arc.Identity;
 
 internal static partial class ForwardedIdentityHopLogMessages
 {
-    [LoggerMessage(0, LogLevel.Warning, "Forwarded identity refused: hop")]
-    internal static partial void HopRefused(this ILogger logger);
+    [LoggerMessage(LogLevel.Warning, "Forwarded identity refused: {Reason}; certificate {Fingerprint} ({Subject}); suppressed {Suppressed}")]
+    internal static partial void HopRefused(this ILogger logger, ForwardedIdentityHopAdmission reason, string fingerprint, string subject, long suppressed);
 
-    [LoggerMessage(1, LogLevel.Warning, "Forwarded identity trust bundle unavailable")]
-    internal static partial void TrustBundleUnavailable(this ILogger logger);
+    [LoggerMessage(LogLevel.Warning, "Forwarded identity trust bundle replacement unavailable at {Path}, SHA-256 {Hash}; retaining last good bundle")]
+    internal static partial void TrustBundleUnavailable(this ILogger logger, string path, string hash);
 }

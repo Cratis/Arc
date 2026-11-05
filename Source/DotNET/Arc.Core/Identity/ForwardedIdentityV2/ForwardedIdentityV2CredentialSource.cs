@@ -29,7 +29,7 @@ internal sealed class ForwardedIdentityV2CredentialSource(
     async Task<CredentialVerification> IVerifiedCredentialSource.Verify(CredentialPresentation presentation, CancellationToken cancellationToken)
     {
         if (requests.Current is not { } request || request is not ICanReadForwardedIdentityRequest) return CredentialVerification.Refused(CallerRefusal.UnreadableCredentialHeaders);
-        if (!ForwardedIdentityHopAdmission.IsAdmitted(request)) return Refuse(ForwardedIdentityV2Rejection.Hop);
+        if (!ForwardedIdentityHop.IsAdmitted(request)) return Refuse(ForwardedIdentityV2Rejection.Hop);
         var signatures = presentation.Envelope.Values.SelectMany(values => values).ToArray();
         if (signatures.Length != 1) return Refuse(ForwardedIdentityV2Rejection.Format);
         if (!signatures[0].StartsWith("v2.", StringComparison.Ordinal))

@@ -16,6 +16,7 @@ public class when_signed_forwarding_controls_the_name_fallback : for_ForwardedId
     IdentityProviderResult _native;
     IdentityProviderResult _signed;
     IdentityProviderResult _anonymous;
+    IdentityProviderResult _unadmitted;
 
     async Task Because()
     {
@@ -33,6 +34,9 @@ public class when_signed_forwarding_controls_the_name_fallback : for_ForwardedId
         _headers[MicrosoftIdentityPlatformHeaders.IdentityNameHeader] = "unverified-name";
         _options.ForwardedIdentity.Enabled = false;
         _legacy = await provider.Get();
+        _options.ForwardedIdentity.ClientCertificate.Required = true;
+        _unadmitted = await provider.Get();
+        _options.ForwardedIdentity.ClientCertificate.Required = false;
         _options.ForwardedIdentity.Enabled = true;
         _native = await provider.Get();
         _context.User = Authenticate().Principal;
@@ -43,6 +47,7 @@ public class when_signed_forwarding_controls_the_name_fallback : for_ForwardedId
 
     [Fact] void should_preserve_the_legacy_name_fallback_when_off() => _legacy.Name.Value.ShouldEqual("unverified-name");
     [Fact] void should_not_add_an_unverified_name_to_native_identity_when_on() => _native.Name.Value.ShouldEqual("unknown");
+    [Fact] void should_ignore_the_name_header_without_transport_admission() => _unadmitted.Name.Value.ShouldEqual("unknown");
     [Fact] void should_preserve_the_native_subject() => _native.Id.Value.ShouldEqual("native");
     [Fact] void should_use_the_verified_principal_name() => _signed.Name.Value.ShouldEqual("n");
     [Fact] void should_not_promote_anonymous_identity_from_raw_headers() => _anonymous.IsAuthenticated.ShouldBeFalse();
