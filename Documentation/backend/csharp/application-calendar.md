@@ -96,4 +96,4 @@ Zone resolution uses the host's time-zone data. Containers need `tzdata`, and th
 
 ## Out of scope
 
-This feature does not supply a continuously ticking `now` or an advanceable clock for query scenarios. For the connection and delivery behavior around a live answer, continue with [observable queries](queries/observable-queries.md).
+This feature does not supply a continuously ticking `now` or an advanceable clock for query scenarios. For the connection and delivery behavior around a live answer, continue with [observable queries](queries/model-bound/observable-queries.md).
