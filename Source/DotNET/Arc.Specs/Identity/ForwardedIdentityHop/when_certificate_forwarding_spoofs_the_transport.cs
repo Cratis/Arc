@@ -4,6 +4,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Cratis.Arc.AspNetCore.Http;
+using Cratis.Arc.Http;
 using Microsoft.AspNetCore.Authentication;
 
 namespace Cratis.Arc.Identity.for_ForwardedIdentityHop;
@@ -11,7 +12,7 @@ namespace Cratis.Arc.Identity.for_ForwardedIdentityHop;
 public class when_certificate_forwarding_spoofs_the_transport : for_ForwardedIdentityAuthentication.given.a_signed_handler
 {
     AuthenticateResult _result;
-    bool _admitted;
+    X509Certificate2? _transportCertificate;
 
     async Task Because()
     {
@@ -23,10 +24,10 @@ public class when_certificate_forwarding_spoofs_the_transport : for_ForwardedIde
         _context.Request.Headers["X-Forwarded-Proto"] = "https";
         _context.Request.Headers["X-Forwarded-Client-Cert"] = "synthetic-forwarded-certificate";
         _context.Connection.ClientCertificate = certificate;
-        _admitted = new AspNetCoreHttpRequestContext(_context).IsAuthenticatedForwardingHop;
+        _transportCertificate = ((ICanReadClientCertificate)new AspNetCoreHttpRequestContext(_context)).TransportClientCertificate;
         _result = await Authenticate();
     }
 
-    [Fact] void should_not_accept_a_forwarded_tls_feature() => _admitted.ShouldBeFalse();
+    [Fact] void should_not_accept_a_forwarded_tls_feature() => _transportCertificate.ShouldBeNull();
     [Fact] void should_refuse_signed_forwarding_without_the_real_tls_peer() => _result.None.ShouldBeTrue();
 }
