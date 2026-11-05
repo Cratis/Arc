@@ -1,11 +1,11 @@
 ---
-title: Test operation recovery after a Chronicle rejection
-description: Combine a returned event and command operation, then prove a real in-process uniqueness rejection prevents the event commit and triggers compensation.
+title: Cratis Arc operation recovery after Chronicle rejection
+description: Test that a real Chronicle uniqueness rejection prevents an event commit and triggers compensation for a Cratis Arc command operation.
 ---
 
-**Goal:** prove that a returned operation can execute before Chronicle rejects the command's event transaction, and that Arc then compensates the operation without committing the rejected event.
+Test a Cratis Arc command with Cratis Chronicle when you need to prove recovery after an event commit is rejected. This lesson lets an external reservation run, then checks that a real uniqueness constraint rejects the event and Arc calls the compensator to cancel the reservation.
 
-This is the optional Chronicle counterpart to [testing standalone command operations](./command-operations.md). Keep it in a separate example project so adding Chronicle's discovered scenario extender does not change the standalone lesson's test environment.
+Start with [standalone command operation tests](./command-operations.md) if you only need to check operation execution and compensation. Chronicle integration is optional. Keep this example in a separate project because its automatically discovered Chronicle extension changes the scenario's test environment.
 
 ## Add the Chronicle testing boundary
 
@@ -20,7 +20,7 @@ dotnet add Onboarding.Specs package Cratis.Specifications.XUnit
 dotnet add Onboarding.Specs package NSubstitute
 ```
 
-Use matching current Arc packages. Remove the template files. The example uses the real in-process Chronicle test event log and constraint evaluation, with a substitute only for the external reservation provider. It does not require a running Chronicle server.
+Use matching current Arc packages and remove the template files. Chronicle's in-process event log evaluates the uniqueness constraint; only the external reservation provider is substituted. You do not need a running Chronicle server.
 
 The explicit `Cratis.Arc` test dependency supplies the Arc host assembly used by Chronicle's in-process kernel. This is a test-host dependency, not a requirement to expose an ASP.NET Core endpoint or to add Chronicle to standalone operation tests.
 
@@ -84,13 +84,13 @@ public record OnboardingStarted(
     OrganizationNumber OrganizationNumber);
 ```
 
-`Handle()` returns facts and work; it does not call the external provider. Arc enrolls the event, executes the operation, and completes the Chronicle transaction afterward. The event carries no event-source id; the command supplies it through Chronicle's existing identity convention.
+`Handle()` declares the event and reservation work without calling the provider. Arc adds the event to the command's transaction, executes the operation, and then completes the transaction. That order lets the spec exercise recovery after the reservation runs. The command's `EventSourceId` identifies the history that receives the event; the event does not repeat the id in its payload.
 
 The provider must honor the ownership and repeated-request rules described in [implementing an operation](../commands/operations/implementing.md#define-the-operations-inputs-and-provider). The substitute below cannot prove those external guarantees.
 
 ## Seed the conflict, then execute the command
 
-Add this spec to `Onboarding.Specs`:
+Add this spec to `Onboarding.Specs`. Seed a different event source with the same organization number so the new command reaches a real uniqueness conflict at commit time:
 
 ```csharp title="when_the_organization_is_already_onboarding.cs"
 using System;
@@ -172,13 +172,13 @@ Run:
 dotnet test Onboarding.Specs
 ```
 
-The constraint assertion checks a real configured constraint, not a mock that merely reports `NotCommitted`. The provider calls and operation assertions establish that work ran before rejection and that its compensator returned. The event-log assertion establishes that the rejected source received no event.
+Read the assertions as separate checks. The named constraint identifies why the commit failed. The ordered provider calls show that reservation ran before cancellation, and the operation assertions record execution and compensation. Finally, the event-log assertion checks that the new partner received no event. A failed result alone would not establish that sequence.
 
 ## Keep the guarantees separate
 
-This spec proves the in-process command/Chronicle integration for a **known rejection**. It does not simulate an uncertain commit acknowledgment, and it does not prove a production provider's cancellation or the transport behavior of a remote Chronicle server.
+This spec covers a known rejection through the in-process Arc–Chronicle integration. `NotCommitted` means Arc knows the event transaction did not commit; `Completed` means the required compensation callbacks returned. Neither value proves that a production provider durably canceled a reservation.
 
-Do not replace the real constraint with a fabricated failed `CommandResult` and claim the same coverage. Conversely, use targeted integration/provider tests for uncertain outcomes instead of adding a real network dependency to every command decision spec.
+Keep the real constraint in this test: a fabricated failed `CommandResult` would skip the commit behavior you are checking. Use provider-backed or transport integration tests for durable cancellation and uncertain commit acknowledgments, rather than adding a network dependency to every decision spec.
 
 For the other side of the boundary, execute with a previously unused organization number and assert successful event persistence, completed operation execution, `Committed` disposition, and no provider cancellation. A later presentation failure is not permission to reverse an already-committed business action.
 

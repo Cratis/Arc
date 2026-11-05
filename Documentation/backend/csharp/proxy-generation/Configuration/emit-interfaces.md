@@ -1,9 +1,11 @@
 ---
-title: Emit Interfaces
-description: Generate TypeScript interfaces instead of decorated classes for proxy types, and the runtime behavior you give up.
+title: Cratis Arc proxies — generate model interfaces
+description: Generate plain TypeScript model interfaces with Cratis Arc when consumers need object shapes, without constructors or deserialization metadata.
 ---
 
-By default the generator emits each type as a **class** carrying `@field` decorators:
+Cratis Arc can generate TypeScript model interfaces for consumers that need object shapes without runtime constructors or deserialization metadata. Use this output for models you build and read as plain objects; keep class output for models that Arc clients deserialize.
+
+By default, the generator emits models as classes with `@field` decorators:
 
 ```ts
 import { field } from '@cratis/fundamentals';
@@ -14,9 +16,9 @@ export class Grid extends Panel {
 }
 ```
 
-The decorators carry runtime type information so `@cratis/fundamentals` can reconstruct an instance from JSON — which is what a command or query proxy needs. They also mean every generated file imports `@cratis/fundamentals`.
+The decorator tells `@cratis/fundamentals` that `rows` contains `RowDefinition` instances. Its `JsonSerializer` uses that information to reconstruct the array's objects from JSON.
 
-**Emit-interfaces mode** produces plain TypeScript interfaces instead:
+Emit-interfaces mode produces the same model shape as a TypeScript interface:
 
 ```ts
 export interface Grid extends Panel {
@@ -24,9 +26,13 @@ export interface Grid extends Panel {
 }
 ```
 
-Same shape, same documentation, same inheritance, same imports for the types a property refers to — but no class, no decorators, and no import of `@cratis/fundamentals`.
+The interface keeps the model's documentation, base type and property-type imports. It has no constructor or decorators, so it does not need the decorator import from `@cratis/fundamentals`. Property types can still require imports from that package, as shown below.
+
+The flag changes model output only. Command and query proxies still use their own templates and runtime dependencies; this is not a way to turn those clients into dependency-free interfaces.
 
 ## Enabling it
+
+With [proxy generation configured](../getting-started.md), add this property inside your existing project:
 
 ```xml
 <PropertyGroup>
@@ -34,7 +40,11 @@ Same shape, same documentation, same inheritance, same imports for the types a p
 </PropertyGroup>
 ```
 
+Regenerate the models and check that their declarations use `export interface` instead of `export class`, as in the `Grid` example.
+
 ### CLI
+
+If you use the [direct executable](output-behavior.md#direct-executable), pass `--emit-interfaces`. The following command uses the documented `proxygenerator` alias and also enables library mode. Choose a generated-only output directory: the executable deletes that directory by default.
 
 ```bash
 proxygenerator assembly.dll output-path --library-mode --emit-interfaces
@@ -42,13 +52,13 @@ proxygenerator assembly.dll output-path --library-mode --emit-interfaces
 
 ## When to use it
 
-Use it for a model that is **built and read but never deserialized** through Fundamentals' `JsonSerializer` — and, in particular, for a package that must not take a runtime dependency. A package deliberately published with no dependencies cannot accept one just to describe its own shapes, which otherwise rules out generating its TypeScript at all and leaves it hand-maintained.
+Interface output suits a shared model package whose consumers construct plain objects and use TypeScript to check their shape. It removes the runtime dependency introduced by model decorators, which helps when the package must avoid that dependency.
 
-Do **not** use it for command and query proxies. Those are deserialized from HTTP responses, and without the decorators the deserializer has no type information to reconstruct with.
+Keep class output for models used by command, query or identity clients that require runtime constructors and Fundamentals' `JsonSerializer` metadata. An interface is erased from JavaScript, so it cannot replace a model constructor or supply the decorators needed to reconstruct nested values.
 
 ## What it does not remove
 
-Only the decorators and the import they need. A model that uses types **Fundamentals provides** still imports those, because they are the TypeScript representation of the C# types:
+Interface output removes the model class and its decorators, not the types used by its properties. A model with a `TimeOnly` property still imports the TypeScript representation of that C# type:
 
 ```ts
 import { TimeOnly } from '@cratis/fundamentals';
@@ -58,10 +68,10 @@ export interface ScheduleTriggerSourceSyntax extends TriggerSourceSyntax {
 }
 ```
 
-That import is a type, not a decorator, and no emission mode can remove it — the property genuinely is a `TimeOnly`.
+Here, `TimeOnly` describes `at`; it is not a decorator import. Check the generated property imports before treating the model package as dependency-free.
 
 ## Combining with library mode
 
-The two are usually used together: [library mode](library-mode.md) is what makes the generator emit a model that no command or query references, and emit-interfaces is what lets the result stay dependency-free.
+Use [library mode](library-mode.md) when the shared models are not referenced by an endpoint. Library mode decides which types the generator collects; emit-interfaces decides how collected models are rendered. Neither option enables the other.
 
-Neither implies the other. Emit-interfaces on its own changes how the types reached from commands and queries are rendered, which is rarely what you want — see the warning above.
+Enabling emit-interfaces alone also changes models reached through commands and queries. For a shared library, configure both options in that library's generation setup so its shape-only output stays separate from runtime client models.

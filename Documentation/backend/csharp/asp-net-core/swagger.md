@@ -1,19 +1,15 @@
 ---
-title: Swagger
-description: Describe Arc commands, queries, and concepts in Swashbuckle Swagger documents with the Cratis.Arc.Swagger filters.
+title: Generate Swagger documents for Cratis Arc
+description: Add Cratis Arc filters to Swashbuckle to describe commands, queries, and concepts, then check schema limits before generating API clients.
 ---
 
-Cratis Arc provides Swagger/OpenAPI filters through the optional `Cratis.Arc.Swagger` package for ASP.NET Core hosts. These describe Arc conventions, but do not guarantee that every generated schema matches the runtime contract. Review the [current limitations](#current-limitations) before generating clients.
+Use the optional `Cratis.Arc.Swagger` package to describe Cratis Arc commands, queries, and concept types in a Swashbuckle-generated OpenAPI document. In an ASP.NET Core host, you can serve that document and Swagger UI for people exploring the API.
+
+The filters describe Arc conventions, but some generated schemas differ from the runtime contract. Check the [current limitations](#current-limitations) before using the document to generate clients.
 
 ## Overview
 
-The Swagger extension adds filters for:
-
-- **Concepts** - Maps concept types to their underlying primitive types
-- **Commands** - Adds result-wrapper and error response schemas
-- **Queries** - Adds result-wrapper schemas and paging/sorting parameters where applicable
-- **FromRequest attributes** - Describes request-body binding
-- **Model-bound endpoints** - Attempts to enrich generated command and query operations
+Arc's filters map concept types to their underlying primitives and add command/query result wrappers to matching operations. They also describe `[FromRequest]` body parameters and add paging and sorting parameters where supported. Model-bound endpoint matching and response-type inference have the limits described below.
 
 ## Setup
 
@@ -43,7 +39,7 @@ await app.RunAsync();
 
 ### Concept Schema Filter
 
-Automatically maps concept types (types inheriting from `ConceptAs<T>`) to their underlying primitive types in the Swagger schema. This ensures that concepts appear as their actual data types (string, int, Guid, etc.) rather than complex objects in the API documentation.
+A concept is a domain-specific value type inheriting from `ConceptAs<T>`, such as `UserId` around a `Guid`. The concept schema filter describes its underlying primitive instead of an object with a `Value` property:
 
 **Example:**
 
@@ -58,29 +54,15 @@ public record UserId(Guid Value) : ConceptAs<Guid>(Value);
 
 ### Command Result Operation Filter
 
-Enhances command endpoints by:
-
-- Adding `CommandResult` or `CommandResult<T>` response schemas based on inferred return types
-- Including standard HTTP status codes (200, 400, 403, 500) with appropriate error schemas
-- Handling void/Task return types correctly
-- Supporting concept return types
+For matching controller command actions, the filter infers a `CommandResult` or `CommandResult<T>` response from the return type, including concept return types and void/Task forms. It adds result schemas and describes HTTP 400, 403, and 500 error responses. Model-bound commands use a separate filter with the [adapter-inference limit](#current-limitations) below.
 
 ### Query Result Operation Filter
 
-Enhances query endpoints by:
-
-- Adding `QueryResult` response schemas
-- Including standard HTTP status codes with error handling
-- Adding pagination and sorting parameters where the filter detects paging support
-- Supporting concept return types
+For matching controller query actions, the filter adds a non-generic `QueryResult` schema and error response schemas. It adds paging and sorting parameters when it detects paging support. Model-bound queries use a separate filter, whose matching and typed-data limits are described below.
 
 ### FromRequest Operation Filter
 
-Properly handles the `[FromRequest]` attribute by:
-
-- Removing the parameter from the query string/path parameters
-- Adding it as a request body with the correct JSON schema
-- Supporting complex model binding scenarios
+The filter removes a matching `[FromRequest]` parameter from the operation's query/path parameter list and describes it as an `application/json` request body. This does not establish that every route and query property in the merged model is documented correctly. Check those parameters against the [binding contract](from-request.md).
 
 ### Model-Bound Operation Filters
 
@@ -122,10 +104,10 @@ The model-bound filters reuse the result schema for the listed error responses; 
 
 The Swagger implementations share the limitations of the [Microsoft OpenAPI model-bound transformers](../open-api/model-bound.md) and [enum transformer](../open-api/enums.md):
 
-- **Command adapter inference:** The model-bound command filter inspects the registered adapter's `Handle`, not the command record's return contract. The standard adapter returns `ValueTask<object?>`; this does not recover your concrete DTO, `Guid`, or typed-result response schema. Ordinary `Guid` command responses remain supported at runtime — the gap is schema inference.
-- **Query matching and requiredness:** The query filter compares the operation-name suffix with `performer.Name`, while the GET endpoint mapper names operations with `performer.FullyQualifiedName`. It can therefore miss normal model-bound queries entirely. If it matches, it marks all query parameters `Required = false`, including arguments that runtime binding requires.
-- **Query data schema:** The model-bound filter generates plain `QueryResult`, not a wrapper specialized to the query's concrete `data` type. Do not assume that this schema is enough to generate a typed query client.
-- **Enum type mismatch:** The enum filter inserts string names without changing the schema type. An integer schema with string enum members is inconsistent with itself and with Arc's default numeric payloads.
+- The model-bound command filter inspects the registered adapter's `Handle`, not the command record's return contract. The standard adapter returns `ValueTask<object?>`; this does not recover your concrete DTO, `Guid`, or typed-result response schema. Ordinary `Guid` command responses remain supported at runtime; the gap is schema inference.
+- The query filter compares the operation-name suffix with `performer.Name`, while the GET endpoint mapper names operations with `performer.FullyQualifiedName`. It can therefore miss normal model-bound queries entirely. If it matches, it marks all query parameters `Required = false`, including arguments that runtime binding requires.
+- The model-bound query filter generates plain `QueryResult`, not a wrapper specialized to the query's concrete `data` type. Do not assume this schema is enough to generate a typed query client.
+- The enum filter inserts string names without changing the schema type. An integer schema with string enum members is inconsistent with itself and with Arc's default numeric payloads.
 
 Switching between `Cratis.Arc.OpenApi` and `Cratis.Arc.Swagger` does not resolve these shared gaps. Inspect generated documents and compare representative command/query payloads, required arguments, enums, and errors with actual HTTP responses before client generation.
 
@@ -133,8 +115,8 @@ Switching between `Cratis.Arc.OpenApi` and `Cratis.Arc.Swagger` does not resolve
 
 Use these guides to establish the runtime contract independently of the generated document:
 
-- **[FromRequest](./from-request.md)**: Request binding
-- **[Commands](../commands/index.md)**: Command execution and responses
-- **[Queries](../queries/index.md)**: Query results and paging
-- **[Validation](./validation.md)**: Validation failure information
-- **[Without Wrappers](./without-wrappers.md)**: Response unwrapping — verify the schema against the unwrapped payload too
+- [FromRequest](./from-request.md): establish which source supplies each request value.
+- [Commands](../commands/index.md): check execution and response behavior.
+- [Queries](../queries/index.md): check query results and paging.
+- [Validation](./validation.md): understand validation failure information.
+- [Without Wrappers](./without-wrappers.md): compare the schema with endpoints that return unwrapped payloads.

@@ -1,33 +1,25 @@
 ---
-title: ConceptAs conversion
-description: Map strongly typed value records to EF provider values.
+title: Map ConceptAs values with EF Core in Cratis Arc
+description: Map ConceptAs records to EF Core columns in Cratis Arc, keeping named domain values in C# and storing their underlying values in the database.
 ---
 
-The ConceptAs conversion feature provides automatic type conversion support for Cratis [Concepts](/arc/glossary/) in Entity Framework Core. This feature ensures that domain concepts are properly stored and retrieved from the database while maintaining type safety and domain integrity.
+Cratis Arc maps `ConceptAs<T>` records to EF Core columns through value converters. Use these [concepts](/arc/glossary/) to keep identifiers and other domain values distinct in C#, while storing their underlying values in the database.
 
 ## What it does
 
-The ConceptAs conversion automatically configures Entity Framework Core to handle properties that are of `ConceptAs<T>` type. When a concept property is encountered:
+A value converter takes a concept's `Value` when writing a column and constructs the concept again when reading it. Arc also configures an EF value comparer so change tracking can compare concept values. You do not need a separate converter for every concept type.
 
-1. **Storage**: The underlying primitive value of the concept is stored in the database
-2. **Retrieval**: The primitive value is automatically converted back to the concept instance when loaded from the database
-3. **Comparison**: Proper value comparison is configured for change tracking and querying
-
-With the conversion configured, entities keep their domain types while EF stores the underlying values. You do not need a separate converter for every concept.
+`BaseDbContext` applies these converters during model creation. If you use an ordinary `DbContext`, apply the conversion explicitly as shown below.
 
 ## Why it's important
 
-Using ConceptAs conversion provides several key benefits:
+A `CustomerId` says more than `Guid` about what a property or parameter expects. Keeping that name in your entity helps you see which identifier an API needs. The conversion preserves that C# distinction without introducing a separate table or structured column for the wrapper.
 
-- **Domain Integrity**: Maintains strong typing and domain semantics throughout your application stack
-- **Automatic Configuration**: No need for manual value converter setup for each concept property
-- **Database Efficiency**: Stores only the primitive value, keeping database schema clean and performant
-- **Type Safety**: Prevents mixing of different concept types that share the same underlying primitive type
-- **Consistency**: Ensures all concept types are handled uniformly across your application
+Choose constraints such as required values, maximum lengths and keys in your [entity mappings](./entity-mapping.md). A concept converter handles representation; it does not define those database constraints.
 
 ## Model Usage
 
-Your entity models can use concepts directly without any special configuration:
+Declare the entity properties using your concept types. This example has a required identifier and name, with an optional email address:
 
 ```csharp
 using Cratis.Concepts;
@@ -44,17 +36,13 @@ public record CustomerName(string Value) : ConceptAs<string>(Value);
 public record EmailAddress(string Value) : ConceptAs<string>(Value);
 ```
 
-Use records because `ConceptAs<T>` is a record. Represent optionality with a nullable concept reference (`EmailAddress?`), not a nullable primitive argument such as `ConceptAs<Guid?>`, which violates the generic constraint. These are standalone value types; no Chronicle identity type is required.
+Use records because `ConceptAs<T>` is a record. Represent optionality with a nullable concept reference (`EmailAddress?`), not a nullable primitive argument such as `ConceptAs<Guid?>`, which violates the generic constraint. These records do not require a Chronicle identity type.
 
-With `BaseDbContext`, the conversion will automatically:
-
-- Store `CustomerId` as a Guid value (as a string through Arc's SQLite converter)
-- Store `CustomerName` and `EmailAddress` as `string` values in the database
-- Convert back to the appropriate concept types when loading entities
+With `BaseDbContext`, `CustomerName` and `EmailAddress` map to string values. `CustomerId` maps to a Guid value, except on SQLite where Arc converts it to a string. When EF loads a customer, it constructs the corresponding concept records from those stored values.
 
 ## Manual Configuration
 
-If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply ConceptAs conversion in your `DbContext`:
+If your context does not inherit from [`BaseDbContext`](./base-db-context.md), apply the conversion after adding the entity types to the model. The following context exposes `Customer` through a `DbSet<Customer>`:
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
@@ -74,15 +62,10 @@ public class StoreDbContext(DbContextOptions options) : DbContext(options)
 }
 ```
 
-> Note: This is automatically configured for you when using the [`BaseDbContext`](./base-db-context.md).
+This configures model conversion. Arc's [context registration helpers](./automatic-database-hookup.md) separately install `ConceptAs<T>` query support; keep that registration when you need concepts in LINQ expressions.
 
 ## How it works
 
-The conversion system uses reflection to:
+`ConceptAsConversion.ApplyConceptAsConversion()` inspects the entity types passed to it for concept properties. For each property, it calls `AsConcept(databaseType)` to install a value converter and comparer. The provider argument selects the string representation for Guid-backed concepts on SQLite.
 
-1. Identify all properties in your entities that implement `ConceptAs<T>`
-2. Create appropriate `ValueConverter` instances that convert between the concept and its underlying primitive type
-3. Configure `ValueComparer` instances for proper change tracking and equality comparisons
-4. Apply these converters to the Entity Framework model builder
-
-The conversion is handled by the `ConceptAsConversion.ApplyConceptAsConversion()` extension method, which automatically discovers and configures all concept properties in your model.
+If you need to inspect that storage choice before creating a migration, continue to [Guid conversion](./guid-conversion.md).

@@ -1,6 +1,6 @@
 ---
 title: Command Contracts
-description: Reference for the ICommand contract in @cratis/arc that generated command proxies implement.
+description: The ICommand contract in Cratis Arc defines execution, validation, change tracking, and property-change notifications for generated TypeScript commands.
 ---
 
 Core command support in `@cratis/arc` is built around typed command classes generated from backend command definitions.
@@ -34,11 +34,12 @@ interface ICommand<TCommandContent = object, TCommandResponse = object> extends 
 
 Commands track property changes automatically.
 
-- `hasChanges` indicates whether current values differ from the baseline.
-- `setInitialValues()` sets an explicit baseline.
-- `setInitialValuesFromCurrentValues()` currently snapshots truthy values only. Completed server executions call it even on unsuccessful results; see [baseline limitations](../../react/commands/data-binding.md#execution-baseline-limitations).
+- `hasChanges` compares current property values with the baseline using strict inequality; it is not a deep comparison of nested objects.
+- `setInitialValues()` assigns the supplied properties and sets their baseline, including falsy values.
+- `setInitialValuesFromCurrentValues()` snapshots current declared properties, including `''`, `0`, `false`, `null`, and `undefined` when present.
+- Successful `execute()` accepts the submitted snapshot as the new baseline. Unsuccessful execution leaves the previous baseline unchanged. Edits made while the request is pending remain changed if they differ from the submitted snapshot; see [execution baseline behavior](../../react/commands/data-binding.md#execution-baseline-limitations).
 - `revertChanges()` restores baseline values.
-- `validate()` can return a local validation failure before reaching the server. When reached, server preflight runs filters without executing the handler; `validateClientSide()` never calls the server.
+- `validate()` can return a local validation failure before reaching the server. When reached, server preflight runs filters without executing the handler; `validateClientSide()` never calls the server. Neither validation method changes the baseline.
 
 ## Property Change Notifications
 

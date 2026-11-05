@@ -1,11 +1,13 @@
 ---
-title: Read models from other providers
-description: Inject a read model backed by Entity Framework Core or MongoDB into a command, and declare the key it is loaded by when there is no Chronicle to resolve one.
+title: Cratis Arc command read models with EF Core or MongoDB
+description: Use EF Core or MongoDB read models as Cratis Arc command inputs. Configure provider ownership and declare the key that loads each row or document.
 ---
 
-Injection is not Chronicle-only. Any provider that owns a read model's storage can make its `[ReadModel]` types injectable into a command, resolved by the same key, so a validator, `Provide()`, or `Handle()` takes the read model exactly as it would a Chronicle-backed one.
+Cratis Arc can inject an Entity Framework Core entity or MongoDB document into a command without Chronicle. Register the storage provider and declare the command's lookup key; a validator, `Provide()`, or `Handle()` can then receive the model as an input.
 
-This compatibility reference covers *where the read model comes from* and *what key loads it*. Provider-neutral injection does not require Chronicle. The EF and MongoDB examples below assume standalone Arc and use its data annotations command key; if you register Chronicle, use its identity rules instead. The examples are dependency/key fragments: returning `CustomerRenamed` alone does not persist a rename without a handler or integration that performs that effect; a complete standalone rename must write through its provider. For where to put the parameter and what a nullable one means, see [Read models in commands](./injecting-into-commands.md).
+The examples below use standalone Arc with the data annotations command key. If you also register Chronicle, use its identity rules instead. Each example shows a dependency and its lookup key, not a complete rename operation: returning `CustomerRenamed` does not write the new name to either store. Your standalone command must persist the change through its provider.
+
+Use this page to establish which provider loads a model and which key selects it. [Read models in commands](./injecting-into-commands.md) explains where to place the dependency and how nullability handles missing state; Chronicle-specific read protection does not extend to these stores.
 
 ## Shared domain values
 
@@ -50,7 +52,7 @@ public record CustomerRenamed(CustomerId CustomerId, CustomerName Name);
 
 ## Entity Framework Core
 
-A `[ReadModel]` entity carried by a `ReadOnlyDbContext` becomes injectable once the context is registered — there is nothing extra to wire up:
+Put the `[ReadModel]` entity in a `DbSet` on a registered `ReadOnlyDbContext`. That declares EF Core's ownership of the type and makes it available as a command dependency:
 
 ```csharp
 [ReadModel]
@@ -77,13 +79,13 @@ public record RenameCustomer([property: Key] CustomerId CustomerId, CustomerName
 }
 ```
 
-`WithEntityFrameworkCore()` discovers the `ReadOnlyDbContext`, and the command's resolved key (here the `[Key]` on `CustomerId`) loads the entity by its primary key. The primary key may be a `Guid`, `int`, `long`, `string`, or a `ConceptAs<T>` wrapping one of those.
+`WithEntityFrameworkCore()` discovers the `ReadOnlyDbContext`. Arc resolves the command key from `[Key]` on `CustomerId`, and EF Core uses it to load the entity by primary key. Supported primary-key shapes are `Guid`, `int`, `long`, `string`, and a `ConceptAs<T>` wrapping one of those. This resolver requires a single-property primary key; a missing or composite primary key fails with `EntityDoesNotHavePrimaryKey`.
 
 The nullable rules are identical: a nullable `Customer?` receives `null` when no row exists, and a non-nullable `Customer` fails the command with [`ReadModelDoesNotExistForCommand`](./failures.md#readmodeldoesnotexistforcommand).
 
 ## MongoDB
 
-`WithMongoDB()` does the same for the read models MongoDB holds. There is nothing to declare — a `[ReadModel]` becomes injectable, resolved by the document `_id`:
+Register MongoDB with `WithMongoDB()`. Its fallback resolver makes a `[ReadModel]` injectable by document `_id` when no declaring provider or application registration already owns that type:
 
 ```csharp
 [ReadModel]
@@ -109,7 +111,7 @@ The id member is whichever one MongoDB maps to `_id` — a member named `Id` by 
 
 ## Which provider resolves a read model
 
-When a fallback and a declaring provider can both load a read model, declared ownership wins. Avoid having two providers declare the same CLR type: that conflict is registration-order-dependent.
+Give each model one intended owner. The owner controls how Arc loads command-side state; merely having a MongoDB collection for a type does not make MongoDB its command provider. Declared ownership wins over fallback, while two declaring providers compete by registration order:
 
 | Provider | Owns a read model when | Claims it as |
 | --- | --- | --- |
@@ -117,11 +119,13 @@ When a fallback and a declaring provider can both load a read model, declared ow
 | Entity Framework Core | a `DbSet` on a `ReadOnlyDbContext` carries it | declared |
 | MongoDB | — a collection is served for any read model | fallback |
 
-A declaring provider wins over a fallback in either registration order. Two declaring providers (for example Chronicle and EF Core) replace one another; the later registration wins. MongoDB claims only what nothing else resolves, and it also leaves your own registration of a read model type alone. This matters beyond tidiness: Chronicle is the provider that releases a read model's compliance-protected values, so a Chronicle-backed model, including a [self-reducing model](./index.md#self-reducing-read-models), has to be resolved by Chronicle. Being listed in the reducer artifacts is not enough on its own: a nominated plain reducer implementation is not necessarily its own read model.
+A declaring provider wins over a fallback in either registration order. If Chronicle and EF Core both declare the same CLR type, the later registration wins. MongoDB resolves only otherwise-unclaimed models and leaves your own read-model registration alone.
+
+Keep a Chronicle-backed model with Chronicle when it needs Chronicle's release of compliance-protected values. This includes [self-reducing models](./index.md#self-reducing-read-models). Discovery still checks the model's shape: listing a plain reducer implementation in the reducer artifacts does not make that implementation its own injectable read model.
 
 ### What else the winner decides
 
-The provider that claims a read model also decides which serialization boundary the injected instance crosses, and the three cross entirely different ones:
+The winning provider also determines how values become a command-side instance:
 
 | Provider | Materializes a command-side read model through |
 | --- | --- |
@@ -129,12 +133,12 @@ The provider that claims a read model also decides which serialization boundary 
 | Entity Framework Core | its own entity model |
 | MongoDB | the driver's `BsonClassMap` and convention machinery |
 
-So whatever customization belongs to one of those boundaries — a convention pack, a class-map customization, an element rename, a custom serializer, a JSON converter — reaches a command-side read model only when its own provider is the one that claimed it.
+Apply serialization customization to the provider that actually loads the instance. A MongoDB convention pack or BSON class map cannot control a model deserialized from Chronicle JSON. A JSON converter does not replace EF Core's entity mapping.
 
 Chronicle and Entity Framework Core both declare. For each type claimed by either, MongoDB's fallback does not supply the command-side instance. Its BSON customization therefore does not govern that instance. Other types in the same application can still be MongoDB-owned. See [materialized and passive paths](./index.md#materialized-and-passive-paths).
 
-:::caution[The same customization can be plainly at work on the query side]
-A convention registered through `ICanProvideMongoDBConventionPacks` goes into the driver's global registry, so it applies wherever the driver materializes a read model — which includes queries served from an `IMongoCollection<T>`. Seeing it work there says nothing about the command side, and this is the shape the failure takes: the customization looks discovered and correct, because the surface anybody checks first is the one it does reach.
+:::caution[Query-side customization does not prove command-side ownership]
+`ICanProvideMongoDBConventionPacks` registers conventions in the driver's global registry. They apply to queries served from `IMongoCollection<T>` because the driver materializes those results. If the same customization appears to be ignored in a command, check which provider owns its read-model dependency before changing the convention.
 :::
 
 To contribute a provider of your own, implement `ICanResolveReadModelForCommand` — reporting the types it resolves, the `ReadModelForCommandOwnership` it claims them with, and how to load one by key — and register it with `services.AddReadModelsForCommand(...)`.
@@ -143,7 +147,7 @@ To contribute a provider of your own, implement `ICanResolveReadModelForCommand`
 
 Every provider loads by the resolved command key. When the Chronicle integration is registered, its resolver supplies that key through `ICanProvideEventSourceId`, an `EventSourceId`/`EventSourceId<T>`-derived property, or Chronicle `[Key]`. Otherwise Arc uses its provider-neutral key rules.
 
-An application without Chronicle has none of those, so Arc reads the key from the command itself. Mark the property holding it with the data annotations `[Key]`:
+Without Chronicle, mark the command property holding the lookup key with the data annotations `[Key]`:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -157,7 +161,7 @@ public record RenameCustomer([property: Key] CustomerId CustomerId, CustomerName
 
 The key may be a `Guid`, `int`, `long`, `string`, or a `ConceptAs<T>` wrapping one of those — a concept resolves to the value it wraps rather than to its own `ToString()`.
 
-When the key is not one property — a composite of two, or a value derived from them — the command declares it:
+If the stored key combines properties or is derived from them, implement `ICanProvideKeyForCommand` to supply it explicitly:
 
 ```csharp
 [Command]
@@ -168,11 +172,11 @@ public record FindItem(CartId CartId, ItemId ItemId) : ICanProvideKeyForCommand
 }
 ```
 
-The composite-key fragment assumes an application `CartItem` registered with a matching string key and imports from `Cratis.Arc.Commands` and `Cratis.Arc.Commands.ModelBound`.
+The composite-key fragment assumes an application `CartItem` registered with a matching string key and imports from `Cratis.Arc.Commands` and `Cratis.Arc.Commands.ModelBound`. It produces one lookup value; it does not add support for an EF Core composite primary key.
 
-Without Chronicle, nothing is inferred from the shape of a command. One carrying two identifiers and marking neither resolves no key, and injection fails as a validation error rather than silently picking one of them.
+Arc does not guess which identifier is the key. A command carrying two identifiers and marking neither resolves no key, so read-model injection fails as a validation error, even for a nullable model parameter. Nullability handles a valid key with no matching row or document, not the absence of a key. Declaring the key also prevents adding a second identifier from silently changing the lookup.
 
-To key commands your own way across an application, implement `ICanResolveKeyForCommand`. It is discovered automatically and asked before the rule Arc ships, whichever order the two happen to be discovered in.
+For an application-wide key convention, implement `ICanResolveKeyForCommand`. Arc discovers it automatically and asks it before the built-in rule, regardless of discovery order.
 
 :::caution[Two attributes are spelled `[Key]`]
 In an application **with** Chronicle, the data annotations `[Key]` is not used by the Chronicle resolver. If no other provider or recognized identity property supplies a key, Chronicle generates a fresh event source id; a lookup for existing state then usually finds nothing. [ARCCHR0008](../code-analysis/ARCCHR0008.md) reports it, so this is a build warning rather than a puzzling "the entity does not exist" at runtime.

@@ -1,13 +1,13 @@
 ---
-title: Route a command through an event source definition
-description: "Declare the event source and stream a command appends to with [EventSource<TSource>], and learn which concurrency boundary the definition gives the append."
+title: Cratis Arc event source definitions
+description: Route Cratis Arc commands through typed event source definitions to share stream names and append policies without repeating routing strings.
 ---
 
-An event source definition is a class that names a kind of event source and the streams it owns. A command that declares `[EventSource<TSource>(stream)]` appends its events through that definition instead of through loose strings. The definition supplies the event source type, the stream type and the concurrency dimensions, and Arc rejects a stream the definition does not declare.
+An event source definition gives Cratis Arc commands a shared, typed declaration of an entity's event streams. Use `[EventSource<TSource>(stream)]` when several commands should use the same stream names and append policy. Arc resolves the route from the definition and rejects undeclared stream names.
 
-Use this guide when a command should append to a named stream and you want its routing and its concurrency boundary declared once, in one typed place, instead of as strings on each command. A definition gives the append a **boundary**; it does not make a decision hold. [What the definition guards](#what-the-definition-guards) says exactly what you get, and [choosing how a command's rule holds](../consistency/index.md) tells you what to add when the rule depends on state.
+The definition supplies the event source type, stream type and concurrency dimensions: the fields that select which history an append checks for changes. It does not capture the revision a command read. If a rule depends on existing state, pair the route with a guard such as a stream decision or read protection. [What the definition guards](#what-the-definition-guards) explains that distinction.
 
-The definition is a Chronicle concept; see [Chronicle event sources](/chronicle/event-sources/) for how Chronicle registers and stores it. This page covers what Arc does with it.
+Definitions belong to Chronicle; [Chronicle event sources](/chronicle/event-sources/) covers registration and storage. This guide shows how to use them from Arc commands.
 
 ## Declare the definition and the command
 
@@ -49,7 +49,9 @@ A command declares at most one `[EventSource<TSource>]`. The stream argument is 
 
 A stream is the part of an event source's history that one kind of decision shares. Pick the stream by asking which events must be checked against each other when two commands run at once.
 
-**Recommended:** one definition per kind of entity, one `[EventStream]` per history that is decided separately, and the event source id as the entity's id. Name the stream on the command with `[EventSource<TSource>(stream)]`. The reason: the definition is the single place that says which streams exist and which dimensions guard them, and Arc rejects a typo. Alternatives, in order of preference: the command key and default stream with no definition, when one history per entity is enough; string attributes (`[EventSourceType]` with `[EventStreamType]`), which ARCCHR0013 flags once a matching definition exists; explicit scopes, when the decision must be bound to a revision it read.
+Start with one definition per kind of entity and use the entity's id as the event source id. Declare a stream for each history that needs a separate check, then name it on the command. For example, account transactions and onboarding can use different streams so a write to one need not conflict with a write to the other.
+
+If one unnamed history per entity is enough, the command key and default stream need no definition. Existing string attributes also work, but ARCCHR0013 suggests using a definition when one matches. Explicit concurrency scopes solve a different problem: tying the append to the revision used by a decision. They can be used alongside definition-based routing.
 
 | You want | Declare | Stream id |
 | --- | --- | --- |
@@ -61,7 +63,7 @@ A stream is the part of an event source's history that one kind of decision shar
 
 ## Choose the stream id
 
-The definition names the stream. The stream id is separate: it picks one concrete stream within the stream type, and the definition does not supply it. Declare it on the command with the existing stream id mechanisms:
+The definition names a stream type, such as `Approval`. A stream id selects an instance of that type, such as one owner's monthly approval. The definition does not supply this id; choose how the command supplies it:
 
 - `[EventStreamId("constant")]` for a fixed id.
 - `ICanProvideEventStreamId` when code computes it.
@@ -89,7 +91,9 @@ public record ApproveReport(EventSourceId ReportId, string Owner, DateOnly Perio
 }
 ```
 
-For `Owner = "acme"` and `Period = 2026-10-01`, the stream id is `acme:2026-10-01`. A template part is a public instance property. Concepts use their underlying value, `DateOnly` uses `yyyy-MM-dd`, and `{{` and `}}` are literal braces; the [full format table](./concurrency.md#template-event-stream-ids) lists the rest. Arc refuses unknown properties, blank parts, malformed braces and an id that resolves to the default, and it resolves the template after validation, so a validator can reject a missing part first.
+For `Owner = "acme"` and `Period = 2026-10-01`, the stream id is `acme:2026-10-01`. A template part is a public instance property. Concepts use their underlying value, `DateOnly` uses `yyyy-MM-dd`, and `{{` and `}}` are literal braces; the [full format table](./concurrency.md#template-event-stream-ids) lists the rest.
+
+Arc refuses unknown properties, blank parts, malformed braces and an id that resolves to the default. It normally resolves the template after validation. A per-stream model injected into a validator needs the route earlier, so Arc resolves it before constructing that validator and refuses a blank part without reading the model.
 
 Use the same function when you read or seed the stream: `EventStreamIdTemplate.ResolveFor(command)` returns the id exactly as the pipeline resolves it.
 
@@ -97,7 +101,9 @@ Combining a non-empty `[EventStreamId]` with `ICanProvideEventStreamId` is ambig
 
 ## What the definition guards
 
-Chronicle's Dynamic Consistency Boundary (DCB) selects the events an append must not have missed with *tags*. In Chronicle the stream metadata plays that role: event source id, event source type, stream type and stream id. An event source definition is the typed way to choose which of those dimensions guard an append. The concurrency dimensions on the definition decide which events a returned event is checked against. `[EventSource]` can declare dimensions for every stream, and each `[EventStream]` can declare its own; a stream that declares dimensions replaces the source's for that stream, and a stream that declares none inherits the source's. The dimensions are a combination of:
+Choose concurrency dimensions by asking which writes should compete. To check every write for one account, select `EventSourceId`. To check each report period separately, also select `EventStreamType` and `EventStreamId`, as in the approval example above.
+
+These metadata fields act as the tags that select history in Chronicle's Dynamic Consistency Boundary (DCB). `[EventSource]` sets the default dimensions. A stream with its own dimensions replaces that default; a stream without them inherits it.
 
 | Dimension | The append is checked against events with the same |
 | --- | --- |
@@ -108,22 +114,28 @@ Chronicle's Dynamic Consistency Boundary (DCB) selects the events an append must
 
 With no dimensions declared, the definition adds no guard of its own and the event sequence applies its configured strategy as it does for any append.
 
-Which dimensions the scope carries depends on how the event is returned. A definition-routed `EventForEventSourceId`, single or in a returned collection of wrappers (`EventSource` set, or built with `IEventRoutes`), is guarded by the scope Chronicle derives from the definition, which carries exactly the declared dimensions (when the command's definition declares any), so a definition without `EventSourceId` is checked against all sources' events with the same stream type and stream id. For every other returned event, that is a plain event, a collection of plain events, or a legacy-string wrapper, Arc builds the scope itself and always includes the target event source id, then adds the declared stream type, stream id and source type. Omitting `EventSourceId` therefore gives no cross-source guard there. Do not rely on a cross-source boundary from a plain returned event; include `EventSourceId` on the definition so both paths agree, or return definition-routed events. [How routing works](./event-source-definition-routing.md) lists each return path.
+For a per-entity check, include `EventSourceId` explicitly. The return shape affects how the scope is built when the command's definition declares dimensions:
 
-Four limits matter:
+- For a definition-routed `EventForEventSourceId`, alone or in a collection, Chronicle derives a scope with exactly the declared dimensions. Set `EventSource` on the wrapper or build it with `IEventRoutes` to use this path.
+- For plain events, plain collections and legacy-string wrappers, Arc builds the scope with the target source id plus the declared stream type, stream id and source type.
 
-- **It is the default append check, not a decision guard.** Arc resolves the expected tail while it processes the returned events, after `Handle()` has run. A concurrent append between your read and that moment is part of the new expected tail and does not conflict. The first append into an empty scope is checked only when the client's concurrency options opt in. To bind a decision to what it read, use a [stream decision](./stream-decisions.md), a read model parameter under [read protection](../consistency/getting-started.md) `On`, or [exact scopes](./events.md#events-with-exact-concurrency-scopes).
-- **An explicit choice wins.** `concurrency: true` on `[EventStreamId]`, `[EventStreamType]` or `[EventSourceType]` selects the dimensions from those attributes, and a returned `EventsWithConcurrencyScopes` replaces every derived scope. The definition stays the policy for every command that does not override it.
-- **It guards the whole source or stream, whatever the event type.** The scope narrows by event source id, source type, stream type and stream id, never by event type. In DCB terms that is a coarse, aggregate-like boundary: any new event in the guarded stream conflicts, related or not. That is the right shape when the events in the stream are all relevant to the decisions made against it, for example a short history per entity or per period. When unrelated event types share the stream, give the decision its own stream, or take a read model parameter under read protection `On`, whose guard narrows to the event types its model folds. A [stream decision](./stream-decisions.md) has the same whole-stream boundary and also reads the whole stream.
-- **One event source per event.** The boundary is an event source id plus the dimensions above. Chronicle does not tag one event with several entities, so a fact about two entities is two events, one per event source, appended in one atomic batch. See [Chronicle's Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) for how a concurrency scope maps to the boundary and [when to use which mechanism](/chronicle/dynamic-consistency-boundary/choosing/).
+Omitting `EventSourceId` can therefore create a cross-source check on the first path, but not the second. If that is intentional, return definition-routed events. Otherwise include the dimension so both paths agree. [How routing works](./event-source-definition-routing.md) lists each return path.
+
+The automatic check captures the expected tail, or last matching position, after `Handle()` has run. A write arriving between your read and that capture can become part of the expected tail rather than cause a conflict. Automatic checks of the first append into empty history also require the client's concurrency option. For an approval that must happen once, use a [stream decision](./stream-decisions.md), a read model parameter under [read protection](../consistency/getting-started.md) `On`, or [exact scopes](./events.md#events-with-exact-concurrency-scopes) to guard the revision actually read.
+
+A definition scope checks all event types in the selected history. That suits a short stream where every event matters to the decision. If unrelated event types share the stream, consider a separate stream or a read-protected model whose guard follows the event types it folds. A stream decision also covers, and reads, the whole stream.
+
+Command-level `concurrency: true` flags override the definition's dimension choice. Returned `EventsWithConcurrencyScopes` replace automatic scopes altogether. Keep the definition as the shared policy and override it only where a command needs a different guard.
+
+Each event still belongs to one event source. A fact about two entities needs two events, one per source, appended in one atomic batch. [Chronicle's Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) and [mechanism guide](/chronicle/dynamic-consistency-boundary/choosing/) explain how to guard such decisions.
 
 [How routing works](./event-source-definition-routing.md) follows a single append from the attribute to the scope Chronicle receives.
 
 ### Declare concurrency sparingly
 
-A declared `Concurrency` makes every append to the stream conflict with every other append in the boundary. Declare it only for ledgers, numbering and approval streams, where every writer must see every other. For anything else it adds conflicts and does not make a rule hold.
+Declare `Concurrency` when a competing write anywhere in that boundary should reject the append, as in a ledger, numbering or approval stream. Do not add it just because commands share a route: it can create conflicts between unrelated writes without protecting the state used by a decision.
 
-Under read protection `On`, the declared dimensions are merged with the guard of a read of the same source at commit. The declared dimensions are kept only where they equal the read's, and the event types become any type, so the guard gets wider. A declaration without `EventSourceId` is kept as a separate guard that is not tied to the read, so it does not protect the state you read. [How it works](../consistency/how-it-works.md#declared-concurrency-on-a-definition) shows an example, and Chronicle's [CHR0062](/chronicle/code-analysis/chr0062/) reports a declaration without `EventSourceId`.
+Under read protection `On`, a declaration can widen a read's guard at commit. For a read of the same source, the merged guard keeps only dimensions whose values agree and covers any event type. A declaration without `EventSourceId` stays separate and does not protect the state you read. Review [the merge example](../consistency/how-it-works.md#declared-concurrency-on-a-definition) before combining these policies. Chronicle's [CHR0062](/chronicle/code-analysis/chr0062/) reports declarations without `EventSourceId`.
 
 ## Reading and completing the routed stream
 
@@ -139,7 +151,7 @@ Commands without a definition keep working. To move one over:
 
 1. Declare an `IEventSource` with `[EventSource("Name")]` and an `[EventStream]` for each stream type the command used. Use the strings you already store as the names so existing events and observers match.
 2. Replace `[EventSourceType("Name")]` and `[EventStreamType("Stream")]` on the command with `[EventSource<TSource>("Stream")]`. Keep `[EventStreamId]` and `ICanProvideEventStreamId`; the definition does not replace them.
-3. Move `concurrency: true` to dimensions on the definition. While a command still carries the flag, the flag chooses the dimensions and the definition's are ignored for it.
+3. Review each `concurrency: true` flag before moving its policy to the definition. Preserve the intended dimensions rather than enabling all of them. While a command keeps a flag, its attribute dimensions override the definition's for that command.
 
 [ARCCHR0013](../code-analysis/ARCCHR0013.md) (Info) finds the commands to migrate: when `[EventSourceType("Name")]` on a command or aggregate root names a source that a definition in the compilation declares, it suggests `[EventSource<TSource>]`, or `[EventSource<TSource>("stream")]` when an `[EventStreamType]` names a stream the definition declares. It stays silent when the stream is not declared, and for a type that already has `[EventSource<TSource>]`. It has no code fix, because the attributes can carry `concurrency: true` flags that the definition's dimensions do not reproduce.
 

@@ -1,33 +1,35 @@
 ---
-title: Queries
-description: "Overview of React query capabilities in Arc: request/response reads, paging, conditional and suspense queries, and live observable streams."
+title: "Cratis Arc React queries: read application data"
+description: "Read backend data in React with generated Cratis Arc query hooks, then add paging, conditional requests, live updates and loading indicators."
 ---
 
-React queries in Arc provide strongly typed data-access patterns for request/response reads, paged views, and live observable streams.
+Cratis Arc query hooks read backend data into React components through generated TypeScript proxies. Use an ordinary query for a request and response, or an observable query to keep a view updated as the backend sends new results.
 
-This page is an overview of capabilities. Detailed behavior is documented on the dedicated pages below.
+Start with [core query usage](./usage.mdx) to call a generated proxy and handle its result. Once that read works, choose the next step below for the screen you are building.
 
 ## Capabilities
 
-| Capability | What It Covers | Learn More |
+| When you need to… | What to use | Guide |
 | ---------- | -------------- | ---------- |
-| Arc-level configuration | Query-related `<Arc />` props for transport, headers, and stream transfer mode | [Configuration](./configuration.md) |
-| Core query usage | `use()` patterns, arguments, and `QueryResultWithState` | [Core Query Usage](./usage.mdx) |
-| Paging and sorting | `useWithPaging`, page/sort callbacks, and paging metadata | [Paging](./paging.md) |
-| Observable streams | Real-time subscriptions, transport selection, and direct mode | [Observable Queries](./observable-queries.md) |
-| Diagnostics | Live snapshots for cache, transport, and ownership state | [Observable Query Diagnostics](./observable-query-diagnostics.md) |
-| Suspense integration | `useSuspense()` with query boundaries and error boundaries | [Suspense Queries](./suspense-queries.md) |
-| Conditional execution | `when(condition)` patterns for safe query activation | [Conditional Queries](./conditional-queries.md) |
-| Change deltas | `useChangeStream()` and transfer-mode behavior | [Change Stream](./change-stream.md) |
-| Connection behavior | Multiplexing, connection count, and hub routing | [Observable Query Multiplexing](./observable-query-multiplexing.md) |
-| Instance lifecycle | Shared query instances and cache behavior | [Query Instance Caching](./query-instance-caching.md) |
-| Performing state | Track in-flight queries across components and ViewModels | [Query Scope](./scope.md) |
+| Configure how queries reach your backend | `<Arc />` props for transport, headers and stream transfer mode | [Configuration](./configuration.md) |
+| Load data and handle loading or failure | `use()`, arguments and `QueryResultWithState` | [Core Query Usage](./usage.mdx) |
+| Navigate a large result set | `useWithPaging`, page/sort callbacks and server paging metadata | [Paging](./paging.md) |
+| Keep a view updated | Observable subscriptions over SSE, WebSocket or polling | [Observable Queries](./observable-queries.md) |
+| Find out why a live query is not behaving as expected | Cache, transport and ownership snapshots | [Observable Query Diagnostics](./observable-query-diagnostics.md) |
+| Let React boundaries handle loading and errors | `useSuspense()` with query and error boundaries | [Suspense Queries](./suspense-queries.md) |
+| Wait for an argument or user selection | `when(condition)` to control automatic execution | [Conditional Queries](./conditional-queries.md) |
+| React to individual collection changes | `useChangeStream()` and change deltas | [Change Stream](./change-stream.md) |
+| Share connections across live queries | Hub routing and connection pool settings | [Observable Query Multiplexing](./observable-query-multiplexing.md) |
+| Reuse data when returning to a view | Shared instances, subscriptions and cache retention | [Query Instance Caching](./query-instance-caching.md) |
+| Show one loading indicator for a section | Query scope callbacks for local activity | [Query Scope](./scope.md) |
 
 ## Frontend Layering
 
-For low-level query contracts and non-React runtime behavior, see [Frontend Core Queries](../../core/queries/index.md).
+The generated proxies use the query runtime beneath the React hooks. If you need to call queries outside React or inspect those contracts, continue with [Frontend Core Queries](../../core/queries/index.md).
 
 ## Backend References
+
+If you are implementing the query as well as its React view, start with the backend overview and choose the query style used by your application:
 
 - [Backend Queries Overview](../../../backend/csharp/queries/index.md)
 - [Controller-based Queries](../../../backend/csharp/queries/controller-based/index.md)

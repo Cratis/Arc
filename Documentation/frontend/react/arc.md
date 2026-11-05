@@ -1,6 +1,6 @@
 ---
 title: Arc provider
-description: Configure React bindings, understand provider boundaries, and reconnect observable queries after authentication changes.
+description: The Cratis Arc provider configures React commands, queries, identity, and observable-query transports, with shared settings and per-provider caches.
 ---
 
 Mount `<Arc>` above your command and query consumers so they share runtime configuration. It initializes bindings; you do not need a generated startup module.

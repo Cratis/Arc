@@ -1,9 +1,11 @@
 ---
-title: Observe MongoDB collections
-description: Observe collections over the shared database change stream, with the actual options, lifetime, and failure contract.
+title: Observe MongoDB collections for live query results
+description: Cratis Arc observes MongoDB collections through a shared change stream, publishing an initial query result and updating it as matching documents change.
 ---
 
-After ordinary collection reads work, use `Observe()` to publish an initial result and update it from MongoDB change streams. Every observation of a database shares one change stream, so observing many collections or queries does not open a stream of its own, or hold a MongoDB pool connection, for each subscription. This is a live result set, not an audit log or a guarantee that every intermediate state reaches every subscriber.
+Use Cratis Arc's `Observe()` to keep query results current as MongoDB documents change. It publishes an initial result, then updates that result through a shared change stream, MongoDB's feed of document changes. Start here once ordinary collection reads work and you need a live list or document instead of a one-time snapshot.
+
+Observations of the same database on the same deployment, using the same credentials, share one stream within the process. Each subscription therefore does not need its own stream or pooled connection for watching changes. The result represents current state; it is not an audit log and does not guarantee delivery of every intermediate state.
 
 ## Prerequisites
 
@@ -13,7 +15,7 @@ After ordinary collection reads work, use `Observe()` to publish an initial resu
 
 ## Choose an observation
 
-These are method fragments for a scoped service with an injected `IMongoCollection<Author>` named `collection`. Import `MongoDB.Driver`.
+Use `Observe()` for a list, `ObserveSingle()` for one matching document, or `ObserveById()` when you know its ID. These method fragments assume a scoped service with an injected `IMongoCollection<Author>` named `collection`. Import `MongoDB.Driver`.
 
 ```csharp
 var all = collection.Observe();
@@ -24,13 +26,15 @@ var featured = collection.ObserveSingle(author => author.IsFeatured);
 var byId = collection.ObserveById<Author, Guid>(authorId);
 ```
 
-The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. When no document matches, single observation emits `null` and stays open; see [when there is no matching document](#when-the-observed-document-is-gone) below.
+The examples assume `Author` is a reference type with a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. A subject lets your consumer subscribe to results and errors. If no document matches a single-document observation, it emits `null` and stays open; see [when there is no matching document](#when-the-observed-document-is-gone).
 
-The observation attaches to the shared stream when `Observe()` is called, not when the first subscriber arrives. The collection result replays its latest emission to late subscribers. It does not emit a placeholder empty collection before the initial database query finishes.
+Calling `Observe()` starts the observation without waiting for its first subscriber. Subscribe to it and retain the subscription for as long as you need updates. The collection result replays its latest emission to late subscribers, but it does not emit a placeholder empty collection before the initial query finishes.
 
 ## How observations share a change stream
 
-Arc keeps one change stream per database per deployment per process, owned by the [`IMongoDBWatcher`](./change-stream-watcher.md) singleton. The stream is opened with the client the collection belongs to, so a collection from a client the application did not configure is watched where it lives. It watches the whole database, so it carries the changes of every collection. Each `Observe()`, `ObserveSingle()` and `ObserveById()` call subscribes to that stream and handles only the changes of its own collection, in order. You do not have to inject or opt in to anything: the extension methods use the shared stream automatically.
+The [`IMongoDBWatcher`](./change-stream-watcher.md) singleton owns the shared streams within the process. It groups observations by database name, client server settings and credentials, so separate credentials or deployments do not share a stream. It uses the collection's own client, including for a collection supplied by another library. The extension methods use this watcher automatically; you do not need to inject it.
+
+The stream covers the whole database. Each `Observe()`, `ObserveSingle()` and `ObserveById()` call handles changes for its own collection in order, then determines how those changes affect its result.
 
 ```mermaid
 graph LR
@@ -40,19 +44,18 @@ graph LR
     W --> O3[ObserveById Books]
 ```
 
-What this means in practice:
+Sharing the stream reduces watch connections, but observations still do work to maintain their results:
 
-- A board of 30 observable queries holds one change stream and one pooled connection for the change stream, not 30.
-- The stream is not narrowed by your filter, so the observation decides whether a changed document belongs. Inserts, updates and replaces cost one indexed lookup on the document's own key; an observation that takes every document skips that lookup. Deletes cost nothing, because the observation already knows its members.
+- A filtered, unpaged observation checks membership with a lookup by document key for inserts, updates and replacements. An observation that includes every document skips that lookup. Deletes use the members already held in memory.
 - Paged observations re-read their page after any change in their collection.
-- When the stream reopens after a failure, or its collection is dropped or renamed, changes may have been missed. Every observation then reads its collection again and emits what changed.
-- Changes made while the initial query runs are held and applied after it, so none is lost.
-- A database that is not observed opens no stream. The stream for a database opens on the first observation and stays open for the life of the process.
-- In a multi-tenant application the stream is per resolved database name, so each tenant database gets its own.
+- After a reconnect that may have missed changes, or after a collection is dropped or renamed, the observation re-reads its result.
+- Changes received while the initial query runs are buffered and applied after that query.
+
+A database with no observations opens no stream. Its first observation opens one, and that stream stays open until the watcher shuts down, even if individual observations end. In a multi-tenant application, each resolved tenant database has its own stream.
 
 ## Find options, paging, and sorting
 
-`Observe` and `ObserveSingle` accept **nongeneric `FindOptions`**, not `FindOptions<Author>` or projection options:
+Pass nongeneric `FindOptions` to `Observe` or `ObserveSingle` to set options such as a query timeout. These overloads do not accept `FindOptions<Author>` or projection options:
 
 ```csharp
 var options = new FindOptions
@@ -62,11 +65,13 @@ var options = new FindOptions
 var active = collection.Observe(author => author.IsActive, options);
 ```
 
-This overload does not expose `Sort` or `Limit` properties through `FindOptions`. Collection observations take paging and sorting from the current query context. `ObserveSingle()` and `ObserveById()` always ignore that context's paging and sorting and leave its `TotalItems` unchanged, even when `ignoreQueryContext: false` is passed; the parameter remains for compatibility. Use the [query paging contract](../queries/model-bound/paging.md) when exposing a paged Arc query; arbitrary controller parameters do not populate that context automatically.
+Nongeneric `FindOptions` does not expose `Sort` or `Limit`. Collection observations take paging and sorting from Arc's current query context, which carries the query's requested page, sort order and total count. Follow the [query paging contract](../queries/model-bound/paging.md) when exposing a paged Arc query; arbitrary controller parameters do not populate that context.
+
+`ObserveSingle()` and `ObserveById()` always ignore query-context paging and sorting and leave its `TotalItems` unchanged. Passing `ignoreQueryContext: false` does not change this single-document behavior; that parameter remains for compatibility.
 
 ### Compose a primary observation with auxiliary sources
 
-When a query combines observations from several collections, client paging and sorting belong to the primary collection source. Pass `ignoreQueryContext: true` to each auxiliary **collection** observation to read **all** documents matching its filter without client paging or sorting. This also prevents that source from writing the query's `TotalItems`, both at startup and on changes. Single-document observations already behave this way:
+When a query combines several collections, choose which collection owns client paging and sorting. A supporting collection often needs all matching documents so the query can look up related data. Pass `ignoreQueryContext: true` to those auxiliary collection observations; they then skip client paging and sorting and leave the query's `TotalItems` unchanged, both at startup and on changes. Single-document observations already behave this way:
 
 ```csharp
 var primary = authors.Observe();
@@ -75,13 +80,15 @@ var featured = categories.ObserveSingle(category => category.IsFeatured);
 var selected = categories.ObserveById(categoryId);
 ```
 
-This fragment assumes injected collections named `authors` and `categories`, a category with `IsFeatured`, and a matching `categoryId`. The option is available for expression and MongoDB filter overloads of `Observe`. The primary observation keeps its usual paging, sorting, and `TotalItems` behavior; **you** decide which source is primary. `TotalItems` describes the primary collection's filtered count, not the size of an arbitrary result you derive by combining sources. If your composed result has different pagination semantics, compute its count explicitly rather than treating a collection's count as the composed count.
+This fragment assumes injected collections named `authors` and `categories`, a category with `IsFeatured`, and a matching `categoryId`. Both expression and MongoDB filter overloads of `Observe` support the option.
+
+Here, `authors` keeps the usual paging, sorting and `TotalItems` behavior. Its count describes matching authors. If combining sources changes the number of results, compute the composed result's count explicitly; the primary collection's count no longer describes that result.
 
 A single-result query reports `PagingInfo.NotPaged`, even if an inner collection observation writes a count to the ambient context. If you compose a collection observation inside such a query, pass `ignoreQueryContext: true` to that inner observation too; suppressing paging metadata does not stop the inner source from applying client paging.
 
 ## Lifetime and scope
 
-A directly owned subscription must be disposed. Example lifecycle fragment in an asynchronous method (`System.Reactive.Linq` supplies `Subscribe`):
+Dispose subscriptions you own directly so the observation stops when the consumer is done. This lifecycle fragment belongs in an asynchronous method with a `cancellationToken`; `System.Reactive.Linq` supplies `Subscribe`:
 
 ```csharp
 var subject = collection.Observe(author => author.IsActive);
@@ -92,39 +99,41 @@ using var subscription = subject.Subscribe(
 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
 ```
 
-When the last subscriber unsubscribes, the lifetime-aware subject detaches the observation from the shared stream. Cleanup completes and disposes the subject. The shared stream stays open for the other observations. Do not create an observation that is never subscribed or retained. Once completed, create a **new** observation rather than reusing the terminated subject.
+When the last subscriber unsubscribes, the subject detaches the observation from the shared stream. Cleanup completes and disposes that subject while the shared stream stays open. Avoid creating observations you never subscribe to or retain: the work starts at the method call, so there may be no subscription to dispose later. Once a subject has completed, create a new observation for another consumer.
 
-Arc registers collections as **scoped** services. Register a service that captures `IMongoCollection<T>` as scoped too, not singleton. Keep its scope alive for the subscription's lifetime. A background worker must establish the intended tenant context and resolve a collection inside an appropriate scope; do not cache the first tenant's collection globally. See [MongoDB tenancy](./tenancy.md).
+Arc registers collections as scoped services. A service that captures `IMongoCollection<T>` must be scoped too, and its scope must stay alive for the subscription's lifetime. In a background worker, establish the intended tenant context and resolve the collection inside that scope. Caching the first tenant's collection globally would keep later work pointed at that tenant's database. See [MongoDB tenancy](./tenancy.md).
 
 ## Errors and recovery limits
 
-A failure to attach to the shared stream, to read from it, or to apply a change to the result, is logged at Error level (naming the collection and document type) and forwarded to subscribers through `OnError` before cleanup disposes the subject. This includes connection failures when MongoDB is unreachable. Normal cancellation, disposal, and completion of the shared stream (when the host shuts down) still complete quietly; unsubscribing does not produce an error. A failed observation is not resumed: a client resubscribes to get a fresh snapshot. Configuration errors before the background watch starts can still throw synchronously.
+If an observation fails while attaching to the stream, reading its initial result or applying a change, Arc logs the failure at Error level with the collection and document type, then calls subscribers' `OnError` before disposing the subject. Configuration errors before background work starts can throw synchronously.
 
-Handle `OnError` to distinguish a failed watch from normal completion. Arc's observable query hub forwards this failure to the frontend as a failed query result with `hasExceptions: true` and the error in `exceptionMessages`, rather than leaving it waiting for its first result.
+Normal cancellation, disposal and shared-stream completion at host shutdown complete quietly; unsubscribing does not produce an error. To recover a failed observation, create and subscribe to a new one to read a fresh snapshot.
 
-The shared stream itself reconnects with backoff and resumes from its last change, so a transient connection failure does not end your observations; see [the watcher's lifetime](./change-stream-watcher.md#lifetime-and-disposal). An observation that has failed does not restart automatically. `.Retry(3)` on the existing subject does not recreate it. If your application needs reconnection, design and test ownership, fresh scopes/subjects, cancellation, and backoff explicitly; this page does not claim a tested automatic retry recipe.
+Handle `OnError` to distinguish failure from normal completion. When you expose the observation through an Arc observable query, Arc reports a failed result to the frontend with `hasExceptions: true` and an error message in `exceptionMessages`. Your consumer can then show an error instead of waiting for the first result.
 
-The [joined results](./change-stream-watcher.md) built with `IMongoDBWatcher.Observe<T>()` use the same stream but have their own refresh and error contract. Do not transfer guarantees between the two APIs.
+A shared-stream reconnect is different from an observation failure. The watcher reconnects with backoff and uses its resume token to continue after a transient connection failure, keeping observations alive; see [the watcher's lifetime](./change-stream-watcher.md#lifetime-and-disposal). The initial result waits for the stream to open, so it can remain pending while the watcher retries a connection. An observation that has already called `OnError` cannot restart. Applying `.Retry(3)` to that subject does not recreate it. If your application needs retries after observation failure, give each attempt a fresh subject and appropriate scope, and design cancellation and backoff around that ownership.
+
+For joins built with `IMongoDBWatcher.Observe<T>()`, follow the [joined results contract](./change-stream-watcher.md). That API shares the stream but has different refresh and error behavior.
 
 ## Change handling and troubleshooting
 
-Insert, update, replace, and delete operations update observed membership. Updates that leave the filter must remove a document from the result; filters are not simply applied to every post-change document at the stream boundary. Do not assume automatic batching of rapid changes.
+An observation maintains membership as well as document values. An insert can add a matching document, while an update or replacement can move a document into or out of the filter. A delete removes an existing member. Because each observation makes these decisions for its own result, the shared stream does not apply your filter globally. Do not assume rapid changes arrive as one batch.
 
 Composite document IDs use the mapped ID member's BSON serializer, just like ordinary document reads. Give a composite ID value equality, for example with a record, so change-stream IDs match the IDs already in the result. Updates, replacements, and deletions retain that identity; inserted change metadata also carries the typed ID. Guid, concept, and ObjectId IDs use their mapped serializers as well.
 
 ## When the Observed Document Is Gone
 
-`ObserveSingle()` and `ObserveById()` push a fresh document every time the underlying data changes, but there is no document to push when:
+`ObserveSingle()` and `ObserveById()` keep a single-document result current. That result can have no matching document when:
 
 - the observed document is deleted,
 - an update or replace moves the document out of the filter (it still exists, but no longer matches), or
 - the initial query never found a match in the first place.
 
-In every one of these cases the subject emits `default` — `null` for a reference type — rather than completing. Completing the observable would end the subscription; emitting `null` reports "nothing right now" while leaving the subscription open in case the document reappears, for example if it is re-inserted with the same id, or a later update moves it back into the filter.
+The subject emits `default`, which is `null` for a reference type, and leaves the subscription open. Your consumer can show a not-found state and still receive a later document if one is inserted with the same ID or an update moves a document back into the filter.
 
-> **Note**: A `[ReadModel]` marked `[RemovedWith<T>]` hard-deletes its backing document when the removal event fires. An active `ObserveSingle()`/`ObserveById()` subscriber sees that removal exactly as described above — "the read model was removed" is this same `null` emission, not a special case.
+For a `[ReadModel]` marked `[RemovedWith<T>]`, the removal event deletes the backing document. An active `ObserveSingle()` or `ObserveById()` subscriber receives the same `null` result described above.
 
-On the frontend, show the loading state while the query is pending, then handle denied and unsuccessful results before checking `hasData`. A ready result does not by itself mean success. Only a successful result without data belongs in the `NotFound` branch; a failed observation needs error handling instead. The following example uses the same decision order as the [model-bound consumer](../queries/model-bound/observable-queries.md#when-there-is-no-matching-document):
+On the frontend, distinguish a missing document from a failed query. Show loading while the query is pending, then handle denied and unsuccessful results before checking `hasData`. Only a successful result without data belongs in the `NotFound` branch. This component fragment assumes a generated `GetAccountObservable` proxy, an `accountId` and the displayed components; it follows the [model-bound consumer](../queries/model-bound/observable-queries.md#when-there-is-no-matching-document):
 
 ```tsx
 const [result] = GetAccountObservable.use(accountId);
@@ -145,4 +154,6 @@ return <AccountDetails account={result.data} />;
 
 ## Advanced Usage
 
-If no first result arrives, verify replica-set configuration, permissions, ID mapping, and connectivity. Enable logging for `MongoDB.Driver.MongoCollection` to inspect observation failures, and for `Cratis.Arc.MongoDB.MongoDBWatcher` to inspect the shared stream's connection and reconnects. Test filtered membership, deletion, paging, and forced disconnections in your deployment before relying on live results.
+If no first result arrives, check replica-set configuration, permissions, ID mapping and connectivity. Logging for `MongoDB.Driver.MongoCollection` reports observation failures; `Cratis.Arc.MongoDB.MongoDBWatcher` reports shared-stream connections and reconnects.
+
+Before relying on live results in your deployment, check what the consumer shows when a document leaves a filter, is deleted, or changes a paged result. Exercise disconnections too, so you can distinguish watcher recovery from a failed observation that needs a new subscription. Continue with [observable queries](../queries/model-bound/observable-queries.md#when-there-is-no-matching-document) to connect these results to an Arc frontend.

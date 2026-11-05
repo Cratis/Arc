@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0029: Conflicting read protection"
-description: Choose a consistent protected or advisory command declaration.
+description: ARCCHR0029 rejects conflicting protected and advisory declarations on Cratis Arc commands, including inherited read-protection policies.
 ---
 
 ## Rule

@@ -1,6 +1,6 @@
 ---
 title: Controller query return types
-description: Understand MVC data results, Arc wrapping, observable values, and null handling.
+description: Cratis Arc wraps MVC GET data in QueryResult, supports IQueryable paging and streaming values, and treats null data as a failed result.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->

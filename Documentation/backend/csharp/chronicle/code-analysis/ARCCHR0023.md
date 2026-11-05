@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0023: Read-model lookup key is not proven"
-description: Signature-based hints about ambiguous, missing, or repeated read-model lookup keys.
+description: ARCCHR0023 in Cratis Arc uses command signatures to warn about ambiguous, missing, or repeated lookup keys for Cratis Chronicle read models.
 ---
 
 ## Rule

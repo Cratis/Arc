@@ -1,7 +1,10 @@
+---
+title: ARCCHR0040 — Prefer a read-model parameter
+description: ARCCHR0040 in Cratis Arc suggests read-model parameters instead of direct IDecisionReads or DecisionRead<T> dependencies in command handlers.
+---
+
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
-
-# ARCCHR0040 — Prefer a read-model parameter
 
 | Property | Value |
 | --- | --- |

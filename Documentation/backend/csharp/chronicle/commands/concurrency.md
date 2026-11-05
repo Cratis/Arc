@@ -1,27 +1,27 @@
 ---
-title: Concurrency
-description: Build a concurrency scope from command metadata so appends participate in optimistic concurrency checks.
+title: Cratis Arc command concurrency
+description: Cratis Arc uses command metadata to scope optimistic append checks. Carry the revision read by a decision when its rule depends on existing state.
 ---
 
-Chronicle's [concurrency control](/chronicle/events/concurrency/) rejects an append when its checked expectation no longer matches the protected history. Atomic append alone does not bind a decision to the state it read. A `ConcurrencyScope` defines the boundaries for that check — which stream type, stream id, and event source type form the concurrency boundary.
+Cratis Arc uses command metadata to choose which events Chronicle checks for a concurrent change before appending. A `ConcurrencyScope` names that history and its expected last position, called the tail. The append fails if the checked expectation no longer matches.
 
-On model-bound commands, you declare concurrency intent directly on the command record using attributes and interfaces. Chronicle then builds the `ConcurrencyScope` automatically when appending the events returned by `Handle()`. No manual scope construction is required.
+Use the attributes on this page to declare the check's boundaries on a model-bound command. Arc builds the scope for events returned by `Handle()`. If your command decides whether a withdrawal or approval is allowed by reading existing state, you also need a guard tied to that read; an atomic append alone does not provide it. See [Chronicle's concurrency control](/chronicle/events/concurrency/) for the underlying check.
 
 :::caution[`concurrency: true` does not guard a decision]
-The attributes on this page choose which dimensions bound the check Arc builds for the returned events. That check reads the tail after `Handle()` returns, so it cannot bind your decision to the state `Handle()` read. To make a stateful rule hold, use a constraint, a read model parameter under [read protection](../consistency/getting-started.md) `On`, a [stream decision](./stream-decisions.md), an aggregate, or an explicit scope. [Choosing how a command's rule holds](../consistency/index.md) compares them.
+The automatic check reads the tail after `Handle()` returns. An event arriving between your read and that capture can become part of the expected tail instead of causing a conflict. For a stateful rule, choose a constraint, a read model parameter under [read protection](../consistency/getting-started.md) `On`, a [stream decision](./stream-decisions.md), an aggregate, or an explicit scope. [Choosing how a command's rule holds](../consistency/index.md) helps you select one.
 :::
 
-A [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) is the guarantee that an append fails if an event matching the decision's query arrived after the position it read; [choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) compares the ways to get it. The attributes on this page are the string form of the boundary. An [event source definition](./event-source-definitions.md) declares the same dimensions once, with a named stream, and is the typed alternative.
+A [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) rejects an append if an event matching the decision's query arrived after the position it read. Metadata chooses which events match; the captured position determines when a change counts as interference. An [event source definition](./event-source-definitions.md) is the typed alternative to repeating these metadata strings on commands. [Choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) compares the available guards.
 
 A [guarded generated append target](fresh-identifiers.md) is an exception to automatic tail capture:
 Arc uses an immutable whole-source `BeforeFirst` scope. Existing events produce `ConcurrencyViolation`
 with `ReasonDetail = "GeneratedIdentifierCollision"`, regardless of routing metadata.
 
-That automatic path is otherwise the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
+If you already have the revision used by the decision, return it with the events in [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) instead of relying on automatic tail capture.
 
 ## Concurrency Metadata Attributes
 
-Three attributes control concurrency scope declaration on a command. Each attribute serves a dual purpose: it tags the appended events with metadata _and_, when `concurrency: true` is set, contributes that metadata to the concurrency scope.
+Choose the dimensions that should make two writes compete. Each attribute sets routing metadata on the events; `concurrency: true` also includes that dimension in the scope Arc declares. The target event source id is included in these attribute-built scopes.
 
 ### `[EventStreamId]`
 
@@ -92,7 +92,7 @@ public record CustomerRegistered(string Email);
 
 ## Combining Attributes
 
-You can combine multiple concurrency attributes to build a precise scope. Only the attributes with `concurrency: true` contribute to the scope the command declares — but the others still tag the appended events, and the fallback strategy narrows by whatever tags an append carries, so they are not concurrency-inert either. See [what a routing-only tag already does](#what-a-routing-only-tag-already-does) below.
+Combine attributes when writes should compete only within the same source type, stream type and stream id. In this example, two profile updates for the same customer share the check; an event on a different stream type does not. Only attributes with `concurrency: true` select dimensions for the declared scope. Attributes without the flag still affect the fallback check, as [the routing-only examples](#what-a-routing-only-tag-already-does) explain.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -125,20 +125,18 @@ public record CustomerDisplayNameChanged(string DisplayName);
 public record CustomerEmailChanged(string Email);
 ```
 
-If no attribute has `concurrency: true`, the command contributes no scope of its own and the append is left to the concurrency strategy configured on the event sequence — by default the optimistic one, which resolves the expected tail for the event source being appended to, **narrowed by whatever routing metadata the command carries**.
+With no `concurrency: true` flag, the command leaves scope construction to the event sequence's configured strategy. The default optimistic strategy still narrows its check by the routing metadata; the next section shows how.
 
 ## What a routing-only tag already does
 
-A metadata attribute declared _without_ `concurrency: true` still narrows the concurrency check. Its value reaches the append regardless of the flag, and the fallback strategy resolves the expected tail with the same narrowing — so the flag governs whether the command **declares** a scope, while the tag governs what the check is **narrowed by**. Both are true at once.
+Without a declared scope, the default optimistic strategy reads the expected tail using the append's routing metadata. For example, `[EventStreamType("Attachments")]` limits that fallback check to `Attachments` events for the target source. A write under another stream type is outside it even though no attribute says `concurrency: true`.
 
-Three consequences follow, and the third is the surprising one:
+Adding the flag to every metadata attribute keeps the same narrowing dimensions, but changes the capture time. Arc captures a declared scope while processing the handler's response; Chronicle captures the fallback during commit-time `AppendMany()`. A write between those moments can conflict with the earlier expectation but become part of the later one.
 
-- **A routing-only tag silently narrows every concurrency check on that command.** `[EventStreamType("Attachments")]` with no flag restricts the expected tail to `Attachments` events, so a concurrent append to the same event source under a different stream type is invisible to the check.
-- **Declaring `concurrency: true` on _every_ metadata attribute uses the same narrowing dimensions as declaring it on none, under the default optimistic strategy.** The declared scope passes the context values; the fallback passes the same values, with a sentinel standing in for anything absent — and a sentinel adds no filter. The capture timing differs: Arc resolves an explicit scope while processing the response; Chronicle resolves a missing scope during the unit of work's commit-time `AppendMany()`. An intervening append can conflict with the earlier expectation but be included in the later fallback tail.
-- **Declaring it on a _subset_ produces a strictly broader scope than declaring it on none.** The declared scope passes `null` for every dimension that did not opt in, while the fallback would have passed its real value. Declaring it on `[EventStreamType]` alone, on a command that also carries `[EventSourceType("X")]`, **drops** the `EventSourceType == "X"` filter and widens the check.
+Adding the flag to only some attributes can broaden the check. Suppose a command carries `[EventSourceType("X")]` and `[EventStreamType("Attachments", concurrency: true)]`. Arc includes the stream type but passes `null` for the source type because that attribute did not opt in. The declared check therefore covers more history than the fallback, which would have filtered by both values. Choose the flags together rather than treating each as an independent on/off switch.
 
 :::note[Concurrency tags narrow the default check]
-The practical reading: reach for `concurrency: true` to state intent and to pin which dimensions bound the check, not because its absence leaves the check unbounded. If you want a check bounded by the whole event source, do not tag the command at all.
+Use `concurrency: true` to choose the dimensions explicitly, not to turn concurrency checking on. For the default whole-event-source check, leave routing metadata unset. Use an exact scope if routing must stay narrow while the guard covers broader history.
 :::
 
 ## Dynamic Event Stream Id
@@ -167,7 +165,9 @@ public record GenerateMonthlyReport(EventSourceId AccountId, string MonthKey)
 public record MonthlyReportGenerated(string MonthKey);
 ```
 
-> **Note**: If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are present on the same command, Chronicle throws an `AmbiguousEventStreamId` exception. Choose one approach, or set the attribute value to `null` to defer to the interface.
+In this example, only `EventStreamType` opts into the declared scope, so the check covers the account's `Reporting` events across months. To check each month independently, include the stream-id dimension as well.
+
+If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are present, Arc throws `AmbiguousEventStreamId`. Choose one approach, or set the attribute value to `null` to defer to the interface.
 
 ## Template Event Stream Ids
 
@@ -203,7 +203,9 @@ public record ReportGenerated(DateOnly Period);
 | Other `IFormattable` values, including numbers and `Guid` | Default format with invariant culture |
 | Other values | `ToString()` |
 
-`{{` and `}}` escape literal braces within a template. Unknown properties, null or blank parts, malformed braces, and a resolved id equal to `Default` or empty are refused. Arc resolves template parts on first route use after authorization and validation, so a validator can reject a missing part without a template exception. Constant values and `ICanProvideEventStreamId` keep their existing behavior.
+`{{` and `}}` escape literal braces within a template. Arc refuses unknown properties, null or blank parts, malformed braces, and a resolved id equal to `Default` or empty.
+
+Template resolution waits until the route is needed, normally after authorization and validation. A per-stream model injected into a validator needs the route earlier; Arc resolves it before constructing that validator and refuses a blank part before reading the model. Constant values and `ICanProvideEventStreamId` keep their existing behavior.
 
 `EventStreamIdTemplate.Resolve("{ReportingScopeId}:{Period}", command)` resolves a template outside the pipeline. `EventStreamIdTemplate.ResolveFor(command)` resolves the command's attribute or provider interface exactly as the pipeline does, and returns null when neither declares an id. Use the same function for a read or seed route instead of repeating the join. An attribute with a value and `ICanProvideEventStreamId` still raises `AmbiguousEventStreamId`.
 
@@ -215,12 +217,11 @@ The event source id used when appending is resolved from the command by conventi
 
 ## How the Scope Is Built
 
-When `Handle()` returns events, Chronicle inspects the command type for the three concurrency attributes. It reads the resolved metadata values from the command context and builds a `ConcurrencyScope` covering only the metadata where `concurrency: true` was set.
+When `Handle()` returns events, Arc reads the three concurrency attributes and the resolved command metadata. It builds the declared scope from the dimensions marked `concurrency: true`, with an expected revision from the event sequence's strategy. Under read protection `On`, the transaction handles the guard instead; see [how read protection works](../consistency/how-it-works.md).
 
-Two properties of that scope decide whether the check actually happens, and both are resolved per append rather than once per command:
+The expected revision must be checkable. `BeforeFirst` means no matching event may exist; `Unavailable` means no usable expectation was supplied and does not protect empty history. Automatic first-append checking is opt-in through the client's concurrency options.
 
-- **It carries a checked expectation**, resolved by the event sequence's strategy. An actual revision is checked and `BeforeFirst` protects empty matching history. `Unavailable` is not an empty-history expectation; incomplete expectations are skipped/reported rather than enforcing the invariant. Automatic first-append checking is opt-in through the client's concurrency options.
-- **It is bound to the event source being appended to.** A command that appends across streams gets a scope per target, because an expected tail belongs to exactly one stream; applying one stream's tail to another would be wrong for both.
+Arc builds these scopes per target event source. A command writing to several targets cannot reuse one target's expected tail as the expectation for another.
 
 ## Carrying the revision used by the decision
 
@@ -238,4 +239,4 @@ When `Handle()` returns `EventsWithConcurrencyScopes`, its supplied scopes repla
 For a guarded generated target, an equal whole-source `BeforeFirst` intent merges with the freshness guard;
 a differing explicit intent fails with `ConflictingConcurrencyScopes`. Remove `concurrency: true` from `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` on that command, but keep their routing values. A later automatically captured tail would defeat the purpose of guarding the revision used by the decision.
 
-For `[EventSource<TSource>(stream)]`, keep the concurrency dimensions on the shared definition. The exact returned scope intentionally takes precedence for this command without changing the policy for other commands using the same definition. Chronicle carries one scope per event source id per command, so two stream decisions for the same source cannot supply independent guards.
+For `[EventSource<TSource>(stream)]`, keep the concurrency dimensions on the shared definition. The exact returned scope takes precedence for this command without changing the policy for other commands. Arc's exact-scope response handler reads `ConcurrencyScopes` as a dictionary with one scope per source id, so this return path cannot carry two independent stream-decision guards for the same source.

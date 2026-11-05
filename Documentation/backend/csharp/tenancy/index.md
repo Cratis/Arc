@@ -1,20 +1,15 @@
 ---
-title: Tenancy
-description: Serve multiple customers from one application while keeping their data isolated — how Arc resolves the current tenant and carries it through every request.
+title: Cratis Arc tenancy and data isolation
+description: Cratis Arc resolves the current tenant. Your application verifies membership, while each storage integration determines where tenant data is read and written.
 ---
 
-Tenancy means your application serves multiple customers or organizational units while keeping their data and operations isolated. A tenant could be a customer, a business unit, or any logical boundary that must remain separate from others.
+Cratis Arc tenancy gives request code a current tenant ID so one application can serve several customers or organizational units. Selecting that ID does not prove that the caller may use it, and it does not make every data store tenant-aware.
 
 ## Why Tenancy Matters
 
-Tenancy keeps data and behavior isolated between customers or organizational units while still sharing the same application deployment. Arc provides tenant resolution, tenant context access, and tenant-aware integrations to help you maintain strict separation and predictable behavior.
+A request for tenant `acme` needs two answers before it reaches storage: may this caller use `acme`, and where does `acme`'s data live? A header or claim can supply the ID, but the application still needs an authorization decision and a storage design that agree with it.
 
-- **Data isolation**: Each tenant should only see its own data, even when sharing infrastructure.
-- **Compliance**: Many regulatory requirements demand strict separation and auditable access.
-- **Operational safety**: Isolation reduces the blast radius of mistakes, queries, and deployments.
-- **Scalability**: Tenancy enables predictable scaling by segmenting traffic and storage by tenant.
-
-Keep three decisions separate: **selection** resolves the tenant ID; **membership authorization** checks whether this caller may use it; **storage isolation** determines where reads and writes go. Arc supplies selection and context. The MongoDB integration supplies tenant-aware database naming; EF Core isolation is application-owned. Optional Chronicle integration selects event-store namespaces. None of these replaces membership checks.
+Keep selection, membership authorization and storage isolation separate. Arc resolves the ID and exposes it through tenant context. Register an application-owned [`ITenantMembership` check](./membership.md) to verify the caller, or enforce that boundary at a trusted ingress. The MongoDB integration supplies tenant-aware database naming; EF Core isolation is application-owned. The optional Chronicle integration maps tenants to event-store namespaces. Storage naming never replaces membership checks.
 
 ```mermaid
 flowchart LR
@@ -27,26 +22,22 @@ See [database isolation](database-resolvers.md) for the exact integration bounda
 
 ## Best Practices
 
-- Choose a resolver that aligns with your authentication and request flow.
-- Validate that the requester is authorized to access the resolved tenant.
-- Include the tenant ID in cache keys, logs, and telemetry.
-- Keep tenant IDs stable and opaque to avoid enumeration.
-- Prefer tenant-aware data stores and avoid cross-tenant queries.
-- Use the development resolver only in local or test environments.
+Choose a [tenant resolver](./resolvers.md) that fits how requests reach your application. Use the development resolver only in local or test environments. Keep tenant IDs stable; opaque IDs can reduce enumeration but are not an access control.
+
+Include the tenant ID in cache keys so data cached for one customer cannot be returned under another tenant's key. Carry it into logs and telemetry where needed for investigation, while treating it as sensitive metadata. Check that tenant-scoped services are resolved for the intended tenant rather than captured in a singleton.
 
 ## Security Considerations
 
-- Ensure tenant ID resolution happens only after authentication.
-- Enforce tenant membership checks in application services and policies.
-- Log tenant access for audits and incident investigation.
-- Prevent tenant ID spoofing by validating headers, claims, and parameters.
-- Treat tenant ID as sensitive metadata and avoid exposing it unnecessarily.
+Validate authentication before checking caller-to-tenant membership. Treat headers, query parameters and subdomains as candidate tenant selections, not evidence of permission. Use trusted claims or authoritative membership data for the decision, and still enforce permission to perform the requested operation.
+
+Start with [tenant membership](./membership.md) to set that boundary. Then verify the storage destination for allowed requests and confirm that unauthorized requests are rejected before tenant data is accessed.
 
 ## Topics
 
-- [Tenancy end to end](./end-to-end.md): defaults, connection resolution and Chronicle in one walkthrough
+- [Tenancy end to end](./end-to-end.md): follow a request through selection, membership and storage
+- [Tenant membership](./membership.md): authorize the caller's use of the selected tenant
 - [Resolving tenant IDs](./resolvers.md)
 - [Configuration](./configuration.md)
 - [Tenant context access](./tenant-context.md)
 - [Database isolation](./database-resolvers.md)
-- [Development tenant discovery with `ICanProvideTenants`](../identity/development-and-topologies.md#implementing-a-tenants-provider) (C#), or the equivalent [`TenantsProvider`](/arc/backend/kotlin/guides/development-users-and-tenants/) (Kotlin and Java) — the `/.cratis/tenants` endpoint that development tools such as [Lens](/tools/lens/) use to let you switch tenants without touching configuration.
+- Development tenant discovery: [`ICanProvideTenants`](../identity/development-and-topologies.md#implementing-a-tenants-provider) in C#, or [JVM development providers](/arc/backend/kotlin/guides/development-users-and-tenants/) (`TenantsProvider` in Kotlin, `AsyncTenantsProvider` in Java). They supply a roster for tools such as [Lens](/tools/lens/). Publishing tenants through `/.cratis/tenants` neither resolves the current tenant nor checks caller membership.

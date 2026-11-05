@@ -1,13 +1,15 @@
 ---
-title: Development and Topologies
-description: Expose development users and tenants for tools such as Lens, and run identity across ingress and microservice topologies.
+title: Cratis Arc identity development and service topologies
+description: Supply development users and tenants to Lens through Cratis Arc providers, and choose where to compose identity details across services.
 ---
+
+Cratis Arc development providers let Lens discover test users and tenants from your running application, so you can switch context without maintaining a separate roster in the tool. These lists supply development data; they do not authenticate a caller or prove tenant membership. For deployed applications, keep identity presentation separate from each service's authentication and authorization.
 
 ## Development Users and Tenants
 
-For development scenarios, Arc automatically exposes HTTP endpoints that development tools use to discover available users and tenants. This eliminates the need to hard-code user lists in your frontend or development environment — just implement the providers and Arc surfaces them.
+Implement `ICanProvideUsers` and `ICanProvideTenants` to make your application's development roster available over HTTP. [Lens](/tools/lens/), the Cratis browser extension, reads `/.cratis/users` and `/.cratis/tenants` to populate its user and tenant pickers. See [where the Lens roster comes from](/tools/lens/#where-the-tenant-and-user-roster-comes-from) for the extension side of this contract.
 
-The primary consumer of these endpoints is [Lens](/tools/lens/), the Cratis browser extension for exercising a running Arc application during development. Lens reads `/.cratis/tenants` and `/.cratis/users` to populate its tenant and user pickers, then injects the corresponding identity and tenant headers into every request your frontend makes while Lens is active — see [Lens: where the tenant and user roster comes from](/tools/lens/#where-the-tenant-and-user-roster-comes-from) for the extension side of this contract, with screenshots against seeded demo data. This is also the [Tenancy](../tenancy/) discovery seam's development counterpart: it answers "which tenants exist", not "which tenant is this request for".
+A tenant roster answers which tenants the provider lists. It does not resolve the tenant for a request; [Tenancy](../tenancy/) handles that separately.
 
 ### Available Endpoints
 
@@ -18,11 +20,11 @@ Normal Arc activation maps these endpoints unless `Cratis:Arc:Introspection:Iden
 
 Setting `IdentityDiscovery` to `false` also removes the identity-details schema, without changing catalogs or `/.cratis/me`. To remove all discovery endpoints, [turn off both discovery switches](../introspection/index.md#turn-off-all-discovery-in-deployed-environments).
 
-Without providers they return empty arrays. With providers they combine their results. They follow the [discovery access settings](../introspection/index.md#production-access): anonymous in Development, and requiring an authenticated caller everywhere else unless `Cratis:Arc:Introspection:RequireAuthentication` is `false`. Exclude development-only provider implementations from production discovery anyway; an authenticated caller should not see a fixture user list either. A user/tenant list is not proof of authentication or membership.
+Without providers, these endpoints return empty arrays. With providers, they combine the returned lists. Their [discovery access settings](../introspection/index.md#production-access) allow anonymous access in Development and require an authenticated caller elsewhere unless `Cratis:Arc:Introspection:RequireAuthentication` is `false`. Keep development-only providers out of production discovery even when authentication is required: signing in should not expose fixture users.
 
 ### Implementing a Users Provider
 
-Create a class implementing `ICanProvideUsers`. Arc will discover it automatically.
+Create a class implementing `ICanProvideUsers`; Arc discovers it automatically. Each `User` carries a `ClientPrincipal` describing the development identity and a separate details payload. In this example, Alice and Bob have different roles so you can exercise different UI states:
 
 ```csharp
 using Cratis.Arc.Identity;
@@ -62,9 +64,7 @@ public class DevelopmentUsersProvider : ICanProvideUsers
 
 ### Implementing a Tenants Provider
 
-`ICanProvideTenants` is a development-only seam: it has nothing to do with tenant *resolution* at request time (see [Tenancy](../tenancy/)). It exists purely so a tool like Lens can ask your running application, at any moment, "which tenants do you know about right now?" — sourced from wherever your application already keeps that list (a fixed set, a database, a configuration section), rather than a hand-maintained copy pasted into the tool.
-
-Similarly, create a class implementing `ICanProvideTenants`:
+Implement `ICanProvideTenants` to supply the tenant picker. Return IDs and names from the list you use for development, whether it lives in code, configuration, or a database. These entries are choices for the tool, not tenant-access decisions or request-time [tenant resolution](../tenancy/):
 
 ```csharp
 using Cratis.Arc.Tenancy;
@@ -92,26 +92,18 @@ public class DevelopmentTenantsProvider : ICanProvideTenants
 
 ### How Development Tooling Uses These Endpoints
 
-Development tools — [Lens](/tools/lens/) chief among them, plus the Cratis Portal or custom dev dashboards — use these endpoints to populate dropdown menus and user/tenant selectors. Instead of hard-coding a list of test users or maintaining them in configuration, your code is the source of truth:
+With the application running, open [Lens](/tools/lens/) and check that its user and tenant pickers contain the entries your providers return. An empty picker can mean no provider is registered or its list is empty; also check that Lens can reach the discovery endpoints under your access settings.
 
-- The tool fetches `/.cratis/users` to populate user-selection dropdowns
-- The tool fetches `/.cratis/tenants` to populate tenant-selection dropdowns
-- Developers can switch context without rebuilding
+Selecting a user or tenant makes Lens attach the corresponding identity and tenant headers to matching requests within its configured scope. The backend must still be configured to accept that development identity through its [authentication setup](../core/authentication.md). Returning a user from `ICanProvideUsers` does not establish a trusted principal by itself.
 
-With Lens specifically: once a tenant or user is selected in the extension popup, every subsequent request from the page under inspection carries the matching tenant header and identity headers, so your backend's [tenant resolution](../tenancy/resolvers.md) and [identity provider](./provider-flow.md) see the switch exactly as they would from a real caller — no restart, no manually crafted headers.
-
-You can have **multiple providers** — all registered providers are discovered and their results merged. This is useful when users or tenants come from different sources (database, configuration, external service).
+After switching context, inspect a response that uses [tenant resolution](../tenancy/resolvers.md) or refresh the frontend identity through the [provider flow](./provider-flow.md). This checks the selected context through the backend, rather than only confirming the selection in the popup.
 
 ### Multiple Providers
 
-You can implement multiple providers of the same interface. All will be discovered and their results combined. This is useful when users or tenants come from different sources (configuration, database, external service) — each source gets its own provider, and Arc merges them automatically.
+When users or tenants come from different sources, implement a development provider for each source. Arc discovers all registered implementations of `ICanProvideUsers` and `ICanProvideTenants` and combines their results. This differs from `IProvideIdentityDetails`, where Arc selects one provider to compose the caller's details.
 
 ## Service Topologies
 
-In a microservices architecture, you have several implementation options:
+Start with `IProvideIdentityDetails` in the service that has the display data the frontend needs. If that data spans services, your application can compose it at ingress, in a reverse proxy, or in a dedicated identity service. Arc does not perform that cross-service aggregation for you.
 
-1. **Single service** — Implement `IProvideIdentityDetails` in the main service
-2. **Multiple services** — Let ingress or reverse proxy call multiple services and merge the results
-3. **Dedicated identity service** — Aggregate identity data in a specialized service
-
-Choose the topology that best fits your architecture and operational model. Cross-service aggregation is application-owned; do not forward identity details as authorization evidence. Preserve trusted authentication and enforce permissions at each service boundary.
+Choose the composition point according to who owns the data and the calls needed to retrieve it. Wherever you assemble the frontend payload, do not forward it as authorization evidence. Preserve trusted authentication and enforce permissions at each service boundary; the [identity provider flow](./provider-flow.md) explains where presentation data enters the response.

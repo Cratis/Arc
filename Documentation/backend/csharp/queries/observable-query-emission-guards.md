@@ -1,19 +1,19 @@
 ---
-title: Observable query emission guards
-description: Re-check access before observable query emissions, hub snapshots, and observable HTTP snapshots.
+title: Recheck Cratis Arc query access with emission guards
+description: Use Cratis Arc emission guards to recheck access before delivering query results, suppress an update, or end a subscription when access changes.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Authorization for an observable query runs when the subscription is established. That verdict decides whether the caller may **obtain** the live stream — it says nothing about the minutes or hours the stream then stays open.
+An emission guard in Cratis Arc rechecks access before a query update reaches the caller. Use one when a session can end or membership can change while an observable query stays open; subscription-time authorization alone does not check those later changes.
 
-That is fine for most applications. Subscriptions end when the user navigates away, the tab closes, or the server shuts down. But a subscription has no other reason to end: nothing terminates it when a token expires, a session is signed out, or a role is revoked. Keep-alive pings deliberately stop proxies from culling an idle connection, and the client reconnects and re-subscribes on its own.
+Implement `IGuardObservableQueryEmission` to check the current session or permission before delivery. Arc calls guards for observable emissions on the multiplexed hub, direct WebSocket and Server-Sent Events (SSE) connections, and HTTP snapshots. Guards also check non-streaming query results delivered through the hub. [Read-model interception](read-model-interception.md) runs before the guard, so the access decision applies before the intercepted result leaves the server.
 
-An **emission guard** closes that gap. Implement `IGuardObservableQueryEmission` and Arc consults it for every emission an observable query is about to write, on every transport — the multiplexed hub, direct WebSocket/SSE connections, and plain-HTTP observable snapshots alike. Guards also check non-streaming query results delivered through the hub. Read-model interception runs before the guard.
+A guard runs when there is a result to deliver, not on a timer. It can stop the next delivery after access changes; it does not by itself disconnect an idle subscription at the instant a session expires.
 
 ## Writing a guard
 
-Illustrative application integration fragment: `ISessions` is your application's real session store contract, not an Arc API. Supply and register an implementation that checks authoritative session state; do not replace it with an always-true stub. This guard deliberately requires a session for every stream or hub snapshot it evaluates.
+To stop delivery after sign-out, look up the session identified by the caller's `sid` claim. In this example, `ISessions` is an application-owned contract, not an Arc API. Register an implementation backed by your session store. This guard requires an active session for every stream or hub snapshot it evaluates, including queries that otherwise permit anonymous access.
 
 ```csharp
 using System.Threading.Tasks;
@@ -43,7 +43,7 @@ public class SessionMustStillBeActive(ISessions sessions) : IGuardObservableQuer
 }
 ```
 
-That is the whole opt-in. Guards are discovered by convention — no registration, no configuration. An application with no guard builds no emission context and dispatches nothing; emissions take their existing path. A filter that supplies a scope still incurs the subscription-time snapshot, even if no guard is installed.
+Arc discovers guard implementations by convention; you do not register the guard itself. Its dependencies, such as `ISessions`, must be available from dependency injection. Without a guard, Arc skips emission-guard dispatch. A filter-supplied subscription scope is still captured when the query starts.
 
 ## Compare the scope captured at subscription time
 
@@ -51,7 +51,7 @@ When a query filter chooses which organization's data to stream, its decision ma
 
 Controller-based observable queries do not run `IQueryFilters` through `QueryActionFilter.EstablishQueryContext`. Their emission guards always receive a `null` subscription scope; use a query handled by Arc's query pipeline if you need a filter-supplied scope.
 
-This application integration fragment uses `IMemberships` as an application-owned contract. Supply an implementation backed by authoritative membership state; `CurrentOrganizationId` must return the current organization, not a value cached at login. Replace the query name with your observable query's fully qualified name. The query itself must use the same filter-derived organization to select its data — setting the scope alone does not filter results.
+The next example captures the organization chosen when the subscription starts, then compares it with current membership before delivery. `IMemberships` is an application-owned contract: its implementation must read current membership rather than a login-time cache. Replace the query name with your query's fully qualified name and use the same filter-derived organization in the query's data selection. Setting `SubscriptionScope` records the decision; it does not filter rows.
 
 ```csharp
 using System.Security.Claims;
@@ -115,13 +115,15 @@ public class OrganizationMustStillMatch(IMemberships memberships) : IGuardObserv
 }
 ```
 
-For example, a subscription established while membership is `former` captures `former`. If membership changes to `new` with **unchanged query arguments**, the next emission still carries `former`, and the guard returns `DenyAndTerminate`. A subscription created after the change captures `new` independently. With no scope supplied, the emission context's scope is `null`; a supplied scope that cannot be serialized and restored fails the query explicitly as `InvalidSubscriptionScope` rather than silently becoming `null`. Keep the scope small: prefer primitives or records of primitive values. Only data serialized by Arc's `JsonSerializerOptions` survives the snapshot. Private fields, `[JsonIgnore]` members, and derived members of non-polymorphic base-typed properties are dropped even when the remaining value can round-trip. Do not put live services or mutable authorization caches in it.
+If a subscription captures `former` and membership later changes to `new`, the next emission still carries `former`. The guard denies that delivery even though the query arguments have not changed. A new subscription captures `new` independently.
+
+Keep the scope small, using primitives or records of primitive values. Arc snapshots it with its configured `JsonSerializerOptions`; private fields, `[JsonIgnore]` members, and derived members of non-polymorphic base-typed properties do not survive serialization. Live services and mutable authorization caches therefore do not belong in the scope. An absent scope is `null`. A supplied scope that cannot be serialized and restored fails the query as `InvalidSubscriptionScope` rather than silently becoming `null`.
 
 ## The three verdicts
 
 | Verdict | What happens |
 | --- | --- |
-| `Allow` | The emission is written unchanged. |
+| `Allow` | The intercepted emission is delivered. |
 | `Suppress` | This one emission is withheld. The subscription stays live and the next emission is evaluated again. |
 | `DenyAndTerminate` | Nothing is written, the client is told it is unauthorized, and this subscription is torn down. |
 
@@ -141,37 +143,35 @@ For the single-query WebSocket transport, `IsFirstEmission` stays true until a c
 
 Custom `IWebSocketConnectionHandler` implementations can also implement `IWebSocketMessageSender` to report explicit write outcomes. Only `WebSocketSendStatus.Sent` advances delivery state. The existing `SendMessage` contract remains available, but its null return cannot confirm a write: legacy-only handlers are treated as unconfirmed, so their first-emission hint stays true and they do not increment delivered-push telemetry. The hint is best-effort delivery state, not an authorization boundary.
 
-The principal is handed over **explicitly**. Emissions arrive on the producing stream's own thread, where the request's `AsyncLocal` context does not flow, so a guard that reached for an ambient accessor would see the wrong identity — or none at all.
+Use the principal supplied in the context. A producer can emit outside the original request's execution context, so an ambient `AsyncLocal` value is not a reliable source for the subscription's identity.
 
 ## Several guards
 
-Every guard is asked, and the most restrictive verdict wins: `DenyAndTerminate` over `Suppress` over `Allow`. The first `DenyAndTerminate` short-circuits the rest.
+The most restrictive verdict wins: `DenyAndTerminate` takes precedence over `Suppress`, which takes precedence over `Allow`. A denial stops evaluation immediately. Do not make one guard depend on another having run first; discovery order is not a public contract.
 
 ## Failing closed
 
-A guard that throws is treated as `DenyAndTerminate`. The failure is logged at `Error` and never rethrown.
+A non-fatal exception while constructing or running a guard is logged at `Error` and treated as `DenyAndTerminate`. Arc withholds the result rather than treating an unavailable access check as permission to deliver it.
 
-This is deliberate. A guard that failed open would leave an application believing its stream is protected while it keeps flowing — which is worse than having no guard at all, because nobody goes looking.
+Because all discovered guards apply across queries, a guard that cannot be constructed can deny deliveries throughout the application. Check its real constructor and dependency registrations, not only its `Guard` method. The client sees an unauthorized result; use the server log to distinguish a failed check from an intentional denial.
 
-Know the blast radius before you write one. The aggregator is a process-wide singleton over every discovered guard type, so a single guard that cannot be constructed at all — an open generic, or one whose constructor takes something the subscription scope cannot resolve — denies **every** observable query in the application, on every transport, for as long as the process runs. The only symptom is the `Error` log; clients simply see their subscriptions end as unauthorized. Cover a new guard with a spec that exercises its real constructor.
-
-One exception is carved out: if the subscription's own `CancellationToken` is canceled while the guard is running, the resulting `OperationCanceledException` is the client going away, not a guard failing. The emission is still withheld and the subscription still ends, but nothing is logged as a failure — otherwise every closed tab would produce an authorization error.
+Honor the context's `CancellationToken` in asynchronous lookups. An `OperationCanceledException` caused by cancellation of that token ends delivery without an error log: a client disconnect is ordinary teardown, not a failed authorization check.
 
 ## Cost
 
-The guard runs on **every** emission of **every** subscription. Keep it fast: prefer cached state, a local revocation list, or a short-TTL lookup over a network round trip per emission.
+Delivery waits for the guard on every emission of every subscription. Choose a lookup that meets your revocation needs without unnecessary work: a local revocation list or short-lived cache may avoid a remote lookup, but stale entries delay an access change taking effect.
 
-**The guard instance itself is constructed per emission.** Guards are resolved with `GetServiceOrCreateInstance`, and Arc's `IFoo → Foo` convention does not match a guard named for what it decides (`SessionMustStillBeActive` implements `IGuardObservableQueryEmission`, not `ISessionMustStillBeActive`), so unless the application registers the type explicitly it is newly constructed — constructor and all — for every emission, and never disposed. Keep the constructor trivial, and put any cache in an injected singleton rather than in a field on the guard, where it would be thrown away and rebuilt each time.
+Arc resolves guards with `GetServiceOrCreateInstance`. Unless you explicitly register the concrete type, a guard such as `SessionMustStillBeActive` is constructed for each emission and is not tracked for disposal. Its name does not match Arc's `IFoo → Foo` registration convention. Keep the constructor trivial and put shared state, such as a cache, in an injected service rather than rebuilding it in the guard.
 
-Resolve collaborators through the constructor. They come from the subscription's own scope and are disposed with it, so a guard can safely hold a scoped session store or tenant-aware service.
+Resolve scoped collaborators through the constructor. They come from the subscription's service scope and are disposed with it, so the guard can use a scoped session store or tenant-aware service.
 
 ## Where it does not help
 
-Guards protect emitted values, including observable HTTP snapshots and non-streaming hub results; they do not replace subscription-time authorization or safe data selection. Direct HTTP non-observable queries do not invoke emission guards: those requests authenticate again on each call. Apply query authorization to every query and keep [read-model interception's opt-out boundaries](read-model-interception.md) in mind.
+Guards protect delivery, not data selection. Keep subscription-time authorization and caller-scoped storage queries in place. Direct HTTP non-observable queries do not invoke emission guards; each request goes through its normal authentication and query authorization. Review [read-model interception's opt-out boundaries](read-model-interception.md) when a response also depends on a transformation.
 
 On a WebSocket the principal is frozen at the handshake — the protocol offers no way to present fresh credentials on an established connection. The identity a guard receives on a WebSocket subscription is the one captured when the socket was upgraded, and it does not change for the life of that connection.
 
-That does not make the guard useless there; it makes it a lookup rather than a re-read. Take the identity from the context and ask your own source of truth — a session store, a token introspection endpoint, a revocation list — whether that identity is still good.
+Use that captured identity to look up current session or permission state, rather than expecting its claims to change in place. After implementing the guard, verify denial both before the first result and after earlier results have been delivered, through each transport you expose.
 
 ## See also
 

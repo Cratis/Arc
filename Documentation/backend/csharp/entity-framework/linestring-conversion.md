@@ -1,13 +1,13 @@
 ---
-title: LineString conversion
-description: Explicitly convert a route to a JSON string in an EF model.
+title: Entity Framework Core LineString conversion
+description: Store a Cratis LineString as a plain JSON string with AsLineString(), keeping route validation and native spatial mapping separate.
 ---
 
-A route contains an ordered sequence of points. `AsLineString()` stores that sequence using plain JSON string conversion; `BaseDbContext` does not apply it automatically.
+Use `AsLineString()` to store a route's ordered points as a plain JSON string in Entity Framework Core. Configure the property explicitly: `BaseDbContext` does not apply this converter automatically, and it does not provide native spatial mapping.
 
 ## Define and configure a route
 
-Model declaration:
+Define a route with a `Cratis.Geospatial.LineString` property:
 
 ```csharp
 using Cratis.Geospatial;
@@ -25,7 +25,7 @@ In your context's `OnModelCreating`, with `Cratis.Arc.EntityFrameworkCore` and `
 modelBuilder.Entity<DeliveryRoute>().Property(route => route.Path).AsLineString();
 ```
 
-A construction fragment for use inside a method:
+Inside a method, construct the route from points in longitude, latitude order:
 
 ```csharp
 var route = new LineString([
@@ -40,11 +40,11 @@ The converter's plain `System.Text.Json` output is:
 {"Coordinates":[{"Longitude":-122.4194,"Latitude":37.7749},{"Longitude":-122.4185,"Latitude":37.775}]}
 ```
 
-This is **not GeoJSON**. The type and converter do not enforce the minimum two points needed for a valid geographic line. Validate the sequence before persisting it.
+This is not GeoJSON, the geographic JSON format that uses a geometry type and numeric coordinate arrays. Neither the `LineString` record nor its string converter enforces a minimum of two points. Validate the sequence before persisting it.
 
 ## Storage and queries
 
-`AsLineString()` sets a value converter, not a SQL column type, spatial index, or structural value comparer. Do not assume record equality on coordinate arrays compares their contents, or that nested-coordinate LINQ expressions translate to SQL. Test any equality/change-tracking behavior your application depends on.
+`AsLineString()` sets a value converter; it does not select a SQL column type or create a spatial index. It also does not add a structural value comparer to compare coordinate-array contents. Test the equality and change-tracking behavior your application depends on, especially when modifying an array in place. String conversion alone does not translate nested-coordinate LINQ expressions into SQL.
 
 There is no `LineStringColumn()` helper for `CreateTable`. The separate `AddLineStringColumn()` migration helper declares `geometry(LineString, 4326)` on PostgreSQL, `geography` on SQL Server, and `TEXT` on SQLite. It does not make the string converter compatible with native spatial columns.
 

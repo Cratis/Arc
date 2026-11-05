@@ -1,6 +1,6 @@
 ---
 title: Assembly-to-package mappings
-description: Import external model types from an existing npm package.
+description: Cratis Arc assembly-to-package mappings import shared model types from existing npm packages instead of generating duplicate TypeScript files.
 ---
 
 When your project references types from an external assembly that already has a corresponding TypeScript npm package, you can tell the proxy generator to import those types from the package instead of regenerating them locally.

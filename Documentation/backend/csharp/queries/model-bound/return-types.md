@@ -1,6 +1,6 @@
 ---
 title: Model-bound query return types
-description: Which return types qualify for discovery and how Arc wraps their results.
+description: Cratis Arc discovers model-bound queries returning the declaring read model or supported wrappers, then wraps successful data in a query result.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->

@@ -1,6 +1,6 @@
 ---
 title: Command proxy generation
-description: Discover command endpoints and generate typed execution clients.
+description: Cratis Arc generates TypeScript command clients from controller actions and model-bound commands, including routes, responses, and React hooks.
 ---
 
 The proxy generator creates TypeScript command classes that provide type-safe command execution with React hook integration.

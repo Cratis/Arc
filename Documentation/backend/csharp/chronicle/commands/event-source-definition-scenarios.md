@@ -1,9 +1,9 @@
 ---
-title: Event source definition scenarios
-description: Route commands through an event source definition for a stream per entity, per owner and period, and per process, then decide against a stream and complete one.
+title: Cratis Arc event source scenarios
+description: Choose a Cratis Arc event stream per entity, owner and period, or process. Use the examples to route commands, prevent duplicate approvals and close streams.
 ---
 
-Use this page when you know the shape of the stream you need and want the command. Each scenario states the shape, names one recommended way with the reason, shows a complete definition and command, says what the append is checked against, and lists the alternatives. They follow [Route a command through an event source definition](./event-source-definitions.md); read that page first for the declarations.
+Cratis Arc event source definitions can route commands to one history per entity, owner and period, or process. Choose the history your rule needs below, then add a read guard if the command decides from existing state. The examples build on [event source definitions](./event-source-definitions.md) and show where routing alone is not enough.
 
 | Shape | Event source id | Stream | Stream id |
 | --- | --- | --- | --- |
@@ -11,15 +11,15 @@ Use this page when you know the shape of the stream you need and want the comman
 | [Per owner and period](#a-stream-per-owner-and-period) | The report | One stream | `{Owner}:{Period}` |
 | [Per process](#a-stream-per-process) | The customer | One stream | `{ProcessId}` |
 
-One boundary note applies to all three: a definition scope and a stream decision guard the whole source or stream, whatever the event type. In Dynamic Consistency Boundary terms that is a coarse, aggregate-like boundary. It is right when every event in the stream matters to the decisions made against it, which is why these examples use short, cohesive streams.
+These examples use short streams where every event matters to the decision. Both definition scopes and stream decisions guard the selected history across all event types; neither isolates just one fact such as an approval.
 
-Chronicle has one event source per event. Every shape here chooses a stream within one event source; a rule over several entities is several events, one per event source, in one batch. See [Chronicle's DCB scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) for that side.
+Each event belongs to one event source. If a rule spans several entities, append an event for each source in one batch and guard the relevant histories. [Chronicle's Dynamic Consistency Boundary scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) cover those cross-entity decisions.
 
 ## A stream per entity
 
-**Shape:** everything that happens to one account is one history, and a competing write to the same account conflicts.
+Use one account history when writes for that account should compete, regardless of stream or event type. Select the `EventSourceId` dimension on the definition and route the command through its named stream. This declares the stream and append policy once, with checks for undeclared stream names.
 
-**Recommended:** a definition with the `EventSourceId` dimension and one named stream, and `[EventSource<TSource>(stream)]` on the command. The reason: the stream and its guard are declared once and typo-checked. If one unnamed history per account is enough, you need no definition: the command key and the default append already give that boundary.
+If one unnamed history per account is enough, use the command key and default stream without a definition.
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -46,7 +46,7 @@ The event lands on event source `AccountId`, event source type `Account`, stream
 
 This is the default append check: it does not bind `Handle()`'s decision to what it read. For a balance rule, use a read model parameter under [read protection](../consistency/getting-started.md) `On`, or an [aggregate](../aggregates/injecting-into-commands.md).
 
-**Alternatives:** `[EventStreamType("Transactions")]` and `[EventSourceType("Account")]` strings (ARCCHR0013 suggests the definition); an aggregate root when the account has rich behaviour; an exact scope when the caller supplies the revision it saw.
+Existing `[EventStreamType("Transactions")]` and `[EventSourceType("Account")]` strings still route events, though ARCCHR0013 suggests the matching definition. Use an aggregate for account behaviour that needs its state, or an exact scope when the caller supplies the revision it saw.
 
 ### Per-stream monthly state
 
@@ -54,9 +54,9 @@ For a monthly withdrawal limit, add `[EventStream<AccountEventSource>("Transacti
 
 ## A stream per owner and period
 
-**Shape:** a report is approved once per owner and month. Another owner's month, and another month of the same owner, are independent.
+Give each owner and month a separate approval history within a report. A template in `[EventStreamId]` makes that identity consistent across appends, reads and completions. `EventStreamIdTemplate.ResolveFor(command)` also lets specs resolve the same id without duplicating its format.
 
-**Recommended:** a template in `[EventStreamId]` on a definition-routed command. The reason: it is one attribute, the id is built the same way for the append, a read and a completion, and `EventStreamIdTemplate.ResolveFor(command)` reuses it in tests.
+This first command records approvals; it does not yet prevent a second one. Add the stream decision below when approval must happen only once.
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -84,15 +84,13 @@ For `Owner = "acme"` and `Period = 2026-10-01`, the append targets event source 
 
 The template reads public properties of the command. Arc normally resolves it after validation. A per-stream validator parameter needs the route earlier, so Arc resolves it before constructing that validator; a blank part returns `400` naming the property without reading. Keep the id deterministic: two commands that compute different ids for the same period do not conflict.
 
-**Alternatives:** `ICanProvideEventStreamId` when code computes the id and a template cannot express it; `[EventStreamType]` and `[EventStreamId]` strings without a definition.
+Use `ICanProvideEventStreamId` instead when the id needs logic a template cannot express. `[EventStreamType]` and `[EventStreamId]` also work without a definition if you do not need shared stream declarations.
 
 ### Decide against the stream
 
-**Shape:** the same report, but approving twice must not record a second approval, and two simultaneous approvals must not both succeed.
+To prevent duplicate approvals, read the approval history with a [stream decision](./stream-decisions.md). It captures the tail before reading, so two commands cannot both append a first approval based on the same empty history.
 
-**Recommended:** a [stream decision](./stream-decisions.md), because the rule is "has this fact already happened in this stream" and the facts are raw events in one short stream. Alternatives: a read model parameter under [read protection](../consistency/getting-started.md) `On` when the rule needs folded state or several keys, and a constraint when the rule is only uniqueness.
-
-Add the stream decision. `ForCommand()` reads the stream the command declares, definition and template included, and `Append(...)` returns the events with an exact scope at the tail it read.
+`ForCommand()` reads the route declared by the command, including the definition and template. `Append(...)` returns events with a scope tied to that captured position. If the rule instead needs folded state or several keys, use a read model parameter under [read protection](../consistency/getting-started.md) `On`. A constraint is another option for a uniqueness rule.
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -130,9 +128,9 @@ What this guards:
 - A second approval finds `ReportApproved` and returns an empty append: an identical retry, which succeeds without a check.
 - A competitor on another stream id, such as another month, does not conflict. Use `reads.StreamType(...)` to guard every stream id of the type.
 
-The scope covers every event in the stream, not only `ReportApproved`, and the whole stream crosses the wire on each command. Keep these streams short and cohesive: a period is a good stream, the life of the company is not. See [stream decisions](./stream-decisions.md) for the exact-scope rules and [how a stream decision differs from a decision read](../consistency/faq.md#event-source-definitions-and-stream-decisions).
+The scope covers every event in the stream, not only `ReportApproved`, and the whole stream is transferred on each command. Keep it bounded to the history the decision needs. See [stream decisions](./stream-decisions.md) for exact-scope rules and [the comparison with decision reads](../consistency/faq.md#event-source-definitions-and-stream-decisions).
 
-Application specs give state and assert outcomes, not concurrency simulations. Resolve the definition's route when giving prior facts; Arc's framework specs prove the scope's conflict handling. This excerpt assumes the definition and command above:
+In an application spec, seed a prior approval on the same route, execute the command and assert that it appends no new approval. Arc's framework specs cover conflict handling. The setup below uses the definition and command above:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
@@ -181,13 +179,13 @@ public class ApprovePeriodValidator : CommandValidator<ApprovePeriod>
 }
 ```
 
-The same shape can enforce a required number of approvals using `Approvals`. Keep the [stream decision](#decide-against-the-stream) for the raw “approved once” check when no folded model is needed. Do not combine its later boundary with a validator-first read.
+Use `Approvals` when the rule needs a count rather than just the approved status. For a check that needs only the raw approval fact, keep the [stream decision](#decide-against-the-stream). Choose one read path for that rule rather than mixing a validator-first model read with a later stream decision.
 
 ## A stream per process
 
-**Shape:** each customer onboarding is its own process with its own id. When the process ends, nothing more may be appended to it, and another customer's process with the same id stays open.
+Give each customer onboarding process its own stream id. When onboarding finishes, return `CompleteStream` with the final event so later commands cannot add steps to the completed stream. The command's customer id scopes completion to that customer; another customer's process with the same id stays open.
 
-**Recommended:** a stream per process id on a definition-routed command, and `CompleteStream` returned by the command that ends the process. The reason: the command already declares the route, so the completion needs no repeated type or id. Alternatives: `route.Complete()` from a reactor or another command, and an exact `CompleteStream(streamType, streamId)` when the target differs from the command's route.
+The completion uses the route already declared on the command. If another command or reactor closes the process, use `route.Complete()`. Supply `CompleteStream(streamType, streamId)` explicitly when the target differs from the command route.
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -260,13 +258,9 @@ The per-stream model is read before either validator runs and is guarded under `
 
 ### Complete the stream
 
-`new CompleteStream()` takes the stream type and stream id from the command's resolved route, so it closes `Onboarding` / `ProcessId`. Because the command has an event source id, Arc scopes the completion to that customer: another customer's process with the same id stays open. Details and limits:
+`new CompleteStream()` closes `Onboarding` / `ProcessId` for the command's customer. The events commit first and completion runs afterward, with no expected-tail guard between the two operations. If completion fails, the final event remains committed and the stream may still be open. Retry the completion rather than blindly repeating a command that emits events.
 
-- Arc completes the stream only after the command's events commit. The append and the completion are separate operations with no expected-tail guard between them.
-- A later append to the completed stream, from any command, fails with a validation result naming the closed stream.
-- The default stream id cannot be completed. A command that declares no stream id gets a validation failure.
-- Completing an already completed stream succeeds, so a repeated completion is safe.
-- Completion needs Chronicle kernel 19.39 or later.
+Once closed, an append from any command receives a validation result naming the stream. Repeating the completion itself succeeds. Completion requires Chronicle kernel 19.39 or later, and the stream must have a non-default id; a command without one gets a validation failure.
 
 A reactor or another command can close the same stream from a route instead of repeating the declaration: `routes.For<CustomerEventSource>("Onboarding").WithStreamId(processId).Complete()` returns the `CompleteStream` for it. See [completing streams](./completing-streams.md) for reactors and for asserting completion in a scenario.
 

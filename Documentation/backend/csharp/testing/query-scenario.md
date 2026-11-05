@@ -1,7 +1,7 @@
 ---
 uid: Arc.Testing.QueryScenario
 title: Query scenarios
-description: Execute snapshot queries and observe buffered query emissions through Arc's pipeline without an HTTP server.
+description: Cratis Arc query scenarios run snapshot and observable queries in process to test results, authorization, and buffered emissions.
 ---
 
 Use `QueryScenario<TReadModel>` when a static read-model query needs Arc's argument conversion, validation, authorization, dependency resolution, or result rendering in a test. A direct method call does not exercise those boundaries. This is a reference for the in-process scenario; use a hosted test for routing, middleware, scheme authentication, or transport behavior.

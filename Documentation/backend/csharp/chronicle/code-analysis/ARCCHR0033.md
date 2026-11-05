@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0033: Aggregate and read-model parameter share a source"
-description: Avoid combining aggregate and plain-model protection for the same source.
+description: ARCCHR0033 warns when a Cratis Arc command combines an aggregate and a protected plain read on the same source under On; runtime refuses this combination.
 ---
 
 ## Rule

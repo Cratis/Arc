@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0013: Use the event source definition"
-description: Replace matching legacy source and stream strings with a typed definition.
+description: ARCCHR0013 in Cratis Arc suggests replacing legacy event source and stream strings when they uniquely match a typed event source definition.
 ---
 
 ## Rule

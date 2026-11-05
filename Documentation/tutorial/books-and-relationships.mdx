@@ -1,13 +1,13 @@
 ---
-title: "3. Relate your slices"
-description: Add a second feature — books that belong to an author — and read each author's catalog back with a filtered, live query.
+title: "3. Relate books and authors with Cratis Arc"
+description: Add books to the Cratis Arc library app, link each book to an author by id, and display that author's catalog in React with a filtered observable query.
 ---
 
 import {Aside} from '@astrojs/starlight/components';
 
-An author exists to have written things. So our second feature is **adding a book to an author's catalog** — and it's the first time two slices in our app relate to each other. A book belongs to an author; we'll model that with a plain foreign key — the author's id on the book — and read a catalog back with a **filtered** query.
+Add books to the library app by storing an author's id on each book, then query the books for that id. The librarian sees each author's catalog through a filtered query, without a join between the author and book read models.
 
-Here's the shape:
+The new slice follows the same command-to-screen path as author registration:
 
 ```mermaid
 flowchart LR
@@ -23,13 +23,13 @@ Continue from [chapter 2](/arc/tutorial/validation/), using its project and one 
 On the JVM, the same four declarations go in a `books` package beside the `authors` one, each file importing what it uses — there is no global-import step. Keep the package inside the application's component-scan root so Spring finds the repository and Arc's KSP processor sees the artifacts.
 
 
-1. **Strong types for the book.** Same discipline as before — a record deriving from `ConceptAs<T>` on C#, a data class implementing `ConceptAs<T>` on the JVM:
+1. **Define the book id and title.** Use the concept pattern from chapter 1: a record deriving from `ConceptAs<T>` on C#, a data class implementing `ConceptAs<T>` on the JVM, or a concept class on TypeScript:
 
    <ArcBackendTabs snippet="tutorial/books-and-relationships/book-concepts" />
 
    The C# sentinels and the implicit conversion are conveniences, not requirements; the JVM has no implicit-conversion operator, so a Kotlin caller writes `BookTitle("...")` where C# can pass a bare string.
 
-2. **The command writes a book, tagged with its author.** `AddBook` carries the `AuthorId` it belongs to — and writes a `Book` carrying that id:
+2. **Write the book with its author id.** `AddBook` carries `AuthorId` alongside the book's own id and title, then saves those values in a `Book`:
 
    <ArcBackendTabs snippet="tutorial/books-and-relationships/add-book" />
 
@@ -56,11 +56,11 @@ Regenerate with `npm run generate` after adding the files. The [MongoDB setup](/
 
 ## Read a catalog back, filtered
 
-The read model is just the book document — it carries the `AuthorId` it belongs to. The query takes the author's id (Arc binds it by matching the parameter name) and returns only that author's books, live:
+`Book` is the read model for the catalog. Its `AuthorId` lets the query select books for one author. Arc binds the `authorId` query argument by name; the method observes books matching that id:
 
 <ArcBackendTabs snippet="tutorial/books-and-relationships/books-for-author" />
 
-The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, the JVM passes Spring Data `Criteria` naming the stored field, and TypeScript's MongoDB repository observes a filter on the collection's mapped `authorId` field. Each returns a stream — `ISubject<…>`, `Flow<List<…>>`, or `ObservableSource<Book[]>` — which is what makes the query live. On the TypeScript relational branch, the Drizzle repository uses `eq(books.authorId, authorId.value)` and announces changes after committed writes.
+C# expresses the filter as a typed predicate over `Book`. The JVM passes Spring Data `Criteria` naming the stored field, while TypeScript's MongoDB repository filters the collection's mapped `authorId` field. Each query returns a stream: `ISubject<…>`, `Flow<List<…>>`, or `ObservableSource<Book[]>`. With the observation source configured, the stream supplies updated results when matching books change. On the TypeScript relational branch, the Drizzle repository uses `eq(books.authorId, authorId.value)` and announces changes after committed writes.
 
 **On the relational branch**, read from the configured relational store instead:
 
@@ -110,7 +110,7 @@ export const Catalog = () => {
 };
 ```
 
-Adding a book is a `CommandDialog<AddBook>`, exactly like `RegisterAuthor` — the only difference is that it carries the `authorId` of the author you're adding to. Pass that in as an initial value:
+Use a `CommandDialog<AddBook>` for the write, following the author-registration form. Pass the selected `authorId` and a fresh `bookId` as initial values so the command is complete before the librarian confirms:
 
 ```tsx title="src/AddBook.tsx"
 import { useState } from 'react';
@@ -176,8 +176,6 @@ Click **Add book** beside one author, add a book, then open the dialog again to 
 
 ## What you built
 
-- A second slice — `AddBook` — that tags each book with the author it belongs to.
-- A **relationship as a foreign key + a filtered query**: `BooksForAuthor` reads exactly one author's catalog, live, with no join.
-- A React screen that composes the two: a list of authors, each rendering its own live catalog.
+The catalog combines two slices: author registration supplies the author list, and `AddBook` writes books that `BooksForAuthor` filters by author id. The screen passes the selected id through the generated command and query contracts; the backend remains responsible for enforcing any author-existence rule.
 
-Two features, related, both live. We keep *saying* "it stays live" — next we'll make that concrete and watch a screen update itself the instant the data changes. [Let's make it live →](/arc/tutorial/real-time/)
+Next, [verify live catalog updates →](/arc/tutorial/real-time/). You'll open the catalog in two browser tabs and check which writes your configured observation source can report.

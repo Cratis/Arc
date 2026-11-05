@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0011: Plain read model in an Off command is unprotected"
-description: Off state dependencies are hints, not guarded decisions.
+description: ARCCHR0011 in Cratis Arc reports undeclared advisory reads of Cratis Chronicle state under Off, where plain reads do not enroll a guard.
 ---
 
 ## Rule

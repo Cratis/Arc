@@ -1,27 +1,33 @@
 ---
-title: Getting started (React)
-description: List authors and register a new author with generated Arc proxies, Arc's CommandForm, and Cratis Components fields in a standalone React app.
+title: Get started with Cratis Arc in React
+description: Connect a React author screen to a standalone Cratis Arc backend with generated proxies, a command form and a list that updates after registration.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-You have a backend that registers authors and streams an author list. Let's put a screen in front of it without writing a second API contract in TypeScript, and without wiring `value`, `onChange`, pending state, and result handling by hand for every input. Arc's generated proxies provide the request types and React hooks. Arc's `CommandForm` owns the command instance, its execution, and its feedback. Cratis Components supplies the styled, accessible fields that go inside it. Chronicle is not required.
+Connect a React screen to your standalone Cratis Arc backend so users can register authors and see the list update without refreshing. Generated TypeScript proxies carry the backend contract into React, and `CommandForm` handles the form's command instance, submission and feedback. Cratis Components supplies the fields in this example. You do not need Chronicle.
 
-This checkpoint uses the C# standalone backend and its generated paths. If your backend is the TypeScript source preview, follow its [React proxy walkthrough](/arc/backend/typescript/getting-started/continue-in-the-browser/) first; its generator and output paths differ. By the end of this page you'll type a name, submit it, and watch the author list update without a refresh.
+Continue here after the C# author walkthrough. If you built the TypeScript backend instead, use its [React proxy walkthrough](/arc/backend/typescript/getting-started/continue-in-the-browser/): its generator and output paths differ.
 
 ## Prerequisites
 
-Complete [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/), including its curl checkpoint and Debug proxy generation. Keep that backend running. This page assumes an **existing Vite + React 19 app** with `react`, `react-dom`, `@cratis/fundamentals`, `@cratis/arc`, and `@cratis/arc.react` installed. Starting from an empty frontend? Follow [the full-stack slice's browser setup](/arc/tutorial/first-slice/#set-up-the-browser-project) instead: it supplies the entry point, TypeScript configuration, and build commands.
+Complete [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/), including the curl check and Debug proxy generation, and keep that backend running on `http://localhost:5000`. Keep the storage branch you chose there: SQLite through EF Core or MongoDB.
 
-Add Components and its required peers:
+You also need a Vite + React 19 app with `react`, `react-dom`, `@cratis/fundamentals`, `@cratis/arc`, and `@cratis/arc.react` installed. If you have no frontend yet, follow [the full-stack slice's browser setup](/arc/tutorial/first-slice/#set-up-the-browser-project) first. It creates the browser project in `Library/`, sharing `src/` with the backend's generated proxies, and supplies the entry point, TypeScript configuration and build commands.
+
+From that browser project's root, add Components and its required peers:
 
 ```bash
 npm install @cratis/components@4.39.0 reflect-metadata@0.2.2 tsyringe@4.10.0
 ```
 
-The C# walkthrough uses NuGet Arc **22.156.2**, npm `@cratis/arc` and `@cratis/arc.react` **22.156.2**, Fundamentals **7.27.1**, React **19.3.1**, and Components **4.39.0**. Its [browser setup](/arc/tutorial/first-slice/#set-up-the-browser-project) pins the full toolchain. Keep `@cratis/arc` and `@cratis/arc.react` on the same version your generated proxies were produced with, within Components' peer range (`>=20.3.1 <23`); a second Arc runtime copy can make generated classes fail the type-check because of private members. See [Components setup](/components/getting-started/) for strict installers and other options. To start without Components, see [Without Components](#without-components).
+Use the C# walkthrough's baseline for this first run: NuGet Arc **22.156.2**, npm `@cratis/arc` and `@cratis/arc.react` **22.156.2**, Fundamentals **7.27.1**, React **19.3.1**, and Components **4.39.0**. The [browser setup](/arc/tutorial/first-slice/#set-up-the-browser-project) pins the rest of the toolchain.
 
-The checkpoint below imports from `./Authors/RegisterAuthor` and `./Authors/Author`, where the backend setup's source-file grouping places the `AllAuthors` query beside the `Author` type. Without `CratisProxiesUseSourceFileAsOutputFile`, each query gets its own file, so import `AllAuthors` from `./Authors/AllAuthors` instead. Match the paths to your configured output directory and namespace mapping. There is **no generated `Bindings` startup file**.
+Keep both Arc npm packages on the version used by your generated proxies and within Components' peer range (`>=20.3.1 <23`). A second Arc runtime copy can make generated classes fail the type-check because their base classes have private members. See [Components setup](/components/getting-started/) for other installation options, or [Without Components](#without-components) to use Arc's built-in fields.
+
+Before adding the screen, check that `src/Authors/RegisterAuthor.ts` and `src/Authors/Author.ts` exist. The C# setup enables `CratisProxiesUseSourceFileAsOutputFile`, which groups `AllAuthors` with `Author`; the imports below use that layout. If you use an existing frontend in a different directory, make sure the configured proxy output is available to it and adjust those imports. Regenerate with a Debug build after changing a backend contract.
+
+Without source-file grouping, `AllAuthors` has its own file and the import becomes `./Authors/AllAuthors`. There is no generated `Bindings` startup file to import; mounting `<Arc>` initializes the bindings.
 
 ## Load the Components styles
 
@@ -34,7 +40,7 @@ import '@cratis/components/styles';
 import '@cratis/components/theme';
 ```
 
-`tokens` supplies shared CSS variables, `styles` supplies component structure, and `theme` adds the baseline appearance, including dark mode. The stylesheet subpaths ship no type declarations, so current TypeScript releases report `TS2882` for each import. Declare them once in `src/cratis-components-styles.d.ts`:
+These imports load shared CSS variables, component structure and the baseline theme, including dark mode. If TypeScript reports `TS2882` for the stylesheet imports, declare the subpaths once in `src/cratis-components-styles.d.ts`:
 
 ```typescript title="src/cratis-components-styles.d.ts"
 declare module '@cratis/components/tokens';
@@ -102,9 +108,13 @@ export const App = () => (
 );
 ```
 
-Here is what you did not write. `CommandForm` creates one `RegisterAuthor` instance from the generated class and seeds it from `initialValues`. `InputTextField` binds to `name` through the typed accessor `c => c.name`, so there is no `value`/`onChange` pair to keep in sync. Submitting the form executes the command, shows validation messages beside the field they belong to, and shows a safe message when the server throws. `RegisterButton` renders **inside** the form, so `useIsCommandExecuting()` reads that form's in-flight state; the same hook called in `Authors` would be outside the form and throw.
+`CommandForm` creates a `RegisterAuthor` instance and seeds it from `initialValues`. The field's `c => c.name` accessor binds the input to the generated command, so you do not need a separate `value`/`onChange` pair. Submitting executes the command. If the backend returns validation messages, the form shows them beside the matching field; server exceptions get a safe message.
 
-The backend requires both `Id` and `Name`. Its `AuthorId` concept maps to a Fundamentals `Guid` in the generated command. Create an ID **once per new registration**, keep it while editing or retrying, and generate the next one only after success. The user never types the ID, so it belongs in `initialValues`. Changing `initialValues` after mount does not repopulate the form, which is why the form is keyed by the ID: a new ID after success mounts a fresh form with an empty name.
+Keep `RegisterButton` inside `CommandForm`. Its `useIsCommandExecuting()` hook reads that form's pending state to disable submission. Calling the same hook in `Authors` would put it outside the form's context and throw.
+
+The backend requires both `Id` and `Name`. Its `AuthorId` concept maps to a Fundamentals `Guid` in the generated command. Create the ID once for each new registration and keep it while editing or retrying. It belongs in `initialValues` because the user does not enter it.
+
+After success, `onSuccess` creates the next ID. The form's `key` changes with it, mounting a fresh form with an empty name. Changing `initialValues` alone after mount does not repopulate the form.
 
 `<Arc>` initializes the runtime bindings and provides command, identity, messaging, and query-cache contexts. `CratisComponentsProvider` supplies Components' locale and labels; it does not replace `<Arc>`.
 
@@ -123,7 +133,11 @@ server: {
 
 ## Check the round trip
 
-Type-check and build your frontend, then start it with your app's Vite command. You should see the author saved by curl. Enter a new name and submit: “Author registered.” should appear, with an empty name field ready for the next author. Register a second new name, reload, and confirm all three authors remain. Each registration must have a different id in the query response. The list should update without a refresh when the backend's `Observe()` source emits the changed collection: MongoDB change streams, or EF Core's `SaveChanges` notifications in the same host. If loading fails, check the browser network requests and both Vite proxy targets before changing the UI. Arc transports those emissions; executing a command alone does not create a persistence subscription.
+Type-check and build your frontend, then start it with your app's Vite command. You should see the author saved by curl in the backend walkthrough.
+
+Enter a new name and submit. “Author registered.” should appear, the name field should clear, and the list should update without a refresh. Register another name, reload, and confirm all three authors remain, each with a different id in the query response.
+
+The live update comes from the backend's `Observe()` source: MongoDB change streams or EF Core's `SaveChanges` notifications in the same host. Arc transports those emissions to `AllAuthors.use()`; executing a command alone does not create a persistence subscription. If loading fails, check the browser's network requests and both Vite proxy targets before changing the UI.
 
 ```mermaid
 flowchart LR
@@ -140,7 +154,7 @@ The backend checkpoint has no validation rules yet, so a blank name is registere
 
 ## Without Components
 
-Components is optional for Arc. If you don't want the Components package, stylesheets, and provider, Arc ships its own basic field set that works inside the same `CommandForm`. That is the shorter route: skip the Components install and styles, remove `CratisComponentsProvider`, and take `InputTextField` from Arc instead:
+You can keep the same form without adopting Components. Skip its installation and stylesheet imports, remove `CratisComponentsProvider`, and import Arc's built-in `InputTextField` instead:
 
 ```tsx
 import { CommandForm, InputTextField, useIsCommandExecuting } from '@cratis/arc.react/commands';
@@ -150,7 +164,7 @@ The rest of `App.tsx` stays the same. See [CommandForm field types](./command-fo
 
 ### Own the whole sequence yourself
 
-When an application must control every step itself, such as a design system whose inputs cannot be wrapped as command form fields, you can drive the generated command hook directly. This is the longer route: you bind every input and track the pending state and the result yourself, which `CommandForm` does for you above. The component replaces `Authors` from the Components version:
+Use the generated command hook directly when your application needs to own submission, input binding and feedback. For example, an existing design system may have inputs that cannot be wrapped as command form fields. This version replaces `Authors` above and tracks the pending state and result itself:
 
 ```tsx
 import { useState } from 'react';
@@ -207,11 +221,11 @@ function Authors() {
 }
 ```
 
-Mount it with `<Arc><Authors /></Arc>`. The hook reads initial values when it creates the command, not on every render, so after success the component resets both the change-tracking baseline and the current values to the next ID. Validation messages are not displayed here; read them from the result yourself. See [Commands in React](./commands/react-usage.md) for the hook contract.
+Mount it with `<Arc><Authors /></Arc>`. The command hook reads initial values only when it creates the instance. After success, this example therefore resets both the change-tracking baseline and current values to the next ID. It does not display validation messages; your UI must read and display them from the result. See [Commands in React](./commands/react-usage.md) for the hook contract.
 
 ## Parameterized queries
 
-When you add a generated `BooksForAuthor` query with an `authorId` parameter, pass an argument object, not the ID directly. This illustrative component fragment assumes that query and its book model already exist:
+Once the author screen works, you can use a selected author to load related data. If you add a `BooksForAuthor` query with an `authorId` parameter, pass an argument object to its generated hook. This fragment assumes you have created that query and its book model:
 
 ```tsx
 const [books] = BooksForAuthor.use({ authorId });

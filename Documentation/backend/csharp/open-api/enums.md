@@ -1,6 +1,6 @@
 ---
-title: Enums
-description: Match OpenAPI enum schemas to the effective JSON converter's wire values.
+title: Enum wire values in Cratis Arc OpenAPI
+description: Cratis Arc maps OpenAPI enum schemas to the effective JSON converter's wire values, including numeric defaults and string converter values.
 ---
 
 Arc serializes enums numerically by default. `EnumSchemaTransformer` describes the values written by the effective JSON converter, so the OpenAPI schema agrees with the wire format.

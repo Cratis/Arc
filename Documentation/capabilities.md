@@ -11,8 +11,9 @@ This matrix covers two backend implementations: [C# on ASP.NET Core](/arc/backen
 capability exists in the language you work in before you design around it.
 
 :::note[Arc for TypeScript]
-[Arc for TypeScript](/arc/backend/typescript/), a third implementation for Node.js, is in
-source preview and is not in this matrix: a column here needs evidence behind every cell.
+[Arc for TypeScript](/arc/backend/typescript/), a third implementation for Node.js, is
+available from source, with no published npm package. It is not in this matrix: a column
+here needs evidence behind every cell.
 Its [capability reference](/arc/backend/typescript/reference/capabilities/) gives the status
 of each capability, the spec or check that proves it, and where it deliberately differs from
 Arc on .NET. It makes no full-parity claim.

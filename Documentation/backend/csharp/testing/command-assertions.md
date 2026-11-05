@@ -1,16 +1,16 @@
 ---
 uid: Arc.Testing.CommandAssertions
-title: Assert command decisions and validators
-description: Assert returned events, rejections, and validator messages in plain specs without running the command pipeline.
+title: Cratis Arc command decision and validator assertions
+description: Assert returned events, exact rejection reasons, and validator messages in Cratis Arc specs without running the command pipeline.
 ---
 
-Call `Handle()` directly to specify a command's decision, and run a validator directly to specify its rules. The helpers on this page work in plain `Specification` classes: no scenario, host, service container, or Chronicle kernel is needed.
+Use Cratis Arc's decision assertions after calling `Handle()` directly to check the event or rejection it returns. Run a validator directly when you need to check a rule's exact message. Both work in plain `Specification` classes without a scenario or host.
 
-These assertions do **not** run authorization, discovery, `Provide()`, or the command pipeline. A returned event is not proof that it was appended. Use [CommandScenario](./command-scenario.md) for pipeline behavior and [Chronicle append assertions](./chronicle.md#testing-commands-that-use-eventforeventsourceid) for actual appends.
+Choose these helpers for decision logic, not framework integration. They do not run authorization, discovery, `Provide()`, or the command pipeline. Use [CommandScenario](./command-scenario.md) to check those connections. If your application uses Cratis Chronicle, [append assertions](./chronicle.md#testing-commands-that-use-eventforeventsourceid) check persistence separately: returning an event does not prove that it was appended.
 
 ## Specify a returned decision
 
-For example, an application can define this command, event, concept, and validator (normally in separate files):
+This inventory example accepts a positive quantity and returns `ItemAdded`; zero or negative quantities produce a rejection. It also defines a validator for the command. Keep these declarations in separate files in an application; they are together here so you can see what the specs exercise:
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -63,7 +63,7 @@ public class when_adding_items : Specification
 }
 ```
 
-For a rejection, assert its exact message or its machine-readable reason:
+For the zero-quantity case, check the exact message or the `ValidationResultReason` value that identifies the kind of rejection. These assertions distinguish the intended rule from an unrelated failure:
 
 ```csharp
 var decision = new AddItem(new Quantity(0)).Handle();
@@ -88,7 +88,7 @@ Decision failures throw `CommandDecisionAssertionException`. These helpers never
 
 ## Specify a validator directly
 
-Import `Cratis.Arc.Testing.Validation`. The receiver is `IValidator<T>`, so the same helpers work for command validators, concept validators, and plain FluentValidation validators:
+Use `ShouldReject` to specify the validator independently of `Handle()`. Import `Cratis.Arc.Testing.Validation`; the helpers accept `IValidator<T>`, so they also work for concept validators and plain FluentValidation validators:
 
 ```csharp
 using Cratis.Arc.Testing.Validation;
@@ -119,7 +119,7 @@ For validators with asynchronous rules, use `await validator.ShouldAcceptAsync(c
 
 ## Assert a returned event's target
 
-With `Cratis.Arc.Chronicle.Testing`, import both helper namespaces to select the routed overloads:
+When a decision returns `EventForEventSourceId`, check both the payload and its intended event source, the identity whose history should receive it. With `Cratis.Arc.Chronicle.Testing`, import both helper namespaces to select the routed overloads:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
@@ -141,4 +141,6 @@ decision.ShouldBeAccepted().ShouldContainEvent<ItemAdded>(source);
 
 `ShouldTarget(id)` returns the routed wrapper. Its `ShouldBeEvent<TEvent>()` asserts the payload, not the wrapper. For a returned `IEnumerable<EventForEventSourceId>`, `ShouldContainEvent<TEvent>(id, predicate?)` requires the source and exact payload type to match; omit `id` to search across sources. `ShouldBeEventAssignableTo<TEvent>()` and `ShouldContainEventAssignableTo<TEvent>(id, predicate?)` explicitly accept derived payloads. Null collections, entries, and payloads cannot match.
 
-The general object helpers deliberately do not unwrap Chronicle wrappers. Keep the routed static type and import the Chronicle testing namespace. For a `Result`, chain `ShouldBeAccepted()` first. These checks prove the **returned target**, never an append: keep [scenario append assertions](./chronicle.md#testing-commands-that-use-eventforeventsourceid) when persistence is part of the behavior.
+The general object helpers do not unwrap Chronicle wrappers. Keep the routed static type and import the Chronicle testing namespace. For a `Result`, chain `ShouldBeAccepted()` first.
+
+Once the returned decision is covered, add [scenario append assertions](./chronicle.md#testing-commands-that-use-eventforeventsourceid) if persistence is part of the behavior. For a worked example of both boundaries, follow [event-sourced command testing](./event-sourced-commands.md).

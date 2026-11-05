@@ -1,6 +1,6 @@
 ---
 title: Common column types
-description: Reference for Arc CreateTable column helpers and their SQL type mappings.
+description: Cratis Arc EF Core column helpers select SQL types for PostgreSQL, SQL Server, and SQLite when defining columns in CreateTable migrations.
 ---
 
 Arc's migration helpers select SQL type names for PostgreSQL, SQL Server, and SQLite. They do not configure model value converters or guarantee that an entire migration is portable.

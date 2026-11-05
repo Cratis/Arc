@@ -1,13 +1,13 @@
 ---
-title: Async data loading
-description: Load field options separately from command values, and populate a form's baseline from a query.
+title: CommandForm data loading and initial values
+description: Load select options in React and populate Cratis Arc CommandForm from a query, choosing which values establish the baseline for change tracking.
 ---
 
-Options and edited values have different owners: React can hold a product list while CommandForm owns the selected product ID. Do not create a second command to load options for the form.
+Load option lists in React state and keep the selected values on the command owned by Cratis Arc `CommandForm`. To edit an existing record, populate that same form from a query or mount it with loaded initial values. The choice determines which values count as unchanged before the user starts editing.
 
 ## Loading options for SelectField
 
-This complete component expects a generated `CreateOrder` with `productId: string` and `quantity: number`. `loadProducts` is an application-owned function that returns option objects; it is not an Arc API.
+Wait for the product list before mounting the order form so the user can choose from loaded options. This example expects a generated `CreateOrder` with `productId: string` and `quantity: number`. Supply `loadProducts` from your application; it returns the option objects and is not a Cratis Arc API.
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -51,7 +51,7 @@ Supply a stable `loadProducts` function (module-level or memoized) so parent ren
 
 ## Dependent dropdowns
 
-Read the country from a **descendant** using the zero-argument `useCommandInstance<SaveLocation>()`. This complete component expects a generated `SaveLocation` with string `country` and `city` properties. The caller supplies countries and a stable application loader.
+When one selection controls another, read the first value from inside the form rather than creating a second command. `CityField` below uses the zero-argument `useCommandInstance<SaveLocation>()` to load cities for the country being edited. The generated `SaveLocation` needs string `country` and `city` properties; the caller supplies countries and a stable city loader.
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -115,7 +115,7 @@ Changing country clears the old city synchronously during the field edit, before
 
 ## Populating a form from a query
 
-Use `populateFromQuery` when the form should establish field baselines from a single-instance read. This complete component expects generated `GetUserProfile` and `UpdateProfile` classes; the query accepts `userId` and returns a single object with matching `name`/`email` properties. If your update command also needs an ID, seed that required property explicitly—it is not inferred from query arguments.
+Use `populateFromQuery` when loaded values should become the baseline against which later edits are compared. The query must return a single object rather than a collection. This example expects generated `GetUserProfile` and `UpdateProfile` classes: the query accepts `userId` and returns matching `name`/`email` properties. If the update command also needs an ID, seed it explicitly; query arguments do not initialize command properties.
 
 ```tsx
 import { CommandForm, InputTextField } from '@cratis/arc.react/commands';
@@ -142,7 +142,7 @@ The query must be **single-instance**, not enumerable; an enumerable query throw
 
 Matching fields are seeded by name through `setInitialValues`, including falsy values. These populated properties become the change-tracking baseline. Unrelated edits are preserved when other populated properties change; a changed source value for an edited property can overwrite that edit. Decide whether live repopulation is appropriate for your editor. The `key` above deliberately creates a fresh form when the selected user changes.
 
-Population is not a loading/error UI. If editing or saving before a successful load is unsafe, load and inspect the query result in the parent and mount the form only when ready. Do not mistake `isValid` for query-loading state.
+Population does not supply loading or error UI. If editing or saving before a successful load would be unsafe, load and inspect the query result in the parent, show its loading/error state there, and mount the form only when ready. `isValid` describes validation, not whether the query has loaded.
 
 ## Initial and current values
 
@@ -153,7 +153,7 @@ Population is not a loading/error UI. If editing or saving before a successful l
 | Population query | Maps registered fields and updates their baselines when resolved values change. |
 | `currentValues` | Reactive overlay. A present key is written even if null/undefined (when allowed by the command type); an absent key leaves the property alone. Later overlay edits do not reset the baseline. |
 
-Where layers overlap, the merge order from lowest to highest priority is `currentValues`, query population, field `currentValue`, then defined `initialValues`. Avoid competing sources for the same property. For a late load that should be considered unchanged, use query population or mount a new form with loaded `initialValues`, rather than assuming every `currentValues` update resets change tracking.
+Where layers overlap, the merge order from lowest to highest priority is `currentValues`, query population, field `currentValue`, then defined `initialValues`. Give each property one source where possible so a higher-priority seed does not mask the value you expected. For a late load that should count as unchanged, use query population or mount a new form with loaded `initialValues`. Later `currentValues` updates change values without resetting the baseline.
 
 ## Per-field control
 
@@ -178,7 +178,9 @@ This **field fragment** belongs inside a form whose population query returns `Us
 />
 ```
 
-Each mounted field has a stable registration. Recreating an equivalent inline callback does not repopulate it; only committed callbacks become visible. A source or `populationKey` change evaluates the latest committed callback, including when both change in the same commit. Use a stable semantic key, not a fresh object every render. Do not put side effects in `initialValue`.
+Changing the locale changes `populationKey`, so the form recomputes the display name from the current source. Recreating an equivalent inline callback alone does not repopulate a field. When the source or key changes, the form uses the latest callback committed by React, including when both change in the same commit. Use a stable value such as the locale, not a fresh object each render, and keep `initialValue` free of side effects.
+
+Once population is in place, use the [form lifecycle callbacks](./form-lifecycle.md) to decide what happens after Save, including failures that should leave the editor open.
 
 ## See also
 

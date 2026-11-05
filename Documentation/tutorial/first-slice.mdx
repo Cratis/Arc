@@ -5,7 +5,7 @@ description: Connect the standalone author command and observable query to React
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before cataloging a book. You have a command that writes and a query that reads; now let's connect them to a screen without a hand-written API client.
+Connect the author-registration command and query to a React screen using generated TypeScript clients. By the end of this chapter, you can add an author in a dialog, see the saved name appear without refreshing, and reload the browser to confirm it was stored. This is one vertical slice: the write, read, and screen for a single behavior.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ The setup below adds Vite in the same `Library/` project root; keep components u
 
 ## Follow the backend half
 
-Arc doesn't force a folder layout. Here the author behavior stays together in `src/Authors/`: strong domain values (`AuthorId`, `AuthorName`), a command, and a read model with a query. Those files use `ConceptAs<Guid>` and `ConceptAs<string>` so the C# compiler distinguishes domain values while the generated client retains their underlying types.
+Review the backend you created before adding React. In the C# setup, `src/Authors/` holds the author command, read model, and query together; Arc does not require that folder layout. `AuthorId` and `AuthorName` are domain-specific values defined with `ConceptAs<Guid>` and `ConceptAs<string>`. The C# compiler distinguishes them from other ids and strings, while generated clients retain their underlying types.
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,7 @@ On TypeScript, create `Features/Authors/AuthorId.ts` and `AuthorName.ts` as sepa
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-concepts" variants="typescript" />
 
-The backend blocks in this section are **excerpts for comparison, not files to create again**. On C#, keep your existing `src/Authors/` files, including `LibraryDbContext.cs` for SQLite. Skip to [Build before importing](#build-before-importing) if you only need the next action. This first comparison uses document storage — MongoDB on C#, Spring Data MongoDB on the JVM:
+The next excerpts recap the backend checkpoint; do not create these types again. On C#, keep your existing `src/Authors/` files, including `LibraryDbContext.cs` for SQLite. Skip to [Build before importing](#build-before-importing) if you only need the next action. Each tab shows the slice over its backend's document store: MongoDB on C#, Spring Data MongoDB on the JVM.
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
 
@@ -56,6 +56,8 @@ MongoDB requires change streams on a replica set. EF Core receives same-host `Sa
 </Aside>
 
 ## Build before importing
+
+Generate the clients before creating React files that import them. For C#, run this from the `Library/` project root:
 
 ```bash
 dotnet build -c Debug
@@ -188,7 +190,7 @@ Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **
    };
    ```
 
-   Open this through the composition below: **mount a new instance per operation and unmount on close**. The id remains stable while editing and is fresh next time. It is required, so it belongs in `initialValues`, not `onBeforeExecute` (which runs too late to enable confirmation).
+   Use the `App` composition below to open this dialog. It mounts a new instance for each registration and unmounts it on close, keeping the id stable while editing and giving the next author a fresh id. Set the required id in `initialValues`; `onBeforeExecute` runs too late to enable confirmation.
 
 </Steps>
 
@@ -265,7 +267,7 @@ For the TypeScript backend setup, use `npx tsc6 -p tsconfig.web.json --noEmit` i
 3. Open a **new** dialog and add another author. Inspect the query data: the two new ids must differ.
 4. Reload the browser and confirm all three authors remain.
 
-These checks prove a command/query/persistence round trip. A successful build alone proves none of those effects. If the list cannot load, inspect the browser network requests and confirm both Vite proxy targets reach the running backend. If saving works but another open screen stays stale, check the observation source: SQLite notifications cover writes through this host's configured context, while MongoDB requires change streams. Do not add a manual list refresh to hide a broken subscription.
+Seeing the new name without a refresh checks the live-query path. Reloading and finding all three names checks that the writes persisted. Type-checking and bundling alone cannot establish either result. If the list cannot load, inspect the browser network requests and confirm both Vite proxy targets reach the running backend. If saving works but another open screen stays stale, check the observation source: SQLite notifications cover writes through this host's configured context, while MongoDB requires change streams. Do not add a manual list refresh to hide a broken subscription.
 
 ## Where type safety lives
 
@@ -285,4 +287,4 @@ Rename `Name` in C# (or `name` on Kotlin, Java, or TypeScript), regenerate the p
 
 ## What you built
 
-One feature now has an explicit write, a live read, and typed React callers — all over current-state storage. There's still a problem: blank and duplicate names are accepted. [Let's make it trustworthy →](/arc/tutorial/validation/)
+You have connected author registration to a live list using generated clients and current-state storage. The form still accepts blank and duplicate names. Continue to [validation →](/arc/tutorial/validation/) to reject those inputs and show the reason on the form.

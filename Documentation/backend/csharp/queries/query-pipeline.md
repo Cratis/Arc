@@ -1,6 +1,6 @@
 ---
 title: Query pipeline and result contract
-description: Model-bound execution stages, MVC differences, extension points, and QueryResult fields.
+description: Cratis Arc's query pipeline executes model-bound reads through authorization, filters, and renderers, returning data and QueryResult metadata.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
@@ -97,7 +97,7 @@ Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return 
 | `FluentValidationFilter` | Validates a matching argument model or individual supplied argument graphs |
 | `DataAnnotationValidationFilter` | Reads annotations on parameter types, not method-parameter attributes or nested DTO properties |
 
-Use `QueryResult.Unauthorized(context.CorrelationId)` for denial, not an input-validation error. `QueryResult.Success(...)` permits the next stage; it does not supply the final read data. The [query-health restriction example](query-health.md#restrict-exposure) is a complete authorization filter that targets one named query across direct model-bound and hub paths.
+Use `QueryResult.Unauthorized(context.CorrelationId)` for denial, not an input-validation error. `QueryResult.Success(...)` permits the next stage; it does not supply the final read data. The [query-health access settings](query-health.md#configure-access) control authentication and roles for the health feed across direct model-bound and hub paths.
 
 For input rules, follow [query validation](validation.md). For roles, policies, and schemes on queries, see [model-bound authorization](model-bound/authorization.md) and [authorization](../core/authorization.md).
 

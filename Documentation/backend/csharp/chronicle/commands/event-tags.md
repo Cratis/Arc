@@ -1,11 +1,11 @@
 ---
-title: Event tags
-description: Attach structured named tags to every event a command returns, from properties, handler results, or application-wide conventions.
+title: Cratis Arc command event tags
+description: Cratis Arc adds named tags to returned events without changing payloads or routing. Supply tags from command properties, results or shared providers.
 ---
 
-When events from several streams belong to the same project or import, their event source ids alone do not capture that relationship. Add named tags to the command to carry that grouping on every event it returns, without changing the events' payloads or routing.
+Cratis Arc command event tags attach named values to returned events without changing their payloads or routing. Use them when events from several streams share a project, import batch or other grouping that their event source ids do not express.
 
-These examples require [Arc's Chronicle integration](../index.md). The tag APIs below live in `Cratis.Arc.Chronicle.Commands`; `NamedTag` lives in `Cratis.Chronicle`.
+Choose the tag source by when the value is known: a command property or constant, command logic, a handler result, or an application-wide provider. These examples require [Arc's Chronicle integration](../index.md). The command tag APIs live in `Cratis.Arc.Chronicle.Commands`; `NamedTag` lives in `Cratis.Chronicle`.
 
 ## Tag from command properties
 
@@ -30,7 +30,14 @@ public record TaskImported(string Title);
 
 For `ProjectId = "project-42"`, `TaskImported` carries the named tags `projectId=project-42` and `origin=import`. You can declare multiple attributes. A concept property contributes its underlying value; other values use `ToString()`, with invariant culture for `IFormattable` values.
 
-Each attribute must specify exactly one source: a property name or `Value`. Both or neither cause `AmbiguousEventTagValue`. A property must be a readable public instance property without index parameters; an invalid name or unreadable property causes `UnknownEventTagProperty`. A null property value, or a value that renders as null, causes `EventTagValueMissing` rather than silently omitting a tag. Empty strings are valid tag values.
+Give each attribute either a property name or `Value`, not both. Arc rejects invalid declarations rather than dropping tags:
+
+| Declaration or value | Result |
+| --- | --- |
+| Both sources, or neither | `AmbiguousEventTagValue` |
+| A property that is not public and readable, has index parameters, or does not exist | `UnknownEventTagProperty` |
+| A null property value, or a value that renders as null | `EventTagValueMissing` |
+| An empty string | Accepted as a tag value |
 
 ## Compute tags on the command
 
@@ -93,13 +100,17 @@ public class CommandKindTags : ICanProvideCommandEventTags
 }
 ```
 
-Arc resolves providers per command from the command's service scope, so providers may take scoped dependencies such as tenant services. Providers run only after the command passes authorization and validation and returns events to append; validation-only calls and commands without returned events do not evaluate tags. Each provider receives the command instance and can return an empty collection for commands it does not apply to. Keep providers transient or scoped when they depend on request, user, or tenant services; do not capture those values in a singleton.
+Each provider receives the command instance and can return an empty collection when it does not apply. Arc resolves providers from the command's service scope, so they can depend on scoped tenant or user services. Keep such providers transient or scoped; a singleton must not capture request-specific values.
 
-Arc evaluates attributes, the command interface and application providers once, at the first returned-event append. Tags returned from `Handle()` join that union. `commandContext.GetEventTags()` reads only returned tags without evaluating any providers; `commandContext.ResolveEventTags()` resolves the union at append time. For a manually constructed context without a service provider or Arc's type discovery, resolution includes attribute, command-interface and returned tags, but no application-wide providers.
+Providers run at the first returned-event append, after authorization and validation, and are evaluated once per command. Validation-only calls and commands with no returned events do not evaluate them. Attribute and command-interface tags are resolved at the same point, then combined with tags returned from `Handle()`.
+
+For pipeline code, `commandContext.GetEventTags()` reads only returned tags without invoking providers. `commandContext.ResolveEventTags()` resolves the combined set at append time. A manually constructed context without a service provider or Arc's type discovery includes attribute, command-interface and returned tags, but no application-wide providers.
 
 ## Combine command and per-event tags
 
-All command sources form a union, distinct by the pair `(Name.Value, Value)`. Equal pairs occur once; the same name with different values keeps both values. A returned `EventForEventSourceId` preserves its own `NamedTags` and adds the command tags, with wrapper tags first. For an individual event, set its tags on the wrapper (handler excerpt using `TaskImported`):
+Arc combines tags by the pair `(Name.Value, Value)`. Two sources supplying `projectId=project-42` produce one tag; the same name with a different value keeps both. A returned `EventForEventSourceId` keeps its own `NamedTags` first and adds the command tags.
+
+Set tags on that wrapper when they belong to only one event. This handler excerpt uses `TaskImported` from above:
 
 ```csharp
 using Cratis.Chronicle;
@@ -112,6 +123,8 @@ public EventForEventSourceId Handle() =>
     };
 ```
 
-The same merge applies to single events, plain batches, mixed batches, and `EventsWithConcurrencyScopes`, both in a command transaction and in an immediate append. Legacy string `Tags`, routing, and per-event occurrence times are unchanged. When there are no named tags, Arc keeps its existing append calls. An alternate Chronicle event sequence or unit-of-work implementation must support named tags to accept tagged events; unsupported implementations fail rather than discard the tags.
+The same merge applies to single events, plain or mixed batches, and `EventsWithConcurrencyScopes`, whether Arc enrolls them in a command transaction or appends them immediately. Legacy string `Tags`, routing and per-event occurrence times are unchanged. With no named tags, Arc uses its existing append calls.
+
+If you supply an alternate Chronicle event sequence or unit-of-work implementation, it must support named tags. An unsupported implementation fails the tagged append rather than discarding the tags.
 
 Command tags apply to returned events, not to aggregate commits or events you append manually. Continue with [Events](./events.md) for the supported handler return shapes and [Transactional commands](./transactional-commands.md) for the commit boundary.

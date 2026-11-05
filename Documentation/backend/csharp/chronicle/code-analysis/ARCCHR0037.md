@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0037: Read model stream is not on the command route"
-description: A per-stream model parameter requires the command's own source, stream and explicit stream id in every mode.
+description: ARCCHR0037 rejects per-stream model parameters in Cratis Arc without a matching command source and stream plus an explicit stream id, in every mode.
 ---
 
 Use this diagnostic when a per-stream model cannot select the command's stream. Fix the route rather than falling back to a whole-source read.

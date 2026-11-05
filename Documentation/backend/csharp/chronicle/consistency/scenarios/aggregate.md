@@ -1,9 +1,9 @@
 ---
-title: Rich aggregate
-description: Many rules over one lifecycle, written as an aggregate root, and how it combines with read protection.
+title: Arc aggregate roots for lifecycle rules
+description: An Arc aggregate root keeps lifecycle rules together and guards its event source. Return Commit() so callers see validation and concurrency failures.
 ---
 
-Use this when one entity has many rules and state transitions, and the rules are easier to write as methods on the entity than as separate validators over a read model.
+An aggregate root keeps an entity's state transitions and rules together as methods. Choose it in Cratis Arc when those rules are easier to express on the entity than as separate validators over a read model. Here, a book copy can be lent to only one member at a time.
 
 | | |
 | --- | --- |
@@ -73,17 +73,17 @@ guard copy: types=[CopyLent, CopyReturned], after <tail when the aggregate was r
 | A read or an append after `Commit()` in the same command | Refused. Read first, return `Commit()` last. [ARCCHR0035](../../code-analysis/ARCCHR0035.md) reports it |
 | `Commit()` in a nested command | Refused with `NestedEarlyCompletionUnderReadProtection`. Commit in the outer command |
 
-Under `Off` the old rule holds: an aggregate cannot be combined with `[ProtectedDecision]` reads, and `Commit()` throws once a decision read is enrolled.
+Under `Off`, an aggregate cannot be combined with `[ProtectedDecision]` reads: `Commit()` throws once a decision read is enrolled.
 
 ## What holds
 
 - An aggregate guards its own event source and the event types it handles. A new aggregate expects an empty history, so two commands that both create it cannot both succeed.
-- A handler that returns `Commit()` reports a rejected command as a rejection.
+- `Failed()` prevents the commit when the copy is already lent. Returning the result of `Commit()` lets Arc report that rejection to the caller.
 
 ## What does not hold
 
 - An aggregate does not guard a rule across aggregates. Two aggregates for two keys each guard only their own source. Use [two read models](./two-entities.md) for that.
-- An aggregate has no snapshots, so every command reads the key's handled events again. A key with a long history gets slower.
+- An aggregate has no snapshots, so every command reads the key's handled events again. The work grows with that history.
 - A handler that fails after `Commit()` leaves its writes behind. That is the existing contract of an explicit commit.
 - A handler that awaits `Commit()` and ignores its result lets a rejected command report success. See [pitfalls](../pitfalls.md#an-aggregate-commit-whose-result-is-ignored).
 

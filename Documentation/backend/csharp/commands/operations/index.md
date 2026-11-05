@@ -1,17 +1,17 @@
 ---
-title: Command operations
-description: Keep command decisions free of side effects while Arc executes and, when safe, compensates the work they declare.
+title: Cratis Arc command operations and recovery
+description: Cratis Arc command operations separate decisions from inline side effects, with ordered execution and compensation when commitment permits recovery.
 ---
 
-A booking command often needs to decide **which seat to reserve** and then call a reservation service. Mixing those responsibilities makes a decision test depend on network substitutes, and adding a second external call soon introduces a hand-written cleanup stack.
+Cratis Arc command operations let a model-bound command describe immediate side effects without performing them inside `Handle()`. Arc executes the returned declarations in order and, if the command fails and commitment permits recovery, attempts their optional compensating actions: business work that reverses an earlier attempt.
 
-Command operations separate the decision from the work. Your `Handle()` returns immutable descriptions of what should happen. Arc executes them, handles failures, and invokes an optional business reversal when the command's commit boundary permits recovery.
+For a booking command, that means you can inspect which seat it intends to reserve without calling the reservation service. The service call happens later in the pipeline, where Arc tracks attempted work and selects recovery after a failure. You no longer have to build a cleanup stack into the decision.
 
-**Command operations are the recommended way to express immediate, inline side effects in model-bound commands.** Direct service calls remain supported; operations are useful when you want an inspectable decision, consistent execution, and framework-managed compensation. They require neither Chronicle nor a separate operation-handler class.
+Command operations are the recommended way to express immediate, inline side effects in model-bound commands. Direct service calls remain supported when the decision needs a service result. Operations require neither Cratis Chronicle nor a separate operation-handler class.
 
 ## Decide first, execute afterward
 
-An operation implements `ICommandOperation`. Its public `Execute()` method performs the work; its optional `Compensate()` method describes the reversal. Both receive services through method-parameter injection.
+An operation implements `ICommandOperation`. Its public `Execute()` method performs the work, and its optional `Compensate()` method performs the reversal. Arc supplies each method's service parameters from the command's dependency-injection scope.
 
 Your command constructs the operation without invoking either method. Calling `Handle()` directly therefore lets a spec inspect the proposed work without reserving a seat. Calling the command through Arc executes the operation. [CommandScenario](../../testing/command-operations.md) follows the same production pipeline; it does not silently replace execution with a recording stub.
 
@@ -31,13 +31,13 @@ Continue with [implementing an operation](./implementing.md) for a complete rese
 
 ## You write the reversal, not the error handling
 
-For a reservation, the reversal is canceling the reservation owned by that request. Arc takes care of tracking started operations, stopping after a failure, selecting recovery, and running compensators in reverse order.
+For a reservation, the reversal is canceling the reservation owned by that request. You implement that provider-specific action in `Compensate()`. Arc records which operations started, stops forward execution after a failure, and attempts eligible compensation in reverse order.
 
-You do not need a `try/catch`, a rollback stack, a success flag, or a switch identifying which operation failed. If an operation does not have a useful reversal, omit `Compensate()`; Arc does not invent one or report that it reversed the work.
+That tracking belongs to the pipeline, so the command needs no `try/catch` or rollback stack. If an operation has no useful reversal, omit `Compensate()`. Arc records the missing compensation without claiming to have reversed the work.
 
 Consider four returned operations. A and B complete, C enters `Execute()` and throws, and D never starts. When compensation is permitted, Arc attempts C, then B, then A. It never compensates D.
 
-Why include C? A remote service may have accepted C's request before the connection failed. A thrown exception proves that the local invocation failed—not that the external system did nothing.
+Why include C? A remote service may have accepted C's request before the connection failed. A thrown exception tells Arc that the local invocation failed. It does not establish whether the external system applied the request.
 
 :::caution[Compensation applies to attempted work]
 A compensator must be safe when its operation was partially applied or its acknowledgment was lost. Cancel by an ownership-aware request key. A simple "delete if present" can race a create request still in flight; your provider must supply appropriate terminal cancellation or reconciliation semantics. Duplicate requests must also protect previously finalized work: a new failed attempt must not cancel an earlier successful reservation because they share a key.
@@ -57,9 +57,13 @@ An unknown commit outcome is different again. A timeout may mean that the store 
 Arc handles operation failures and compensation on the server. Backend callers and scenarios can inspect recovery observations; the existing HTTP and TypeScript command-result contract stays unchanged. Clients receive the ordinary command success, validation, exception, and response behavior—not operation descriptors or a rollback protocol to implement.
 :::
 
-Compensation is best-effort and in-process. It is not a durable queue, a distributed transaction, or recovery after a process crash. Read the [commit and recovery contract](./reference.md#commit-and-recovery) before relying on reversal.
+Compensation is best-effort and in-process. It has a separate cancellation token and a shared recovery time budget, but a provider that ignores cancellation can exceed that budget. Operations provide no durable queue or recovery after a process crash. Read the [commit and recovery contract](./reference.md#commit-and-recovery) before relying on reversal.
 
 ## Choose the right boundary
+
+Operations run sequentially within a flat command boundary: do not call another command from `Execute()` or `Compensate()`. Any execution scopes that surround the command must explicitly support operations, with at most one scope coordinating a deferred business commit. The [supported scope profile](./reference.md#supported-scope-profile) explains what custom integrations must report.
+
+Choose a different mechanism when the work needs another boundary:
 
 | Your need | Prefer |
 | --- | --- |
@@ -77,12 +81,10 @@ Do not replace durable email delivery, payment workflows, or retriable webhooks 
 
 ## What to test
 
-Three boundaries answer three different questions:
+Start by calling `Handle()` directly to check the returned operation data and order. Then call the operation's `Execute()` and `Compensate()` methods with a substitute provider to check the requests they make.
 
-1. **Decision:** call `Handle()` and assert the returned operation data and order.
-2. **Operation adapter:** call `Execute()` or `Compensate()` with a substitute and verify the provider request.
-3. **Arc composition:** use `CommandScenario` with controlled dependencies to prove execution, failure, compensation, and the resulting command outcome.
+Use `CommandScenario` with controlled dependencies to check how those pieces work together: execution order, stopped work after a failure, eligible compensation, and the resulting command outcome.
 
-None proves that a production reservation provider has correct idempotency or cancellation semantics. Test that provider at its own integration boundary.
+These checks do not establish whether the production provider handles repeated requests and uncertain cancellations safely. Test that contract at the provider's own integration boundary.
 
 Follow [testing command operations](../../testing/command-operations.md) to turn this separation into executable specifications.

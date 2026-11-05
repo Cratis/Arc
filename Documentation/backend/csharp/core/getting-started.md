@@ -1,13 +1,13 @@
 ---
-title: Getting started with the lightweight host
-description: Run standalone Arc commands and queries in a console project without ASP.NET Core or an event store.
+title: Run a lightweight HTTP service with Cratis Arc.Core
+description: Create a console service with Cratis Arc.Core, expose a greeting command and query, and call them over HTTP without ASP.NET Core or an event store.
 ---
 
-Let's expose a greeting command and query from a console application. This checkpoint uses only `Cratis.Arc.Core`: no ASP.NET Core, MongoDB, EF Core, or Chronicle. A command can return ordinary response data; it does not need to append an event.
+Build a console service that accepts a greeting command and answers a query over HTTP using only `Cratis.Arc.Core`. You do not need ASP.NET Core, a database, or Chronicle: the command returns response data without appending an event.
 
 ## Prerequisites and installation
 
-Use the latest .NET SDK and current Cratis packages. The SDK must support the compiler APIs used by Arc's analyzers; that build requirement is separate from your application's target framework. Create a console project and add the lightweight package:
+Use the latest .NET SDK and current Cratis packages. Arc's analyzers need an SDK that supports their compiler APIs, even if your application targets an older framework. Create a console project and add the lightweight package:
 
 ```bash
 dotnet new console -n GreetingService
@@ -15,11 +15,11 @@ cd GreetingService
 dotnet add package Cratis.Arc.Core
 ```
 
-`Cratis.Arc` is the separate ASP.NET Core integration package. If you want Kestrel, MVC, or the ASP.NET middleware ecosystem, follow the [ASP.NET Core guide](../asp-net-core/index.md) instead. Do not add `Cratis.Arc` to this project: with it referenced, `ArcApplication` stops at startup with `Unable to resolve service for type ... IActionDescriptorCollectionProvider`, because that package's controller-based query discovery needs MVC services this host does not register.
+Use `Cratis.Arc.Core` for this host, not `Cratis.Arc`, which is the separate ASP.NET Core integration package. That package's controller-based query discovery needs MVC services this host does not register; referencing it here causes startup to fail with `Unable to resolve service for type ... IActionDescriptorCollectionProvider`. If you need Kestrel, MVC, or ASP.NET middleware, follow the [ASP.NET Core guide](../asp-net-core/index.md) instead.
 
 ## Complete example
 
-Replace `Program.cs` with this runnable checkpoint. Keep these types in the global namespace below the top-level statements: the command's conventional route is `/api/greet`. The query uses an explicit `[Path]`.
+Replace `Program.cs` with the following example. Keep the types below the top-level statements, without a namespace, so the command's conventional route is `/api/greet`. The query sets its route explicitly with `[Path]`.
 
 ```csharp
 using Cratis.Arc;
@@ -51,7 +51,11 @@ public record Greeting(string Text)
 }
 ```
 
-The build reports two `CA1050` warnings because the command and read model sit in the global namespace; that is expected in this single-file checkpoint and is what gives the command its short `/api/greet` route. `AddCratisArc` registers services and binds options. `UseCratisArc` maps Arc endpoints and schedules listener startup; `RunAsync` starts the host and waits for shutdown. Both registration and activation matter. This lesson deliberately permits anonymous access; read [authentication](authentication.md) and [authorization](authorization.md) before exposing private operations.
+The command and read model sit in the global namespace to keep the command route short. This causes two `CA1050` warnings in the single-file example.
+
+`AddCratisArc` registers services and binds options. After `Build()`, `UseCratisArc` maps the endpoints and schedules listener startup; `RunAsync` starts the host and waits for shutdown. Keep all three calls: registration alone does not start a listener.
+
+Both operations deliberately allow anonymous access. Before adding private operations, configure [authentication](authentication.md) to establish the caller and [authorization](authorization.md) to decide what they may do.
 
 ## Run and observe
 
@@ -76,7 +80,7 @@ Arc builds lowercase, kebab-cased URLs from the configured route prefix, namespa
 
 ## Configuration
 
-The following **configuration fragment** moves the listen URL into `appsettings.json` under the default `Cratis:Arc` section:
+To keep the listen URL outside `Program.cs`, add this section to `appsettings.json`. Arc uses `Cratis:Arc` by default:
 
 ```json
 {
@@ -90,7 +94,7 @@ The following **configuration fragment** moves the listen URL into `appsettings.
 }
 ```
 
-Remove the URL callback to let configuration supply it. Code options override configuration binding. The default listener URL is `http://+:5001/`; use an explicit loopback URL for local lessons. The [complete options reference](../configuration/index.md) covers environment variables, custom sections, and host-specific APIs.
+Remove the URL callback from `AddCratisArc` so configuration supplies the value; code options override configuration binding. Keep an explicit loopback URL while working locally: the default listener URL, `http://+:5001/`, is not loopback-only. Use the [complete options reference](../configuration/index.md) when you need environment variables, custom sections, or host-specific APIs.
 
 ## Adding services and integrations
 
@@ -106,7 +110,9 @@ Choose integrations only when you need them:
 
 If no endpoints respond, verify `AddCratisArc()`, `UseCratisArc()`, and `RunAsync()` are all present. For listener failures, check the port, OS URL-binding permissions, and `Hosting.ApplicationUrl`. For deployed configuration files, ensure they are copied to the output directory.
 
-Normal activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. They are anonymous only in Development by default and require authentication elsewhere; review the [production access settings](../introspection/index.md#production-access) before publishing the service. `GET /.cratis/queries` describes discovered performers, not the final route table: this example's `Get` entry reports `/greeting`, matching its `[Path]`. Introspection does not apply all final mapping/deduplication decisions.
+Activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. By default, they allow anonymous access only in Development and require authentication elsewhere. Review the [production access settings](../introspection/index.md#production-access) before deploying the service.
+
+Use `GET /.cratis/queries` to inspect discovered queries, not as a final route table. In this example, its `Get` entry reports `/greeting`, matching `[Path]`; introspection does not apply every final mapping or deduplication decision.
 
 ## Next steps
 

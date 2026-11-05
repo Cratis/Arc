@@ -1,6 +1,6 @@
 ---
 title: NumberField
-description: Bind a numeric command property to a native number input.
+description: NumberField binds a numeric command property to a number input in Cratis Arc React forms, with min, max, and step attributes.
 ---
 
 A numeric input with native min/max attributes and step increments. These attributes guide input; command range rules enforce validity because the form uses `noValidate`.

@@ -1,6 +1,6 @@
 ---
 title: RadioGroupField
-description: Select one typed command-property value from a group of radio options.
+description: RadioGroupField selects one typed command-property value from radio options in Cratis Arc React forms, with configurable layout.
 ---
 
 A grouped radio input for selecting one value from a predefined set of options.

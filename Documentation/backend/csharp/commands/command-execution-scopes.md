@@ -1,9 +1,9 @@
 ---
-title: Command execution scopes
-description: Observe model-bound command execution before filters and after response processing.
+title: Cratis Arc command execution scopes
+description: Use execution scopes to time Cratis Arc commands or coordinate resource lifetimes, with completion callbacks after response processing and on failure.
 ---
 
-Timing a command or coordinating a storage lifetime requires a callback after handling as well as before it. An execution scope supplies that pair around model-bound execution. It begins before command filters and completes after handling and response processing, including failure paths. The hook lets an integration coordinate its own resource; it does not supply a transaction by itself.
+An execution scope gives a Cratis Arc integration callbacks before a command runs and after response processing, including failure paths. Use one to measure command duration or coordinate a resource lifetime. In the model-bound pipeline it begins before command filters; the callbacks do not supply a transaction by themselves.
 
 :::tip[Use operations for per-command side effects]
 Prefer [command operations](./operations/index.md), rather than a custom scope and rollback stack, for work chosen by one command. Arc manages operation failure handling and optional compensation. Scopes remain the integration mechanism for cross-cutting lifetime and commit concerns.
@@ -18,9 +18,11 @@ Arc discovers `ICommandExecutionScope` implementations and resolves them from th
 3. Runs filters, resolves provided data and handler arguments, awaits `Handle()`, and processes its response.
 4. Calls asynchronous `Complete(context, result)` in reverse scope order, including when validation fails or execution throws.
 
-Synchronous `Begin` lets ambient state flow into the execution that follows. Plan for partial initialization: outside command-operation participation, each materialized scope completes once, even if its `Begin` never ran because an earlier scope threw. For commands whose declared return type can contain operations, only scopes whose begin was attempted complete, including the scope whose begin threw. Completion must therefore tolerate missing state. A missing handler or a failure constructing context or scopes can occur before this lifecycle is available. Pre-flight `Validate` skips it entirely.
+Plan for partial initialization. For commands whose declared return type can contain operations, completion runs only for scopes whose `Begin` was attempted, including one whose `Begin` threw. For other commands, every materialized scope completes once, even if an earlier failure prevented its `Begin` from running. Write `Complete` so it can handle missing state.
 
-Add `IAsyncCommandExecutionScope` when initialization must await work. All synchronous begins finish before asynchronous initialization starts, and context values are already built. Honor `context.CancellationToken`: cancellation or initialization failure skips filters and enters completion cleanup. Establish ambient `AsyncLocal` state in synchronous `Begin`. Changes made inside `BeginAsync` do not flow back to the caller. Neither initialization form runs during pre-flight `Validate`.
+A missing handler or a failure constructing context or scopes can occur before these callbacks are available. Pre-flight `Validate` skips them entirely.
+
+Add `IAsyncCommandExecutionScope` when initialization must await work. All synchronous begins finish before asynchronous initialization starts, and context values are already built. Honor `context.CancellationToken`: cancellation or initialization failure skips filters and enters completion cleanup. Establish ambient state, such as an `AsyncLocal` value that should flow with execution, in synchronous `Begin`. Changes made inside `BeginAsync` do not flow back to the caller. Neither initialization form runs during pre-flight `Validate`.
 
 With no asynchronous scopes, the lifecycle has no asynchronous initialization stage. Keep scopes independent because their relative discovery order is unspecified. If one `Complete` throws, the pipeline merges the exception into the result and still completes the remaining scopes.
 
@@ -78,7 +80,7 @@ public class CommandTimingScope(ILogger<CommandTimingScope> logger) : ICommandOp
 
 The timing scope implements `ICommandOperationExecutionScope`, declaring that it does not commit business changes. This makes its lifetime behavior explicit for operation-bearing commands while preserving ordinary execution-scope behavior. A scope that actually commits storage must report its real commitment facts instead; see the [supported operation scope profile](./operations/reference.md#supported-scope-profile).
 
-If `Begin` did not run, no timer exists and completion does nothing. A recorded duration includes response processing and scopes that completed before this one. Read the log's success field as success **at this completion callback**. Another scope can still fail afterward; only the returned final result describes the completed invocation.
+If `Begin` did not run, no timer exists and completion does nothing. A recorded duration includes response processing and scopes that completed before this one. The log's success field describes the result at this callback, not the final verdict. Another scope can still fail afterward; only the returned final result describes the completed invocation.
 
 ## Mutating the result — handle with care
 
@@ -96,4 +98,4 @@ Execution scopes apply wherever the model-bound pipeline runs, including HTTP an
 
 With Chronicle, `TransactionalCommandScope` owns the controller command's unit of work. A refused commit becomes a validation or exception outcome (HTTP 400 or 500), never a successful HTTP 200 response. A controller that captures `unitOfWorkManager.Current` in its constructor still holds the request unit, not the command's unit: resolve the current unit during action execution instead. A model-bound command the action executes through `ICommandPipeline` owns its own transaction and commits before `Execute` returns; it does not join the controller's unit.
 
-Use [command filters](./command-filters.md) when you only need a pre-execution decision in the model-bound pipeline.
+If you only need to accept or reject a model-bound command before its handler runs, use [command filters](./command-filters.md). To act on a completed invocation, await the [command pipeline](./command-pipeline.md#command-results) and check its final result.

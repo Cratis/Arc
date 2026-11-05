@@ -1,6 +1,6 @@
 ---
 title: Property extensions
-description: Reference for Arc EF PropertyBuilder value converters.
+description: Cratis Arc EF Core property extensions configure Guid, ConceptAs, and geometry value converters, with provider-specific behavior for SQLite.
 ---
 
 Import `Cratis.Arc.EntityFrameworkCore` for these extensions on EF's `PropertyBuilder`.

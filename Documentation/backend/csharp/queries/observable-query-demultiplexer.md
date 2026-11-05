@@ -1,6 +1,6 @@
 ---
 title: Observable query hub protocol
-description: Multiplexed WebSocket and SSE subscription lifecycle, message strings, revisions, and transfer modes.
+description: Cratis Arc multiplexes observable queries over WebSocket and SSE, with subscription revisions, transfer modes, and per-query authorization.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
@@ -174,7 +174,7 @@ The SSE control handlers verify that the POST caller is the caller that opened t
 
 The display name is not part of that comparison, because it is mutable and a stream held open across a token refresh would otherwise stop accepting its own caller's control requests. The tenant is not part of it either: a control POST is authorized with the tenant resolved from that POST, not the one the connection was opened with.
 
-A connection opened by an unauthenticated caller carries no identity to bind to, so ownership is not distinguishable between anonymous callers. Treat the SSE connection ID as sensitive connection-control data rather than as an authorization policy, and do not publish or unnecessarily log connection IDs. Query authorization still checks the subscribe POST's right to read the query, which is a separate question from ownership of the destination stream. The anonymous [health feed](query-health.md) includes connection/subscriber metadata and needs explicit protection too.
+A connection opened by an unauthenticated caller carries no identity to bind to, so ownership is not distinguishable between anonymous callers. Treat the SSE connection ID as sensitive connection-control data rather than as an authorization policy, and do not publish or unnecessarily log connection IDs. Query authorization still checks the subscribe POST's right to read the query, which is a separate question from ownership of the destination stream. The [health feed](query-health.md#configure-access) includes connection/subscriber metadata; it allows anonymous access in Development by default and requires authentication elsewhere, with configurable authentication and roles.
 
 The initial verdict does not automatically revoke a long-lived stream. Use [emission guards](observable-query-emission-guards.md) to check current permission/session state during delivery. Guards also run before the hub sends a non-streaming query's one-shot result, with `IsFirstEmission=true` and `IsSnapshot=true`. A denied snapshot sends `Unauthorized`; a suppressed snapshot sends no result, error, or denial frame and ends without a continuing subscription. An SSE subscribe POST still returns 200 for suppression.
 

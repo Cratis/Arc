@@ -1,15 +1,15 @@
 ---
-title: Validation
-description: Distinguish command rules from HTML attributes, and display current validation results in CommandForm.
+title: Validate React CommandForm input
+description: Define command rules for React CommandForm, choose when validation messages appear, and distinguish HTML input constraints from server enforcement.
 ---
 
-A form can look complete while its command is invalid. Define the rules on the backend, generate supported client rules, and let CommandForm display their results. HTML input attributes and presentation callbacks are not substitutes for command validation.
+Cratis Arc's React CommandForm displays validation results from command rules, including supported rules generated from your backend. Define what makes a command valid on the server, then choose when the form shows feedback. HTML input attributes configure the controls but do not enforce the command's rules.
 
 ## Required fields
 
-`required` defaults to the inverse of the generated property's `isOptional` descriptor. An explicit field prop overrides the **control's required flag**, not the command's metadata or backend rules.
+CommandForm renders `<form noValidate>`, so native browser constraint validation does not block submission, including submission through `formRef`. Set command rules for any value you need to reject.
 
-CommandForm renders `<form noValidate>`. Native browser constraint validation therefore does not block submission, including submission through `formRef`. In particular:
+A field's `required` flag defaults to the inverse of the generated property's `isOptional` descriptor. Setting `required` explicitly changes the control's flag only. It does not make a command property optional or change backend validation.
 
 | Setting | What it does | What enforces the rule |
 | --- | --- | --- |
@@ -18,15 +18,17 @@ CommandForm renders `<form noValidate>`. Native browser constraint validation th
 | `NumberField` `min`, `max`, `step` | Configures the numeric control. | Command range/precision rules; typed or programmatically supplied values still need validation. |
 | A required checkbox | Marks the control, but `false` is a present boolean value. | A rule requiring `true` for consent. |
 
-Use FluentValidation `NotEmpty()` (or an appropriate `[Required]` rule) to reject empty strings. Put business invariants on the server even when a matching generated client rule exists. `InputTextField` does **not** expose `minLength`, `maxLength`, or `pattern`; use generated rules or a [custom field](./custom-fields.md) that explicitly supports those attributes. Such attributes still do not turn off the form's `noValidate` behavior.
+For a C# backend, use FluentValidation `NotEmpty()` or an appropriate `[Required]` rule to reject empty strings. Keep business rules on the server even when a generated client rule gives earlier feedback.
 
-A field's display fallback (for example `''` for an undefined text value) is not a command value or baseline. Supply intentional defaults with `initialValues` when needed.
+`InputTextField` does not expose `minLength`, `maxLength`, or `pattern`. Use generated rules for validation, or a [custom field](./custom-fields.md) if the control needs those attributes. Adding them does not change the form's `noValidate` behavior.
+
+A text input can display `''` when its command property is undefined. That display fallback does not assign a command value or establish a change-tracking baseline. Use `initialValues` for defaults you intend to submit.
 
 ## Validation timing
 
-Silent validation runs on initialization and every field edit. The form starts with `isValid: false` until that asynchronous path applies its first result. It is not already validated on the first render.
+CommandForm checks validity on initialization and every field edit, even when it does not show messages. This silent validation lets the UI track validity without showing errors before the user interacts. The form starts with `isValid: false` until the first asynchronous check applies its result.
 
-The following are **configuration fragments** inside a component that imports `CommandForm` and the generated `UpdateProfile` from the [overview](./index.md):
+Choose when messages appear with `validateOn`. These configuration fragments belong inside a component that imports `CommandForm` and the generated `UpdateProfile` from the [overview](./index.md):
 
 ```tsx
 <CommandForm command={UpdateProfile} validateOn="blur" />
@@ -42,11 +44,11 @@ The following are **configuration fragments** inside a component that imports `C
 | `validateOnInit` | `false` | Shows initialization/population errors. False hides those initial messages, not the validation work. |
 | `autoServerValidate` | `false` | Enables automatic server preflight; see [Auto server validation](./auto-server-validation.mdx) for request paths and timing. |
 
-Use full-result display for cross-field rules when changing one field should update another field's message. With automatic server validation disabled, silent/interaction validation is client-side. Submission still runs command validation and, when local checks pass, the server pipeline.
+Set `validateAllFieldsOnChange` when a rule involves several fields and editing one should update another's message. With `autoServerValidate` disabled, initialization and interaction checks run client-side. Submission validates the command again and reaches the server pipeline when local checks pass.
 
 ## Backend validation
 
-This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host, in whichever backend language you use. It returns the accepted values; it deliberately does **not** persist a profile. A real update also needs an explicit backend write. No event store or Chronicle integration is involved.
+Add this command and validator to an already configured Arc host using the tab for your backend. The endpoint accepts a name of 3–100 characters and a nonempty, valid email address, then returns those values. It does not persist a profile or use an event store; a real update needs an explicit backend write.
 
 :::tip[Persist on the backend, not in a form callback]
 This example only returns accepted values. For a real immediate inline update, prefer a backend [command operation](../../../backend/csharp/commands/operations/index.md) describing the service write; direct service calls remain supported. Keep validation in validators and UI feedback in form callbacks. Operations execute on the server and do not add operation payloads or recovery details to the TypeScript command result.
@@ -54,17 +56,21 @@ This example only returns accepted values. For a real immediate inline update, p
 
 <ArcBackendTabs snippet="frontend/react/command-form/validation/profile-command" />
 
-The rules land in different places because backend generators project different surfaces to the client. TypeScript's source preview projects supported fluent validator rules; consult its [validation generator reference](/arc/backend/typescript/proxy-generation/validation/) rather than assuming C# or JVM rule coverage. C# extracts a supported subset from FluentValidation — here a `ConceptValidator<EmailAddress>` that travels with the value and a `CommandValidator<UpdateProfile>` for the command's own rule. Arc.Kotlin's client-projected surface is [shared fluent validation](/arc/backend/kotlin/guides/validation/): a `FluentModelValidator<T>` whose single `init` block declares literal rules over string, collection, and numeric members, which is why the JVM command carries plain `String` members rather than concepts. Anything conditional, asynchronous, or service-dependent stays in an ordinary `CommandValidator` there, server-side.
+Each backend generates client rules from its own supported validation surface. In C#, `ConceptValidator<EmailAddress>` carries the email rule wherever that value type appears. `CommandValidator<UpdateProfile>` defines the name rule for this command. Arc's concept-aware `RuleFor` unwraps `ProfileName`, allowing the string rules to apply. Keep each concept in its own application file; the example groups the declarations for copying.
 
-The named values distinguish profile names from email addresses in backend signatures. `EmailAddressValidator` carries the email invariant wherever that concept appears. Arc's concept-aware `RuleFor` unwraps `ProfileName`, so the command's string rules still apply. The generated `name` and `email` properties are strings, with the concept's supported rules attached to `email`; your React inputs need no concept-object conversion. These declarations are grouped for copying; keep each concept in its own application file.
+The TypeScript backend also projects supported fluent rules from command and concept validators. Its [validation generator reference](/arc/backend/typescript/proxy-generation/validation/) identifies which rules reach the client. In these C# and TypeScript examples, the generated `name` and `email` properties are strings. The concept's supported rules attach to `email`, so the React inputs do not need to convert concept objects.
 
-Build in Debug with [proxy generation configured](../../../backend/csharp/proxy-generation/getting-started.md), then use the generated class in the [overview form](./index.md#start-with-a-generated-command). Entering a short name or malformed email should display its rule message on blur. A valid submission returns `{ name, email }` to `onSuccess`. Only supported rules are generated; asynchronous service/database checks remain server-side.
+Arc.Kotlin uses [shared fluent validation](/arc/backend/kotlin/guides/validation/) for client rules. Its `FluentModelValidator<T>` accepts literal rules over string, collection, and numeric members, which is why the Kotlin and Java examples use plain strings rather than concepts. Kotlin declares the rules in a single `init` block; Java uses a constructor. Conditional, asynchronous, and service-dependent checks belong in ordinary server-side validators such as `CommandValidator`.
 
-Preflight `validate()` skips handler execution and handler-argument resolution, but still runs pipeline filters/validators when it reaches the server. Keep those operations free of unintended side effects and sensitive diagnostic output. A client-side short-circuit does not establish server authorization. See [Backend command validation](../../../backend/csharp/commands/command-validation.md).
+Generate the proxies for your backend. For C#, build in Debug with [proxy generation configured](../../../backend/csharp/proxy-generation/getting-started.md). Use the generated class in the [overview form](./index.md#start-with-a-generated-command): a short name or malformed email should show its rule message on blur, and a valid submission returns `{ name, email }` to `onSuccess`. Only supported rules reach the client. Asynchronous service or database checks still run on the server.
+
+Use `validate()` for a preflight check without running the command handler. On the C# backend, preflight also skips handler-argument resolution but still runs pipeline filters and validators. Keep those checks free of unintended side effects and sensitive diagnostic output. A preflight that stops at client validation has not checked server authorization. See [backend command validation](../../../backend/csharp/commands/command-validation.md).
 
 ## Accessing validation state
 
-Read context in a **child** of the form. This complete component shows all displayed validation messages, including results with no field member. `showErrors={false}` hides automatic field errors and form-level exception feedback, including any custom `exceptionDisplayComponent` without invoking it; validation and result state remain unchanged:
+To build a summary, read `commandResult.validationResults` from a child of CommandForm. The complete component below includes results with no field member, which cannot appear beside a particular input.
+
+`showErrors={false}` hides automatic field errors and form-level exception feedback without changing validation or result state. A custom `exceptionDisplayComponent` is not invoked in that mode. Because this summary handles validation only, provide your own safe exception feedback too.
 
 ```tsx
 import { CommandForm, InputTextField, useCommandFormContext } from '@cratis/arc.react/commands';
@@ -97,29 +103,29 @@ export function ProfileForm() {
 }
 ```
 
-`getFieldError('email')` returns the first matching message, giving custom errors precedence. Built-in field display also shows that first message; the summary can show the full array. Results without members require form-level display. Translating summary text changes only that summary; it does not sanitize messages rendered independently by custom fields. Keep rule messages safe for end users and translate framework-generated reasons to application wording rather than exposing diagnostics; [validation results](../../core/validation/results.md) describes reason metadata. This summary handles validation results only: when hiding automatic feedback, provide your own safe exception feedback too.
+The summary can show the full result array. For a single input, `getFieldError('email')` returns the first matching message, giving custom errors precedence, just like the built-in field display.
 
-Current state boundaries:
+Keep rule messages safe for end users. The summary replaces messages whose `reason` is not `rule` with application wording. Client-side required-property checks also use `reason: 'rule'`, with `reasonDetail: 'Required'`; map that detail to your own copy too, as described in [validation results](../../core/validation/results.md). Translation in the summary does not change messages rendered independently by custom fields.
 
-- `isValid` requires the latest applied **silent** result to have an empty `validationResults` array and no nonempty custom field errors to remain. It does not come from displayed `commandResult.isValid`. Even a warning in silent validation makes that form flag false; command execution has its own severity policy.
-- `isAuthorized` checks the client identity's roles. It does not certify server authorization.
-- The form has no public validation-pending state. A prior verdict can remain while newer validation is in flight. Internal ordering rejects a result overtaken by a later **applied** result, not every result for an older edit.
-- `onFieldChange` fires immediately on edits with previously displayed validation information; it can also fire after blur. Do not use its `validationInfo` as a fresh asynchronous permission to save.
-- Nonempty errors from `onFieldValidate` and `setCustomFieldError` block form execution and are reported as validation failures. Clearing the last custom error restores retained native feedback; see [custom-error result behavior](./form-lifecycle.md#command-result-callbacks). Raw command execution bypasses this form-local gate, so enforce business rules in command/server validation too.
+Form `isValid` uses the latest applied silent result's `isValid` flag and also requires that no nonempty custom field errors remain. It does not read the displayed `commandResult.isValid` or require an empty message array: non-blocking messages follow the command's severity policy. The form's `isAuthorized` checks the client identity's roles, not server authorization.
 
-These flags are UI hints, not reservations or security boundaries. Always let execution validate again.
+There is no public validation-pending state. A prior verdict can remain while a newer check is in flight. Internal ordering rejects results overtaken by a later applied result, but does not reject every result for an older edit. Likewise, `onFieldChange` fires immediately on edits with previously displayed validation information and can fire again after blur. Its `validationInfo` is not a fresh asynchronous verdict to use as permission to save.
+
+Nonempty errors from `onFieldValidate` and `setCustomFieldError` block form execution and are reported as validation failures. Clearing the last custom error restores retained native feedback; see [custom-error result behavior](./form-lifecycle.md#command-result-callbacks). Calling the command directly bypasses this form-local gate. Keep business rules in command and server validation, and let execution validate again.
 
 ## Validation failures and exceptions
 
-Field validation messages remain associated with their fields and continue to use `errorDisplayComponent` when supplied without a custom field container. A validation-only result does not produce form-level exception feedback. With `showErrors` enabled, a result containing both validation failures and exceptions displays the field messages alongside the safe exception message.
+Validation failures tell the user which values need attention; exceptions need separate, safe feedback. With `showErrors` enabled, CommandForm displays both when a result contains both. Field messages use `errorDisplayComponent` if supplied without a custom field container. A validation-only result does not produce an exception panel.
 
-CommandForm shows exception feedback when `hasExceptions` is true **or** `exceptionMessages` is nonempty, even if those values are inconsistent. It never displays those diagnostic messages or the stack trace automatically. The default text is `An unexpected error occurred. Please try again.`; use [safe exception customization](./customization.md#safe-exception-feedback) to localize it or replace its panel. The `onException` callback still depends on the flag, not the messages; see [exception diagnostics and display](./form-lifecycle.md#exception-diagnostics-and-display).
+CommandForm shows exception feedback when `hasExceptions` is true or `exceptionMessages` is nonempty, even if the two disagree. It never displays the diagnostic messages or stack trace automatically. Use [safe exception customization](./customization.md#safe-exception-feedback) to localize the default text, `An unexpected error occurred. Please try again.`, or replace the panel.
+
+The `onException` callback depends on `hasExceptions`, not on whether messages exist. See [exception diagnostics and display](./form-lifecycle.md#exception-diagnostics-and-display) when handling results whose flag and messages disagree.
 
 ## Progressive validation
 
-Prefer built-in validation for ordinary feedback. If you own an asynchronous preflight UI, tie the verdict to the **edit revision**, clear permission immediately on a new revision, and ignore superseded responses. Depending on the boolean `hasChanges` misses all edits after it first becomes true.
+Use built-in validation for ordinary feedback. If you need a Save button that waits for your own asynchronous preflight, track `commandVersion`, the form's edit revision. A boolean `hasChanges` cannot identify later edits once it has become true.
 
-This complete child component is an optional replacement for the submit button in the overview. It debounces its own preflight and must be rendered inside CommandForm. Leave `autoServerValidate` off to avoid two competing preflight mechanisms.
+This complete child component replaces the overview's submit button. It waits for a pause in editing before checking, discards superseded responses, and requires a verdict for the current revision before enabling Save. Render it inside CommandForm and leave `autoServerValidate` off so that two preflight mechanisms do not compete.
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -162,11 +168,13 @@ export function CheckedSubmitButton() {
 }
 ```
 
-A new form revision immediately invalidates the old button verdict even before its effect runs. Cleanup prevents an older request from overwriting a newer check and prevents updates after unmount. It does not cancel an HTTP request already sent. This example observes edits made through the form; arbitrary direct property assignments are not guaranteed to advance its revision. Preflight can still short-circuit locally and is never an authorization grant. Keyboard or programmatic submission can bypass a disabled button, so execution remains the enforcement point.
+A new revision makes `pending` true immediately, before the effect runs. The effect's cleanup prevents an older response from replacing the current verdict or updating state after unmount; it does not cancel an HTTP request already sent. Direct property assignments outside the form are not guaranteed to advance the revision.
+
+Preflight can still stop at local validation and never grants permission to execute. Keyboard or programmatic submission can bypass a disabled button, so command execution must enforce the rules.
 
 ## Validation results
 
-`validate()` returns a `CommandResult<TResponse>` implementing `ICommandResult<TResponse>`. Use these actual members; there is no `errors` dictionary, `hasErrors()` method, or `getErrorsFor()` method.
+`validate()` returns a `CommandResult<TResponse>` implementing `ICommandResult<TResponse>`. Read its outcome flags and `validationResults` array. The result has no `errors` dictionary, `hasErrors()` method, or `getErrorsFor()` method.
 
 | Member | Meaning |
 | --- | --- |
@@ -180,7 +188,7 @@ For exact field matching outside CommandForm, filter `validationResults` by memb
 
 ## See also
 
-- [Auto server validation](./auto-server-validation.mdx)
-- [Customization](./customization.md)
-- [Core command validation](../../core/commands/validation.md)
-- [Form lifecycle](./form-lifecycle.md)
+- [Auto server validation: check server rules before submission](./auto-server-validation.mdx)
+- [Customization: replace field and exception feedback](./customization.md)
+- [Core command validation: use generated validators directly](../../core/commands/validation.md)
+- [Form lifecycle: follow results and callbacks](./form-lifecycle.md)

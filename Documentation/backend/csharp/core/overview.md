@@ -1,16 +1,15 @@
 ---
-title: Lightweight Core overview
-description: Choose Arc.Core for standalone pipelines and HttpListener hosting, or Arc for ASP.NET integration.
+title: Cratis Arc.Core host selection
+description: Choose Cratis.Arc.Core for standalone command and query pipelines with HttpListener hosting, or Cratis.Arc for ASP.NET Core integration.
 ---
 
-A worker or small HTTP service does not always need MVC and Kestrel. `Cratis.Arc.Core` gives you Arc's command/query pipelines and a lightweight `HttpListener` host without an ASP.NET Core dependency. `Cratis.Arc` adds the ASP.NET integration when you need that ecosystem. Neither package requires event sourcing.
+Cratis Arc's `Cratis.Arc.Core` package lets a worker or console application run commands and queries without an ASP.NET Core dependency. Its optional `HttpListener` host exposes those operations over HTTP and can serve public static assets. Choose `Cratis.Arc` instead when you need ASP.NET Core hosting and middleware. Neither package requires event sourcing.
 
 ## What Core provides
 
-- Model-bound commands and queries, validation, authorization, and result handling.
-- Identity details and tenant context; application authorization and tenant membership still need deliberate configuration.
-- Correlation IDs, dependency injection, and convention-based discovery.
-- GET/POST manual endpoints, [static files and SPA fallback](static-files.md), and [basic OpenAPI route metadata](openapi.md).
+Core supplies the command and query pipelines, including model binding, validation, authorization, and result handling. Convention-based discovery and dependency injection connect your application types to those pipelines. Correlation IDs let you follow an operation, while identity and tenant context make the caller and tenant available to application code. Configure authorization and tenant membership for your application's access rules.
+
+The HTTP host adds manual endpoints, [static files and single-page application fallback](static-files.md), and [basic OpenAPI route metadata](openapi.md). A fallback serves the frontend's entry file when an unmatched browser URL needs to reach its client-side router.
 
 ```mermaid
 flowchart TD
@@ -22,7 +21,7 @@ flowchart TD
     Chronicle[Optional Chronicle event sourcing] --> Core
 ```
 
-Persistence integrations do not require Chronicle. Adding an integration can introduce its own dependencies; the Core-only dependency boundary is not a promise about every combined package graph.
+You can add persistence without adding Chronicle. Check each integration's dependencies when assembling your application; the absence of ASP.NET Core in the Core package does not apply automatically to every package you combine with it.
 
 ## Comparison with ASP.NET Core
 
@@ -37,15 +36,19 @@ Persistence integrations do not require Chronicle. Adding an integration can int
 | OpenAPI | Basic route metadata in Core | Optional `Cratis.Arc.OpenApi` or `Cratis.Arc.Swagger` |
 | Pipelines, validation, identity, tenant context | Available | Available |
 
-Core does have request-processing middleware internally; it does not expose ASP.NET's full middleware pipeline. Native AOT compatibility, startup time, memory usage, deployment size, and throughput depend on discovery, serialization, integrations, and deployment. Validate your actual publish configuration and benchmark your workload rather than treating “lightweight” as an AOT or performance guarantee.
+The Core host checks registered routes, then static files, then the fallback. Changing the order of those configuration calls does not create an ASP.NET-style middleware pipeline. Named endpoint groups are not supported because this host cannot restrict a route to a particular local port.
+
+Here, lightweight describes the hosting dependency boundary. It does not guarantee native AOT compatibility or a particular startup time, memory use, deployment size, or throughput. Check your publish configuration and measure the workload with the discovery, serialization, and integrations you use.
 
 ## When to choose each host
 
-Choose Core for small standalone HTTP services, workers with management endpoints, or learning the pipelines without a web-framework dependency. Choose ASP.NET Core for controllers, Razor, advanced routing, standard authentication middleware, or other ASP.NET libraries. Arc pipelines can participate in other application architectures, but Core does not itself supply a gRPC server or arbitrary protocol implementation.
+Choose Core when you want to expose a small service or give a worker management endpoints without taking on ASP.NET Core. It also lets you learn the command and query pipelines in a console project.
+
+Choose the [ASP.NET Core integration](../asp-net-core/index.md) when your application needs controllers, Razor, advanced routing, standard authentication middleware, or other ASP.NET libraries. Core does not supply a gRPC server or other protocol hosts.
 
 ## Architecture
 
-The builder registers services; activation maps Arc endpoints and schedules listener startup. This **bootstrap fragment** belongs in a console project's `Program.cs` with `using Cratis.Arc;`:
+The builder registers services. `UseCratisArc()` maps Arc endpoints and schedules the HTTP listener to start when the application starts. This bootstrap fragment belongs in a console project's `Program.cs` with `using Cratis.Arc;`:
 
 ```csharp
 var builder = ArcApplication.CreateBuilder(args);
@@ -55,7 +58,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-The default listener binds `http://+:5001/`; the [getting-started checkpoint](getting-started.md) uses an explicit loopback URL. Review [discovery access defaults](../introspection/index.md) before exposing the host.
+The default listener binds `http://+:5001/`. Start with the [getting-started checkpoint](getting-started.md), which sets an explicit loopback URL and supplies a complete command and query. Review [discovery access defaults](../introspection/index.md) before exposing the host.
 
 ## Next steps
 

@@ -5,13 +5,13 @@ description: How generated proxies keep an Arc backend and React frontend in ste
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every full-stack app has a seam down the middle: a backend on one side, TypeScript on the other, HTTP in between. Normally *you* are the glue across that seam — you write a controller, hand-write a DTO, redeclare its shape in TypeScript, wrap it in a `fetch`, and then spend the rest of the project keeping both sides in agreement. Nothing tells you when they drift: a renamed field compiles happily on each side and fails in the browser at runtime.
+When you rename a backend command property, how do you find the React components that still send the old name? Arc generates TypeScript proxies from backend declarations so that regeneration and frontend type-checking can identify those callers.
 
-Arc connects that seam. You declare the command or query once on the backend and generate the TypeScript your frontend calls. There's no second declaration to keep in sync, because there's no second declaration at all. This page is about *why that works* and *what keeps it honest* — the idea at the center of everything Cratis calls "full-stack type safety."
+The proxy boundary is that generated contract between the backend and its consumers. You maintain the backend declaration rather than a second set of TypeScript request and response shapes. The example below follows an author-registration command across the boundary, then changes a property to show what the compiler catches.
 
 ## One source of truth
 
-The thing to internalize: **the backend declaration is the contract.** The TypeScript proxy isn't a parallel definition you maintain — it is generated from that declaration. In the C# example below, the `RegisterAuthor` record defines the shape; JVM and TypeScript backends use their own declarations and generators.
+The backend declaration defines the contract used to generate the proxy. In the C# example below, the `RegisterAuthor` record defines the shape; JVM and TypeScript backends use their own declarations and generators. Change the declaration and regenerate to update the frontend types.
 
 ```mermaid
 flowchart LR
@@ -34,11 +34,11 @@ Generating from the same types catches structural drift at compile time when you
 
    On **Kotlin and Java**, apply the `io.cratis.arc` Gradle plugin and configure `cratisArc { proxies { } }` as in [TypeScript proxies](/arc/backend/kotlin/guides/typescript-proxies/). A **KSP annotation processor** runs as part of compilation and records what it found in an artifact manifest, and the `generateArcProxies` Gradle task turns that manifest into TypeScript.
 
-   On **TypeScript**, the source-preview `arc-proxygenerator` reads backend TypeScript source with `--project` and `--artifacts`, and writes client proxies and optionally server metadata. Run your application's generation script when declarations change; see [TypeScript generator setup](/arc/backend/typescript/proxy-generation/getting-started/). The preview has its own [capability reference](/arc/backend/typescript/reference/capabilities/), not a guarantee of parity with C# or JVM.
+   On **TypeScript**, `arc-proxygenerator` reads backend TypeScript source with `--project` and `--artifacts`, and writes client proxies and optionally server metadata. Run your application's generation script when declarations change; see [TypeScript generator setup](/arc/backend/typescript/proxy-generation/getting-started/). That backend has its own [capability reference](/arc/backend/typescript/reference/capabilities/), not a guarantee of parity with C# or JVM.
 
    Namespace folders, source-file placement, and index output depend on each backend's generator configuration.
 
-3. **Import the proxy in React.** It's already there, generated from the backend code above — call it as if it were local, typed code:
+3. **Import the proxy in React.** The generated class supplies the command's typed properties and execution behavior. This form fragment assumes the frontend imports, providers, and per-operation `id` state from the [first-slice tutorial](/arc/tutorial/first-slice/):
 
    ```tsx
    import { RegisterAuthor } from './Authors/RegisterAuthor';   // generated
@@ -52,11 +52,11 @@ Generating from the same types catches structural drift at compile time when you
 
 ## What keeps it honest
 
-Here's the payoff — and the whole reason the boundary is *generated* rather than written. Suppose you rename the name property on the command:
+Suppose you rename the command's `name` property to `fullName`:
 
 <ArcBackendTabs snippet="understanding-the-proxy-boundary/rename-property" />
 
-Rebuild, and the generated proxy has `fullName` where it used to have `name`. The React component that still reads the old property stops compiling — caught at build, not in production:
+Regenerate the proxy and type-check the frontend. The proxy now has `fullName` where it used to have `name`, so TypeScript rejects the form's old property accessor:
 
 ```tsx
 // This line stops compiling until you fix it:
@@ -64,20 +64,22 @@ Rebuild, and the generated proxy has `fullName` where it used to have `name`. Th
 //                                         ^^^^ Property 'name' does not exist on RegisterAuthor
 ```
 
-You didn't run the app. You didn't open the browser. After regeneration and a frontend type-check, the TypeScript compiler catches the drift, because the accessor `i => i.name` points at a property the regenerated type no longer has. That's the difference between a generated boundary and a hand-written one: drift is a **compile error**, not a **production incident**.
+Update the accessor to the new property before running the form. This catches a structural mismatch without opening the browser. It does not check whether a rename changes the meaning of the field or whether older deployed clients still need the old contract.
 
 <Aside type="note" title="The read side is just as honest">
-Rename a field on a `[ReadModel]`, rebuild, and every component reading it through the generated query proxy stops compiling the same way. The contract holds in both directions — commands you send and data you read.
+Renaming a field on a `[ReadModel]` follows the same sequence: regenerate, then type-check. A component that accesses the old field through the generated query type gets a compiler error too.
 </Aside>
 
 ## What gets generated
 
-A configured generator build can emit:
+A configured C# generator build can emit these contracts. Use the backend-specific guides above for JVM and TypeScript output.
 
-- **Commands** — a class you instantiate and execute (or hand to a `CommandDialog`), with every parameter — route, query string, body — flattened into typed properties.
-- **Queries** — a proxy exposing a React `.use()` hook that returns the typed result with its loading and error state; **observable** queries return a live subscription that re-renders on change — no polling, no manual refresh.
-- **Types and enums** — every complex type and enum your commands and queries reference, so nested shapes are typed too.
-- **Identity details** — your custom identity type, so the signed-in user is typed on the frontend.
+| Output | What the consumer uses |
+| --- | --- |
+| Commands | A class to instantiate and execute or hand to `CommandDialog`, with route, query-string, and body parameters represented as typed properties. |
+| Queries | A proxy with React hooks and typed result state. Observable hooks subscribe to an emitting source and re-render on updates. |
+| Types and enums | The referenced shapes used by command and query contracts, including nested data. |
+| Identity details | The application's custom identity type for frontend consumers. |
 
 Each has a detailed reference: [Commands](/arc/backend/csharp/proxy-generation/commands/), [Queries](/arc/backend/csharp/proxy-generation/queries/), and [Identity details](/arc/backend/csharp/proxy-generation/identity-details/). The [frontend proxy-generation guide](/arc/frontend/react/proxy-generation/) shows the generated TypeScript for each, with the `.use()` and `useSuspense()` hooks.
 
@@ -87,27 +89,27 @@ On the C# backend, [command operations](./backend/csharp/commands/operations/ind
 
 ## The transport disappears too
 
-Types are only half of what the proxy absorbs. The other half is **how the call travels**. Your component never writes a URL, picks an HTTP verb, or opens a socket — it executes `RegisterAuthor` or renders `AllAuthors.use()`, and the proxy owns the wire. That makes the transport an implementation detail behind the boundary: today the calls ride HTTP, and if Arc carried them over something else — gRPC-Web, say — the proxy is where that would change, not your components.
+The proxy also handles the request, so a component can execute `RegisterAuthor` or call `AllAuthors.use()` without constructing the URL or opening a socket. You still configure the backend address, headers, and live-query transport in Arc.
 
-The query system already cashes in on this freedom. A regular query executes as a plain HTTP request. An observable query streams — over WebSockets or Server-Sent Events, a choice you make once with the `queryTransportMethod` prop on the [`<Arc/>` context component](/arc/frontend/react/arc/), not in any component. And the same observable query can still be executed as a one-shot HTTP fetch by calling `perform()` on the proxy, when you want a snapshot instead of a subscription:
+A regular query makes an HTTP request. An observable query streams over WebSocket or Server-Sent Events (SSE), selected with the `queryTransportMethod` prop on the [`<Arc/>` context component](/arc/frontend/react/arc/). When you need a snapshot instead of a subscription, call `perform()` on the same observable proxy:
 
 ```tsx
 const [authors] = AllAuthors.use();                  // live — streams over WebSockets or SSE
 const snapshot = await new AllAuthors().perform();   // one-shot — a plain HTTP fetch, same proxy
 ```
 
-One backend declaration, one generated frontend proxy — and whether the data arrives as a response or a stream is the proxy's concern, not yours. Tune the live transport in the [query configuration reference](/arc/frontend/react/queries/configuration/).
+The hook follows future emissions; `perform()` requests one result. For an observable snapshot, check readiness before treating missing data as an empty list. Some producers need [wait-for-first-result configuration](/arc/backend/csharp/queries/model-bound/observable-queries/#waiting-for-the-first-http-result). Tune the live transport in the [query configuration reference](/arc/frontend/react/queries/configuration/).
 
 ## It's a build step, not a runtime discovery call
 
-A few things follow from the proxies being *generated*, and they're worth holding onto:
+Keep generation in the development workflow:
 
-- **You never edit a generated file.** Change the backend declaration and regenerate; TypeScript's source preview may commit generated proxies alongside the source.
+- **You never edit a generated file.** Change the backend declaration and regenerate; TypeScript projects may commit generated proxies alongside the source.
 - **On C#, the generator tracks what it made** and removes files for commands or queries you delete. See [File index tracking](/arc/backend/csharp/proxy-generation/file-index-tracking/); the TypeScript generator also limits stale deletion to files it owns.
 - **The sequencing matters:** generate proxies from updated backend declarations, then type-check the frontend. C# requires a successful Debug build first; the TypeScript generator reads source with the project configuration.
 
 ## Why this is the thing that matters
 
-Plenty of frameworks give you CQRS, or an event store, or a component library. The proxy boundary is what makes Cratis **full-stack**: the type safety doesn't stop at the edge of the backend — it runs all the way to the React component. It's why a Cratis feature can cross that boundary without hand-maintaining two declarations. Regeneration and frontend type-checking catch structural drift; deployed versions still need integration checks.
+Use the generated boundary to make backend contract changes visible to React callers during development. Keep integration checks for deployed versions, serialization, and runtime routing; those sit outside what TypeScript can prove.
 
-Ready to see it run? [Build your first command and query](/arc/backend/csharp/getting-started/your-first-command/), then [wire it into React](/arc/frontend/react/getting-started/) — and watch the same property name flow from C# all the way to the screen.
+To follow the same path in an application, [build your first command and query](/arc/backend/csharp/getting-started/your-first-command/), then [wire it into React](/arc/frontend/react/getting-started/). After it works, rename a property, regenerate, and use the frontend type-check to find the affected consumer.

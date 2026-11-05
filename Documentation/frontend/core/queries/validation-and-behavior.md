@@ -1,13 +1,15 @@
 ---
-title: Validation and behavior
-description: Validate query arguments and understand paging, cancellation, readiness, and frontend query failures.
+title: Cratis Arc query validation, cancellation, and readiness
+description: Handle Cratis Arc query validation, missing arguments, cancellation, and readiness so your TypeScript client distinguishes pending results from failures.
 ---
 
-Core queries validate input and provide predictable execution behavior.
+Cratis Arc core queries check arguments before sending a request and return results that distinguish validation, authorization, and exceptions. When calling them directly, check readiness too: an observable query with no first result yet is pending, not failed. Cancellation follows a separate path and can reject the request promise instead of returning a result.
 
 ## Client-side validation
 
-Validation metadata is generated from backend FluentValidation rules through the proxy generator.
+The proxy generator translates supported backend FluentValidation rules and DataAnnotations into client-side validation. When those rules reject the arguments, `perform()` returns a ready result with `isSuccess: false`, `isValid: false`, and the errors in `validationResults`. No HTTP request is sent.
+
+For a query with generated rules for `searchTerm` and `minAge`, the call looks like this:
 
 ```typescript
 const query = new SearchUsersQuery();
@@ -18,8 +20,7 @@ const result = await query.perform();
 // result.validationResults contains validation errors
 ```
 
-Observable queries validate the same way. `perform()` returns an invalid result, and `subscribe()` delivers one to
-your callback instead of opening a connection:
+Observable queries run generated validation too. Their `perform()` returns the same kind of invalid result; `subscribe()` delivers it to your callback instead of opening a connection. For example, with a generated rule that rejects a negative `minAge`:
 
 ```typescript
 const query = new ObserveUsers();
@@ -30,12 +31,13 @@ query.subscribe(result => {
 }, { minAge: -5 });
 ```
 
-Missing arguments behave differently from arguments that break a rule. When a required argument is absent and no
-generated client rule (such as `notEmpty()`) has already rejected it, `subscribe()` opens no connection and delivers the query's default value as an empty result whose `isSuccess` and
-`isValid` are both `true`, so the screen cannot tell "no arguments yet" from "no data". Gate the subscription with
-`ObservableQueryWhen` so it only starts once the arguments exist:
+### Required arguments are a separate check
 
-In a React component, use the generated wrapper (illustrative fragment):
+After generated validation passes, the runtime checks `requiredRequestParameters`. An absent property, `undefined`, `null`, or an empty string counts as missing; `0` and `false` do not. If a required argument is missing, the runtime logs a warning and sends no request.
+
+The result depends on how you called the query. `perform()` returns the query's default data with `isSuccess: false`, `isValid: true`, and no validation errors. `subscribe()` delivers the default data as an empty result with both `isSuccess` and `isValid` set to `true`. Both results are ready. These are not validation failures unless a generated rule, such as `notEmpty()`, rejected the arguments first.
+
+In a service or view model, wait until the required arguments exist before calling `subscribe()`. Its empty fallback result cannot tell you whether the caller supplied the arguments. In React, gate automatic subscription with the generated `.when()` wrapper (illustrative fragment):
 
 ```tsx
 const [books] = BooksForAuthor.when(!!authorId).use({ authorId });
@@ -43,32 +45,48 @@ const [books] = BooksForAuthor.when(!!authorId).use({ authorId });
 
 `ObservableQueryWhen` is a class returned by `.when()`, not a JSX component. Supply a correctly typed argument/default even while disabled; the condition suppresses automatic subscription, not all query/cache creation. See [conditional queries](../../react/queries/conditional-queries.md).
 
-Client-side validation is a convenience, not a gate — every rule it applies is also enforced by the server, so
-calling an endpoint directly gains nothing. Server rejections report member names the same way the client does:
-camelCased, and attributed to the field rather than to a concept's inner value.
+### Server validation
 
-For an HTTP query request, a server validation rejection returns HTTP 400 with a query result whose `isValid` and `isSuccess` are `false` and whose `validationResults` contain the member names and messages. `perform()` preserves that result, and React query hooks expose those same fields. Observable subscriptions to model-bound queries deliver one invalid result through the callback and then end that subscription, over either WebSocket or SSE, in direct or hub mode. A controller-based observable query over a direct WebSocket still fails the connection instead ([#3230](https://github.com/Cratis/Arc/issues/3230)).
+Client-side rules give feedback before a request; they do not replace server validation. The generator translates supported rules, not arbitrary backend logic. Server rejections use camelCased member names. A concept, a domain type that wraps a value, reports errors against the field carrying it rather than its inner `value` member.
+
+For an HTTP query request, a server validation rejection returns HTTP 400 with a result whose `isValid` and `isSuccess` are `false`. `perform()` preserves the member names and messages in `validationResults`; React query hooks expose those same fields.
+
+Observable subscriptions to model-bound queries deliver one invalid result through the callback and then end that subscription, over WebSocket or SSE in direct or hub mode. Controller-based direct WebSocket and SSE queries also send a terminal validation result rather than treating the rejection as a failed connection. For background on the controller-based direct WebSocket case, see [#3230](https://github.com/Cratis/Arc/issues/3230). Correct the arguments and create a new subscription to try again.
 
 For general validation docs, see [Validation](../validation/index.md).
 
 ## Sorting and paging
 
-Queries include native sorting and paging primitives via `Sorting` and `Paging`.
+Set a query instance's `sorting` and `paging` properties with `Sorting` and `Paging` before calling `perform()` or `subscribe()`. For an observable query, subscribe again to apply changed settings to the connection.
 
 For React usage patterns and generated hooks, see [Paging](../../react/queries/paging.md).
 
 ## Request cancellation
 
-When a newer request supersedes an active one, Arc cancels stale work to reduce race conditions and unnecessary processing.
+On a `QueryFor` instance, a new `perform()` call that passes validation and required-argument checks aborts the previous HTTP request before starting its own. Calls on separate instances do not cancel each other. You can also cancel the current request explicitly with `query.abortController?.abort()`.
+
+An `AbortError` from the HTTP request rejects its `perform()` promise rather than resolving to an unsuccessful `QueryResult`. Catch and discard that superseded or explicitly cancelled attempt so it cannot replace a newer result. A call rejected by client-side checks does not abort the previous request, because those checks run first.
+
+`ObservableQueryFor.perform()` does not use this abort-controller behavior. For an active subscription, call the returned subscription's `unsubscribe()` or the query's `dispose()` to disconnect. Calling `subscribe()` again on the same instance disconnects the previous connection, even if the new arguments fail validation.
+
+## Readiness is not success
+
+`isReady: false` means an observable query has not produced a result yet. In that state, `isSuccess` is also `false`, but readiness alone is not a validation or exception failure. When the backend has no current value and is not configured to wait for the first result, an HTTP request returns this state with HTTP 202. A one-shot `perform()` resolves with that result; it does not keep waiting for later updates.
+
+Check readiness before presenting an unsuccessful result as an error. A ready result can still be invalid, unauthorized, or exceptional, and a ready successful result can contain an empty collection. Core query results default `isReady` to `true` when an older server omits the field.
 
 ## Error categories
 
-Typical query failure categories include:
+Use the result fields to choose the next action, rather than treating every `isSuccess: false` as the same error:
 
-- Parameter validation errors
-- Network failures
-- Timeouts and cancellations
-- Server exceptions
+- `isReady: false`: keep a pending state; it is not evidence of an empty dataset.
+- `isValid: false`: use `validationResults` to explain which arguments need correcting.
+- `isAuthorized: false`: handle denied access rather than asking the user to change query arguments.
+- `hasExceptions: true`: inspect `exceptionMessages` and send available diagnostic details to your logger.
+
+For `QueryFor.perform()`, a non-abort network failure resolves to a ready result with default data, `isSuccess: false`, and `hasExceptions: true`. A response that cannot be parsed as JSON instead returns the generic unsuccessful result with no exception messages. Neither should be displayed as a successful empty dataset.
+
+`ObservableQueryFor.perform()` can reject on a network failure, so handle promise rejection as well as result fields when using that one-shot path. A request's `AbortError` is also a promise rejection for `QueryFor`, as described above, not a validation error.
 
 ## See also
 

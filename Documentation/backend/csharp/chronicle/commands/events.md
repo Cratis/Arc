@@ -1,11 +1,11 @@
 ---
-title: Events
-description: What a command Handle() can return — a single event, several, a tuple, a Result, or nothing — and what Chronicle does with each.
+title: Return events from Chronicle commands
+description: Return one or more events from an Arc command, route them to Chronicle event sources, and reject invalid decisions without appending pending events.
 ---
 
-When a [model-bound](../../commands/model-bound/index.md) command handler returns an event (or a collection of events), Chronicle appends those events to the event log automatically. This lets you keep command handlers focused on decisions and domain rules instead of event log plumbing.
+Return an event from a [model-bound command](../../commands/model-bound/index.md) to record a decision in Cratis Chronicle without calling the event log yourself. Cratis Arc resolves the destination from the command and appends the returned fact. For example, `RegisterCustomer` returns `CustomerRegistered` under the customer's event source id.
 
-Return-driven appends enroll in the command's pending transaction: the batch commits atomically on success and rolls back on failure, unless code explicitly completed that shared transaction earlier — see [Transactional commands](./transactional-commands.md).
+Returned events enroll in the command's pending transaction. The batch commits atomically on success and rolls back on failure, unless code explicitly completed the shared transaction earlier. Keep writes on this path when a later rejection must undo the pending work; [transactional commands](./transactional-commands.md) explains the boundary.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -50,7 +50,15 @@ public record CustomerDisplayNameChanged(string DisplayName);
 public record CustomerEmailChanged(string Email);
 ```
 
-Chronicle uses the command context to resolve the event source identity and event stream metadata before appending events.
+Both examples use the command's event source id and stream metadata. Use a tuple when the caller also needs a response, such as the [new entity's identity](./returning-event-source-id.md). The event is handled on the server; it is not the response data.
+
+## Reject a command without recording an event
+
+When a rule forbids the action, return a validation failure, not a nullable event or an empty collection. Returning no events does not mark a command as failed, so pending aggregate or transactional writes could still commit.
+
+Use `Result<TEvent, ValidationResult>` when `Handle()` must choose between an event and a rejection. Return a `ValidationResult.Error(...)` for the rejected decision. Arc processes the active alternative: the event is appended, or the blocking validation result fails the command and rolls back its pending transaction. A plain error DTO in a `Result` alternative remains response data; its type name does not make the command fail.
+
+Put rules that need pre-flight feedback in a validator. A rule that depends on data available only during handling can reject from `Handle()`; see [choosing a rejection phase](../../commands/validation.md#choosing-a-rejection-phase). Neither form of rejection undoes an earlier immediate append, an explicit commit, or an external service call.
 
 ## Event tags
 
@@ -58,11 +66,9 @@ Attach structured named tags to every returned event using `[EventTag]`, `ICanPr
 
 ## Event Source Id Resolution
 
-Chronicle resolves the event source id for commands using a small set of conventions. This value is stored in the command context and is required for event appending.
+The event source id identifies whose history the command changes. Arc resolves it before handling and stores it in the command context.
 
-`ICanProvideEventSourceId` takes precedence. Otherwise Arc selects the first property matching any of: `EventSourceId`, `EventSourceId<T>` ancestry, or Chronicle `[Key]`. There is no typed-before-key precedence; use one unambiguous candidate.
-
-If none of these are present, Chronicle creates a new `EventSourceId` so the command still has a valid identity for event appends.
+Implement `ICanProvideEventSourceId` to choose the identity explicitly. Otherwise Arc selects the first property typed as `EventSourceId`, derived from `EventSourceId<T>`, or marked with Chronicle's `[Key]`. Typed and attributed properties have equal priority, so declare one unambiguous candidate. If there is no candidate, Arc creates a new `EventSourceId` for the append.
 
 The following declarations are identity fragments; add a public instance `Handle()` for a complete command.
 
@@ -88,7 +94,7 @@ For command input identity, ordinary query binding (which does not use these con
 
 ## Event Stream Metadata
 
-Chronicle supports additional metadata that can be attached to commands and used when appending events. This metadata tags the appended events with the specified stream identity, making them easier to query and react to.
+Add stream metadata when events for one source need separate routes, such as onboarding and transactions for the same customer. Arc passes this metadata to the append, where it also affects the concurrency boundary.
 
 ### EventStreamId
 
@@ -140,7 +146,7 @@ using Cratis.Chronicle.Events;
 public record RegisterCustomer(EventSourceId CustomerId, string Email);
 ```
 
-These metadata attributes categorize and identify the appended events. Because the append carries them, the concurrency strategy configured on the event sequence resolves its expected tail with the same narrowing — so a routing-only tag already bounds the concurrency check, without any attribute opting in. Setting `concurrency: true` chooses which dimensions bound it explicitly; see [concurrency scoping](./concurrency.md).
+The event sequence's configured concurrency strategy resolves its expected tail using the append's metadata. A routing attribute can therefore narrow the check even without `concurrency: true`. Set `concurrency: true` when you want to select the dimensions explicitly; see [concurrency scoping](./concurrency.md) before choosing the boundary.
 
 ### Event source definitions
 
@@ -178,7 +184,7 @@ Do not combine a definition declaration with contradictory `[EventSourceType]` o
 
 ## Events for Specific Event Sources
 
-Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.
+Use `EventForEventSourceId` when a command must write to a source other than its own, or to several sources. A transfer, for example, must debit one account and credit another; one command-level id cannot identify both destinations.
 
 `EventForEventSourceId` is a record that pairs an event with an explicit `EventSourceId`. Chronicle appends each event to its specified event source, independently of the event source id in the command context. Within an active [command transaction](./transactional-commands.md), the appends across all the event sources are atomic — if any of them is rejected, none of them land. Without an active transaction, a returned collection still appends as one batch: a refusal appends nothing. That includes a collection that sends events for the same event source id to several routes: the batch carries a guard for each route, and a violation of any of them refuses the whole batch. Sending several guards for one event source id needs a Chronicle kernel 19.84 or later; against an older kernel the Chronicle client refuses the batch with `IncompatibleConcurrencyScopesForEventSource` before sending anything, so nothing is appended.
 
@@ -226,7 +232,9 @@ public record FundsDebited(decimal Amount);
 public record FundsCredited(decimal Amount);
 ```
 
-Arc enumerates and enrolls these wrappers in order, but that is not a guarantee of cross-source batch order. Chronicle's ordinary unit-of-work staging groups events by source: `A1, B1, A2` can commit as `A1, A2, B1`. Use [`EventsWithConcurrencyScopes`](#events-with-exact-concurrency-scopes) when global batch order matters. Within the active transaction, the events still commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
+These wrappers commit atomically, but ordinary unit-of-work staging groups them by source. `A1, B1, A2` can therefore commit as `A1, A2, B1`, even though Arc enumerates them in return order. Use [`EventsWithConcurrencyScopes`](#events-with-exact-concurrency-scopes) when global batch order matters.
+
+A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes a failed `CommandResult`. No event from the returned batch is appended.
 
 A wrapper can also carry when the fact happened and how to tag it. Set `Occurred` to record a historical occurrence time, for example when importing or backfilling, and `Tags` to add tags to that one event. Chronicle merges them with any static `[Tag]` on the event type:
 
@@ -276,13 +284,21 @@ public record OrderAccepted;
 public record CustomerOrderAccepted(EventSourceId OrderId);
 ```
 
-> `EventForEventSourceId` does not share one concurrency scope across targets — a scope carries a single stream's expected tail, so it cannot be reused for another stream. The command's concurrency declaration still applies: one scope is built per target event source, with that target's own expected tail. Each append also uses the stream metadata from the command (stream id, stream type, event source type) while targeting the event source id you supply explicitly.
->
-> When several wrappers target the same event source id, a guard that only follows from the event source definition is derived per event, from that event's own stream and definition, and is never reused for another event. Events written through a definition reach the event sequence without a scope, which derives and validates the guards itself. Wrappers that override the definition with legacy routing and need different guards for one id keep every distinct guard. The unit of work, or the batch when no transaction is active, requires all of them, so a violation of any guard refuses everything. Several guards for one id need a Chronicle kernel 19.84 or later; an older kernel throws `IncompatibleConcurrencyScopesForEventSource` before anything is appended. Guards for the same stream and event types collapse to one. A mix of such legacy guards and a guard that follows from a definition for the same id is rejected with `IncompatibleConcurrencyScopesForEventSource` before anything is enrolled or appended, because Chronicle stops deriving a definition guard once it is handed a scope for the id. A guard you chose with `concurrency: true` keeps its existing behavior. Split the events into separate commands or return `EventsWithConcurrencyScopes` with an explicit scope when you need a different combination.
+### Concurrency across targets
+
+`EventForEventSourceId` does not reuse one target's expected tail for another. The command's concurrency declaration produces a scope for each target using that target's own tail. Each append uses the command's stream metadata unless its wrapper overrides the route.
+
+For definition-routed events, the event sequence derives guards from each event's own stream and definition. It does not reuse one event's guard for another. Legacy-routing overrides that require different guards for the same source retain every distinct guard. All must hold for the transaction, or the immediate batch, to succeed. Guards for the same stream and event types collapse to one.
+
+Several guards for one id require Chronicle kernel 19.84 or later. An older kernel throws `IncompatibleConcurrencyScopesForEventSource` before appending anything. Mixing legacy guards with a definition-derived guard for the same id also throws that error before enrollment or append: supplying a scope for the id stops Chronicle from deriving its definition guard.
+
+An explicit `concurrency: true` declaration keeps its existing behavior. If your command needs a combination these routes cannot express, split the work into separate commands or return `EventsWithConcurrencyScopes` with an explicit scope.
 
 ## Events with exact concurrency scopes
 
-The automatic strategy resolves a target's expected tail after `Handle()` returns: during response processing for attribute-selected scopes, or during commit for the fallback scope. That is right for ordinary optimistic concurrency. When a command makes its decision from an exact revision it already read, return `EventsWithConcurrencyScopes` to carry that revision with the events instead of resolving a newer tail later.
+Return `EventsWithConcurrencyScopes` when a command must protect the exact revision it read while deciding. A concurrency scope pairs that expected revision with the events it watches. The append fails if matching history changed before commit.
+
+Automatic scopes resolve the target's expected tail after `Handle()` returns: during response processing for attribute-selected scopes, or during commit for the fallback scope. They cannot by themselves preserve an earlier read. Carry that read's revision with the returned events rather than checking against a newer tail.
 
 The response contains two values:
 
@@ -291,11 +307,17 @@ The response contains two values:
 
 ### Exact scopes replace derived scopes
 
-When `Handle()` returns `EventsWithConcurrencyScopes`, the returned scopes replace every scope Arc would otherwise derive for the command: the ones from `concurrency: true` on `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]`, and the ones from an event source definition's concurrency dimensions. A `concurrency: true` flag on the command's attributes is therefore dead and [ARCCHR0016](../code-analysis/ARCCHR0016.md) warns about it with a quick fix that removes it. The definition is not reported, because it stays the policy for every other writer.
+Returning `EventsWithConcurrencyScopes` replaces scopes Arc would derive from the command's routing declarations. This includes `concurrency: true` on `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]`, as well as an event source definition's concurrency dimensions.
+
+Remove `concurrency: true` from those command attributes when returning exact scopes. It no longer affects the append, and [ARCCHR0016](../code-analysis/ARCCHR0016.md) offers a quick fix to remove it. The definition itself remains the policy for other writers and is not reported.
+
+A [generated identifier's freshness guard](./fresh-identifiers.md) still applies. Returned scopes cannot replace its whole-source emptiness requirement with a narrower check.
 
 ### Per-event routing
 
-A routing value set on an `EventForEventSourceId` wins over the command context. This applies to every return that carries wrappers: a single wrapper, a collection, a mixed collection, a tuple such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. One event can override its event source type or stream while the others keep the command's metadata. A plain, unwrapped event always uses the command context. A value counts as set when it differs from its default: `EventSourceType.Default`, `EventStreamType.All`, `EventStreamId.Default`, or a non-null `Subject`. A value left at its default falls back to the command context.
+Set routing on an `EventForEventSourceId` to override the command context for that event. This works for a single wrapper, collections, mixed collections, tuples such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. Plain events still use the command context.
+
+A routing override counts as set when it differs from `EventSourceType.Default`, `EventStreamType.All` or `EventStreamId.Default`; a `Subject` override must be non-null. A value left at its default falls back to the command context. One event can therefore choose a different stream while the others keep the command's route.
 
 Prefer typed overrides (`EventSource = typeof(Definition)` and `EventStream = "stream"`) when the target has an event source definition. Choosing another declared stream or another definition is supported; a different route is not itself a mistake. A stream-only typed override uses the command's definition.
 
@@ -334,7 +356,7 @@ Legacy string overrides remain supported, but they append by strings and drop th
 
 The framework resolves response handlers through their constructors taking `IEventSources`. Their obsolete legacy constructors remain available for manually constructed handlers, but do not validate per-event routing against the registry; migrate manual construction to the new constructors to get this check.
 
-An empty response with **no events and no concurrency scopes** is a successful no-op: Arc neither appends an empty batch nor enrolls one in the active command transaction. This is useful when an equivalent declaration already exists. If scopes are supplied, Arc still forwards them through the normal append or transaction path; an empty event list never silently discards a required concurrency check.
+An empty response with no events and no concurrency scopes succeeds without appending or enrolling a batch. It is not a rejection and does not revalidate an earlier read. If an equivalent declaration should make the command invalid, [return a validation failure](#reject-a-command-without-recording-an-event) instead. If scopes are supplied, Arc forwards them through the normal append or transaction path even when the event list is empty.
 
 A label can name an event target, but it does not have to. An independent label lets a command protect a broader fact — for example, the tail of all active-administrator events — while writing to member and invitation streams.
 

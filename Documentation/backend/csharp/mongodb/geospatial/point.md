@@ -1,11 +1,15 @@
 ---
-title: Point serializer
-description: Store GeoJSON points and use MongoDB driver geometry in query filters.
+title: Cratis Arc Point storage and queries
+description: Store locations as GeoJSON points with Cratis Arc and find nearby stores using MongoDB driver geometry, a spatial index, and meter-based distances.
 ---
 
-Arc stores `Cratis.Geospatial.Point` as GeoJSON. Complete [MongoDB setup](../getting-started.md) first; the snippets below are model declarations and query-method fragments, not a standalone host.
+Cratis Arc stores `Cratis.Geospatial.Point` as GeoJSON so you can keep a location on a document and query for nearby places. Coordinates use longitude first, then latitude.
+
+Complete [MongoDB setup](../getting-started.md) to register the BSON serializers, which convert model values to MongoDB's binary document format. The examples below add a model and query fragments to that configured host.
 
 ## Usage
+
+Give each store a required location:
 
 ```csharp
 using Cratis.Geospatial;
@@ -19,7 +23,7 @@ public class Store
 }
 ```
 
-Inside a method, construct a point with positional arguments or the correctly capitalized names:
+Inside a method, construct a point with longitude and latitude. Named arguments use the constructor's capitalized parameter names:
 
 ```csharp
 var point = new Point(Longitude: -122.4194, Latitude: 37.7749);
@@ -27,19 +31,21 @@ var point = new Point(Longitude: -122.4194, Latitude: 37.7749);
 
 ## Storage format
 
-With camel-case naming, the location member is:
+With camel-case naming configured, Arc writes the location member as:
 
 ```json
 {"location":{"type":"Point","coordinates":[-122.4194,37.7749]}}
 ```
 
-Coordinates are `[longitude, latitude]`. Validate ranges in your application; the record/serializer does not enforce geographic validity.
+The coordinate array is `[longitude, latitude]`. Validate geographic ranges before writing a point because neither the record nor the serializer enforces them.
 
-`Point?` expresses CLR optionality only. Arc's current geometry BSON serializers neither serialize a null value nor read explicit BSON null. Design and test an omission policy or a null-aware member serializer before persisting optional geometry; a nullable annotation alone is insufficient. See [serializer null handling](../serializers.md#error-handling).
+If a location is optional, `Point?` only makes the .NET property nullable. Arc's current geometry BSON serializers neither write a null value nor read explicit BSON null. Choose and test an omission policy or a null-aware member serializer before persisting optional locations. [Serializer null handling](../serializers.md#error-handling) explains the difference between an absent field and an explicit null.
 
 ## Querying
 
-The driver's geometry arguments are **`GeoJsonPoint<GeoJson2DGeographicCoordinates>`**, not Cratis `Point`. The following fragment uses an `IMongoCollection<Store>` named `collection`:
+To find stores within 5,000 meters of a location, supply a driver `GeoJsonPoint<GeoJson2DGeographicCoordinates>` as the query origin. The stored property remains a Cratis `Point`; the filter's geometry argument uses the driver's type.
+
+The following method fragment uses an `IMongoCollection<Store>` named `collection`. Create the spatial index during setup, then use the filter when querying:
 
 ```csharp
 using MongoDB.Driver;
@@ -56,8 +62,8 @@ var nearbyStores = await collection.Find(Builders<Store>.Filter.Near(
     maxDistance: 5000)).ToListAsync();
 ```
 
-This uses a `2dsphere` index and a GeoJSON query point, so the distance bound is in meters. Index creation is normally deployment/setup work, not something to repeat on every query.
+The `2dsphere` index supports spherical geometry queries. With this GeoJSON query point, `maxDistance` is in meters. Keep index creation out of the per-query path.
 
-To find stored points within a region, use `GeoWithin` with a **driver GeoJSON polygon**. See [polygon queries](./polygon.md#querying) for construction and the distinction between containment and intersection. These examples establish API shape; test actual spatial results against your MongoDB deployment.
+For stores inside a region, replace the proximity filter with `GeoWithin` and a driver GeoJSON polygon. [Polygon queries](./polygon.md#querying) shows how to construct that argument and distinguishes containment from intersection. Using a driver polygon as a filter argument does not require reading stored Cratis polygons.
 
-Continue with [LineString](./linestring.md) for paths or [Polygon](./polygon.md) for areas.
+Check actual spatial results against your MongoDB deployment. If your documents store a path instead of a location, continue with [LineString storage and queries](./linestring.md).

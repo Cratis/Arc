@@ -1,9 +1,11 @@
 ---
-title: Validators and read protection
-description: Put a state-dependent rule in a CommandValidator with the read model as a constructor parameter. Under On the read is guarded; under Off it is a hint.
+title: Cratis Arc validators with protected reads
+description: "Use a Cratis Arc CommandValidator with read-model parameters for state-dependent rules. On guards the reads; Off and Measure leave plain reads unguarded."
 ---
 
-Use this page when you write a rule such as "no copies left" or "the member has too many loans". Under read protection `On`, the place for that rule is a `CommandValidator<T>` that takes the read model as a constructor parameter. `Handle()` then says only what happens.
+A `CommandValidator<T>` with a read-model constructor parameter lets Cratis Arc guard a state-dependent rule under read protection `On`. Use it for checks such as "a copy must be available" or "the member must be below the loan limit". Cratis Chronicle guards the state the validator approved, while `Handle()` returns the event that records the change.
+
+The mode matters: `Off` leaves a plain read-model parameter unguarded, and `Measure` observes what `On` would do without adding that guard. A passing validator alone does not prevent another command from changing the state before yours commits.
 
 ## Where each kind of rule goes
 
@@ -16,6 +18,8 @@ Use this page when you write a rule such as "no copies left" or "the member has 
 | The user should see a hint before submitting | A query, or a validator over an `[Unprotected]` read | It is a hint. The rule is enforced elsewhere |
 
 ## A validator with a read model
+
+For a borrowing command, let the validator decide whether stock is available and let `Handle()` record the loan. `BookStock?` allows the validator to treat a missing stock model as no available copies, using the same business message.
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -54,16 +58,13 @@ public class BorrowBookValidator : CommandValidator<BorrowBook>
 }
 ```
 
-Under `On` this is guarded:
+Under `On`, Arc starts the command's unit of work, the transaction that groups its reads and writes, and enables read protection before the filters run. It constructs the validator inside that unit. Chronicle captures the event position, folds `BookStock` by applying its events, and registers the guard before the validator sees the value.
 
-1. Arc starts the command's unit of work and turns on read protection before the filters run.
-2. Arc constructs the validator inside that unit. Its `BookStock` parameter is a protected read: Chronicle captures the position, folds the model, and enrols the guard before the validator sees the value.
-3. The validator approves. `Handle()` returns the event. `Handle()` and the validator share the same instance and the same guard. The model is folded once per execution, whether the validator and `Handle()` take it as a plain parameter or as `DecisionRead<T>`.
-4. At commit, if a `CopyAdded` or `BookBorrowed` for that book arrived after the position captured in step 2, nothing is written. The caller gets a `400` with the reason `concurrencyViolation` and the detail `ReadChanged`.
+If the validator approves, `Handle()` returns `BookBorrowed`. At commit, Chronicle checks whether a `CopyAdded` or `BookBorrowed` for this book arrived after the captured position. If so, nothing is written. The caller receives HTTP `400` with the reason `concurrencyViolation` and the detail `ReadChanged`.
 
-A validator that rejects writes nothing, so a rejection needs no guard and is never retried by Arc.
+If `Handle()` also takes the same model for the same key, it shares the validator's instance and guard. The model is folded once per execution, whether the two take it as a plain parameter or as `DecisionRead<T>`.
 
-The message reaches the client the same way as any validator message. The same rules apply to a nullable parameter: use `BookStock?` when absence is a business condition, and a non-nullable parameter when the command cannot run without the model. See [Nullable means you handle absence](../read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
+When the validator rejects, nothing is written and Arc never retries the rejection. Its message reaches the client through the ordinary validation result. Use a nullable parameter when absence is a business condition, as it is here, and a non-nullable parameter when the command cannot run without the model. See [Nullable means you handle absence](../read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
 
 ## Caller severity cannot skip errors under declared On
 
@@ -103,7 +104,7 @@ For a read keyed by the selected caller, use a caller-keyed `Handle` parameter i
 | A service such as a price list | Unknown. It is outside the guard |
 | A validator registered by hand as scoped, singleton, a factory or an instance | Refused. Let convention discovery register it, which makes it transient |
 
-The last row is the one that surprises people. Under `On`, Arc builds a fresh validator for every command so that its read-model parameters belong to that command's unit. A validator that the container supplies from another registration is refused with this error:
+Under `On`, Arc builds a fresh validator for each command invocation so its read-model parameters belong to that command's unit of work. A scoped, singleton, factory or instance registration could supply a validator built for a different invocation, so Arc refuses it with this error:
 
 ```text
 Discoverable validator 'BorrowBookValidator' cannot run while read protection is On because Arc did not construct it for this invocation. Let convention discovery register it as transient; do not use a scoped, singleton, factory or instance registration.
@@ -115,45 +116,43 @@ Other constructor parameters, such as `ILogger<T>`, are resolved from the contai
 
 ## The validate endpoint
 
-`{url}/validate` runs the filters and validators, and nothing else: no `Provide()`, no `Handle()`, no commit. Reads there are fresh, but nothing is guarded or written, because nothing commits. A successful validation does not promise that executing the command will succeed. The next execution reads again and guards again.
+`{url}/validate` runs the filters and validators without calling `Provide()` or `Handle()`, and without committing. Under `On`, the reads are fresh, but nothing is guarded or written because nothing commits. A successful validation is feedback for the form, not a promise that execution will succeed.
 
-A client that calls `/validate` and then executes therefore folds the model twice: once for the validation request and once for the execution. This is by design. The execution's guard must start from a position that execution read itself, so a fold from an earlier request is never reused. Within one execution, validators and `Handle()` share a single fold.
+Calling `/validate` and then executing under `On` folds the model twice, once per request. Execution must read its own state and guard from that position; it cannot reuse a fold from the earlier validation request. Within the execution, validators and `Handle()` share a single fold.
 
-That makes a validator the right place for early feedback: the user sees "no copies left" as soon as the form is validated, and the same rule holds when the command executes.
+The user can therefore see "no copies left" while filling in the form, and execution checks the same rule again against a fresh, guarded read.
 
 ## Under Off and Measure
 
-Under `Off` the validator runs as it always did, and its read-model parameter is a plain read. It is a hint:
+Under `Off`, a plain read-model parameter supplies state without a concurrency guard. The validator can reject based on what it reads, but approval alone cannot hold the rule until commit:
 
 1. Two members submit at the same time. Both validators read `Available: 1`.
 2. Both validators pass. Both `Handle()` methods return `BookBorrowed`.
 3. Both events are appended.
 
-A validator over a plain read is acceptable only when something else holds the rule: a constraint, an aggregate, a stream decision, an explicit scope, or a repair you accept. Mark the command's read `[Unprotected("why")]` to say so. [ARCCHR0011](../code-analysis/ARCCHR0011.md) reports plain reads in event-producing commands under `Off`.
+If you keep a rule over a plain read, decide what actually holds it: a constraint, an aggregate, a stream decision, an explicit scope, or a repair you accept. Mark the command's read `[Unprotected("why")]` to record that choice. [ARCCHR0011](../code-analysis/ARCCHR0011.md) reports plain reads in event-producing commands under `Off`.
 
-`Measure` behaves like `Off` for the validator, and reports what `On` would do.
+`Measure` keeps the validator's `Off` behavior and reports what `On` would do. The report helps you plan the change; it does not protect the read.
 
 ### Commands marked [ProtectedDecision]
 
 By default, a `[ProtectedDecision]` command outside `On` runs a discoverable validator only if it has exactly one public, parameterless constructor. To take `DecisionRead<T>` or the command-aware `IDecisionReads` instead, opt into [certified validator construction](./certified-validators.md). That opt-in requires an attested native Microsoft DI scope and an inspectable, fresh transient dependency graph. It supports an Arc-owned configuration callback, not arbitrary factories or prebuilt instances, and is available only on untrimmed JIT runtimes.
 
-Under `On`, a validator with plain read-model parameters remains allowed as described above, without the provider opt-in. If you are moving a command to `On`, move its state checks from `Handle()` to a validator, and drop `DecisionRead<T>` for a plain parameter.
+Under `On`, Arc can construct a validator with plain read-model parameters without that provider opt-in. When moving a command to `On`, put its state checks in the validator and replace `DecisionRead<T>` with a plain parameter.
 
 ### What Arc does not check
 
-Arc certifies what it can see: the validator was constructed for this invocation. It does not certify that its rules read nothing but the parameters you declared. Keep these out of the validators of a protected command:
+Construction checks do not prove that a validator's rules read only its declared parameters. Under `On`, Arc checks that it constructs the validator for this invocation, but hidden state can still affect a rule. Keep these out of validators used by a protected command:
 
 - static members and service locators read by a rule;
 - property injection, or code that resolves the validator and sets a field a rule reads;
 - a decorator that returns the inner instance after changing its state;
 - `ApplyCondition` on an existing rule, a changed cascade mode, or rules added to a nested child validator.
 
-Custom `ICommandFilter` implementations are not checked at all. Do not read decision state in one.
+Arc does not certify the logic of custom `ICommandFilter` implementations. Reads through Chronicle's guarded APIs are still subject to the [read refusals](./reads.md#what-each-read-becomes), but that does not cover hidden dependencies. Keep decision-state checks in a validator or `Handle()`, not in a custom filter.
 
 ## Where to go next
 
-- [Reads](./reads.md): what each read becomes under `On`.
-- [Scenarios](./scenarios/index.md): the same pattern for each rule shape.
-- [Pitfalls](./pitfalls.md): what fails silently.
-- [Command validation](../../commands/validation.md): Arc's validation model in general.
-- [Choosing how a rule holds in Chronicle](/chronicle/dynamic-consistency-boundary/choosing/): why a check before the append is not the guard.
+Use [Reads](./reads.md) to check whether your model can be protected, then choose a worked [scenario](./scenarios/index.md) for the rule you need. [Pitfalls](./pitfalls.md) covers mistakes that can leave a rule unenforced.
+
+For validation behavior beyond read protection, continue with [Command validation](../../commands/validation.md). If you are deciding between a validator, aggregate or constraint, read [Choosing how a rule holds in Chronicle](/chronicle/dynamic-consistency-boundary/choosing/) before choosing the boundary.

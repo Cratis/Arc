@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0034: Unprotected method does not opt out read-model parameters"
-description: Method advisory allowances start after parameter resolution.
+description: ARCCHR0034 explains that method-level Unprotected in Cratis Arc covers the body only; injected read-model parameters resolve before that body starts.
 ---
 
 ## Rule

@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0005: Chronicle is used but not wired up"
-description: A project uses Chronicle features but sets Arc up without WithChronicle() or AddCratis().
+description: ARCCHR0005 in Cratis Arc warns when a project uses Cratis Chronicle features but omits WithChronicle() or AddCratis() during setup.
 ---
 
 ## Rule

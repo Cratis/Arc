@@ -1,22 +1,22 @@
 ---
-title: Read models
-description: How Chronicle read models become command-scoped dependencies in Arc — what makes one injectable, how it is resolved by key, and what its lifetime is.
+title: Cratis Arc read models for commands
+description: Cratis Arc injects Chronicle read models by key into commands. Learn which models qualify, how long state is shared, and when reads need protection.
 ---
 
-A Chronicle read model is current state folded out of events. Arc makes that state available to a command as an ordinary constructor or method parameter, resolved for the key the command already carries — no query, no repository, no manual lookup.
+Cratis Arc injects Chronicle read models into commands so a validator or handler can use state derived from recorded events without loading it itself. Declare the model as a dependency, choose the key that identifies its instance, and decide whether the read must protect a later append against concurrent changes.
 
-This section explains the mechanism. To _use_ it, start with [Use current state in a command](../../../../scenarios/use-current-state-in-a-command.mdx) for the recipe, or [Read models in commands](./injecting-into-commands.md) for the full reference on each position.
+Start with [Use current state in a command](../../../../scenarios/use-current-state-in-a-command.mdx) for the recipe. This page explains which models Chronicle can supply; [Read models in commands](./injecting-into-commands.md) shows where to place the dependency and how to handle missing state.
 
 ## What makes a read model injectable
 
-A read model can be injected into command-scoped code because it is **resolvable by key** — the event source id Arc resolved from the command — through Chronicle's read model store. That resolvability comes from a Chronicle backing artifact, so a read model is registered when it has one of:
+Chronicle must know how to load the model by key. The default key is the command's resolved event source id, but the model needs a backing definition before any key can load it. Arc registers models backed by:
 
 - a fluent [`IProjectionFor<T>`](/chronicle/projections/) projection
 - a standalone model-bound projection (`[FromEvent<T>]`, `[SetFrom<T>]`, `[SetValue<T>]`)
 - an [`IReducerFor<T>`](/chronicle/reducers/) reducer
 - a [self-reducing read model](/chronicle/reducers/self-reducing-read-models/) discovered by Chronicle **19.58.0 or later**
 
-You declare the dependency identically in every case. The backing still matters for freshness, serialization, and compliance release; it is not always a materialized document.
+Each backing uses the same dependency declaration. It still determines how Chronicle builds the state, how fresh an ordinary read is, and how protected values are released for use. Not every model is a stored document. See [materialized and passive paths](#materialized-and-passive-paths).
 
 ### Children and nested objects are not standalone read models
 
@@ -28,9 +28,9 @@ This restriction concerns Chronicle ownership only. Arc leaves registrations fro
 
 ### `[ReadModel]` alone is not enough
 
-The `[ReadModel]` attribute does **not** make a type injectable into commands. `[ReadModel]` is an Arc concept used for queries, and it can be backed by stores other than Chronicle — Entity Framework Core, for example. Injection into command scope only makes sense for a type that is resolvable by key, and key resolution is owned by the backing provider. Chronicle registers the read models it can resolve; a read model backed by another provider is registered by that provider, not by Chronicle.
+`[ReadModel]` identifies an Arc query model; it does not tell Chronicle how to load state. Adding it to a record with no projection or reducer will not make Chronicle inject that record into a validator. Add the backing definition.
 
-The practical consequence: adding `[ReadModel]` to a record with no projection or reducer behind it will not make it appear in a validator. Add the backing artifact.
+A model stored in Entity Framework Core or MongoDB can also be injectable, but its storage provider owns that registration and lookup. Use [Read models from other providers](./other-providers.md) for those rules rather than adding a Chronicle projection solely to enable injection.
 
 ## Self-reducing read models
 
@@ -67,11 +67,19 @@ public record LedgerClosed;
 
 `Reduce` receives the event and nullable current state; a null result removes the state. `ById` is an ordinary query. You do **not** need `RequireQueryAttribute`: Arc excludes any method accepting its own read-model type, regardless of name, parameter position, or nullability. Only `ById` becomes an endpoint and TypeScript query proxy. Apply [query authorization](../../queries/model-bound/authorization.md) before exposing private data.
 
-For command injection, Arc claims a concrete, non-generic type listed in Chronicle's reducer artifacts only when it has at least one eligible **public static nongeneric** `Reduce(event, current[, EventContext])`. The first parameter may be any class other than `object`, or an interface; it does not need `[EventType]`. Chronicle's event registry determines which registered concrete events match it, including explicitly registered events without an attribute. `current` is the exact nullable model type (nullable-oblivious declarations are also accepted). Return the model, nullable model, or `Task` of either. By-reference, optional, and `params` parameters are not eligible. A classic `IReducer`/`IReducerFor<T>` implementation is not a self model, and explicitly nominating a plain reducer class does not make that class injectable as its own read model.
+For command injection, the model must be a concrete, non-generic type in Chronicle's discovered reducer set, with at least one eligible public static, non-generic `Reduce(event, current[, EventContext])` method. `current` must be the exact nullable model type; nullable-oblivious declarations are also accepted. Return the model, nullable model, or `Task` of either. By-reference, optional, and `params` parameters are not eligible.
 
-Self models use the same command-key lookup and `Release(instance)` as other Chronicle backings, not MongoDB fallback. Their materialized/passive freshness and absence follow [Chronicle's self-reducer contract](/chronicle/reducers/self-reducing-read-models/). Injecting them is still an advisory snapshot, **not concurrency protection**. Screenplay recognizes the same reducer shape, lists observed event types it can prove from `[EventType]` (including inherited markers), and reports the imperative fold as lost. When a parameter is an interface or unmarked class and its registered concrete events cannot be determined from source, it reports incomplete observed-event coverage rather than inventing a complete list. It does not translate reduction code into projection mappings.
+The event parameter may be any class other than `object`, or an interface. It does not need `[EventType]`: Chronicle's event registry determines which registered concrete events match, including explicitly registered events without that attribute.
+
+A classic `IReducer`/`IReducerFor<T>` implementation is not a self model. Explicitly nominating a plain reducer class does not make that class injectable as its own read model.
+
+Self models use Chronicle's command-key lookup and `Release(instance)`, not MongoDB fallback. Their ordinary freshness and absence follow [Chronicle's self-reducer contract](/chronicle/reducers/self-reducing-read-models/). Under read protection `Off`, injection supplies an advisory snapshot. Under `On`, the model must pass reducer admission before Arc can acquire and guard it; self-reducer discovery alone does not establish that it can be protected.
+
+Screenplay recognizes the same reducer shape and lists observed event types it can prove from `[EventType]`, including inherited markers. It reports the imperative fold as lost rather than translating reduction code into projection mappings. For an interface or unmarked event parameter whose registered concrete events cannot be determined from source, it reports incomplete observed-event coverage.
 
 ## How an instance is resolved
+
+For an ordinary command-key read under read protection `Off`, Arc resolves the command identity and asks Chronicle for that instance:
 
 ```mermaid
 sequenceDiagram
@@ -90,16 +98,13 @@ sequenceDiagram
     end
 ```
 
-Step by step:
+Arc obtains the identity from `CommandContext`, using the strategies in [Resolving EventSourceId](../resolving-event-source-id.md). Without a usable identity, this lookup fails with [`UnableToResolveReadModelFromCommandContext`](./failures.md#unabletoresolvereadmodelfromcommandcontext). A parameter can select another key through a lookup attribute; see [command state inputs](./command-state-inputs.md).
 
-1. **Identity strategy** — Arc inspects the command to determine its key, using one of the strategies in [Resolving EventSourceId](../resolving-event-source-id.md).
-2. **Command context lookup** — the resolved identity is read from the current `CommandContext`.
-3. **Guard** — if no usable identity is available, resolution fails with [`UnableToResolveReadModelFromCommandContext`](./failures.md#unabletoresolvereadmodelfromcommandcontext).
-4. **Store query** — Chronicle's read model store is queried by the resolved identity.
-5. **Subject release** — if the instance exists, Arc additionally calls `Release(instance)`, whether or not the command declares a compliance `Subject`. It does not pass the command subject. Chronicle resolves the release subject from the instance; materialized state may already have been released server-side. See [Subject](../compliance/subject.md).
-6. **Result** — the instance is returned, or `null` when a materialized or reducer-backed instance does not exist. A never-created passive projection can instead return a default-valued instance; see [absence and passive projections](./injecting-into-commands.md).
+For an existing instance, Arc calls `Release(instance)` so Chronicle can release compliance-protected values. Arc does not pass the command's compliance `Subject`; Chronicle determines the release subject from the instance. Materialized state may already have been released server-side. See [Subject](../compliance/subject.md).
 
-Resolution happens exactly once per command. The same instance is handed to the validator, `Provide()`, and `Handle()`.
+An absent materialized or reducer-backed instance returns `null`. A never-created passive projection can instead return a default-valued instance, so choose absence checks for the backing you use. [Read models in commands](./injecting-into-commands.md) explains the nullable and required cases.
+
+With read protection `On`, supported parameters use the protected acquisition path instead of this ordinary store read. Arc acquires fresh state and enrolls its boundary for the later append; unsupported models are refused. Start with [read protection](../consistency/getting-started.md) before relying on a read to enforce a concurrent rule.
 
 ### The key does not prove existence
 
@@ -107,27 +112,19 @@ A `[Key]` or event source id tells Arc _which_ instance to resolve; it does not 
 
 ## Lifetime and mutability
 
-Read models are registered as **command-scoped** services:
+The ordinary read-model service is command-scoped: its first resolution loads the instance for the command key, and the validator, `Provide()`, and `Handle()` share it. Parameter-specific lookups can acquire other instances. Under `On`, protected acquisition caches by model, key, and stream scope, so equal lookups share state without merging distinct keys or streams.
 
-- The state is fetched once per command and shared across that command's validator, `Provide()`, and `Handle()`.
-- The instance is tied to the identity resolved from the command context.
-- It is disposed when the command completes.
+Treat the injected instance as read-only input. Changing its properties does not persist anything, and a later append does not refresh the instance you already hold. With protection `Off`, asynchronously materialized state reflects the events processed so far; passive models build state on demand. `On` adds freshness and commit checks for admitted reads, not live updates to an object.
 
-And they are **read-only snapshots**:
-
-- **Immutable in practice** — changes made to an injected instance are not persisted anywhere.
-- **Backing-dependent freshness** — asynchronously materialized models reflect events processed so far, not necessarily every append. Passive models are built on demand.
-- **Fetched on first resolution** — the command-scoped snapshot is not refreshed after a later append or returned identity change.
-
-To _change_ state, return events from `Handle()` or use an [aggregate root](../aggregates/index.md). A read model is an input to a decision, never the place a decision is recorded.
+To change state, return events from `Handle()` or use an [aggregate root](../aggregates/index.md). The command records the decision through those events, not by mutating its input.
 
 ## Materialized and passive paths
 
 Passive reducer models are folded in-process. Passive projection models register with no materialized sink and are resolved on demand by Chronicle. Ordinary materialized reads cross the service/JSON boundary; a passive reducer does not use that same document-deserialization path.
 
-Arc calls the non-generic `GetInstanceById(Type, key)` overload. For passive reducers, do not assume it performs the generic overload's post-reduction release. Arc attempts its own `Release(instance)` for every existing command-side instance, and Chronicle decides from the instance whether there is anything to release. Test sensitive state on the path you actually use.
+On the ordinary lookup path, Arc calls the non-generic `GetInstanceById(Type, key)` overload. For passive reducers, do not assume it performs the generic overload's post-reduction release. Arc calls `Release(instance)` for every existing command-side instance, and Chronicle determines from the instance whether anything needs releasing. Test sensitive state on the path your application uses.
 
-On-demand state is still a snapshot, not a lock. Neither passive nor materialized read-model injection by itself binds the later append to the revision used by a decision. Use append-time constraints or an explicitly captured concurrency expectation where needed.
+On-demand state is still a snapshot, not a lock. Under `Off` or `Measure`, neither passive nor materialized injection binds the later append to the read's revision. Use read protection `On` for supported reads, or an append-time constraint for a rule such as uniqueness. See [Choosing how a command's rule holds](../consistency/index.md).
 
 ## Read models or aggregate roots
 
@@ -135,11 +132,11 @@ Both give a command access to current state, and they answer different questions
 
 | Reach for          | When                                                                                                                        |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| **Read model**     | You need projected, possibly denormalized state to validate against or compute from, and eventual consistency is acceptable |
+| **Read model**     | You need projected state to validate against or compute from; choose its read-protection policy if concurrency matters |
 | **Aggregate root** | You need to emit events, enforce an invariant inside a consistency boundary, or work from source-of-truth stream state      |
 | **Both**           | Validate against projected state, then make the change through the aggregate                                                |
 
-If correctness depends on source-of-truth state under concurrency, prefer aggregate or event-stream state over a read model — or enforce it with a Chronicle [constraint](/chronicle/constraints/), which is checked at append time.
+Choose the state shape separately from the concurrency rule. Aggregate or event-stream state fits a stream-owned decision; a projected model can be an input too, with supported reads guarded under `On`. A Chronicle [constraint](/chronicle/constraints/) checks a rule such as uniqueness at append time. Loading any of these inputs alone does not establish that the later write is safe.
 
 ## Topics
 

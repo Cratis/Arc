@@ -1,5 +1,5 @@
 - name: Overview
-  href: index.md
+  href: index.mdx
 - name: 1. Your first full-stack slice
   href: first-slice.mdx
 - name: 2. Make it trustworthy

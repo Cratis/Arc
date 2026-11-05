@@ -1,9 +1,9 @@
 ---
-title: IdentityProvider service
-description: Read identity presentation data with IIdentityProvider, which always derives the identity from the authenticated request.
+title: Cratis Arc IIdentityProvider usage
+description: Use Cratis Arc IIdentityProvider to read identity presentation data or modify details in the current response, without changing authentication.
 ---
 
-`IIdentityProvider` serves identity presentation data during HTTP requests. It always derives the identity from the authenticated principal of the current request and the details your `IProvideIdentityDetails` returns for it. Nothing else the client sends, such as the `.cratis-identity` cookie earlier versions wrote, is read. The result is still presentation data: **it is not authorization evidence on its own**.
+Use `IIdentityProvider` when backend code needs the identity presentation data that Cratis Arc returns to the frontend. For an authenticated request, it reads the principal, the server-side representation of the caller, and invokes `IProvideIdentityDetails` to add application-specific details. The result describes the caller for display; use the principal and authorization policies to decide what the caller may do.
 
 ## Key methods
 
@@ -11,20 +11,20 @@ description: Read identity presentation data with IIdentityProvider, which alway
 | --- | --- |
 | `Get()` | Builds a result from the current request principal and details provider. With no request context, or no authenticated principal, returns anonymous. |
 | `Get<TDetails>()` | Uses the same flow and converts the details to `TDetails`. |
-| `SetCookieForHttpResponse(result)` | Writes the result as the JSON response body, with `Cache-Control: no-store, private` and `Vary: Cookie`. Despite its name, it no longer writes a cookie; it expires a `.cratis-identity` cookie left by an earlier version. It does not establish a trusted principal. |
+| `SetCookieForHttpResponse(result)` | Writes the result as the JSON response body, sets `Cache-Control: no-store, private`, and adds `Cookie` to `Vary`. The name is retained for compatibility: it expires a `.cratis-identity` cookie if the request carries one, but does not write a new cookie or establish a trusted principal. |
 | `ModifyDetails<TDetails>(transform)` | Calls nongeneric `Get()`, applies the transform when `Details is TDetails`, and writes the modified result to the response; otherwise does nothing. |
 
 ## Trust
 
-The identity comes from the authenticated principal, so a client cannot change what `Get()` returns without changing its credentials. The details provider runs on every call; cache expensive lookups inside it if you need to.
+`Get()` ignores the `.cratis-identity` cookie. Setting that cookie cannot change the resolved identity or roles. For an authenticated caller, the details provider runs on every call, so changes to the application data it reads can affect the result even when the credentials stay the same. Cache expensive lookups inside the provider if needed, accounting for how long a cached application-entry decision may remain valid.
 
-Never use the result's `IsAuthenticated`, `IsAuthorized`, roles, or details in place of authorization. Read `ICurrentPrincipalAccessor.Current` from `Cratis.Arc.Authorization` and authoritative application data, and protect commands and queries with [pipeline authorization](../core/authorization.md). The result is sent to the browser, so avoid putting secrets or unnecessary personal data in the details.
+Do not use the result's `IsAuthenticated`, `IsAuthorized`, roles, or details in place of authorization. Read `ICurrentPrincipalAccessor.Current` from `Cratis.Arc.Authorization` and authoritative application data, and protect commands and queries with [pipeline authorization](../core/authorization.md). Because Arc sends the result to the browser, leave secrets and unnecessary personal data out of the details.
 
 ## Modifying details
 
-`ModifyDetails<TDetails>(...)` changes what the current response reports. It does not store anything: the next request derives the identity from the principal again. Persist durable preferences through an authenticated application operation and authoritative storage, and return them from your details provider.
+`ModifyDetails<TDetails>(...)` changes what the current response reports when the resolved details match `TDetails`. For example, it can return a different display name, but it does not save that preference. To keep the name across requests, store it through an authenticated application operation and have your details provider read it back on later calls.
 
-`ModifyDetails` writes the JSON response itself; do not write another response body after calling it.
+When the types match, `ModifyDetails` writes the JSON response itself. Do not write another response body after it has done so.
 
 ## Upgrading from the identity cookie
 

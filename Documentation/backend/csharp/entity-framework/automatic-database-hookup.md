@@ -1,57 +1,39 @@
 ---
-title: Automatic database hookup
-description: Register pooled EF contexts and select a supported provider from a connection string.
+title: Register EF Core contexts and select a database in Arc
+description: Register pooled EF Core contexts in Cratis Arc, select SQLite, PostgreSQL or SQL Server from a connection string, and control context discovery.
 ---
 
-Out of the box we support the following databases:
+Cratis Arc selects SQLite, PostgreSQL or SQL Server from a connection string and registers pooled EF Core contexts. Register each context explicitly when connections or options differ, or scan assemblies when your read-only contexts share a connection.
 
-- Sqlite
-- PostgreSQL
-- Microsoft SQL Server
+Start with [getting started](./getting-started.md) to add the package and configure your Arc host. The examples here belong in that existing host. Supply your own context types, forward their options to the base constructor, and import `Cratis.Arc.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore`, and `Microsoft.Extensions.DependencyInjection`.
 
-The examples below are registration or service fragments for an existing host; supply the named contexts and import `Cratis.Arc.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore`, and `Microsoft.Extensions.DependencyInjection`. Contexts must forward their options to their base constructor. Start with [getting started](./getting-started.md) for the optional package and Arc setup.
+Provider detection is case-insensitive. SQLite strings use `Data Source=store.db` or `Filename=`; PostgreSQL requires both `Host=` and `Database=`; SQL Server requires `Server=` or `Data Source=` together with SQL Server-specific keywords such as `Initial Catalog=` or `Encrypt=`. Unrecognized strings throw `UnsupportedDatabaseType`. Selecting a provider does not apply migrations.
 
-Database hookup selects a provider; it does not apply migrations. SQLite strings use `Data Source=store.db`; PostgreSQL detection requires `Host=` and `Database=`; SQL Server detection looks for server/data-source and SQL Server-specific keywords. Unrecognized strings throw `UnsupportedDatabaseType`.
-
-You can use the standard EF Core method with the Arc database detection extension:
+To use only provider detection with standard EF Core registration:
 
 ```csharp
 services.AddDbContext<MyDbContext>(opt => opt.UseDatabaseFromConnectionString("Data Source=store.db"));
 ```
 
-> Note: From the connection string it will do the correct `.UseSqlite()`, `.UseNpgsql()` or `.UseSqlServer()` call on the builder.
+`UseDatabaseFromConnectionString` calls `.UseSqlite()`, `.UseNpgsql()` or `.UseSqlServer()` on the options builder. It does not add Arc's context registration services.
 
-However, **it is recommended** to use the Arc registration methods which use the pooled factory pattern for better performance and to support multiple database providers:
+Use `AddDbContextWithConnectionString` when you also want Arc's mapping and query support:
 
 ```csharp
 services.AddDbContextWithConnectionString<MyDbContext>("Data Source=store.db", (serviceProvider, opt) => opt.EnableDetailedErrors());
 ```
 
-This method automatically:
-
-- Uses `AddPooledDbContextFactory` for improved performance
-- Applies all `BaseDbContext` configurations (interceptors, service replacements)
-- Registers both the factory and a scoped DbContext instance
-- Supports multiple database providers in the same application
+This helper registers a pooled factory and a scoped context created by that factory. It supplies the entity registrar used by `BaseDbContext`, installs `ConceptAs<T>` query support, and adds observation interceptors when observation services are registered.
 
 ## Multiple Database Providers
 
-The Arc Entity Framework integration uses the **pooled factory pattern** (`IDbContextFactory<T>`) internally. Different context types can use different database providers. A single context's options must select only one provider; this is not a prohibition on multiple providers anywhere in the application's DI container.
+Different context types can use different database providers in the same application. For example, register one context with a SQLite connection string and another with a SQL Server connection string. Each context's options must select only one provider.
 
-The pooled factory approach provides:
-
-- **Multiple database provider support** - Different contexts can use different databases (SQLite, SQL Server, PostgreSQL)
-- **Improved performance** - DbContext instances are pooled and reused
-- **Reduced memory overhead** - Internal service providers are shared across pooled instances
-
-All registration methods automatically register both:
-
-- `IDbContextFactory<TDbContext>` - For creating DbContext instances
-- `TDbContext` - Scoped instance created from the factory
+Arc's helpers register both `IDbContextFactory<TDbContext>` and a scoped `TDbContext` created from it. Pooling reuses context instances after they are disposed, so choose how to obtain a context based on who should own its lifetime.
 
 ### Using DbContext in Your Code
 
-You can inject DbContexts directly as you normally would:
+Inject the context when its lifetime should follow the service scope:
 
 ```csharp
 public class MyService
@@ -65,7 +47,7 @@ public class MyService
 }
 ```
 
-Or you can use `IDbContextFactory<T>` when you need more control over the DbContext lifetime:
+Inject `IDbContextFactory<T>` when an operation should create and dispose its own context:
 
 ```csharp
 public class MyService
@@ -85,11 +67,11 @@ public class MyService
 }
 ```
 
-> **Important**: Pooling reuses context instances and their options. These helpers capture the supplied connection string; they do not implement tenant-aware database selection. Do not capture request-scoped tenant state in pooled configuration. Test any application-supplied isolation strategy across pooled reuse.
+Pooling reuses context instances and their options. Without [connection resolution](./connection-resolution.md), every tenant uses the supplied connection string. Configure resolution to select a tenant's database or identity when a connection opens; do not capture request-scoped tenant state in pooled options.
 
 ## Read Only DbContexts
 
-For any **read-only** `DbContext` there is also an extension method:
+For a `ReadOnlyDbContext` subclass, use the read-only helper to disable tracking and reject `SaveChanges`:
 
 ```csharp
 services.AddReadOnlyDbContextWithConnectionString<MyDbContext>("Data Source=store.db", (serviceProvider, opt) => opt.EnableDetailedErrors());
@@ -97,7 +79,7 @@ services.AddReadOnlyDbContextWithConnectionString<MyDbContext>("Data Source=stor
 
 ## Automatic Registration from Assemblies
 
-The framework provides methods to automatically discover and register all `ReadOnlyDbContext` types from specified assemblies:
+Pass the assemblies you want to scan and a shared connection or options callback. These methods register `ReadOnlyDbContext` subclasses, not unrelated context classes:
 
 ```csharp
 // Register all ReadOnlyDbContext types from assemblies with a common options action
@@ -109,17 +91,13 @@ services.AddReadModelDbContextsWithConnectionStringFromAssemblies(connectionStri
 
 ### Registration Filtering Rules
 
-When using automatic registration, the framework applies the following filtering rules:
+Assembly scanning includes exported, concrete `ReadOnlyDbContext` subclasses from the assemblies you pass. It excludes abstract classes and classes marked with `IgnoreAutoRegistrationAttribute`.
 
-1. **Public Classes Only**: Only `public` DbContext classes will be automatically registered. Internal, private, or protected classes are ignored.
-
-2. **Assembly Membership**: Only DbContext classes that belong to the specified assemblies will be considered for registration.
-
-3. **Attribute-Based Exclusion**: Classes marked with the `IgnoreAutoRegistrationAttribute` will be excluded from automatic registration.
+The builder's `WithEntityFrameworkCore` discovery is broader: it finds public `BaseDbContext` subclasses and gives read-only subclasses read-only registration. It runs only when `AutoDiscoverDbContexts` is enabled and the configured connection string is nonempty.
 
 ### Excluding DbContexts from Automatic Registration
 
-If you have a DbContext that should not be automatically registered (for example, if it requires special configuration or should be registered manually), you can exclude it using the `IgnoreAutoRegistrationAttribute`:
+Add `IgnoreAutoRegistrationAttribute` when a context needs an explicit connection or options instead of the shared discovery settings:
 
 ```csharp
 using Cratis.Arc;
@@ -132,9 +110,4 @@ public class SpecialDbContext(DbContextOptions<SpecialDbContext> options) : Read
 }
 ```
 
-This is useful for scenarios where:
-
-- The DbContext requires special configuration
-- You want to register it with different lifetime scopes
-- It's used only in specific conditions
-- You want to register it manually with custom options
+The attribute excludes the context from both assembly scanning and builder discovery; register it explicitly if the application needs it. Once registration is in place, configure [entity mappings](./entity-mapping.md) for its tables, keys and relationships.

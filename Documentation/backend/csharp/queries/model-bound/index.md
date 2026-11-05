@@ -1,18 +1,18 @@
 ---
-title: Model-bound queries
-description: Keep a query with the read model it returns, without writing a controller.
+title: Declare model-bound queries in Cratis Arc
+description: Declare model-bound queries in Cratis Arc with static read-model methods that expose reads through HTTP endpoints and generated TypeScript proxies.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-When a screen needs a list of accounts, you should not need a controller just to forward a database call. Put a public static query method on the model you want to return and mark the model with `[ReadModel]`. Arc discovers that method and generates its HTTP endpoint and TypeScript proxy. The declaration below supplies the read; the host and data provider still need to be configured.
+A model-bound query in Cratis Arc keeps a read on the model it returns, without a controller that only forwards the call. Mark the model with `[ReadModel]` and add a public static query method. Arc discovers the method for HTTP routing and TypeScript proxy generation; the host and data provider supply the running endpoint.
 
-A read model is the shape you serve. It can come from MongoDB, EF Core, a service, or in-memory data. **Neither `[ReadModel]` nor a database query requires Chronicle or event sourcing.**
+The read model defines the data a caller receives. Its values can come from MongoDB, EF Core, a service, or in-memory data. Neither `[ReadModel]` nor a database query requires Chronicle or event sourcing. The example below reads accounts directly from MongoDB.
 
 ## Model account identities and names
 
-Cratis applications conventionally give domain values their own types. `AccountId` says which kind of identity a method accepts; `AccountName` is not interchangeable with an address or another string. The C# compiler can catch accidental swaps before the application runs. Define shared concepts once in the feature and reuse them in its commands and read models:
+Give account identities and names their own types so the C# compiler can catch accidental swaps. A concept is a domain value wrapped in a type derived from `ConceptAs<T>`: `AccountId` identifies an account, while `AccountName` distinguishes its name from other strings. Define these shared concepts once in the feature and reuse them in commands and read models:
 
 ```csharp
 using System;
@@ -34,13 +34,13 @@ public record AccountName(string Value) : ConceptAs<string>(Value)
 }
 ```
 
-These are standalone domain concepts, not Chronicle event-source identities. Arc and its MongoDB integration handle their underlying wire/storage values, and the proxy generator maps them to the corresponding TypeScript value types. The C# domain distinctions are not automatically branded TypeScript types.
+These concepts are domain values, not Chronicle event-source identities. Arc and its MongoDB integration use their underlying values for transport and storage. The proxy generator maps them to the corresponding TypeScript value types, so the C# distinctions do not become branded TypeScript types automatically.
 
-This is a modeling convention, not a requirement imposed by `[ReadModel]`. Add a `ConceptValidator<T>` when an invariant should follow a value wherever Arc validates it. See [concepts and serialization](../../mongodb/concepts.md) and the [validation tutorial](/arc/tutorial/validation/).
+Concepts are a modeling convention, not a requirement of `[ReadModel]`. When a rule should follow a value wherever Arc validates it, add a `ConceptValidator<T>`. See [concepts and serialization](../../mongodb/concepts.md) and the [validation tutorial](/arc/tutorial/validation/) for those next steps.
 
 ## Start with one read
 
-Use the concepts above in an Arc host with [the MongoDB provider configured](../../mongodb/getting-started.md) and an `IMongoCollection<DebitAccount>` available from DI. The following is the complete read-model declaration, not a complete host. Later pages show alternative declarations of this same model; do not add all of them as duplicate types.
+Configure [the MongoDB provider](../../mongodb/getting-started.md) in an Arc host so dependency injection (DI) can supply `IMongoCollection<DebitAccount>`. Then add this read-model declaration using the concepts above. Later pages replace it with alternative declarations of the same model; do not add them all as duplicate types.
 
 ```csharp
 using System.Collections.Generic;
@@ -58,7 +58,7 @@ public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 }
 ```
 
-Call `GET /api/accounts` to run `AllAccounts`, then read the account list from `data` in the [query result envelope](../query-pipeline.md#query-result-metadata). A successful empty collection means the read found no accounts; a denied or failed query needs different handling. Check the result verdict before treating missing data as absence.
+Call `GET /api/accounts` to run `AllAccounts`. Check the verdict in the [query result envelope](../query-pipeline.md#query-result-metadata), then read the account list from `data`. A successful empty collection means no accounts matched; a denied or failed query does not establish that the accounts are absent.
 
 The explicit path makes this example independent of namespace-routing configuration. `AllAccounts` becomes the generated query class name; its fully qualified query name is `Banking.Accounts.DebitAccount.AllAccounts`.
 
@@ -66,7 +66,7 @@ This unprotected teaching example is suitable only for public data or a local sa
 
 ## What Arc discovers
 
-Use a non-generic public static method returning **the declaring read-model type**, a collection of that type, or one of its [supported wrappers](return-types.md). Public static visibility is required for Arc to discover the endpoint. A method accepting that exact read-model type as a parameter is never a query, even if the parameter is nullable. This keeps self-reduction and other self-parameter helpers off the endpoint surface without requiring `RequireQueryAttribute`.
+A query must be a non-generic public static method returning the declaring read-model type, a collection of that type, or one of its [supported wrappers](return-types.md). A method accepting that exact read-model type as a parameter is never a query, even if the parameter is nullable. Helpers that take an existing model and return a revised one therefore stay off the endpoint surface without requiring `RequireQueryAttribute`.
 
 For example, a method on `DebitAccount` returning `IEnumerable<DebitAccount>` qualifies. A method there returning `AccountSummary`, `int`, or `PagedResult<DebitAccount>` does not. Put a summary query on an `[ReadModel] AccountSummary` instead, or choose a [controller](../controller-based/index.md). Compiling a method is not proof that Arc discovers an endpoint for it.
 
@@ -74,8 +74,12 @@ For example, a method on `DebitAccount` returning `IEnumerable<DebitAccount>` qu
 
 ## Grow the query in order
 
-1. Add [scalar arguments](query-arguments.md) and [validation](../validation.md).
-2. Protect the query with [Arc authentication and role checks](authorization.md); do not assume ASP.NET policies run in the model-bound evaluator.
-3. Return `IQueryable<DebitAccount>` for [paging and sorting](paging.md).
-4. Return a supported stream for [observable updates](observable-queries.md).
-5. Consume the generated proxy in [React queries](../../../../frontend/react/queries/index.md).
+Before serving private account data, add [authorization](authorization.md) and constrain the read to the caller's permitted accounts. The policy and host setup on that page applies to model-bound queries as well as their generated endpoints.
+
+Once the read is protected, choose the next step for the screen you are building:
+
+- Accept filters through [query arguments](query-arguments.md) and check them with [validation](../validation.md).
+- Return `IQueryable<DebitAccount>` for [paging and sorting](paging.md) before rows are materialized.
+- Return a supported stream for [observable updates](observable-queries.md) when the screen must stay current.
+
+Use [dependency injection](dependency-injection.md) to supply the services each read needs, then consume its generated proxy in [React queries](../../../../frontend/react/queries/index.md).

@@ -1,14 +1,14 @@
 ---
-title: Transactional commands
-description: Atomic enrollment, immediate appends, nested commands, and explicit aggregate commit boundaries in Arc's optional Chronicle integration.
+title: Cratis Arc transactional commands with Chronicle
+description: Cratis Arc commits returned events and transactional appends as one Chronicle batch. Immediate appends and external calls stay outside that boundary.
 ---
 
-With `Cratis.Arc.Chronicle` registered, a model-bound command executed through Arc's command pipeline owns a Chronicle transaction. Returned events and explicit `eventLog.Transactional` appends enroll in it. Pending enrolled events commit atomically when the command succeeds; a failed command rolls them back. This is a **Chronicle event transaction**, not a transaction over arbitrary databases, HTTP calls, or external services.
+Cratis Arc uses Cratis Chronicle transactions to commit a command's returned events and explicit transactional appends as one atomic batch. Use this when several events must be recorded together. A command failure discards events still pending in that batch; it cannot undo an immediate append, an earlier explicit commit, or an external call.
 
-The integration uses Arc's [command execution scope](../../commands/command-execution-scopes.md) extension point. Standalone Arc does not supply this event-store guarantee.
+With `Cratis.Arc.Chronicle` registered, a top-level model-bound command executed through Arc's command pipeline owns this transaction. Its unit of work holds the pending events until completion. Enrolling an event adds it to that pending batch without persisting it. The integration uses Arc's [command execution scope](../../commands/command-execution-scopes.md) extension point; standalone Arc does not supply this event-store guarantee.
 
 :::note[Events and external operations have different recovery boundaries]
-Return events for durable domain facts. For immediate external side effects chosen by the same command, prefer [command operations](../../commands/operations/index.md) instead of direct service calls or a hand-written rollback stack. Their optional compensation runs only when the observed commit boundary permits it; external work is not part of Chronicle's atomic event transaction. Use a reactor or durable workflow when work must follow committed facts reliably.
+Return events for durable domain facts. If the same command must make an immediate external call, prefer [command operations](../../commands/operations/index.md) over a direct service call or a hand-written rollback stack. Arc can attempt their optional compensation only when the observed commit boundary permits it. External work remains outside Chronicle's atomic event transaction. Use a reactor or durable workflow when work must follow committed facts reliably.
 :::
 
 ## Choosing an append style
@@ -22,7 +22,9 @@ Return events for durable domain facts. For immediate external side effects chos
 | Aggregate `Apply(...)` | Enroll aggregate events | Await mutation; see aggregate failure handling below |
 | Aggregate `Commit()` | Commit the shared unit of work immediately | `AggregateRootCommitResult` |
 
-Returning events is the recommended path. This complete command/type example assumes the integration is configured:
+Keep the unit of work within one event store, namespace, and event sequence. The ordered-batch API rejects mixing event sequences; legacy imperative enrollment does not establish a cross-sequence guarantee. Independently configured databases and external calls need their own consistency design.
+
+Prefer returning events from `Handle()`. In this example, starting onboarding records two related facts: the onboarding started and an administrator was invited. Returning both keeps them in the same commit even though they target different event sources. The command and types below assume the integration is configured:
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -79,37 +81,37 @@ public record OnboardingStarted(OrganizationNumber OrganizationNumber);
 public record AdminInvited(OnboardingId OnboardingId);
 ```
 
-Keep each concept in its own application file. The named ids prevent swapping an invitation and an onboarding. Because both derive from `EventSourceId<Guid>`, `GetEventSourceId()` explicitly selects the command's identity; each returned wrapper still selects its own append target. `AdminInvited` keeps the onboarding id as a foreign reference, not the invitation's own stream id.
+Keep each concept in its own application file. `OnboardingId` and `InvitationId` prevent swapping the two identities. Because both derive from `EventSourceId<Guid>`, `GetEventSourceId()` explicitly selects the command's identity. Each returned wrapper still selects its own append target: `AdminInvited` goes to the invitation's event source and carries the onboarding id as a foreign reference.
 
-If Chronicle rejects one event, none of this returned batch lands. A constraint must actually be configured to enforce uniqueness; the event/type declarations above do not create one.
+If Chronicle rejects one event, neither event in this returned batch is persisted. The final `CommandResult` reports the commit outcome. To reject a duplicate through a uniqueness constraint, you must configure that constraint; these event/type declarations do not create one.
 
 ## Explicit transactional and immediate appends
 
-These are method-body fragments, not complete commands. `eventLog` is an `IEventLog`; `sensorId` is an `EventSourceId`; the event records are application types.
+Use `eventLog.Transactional` when a handler needs to stage an event imperatively. It requires an active command transaction or another explicitly established unit of work; without one, it throws. These examples are method-body fragments, not complete commands. `eventLog` is an `IEventLog`, `sensorId` is an `EventSourceId`, and the event records are application types.
 
 ```csharp
 await eventLog.Transactional.Append(sensorId, new ReadingRegistered(reading));
 ```
 
-This awaits enrollment, not commit. Use it only with an active transaction. Outside a command or another explicitly established unit of work, it throws.
+Awaiting this call finishes enrollment. It does not persist `ReadingRegistered` or tell you whether the eventual commit succeeds. The command's owner commits it with the other pending events at completion.
 
-On the command's unit of work, direct `AddEvent`, `AddEvents`, `AddEventWithNamedTags` and all four
-`Transactional` append variants enforce [generated-identifier freshness](fresh-identifiers.md) just like
-returned events. Nested invocations share that protection and an occupied generated target rejects the
-whole pending unit at commit. This integration requires Chronicle client 19.65.2 or later and contributor support from
-custom units. `AddEvents` preflights the whole call; transactional many-event methods stage per event, so
-let a later enrollment rejection escape the handler to roll back earlier pending events.
+On the command's unit of work, direct `AddEvent`, `AddEvents`, `AddEventWithNamedTags` and all four `Transactional` append variants enforce [generated-identifier freshness](fresh-identifiers.md), just like returned events. Nested invocations share that protection. If a generated target is already occupied, the whole pending unit is rejected at commit. This integration requires Chronicle client 19.65.2 or later and contributor support from custom units.
+
+`AddEvents` preflights the whole call, while transactional many-event methods stage one event at a time. Let a later enrollment rejection escape the handler so that command failure rolls back the earlier pending events.
 
 ```csharp
 var result = await eventLog.Append(sensorId, new ImportAttempted());
 ```
 
-A successful immediate append survives any subsequent failure. Under read protection `On` an immediate append is refused with `ImmediateAppendWhileReadsAreProtected`; stage the event with `eventLog.Transactional.Append(...)` or return it. The command scope observes failed append operations on its event log and merges attributable failures into the command result; it cannot un-append earlier successes. This is not a guarantee for arbitrary other stores or event sequences. Immediate appends also bypass the
-automatic generated-identifier guard; return events or use the command's transactional unit for that protection.
+Without `.Transactional`, this call appends immediately and returns a real `AppendResult`. A successful `ImportAttempted` remains persisted even if the handler later throws or the pending batch is rejected. The command scope observes failed append operations on its event log and merges attributable failures into the command result. That observation cannot undo earlier successes and does not cover arbitrary other stores or event sequences.
+
+When you protect a command's decision reads with read protection `On`, the immediate call is refused with `ImmediateAppendWhileReadsAreProtected`; return the event or use `eventLog.Transactional.Append(...)`. Immediate appends also bypass the automatic generated-identifier guard. Use returned events or the command's transactional unit when you need that protection.
 
 [ARCCHR0007](../code-analysis/ARCCHR0007.md) warns on `IEventLog` parameters in `Handle()`, even for reads or deliberate transactional use. Prefer returned events. For an intentional advanced use, narrowly suppress that warning with a documented reason; suppression does not change the append boundary.
 
 ## Completion
+
+Arc starts the unit of work before invoking the handler and enrolls returned events before completing it. For a transaction that is still pending, the command result determines whether Arc commits or rolls back:
 
 ```mermaid
 sequenceDiagram
@@ -130,36 +132,48 @@ sequenceDiagram
     end
 ```
 
-Commit violations are translated to the command result, including validation details where available. An exception or validation failure rolls back **pending** enrollment, not an already completed transaction or immediate append.
+Commit violations become part of the command result, including validation details where available. An exception or validation failure rolls back pending enrollment. Events persisted by an earlier explicit commit or immediate append remain persisted.
 
-The scope applies to HTTP model-bound commands, POST controller commands (except `[AspNetResult]` actions), direct `ICommandPipeline` execution, reactor commands, and `CommandScenario`. Chronicle's request-level unit-of-work middleware is a separate boundary: an Arc command starts its own transaction rather than joining that request-level unit of work.
+This scope covers HTTP model-bound commands, POST controller commands (except `[AspNetResult]` actions), direct `ICommandPipeline` execution, reactor commands, and `CommandScenario`. Chronicle's request-level unit-of-work middleware has a separate boundary. An Arc command starts its own transaction instead of joining that request-level unit of work.
 
 ## Nested commands and aggregates
 
 :::caution[Command operations use a narrower execution profile]
-The nesting and explicit-commit behavior below describes ordinary Chronicle commands. The initial [command operation contract](../../commands/operations/reference.md#supported-scope-profile) supports flat commands and deferred completion; nested operation-bearing commands and explicit aggregate commits inside an operation boundary are rejected. Existing event-only command behavior remains separate.
+The nesting and explicit-commit behavior below describes ordinary Chronicle commands. The [command operation contract](../../commands/operations/reference.md#supported-scope-profile) supports flat commands and deferred completion. It rejects nested operation-bearing commands and explicit aggregate commits inside an operation boundary. Event-only commands retain the behavior described here.
 :::
 
-A nested pipeline command joins the outer command's active transaction. Only the outer owner completes it. A successful nested result reflects enrollment, not final persistence; commit-time violations arrive at outer completion. The outer command must inspect/propagate a nested failure rather than treating a failed nested call as success.
+### Nested pipeline commands
 
-A controller action is the exception. A model-bound command that a controller action executes through `ICommandPipeline` owns its own transaction: it commits before `Execute` returns, its `CommandResult` reports its own commit outcome, and nested read-protection rules do not treat it as a child of the controller. The controller's own appends stay in the controller's unit, which commits when the action completes. A failure of the inner command does not fail the controller unless the action propagates it, and a later failure of the action does not undo the inner command's commit.
+A nested pipeline command joins the outer command's active transaction. In the deferred-completion path, only the outer owner completes it. A successful nested result means its events have been enrolled; commit-time violations arrive when the outer command completes. Inspect a nested command's result and propagate its failure so the outer command does not treat a failed call as success.
 
-Controller actions receive execution scopes and a transactional boundary, not pipeline decision-policy or generated-parameter semantics; body-type read-protection declarations do not enable enforcement or measurement, while commands executed through `ICommandPipeline` keep their own policies.
+Several commands returned by a reactor are separate transactions. Earlier successes remain if a later command fails. Return one command when its events must commit together.
 
-Aggregate mutations share this unit of work. Explicit aggregate `Commit()` finalizes **all events enrolled so far**, not just one aggregate. The command scope leaves a completed transaction alone. This also applies to an aggregate used by a controller: it reuses and can commit the controller's ambient unit; the action filter does not defer that commit. Do not enroll further events or do fallible work afterward while expecting rollback to undo that commit.
+### Commands called from a controller
 
-There is a separate failure-propagation limitation: `AggregateRoot.Commit()` checks the aggregate's accumulated `Failed(...)` results; automatic command completion commits the unit of work directly and does not collect those lists. Removing explicit commit from an aggregate that uses `Failed(...)` can change behavior. Return its commit result and end the handler at that boundary, or propagate rejection through the command's result before automatic completion. Committing one aggregate does not validate every other aggregate's private failures. See [Defining an aggregate root](../aggregates/defining-an-aggregate-root.md).
+A model-bound command executed through `ICommandPipeline` inside a controller action owns a separate transaction. It commits before `Execute` returns, and its `CommandResult` reports that commit outcome. Nested read-protection rules do not treat it as a child of the controller.
+
+The controller's own appends remain in the controller's unit, which commits when the action completes unless explicitly committed earlier. Propagate the inner command's failure if it should fail the action. A later failure of the action cannot undo the inner command's commit.
+
+Controller actions receive execution scopes and a transactional boundary, but not pipeline decision-policy or generated-parameter semantics. Read-protection declarations on the body type do not enable enforcement or measurement. Commands executed through `ICommandPipeline` keep their own policies.
+
+### Explicit aggregate commits
+
+Aggregate mutations share the command's unit of work. An explicit aggregate `Commit()` finalizes all events enrolled so far, including events from other aggregates or transactional appends. The command scope leaves that completed transaction alone. An aggregate used by a controller can likewise commit the controller's ambient unit; the action filter does not defer it. Treat an explicit commit as the end of the work you expect to roll back together. Further enrollment or fallible work cannot make that commit reversible.
+
+`AggregateRoot.Commit()` also checks that aggregate's accumulated `Failed(...)` results. Automatic command completion commits the unit of work directly and does not collect those lists, so removing an explicit commit can change rejection behavior. Return the aggregate's commit result and end the handler at that boundary, or propagate its rejection through the command's result before automatic completion. Committing one aggregate does not validate every other aggregate's private failures. [Defining an aggregate root](../aggregates/defining-an-aggregate-root.md) explains that validation path.
+
+Under read protection `On`, mixing an aggregate and a plain read of the same event source is refused. A read or append after the aggregate's `Commit()` is also refused: read first and return `Commit()` last. Outside `On`, do not mix an aggregate `Commit()` with `[ProtectedDecision]` reads. Once a decision read is enrolled, that commit throws because only the command's owner may commit the unit of work.
 
 ## Occurrence commands
 
-A command run for a Chronicle occurrence through `IOccurrenceCommandExecutor` also writes an effect receipt in its final commit. That commit must be the only one: early aggregate commits, stream completion and immediate appends are refused for it. See [Commands for occurrences](./occurrence-commands.md).
+A command run for a Chronicle occurrence through `IOccurrenceCommandExecutor` writes an effect receipt with its final commit, recording the occurrence's effect. That must be its only commit, so early aggregate commits, stream completion and immediate appends are refused. Use [Commands for occurrences](./occurrence-commands.md) when you need that execution and receipt boundary.
 
 ## Things to know
 
-- **Reads do not see pending enrollment.** An event-log read observes persisted events, not the pending batch. It can see successful immediate appends.
-- **Keep the transaction in its owner lifetime.** Do not use `Transactional` from fire-and-forget work or continuations that outlive the command. Enrollment against a completed unit of work can be silently discarded; use an awaited command or a reactor for follow-up work.
-- **One batch is not a distributed transaction.** Keep a unit of work within one event store, namespace, and event sequence. The ordered-batch API rejects mixing event sequences; do not infer a cross-sequence guarantee from legacy imperative enrollment. Independently configured databases and external calls need their own consistency design.
-- **Several returned reactor commands are separate transactions.** Earlier successes remain if a later command fails. Model one command when its events must commit together.
-- **Concurrency is a separate decision.** Atomic append does not bind a decision to the revision it read. See [Concurrency](./concurrency.md), including empty-history expectations, and [Choosing how a command's rule holds](../consistency/index.md) for the mechanisms that bind a decision to the state it read. Under read protection `On`, an aggregate and a plain read of the same event source are refused, and a read or an append after the aggregate's `Commit()` is refused; read first and return `Commit()` last. Outside `On`, do not mix an aggregate `Commit()` with `[ProtectedDecision]` reads: once a decision read is enrolled, the aggregate's commit throws because only the command's owner may commit the unit of work.
+An event-log read observes persisted events, including successful immediate appends. It does not see the pending batch. Staging `ReadingRegistered` above therefore does not make it available to a subsequent event-log read in the handler.
 
-For test patterns that assert no partial returned batch and inspect command failures, see [Testing with Chronicle](../../testing/chronicle.md). For an event plus external operation, [test compensation after a real constraint rejection](../../testing/command-operations-with-chronicle.md).
+Keep transactional work inside the lifetime of the command that owns it. Fire-and-forget work or continuations that outlive the command can enroll against a completed unit and have those events discarded. Use an awaited command or a reactor for follow-up work.
+
+Atomic append keeps a batch together, but does not by itself bind a decision to the revision it read. If your handler reads state before deciding what to append, continue with [Concurrency](./concurrency.md), including empty-history expectations, and [Choosing how a command's rule holds](../consistency/index.md) to select the mechanism that protects that decision.
+
+To assert that a rejected returned batch leaves no partial events and inspect command failures, follow [Testing with Chronicle](../../testing/chronicle.md). For an event plus an external operation, [test compensation after a real constraint rejection](../../testing/command-operations-with-chronicle.md).

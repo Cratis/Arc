@@ -1,19 +1,19 @@
 ---
-title: Identity
-description: How the frontend gets the current identity from the /.cratis/me endpoint, keeps it in memory, and exposes it through the core identity API.
+title: Cratis Arc frontend identity lifecycle
+description: Cratis Arc reads frontend identity from /.cratis/me and caches it in memory. Learn when to refresh or clear it and keep authorization on the server.
 ---
 
-The frontend gets the current identity from the `/.cratis/me` endpoint. The backend derives that identity from the authenticated request, so what the frontend sees is what the server knows about the caller, not anything the browser stored. Only when the server has no such endpoint does the frontend fall back to a cookie; see [upgrading from the identity cookie](#upgrading-from-the-identity-cookie). Configure authentication on the host; identity lookup is not itself a login mechanism.
+Cratis Arc's `IdentityProvider` reads the current user's name, roles, and application-specific details from `/.cratis/me` for display in the frontend. It keeps a resolved identity in memory, so use it to personalize a screen and refresh it after sign-in or a change to the user's details.
 
-> Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
-> deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
-> a browser extension. Read more [about generating principals](../../backend/csharp/development/generating-principal.md).
+The backend derives identity from the authenticated request. Configure authentication on the host; looking up identity does not sign the user in. The frontend reads a legacy cookie only if the endpoint answers 404; see [upgrading from the identity cookie](#upgrading-from-the-identity-cookie).
+
+To exercise users and roles before connecting your identity provider, follow [generating principals for local development](../../backend/csharp/development/generating-principal.md). That procedure uses unsigned identity headers on an isolated development host, not production login tokens.
 
 ## Identity provider
 
-Identity is intended for read-only UI consumption through `IdentityProvider`. The identity is held in the page's memory, where anyone with the browser's developer tools can change it, so it is not proof of anything. Every protected backend operation must authorize the actual credential independently.
+Use `IdentityProvider.getCurrent()` when you need the current identity outside React. In a React component, use [the identity hook](../react/identity.md) to track loading and changes through context.
 
-The `IdentityProvider` provides functionality for getting the current identity.
+Identity is read-only presentation data. Someone with browser developer tools can change the in-memory value, so every protected backend operation must authorize the caller independently.
 
 ```typescript
 import { IdentityProvider } from '@cratis/arc/identity';
@@ -23,23 +23,25 @@ const identity = await IdentityProvider.getCurrent();
 console.log(`Hello '${identity.name}'`);
 ```
 
-> Note that the `getCurrent()` method is an asynchronous operation that returns a promise.
-> The first call asks `/.cratis/me` for the identity. The answer is kept in memory for the page, so later calls return it without asking the server again.
+The first call starts the request; concurrent calls share that pending request. Await the promise before displaying the user's name. Once the request resolves to an identity, later calls use the cached response without another request.
 
-When the server does not resolve an identity, for example because the caller is not signed in, `getCurrent()` returns an identity with `isSet` set to `false`, and that answer is not kept: the next call asks the server again.
+A non-success response other than the 404 cookie fallback, including 401 or 403, produces an identity with `isSet` set to `false`. That result is not cached, so the next call asks again. A network failure or invalid JSON rejects the promise and also leaves the next call free to retry. Handle those failures in your UI instead of treating every failed lookup as an anonymous user.
+
+For header-based authentication, configure `IdentityProvider.setHttpHeadersCallback()` to supply the request headers. `setOrigin()` and `setApiBasePath()` select the backend location; changing either clears the cached response. These settings and the cache are shared across `IdentityProvider` instances, not separate sessions per instance.
 
 ### Signing out
 
-`IdentityProvider.clearCache()` forgets the identity kept in memory, so the next `getCurrent()` asks the server again, and expires a `.cratis-identity` cookie left by an earlier version. It does not revoke sessions or remove authentication tokens or cookies. Real sign-out must complete through your authentication system before reconnecting anonymously.
+Complete sign-out through your authentication system, then call `IdentityProvider.clearCache()` to forget the cached response and expire a legacy `.cratis-identity` cookie. The next `getCurrent()` asks the server again with the credentials then available.
+
+Clearing the cache does not revoke sessions, remove authentication tokens or cookies, or update identity objects your code already holds. Stop displaying those objects when the user signs out.
 
 `IdentityProvider.clearIdentityCookie()` is deprecated and now does the same as `clearCache()`.
 
 ## Details
 
-Part of the identity can hold details that are beyond what the identity provider provides. These details are application specific and something that your
-application or ingress should be responsible for filling out. Details can be considered optional, as that might not be a requirement for your application.
+Use identity details for application-specific display data such as a department. The backend supplies that data through [identity enrichment](../../backend/csharp/identity/index.md); declaring a frontend type does not create the data or guarantee it is present.
 
-The `getCurrent()` method takes a generic parameter that describes the expected details object. It does not guarantee the backend supplies one. Guard absent details or choose an explicit display fallback:
+A generic type parameter describes the JSON shape you expect. Guard absent details or choose a display fallback:
 
 ```typescript
 import { IdentityProvider } from '@cratis/arc/identity';
@@ -56,9 +58,7 @@ console.log(`Hello '${identity.name}' from '${department}'`);
 ```
 
 > [!IMPORTANT]
-> The `<IdentityDetails>` **type parameter** only tells TypeScript what shape to expect at compile time - it has no effect at runtime, because a type is erased before the code ever runs. `identity.details` above is still the raw JSON object the server sent.
->
-> Deserialization into a real class - constructing `Guid`, `DateOnly`, or other complex types with their methods and behavior instead of plain JSON - only happens when you additionally pass a class **constructor** as a runtime argument to `getCurrent()`:
+> The `<IdentityDetails>` type parameter is erased at runtime, so `identity.details` above remains the server's raw JSON. Pass a class constructor to `getCurrent()` when you need deserialization to construct complex values, such as a `Guid` with a `toString()` method. The following example assumes the backend supplies details containing `userId`:
 >
 > ```typescript
 > import { IdentityProvider } from '@cratis/arc/identity';
@@ -75,11 +75,11 @@ console.log(`Hello '${identity.name}' from '${department}'`);
 > console.log(identity.details.userId.toString());
 > ```
 >
-> The class also needs an `@field` decorator on every property you want populated - a class with none of them cannot be deserialized into, and the raw payload is passed through unchanged instead of being silently blanked.
+> Add an `@field` decorator to every property you want populated. If the class has no decorated properties, Arc warns and leaves the raw payload unchanged.
 
 ## IIdentity
 
-The return type coming from `getCurrent()` looks like the following:
+`getCurrent()` returns an `IIdentity<TDetails>` with these members:
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
@@ -87,11 +87,13 @@ The return type coming from `getCurrent()` looks like the following:
 | name | string | The user name |
 | roles | string[] | Array of roles the identity is in |
 | details | `TDetails` | Application-specific details, default generic type `object`; data may be absent at runtime |
+| isSet | boolean | Whether the lookup resolved an identity |
 | isInRole | (role: string) => boolean | Method to check if the identity is in a specific role |
+| refresh | `() => Promise<IIdentity<TDetails>>` | Requests identity again and returns a new object |
 
 ## Role checking
 
-The identity includes information about the roles assigned to the user. You can check if a user is in a specific role using the `isInRole()` method:
+Use `isInRole()` to choose which UI to show for a role. It checks the roles in the current identity response; the backend must still authorize any operation the UI offers.
 
 ```typescript
 import { IdentityProvider } from '@cratis/arc/identity';
@@ -115,10 +117,9 @@ console.log(`User roles: ${identity.roles.join(', ')}`);
 
 ## Refresh
 
-In some scenarios you might need to refresh the identity. Typically if the user has been granted more access or details has been updated.
-Rather than having your user log out and back in again, you can issue a refresh. Refresh always calls `/.cratis/me` for the identity and details, and replaces what is kept in memory, so later calls to `getCurrent()` return the refreshed identity. It does not renew or revoke authentication credentials.
+Call `refresh()` after sign-in or when the backend changes the user's roles or details. It requests `/.cratis/me` again and replaces the cached response, so later `getCurrent()` calls use the new result. It does not renew or revoke authentication credentials.
 
-To refresh the identity you can call the `refresh()` method on the identity object itself.
+The identity object exposes `refresh()` directly:
 
 ```typescript
 import { IdentityProvider } from '@cratis/arc/identity';
@@ -127,8 +128,7 @@ let identity = await IdentityProvider.getCurrent();
 identity = await identity.refresh();
 ```
 
-The identity object is designed to be immutable, leading to the `refresh()` method having to return a new instance.
-This means that the original `identity` instance won't be updated and you would have to replace it if you have it as a variable.
+Refresh returns a new identity object rather than changing the old one. Assign the result as shown above, and update any UI state that holds the previous object. A rejected refresh discards the cached response; handle the error and stop presenting the old object as current.
 
 ## Upgrading from the identity cookie
 

@@ -1,9 +1,11 @@
 ---
-title: Command pipeline
-description: Execute and await standalone Arc commands from application code.
+title: Cratis Arc command pipeline from application code
+description: Execute Cratis Arc model-bound commands from application services or background jobs, choose their DI scope, and check the final result before using a response.
 ---
 
-Use `ICommandPipeline` to execute a model-bound command from a background job or application service without an HTTP round trip. Choose the DI scope, await execution, then check the result before reading its response. The pipeline runs authorization, validation, provisioning, the handler, response handlers, command operations, and execution scopes; invoking it is not equivalent to calling the handler method directly.
+Use Cratis Arc's `ICommandPipeline` to run a model-bound command from a background job or application service without an HTTP round trip. It applies the command's authorization and validation rules and awaits execution, so the caller can check the final result before using a response.
+
+Choose whether Arc should create a dependency injection (DI) scope or reuse one you own. The pipeline runs `Provide()` to obtain handler dependencies, invokes the handler, processes responses and declared operations, and completes execution scopes. Calling `Handle()` directly bypasses that work.
 
 :::tip[Declare work instead of writing a recovery stack]
 For immediate side effects chosen by a command, return [command operations](./operations/index.md). The pipeline awaits their execution and eligible compensation. Backend code and [CommandScenario](../testing/command-operations.md) can inspect recovery observations without moving recovery handling to the frontend.
@@ -46,7 +48,7 @@ public class ScopedCartApplicationService(ICommandPipeline pipeline, IServicePro
 }
 ```
 
-Use this form only after resolving the caller inside the scope you intend to share. The pipeline uses the supplied provider and leaves disposal to you. Passing the root provider does not create a command scope and can give scoped dependencies the wrong lifetime.
+Resolve this caller inside the scope you intend to share. The pipeline uses the supplied provider and leaves disposal to you. Passing the root provider does not create a command scope and can give scoped dependencies the wrong lifetime.
 
 ## Execute for a specific tenant
 
@@ -70,7 +72,7 @@ public class TenantCartJob(ITenantScope tenants, ICommandPipeline pipeline)
 }
 ```
 
-`ITenantScope.Begin` selects a nonempty tenant for the current async flow. The explicit selection wins over the configured resolver, **including during an HTTP request** and when an authentication scheme selects a different principal. Nested scopes restore the outer tenant; disposal restores the previously resolved tenant and is idempotent. If you dispose an outer scope before an inner one, the inner tenant stays selected. Ending the inner scope then skips the disposed outer tenant.
+`ITenantScope.Begin` selects a nonempty tenant for the current async flow. That explicit selection wins over the configured resolver, including during an HTTP request and when an authentication scheme selects a different principal. Nested scopes restore the outer tenant; disposal restores the previously resolved tenant and is idempotent. If you dispose an outer scope before an inner one, the inner tenant stays selected. Ending the inner scope then skips the disposed outer tenant.
 
 The same selection works with `Validate`, queries, reads through `IReadModels`, and typed or untyped execution, including cancellation-aware calls. It does not grant permission to use that tenant. Enforce tenant access and establish a trusted principal separately when required.
 
@@ -80,7 +82,9 @@ On ASP.NET Core, Arc's startup filter installs that reset for all application mi
 
 `ITenantScope` requires Arc's `TenantIdAccessor` as the effective `ITenantIdAccessor` registration. If a custom accessor is registered before or after Arc, resolving `ITenantScope` throws `ExplicitTenantScopeRequiresArcAccessor`. This prevents a selection that other services cannot see.
 
-**Create a new DI scope inside the tenant scope before resolving tenant-scoped services** such as Chronicle's event store or a `DbContext`. A service already resolved in an existing DI scope remains bound to that scope's original tenant, even if you change the current tenant. Scope-free pipeline `Execute` and `Validate` create their own DI scopes inside the tenant scope for you; if you pass an existing `IServiceProvider`, you are responsible for creating it after `Begin` and for disposing it. The same rule applies to other tenant-scoped reads.
+Create a new DI scope inside the tenant scope before resolving tenant-scoped services such as Chronicle's event store or a `DbContext`. Changing the current tenant does not rebind a service already resolved in an existing DI scope.
+
+Scope-free `Execute` and `Validate` create that inner DI scope for you. If you pass an `IServiceProvider`, create its scope after `Begin` and dispose it when the work finishes. Apply the same lifetime rule to other tenant-scoped reads.
 
 ## Cancellation
 
@@ -153,7 +157,11 @@ Scope completion can fail after the handler produced a value. After scopes compl
 
 ## How parameters are bound
 
-The pipeline binds `Handle()` and `Provide()` parameters in order and awaits each one, so call `Execute` with `await` and never block on it. A plugin that implements `ICanResolveParameterDependency` keeps working unchanged, including one that is synchronous only. A plugin whose dependency is acquired asynchronously can additionally implement `IAsyncParameterDependencyResolver`. Its `Resolve` method returns a `ParameterDependencyResolution`: `NotResolved` when the plugin does not own the parameter, or `Resolved(dependency)` when it does, even if the dependency is null. Resolvers are consulted in discovery order and the first one that owns the parameter wins; when none does, the container resolves the type.
+The pipeline resolves `Handle()` and `Provide()` parameters in order, awaiting each resolution. Await `Execute` rather than blocking on it.
+
+If you write a parameter-resolution plugin, an existing synchronous `ICanResolveParameterDependency` implementation still works. Add `IAsyncParameterDependencyResolver` when acquiring the dependency requires asynchronous work. Its `Resolve` method returns a `ParameterDependencyResolution`: `NotResolved` when the plugin does not own the parameter, or `Resolved(dependency)` when it does, even if the dependency is null.
+
+Resolvers are consulted in discovery order. The first one that owns the parameter wins; if none does, the container resolves the type.
 
 This covers parameter binding only. It does not make general dependency injection, constructor injection or custom synchronous factories nonblocking. Chronicle read-model parameters use this contract, see [injecting read models](../chronicle/read-models/injecting-into-commands.md#reads-are-awaited).
 
@@ -177,7 +185,9 @@ if (check.IsSuccess)
 }
 ```
 
-Use this two-call flow only when early feedback is useful; it is not required before execution. `Validate` has a scope-explicit overload and [severity thresholds](./validation-severity-filtering.md). It skips `Provide()`, `Handle()`, response processing, and execution scopes, but context providers and command filters still run application code. They need not be side-effect free, and state can change before execution. The fragment therefore checks the eventual execution result too. See [pre-flight validation](./command-validation.md).
+Use this two-call flow when the caller needs early feedback. Execution already validates the command, so a separate `Validate` call is not a prerequisite. It has a scope-explicit overload and [severity thresholds](./validation-severity-filtering.md).
+
+`Validate` skips `Provide()`, `Handle()`, response processing, and execution scopes. Context providers and command filters still run application code, which can have side effects. State can also change before execution; the fragment checks the execution result for that reason. Follow [pre-flight validation](./command-validation.md) to expose the check to a form.
 
 ## Commands without a request
 

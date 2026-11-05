@@ -1,9 +1,9 @@
 ---
-title: Gapless numbers
-description: Numbers that have no gaps and no duplicates across all entities, written as a numbering source that is read in Handle.
+title: Assign gapless invoice numbers in Arc
+description: An Arc command reads a shared numbering source and appends the assignment with the invoice in one guarded batch, avoiding gaps and duplicate numbers.
 ---
 
-Use this when a number must be unique and must not skip, across every entity: invoice numbers, case numbers.
+A shared numbering source lets Cratis Arc assign invoice numbers without gaps or duplicates. With read protection `On`, read the assigned count, then append the assignment and the invoice event in one guarded batch. A competing assignment rejects the batch without consuming a number.
 
 | | |
 | --- | --- |
@@ -58,11 +58,13 @@ public record IssueInvoice(InvoiceId Invoice)
 guard invoice-numbers: types=[InvoiceNumberAssigned], after <tail before the read>
 ```
 
-The numbering source is read and then appended to in the same atomic batch. If another invoice took the next number between the read and the commit, nothing is written and the caller submits again. The batch also records `InvoiceIssued` on the invoice, so the number is on both sides.
+`NextInvoiceNumber` counts `InvoiceNumberAssigned` events on `"invoice-numbers"`. The command adds one to that count and returns two events in the same atomic batch: the numbering source records which invoice received the assignment, and `InvoiceIssued` records the chosen number on the invoice.
+
+If another assignment commits between the read and this commit, neither event is written. Submit the command again to read the updated count.
 
 ## What holds
 
-- No two invoices get the same number, and a number is not skipped, because every issue appends to the numbering source after reading it.
+- No two invoices get the same number, and a number is not skipped, when every issue uses this guarded read-and-append path.
 - A failed issue writes nothing, so no number is consumed.
 
 ## What does not hold

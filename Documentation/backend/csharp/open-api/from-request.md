@@ -1,6 +1,6 @@
 ---
 title: FromRequest Attribute
-description: How the OpenAPI transformer documents [FromRequest] models as a single request body instead of separate parameters.
+description: Cratis Arc documents controller [FromRequest] models as OpenAPI request bodies and removes route- and query-bound properties from their schemas.
 ---
 
 The `[FromRequest]` attribute lets you combine data from multiple parts of an HTTP request — body, route, and query string — into a single model object. See [FromRequest Attribute](../asp-net-core/from-request.md) for full details on how model binding works.

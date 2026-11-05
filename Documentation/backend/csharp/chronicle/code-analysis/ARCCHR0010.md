@@ -1,6 +1,6 @@
 ---
 title: 'ARCCHR0010: Raw Guid response does not set the event source id'
-description: A heuristic checks whether a keyless command's ordinary Guid response was intended to identify its event source.
+description: ARCCHR0010 in Cratis Arc checks whether a keyless command's ordinary Guid response was intended to identify its event source.
 ---
 
 ## Rule

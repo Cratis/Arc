@@ -1,6 +1,6 @@
 ---
 title: Command context
-description: Access invocation metadata and understand when dependencies and responses become available.
+description: CommandContext in Cratis Arc carries invocation metadata, with dependencies and the selected response available at specific pipeline phases.
 ---
 
 `CommandContext` carries invocation metadata for pipeline extensions. Its command input stays the same, but resolved dependencies and the selected response become available at later phases. Use this reference to decide which context to read in a filter, handler, or lifecycle callback; a context retained from an earlier phase is not a live view of every later record.

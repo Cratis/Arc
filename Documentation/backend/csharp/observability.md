@@ -1,15 +1,16 @@
 ---
-title: Observability
-description: The tracing and metrics Arc emits, the activity source and meter to subscribe to, and the spans, attributes and metrics you will see.
+title: C# observability in Cratis Arc
+description: Cratis Arc emits C# command and query traces and metrics for OpenTelemetry, with stable span names, outcome tags and MongoDB meters.
 ---
 
-Arc instruments its own pipelines. Every command and query that runs produces
-activities on a named source and measurements on a named meter, so once you
-subscribe to them your tracing backend shows where time went inside Arc, and why
-an operation failed, without you adding anything to your handlers.
+Cratis Arc instruments its command and query pipelines so you can locate time
+spent in validation, authorization and handlers, and distinguish rejected
+operations from errors. Subscribe to its activity source and meters through
+OpenTelemetry to collect that telemetry without adding instrumentation to your
+handlers.
 
-This is emitted telemetry rather than an extension point. Arc registers the
-activity sources itself; what you do is subscribe to them.
+Arc supplies the instrumentation; your host configures collection and export.
+The listeners and tracing sampler determine which spans are recorded.
 
 ## Set up OpenTelemetry with one call
 
@@ -53,9 +54,10 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation());
 ```
 
-Nothing else is required. The sources are registered when the host is built, so
-a subscriber either sees the spans or does not — there is no Arc-side switch to
-turn tracing on.
+This configures subscriptions and ASP.NET Core instrumentation, not an exporter.
+Add an exporter to send the collected telemetry to your backend. There is no
+Arc-side switch to turn tracing on; the tracing sampler still controls which
+spans are recorded.
 
 ## The spans
 
@@ -169,13 +171,16 @@ reason says which, and for a constraint the reason detail is the constraint name
 
 ### What the spans never carry
 
-Spans carry types, names, identifiers, member names and outcomes. They never
-carry a value from a command, query or event, so a property marked `[PII]` or
-`[NotAudited]` cannot reach your tracing backend through them. That is why a
-validation event names the member and the rule but not the message, which often
-quotes the value, and why an exception event carries the exception type but not
-its message or stack trace; those stay in your logs. The event source id is
-recorded by its type, never by its value.
+Arc's pipeline instrumentation records types, names, correlation and tenant
+identifiers, member names and outcomes, not command, query or event payload
+values. A validation event names the member and rule but omits the message,
+which can quote an input value. An exception event carries the exception type
+but omits its message and stack trace. The event source id is recorded by its
+type, never by its value.
+
+This applies to the telemetry Arc adds, not to application-added tags, other
+instrumentation or logs. Review those outputs separately for sensitive data,
+including values marked `[PII]` or `[NotAudited]`.
 
 ### Names as constants
 
@@ -249,9 +254,7 @@ The dotted checked-out and open-connection gauges have distinct names. The legac
 
 ## On the JVM
 
-The Kotlin and Java backend observes the same pipeline stages but through
-Micrometer rather than `ActivitySource`, with its own names and an explicit
-correlation attribute. See
-[Observability](/arc/backend/kotlin/guides/observability/) for that side. The two
-are not wire-compatible with each other and are not meant to be — each uses what
-its ecosystem already collects.
+The Kotlin and Java backend uses Micrometer rather than `ActivitySource`, with
+its own observation names and setup requirements. See
+[Observability](/arc/backend/kotlin/guides/observability/) for its recorded
+operations and correlation context.

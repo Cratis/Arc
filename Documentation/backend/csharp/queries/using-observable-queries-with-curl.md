@@ -1,15 +1,17 @@
 ---
-title: Use observable queries with cURL
-description: Read snapshots, wait for a first result, stream direct SSE, and poll without a tight loop.
+title: Use Cratis Arc observable queries with cURL
+description: Inspect Cratis Arc observable queries with cURL, wait for a first allowed result, follow SSE updates, and distinguish pending reads from failures.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
+Use cURL to inspect a Cratis Arc observable query without building a frontend. A waiting GET returns one allowed result; Server-Sent Events (SSE) keeps the connection open for later updates. Choose the request that matches what you need to diagnose.
+
 ## Prerequisites
 
-Use a running Arc application's actual observable query URL. The commands below target the explicit `/api/accounts/observe` path from the [model-bound example](model-bound/observable-queries.md); the same direct-HTTP options work for [MVC GET observable actions](controller-based/observable-queries.md). Replace the origin and provide your application's normal credentials. These are runnable client checkpoints against that configured host, not commands that create a backend.
+Start with a running Arc application exposing `/api/accounts/observe` from the [model-bound example](model-bound/observable-queries.md). The same direct-HTTP options work for [MVC GET observable actions](controller-based/observable-queries.md). Replace the origin, use a trusted certificate, and supply the application's normal credentials. The commands inspect that existing endpoint; they do not create it.
 
-Observable HTTP snapshots apply [read-model interception](read-model-interception.md) and [emission guards](observable-query-emission-guards.md) before returning data. These do not replace query authorization or safe data selection.
+The account example requires the `AccountReader` role. Confirm the caller can access it before diagnosing a missing update. HTTP snapshots apply [read-model interception](read-model-interception.md) and [emission guards](observable-query-emission-guards.md), but the query must still authorize the caller and select only data they may read.
 
 ## Get the current snapshot
 
@@ -18,10 +20,9 @@ curl --include --max-time 35 \
   'https://localhost:5001/api/accounts/observe?waitForFirstResult=true'
 ```
 
-Use the wait option for this MongoDB endpoint: Arc subscribes and waits for the first result that emission guards allow, then disposes the subscription. The server's default wait is 30 seconds; the client bound above is 35 seconds.
+Arc subscribes, waits for the first result that emission guards allow, then disposes the subscription. The server waits up to 30 seconds by default; `--max-time 35` gives the client a separate 35-second limit.
 
-> [!WARNING]
-> MongoDB's `LifetimeAwareSubject` has no readable `Value` property, even after buffering a result. An ordinary no-wait GET therefore returns **202 Accepted** with `isReady: false`, rather than reading that replayed value. The provider starts its watcher eagerly, but this HTTP branch neither subscribes nor disposes the subject and can leave the watcher running. Do not use no-wait snapshots for this provider.
+Keep `waitForFirstResult=true` for this MongoDB endpoint. Its `LifetimeAwareSubject` has no readable `Value` property, even after buffering a result. A no-wait GET returns 202 with `isReady: false` rather than reading the buffered value. That branch neither subscribes nor disposes the subject and can leave the eagerly started MongoDB watcher running.
 
 For other producers, no-wait GET returns 200 only when Arc can read a current `Value` and the emission guards allow it; a suppressed value or no readable value returns 202. A denied value returns 403 without data. Use that mode only with a readable current value and verified cleanup when no subscription is created.
 
@@ -32,16 +33,21 @@ curl --include --max-time 15 \
   'https://localhost:5001/api/accounts/observe?waitForFirstResult=true&waitForFirstResultTimeout=10'
 ```
 
-The server waits for the first allowed emission for up to 10 seconds; the default is 30 seconds. Suppressed emissions do not restart that deadline. A positive timeout override is measured in seconds. `--max-time` bounds the client separately.
+This request gives the server 10 seconds and the client 15 seconds. The server override must be positive and is measured in seconds. If a guard suppresses an emission, Arc keeps waiting within the original deadline rather than starting another 10-second wait.
 
-- An allowed emission returns 200 with intercepted data, including a legitimately empty collection.
-- Without waiting, a suppressed or unavailable value returns 202 without data.
-- An emission guard denial or failure returns 403 without data.
-- A wait timeout returns 408 with an error result.
-- Completion before an allowed result returns 500 with an error result.
-- An authorization/validation failure is not made successful by waiting.
+Use the HTTP status and result together to decide what happened:
 
-This waits for **a first allowed result**, not for a change since a previous request. MongoDB `ObserveSingle` emits null when its initial query finds no matching document; a filtered observed collection can express absence as an empty list. Other producers may never emit, so waiting can time out without proving absence.
+| Response | Meaning |
+| --- | --- |
+| 200 | An allowed result is ready, including a legitimately empty collection. |
+| 202 on a no-wait request | No readable current value is available, or a guard suppressed it. |
+| 403 from an emission guard | Delivery was denied, including when the guard failed; no data is returned. |
+| 408 | The server's wait expired without an allowed result. |
+| 500 | The source failed or completed before an allowed result, or result processing failed. |
+
+Waiting does not bypass authorization or validation. Correct an invalid request or denied access before retrying it.
+
+A waiting GET asks for a first allowed result, not a change since your previous request. MongoDB `ObserveSingle` emits null when its initial query finds no matching document; an observed collection can return an empty list. A timeout is different: the absence of an allowed emission does not prove there are no matching records.
 
 ## Stream updates over SSE
 
@@ -51,9 +57,9 @@ curl --no-buffer --max-time 60 \
   'https://localhost:5001/api/accounts/observe'
 ```
 
-This requests the direct per-query SSE transport. Each `data:` frame carries a `QueryResult`, not a hub message envelope. `--max-time 60` deliberately closes the diagnostic stream after a minute; cURL reports a timeout when that bound is reached.
+The `Accept` header selects the direct per-query SSE transport. `--no-buffer` lets cURL print frames as they arrive; each `data:` frame carries a `QueryResult`, not a hub message envelope. `--max-time 60` closes this diagnostic connection after a minute, so a cURL timeout at that limit is expected.
 
-Illustrative shortened frames; other result metadata is omitted here only for readability:
+These shortened frames show the same account before and after a balance update. Other result metadata is omitted for readability:
 
 ```text
 data: {"isReady":true,"isSuccess":true,"data":[{"id":"account-1","balance":100}],"changeSet":null}
@@ -61,7 +67,7 @@ data: {"isReady":true,"isSuccess":true,"data":[{"id":"account-1","balance":100}]
 data: {"isReady":true,"isSuccess":true,"data":[{"id":"account-1","balance":120}],"changeSet":null}
 ```
 
-For several queries over one SSE connection, use the [hub GET plus control POST lifecycle](observable-query-demultiplexer.md#sse-transport). Adding `?query=...` to the hub GET does not subscribe.
+A connected stream is not proof that every result succeeded. Inspect result authorization and success fields before using its data. For several queries over one SSE connection, follow the [hub GET plus control POST lifecycle](observable-query-demultiplexer.md#sse-transport); adding `?query=...` to the hub GET does not subscribe.
 
 ## Repeated snapshot polling
 
@@ -80,7 +86,7 @@ for attempt in 1 2 3 4 5; do
 done
 ```
 
-This is **repeated snapshot polling, not change-aware long polling**. An unchanged current snapshot can return immediately on every request. Removing the delay creates a tight load-generating loop. Prefer SSE to follow changes continuously.
+Each successful request can return the same unchanged snapshot immediately. The delay prevents a tight request loop; it does not turn polling into a wait for changes. Use SSE when you need to follow updates continuously.
 
 ## Pick the right mode
 

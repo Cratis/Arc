@@ -1,5 +1,5 @@
 ---
-title: Configuration
+title: React query configuration in Cratis Arc
 description: "Reference for the <Arc> props that configure queries centrally: routing, headers, transport, hub connections, transfer mode, and caching."
 ---
 
@@ -113,10 +113,12 @@ Globals.eventSourceFactory = (url) => new EventSource(url, { withCredentials: tr
 
 | Value | Shared-hub server emissions | `useChangeStream()` fallback without a server changeset |
 | ----- | -------- | -------- |
-| `ObservableQueryTransferMode.Delta` | Initial full snapshot, then delta-only collection updates | Compares snapshots locally |
+| `ObservableQueryTransferMode.Delta` | Initial full snapshot, then delta-only collection updates | First processed snapshot becomes additions; later snapshots are compared locally |
 | `ObservableQueryTransferMode.Full` | Full snapshots, without server changesets | Treats the processed snapshot as additions |
 
-A received server changeset takes precedence over local fallback in either mode. Prefer ordinary observable `.use()` for delta feeds: it reconstructs collections, whereas [observable Suspense currently does not](./suspense-queries.md#observable-collections-and-delta-only-updates). For hook-level behavior, see [Change Stream](./change-stream.md).
+A received server changeset takes precedence over local fallback in either mode. When local Delta comparison finds no item changes, `useChangeStream()` retains its previous change set; it does not clear the arrays on every update. Full fallback treats each processed snapshot as additions, but cache notification suppression means it does not guarantee an update for every server emission.
+
+Prefer ordinary observable `.use()` for delta feeds: it reconstructs collections, whereas [observable Suspense currently does not](./suspense-queries.md#observable-collections-and-delta-only-updates). For hook-level behavior, see [Change Stream](./change-stream.md).
 
 ## Related
 

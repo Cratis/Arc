@@ -1,9 +1,11 @@
 ---
-title: Application context
-description: Read what the user is looking at from anywhere under Arc with useApplicationContext() - the focused slice location, active slices, screen, open dialogs and host contributions - and mark slices in the DOM.
+title: Cratis Arc React application context
+description: Read the focused slice, current screen and open dialogs from anywhere under Arc to give shared UI the context of what the user is viewing.
 ---
 
-`useSliceContext()` answers for the component that calls it. A feedback button in the top bar of the shell sits outside every slice scope, so it cannot know which slice the page shows. The application context answers the app-wide question: what is the user looking at right now?
+Cratis Arc's `useApplicationContext()` lets shared UI read what the user is viewing, even when that UI sits outside the current feature. A feedback button in the application header can attach the focused slice and screen name to a report without knowing which page is mounted.
+
+In this example, `send` is your application's feedback callback:
 
 ```tsx
 import { useApplicationContext } from '@cratis/arc.react/applicationContext';
@@ -15,7 +17,7 @@ export const FeedbackButton = () => {
 };
 ```
 
-`<Arc>` provides it, so there is no extra setup. See [slice context](./slice-context.md) for how a single scope resolves its location.
+`<Arc>` provides the application context without extra setup. Use [slice context](./slice-context.md) when you need the location of the component calling the hook; use application context when you need the user's current focus.
 
 ## The snapshot
 
@@ -29,11 +31,11 @@ export const FeedbackButton = () => {
 | `dialogs` | The stack of open dialogs, bottom first, each `{ id, title?, location }`. See [dialogs](./dialogs.md#dialogs-and-slice-scope). |
 | `contributions` | A `Record<string, unknown>` of host values. |
 
-The page location is the common location of the slice scopes mounted in the page: `<Slice>` boundaries and slice folders. Sibling slices `Billing/Invoices/Pay` and `Billing/Invoices/Listing` give `Billing/Invoices`; `activeSlices` still lists both.
+Arc combines the deepest active scopes in the focused layer into their closest common location. On a page, sibling slices `Billing/Invoices/Pay` and `Billing/Invoices/Listing` resolve to `Billing/Invoices`, while `activeSlices` preserves the distinct command and query registrations. Opening a dialog moves focus to that dialog; closing it restores the previous dialog or the page.
 
 ## Using it outside React
 
-The store behind the hook has `subscribe` and `getSnapshot`, so it works with `useSyncExternalStore` and with code that does not render, such as a picker overlay. Create the store first and give it to `<Arc>`:
+A host integration may need the same context without calling a React hook. Create an `ApplicationContext` and give it to `<Arc>`, then use `subscribe` for notifications and `getSnapshot` to read the current value:
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
@@ -56,7 +58,7 @@ Without the prop, `<Arc>` creates its own, available as `useApplicationContextSt
 
 ## Contributing the screen and values
 
-Arc does not track routes. A host or router contributes the screen, and any other values, without Arc depending on a router:
+Arc does not track routes, so it cannot supply your screen's name or path itself. Contribute those values from your router or host with `ApplicationContextContributor`, or call `useContributeApplicationContext()` from a component that has them:
 
 ```tsx
 import { ApplicationContextContributor, useContributeApplicationContext } from '@cratis/arc.react/applicationContext';
@@ -70,7 +72,7 @@ import { ApplicationContextContributor, useContributeApplicationContext } from '
 useContributeApplicationContext({ screen: { name: 'Orders' }, values: { version: '1.4.0' } });
 ```
 
-The contribution lasts while the component is mounted, and may be a new object on every render. Parts of `screen` that are given override earlier contributions, and `values` are merged by key; later contributors win.
+The contribution updates while the component is mounted and is removed on unmount. You can pass a new object on each render. Later contributions win for each supplied screen field and value key; removing one reveals the earlier value again.
 
 ## Marking slices in the DOM
 
@@ -86,4 +88,6 @@ With `sliceMarkers` on, `<Slice>` and slice folder boundaries render a `display:
 <div style="display: contents" data-cratis-module="Orders" data-cratis-feature="Editing" data-cratis-slice="ChangeOrder">...</div>
 ```
 
-An element picker finds the slice of any element with `element.closest('[data-cratis-module]')` and reads the three attributes from that element. Parts that are unknown are empty strings. With `sliceMarkers` off, which is the default, nothing extra is rendered. A dialog whose renderer portals its content out of the tree can mark its own chrome with `sliceMarkerAttributes(location)` or `<SliceMarker scope={...}>`.
+An element picker can find an element's nearest marked ancestor with `element.closest('[data-cratis-module]')` and read those three attributes. Unknown parts are empty strings. Markers are off by default, so no extra element is rendered unless you enable them.
+
+A dialog renderer that uses a portal can mark its own header or container with `sliceMarkerAttributes(location)` or `<SliceMarker scope={...}>`. See [dialogs and slice scope](./dialogs.md#dialogs-and-slice-scope) for how the dialog keeps the location of the feature that opened it.

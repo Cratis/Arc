@@ -1,6 +1,6 @@
 ---
 title: SelectField
-description: Bind a string command property to a native select with explicit option key and label fields.
+description: SelectField binds a string command property to a native dropdown in Cratis Arc React forms, using explicit option key and label fields.
 ---
 
 A native dropdown for choosing from option objects. Both option IDs and labels are stringified; selection emits a string, not the original object or numeric ID.

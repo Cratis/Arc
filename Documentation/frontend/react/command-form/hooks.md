@@ -1,6 +1,6 @@
 ---
 title: Working with hooks
-description: Read a CommandForm's command, validation, and execution state from descendant components.
+description: Cratis Arc CommandForm hooks expose the shared command instance, validation results, and execution state to descendant React components.
 ---
 
 A custom button or preview must use the **same command instance** as the fields. CommandForm's hooks read that instance from React context; they do not construct independent commands.

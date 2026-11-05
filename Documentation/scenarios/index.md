@@ -1,9 +1,13 @@
 ---
-title: Scenarios
-description: Short, task-oriented recipes for the things you'll actually do with Arc — each assumes you know the basics and gets straight to the goal.
+title: Cratis Arc task recipes
+description: Build and check a Cratis Arc feature with recipes for React commands, validation, current-state decisions, related-data queries, and tests.
 ---
 
-These are recipes: "I need to do X — how?" Each one is short and assumes you've built a slice or two (the [tutorial](/arc/tutorial/) is the long way round). For the _why_ and the full set of options, follow the links into the reference. The default recipes use standalone Arc over configured providers or application services. Start with standalone setup for [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript source preview](/arc/backend/typescript/getting-started/); each recipe labels additional prerequisites and illustrative fragments. Check the preview's [capability reference](/arc/backend/typescript/reference/capabilities/) before relying on a shared example. Chronicle-only behavior is explicitly separated.
+Cratis Arc task recipes help you add or check one part of an application feature: submit a command, reject invalid input, or read the data a screen needs. Each recipe explains the setup it assumes, shows a minimal implementation, and gives you an outcome to check.
+
+Start with an Arc application configured for [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript backend](/arc/backend/typescript/getting-started/) (available from source; server packages are not published to npm). If you have not built a feature yet, the [tutorial](/arc/tutorial/) walks through the setup and implementation together. The TypeScript [capability reference](/arc/backend/typescript/reference/capabilities/) describes that backend's supported behavior.
+
+The default recipes use standalone Arc with configured storage providers or application services. They do not require Cratis Chronicle; sections that use its event store identify the additional integration.
 
 | Recipe | When you reach for it |
 | --- | --- |
@@ -13,9 +17,9 @@ These are recipes: "I need to do X — how?" Each one is short and assumes you'v
 | [Use current state in a command](./use-current-state-in-a-command.mdx) | A decision depends on provider-owned state — resolve it by an explicit command key |
 | [Query data across slices](./query-related-data.mdx) | A screen needs data that spans more than one feature |
 | [Execute a command from React](./run-a-command-from-react.md) | Wire a form or button to a command through the generated proxy |
-| [Test a command](./test-a-command.mdx) | Prove a slice works through the real pipeline — no HTTP, no database |
+| [Test a command](./test-a-command.mdx) | Check the pipeline result and handler work in-process, with application services substituted |
 | [Authorize a command or query](/arc/backend/csharp/authorizing-commands-and-queries/) | Restrict who may run a command or read a query |
 
-Event-sourced Arc slices have their own Chronicle-specific recipes, starting with [React to an event](/arc/backend/csharp/chronicle/react-to-an-event/) and [Add event sourcing to an Arc slice](/arc/backend/csharp/chronicle/add-event-sourcing/).
+If your feature records events in Chronicle, continue with its integration recipes: [React to an event](/arc/backend/csharp/chronicle/react-to-an-event/) and [Add event sourcing to an Arc slice](/arc/backend/csharp/chronicle/add-event-sourcing/).
 
-Missing a recipe you expected? The [backend options](/arc/backend/) and [Frontend](/arc/frontend/) guides cover the long tail, and [Troubleshooting](/arc/troubleshooting/) catches the common snags.
+For a task not listed here, use the [backend options](/arc/backend/) or [Frontend](/arc/frontend/) guides. If an implementation does not behave as expected, start with [Troubleshooting](/arc/troubleshooting/).

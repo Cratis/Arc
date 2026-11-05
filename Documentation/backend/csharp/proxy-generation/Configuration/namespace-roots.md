@@ -1,6 +1,6 @@
 ---
 title: Namespace roots
-description: Map namespace prefixes to generated output folders.
+description: Cratis Arc namespace roots map C# namespace prefixes to generated TypeScript folders, with longest-match selection and segment-skip fallback.
 ---
 
 A namespace root pins a namespace as the base of the output folder hierarchy and places its output under a named base folder. When a type's namespace equals a configured root or starts with that root followed by a dot, the root prefix is stripped and the remainder is placed under the specified folder.

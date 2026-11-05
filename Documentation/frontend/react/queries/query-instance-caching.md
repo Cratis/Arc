@@ -1,39 +1,47 @@
 ---
-title: Query instance caching
-description: Understand instance reuse, observable subscription sharing, and the default 30-second retention window.
+title: "React query caching: reuse data and subscriptions"
+description: "Understand which React query consumers share instances and live subscriptions, what return visits reuse, and how to set Cratis Arc cache retention."
 ---
 
-Navigating away from a live list and back should not always start from an empty screen. Arc retains query instances and last-known data, but instance reuse and request deduplication are different contracts.
+By default, Cratis Arc retains non-Suspense query instances and their last-known data for 30 seconds after the last consumer releases them. Returning to an observable view during that window reuses its live subscription; an ordinary query can show cached data but still fetches again.
+
+Use this distinction when deciding what a return visit should display. Sharing a query instance does not mean ordinary requests are deduplicated, and cache retention does not establish that data is fresh or authorized for a new user.
 
 ## How it works
 
-`<Arc>` creates one `QueryInstanceCache` per mount. Keys use the generated stable `queryName` and JSON-serialized arguments with top-level keys sorted. `useQuery`, `useQueryWithPaging`, `useObservableQuery` and `useObservableQueryWithPaging` add the current page, page size and sort order to that key. No key includes origin or credentials, so do not treat the cache as an isolation boundary for independent views or users.
+Each mounted `<Arc>` provider owns a `QueryInstanceCache`. Its keys combine the generated stable `queryName` with JSON-serialized arguments whose top-level keys are sorted. The non-Suspense ordinary and observable hooks also include the current page, page size and sort order.
+
+Consumers share an entry only when those values match. The cache key does not include origin or credentials, so a change of identity is not a change of cache entry.
 
 | Hook family | Shared instance | Network/results |
 | --- | --- | --- |
 | `useObservableQuery` / `useObservableQueryWithPaging` | Only for the same query, arguments, page and sort order | Shares subscription ownership and registers cache listeners for updates |
-| `useQuery` / `useQueryWithPaging` | Only for the same query, arguments, page and sort order | Each enabled mount performs a request; a superseded mount adopts the superseding result, with no cache-listener broadcast |
+| `useQuery` / `useQueryWithPaging` | Only for the same query, arguments, page and sort order | Each enabled mount requests data; an overlapping request can abort and replace the earlier request, whose waiting consumer adopts the replacement result |
 | Suspense hooks | Separate module-level resource caches | See [Suspense queries](./suspense-queries.md); not governed by this cache's retention setting |
 
 An ordinary query cache hit can seed a new component with successful cached data, but it does not eliminate the new request.
 
 ### Ordinary queries are isolated by arguments, paging and sorting
 
-Two components using the same ordinary query with different arguments, pages or sort orders get separate instances. Neither fetches the other's page or aborts the other's request. When a component changes its arguments, page, page size or sort order, it moves to the matching entry and fetches again. The result immediately shows that entry's cached data with `isPerforming: true`, or the query's default value with `isReady: false` and `isPerforming: true` if nothing is cached. Data and failure status from the previous key are not carried over. A successful result is cached only under the key it answers, so the previous arguments keep their own last known result.
+A filter or page change moves an ordinary query consumer to the matching entry and starts a fresh request. The result immediately shows that entry's cached data with `isPerforming: true`, or a not-ready default if nothing is cached. It does not carry over the previous key's data or failure status. A successful result is cached under the key it answers, leaving the old entry's last-known result intact.
 
-Components that agree on all of them share one instance, and an instance runs one request at a time. If the first component's request is still in flight when the second component mounts, the second request aborts it. The first component then adopts the outcome of the request that superseded it — its data or its failure — instead of staying on its initial, never-ready state. See [query scope](./scope.md#when-an-ordinary-query-stops-performing) for what happens when either component unmounts first.
+Components with different arguments, pages, page sizes or sort orders use separate instances and do not abort each other's requests. Matching consumers share an instance, which runs one request at a time. If a second consumer mounts while the first request is still running, its request aborts and replaces the first. The waiting consumer adopts the replacement's data or failure rather than remaining stuck on its initial result.
 
-Adoption follows that one superseding request; it is not a broadcast. Only a request for the same arguments is adopted, so an explicit `perform` with other arguments updates only the component that called it, and so does any request made while no other component is waiting. `useObservableQuery` differs: its cache listeners push every update to all mounted consumers of an entry.
+That adoption follows one replacement request for the same arguments; it is not a broadcast of all future results. An explicit `perform` with different arguments updates only its caller. A later request made when no other consumer is waiting also updates only its caller. For loading indicators and unmount behavior during overlapping requests, see [when an ordinary query stops performing](./scope.md#when-an-ordinary-query-stops-performing).
 
 ### Observable queries share only matching pages and sort orders
 
-Observable consumers with different arguments, pages, page sizes or sort orders use separate instances and subscriptions. Changing any of these moves the component to the matching entry and subscribes if that entry has no active subscription. The result immediately shows that entry's cached result unchanged, or the query's default value with `isReady: false` and `isPerforming: true` until the first result arrives. Updates from the previous entry do not reach the component after it moves.
+Observable hooks use cache listeners, so all mounted consumers of an entry receive its updates. Different arguments, pages, page sizes or sort orders select separate instances and subscriptions.
 
-Returning to an entry within its retention window reuses its cached result and live subscription. Consumers with matching keys share that subscription and receive its updates together.
+When a component changes any of those values, it selects the matching entry and starts a subscription only if one is not already active. It immediately shows that entry's cached result unchanged, or the default value with `isReady: false` and `isPerforming: true` until the first result arrives. Later updates to the old entry do not reach the component.
+
+Returning within the retention window reuses the entry's latest result and live subscription. Use [query diagnostics](./observable-query-diagnostics.md) to inspect which consumers own an entry and whether its subscription is still active.
 
 ## Lifecycle
 
-When the last consumer releases an entry, Arc schedules eviction after `queryCacheRetentionMs`, **30,000 ms by default**. Cached data and an established observable subscription remain alive during that window. A new consumer cancels pending eviction and can reuse them. On expiry the entry is removed and its subscription torn down.
+The retention timer starts when the last consumer releases an entry, not when the query first runs. After `queryCacheRetentionMs`, which defaults to 30,000 ms, Arc removes the entry and tears down its observable subscription. A returning consumer cancels pending eviction and can reuse the data and subscription.
+
+For an observable entry, the lifecycle is:
 
 ```mermaid
 flowchart LR
@@ -57,21 +65,21 @@ export const App = () => (
 );
 ```
 
-A value of zero schedules eviction without the retention delay. A cache entry expiring does not imply every pooled hub connection immediately closes.
+Set the value to zero to schedule eviction without a retention delay. Eviction removes the entry's subscription; shared hub connections have their own lifecycle and need not close at that moment.
 
 ## React StrictMode compatibility
 
-Reacquiring an entry cancels its cleanup timer. Provider teardown also defers disposal so an immediate remount can cancel it. That provider-disposal mechanism is distinct from the per-entry retention window; normal last-consumer release is not always `setTimeout(0)`.
+React StrictMode can run an effect's setup, cleanup and setup again during development. Reacquiring an entry cancels its pending eviction, allowing that immediate return to reuse it. The provider also defers disposal so an immediate effect setup can cancel it. This provider-level disposal delay is separate from `queryCacheRetentionMs`.
 
 ## Relationship with the conditional when hook
 
-Disabled non-Suspense hooks still create/look up and acquire cache entries. The condition suppresses their automatic request/subscription, not allocation or cache access. Another consumer can already own a live subscription for the same entry. A previously established subscription can also survive through retention.
+`when(false)` prevents a non-Suspense hook's automatic request or subscription, but the hook still creates or looks up an entry and acquires it. Another consumer may already own a live subscription, and retention can keep a previous subscription alive.
 
-Use the explicit condition to choose UI, rather than treating `hasData` as an enabled flag. Generated single-result defaults are `{}`, so `hasData` can be true without loaded data. See [conditional queries](./conditional-queries.md).
+Use the condition itself to choose disabled UI. `hasData` is not an enabled flag: single-result proxies default to `{}`, which can make it true without loaded data. See [conditional queries](./conditional-queries.md) for a selection-driven example.
 
 ## Trust and ownership limits
 
-Cached UI data can outlive its last viewer. Clearing identity or reconnecting observables is not a data purge, and nested providers do not isolate the global transport multiplexer. Treat account-switching and sensitive-data eviction as an explicit application concern. See [Arc provider boundaries](../arc.md).
+Account switching needs an explicit application policy for cached data. Clearing identity or reconnecting observables does not purge the cache, and nested providers do not isolate the global transport multiplexer. Review [Arc provider boundaries](../arc.md) before relying on a provider change to separate users or services.
 
 ## See also
 

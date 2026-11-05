@@ -1,15 +1,15 @@
 ---
-title: "4. Make it live"
-description: Verify two-browser updates through an observable query and distinguish MongoDB change streams from EF Core same-host and database notifications.
+title: "4. Observe catalog changes with Cratis Arc"
+description: Verify live catalog updates with Cratis Arc observable queries in two browser tabs, then check which database writes your observation source can detect.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-We keep saying the catalog "stays live." This chapter makes that concrete — and shows that you already built it, without writing a line of real-time plumbing.
+Cratis Arc observable queries keep the catalog updated by sending new results to subscribed React components when the configured database observation source reports a change. Use the catalog from [chapter 3](/arc/tutorial/books-and-relationships/) to verify that path in two browser tabs, then distinguish same-process updates from external writes.
 
 ## Why the screen already moves
 
-Go back to every query we've written: each observes storage rather than returning a one-shot list. The C# `ISubject<…>`, JVM `Flow<List<…>>`, and TypeScript `ObservableSource<…>` all expose streams. Arc serves each as an observable query; on the React side, the generated `.use()` hook **subscribes** to it. So the data flow isn't "fetch once and render" — it's a standing subscription:
+The queries in earlier chapters return streams: `ISubject<…>` on C#, `Flow<List<…>>` on the JVM, and `ObservableSource<…>` on TypeScript. Arc exposes those streams as observable queries. The generated React `.use()` hook subscribes to results instead of fetching a list just once:
 
 ```mermaid
 flowchart LR
@@ -18,35 +18,45 @@ flowchart LR
     Query --> React["React re-renders"]
 ```
 
-When a command writes and the configured observation source notifies, the observable query publishes updated data to subscribed React components, which re-render. Open the app in two browser tabs, add a book in one, and watch it appear in the other — you wrote none of that plumbing. It falls out of returning `Observe()` and calling `.use()`.
+When a command writes and the observation source reports the change, the query publishes updated data and React re-renders the catalog. The command does not tell the screen to refresh; the subscription connects the database notification to the next result.
 
 <Aside type="note" title="Under the hood">
-The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, MongoDB uses [change streams](/arc/backend/csharp/mongodb/observing-collections/) on a replica set or supported sharded deployment (including the TypeScript MongoDB adapter). An [observed `DbSet`](/arc/backend/csharp/entity-framework/observing/) receives in-process notifications from the configured `SaveChanges` interceptor. SQLite relies on that path only; SQL Server/PostgreSQL cross-process detection requires their database notification setup. If database notification setup fails, EF observation can fall back to in-process-only behavior; inspect server logs rather than assuming external writes are visible. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/csharp/queries/using-observable-queries-with-curl/).
+The React client defaults to WebSocket transport; Server-Sent Events (SSE) is also available. Both carry updated query results over an open connection without polling. To inspect a query's SSE stream directly, see [observable queries with cURL](/arc/backend/csharp/queries/using-observable-queries-with-curl/). The connection carries results; the backend still needs a source of database change notifications.
 </Aside>
 
 ## Verify the scope of observation
 
-Continue from [chapter 3](/arc/tutorial/books-and-relationships/). Open two browser tabs connected to the **same backend process**. Subscribe to the same author's catalog in both; add a book in one and verify the other updates without reload. This tests the tutorial's live path, including SQLite. It does not prove cross-process observation.
+Keep the database and backend setup from chapter 3, then check the screen:
 
-External writes are a separate test: MongoDB change streams can report them when configured; SQLite cannot. For EF's other providers, configure their database notification mechanism before testing a write from a second process. No notification source means an observable endpoint can stay connected without fresh data.
+1. Open two browser tabs connected to the same backend process and display the same author's catalog in both.
+2. Add a book in one tab. Confirm that it appears in the other without reloading.
+3. Add another book from the second tab and confirm that the first tab updates too.
+
+This checks the tutorial's live path, including the C# SQLite setup. It does not establish that a write from another process will be observed. That depends on the database integration:
+
+- MongoDB uses [change streams](/arc/backend/csharp/mongodb/observing-collections/) on a replica set or supported sharded deployment, including the JVM and TypeScript integrations. A configured change stream can report external writes.
+- C# [observed `DbSet` queries](/arc/backend/csharp/entity-framework/observing/) receive same-process notifications through the configured `SaveChanges` interceptor. SQLite uses only that path. SQL Server and PostgreSQL need database notification setup for cross-process detection; if setup fails, EF observation can fall back to same-process notifications. Inspect server logs before testing external writes.
+- JVM JPA observation uses explicit in-process change publication after commit. See [observable snapshots](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) for the publisher and transaction behavior.
+- TypeScript Drizzle observation requires table registration and explicit change announcements after committed writes. Follow [observe SQL tables](/arc/backend/typescript/sql/observing-tables/) for that setup.
+
+If the second tab stays stale, check the backend notification source as well as the browser connection. A subscription can remain connected without receiving fresh data.
 
 ## What makes a query live
 
 The following are **alternative MongoDB method fragments** in `Author`, using the tutorial imports. Replace the method rather than adding a second method with the same signature.
 
-Nothing special — just the return type. A one-shot query returns the data:
+A one-shot query returns the current data and completes:
 
 <ArcBackendTabs snippet="tutorial/real-time/one-shot-query" />
 
-Make it return a stream instead — an `ISubject<…>` on C#, a `Flow<List<…>>` on the JVM, or an `ObservableSource<Author[]>` on TypeScript — and the method becomes a live subscription. The proxy and the React `.use()` adapt automatically, and the frontend code is identical for every backend:
+The observable version returns a stream backed by database observation. Replace the method with this version, then regenerate the proxies using your backend's chapter-1 command. The generated `.use()` hook subscribes to the stream; the catalog component keeps the same hook call:
 
 <ArcBackendTabs snippet="tutorial/real-time/observable-query" />
 
-That's the whole switch between "load once" and "stay live." You choose per query: a rarely-changing lookup can be a plain list; a screen the librarian watches should observe.
+Choose per query. A lookup that only needs data when opened can return a plain list. Use an observable query when the screen should reflect later changes, and configure the notification source for the writes it needs to see.
 
 ## What you built
 
-- A clear picture of **why your screens update themselves** — observable queries are standing subscriptions, database to browser.
-- The method-level difference between a **one-shot** query and a **live** one — the return type and observation call, with a configured notification source underneath.
+The two-tab check follows a write through database observation, the query subscription, and React rendering. Keep the same-process and external-write checks separate so a working local catalog does not hide a missing cross-process notification source.
 
-The catalog is live. There's just one thing left before it's a real back office: right now *anyone* can register authors and add books. Let's decide who's allowed. [Lock it down →](/arc/tutorial/authorization/)
+Next, [restrict catalog access →](/arc/tutorial/authorization/). You'll require the `Librarian` role on commands and queries, then test access with and without that role.

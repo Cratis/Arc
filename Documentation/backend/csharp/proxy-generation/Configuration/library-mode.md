@@ -1,13 +1,15 @@
 ---
-title: Library mode
-description: Generate a shared model surface beyond endpoint-referenced types.
+title: Cratis Arc proxies — generate shared library models
+description: Use Cratis Arc library mode to generate TypeScript models that no endpoint references, then choose class or interface output for consumers.
 ---
 
-Normal generation starts with endpoints and strongly typed identity details, then follows their referenced models. Library mode also collects types that no endpoint uses, so a shared library can expose its model surface to TypeScript consumers.
+Cratis Arc library mode generates TypeScript models from a shared .NET library even when no endpoint references them. Use it to keep those model definitions generated from C# instead of maintaining a separate TypeScript copy.
+
+Normal generation starts with commands, queries and strongly typed identity details, then follows the models they reference. Library mode adds a collection pass over project assemblies; it does not replace endpoint generation.
 
 ## Enable library mode
 
-Add this fragment inside your existing project:
+With [proxy generation configured](../getting-started.md), add this fragment inside your existing project:
 
 ```xml
 <PropertyGroup>
@@ -15,21 +17,21 @@ Add this fragment inside your existing project:
 </PropertyGroup>
 ```
 
-The collection pass walks project assemblies, including public non-abstract types, enums, and interfaces. Open generic definitions are skipped, along with their type parameters: neither has a concrete shape to emit. Abstract classes are not collected directly, but are still generated when something reachable derives from one — a concrete type's base class is followed, so an inheritance chain arrives intact rather than with its roots missing. This is model generation, not a translation of arbitrary .NET methods or implementations.
+After generation, check the output for a model that no command or query references. The extra collection pass includes public non-abstract types, enums and interfaces. It follows their properties and base classes, so a collected concrete class also brings in its abstract base class.
 
-[Exclusions](type-exclusions.md) still apply, and [package-mapped types](assembly-package-mappings.md) are imported rather than regenerated.
+Open generic definitions and generic type parameters are skipped because they have no concrete shape to emit. Library mode generates model properties and inheritance, not .NET method implementations.
+
+[Exclusions](type-exclusions.md) still apply. Use them to keep implementation types out of a shared package. Types from [package-mapped assemblies](assembly-package-mappings.md) are imported rather than regenerated.
 
 ## Default classes versus plain interfaces
 
-Library mode does **not** imply interface output. Models default to TypeScript classes with decorators and runtime Fundamentals metadata, just as in ordinary proxy generation.
+Library mode leaves the output format unchanged: models default to TypeScript classes with decorators that supply runtime type information to Cratis Fundamentals. Keep those classes when consumers need model constructors or deserialization metadata.
 
-The executable separately accepts `--emit-interfaces` for shape-only model output. Interfaces have no runtime constructors or deserialization metadata; use this for types you construct/read as plain objects, not as a drop-in replacement for model constructors in query or identity clients. Command/query templates are not converted into dependency-free interfaces by this flag.
-
-See [emit interfaces](emit-interfaces.md) for when to use interface output and how to enable it via the MSBuild property or CLI flag.
+For consumers that only construct and read plain objects, choose [interface output](emit-interfaces.md) with `CratisProxiesEmitInterfaces` or the executable's `--emit-interfaces` flag. Interfaces have no runtime constructors or deserialization metadata, so they cannot replace model constructors in query or identity clients. The flag changes model rendering, not the command and query templates or their runtime dependencies.
 
 ## Combine output controls
 
-This project fragment excludes implementation namespaces and intentionally strips `MyApp.Models` without adding a base folder:
+To limit the shared models and choose where they appear, combine library mode with exclusions and namespace roots. This fragment excludes `MyApp.Internal*` and strips `MyApp.Models` without adding a base folder:
 
 ```xml
 <PropertyGroup>
@@ -42,4 +44,4 @@ This project fragment excludes implementation namespaces and intentionally strip
 </ItemGroup>
 ```
 
-`Folder=""` is valid: `MyApp.Models.Billing` maps to `Billing/`. `Include` is the MSBuild item identity; `Namespace` and `Folder` are the generator's metadata. See [namespace roots](namespace-roots.md) for matching rules.
+With `Folder=""`, a model in `MyApp.Models.Billing` is written under `Billing/`. `Include` identifies the MSBuild item; the generator uses its `Namespace` and `Folder` metadata for the mapping. If your library needs several output roots, use the matching rules in [namespace roots](namespace-roots.md).

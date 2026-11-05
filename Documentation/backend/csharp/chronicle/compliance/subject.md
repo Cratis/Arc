@@ -1,27 +1,27 @@
 ---
-title: Subject
-description: Set the compliance subject on a command so Chronicle encrypts PII under the right identity.
+title: Cratis Arc compliance subject selection
+description: Set a command subject in Cratis Arc to choose whose key encrypts returned events, then match that identity when releasing personal read-model values.
 ---
 
-The `Subject` is Chronicle's compliance identity — the value used to key per-subject material such as PII encryption keys. When you append an event that contains `[PII]`-annotated properties, Chronicle encrypts those properties under the subject's key. For return-driven appends, selecting the correct subject on the command supplies the encryption identity for the returned events.
+In Cratis Arc, a command's `Subject` tells Cratis Chronicle whose key to use for personally identifiable information (PII) in events returned by the handler. Choose it when the person the data belongs to differs from the event source: an order event may contain personal values belonging to a customer, not to the order itself.
 
-When no append subject is supplied, Chronicle first resolves event-level `[Subject]` metadata and ultimately falls back to the `EventSourceId`. For returned events, set a command subject when their compliance identity must differ from that event-level resolution or fallback — for example, when an _order_ event's PII belongs to the _customer_.
+For these return-driven appends, an explicit command subject supplies the encryption identity. Without an explicit append subject, Chronicle checks the event's `[Subject]` metadata, then falls back to the `EventSourceId`. Choose the identity before appending and use the same identity when releasing protected read-model values. Subject selection is not an authorization check or a guarantee of regulatory compliance.
 
 ## Resolution Order
 
-Before dependencies are loaded, `ICanProvideSubject` supplies the subject if implemented. Otherwise Arc looks for a property typed as `Subject` or marked `[Subject]` from `Cratis.Chronicle`, then a matching constructor-parameter declaration. Typed and attributed properties share a predicate: there is no typed-before-attributed priority. Declare one unambiguous subject.
+Before loading command dependencies, Arc uses `ICanProvideSubject` if the command implements it. Otherwise it looks for a property typed as `Subject` or marked `[Subject]` from `Cratis.Chronicle`, then a matching constructor-parameter declaration. Typed and attributed properties have equal priority, so declare one unambiguous subject rather than relying on which property is found first.
 
-After `Handle()` returns, a returned `Subject` overrides append metadata for return-driven events. That later value cannot change earlier dependency resolution. Neither stage infers the subject from the authenticated user.
+After `Handle()` returns, a returned `Subject` overrides the subject used to append returned events. It cannot change dependencies that were already loaded. Neither stage infers the subject from the authenticated user.
 
 ## Aggregate Apply limitation
 
-Aggregate `Apply()` does not forward the command-context subject in the current integration. Its events use Chronicle's event-level subject resolution and fallback. Setting or returning a subject on the command does not retag those events. See [defining an aggregate root](../aggregates/defining-an-aggregate-root.md) for the separate aggregate append path.
+Aggregate `Apply()` does not forward the command-context subject. Its events use Chronicle's event-level subject resolution and fallback. Setting or returning a subject on the command does not change those events' subject. Use event-level metadata when needed, and see [defining an aggregate root](../aggregates/defining-an-aggregate-root.md) for that separate append path.
 
-The return-driven examples below are command/type fragments using the application's `CustomerId` concept; they illustrate subject routing, not a complete PII model. Each explicitly selects the order's event-source id so a foreign customer reference cannot become the append target. The final attribute example assumes `CustomerId : ConceptAs<Guid>`, a compliance identity rather than an event-source identity.
+The examples below show three ways to supply a subject for returned events. They are command/type fragments using the application's `CustomerId` concept, not a complete PII model. Each explicitly selects the order's event-source id so the customer reference cannot become the append target. The attribute example assumes `CustomerId : ConceptAs<Guid>`, a compliance identity rather than an event-source identity.
 
 ## Returning Subject from Handle
 
-The simplest approach when the subject is computed inside the handler:
+Return a `Subject` alongside the event when the handler computes whose data it contains:
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -46,11 +46,11 @@ public record PlaceOrder(EventSourceId OrderId, CustomerId CustomerId, decimal A
 public record OrderPlaced(CustomerId CustomerId, decimal Amount);
 ```
 
-Arc detects the `Subject` in the tuple response and passes it to `Append` automatically. The `Subject` is treated as append metadata, so it does not become the command response even when you also return another response value in the same tuple.
+Arc detects the `Subject` in the tuple response and supplies it as append metadata. It does not become the command response, even when the tuple contains another response value. Here, `OrderId` selects the event source while `CustomerId` selects the encryption subject.
 
 ## ICanProvideSubject Interface
 
-Use `ICanProvideSubject` when the subject is derived from command properties and you want an explicit, discoverable contract:
+Implement `ICanProvideSubject` when command properties already identify the subject. Arc can read that identity before invoking the handler:
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -71,7 +71,7 @@ public record PlaceOrder(EventSourceId OrderId, CustomerId CustomerId, decimal A
 
 ## [Subject] Attribute on a Property
 
-When a command property directly represents the compliance identity, mark it with `[Subject]` from `Cratis.Chronicle`. Arc reads the property value and converts it to a `Subject`:
+Mark a command property with `[Subject]` from `Cratis.Chronicle` when it directly represents the compliance identity. Arc reads its value and converts it to a `Subject`:
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -93,12 +93,12 @@ If the property is already of type `Subject`, Arc uses it directly even without 
 
 ## Relationship to PII Decryption
 
-Append metadata and read-model release have different sources of identity:
+A command subject chooses the key for new events. It does not choose whose existing read-model values a query or command dependency can decrypt.
 
-- Materialized reads can already be released by the server using stored subject metadata.
-- Arc's query interceptor calls `Release(instance)`. The Chronicle client resolves the release subject from the read-model instance, not from the query caller.
-- For command dependencies, Arc calls the non-generic `GetInstanceById(Type, key)`. It makes an additional `Release(instance)` call whenever the instance exists, whether or not the command declares a subject. It does **not** pass a command subject to `Release`; Chronicle resolves the subject from the read-model instance.
+For queries, Arc's interceptor calls `Release(instance)`. The Chronicle client resolves the subject from the read-model instance, not the query caller. Materialized reads may already have been released by the server using stored subject metadata.
 
-This distinction matters for passive reducers, which can construct state in-process rather than receiving an already-released materialized document. Do not assume every dependency path decrypts identically, or that returning a subject from `Handle()` can repair a dependency already loaded. Model the read model's subject explicitly and test materialized and passive paths separately. See [PII release behavior](./pii.md).
+For stored command dependencies, Arc calls the non-generic `GetInstanceById(Type, key)`, then requests an additional `Release(instance)` whenever an instance exists. This happens whether or not the command declares a subject. Arc does not pass the command subject to `Release`; Chronicle resolves identity from the read model.
 
-The release subject must identify the key used at encryption time. Setting a subject is not authorization: protect query access independently.
+A passive reducer can construct state from events in-process instead of receiving a materialized document that has already been released. Model the read model's subject explicitly and verify materialized and passive paths separately. Returning a subject from `Handle()` cannot repair a dependency loaded earlier.
+
+Continue with [PII release behavior](./pii.md) to handle erased values and release failures. Keep query authorization independent: a matching subject identifies a key, not permission to read the data.

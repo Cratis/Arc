@@ -1,14 +1,16 @@
 ---
-title: Controller query dependencies
-description: Inject storage, options, and services into MVC query controllers.
+title: Inject dependencies into Cratis Arc query controllers
+description: Use ASP.NET Core constructor injection for storage and options in Cratis Arc MVC query controllers, while keeping caller input on the action.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
+MVC query controllers use ASP.NET Core dependency injection to receive storage and application services. Put those dependencies in the constructor and keep caller-supplied arguments on the action so the request contract stays separate from the services that perform the read.
+
 ## Constructor injection
 
-Controllers use ASP.NET Core dependency injection. Inject services through the constructor and keep caller arguments on the action. This alternative banking declaration uses the [shared domain concepts](../model-bound/index.md#model-account-identities-and-names) and an ASP.NET Core Arc host with the MongoDB provider configured:
+The controller below receives a MongoDB collection and an options object that caps the number of results. It uses the [shared domain concepts](../model-bound/index.md#model-account-identities-and-names) and an ASP.NET Core Arc host with the MongoDB provider configured. Use this `DebitAccount` declaration instead of the model-bound alternative:
 
 ```csharp
 using System;
@@ -43,12 +45,12 @@ public class AccountsController(
 }
 ```
 
-The query is limited before execution. `FindAsync()` returns a cursor; it is too late to call fluent `Limit()` or `Skip()` on that cursor. A fixed cap is not automatic paging and does not provide total-count metadata; use [IQueryable paging](paging.md) when you need it.
+`PositiveAccounts()` reads the configured cap, clamps it to the allowed range, and applies `Limit()` before `ToListAsync()` executes the query. Keep fluent operations such as `Limit()` and `Skip()` before execution: `FindAsync()` returns a cursor that no longer exposes them. This fixed cap does not provide pages or total-count metadata. Return an `IQueryable<T>` for [renderer-based paging](paging.md) when clients need to navigate the full result set.
 
 ## Other providers and lifetimes
 
-A registered EF Core `DbContext` or application service works the same way. Database reads do not require Chronicle. Resolve scoped services from the request scope; do not put them in a singleton. Avoid shared cache keys for caller- or tenant-specific results unless the key and invalidation preserve those boundaries.
+You can inject a registered EF Core `DbContext` or application service in the same way. Database reads do not require Chronicle. Resolve scoped services from the request scope instead of capturing them in a singleton. If you cache caller- or tenant-specific results, the cache key and invalidation must preserve those boundaries.
 
-Let genuine storage failures surface as failures instead of returning an empty successful result. For streaming actions, constructor injection alone does not manage an upstream Rx subscription: preserve [subscription-owned teardown](../model-bound/observable-queries.md#subscription-lifetime).
+Let storage failures surface as failures so clients can distinguish an unavailable database from a successful query with no matches. A streaming action also needs [subscription-owned teardown](../model-bound/observable-queries.md#subscription-lifetime): injecting the producer's dependencies does not dispose its upstream reactive subscriptions.
 
-Continue with [query arguments](query-arguments.md) for MVC binding and [return types](return-types.md) for the wrapper contract.
+Once the controller has its dependencies, [bind caller arguments](query-arguments.md) on the action. Then choose a [return type](return-types.md) that gives the client the response contract it needs.

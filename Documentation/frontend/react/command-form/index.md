@@ -1,18 +1,18 @@
 ---
-title: CommandForm
-description: Build a form around one generated Arc command, then choose validation, layout, and lifecycle behavior.
+title: CommandForm setup in Cratis Arc
+description: CommandForm binds React fields to one generated Cratis Arc command instance, so submission executes the values the user edited.
 ---
 
-Editing a command should not require a second copy of its values in React state. `CommandForm` owns one generated command instance and binds its fields to that instance. Submitting the form executes the values you edited.
+`CommandForm` in Cratis Arc binds React fields to one generated command instance and executes that instance on submission. Use it to build an editor without keeping a second copy of the command's values in React state.
 
 <a id="overview"></a>
 <a id="basic-usage"></a>
 
 ## Start with a generated command
 
-Before using these examples, configure [Arc in React](../arc.md) and [proxy generation](../../../backend/csharp/proxy-generation/getting-started.md). Import a **generated command class**, not a TypeScript interface or an empty subclass of `Command`: execution needs the generated route, property descriptors, and validation metadata.
+First configure [Cratis Arc in React](../arc.md) and [proxy generation](../../../backend/csharp/proxy-generation/getting-started.md), which creates TypeScript classes for your backend contracts. Import the generated command class: the form needs its route, property descriptors, and validation metadata to bind fields and execute a request. An interface or empty subclass of `Command` does not supply that information.
 
-The component below is a runnable frontend checkpoint in that configured application. It expects a generated `UpdateProfile` at `./commands/UpdateProfile` with `name` and `email` string properties; adapt the import to your configured output directory. Its backend endpoint and rules are shown in [Validation](./validation.mdx#backend-validation). That example returns profile details to demonstrate a standalone Arc response; it does not persist them or require Chronicle.
+This example edits `name` and `email` on a generated `UpdateProfile`. Adjust its import to your generated output directory. The [backend validation example](./validation.mdx#backend-validation) supplies the endpoint and rules; it returns profile details without persisting them and does not require Cratis Chronicle.
 
 ```tsx
 import { CommandForm, InputTextField, useIsCommandExecuting } from '@cratis/arc.react/commands';
@@ -88,11 +88,13 @@ Exception feedback uses safe text rather than raw server diagnostics. See [safe 
 
 Use `initialValues` for the initial seed and baseline, as in the example above; use `currentValues` for a reactive overlay. Changing `initialValues` alone after mount does not repopulate the command.
 
-See [Data loading](./data-loading.md) for precedence and population, [Validation](./validation.mdx) for state limitations, and [Customization](./customization.md) for renderer contracts.
+For an existing record, continue with [data loading](./data-loading.md) to choose when loaded values become the baseline for change tracking. Before disabling Save based on form state, read [validation](./validation.mdx): `isValid` reflects the latest applied check, not a promise that the next submission will succeed.
 
 ## Children
 
-Fields bind through fragments, HTML elements, and custom layout components. Use simple accessors such as `c => c.name`; binding resolves a property name, not an arbitrary computed expression. `CommandForm.Column` groups columns; its responsive styling needs the CSS described in [Layouts](./layouts.md).
+Place fields inside the form, using fragments, HTML elements, or custom layout components as needed. A field's `value={c => c.name}` identifies the command property it edits; it is not a callback for computing a display value. Use [custom fields](./custom-fields.md) to adapt an existing input and [customization](./customization.md) to change its surrounding presentation.
+
+`CommandForm.Column` groups columns; its responsive styling needs the CSS described in [Layouts](./layouts.md). Descendants that need values or execution state should use the [form hooks](./hooks.md), which reach the same command instance.
 
 <a id="see-also"></a>
 

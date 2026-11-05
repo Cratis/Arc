@@ -1,9 +1,9 @@
 ---
-title: Core Query Usage
-description: Read data in React through generated query proxies, with the hook tuples, argument positions, and result state each query shape returns.
+title: Cratis Arc query hooks in React
+description: Cratis Arc query hooks return typed data and request state in React. Read the generated tuples, pass parameters, and handle loading and failures.
 ---
 
-Use generated query proxies to retrieve data in React with strong typing and predictable state.
+Cratis Arc's generated query hooks let a React component fetch backend data and decide what to render while it waits or when a request fails. Call `.use()` on a generated proxy, then read the result's state before rendering its `data`.
 
 ## Proxy Generation
 
@@ -13,7 +13,7 @@ See [Backend Proxy Generation](../../../backend/csharp/proxy-generation/index.md
 
 ## Basic Query Hook
 
-From a React component, call the generated static `use()` method:
+Inside a React component rendered beneath `<Arc>`, call the generated static `use()` method:
 
 ```typescript
 export const MyComponent = () => {
@@ -26,11 +26,13 @@ export const MyComponent = () => {
 };
 ```
 
-All results are strongly typed from backend metadata.
+The hook starts the request automatically. Here, `accounts` is a `QueryResultWithState`, not the account array: read `accounts.data` after checking readiness and success. Its data type comes from the backend query's metadata.
+
+Call `queryAccounts()` when you need to fetch again, such as after a user selects Refresh. The delegate updates the hook's result state and returns `Promise<void>`; it does not return the account array.
 
 ## Return Tuple
 
-Use the tuple shape emitted for your backend result. Omitting trailing elements while destructuring is fine; treating the tuple itself as the model is not.
+The generated hook returns a tuple: an ordered array containing the result and any controls. Its shape depends on whether the query fetches once or observes updates, and whether it returns one model or a collection (an enumerable). You can omit trailing controls when destructuring, as the example does.
 
 | Proxy shape | `.use()` / `.useSuspense()` | `.useWithPaging()` / `.useSuspenseWithPaging()` |
 | --- | --- | --- |
@@ -38,9 +40,11 @@ Use the tuple shape emitted for your backend result. Omitting trailing elements 
 | Observable enumerable | `[result, setSorting]` | `[result, setSorting, setPage, setPageSize]` |
 | Observable single | `[result]` | Not generated |
 
-Parameterized proxies emit `NameParameters`, not `INameParameters`. Their calls take `args` first and, for enumerables, optional `sorting` next. Parameterless enumerable calls take `sorting` first; parameterless single-result calls take no arguments. Paging prepends `pageSize` to these argument positions. For example, `BooksForAuthor.use({ authorId })` passes a named argument object, whereas parameterless `AllBooks.use(sorting)` does not take an `undefined` argument placeholder.
+An ordinary query's second element is `perform`, the refresh delegate called `queryAccounts` above. An observable collection's second element is `setSorting`, not a refresh function: the subscription delivers updates. See [Observable Queries](./observable-queries.md) when you need live data.
 
-Observable queries differ and are covered in [Observable Queries](./observable-queries.md).
+Parameterized proxies emit an argument type named `NameParameters`, not `INameParameters`. Pass `args` first and, for collections, optional `sorting` next. For example, `BooksForAuthor.use({ authorId })` passes a named argument object.
+
+A parameterless collection takes `sorting` first, so `AllBooks.use(sorting)` needs no `undefined` placeholder. A parameterless single-result hook takes no arguments. The paging variants prepend `pageSize` to these positions; see [Paging](./paging.md) for page controls.
 
 ## QueryResultWithState
 
@@ -52,7 +56,7 @@ Properties from the shared `IQueryResult` contract:
 | --------------------- | ----------------------------------------------------------------------------- |
 | `data`                | The actual data returned in the expected type.                                |
 | `isSuccess`           | Whether the query completed successfully.                                     |
-| `isReady`             | Whether the query has produced a result. `false` is transient, not a failure. |
+| `isReady`             | Whether the result is ready to inspect. `false` means still waiting.          |
 | `isAuthorized`        | Whether the query was authorized.                                             |
 | `isValid`             | Whether the query input was valid.                                            |
 | `validationResults`   | Validation errors returned by the backend.                                    |
@@ -69,19 +73,25 @@ React execution state:
 
 ### Readiness and performing state
 
-An observable query HTTP request can return `202 Accepted` with `isReady: false` before the observable has produced its first result. This is a transient server state: `isSuccess` is false, but `hasExceptions` remains false. Inspect `isReady` before treating an unsuccessful result as a failure.
+Check `isReady` before deciding whether to show data or a failure. The initial React query state is not ready. `isPerforming` describes client work instead: the client can be fetching again while an earlier, ready result remains available. Disabled queries and locally created failure results are ready because no server result remains pending; readiness alone does not mean data was fetched successfully.
 
-`isReady` and `isPerforming` describe different things. Readiness says whether a result has been produced; performing says whether the client is currently fetching or subscribing. Initial React query state is not ready, while disabled or synthetic failure states are ready because no server result remains pending.
+An observable query HTTP request can return `202 Accepted` with `isReady: false` before the observable has produced its first result. In that waiting state, `isSuccess` is false and `hasExceptions` is false. Keep showing a waiting state rather than treating the response as a failure.
 
 `IQueryResult.isReady` is optional for source compatibility: older Arc servers and third-party structural query-result objects may omit it. Arc normalizes query results received through its HTTP, WebSocket, and Server-Sent Events transports to `isReady: true` when the member is absent, while preserving an explicit `false`. SDK-produced `QueryResult` and `QueryResultWithState` instances always expose a concrete boolean.
 
+### Handling query failures
+
+With ordinary `.use()`, query failures are represented in the returned result, rather than thrown to an error boundary. Once `isReady` is true, check `isAuthorized` for access denial and `isValid` for input problems. Use `validationResults` to explain which inputs need attention. `hasExceptions` identifies exceptions; their details may be redacted by the server.
+
+Render query data when the ready result is successful. Checking only `!isSuccess` cannot distinguish waiting from failure, and checking only `data` can mistake a query's default empty value for a completed result. If a parent component should own the loading and error UI, see [Suspense Queries](./suspense-queries.md) for boundary-based handling and its retry limits.
+
 ## Query Parameters
 
-Queries can expose parameters on the backend — in C# through attributes such as `[FromQuery]` and route parameters, on the JVM through ordinary query-method parameters, and in TypeScript through `@query(argument(...))` on a static read-model method. These become typed arguments on generated proxies.
+Pass query inputs as a named object to the generated hook. The backend declares those inputs, and the proxy gives them TypeScript types. These examples declare an optional `filter` input for finding accounts by name:
 
 <ArcBackendTabs snippet="frontend/react/queries/usage/parameterized-query" />
 
-The C# tab shows a controller action, because that is the style this attribute-driven parameter binding belongs to. The JVM has no controller-based discovery, so its parameters are simply the query method's own, declared on the `@ReadModel`'s companion object. The TypeScript tab declares its argument explicitly with `argument('filter', String, { optional: true })`. All tabs use the shared frontend query runtime; their generated imports and paths depend on each backend's configuration.
+The C# controller action binds `filter` from the query string with `[FromQuery]`. The JVM examples take it as a query-method parameter on the read model: a companion-object method in Kotlin or a static method in Java. The TypeScript backend declares it with `argument('filter', String, { optional: true })`. Generated imports and paths depend on the backend's configuration.
 
 Use the parameterized proxy from React:
 

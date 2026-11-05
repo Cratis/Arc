@@ -1,6 +1,6 @@
 ---
 title: Query health endpoint
-description: Inspect tracked hub subscriptions and configure authentication and roles for the diagnostic feed.
+description: Cratis Arc's query health feed exposes tracked hub subscriptions and client metadata, with configurable authentication and role requirements.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.

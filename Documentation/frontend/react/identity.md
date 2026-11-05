@@ -1,18 +1,19 @@
 ---
-title: Identity
-description: "Use identity in React: the identity provider context, useIdentity(), role checks, RequireRole, typed details, and refreshing."
+title: Cratis Arc React identity and role-based UI
+description: Read the current user in Cratis Arc React, wait for identity to load and show role-based UI while keeping authorization on the server.
 ---
 
-The React implementation of identity is built on top of what you find the [core](../core/identity.md).
-It provides an encapsulation that feels more natural to a React application.
+Cratis Arc's `useIdentity()` hook gives React components the current user's name, roles and application-specific details. Use it to personalize a screen or decide which UI to show, and wait for identity to load before treating the user as anonymous. These browser-side checks do not replace server authorization.
+
+The hooks use Arc's [core identity model](../core/identity.md). Components such as `Spinner`, `SignInPrompt` and `AccessDenied` in the examples represent your application's UI.
 
 ## HTTP Headers
 
-Identity fetches include `httpHeadersCallback` headers configured through [Arc](./arc.md). Use this for Authorization or application headers, not a browser `Cookie` header. Cookies are browser-managed. The identity comes from `/.cratis/me`, which derives it from the authenticated request. In the browser it is UI data that the user can change; authorization belongs on the server.
+The `/.cratis/me` endpoint derives identity from the authenticated request. Identity fetches include headers from the `httpHeadersCallback` configured on [Arc](./arc.md), so use that callback for an `Authorization` header or application headers. Do not set a browser `Cookie` header there; the browser manages cookies.
 
 ## Identity provider context
 
-`<Arc>` already supplies an identity provider. Use a separate provider only for deliberate configuration, such as a generated details constructor; render it beneath Arc and explicitly preserve any headers you need. Identity request settings are global, so nested providers are not independent authenticated sessions.
+Start with the identity provider already mounted by `<Arc>`. To deserialize typed details, configure `detailsType` on `<Arc>` as shown [below](#type-safe-identity-with-complex-types). If you need a separate `IdentityProvider`, render it beneath Arc and explicitly preserve the headers you need. Identity request settings are global; nested providers do not create independent authenticated sessions.
 
 For the default identity shape, use the provider already included in your top-level `Arc`:
 
@@ -26,7 +27,7 @@ export const App = () => (
 );
 ```
 
-This context can then be used anywhere by consuming the React context directly:
+Components under the provider can consume the context directly, though most components can use the shorter [`useIdentity()` hook](#useidentity-hook):
 
 ```typescript
 import { IdentityProviderContext } from '@cratis/arc.react/identity';
@@ -46,9 +47,7 @@ export const SomeComponent = () => {
 
 ### Refreshing
 
-Sometimes you need to refresh the identity due to backend changes. On the `IIdentityContext` that represents
-the context you find a method called `refresh()`. Calling this asks
-the backend for the current identity details and replaces the identity kept in memory.
+Call `refresh()` after a sign-in or a backend change that affects the user's identity. It requests the current identity from the backend and replaces the value kept in memory:
 
 ```typescript
 import { IdentityProviderContext } from '@cratis/arc.react/identity';
@@ -69,7 +68,7 @@ export const SomeComponent = () => {
 
 ## useIdentity() hook
 
-Anywhere within your application you can then access the identity by adding using the `useIdentity()` hook:
+Call `useIdentity()` in a component under `<Arc>` to read the current identity:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -83,11 +82,7 @@ export const Home = () => {
 };
 ```
 
-The `useIdentity()` hook returns the context which holds a property called `details`. This details property is what the backend
-returned to the ingress middleware.
-
-By default, if not specified, the type of the details is `object`. You can change this by passing it a generic argument with
-the exact shape of what's expected:
+The returned `IIdentityContext` includes `details`, the application-specific payload supplied by the backend. Its default TypeScript type is `object`. Pass a type argument to describe the payload your application expects:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -112,12 +107,7 @@ The generic describes the expected payload; it does not make optional backend de
 
 ## Has the identity arrived yet?
 
-The identity is fetched from the backend, which means there is a moment - short, but real - where your
-application is rendering and nobody knows who the user is yet. `isSet` cannot tell you about that
-moment: it reads `false` both _before_ the first request has answered and _after_ it answered that
-nobody is signed in.
-
-That is what `isLoading` is for. It is on the object `useIdentity()` returns and it separates the two:
+While the identity request is pending, the application does not yet know whether the user is signed in. `isSet` is `false` both before the request answers and after it resolves to an anonymous user. Check `isLoading` first so the screen can distinguish waiting from signed out:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -132,12 +122,9 @@ export const Greeting = () => {
 };
 ```
 
-`isLoading` covers every resolution, not only the first one. Calling `refresh()` - which is what you do
-after a sign-in or after the backend grants a role - puts it back up until the round-trip answers, so
-anything that gates on who the user is keeps waiting instead of briefly deciding on the old identity.
+`refresh()` sets `isLoading` back to `true` until the new request finishes. Keep the loading branch during refresh so the UI does not decide access using stale identity data.
 
-Note that `isLoading` lives on `IIdentityContext`, not on the framework-agnostic `IIdentity` in the
-core package. It is a React lifecycle concern and it stays on the React side.
+`isLoading` belongs to React's `IIdentityContext`, not the framework-independent `IIdentity` in the core package.
 
 ## Role checking
 
@@ -160,7 +147,7 @@ export const UserProfile = () => {
 };
 ```
 
-That is the right shape for decorating a screen. It is the wrong shape for guarding one:
+A direct role check works for an optional badge. To decide whether to render an entire screen, it also needs a loading check. This check alone is not enough:
 
 ```typescript
 // Don't do this - it decides on an identity that may not have arrived.
@@ -169,14 +156,11 @@ if (!identity.isInRole('Admin')) {
 }
 ```
 
-Before the identity request answers, an administrator holds no roles yet - so this renders "Access
-denied," then swaps to the panel a moment later. Every signed-in user sees the rejection flash by on
-every load. There are three outcomes here, not two, and a guard has to say something about all of
-them.
+Before the request answers, the client has no roles to match. Even an administrator can briefly see “Access denied” before the panel appears. Handle loading separately from allowed and forbidden states, or use `RequireRole` to do that for you.
 
 ## Guarding a screen with RequireRole
 
-`RequireRole` is that guard. It renders one of three slots, and which one is never in doubt:
+`RequireRole` selects the loading, forbidden or allowed content for a configured access rule. Here, either `Administrator` or `Auditor` is sufficient:
 
 ```typescript
 import { RequireRole } from '@cratis/arc.react/identity';
@@ -199,11 +183,9 @@ export const Admin = () => (
 | `whileLoading` | `ReactNode`                      | Rendered while the identity is still being resolved. Defaults to nothing                           |
 | `forbidden`    | `ReactNode`                      | Rendered for an anonymous caller, or an authenticated one that is not allowed. Defaults to nothing |
 
-At least one of `roles` and `allow` has to be there; the type system says so, and the component denies
-at runtime if `undefined` gets past it anyway. Supply both and both must pass.
+Supply `roles`, `allow`, or both. If both are present, both must pass. The type requires an access rule, and the component also denies at runtime if the rule is missing.
 
-`forbidden` is a slot rather than a `redirectTo` on purpose. Arc.React does not depend on a router, so
-instead of picking one for you it lets you hand it whatever your application already uses:
+Arc React does not depend on a router. To redirect a forbidden user, pass your router's navigation component as the `forbidden` content:
 
 ```typescript
 <RequireRole roles={['Administrator']} forbidden={<Navigate to="/" replace />}>
@@ -213,8 +195,7 @@ instead of picking one for you it lets you hand it whatever your application alr
 
 ### Deciding on details
 
-Roles are what the backend put in the token. When access depends on something your own domain knows,
-pass a predicate over the identity's details:
+When a screen depends on application-specific data rather than roles alone, pass an `allow` predicate over the identity's details:
 
 ```typescript
 import { RequireRole } from '@cratis/arc.react/identity';
@@ -232,30 +213,20 @@ export const Ledger = () => (
 );
 ```
 
-The details come first because that is what an application's own access rules are written against; the
-whole identity arrives as a second argument when a rule also needs `isInRole`.
-
-The details are typed as possibly absent, and the `?.` above is not decoration. An identity is set as
-soon as the backend answers, whether or not the application registered anything to fill details in -
-so a predicate written as though they are always there throws on exactly the deployments that have
-none.
+The predicate receives details first and the whole identity second, so a rule can also call `isInRole`. Details are typed as possibly absent: a resolved identity does not imply that the backend supplied application details. Keep that distinction when writing predicates and displaying user information.
 
 ### Everything that is not a yes is a no
 
-A gate that cannot reach a decision does not open. `RequireRole` renders `forbidden` for all of these,
-and warns on the console for the ones that are configuration mistakes:
+`RequireRole` renders `forbidden` when it cannot allow access. If the panel stays hidden, check for these conditions:
 
 - The caller is anonymous.
-- No role matched, or the predicate answered `false`.
-- `roles` is an empty array. That is not "no rule" - it is a rule no caller can satisfy.
-- `roles` is not an array at all (a `null` out of JSON configuration, say).
-- Neither `roles` nor `allow` was supplied. A key renamed in a feature-flag object arrives as
-  `undefined`, compiles, lints, and would otherwise open the panel to everyone signed in. If
-  authentication alone really is the rule, say so: `allow={() => true}`.
-- The predicate threw.
-- The identity carries no details but an `allow` predicate was supplied. There is nothing to decide on,
-  and the two natural ways to phrase a predicate disagree about absence - one throws, the other reads
-  it as innocence and admits - so the gate answers instead of letting the phrasing decide.
+- No supplied role matches, or the predicate returns anything other than `true`.
+- `roles` is an empty array or is not an array.
+- Neither `roles` nor `allow` was supplied.
+- The predicate throws.
+- An `allow` predicate is supplied but identity details are absent.
+
+Missing rules, a non-array `roles` value, a thrown predicate and absent details for a predicate produce console warnings. For an authentication-only rule, use `allow={() => true}`; the predicate path still requires details to be present.
 
 ### RequireRole hides UI, it does not protect data
 
@@ -264,14 +235,13 @@ and warns on the console for the ones that are configuration mistakes:
 > `/.cratis/me` and is held in the page's memory, which means anyone with the browser's developer tools
 > can change it and render these children at will.
 >
-> Use the gate to keep people out of screens that would only frustrate them. Never use it as the thing
-> that keeps them out of the data. Every query and command behind the gate has to carry its own
-> `[Authorize]` / `[Roles]` on the server, where the decision is made from the real credential and
-> cannot be edited.
+> Use the gate to avoid showing screens the user cannot use. Protect every query and command behind
+> it with server-side authorization, such as `[Authorize]` / `[Roles]`, where the decision uses the
+> authenticated request rather than browser state.
 
 ## Type-safe identity with complex types
 
-If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by giving `<Arc>` a `detailsType` constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
+If details contain a type such as Fundamentals' `Guid`, configure `<Arc detailsType={...}>` to deserialize the payload into class instances. A TypeScript type argument alone describes the shape; it does not turn JSON into objects with methods.
 
 First, define your identity details class with an `@field` decorator on every property that should be deserialized:
 
@@ -291,9 +261,9 @@ class UserIdentityDetails {
 ```
 
 > [!IMPORTANT]
-> A details type with no `@field` decorators cannot be deserialized into. `JsonSerializer.deserializeFromInstance()` only copies members declared with `@field` - an undecorated class would silently construct an empty instance and discard everything the server sent. Cratis detects this case and passes the raw payload through unchanged instead of blanking it (with a console warning), but the fix is always to decorate every property you expect to read.
+> Deserialization copies only members declared with `@field`. If the class has no decorated members, Arc warns and returns the raw payload rather than creating an empty instance. Decorate every property you expect to deserialize.
 
-Then, configure `<Arc>` with the details type. This is the primary form - `<Arc>` forwards it to the `IdentityProvider` it mounts internally, deserialization happens once, and every `useIdentity()` call anywhere in the tree receives a real `UserIdentityDetails` instance at runtime:
+Pass that constructor to `<Arc>`. Its internal `IdentityProvider` deserializes available details once, making the instance available to consumers below it:
 
 ```typescript
 import { Arc } from '@cratis/arc.react';
@@ -309,7 +279,7 @@ export const App = () => {
 
 If you wire `IdentityProvider` directly instead of using `<Arc>` - see [Identity provider context](#identity-provider-context) - it accepts the same `detailsType` prop.
 
-The runtime instance does not change TypeScript's view: a bare `useIdentity()` types `details` as `object`. Pass the details type as the generic argument (or the constructor) where you read it:
+The provider's runtime configuration does not change the hook's TypeScript return type. Pass the details type where you read it. The examples below focus on property access; add loading and absent-detail branches before rendering these values in your application:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -326,7 +296,7 @@ export const Home = () => {
 };
 ```
 
-You only need to pass the constructor to `useIdentity()` itself when the provider was **not** configured with a `detailsType` - for example, a shared component that has to work whether or not the hosting application set one up:
+A shared component can pass the constructor to `useIdentity()` when it cannot rely on the host's `detailsType` configuration:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -341,14 +311,11 @@ export const Home = () => {
 };
 ```
 
-It is safe to supply both. `useIdentity(UserIdentityDetails)` recognizes when `<Arc>`/`IdentityProvider` already deserialized the payload with that exact type and hands back the existing instance rather than deserializing it a second time - which would be destructive, not merely wasteful, for nested temporal values and concept types.
-
-This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateOnly`, and other `@field`-decorated custom types are properly instantiated rather than being plain JSON objects.
+You can configure both the provider and the hook. If the payload is already an instance of the requested type, the hook returns it unchanged. Otherwise, `JsonSerializer.deserializeFromInstance()` reconstructs the decorated members, including supported complex types such as `Guid` and `DateOnly`.
 
 ## Refreshing with hook
 
-Since the `useIdentity()` returns an instance of the `IIdentityContext`. So for refreshing with a hook, its easily
-accessible:
+The hook returns the same `refresh()` method as the raw context. Call it when you need to fetch updated identity data:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -372,7 +339,7 @@ export const Home = () => {
 
 ## Default value
 
-You can also provide a default value for the `details` property in the identity context.
+A display may need placeholder details while identity is unset or details are absent. See [Default details value](#default-details-value) for that pattern. Defaults do not establish authentication; clear stale identity separately after sign-out.
 
 ### Clearing identity
 
@@ -459,4 +426,6 @@ export const Home = () => {
 ```
 
 > [!NOTE]
-> The default value is used as-is and is never run through deserialization - pass it already in its final, typed shape (as shown above, a plain object literal satisfying the class shape is enough). This matters because deserializing it would be redundant at best, and destructive at worst for nested temporal values and concept types.
+> Defaults are used as-is, without deserialization. Supply the final typed value, constructing any complex members yourself, such as the `Guid` in the constructor example above.
+
+For server-side identity setup, continue with [core identity](../core/identity.md). If sign-in or sign-out also changes what an open query can read, follow [reconnecting queries](./arc.md#reconnecting-queries).

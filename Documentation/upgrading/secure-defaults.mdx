@@ -1,35 +1,41 @@
 ---
-title: Migrating to secure defaults
-description: "Arc no longer trusts forwarded identity headers or exposes discovery endpoints anonymously outside Development; see who is affected and the restoring setting."
+title: Migrate to Cratis Arc secure defaults
+description: "Keep Cratis Arc secure defaults while upgrading: review forwarded identity header trust and choose how deployed hosts expose discovery endpoints."
 ---
 
-Some Arc defaults used to be convenient but unsafe on a deployed host. Arc now ships safe
-defaults instead. Read each section below and check whether your application relies on the
-old behavior. Each section ends with the single change that restores it.
+Cratis Arc now ignores unsigned forwarded identity headers unless you explicitly trust them, and
+requires authentication for discovery endpoints outside Development. When upgrading, review how requests
+reach your host and which tools read its discovery endpoints. Keep these defaults unless your deployment
+has a specific reason to override them.
+
+Review both sections if your discovery tools sign in through forwarded headers: enabling discovery
+authentication does not by itself make Arc trust those headers.
 
 ## Forwarded identity headers need an explicit opt-in
 
-**Who is affected:** applications that authenticate users through the unsigned
-`x-ms-client-principal`, `x-ms-client-principal-id` and `x-ms-client-principal-name` headers.
-That is every application that calls `builder.AddCratis()`, or
-`builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication()`, and runs behind Azure
-App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy. On the Arc.Core
-`HttpListener` host it is every application that relies on the built-in
-`MicrosoftIdentityPlatformAuthenticationHandler`.
+Review this setting if users authenticate through the unsigned `x-ms-client-principal`,
+`x-ms-client-principal-id` and `x-ms-client-principal-name` headers. This includes ASP.NET Core hosts
+that call `builder.AddCratis()` or
+`builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication()` behind Azure App Service or
+Container Apps authentication (EasyAuth) or Cratis AuthProxy. On the Arc.Core `HttpListener` host, it
+includes applications that rely on the built-in `MicrosoftIdentityPlatformAuthenticationHandler`.
 
-**What changed:** Arc used to trust these headers from any caller. Anyone who could reach the
-application directly could send them and act as any user. Arc now ignores them until the host
-opts in. Without the opt-in, these headers do not authenticate requests; endpoints that require an
-authenticated user return 401 unless another authentication scheme authenticates the caller.
+Arc used to trust these headers from any caller. A caller who could reach the application directly
+could supply another user's identity. With the new default, the headers do not authenticate a request;
+endpoints that require an authenticated user return 401 unless another scheme authenticates the caller.
 
-**How to tell:** an ASP.NET Core host that calls
-`AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`)
-without the opt-in logs a warning that names the setting on every startup. The built-in header
-handlers log a warning on the first request that carries the headers while they are not trusted.
+An ASP.NET Core host that registers `AddMicrosoftIdentityPlatformIdentityAuthentication()`, including
+through `AddCratis()`, logs a warning naming the opt-in setting on every startup until it is enabled.
+The built-in header handlers also warn on the first request carrying untrusted headers. Use these
+warnings to locate hosts that need review, not as a reason to enable trust automatically.
 
-**What to do:** if every request reaches your application through an ingress that strips
-caller-supplied identity headers and sets its own, opt in. In a C# host, add one line to the options
-you pass to `AddCratis` or `AddCratisArc`:
+First confirm that every request passes through the ingress that forwards requests to your host. That
+ingress must strip caller-supplied identity headers and set its own. If the application is reachable
+without that ingress, leave trust disabled and configure an authentication scheme that validates the
+caller instead.
+
+Only after confirming that boundary, opt in through the options you pass to `AddCratis` or `AddCratisArc`
+in a C# host:
 
 <ArcBackendTabs snippet="upgrading/secure-defaults/trust-forwarded-identity-headers" variants="csharp" />
 
@@ -46,38 +52,42 @@ Or in configuration, for example as the environment variable
 }
 ```
 
-If the application can be reached without going through such an ingress, do not opt in:
-configure a real authentication scheme instead.
-
 `Cratis:Arc:Introspection:TrustForwardedIdentityHeaders` is now obsolete. Setting it still
 turns on the host-wide `TrustForwardedIdentityHeaders`, so a host that already set it keeps
 working. Move the setting to `Cratis:Arc:TrustForwardedIdentityHeaders`. Startup no longer
 refuses protected catalogs behind the header scheme, because the scheme authenticates
 nobody until the host opts in.
 
-See [Microsoft Identity](../backend/csharp/asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
+Check authentication through the ingress after changing the setting. Also confirm that callers cannot
+bypass it and submit their own identity headers. The opt-in applies to every request, not just discovery.
+For the authentication setup, continue with
+[Microsoft Identity](../backend/csharp/asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
 
 ## Discovery endpoints require authentication outside Development
 
-**Who is affected:** applications or tools that read the discovery endpoints of a host running
-outside Development without signing in. The discovery endpoints are the command and query
-catalogs (`/.cratis/commands` and `/.cratis/queries`) and identity discovery
-(`/.cratis/users`, `/.cratis/tenants` and `/.cratis/identity-details/schema`). Command and query
-invocation and `/.cratis/me` are not affected.
+Check applications and tools that read discovery without signing in on a deployed host. Discovery
+means the command and query catalogs (`/.cratis/commands` and `/.cratis/queries`) and identity discovery
+(`/.cratis/users`, `/.cratis/tenants` and `/.cratis/identity-details/schema`). This default change does not
+affect command and query invocation or `/.cratis/me`.
 
-**What changed:** these endpoints used to be anonymous in every environment. They are now
-anonymous only in Development, where Lens and the Cratis CLI read them locally. Everywhere else
-they require an authenticated caller, so an anonymous request gets 401. A host outside
-Development that has no way to authenticate callers, such as an ASP.NET Core host without a
-default authentication scheme or an Arc.Core host without authentication handlers, does not map
-them at all (404) and logs a warning that names the setting below on startup. Development is
-decided by the host's `IHostEnvironment.IsDevelopment()`, including environment names configured
-through `DOTNET_ENVIRONMENT`, command-line arguments or host options. Only when no host
-environment is registered does Arc fall back to `ASPNETCORE_ENVIRONMENT`.
+These endpoints used to be anonymous in every environment. With no explicit override, they remain
+anonymous in Development, where Lens and the Cratis CLI read them locally. Outside Development, an
+anonymous request gets 401 when the host can enforce authentication. If the host has no way to
+authenticate callers, Arc does not map discovery at all: requests get 404 and startup logs a warning
+naming the setting below. Examples are an ASP.NET Core host without a default authentication scheme
+and an Arc.Core host without authentication handlers.
 
-**What to do:** nothing, if only signed-in users or local tooling read these endpoints. To
-expose them anonymously as before, add one line to the options in a C# host that you pass to
-`AddCratis` or `AddCratisArc`:
+Check the actual host environment before changing access settings. Arc uses
+`IHostEnvironment.IsDevelopment()`, including environment names configured through `DOTNET_ENVIRONMENT`,
+command-line arguments or host options. It falls back to `ASPNETCORE_ENVIRONMENT` only when no host
+environment is registered. Do not switch a deployed host to Development to restore discovery access.
+
+Leave the access setting unset if signed-in users or local tooling are the only readers. Update deployed
+tools to authenticate when they need discovery. If no deployed tool needs it, disable discovery using
+the settings below.
+
+If you deliberately need anonymous discovery, explicitly allow it through the options you pass to
+`AddCratis` or `AddCratisArc` in a C# host:
 
 <ArcBackendTabs snippet="upgrading/secure-defaults/anonymous-introspection" variants="csharp" />
 
@@ -88,7 +98,10 @@ then logs a warning on startup that the endpoints are anonymous.
 returns `false` when unset, but leaving it unset selects the environment default; explicitly
 assigning `false` opts into anonymous discovery in every environment.
 `Introspection.Roles` now implies authentication on its own instead of needing
-`RequireAuthentication: true`.
+`RequireAuthentication: true`. Do not combine roles with an explicit `RequireAuthentication: false`;
+that configuration is invalid. To require authentication even in Development, explicitly set
+`RequireAuthentication: true`. If discovery is enabled and the host cannot enforce authentication, an
+explicit requirement or configured roles cause startup to fail rather than omitting the endpoints.
 
 If you do not need discovery on deployed hosts, set both `Cratis:Arc:Introspection:Enabled`
 and `Cratis:Arc:Introspection:IdentityDiscovery` to `false`. No discovery routes, enforcement
@@ -96,4 +109,21 @@ checks or exposure warnings remain; `/.cratis/me` is unchanged. See
 [turning off all discovery](../backend/csharp/introspection/index.md#turn-off-all-discovery-in-deployed-environments)
 for appsettings and environment-variable examples.
 
-See [Introspection](../backend/csharp/introspection/index.md#production-access).
+## Check the deployed behavior
+
+Check discovery in the host environment you deploy, not only in Development. With no explicit access
+override, expect the following:
+
+| Host configuration | Anonymous discovery request |
+| --- | --- |
+| Development, discovery enabled | Endpoint is available anonymously. |
+| Outside Development, authentication configured, discovery enabled | 401; authenticate the tool and retry. |
+| Outside Development, no authentication configured, discovery enabled | 404; check the startup warning and configure authentication if discovery is needed. |
+| Both discovery switches disabled | 404 for discovery routes; `/.cratis/me` is unchanged. |
+
+If a deployed endpoint is anonymous unexpectedly, check for an explicit
+`Introspection.RequireAuthentication = false`, including configuration copied from an older host. If a
+tool cannot authenticate through forwarded headers, revisit the ingress trust setting above before
+changing discovery access. Continue with
+[Introspection production access](../backend/csharp/introspection/index.md#production-access) for the
+full access configuration.

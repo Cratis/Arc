@@ -1,6 +1,6 @@
 ---
 title: Output behavior
-description: Incremental writes, destructive cleanup, and barrel generation settings.
+description: Cratis Arc proxy output settings cover incremental discovery, directory deletion, index files, and orphan-cleanup limitations for MSBuild and CLI.
 ---
 
 ## Defaults by entry point

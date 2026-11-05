@@ -1,9 +1,9 @@
 ---
-title: Less idiomatic Arc
-description: "Shapes that work in Arc but are not guarded by themselves, such as an injected IEventLog or several event sources, and how to return each to the idiomatic form."
+title: Arc consistency with injected Chronicle services
+description: "Injected Chronicle services do not by themselves guard an Arc command's decision. Stage appends and use read-model parameters to protect the batch."
 ---
 
-Use this page when your command is not a plain `[Command]` that returns events. These shapes work, and Arc supports them. Under read protection `On`, some are refused. Each section says what the shape does and how to move it to the [idiomatic form](./index.md#fully-idiomatic-arc).
+Cratis Arc can use injected Cratis Chronicle services, but injecting a service does not by itself protect a command's decision. If your handler reads through `IReadModels` or appends through `IEventLog`, check when the operation runs and which guard covers it. The examples below explain the refusals under read protection `On` and the move to the [idiomatic form](./index.md#fully-idiomatic-arc).
 
 All examples on this page share one namespace.
 
@@ -34,7 +34,7 @@ public record BookStock(
 
 ## An injected event log
 
-Injecting `IEventLog` and calling `Append` writes at once. The append reads the tail when you call it, ignores the command's unit of work and any guard, and stays in the log if the command later fails.
+The `IEventLog.Append` call below writes at once. Its concurrency check starts at append time, not at the earlier decision read. It does not join the command's unit of work or its guards, so a successful append stays in the log even if the command later fails.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -56,7 +56,7 @@ public record ImportReading(SensorId Sensor, double Value)
 | `Off`, `Measure` | Written at once. A successful append cannot be undone. [ARCCHR0007](../../code-analysis/ARCCHR0007.md) reports the `IEventLog` parameter |
 | `On` | Refused with `ImmediateAppendWhileReadsAreProtected`. [ARCCHR0012](../../code-analysis/ARCCHR0012.md) reports it as a warning |
 
-The idiomatic form returns the event: `public ReadingImported Handle() => new(Value);`. If you must append inside `Handle()`, stage the event in the command's unit of work with `eventLog.Transactional.Append(...)`. It commits in one atomic append with the events you return and under the same guards:
+Return the event instead: `public ReadingImported Handle() => new(Value);`. If you must append inside `Handle()`, stage the event in the command's unit of work with `eventLog.Transactional.Append(...)`. It commits atomically with the returned events. Under `On`, the validator's `BookStock` read guards that batch:
 
 ```csharp
 using Cratis.Arc.Commands;
@@ -146,7 +146,7 @@ Use `[LookUpBy]` for a command property key, or a per-stream model for the comma
 
 ## The earlier form: [ProtectedDecision] and DecisionRead
 
-Before read protection had modes, a command opted in one at a time with `[ProtectedDecision]` and took `DecisionRead<T>`. That form still works. Under `On` you can use plain read-model parameters instead; `On` also enables protected validator constructor reads.
+Existing commands can opt in individually with `[ProtectedDecision]` and take `DecisionRead<T>`. That form still works. Under `On`, plain read-model parameters give the handler state without exposing the guard token, and validator constructor reads are protected too.
 
 ```csharp
 using Cratis.Arc.Chronicle.ReadModels;
@@ -169,7 +169,7 @@ public record BorrowBookDecision(BookId Book, MemberId Member) : ICanProvideEven
 }
 ```
 
-This is a before example for existing code, not a recommendation for new commands. Move to a plain parameter under `On` and a validator: a `[ProtectedDecision]` command outside `On` refuses validators with constructor dependencies, and a validator is where the rule belongs. See [Validators](../validators.md#commands-marked-protecteddecision).
+For new commands, put the state rule in a validator and take a plain read-model parameter under `On`. When migrating the example above, enable `On` before adding validator constructor dependencies: a `[ProtectedDecision]` command outside `On` refuses them. See [Validators](../validators.md#commands-marked-protecteddecision).
 
 ## Several event sources
 

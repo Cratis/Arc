@@ -1,6 +1,6 @@
 ---
 title: Validation Results
-description: Reference for the validation-result shape that commands and queries return, including severity and member paths.
+description: Cratis Arc validation results describe command and query failures with severity, member paths, messages, rule state, and machine-readable reasons.
 ---
 
 Validation failures are returned in command/query results using a shared validation-result shape.

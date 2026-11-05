@@ -1,11 +1,11 @@
 ---
-title: Messaging
-description: Get the nearest messenger with useMessenger() and publish or subscribe to typed messages between React components.
+title: Cratis Arc React messaging between components
+description: Coordinate React components with typed Cratis Arc messages, automatic subscription cleanup and scopes that control where messages travel.
 ---
 
-`<Arc />` sets up a root messenger that is available through React context.
+Cratis Arc React messaging lets components coordinate through typed messages without passing callbacks through every intermediate component. For example, a user list can publish a selection that a details panel receives. These are in-memory UI messages, not persisted events or requests to the backend.
 
-Use `useMessenger()` to get the nearest messenger:
+`<Arc />` supplies the root messenger through React context. Use `useOnMessage` and `useSendMessage` for component subscriptions and publishing, or `useMessenger()` when you need the messenger directly:
 
 ```tsx
 import { useMessenger } from '@cratis/arc.react/messaging';
@@ -19,10 +19,7 @@ export const Details = () => {
 
 ## Subscribing — `useOnMessage`
 
-`useOnMessage` subscribes to messages of a given type from the nearest messenger for
-the lifetime of the component. The subscription is cleaned up automatically on unmount,
-and the callback does not need to be wrapped in `useCallback` — the latest reference is
-always invoked.
+Call `useOnMessage` in the component that should react to a message. It subscribes through the nearest messenger and cleans up when the component unmounts. You do not need `useCallback` around the handler; the hook invokes the latest callback reference.
 
 ```tsx
 import { useOnMessage } from '@cratis/arc.react/messaging';
@@ -42,8 +39,7 @@ export const UserDetails = () => {
 
 ### Filtering
 
-An optional filter narrows on message content without re-subscribing. The filter receives
-the actual typed message and tells the hook whether the consumer is interested:
+Pass a filter when the panel should handle only some messages of that type. It receives the typed message and can change without creating a new subscription:
 
 ```tsx
 useOnMessage(
@@ -55,9 +51,7 @@ useOnMessage(
 
 ## Publishing — `useSendMessage`
 
-`useSendMessage` returns a stable function that publishes to the nearest messenger.
-Use it when a component needs to send messages without holding a reference to the
-messenger itself:
+In the list, call `useSendMessage()` and publish a `UserSelected` instance when the user makes a choice. The returned function stays stable while the nearest messenger stays the same:
 
 ```tsx
 import { useSendMessage } from '@cratis/arc.react/messaging';
@@ -79,7 +73,7 @@ export const UserList = () => {
 
 ## Scoped messenger hierarchy
 
-Use `<MessengerScope>` to create a nested messenger:
+Use `<MessengerScope>` when a group of components should share a local messenger. `FeatureA` and `FeatureB` below can exchange messages without sending them up to the root by default:
 
 ```tsx
 import { MessengerScope } from '@cratis/arc.react/messaging';
@@ -92,15 +86,10 @@ export const Page = () => (
 );
 ```
 
-`useMessenger()`, `useOnMessage`, and `useSendMessage` all resolve the nearest scope
-first, then fall back to the Arc root messenger.
+The hooks use the nearest `MessengerScope`, or the Arc root messenger if no local scope exists. This determines who can receive a published message.
 
-By default:
+By default, messages stay out of parent scopes but travel down to child scopes recursively. Set `bubbleToParent` on a scope to let its messages reach its parent. Set `trickleDownToChildren={false}` to stop that scope from forwarding messages to its children.
 
-- Child publishes do **not** bubble to parent.
-- Parent publishes trickle down to children recursively.
+The subscriber and publisher must use the same message class constructor. The examples repeat `UserSelected` to show each side; in your application, define it once and import it in both components.
 
-You can override this on a scope with:
-
-- `bubbleToParent`
-- `trickleDownToChildren`
+For subscriptions outside React components, see [core messaging](../core/messaging.md). If you coordinate through view models, continue with [MVVM messaging](./mvvm/messaging.md).

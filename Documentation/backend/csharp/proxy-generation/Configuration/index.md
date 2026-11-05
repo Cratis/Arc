@@ -1,6 +1,6 @@
 ---
 title: Proxy generator configuration
-description: MSBuild properties, mapping items, defaults, and CLI differences.
+description: Configure the Cratis Arc C# proxy generator with MSBuild properties and mapping items, including defaults and direct executable differences.
 ---
 
 Configure generation through properties and items **inside the existing `.csproj`'s `Project` element**. The examples in these reference pages are project fragments, not standalone project files. Item `Include` values supply MSBuild identities; the generator consumes each item's named metadata.

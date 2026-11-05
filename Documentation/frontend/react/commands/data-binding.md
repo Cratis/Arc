@@ -1,15 +1,15 @@
 ---
-title: Data binding and initial values
-description: Edit generated command content without confusing React updates with the change-tracking baseline.
+title: React command data binding and initial values
+description: Bind React inputs to generated Cratis Arc commands, load initial values, and reset drafts while keeping the change-tracking baseline explicit.
 ---
 
-An edit screen needs two versions of its data: the draft and the baseline used to detect changes. A generated command holds both, but editing a property and accepting a new baseline are different operations.
+Use the generated Cratis Arc command hook's setter to bind React inputs, and initial values to establish the baseline against which edits are compared. The command holds the draft you are editing and that baseline separately, so updating an input does not accept it as saved.
 
 ## Binding to command properties
 
-Generated hooks return `[command, setValues, clearValues]`. Prefer `setValues({ property: value })` for React input edits: it updates the named properties and requests a render. Raw assignment notifies command change tracking but does not reliably rerender every edit while `hasChanges` remains true. Neither raw assignment nor the setter runs validation automatically; [CommandForm](../command-form/index.md) adds form-driven validation.
+Generated hooks return `[command, setValues, clearValues]`. Use `setValues({ property: value })` in an input's change handler: it updates the supplied properties and requests a React render. Assigning a command property directly notifies change tracking, but does not reliably rerender each edit while `hasChanges` remains true.
 
-Use explicit content objects. Generated public properties are prototype accessors, so `{ ...command }` is not a plain payload snapshot.
+Pass explicit content objects to the setter. Generated public properties are accessors on the prototype, so `{ ...command }` does not copy the command's payload. Neither assignment nor the setter validates the draft automatically. Use [CommandForm](../command-form/index.md) if you want the form to manage validation.
 
 ## Initial values
 
@@ -18,18 +18,18 @@ Use explicit content objects. Generated public properties are prototype accessor
 | `GeneratedCommand.use(initialValues)` | Seeds values and baseline when the instance is created; later prop changes do not reseed it |
 | `setValues(partialContent)` | Edits supplied properties and requests a React render; baseline unchanged |
 | `command.setInitialValues(content)` | Sets supplied values and their baseline, including falsy values |
-| `command.setInitialValuesFromCurrentValues()` | Snapshots current **truthy** properties; skips `''`, `0`, `false`, null, and undefined |
+| `command.setInitialValuesFromCurrentValues()` | Accepts current properties as the baseline, including `''`, `0`, `false`, null, and undefined |
 | `command.revertChanges()` | Restores values from the stored baseline |
 | Hook `clearValues()` | Assigns undefined to properties and requests a render; does not establish a new baseline |
 | `command.clear()` | Clears properties and baseline; distinct from the hook clearer |
 
-`hasChanges` is a comparison flag, not an edit revision or a saved-success flag. Do not use `[command.hasChanges]` as the dependency for per-keystroke validation or autosave.
+`hasChanges` compares each property with its baseline using strict inequality. It can remain true across many keystrokes, so `[command.hasChanges]` is not a per-edit dependency for validation or autosave. It also does not tell you whether a server request succeeded; use the returned result for save feedback.
 
 ## Loading data from queries
 
-Destructure the query tuple, check readiness/success, and read `.data`. Avoid repeatedly reseeding an editor on observable updates: that can erase the user's draft. One simple pattern is to key the query-owning loader by the selected identity and mount its editor only after a successful result matches that identity. Keying only the editor can seed it with the previous selection's retained query result.
+Load the selected record before mounting its editor. Destructure the query tuple, check that the result is ready and successful, then read `.data`. Keeping loading separate from editing lets the editor take one initial snapshot rather than overwrite the user's draft whenever query data changes.
 
-This illustrative pair assumes generated `GetUserProfile` and `UpdateProfile` proxies whose content has string `userId`, `firstName`, and `email` properties:
+The example keys the query-owning loader by `userId` and checks the returned identity before mounting the editor. Keying only the editor could initialize it from a query result retained for the previous selection. It assumes generated `GetUserProfile` and `UpdateProfile` proxies with string `userId`, `firstName`, and `email` properties:
 
 ```tsx
 import { useState } from 'react';
@@ -81,20 +81,24 @@ export function ProfileEditor({ userId }: { userId: string }) {
 }
 ```
 
-Changing selection remounts the query loader and editor together, discarding the previous draft; confirm navigation first if unsaved edits must be preserved. The identity check also rejects a mismatched response. The editor consumes the incoming profile only on its initial mount. A deliberate refresh/reload must decide whether to discard edits first. For a form-managed alternative, see [loading form data](../command-form/data-loading.md).
+When the selected `userId` changes, React remounts both the loader and editor, discarding the previous draft. Ask for confirmation before changing selection if that draft must be preserved.
+
+The editor consumes profile data on its initial mount. This loader also unmounts the editor while a query is performing, so refetching during editing can discard the draft. Decide whether to keep or discard edits before refreshing; [loading form data](../command-form/data-loading.md) covers the form-managed alternative.
 
 ## Resetting to initial values
 
-If you retain an explicit baseline object, `setValues(baseline)` restores the draft without accepting a new baseline. To accept newly loaded content as the baseline and reliably render it, call `command.setInitialValues(content)` followed by `setValues(content)`. Supply explicit properties, not a spread command instance.
+Keep an explicit baseline object when you need a visible Reset action. `setValues(baseline)` restores the supplied properties and requests a render without changing the stored baseline. Include every property you intend to reset, and update that object after success if Reset should restore the last successful save.
+
+When newly loaded content should replace both the draft and baseline, call `command.setInitialValues(content)` followed by `setValues(content)`. The second call makes the new values visible in React. Supply explicit properties rather than spreading the command instance.
 
 ## Execution baseline limitations
 
-Current `execute()` calls `setInitialValuesFromCurrentValues()` after every completed server request, **including unsuccessful results**. Client-validation short circuits do not reach that step. Combined with the truthy-only snapshot behavior, `hasChanges` is not a reliable “unsaved after failure” indicator for all values.
+After successful execution, `execute()` accepts the submitted values as the new baseline, including falsy values such as `''`, `0`, and `false`. Unsuccessful execution leaves the baseline unchanged. If the user edits while a request is pending, success accepts the submitted snapshot. Later edits that differ from that snapshot remain changed.
 
-Keep authoritative save status in the returned `CommandResult` and preserve drafts independently when failure recovery matters. Success-only baseline acceptance and falsy-value snapshots are runtime follow-up candidates. Do not disable all retries solely because `hasChanges` became false after rejection.
+The baseline is a local comparison point, not a fresh query result or a durable copy of the draft. Keep save feedback tied to the returned `CommandResult`, and reload query data when you need to display values produced by the server.
 
 ## Tracking changes across multiple commands
 
-A [command scope](./scope.md) tracks its own registered commands and can execute those with changes. It does not recursively execute nested scopes or aggregate their change/performing flags. Compose a toolbar under the provider with `useCommandScope()`; `CommandScope` does not accept a render-function child.
+When several editors share a Save action, use a [command scope](./scope.md) to execute the changed commands registered in that scope. Nested scopes need their own coordination: the parent does not recursively execute them or aggregate their change and performing flags. Place a toolbar beneath the provider and consume it with `useCommandScope()`; `CommandScope` takes elements, not a render-function child.
 
-Continue with [React hook usage](./react-usage.md) and [validation](./validation.md).
+For the full tuple and execution flow, see [React hook usage](./react-usage.md). To check each draft without displaying stale feedback, follow [command validation](./validation.md).

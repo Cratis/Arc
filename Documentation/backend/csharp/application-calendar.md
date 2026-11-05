@@ -1,12 +1,12 @@
 ---
-title: Application calendar
-description: Resolve the time zone that applies to an operation and re-evaluate live answers when the local date changes.
+title: "Cratis Arc application calendar: use business dates"
+description: Use the Cratis Arc application calendar to resolve local dates in an IANA time zone and re-evaluate live query results when a clock boundary passes.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-The application calendar answers one question: which time zone's calendar applies to this operation? It pairs an instant you supply with that zone, so code can ask for the local date without reading the clock itself.
+Use Cratis Arc's application calendar when a command or query needs the date in a particular time zone. It pairs an instant, a point on the UTC timeline, with the zone that applies to the operation. Your code can then ask for the local date, for example to decide which reservations are due today, without reading the clock itself.
 
 ## Configure the application time zone
 
@@ -24,7 +24,7 @@ Set the zone under `Cratis:Arc:Calendar:TimeZone`, or in code:
 }
 ```
 
-The default is `UTC`. Only IANA ids are accepted. When the host starts, an unknown id, a Windows-only id such as `W. Europe Standard Time`, and a non-zero fixed-offset id such as `Etc/GMT+5` all throw `TimeZoneIsNotAnIanaZone`, which names the id. Arc never replaces a zone it cannot resolve with UTC, because that would move every local date without anyone noticing. A zone set in code is applied after configuration binding, so it wins over the bound value.
+The default is `UTC`. Use an IANA time-zone identifier such as `Europe/Oslo`, so date calculations can follow that zone's daylight-saving rules. At host startup, an unknown id, a Windows-only id such as `W. Europe Standard Time`, or a non-zero fixed-offset id such as `Etc/GMT+5` throws `TimeZoneIsNotAnIanaZone`, which names the id. Arc does not substitute UTC for an invalid zone. A zone set in code is applied after configuration binding and wins over the bound value.
 
 ## Zone precedence
 
@@ -34,7 +34,7 @@ The default is `UTC`. Only IANA ids are accepted. When the host starts, an unkno
 2. The tenant's zone, from the first registered `ICanProvideTenantCalendar` that returns an id.
 3. The application zone.
 
-Only the operation, a provider you register, and the configuration can choose a zone. A request header or query parameter never does. A provider that returns an unusable id throws `TimeZoneIsNotAnIanaZone`, and a provider that throws propagates the exception.
+Arc does not select a zone from request headers or query parameters. If tenants use different zones, register an `ICanProvideTenantCalendar` like the one below. Returning an unusable id throws `TimeZoneIsNotAnIanaZone`; an exception from the provider propagates to the caller.
 
 ```csharp
 using Cratis.Arc.Calendar;
@@ -62,7 +62,7 @@ DateOnly sameInstantYesterday = reading.DateOf(reading.Instant.AddDays(-1));
 
 ## Re-evaluate at clock boundaries
 
-An answer such as "items due today" changes when the local date changes, even though no data changed. `ReevaluateAtBoundaries` takes a subject of candidates and re-evaluates the latest candidates whenever they change and whenever a boundary passes.
+A live list of "items due today" needs to change at the next local date, even if no stored data changes. `ReevaluateAtBoundaries` takes a subject of candidates and re-evaluates the latest candidates whenever they change or a boundary passes. Return both the answer and its next clock boundary from your evaluation:
 
 ```csharp
 var context = await clockBoundaries.Begin(tenant, null, token);
@@ -96,4 +96,4 @@ Zone resolution uses the host's time-zone data. Containers need `tzdata`, and th
 
 ## Out of scope
 
-A live `now` that ticks continuously, and an advanceable clock for query scenarios, are not part of this feature.
+This feature does not supply a continuously ticking `now` or an advanceable clock for query scenarios. For the connection and delivery behavior around a live answer, continue with [observable queries](queries/observable-queries.md).

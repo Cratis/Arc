@@ -1,36 +1,36 @@
 ---
-title: Compliance
-description: PII is encrypted at the event log boundary and decrypted transparently on the way out, so commands and queries stay unaware of it.
+title: Cratis Arc compliance modeling
+description: Model personal data with Cratis Arc and Chronicle by choosing an encryption subject and releasing protected values on supported query paths.
 ---
 
-Event sourcing and the right to erasure look like a contradiction. Events are immutable facts — that is the whole point — and yet someone can demand their personal data be deleted. You cannot rewrite history, but you must be able to make personal data unreadable.
+Cratis Arc integrates Cratis Chronicle's personal-data protection into command handling and supported query responses. Use it to choose whose key protects personal values and to decrypt those values when serving an authorized reader. These mechanisms support an erasure workflow; they do not make an application automatically compliant with a regulation.
 
-Chronicle resolves this by encrypting `[PII]`-annotated properties at the event log boundary with a **per-subject key**. Crypto-shredding destroys that key, making values actually encrypted under it unreadable without another retained key copy. The events remain. This does not erase historical plaintext, causation metadata, exports, or independently retained copies; those need their own privacy and retention controls.
+Chronicle encrypts properties marked as personally identifiable information (`[PII]`) at the event log boundary, using a key for the subject the data belongs to. Deleting that key, called crypto-shredding, makes values encrypted under it unreadable unless another key copy was retained. The events remain, so the system can keep its business history without retaining readable protected values.
 
-Arc integrates compliance release into read-model interception so supported query paths do not need handwritten decryption or key-fetching code. Your application still chooses the right subject and authorizes access to the data.
+Your application still chooses the subject, authorizes access, and handles privacy and retention outside that protection. Key deletion does not erase historical plaintext, causation metadata, exports, or independently retained copies.
 
 ## What that looks like in practice
 
-Two things have to happen, and both are automatic:
+Model the write and read sides together:
 
-- **On the way in**, choose the compliance _subject_ — the identity whose key encrypts the data. Arc can supply command metadata for return-driven events; aggregate `Apply()` does not forward it. Absent an explicit append subject, Chronicle consults event subject metadata and finally the event source id. See [Subject](./subject.md).
-- **On the way out**, read-model interception requests release before supported query responses and streaming emissions reach the client. Observable HTTP snapshots currently bypass interception; do not assume every transport releases PII identically. See [PII](./pii.md) and the [interception coverage table](../../queries/read-model-interception.md).
+- Choose the encryption subject for events. Arc can supply command metadata for events returned by a handler; aggregate `Apply()` does not forward it. Without an explicit append subject, Chronicle checks the event's subject metadata, then falls back to the event source id. Follow [Subject](./subject.md) to keep a customer's personal data separate from an order's identity.
+- Mark the read model's personal values and give it a matching subject. Arc's read-model interception requests release, Chronicle's operation for decrypting protected values, before supported query responses reach the client. This includes supported streaming emissions and observable HTTP snapshots. Follow [PII](./pii.md) for the model shape and the [interception coverage table](../../queries/read-model-interception.md) for response-path boundaries.
 
-Command dependencies have their own release path. Materialized state may already be released by Chronicle; Arc requests an additional release for every existing command-side instance, whether or not the command declares a subject, and does not pass a command subject to the release call. Passive reducer state can be constructed in-process. See [Subject](./subject.md) before assuming these paths are equivalent.
+Read models injected into commands have a separate release path. For stored read-model dependencies, Arc requests release whenever an instance exists, even if the command has no declared subject. Release resolves identity from the model, not the command. Materialized state may already have been released by Chronicle, while a passive reducer can build state from events in-process. The [Subject](./subject.md) guide explains why those paths need separate verification.
 
 :::caution[Erasure and release failures are different]
-Chronicle releases genuinely encrypted values with an erased key as empty strings. Service error responses can retain the original instance, while transport or deserialization failures can throw. Test the resulting model and response shape; there is no unconditional non-breaking guarantee.
+Chronicle releases genuinely encrypted string values with an erased key as empty strings. A service error response can leave the original instance unchanged; transport or deserialization failures can throw. Verify both the erased-value shape and operational error handling before relying on a response.
 :::
 
 ## Topics
 
 | Topic | Description |
 | --- | --- |
-| [PII](./pii.md) | Automatic decryption of PII-annotated properties on read models before they are served to clients. |
-| [Subject](./subject.md) | Setting the compliance subject on a command so Chronicle keys PII encryption to the correct identity. |
+| [PII](./pii.md) | Model protected read-model values and understand release behavior before exposing a query. |
+| [Subject](./subject.md) | Route event encryption to the right identity and match it when releasing a read model. |
 
 ## How Chronicle compliance works underneath
 
-Chronicle encrypts properties annotated with `[PII]` at the event log boundary using a per-subject encryption key. The _subject_ is the compliance identity — typically a person rather than an aggregate. When events are projected into read models, encrypted values are stored as-is. Before a read model reaches a client, those values are decrypted with the subject's key.
+Chronicle uses the read model's own schema to encrypt projected personal values for storage. Each read model needs its own PII annotations, directly on properties or through shared concepts; receiving a value from an annotated event does not supply those annotations. Release uses that model's schema and subject to decrypt its protected values.
 
-For the full explanation of annotating types, managing encryption keys, and honoring erasure requests, see the [Chronicle compliance guide](/chronicle/compliance/).
+Continue with the [Chronicle compliance guide](/chronicle/compliance/) to annotate event types, manage encryption keys, and plan the wider erasure workflow.

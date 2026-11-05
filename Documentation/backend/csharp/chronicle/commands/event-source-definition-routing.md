@@ -1,9 +1,9 @@
 ---
-title: How event source definition routing works
-description: How Arc resolves the event source definition, stream, stream id and concurrency scope for a command's append, and what it hands to Chronicle.
+title: Cratis Arc event source routing
+description: Trace a Cratis Arc command from its event source definition to the resolved route and concurrency scope, then diagnose routing errors.
 ---
 
-This page follows one command from its `[EventSource<TSource>(stream)]` attribute to the append Chronicle receives. Read it when a command appends to a different stream than you expected, fails with a routing exception, or conflicts less (or more) than you expected. For the declarations themselves, see [Route a command through an event source definition](./event-source-definitions.md).
+Cratis Arc resolves `[EventSource<TSource>(stream)]` into the route used to append a command's events. Follow that route here when events land in an unexpected stream, a routing exception stops the command, or a concurrency check covers the wrong history. To declare a new route, start with [event source definitions](./event-source-definitions.md).
 
 ## From the attribute to a route
 
@@ -24,7 +24,7 @@ When the context is built, Arc:
 4. Compares the definition with `[EventSourceType]` and `[EventStreamType]` on the command. A value that differs from the definition's source name, or from the stream's name (`All` without a stream), throws `EventRoutingContradictsEventSource`.
 5. Stores the definition type, the stream name, the source type, the stream type and the concurrency dimensions in the command context.
 
-The concurrency dimensions are the stream's own when it declares any, otherwise the event source's. Chronicle owns that rule in `EventSourceDefinition.ConcurrencyFor`.
+Check the stream's `Concurrency` first when diagnosing the selected dimensions. If the stream declares any, they replace the source's dimensions; otherwise it inherits the source's. Chronicle implements this in `EventSourceDefinition.ConcurrencyFor`.
 
 The stream id is not part of the definition. A template is resolved on first use, after authorization and validation, so a validator can reject a missing property before the template throws. `CommandContext.GetEventRoute()` returns the combined route, and `IStreamReads.ForCommand()` and `CompleteStream` use it. `IEventRoutes.For<TSource>(stream)` builds the same route outside a command, with the default stream id until you call `WithStreamId(...)`.
 
@@ -43,7 +43,7 @@ Per-event routing changes this for one returned event:
 
 ## The concurrency scope Arc passes
 
-Arc decides per returned event which scope, if any, accompanies the append. The first match applies.
+Routing and concurrency are separate choices: the route says where the event goes; the scope says which history must remain unchanged. For automatic append handling without read protection `On`, use the first matching row below. Under `On`, the transaction handles the guard as described in [how read protection works](../consistency/how-it-works.md).
 
 | Situation | Scope passed with the append |
 | --- | --- |
@@ -54,17 +54,23 @@ Arc decides per returned event which scope, if any, accompanies the append. The 
 | An `EventForEventSourceId` routed through a definition, and the command's definition declares dimensions | None from Arc; the event sequence derives the guard from that event's own definition and stream |
 | An `EventForEventSourceId` routed by legacy strings, and the command's definition declares dimensions | A scope built from that event's own routing |
 
-Three details follow from this:
+For a per-entity boundary, include `EventSourceId` on the definition. Chronicle's definition-derived scope carries exactly the declared dimensions, so omitting that dimension can guard across sources. Arc's scope for plain returned events always includes the target source id. Including it explicitly makes both paths agree.
 
-- **Which dimensions the scope carries depends on the path.** The scope Chronicle derives from a definition carries exactly the declared dimensions, so a definition without `EventSourceId` guards the stream across event sources. The scope Arc builds itself for plain returned events always carries the event source id and adds the declared stream type, stream id and source type. Declare `EventSourceId` on the definition to make both paths agree.
-- **One guard per route.** When several returned events target the same id through a definition, Chronicle derives one guard per distinct route and sends them together in one batch; a violation of any of them refuses the whole batch. Events that need the same guard share one. This needs a Chronicle kernel 19.84 or later: against an older kernel the client throws `IncompatibleConcurrencyScopesForEventSource` before anything is appended. Events that override the definition with legacy routing and need different guards for one id keep every distinct guard: Arc sends them all, in event order, and Chronicle requires each one to hold. Guards for the same stream and event types collapse to one. Mixing such legacy guards with a guard Chronicle derives from a definition for the same id is rejected by Arc with the same exception, because Chronicle stops deriving once it is handed a scope for the id. Split the command, or return `EventsWithConcurrencyScopes` with the guard you want.
-- **Timing.** For plain events, Arc resolves the expected tail while it handles the response, after `Handle()`. For an event whose guard Chronicle derives, the tail is resolved when the unit of work commits. In both cases it is not necessarily the revision `Handle()` read. The first append into an empty scope is checked only when the client's concurrency options opt in.
+When several returned events target different routes for the same source id, each distinct guard must hold for the batch to append. Chronicle derives guards for definition-routed events; Arc sends the guards for legacy-routed events in event order. Equivalent guards are shared. Several guards for one id require Chronicle kernel 19.84 or later; an older kernel causes `IncompatibleConcurrencyScopesForEventSource` before anything is appended.
+
+Do not mix legacy-derived guards and Chronicle-derived definition guards for the same source id. Arc rejects that combination with `IncompatibleConcurrencyScopesForEventSource`, because supplying a scope stops Chronicle deriving one for that id. Split the command or return `EventsWithConcurrencyScopes` containing the intended guard.
+
+The capture time also differs. Arc resolves the expected tail for plain events while handling the response, after `Handle()`. Chronicle resolves a definition-derived guard when the unit of work commits. Neither is necessarily the revision the handler read. The client's concurrency options must opt in to automatic first-append checking for an empty scope.
 
 A stream decision avoids the timing gap: `IStreamReads` captures the tail before it reads the stream and builds the exact scope, with the event source id, event source type, stream type and stream id from the route (and no stream id for `StreamType(...)`). `StreamDecision.Append(...)` returns it in `EventsWithConcurrencyScopes`, which replaces the derived scopes. When the stream is empty, the scope expects no matching event. The definition's dimensions are not applied to it: the exact scope always carries the route's source, stream type and stream id.
 
 ## How this maps to the Dynamic Consistency Boundary
 
-A scope is the append condition: it names the events the append must not have missed (a query) and the position the decision was based on. In Chronicle the stream metadata plays the role of DCB tags, and an event source definition is the typed way to choose which dimensions guard an append. The dimensions choose the query; the expected tail is the position. Because the query never names event types, a definition scope guards the whole source or stream, a coarse, aggregate-like boundary: right for a cohesive history, too wide when unrelated events share the stream. See [Chronicle's Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) for the model and [choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) for the guards. A definition gives the query a name and a place to live. It does not capture the position at the time of your read; a stream decision, a protected decision or an exact scope does.
+A Dynamic Consistency Boundary (DCB) has two parts: the query selecting relevant events and the position those events were read at. Chronicle uses stream metadata as DCB tags. A definition chooses the query's dimensions, but automatic tail capture does not supply the position of your earlier read.
+
+For example, a definition scoped to an account's `Transactions` stream checks every event in that stream, not just payments. That works when every event matters to the decision. If unrelated events share the stream, the check may be too broad. A stream decision binds the position to the read but still guards the whole stream; a protected read model can narrow by the event types it folds.
+
+Use [Chronicle's Dynamic Consistency Boundary guide](/chronicle/dynamic-consistency-boundary/) for the model and [choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) to select the guard for your rule.
 
 ## Diagnose a routing problem
 

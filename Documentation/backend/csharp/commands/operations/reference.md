@@ -1,6 +1,6 @@
 ---
 title: Command operation execution and recovery
-description: Look up operation signatures, ordering, compensation eligibility, backend diagnostics, cancellation, and supported command boundaries.
+description: Cratis Arc command operations execute sequentially on the server, with compensation governed by command failure and observed commit facts.
 ---
 
 This reference describes `ICommandOperation` in `Cratis.Arc.Commands`. Start with [command operations](./index.md) for the design rationale or [implementing an operation](./implementing.md) for a complete example.

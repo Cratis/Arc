@@ -1,30 +1,44 @@
 ---
-title: Query data across slices
-description: Serve a screen that needs data spanning more than one feature — by filtering live queries around a relationship.
+title: Query related data with Cratis Arc
+description: Filter a Cratis Arc live query by an author's identifier so a React screen shows that author's books and updates when matching data changes.
 ---
 
-**Goal:** a screen needs data that doesn't live in a single slice — authors *with* their books, an order *with* its line items, anything where one thing owns a list of another.
+To show one author's books in Cratis Arc, store the author's identifier on each book and filter a live query by that identifier. The screen can combine the author list with each author's catalog without making the author feature call the book feature's handler.
 
 ## Keep the relationship explicit
 
 In a database-backed Arc slice, model the relationship the same way you would in the domain: the child carries the parent's id, and the query filters by it. Arc's part is making that query a typed, live endpoint and generating the React proxy that calls it.
 
+## Before you start
+
+Use the application setup from the [standalone MongoDB book lesson](/arc/tutorial/books-and-relationships/), including its domain declarations, imports, and replica-set configuration for change streams. You need stored authors and books to check the filter, plus generated query proxies and a configured Arc React client to show the results. Neither the relationship nor the live query requires Cratis Chronicle.
+
 ## Do it
 
-These are fragments of the [standalone MongoDB book lesson](/arc/tutorial/books-and-relationships/); use its domain declarations, imports, replica-set configuration, and generated proxies. Neither the relationship nor the live query requires Chronicle.
-
-**For an owns-a-list relationship, keep the child keyed to its parent.** A book belongs to an author, so the `Book` read model carries `AuthorId`:
+Keep the book's own `Id` and add `AuthorId` to record which author it belongs to. The query receives that author identifier and uses it as its filter:
 
 <ArcBackendTabs snippet="scenarios/query-related-data/books-for-author" />
 
-No attribute marks the identity — by convention the `Id` property is the read model's identity. Arc separates the query method's parameters into data and services: `authorId` is data, so it becomes a query parameter; the collection or `MongoObservableQuery` is a service, so it's injected. C# tells them apart by type; the JVM marks service parameters with `@FromServices` and leaves caller arguments unannotated, and puts the query on the read model's companion object as a `@JvmStatic` function. The generated proxy takes the data parameter either way:
+The read model's identity is its `Id` property by convention; `AuthorId` is the relationship, not the book's key. The caller supplies `authorId`. Arc supplies the storage dependency, so the caller does not choose a collection or repository.
+
+C# distinguishes data and service parameters by type. The JVM example marks `MongoObservableQuery` with `@FromServices` and puts the query on the companion object as a `@JvmStatic` function. TypeScript declares the argument and service with `argument(...)` and `service(...)`; its application-owned `BookRepository` must implement `observeForAuthor`.
+
+After generating the query proxy, pass the author identifier to its React hook:
 
 ```tsx
 // authorId is the generated Guid value, not String(author.id).
 const [books] = BooksForAuthor.use({ authorId });
 ```
 
-With MongoDB change streams configured, `Observe(...)` publishes updated data. The filter does not enforce parent existence; use server validation and database constraints for that separate requirement. Add a book for that author and the row updates without polling.
+The query returns a stream of matching books. With MongoDB change streams configured and the observation source connected, changes publish updated query data without polling. The TypeScript repository is responsible for providing that observation source; returning an ordinary list would not make it live.
+
+The filter does not enforce parent existence. If every book must refer to an existing author, add server validation and database constraints where supported.
+
+## Check the result
+
+Query an author who has books and confirm that another author's books are absent. Keep the query subscribed, then add a book for the selected author: the next result should include it. Adding a book for a different author should not add it to this catalog.
+
+If the initial list is correct but does not update, check the MongoDB change-stream setup and the repository's observation source. If the wrong books appear, check the stored `AuthorId` and filter before debugging React.
 
 For a list-with-details screen, let the author list call `AllAuthors.use()` and each row call `BooksForAuthor.use({ authorId: author.id })`. That keeps each slice small: the author slice owns authors, the book slice owns books, and the screen composes their generated proxies.
 
@@ -32,4 +46,4 @@ For a list-with-details screen, let the author list call `AllAuthors.use()` and 
 
 - [Queries](/arc/backend/csharp/queries/) — observable and non-observable query methods, parameters, and filtering.
 - [Relate your slices](/arc/tutorial/books-and-relationships/) — this relationship built step by step.
-- [Execute a command from React](./run-a-command-from-react.md) — consuming the query proxy.
+- [Execute a command from React](./run-a-command-from-react.md) — submit the command that changes the data your query reads.

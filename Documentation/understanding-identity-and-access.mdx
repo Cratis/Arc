@@ -1,17 +1,17 @@
 ---
-title: Understanding identity and access
-description: "Arc handles who the user is, what they may do and whose data they see through identity enrichment, role-based authorization and multi-tenant isolation."
+title: Understand identity and access in Cratis Arc
+description: "Cratis Arc separates user identity from operation authorization. Tenant membership checks and tenant-aware storage control access to each tenant's data."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Three questions run through every real application: **who is this user**, **what are they allowed to do**, and — if you serve more than one customer — **whose data are they allowed to see**. Arc supplies hooks for all three, but authentication, operation authorization, tenant membership, and storage isolation remain distinct responsibilities. This page is the mental model; each section links to the reference that goes deeper.
+Cratis Arc separates identity enrichment from operation authorization and tenant isolation. Use identity details to give the UI context about the signed-in user, authorization to decide which commands and queries that user may run, and tenant membership checks plus tenant-aware storage to control whose data those operations use.
 
 ## Who is the user — identity, enriched once
 
-Authentication establishes a `ClaimsPrincipal` — an id, a name, and claims, including any authorization roles. Your application may also need display preferences, membership information, or other domain details. Arc lets you enrich that identity without confusing the details with authoritative role claims.
+Authentication establishes who the caller is and represents that identity as a `ClaimsPrincipal`, the server-side user object containing claims such as an id, a name, and roles. Identity enrichment adds application details, such as a display name or preferences, so the UI can show information relevant to that user.
 
-Implement `IProvideIdentityDetails<TDetails>`. During identity resolution, Arc calls it with an `IdentityProviderContext`, **not the raw token**. This illustrative MongoDB fragment assumes application-owned `Member` and `LibraryIdentity` types and the identity/provider imports; it controls the identity-details result, not access to every command:
+Implement `IProvideIdentityDetails<TDetails>` to supply those details. Arc passes an `IdentityProviderContext` containing the user's id, name, and claims, rather than the raw token. In this illustrative MongoDB fragment, the provider looks up a library member by that id. It assumes application-owned `Member` and `LibraryIdentity` types and the identity/provider imports:
 
 <ArcBackendTabs snippet="understanding-identity-and-access/identity-provider" />
 
@@ -25,46 +25,46 @@ flowchart LR
     C --> UI["Frontend — typed identity"]
 ```
 
-Two things fall out of this design:
+If the member is missing, the provider returns `IdentityDetails` with `IsUserAuthorized: false`, and `/.cratis/me` responds with `403`. That decision applies to the identity-details response. Command and query authorization evaluates the principal and operation declarations independently, so rejecting identity enrichment does not block the user's operations. Enforce restrictions such as blocked accounts or expired subscriptions on those operations too.
 
-- **Identity-details rejection.** `IsUserAuthorized: false` makes `/.cratis/me` return `403` for that result. It is **not a global operation gate**: the command/query authorization evaluator checks the principal and operation attributes independently. Protect actual operations against blocked users or expired subscriptions; hiding the UI or rejecting identity enrichment is insufficient.
-- **One identity, backend to browser.** The details you return are served from `/.cratis/me` and consumed, typed, on the React side — the same way commands and queries are. You enrich identity once and read it everywhere. (Details: [Identity](/arc/backend/csharp/identity/), [contracts](/arc/backend/csharp/identity/contracts/), and [on the frontend](/arc/frontend/react/identity/).)
+When the provider accepts the member, `/.cratis/me` returns the details for the frontend to consume through a generated identity type. Use the [identity provider flow](/arc/backend/csharp/identity/) and [identity contracts](/arc/backend/csharp/identity/contracts/) to implement the backend, then [read identity in React](/arc/frontend/react/identity/) to use those details in the UI.
 
 <Aside type="caution" title="Details are not authorization claims">
-A `LibraryIdentity.Role` property is display/domain data; it does not add `ClaimTypes.Role` or grant `[Roles("Librarian")]`. The identity the frontend reads supplies client context, not authoritative proof of permission. Establish roles in the authenticated principal using trusted authentication/claims configuration. Enforce blocked-user, subscription, and membership restrictions on the server's actual operations as well as reflecting them in the UI.
+A `LibraryIdentity.Role` property is application data. It does not add `ClaimTypes.Role` or grant `[Roles("Librarian")]`. Configure roles through trusted authentication and claims handling on the server. The UI can use identity details to choose what to display, but hiding an action does not prevent someone from calling its endpoint.
 </Aside>
 
 ## What can they do — authorize commands and queries
 
-Gate *what they can do* with attributes on the command or query. This standalone MongoDB excerpt uses the [tutorial's domain types and provider setup](/arc/backend/csharp/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports. `LibraryRole` is an application enum that names roles for `nameof`, which Arc's [ARC0011](/arc/backend/csharp/code-analysis/#arc0011-role-names) analyzer prefers over string literals:
+Authorization decides whether the caller may run an operation before its command or query logic executes. In this MongoDB excerpt, registering an author requires the Librarian role, while reading the public catalog allows anonymous callers. The excerpt uses the [tutorial's domain types and provider setup](/arc/backend/csharp/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports. `LibraryRole` names the application's roles for `nameof`, as recommended by the [ARC0011 role-name analyzer](/arc/backend/csharp/code-analysis/#arc0011-role-names):
 
 <ArcBackendTabs snippet="understanding-identity-and-access/authorization" />
 
-- `[Authorize]` requires an authenticated user; `[Roles("Librarian", "Admin")]` requires **at least one** of the listed roles; `[AllowAnonymous]` opens a specific endpoint back up.
-- Apply them at the **class level** to cover everything and **override per method** for exceptions — secure by default, opt out where you mean it.
-- A failure is automatic: `401` if authentication stops the request before Arc runs, `403` if Arc's command or query pipeline rejects the signed-in user. Pipeline authorization failures are surfaced in the generated command/query result as `isAuthorized: false`, so the UI can react.
+`[Authorize]` requires an authenticated user. `[Roles("Librarian", "Admin")]` also requires authentication and accepts at least one of the listed roles. `[AllowAnonymous]` permits callers without signing in. The role name must match a role in the authenticated principal; declaring an enum member does not assign that role to anyone.
 
-When a rule depends on a specific row — "you can only edit your own profile" — enforce it server-side against the trusted principal and that row, using your authorization extension or an explicit operation guard. An ordinary validation rejection is not the same result as an authorization rejection. (Full matrix, claims access, and inheritance rules: [Authorization](/arc/backend/csharp/core/authorization/).)
+For queries, a class-level declaration covers methods without their own declaration. A method-level declaration replaces the class-level requirements. Use this deliberately when making a query public or giving it a different role requirement.
+
+Authentication can stop an HTTP request with `401` before Arc runs. If Arc's command or query pipeline rejects authorization, the HTTP response is `403`, and the generated command/query result reports `isAuthorized: false` so the UI can respond.
+
+Some rules depend on the data being accessed: a user may edit their own profile but not another user's. Check that relationship on the server against the trusted principal and the target record, using an authorization extension or an explicit operation guard. An ordinary validation rejection is a different result from an authorization rejection. Continue with [authorization attributes, policies, and inheritance rules](/arc/backend/csharp/core/authorization/) to choose the right check.
 
 ## Whose data — multi-tenancy
 
-If one deployment serves many customers, *who* and *what* aren't enough — you need *whose*. Arc treats the **tenant** as a first-class part of every request: it resolves a tenant id, keeps it in context for the whole request, and points tenant-aware stores at the right data.
+A tenant is a customer or organization whose data your application keeps separate from others in the same deployment. A user may have permission to register authors without having permission to register them for every tenant. Operation authorization and tenant membership answer different questions.
 
-The shape of it:
+Arc selects a tenant id through a resolver, which reads a configured source such as a claim or header. A header resolver reads the supplied value; authenticating the caller first does not prove that the caller belongs to the tenant they selected. Register an application-owned `ITenantMembership` check to verify that relationship during request tenant resolution, or enforce membership at a trusted ingress (a proxy or gateway) before the request reaches the app. Arc does not automatically enforce membership without a registered check. The [tenant membership guide](/arc/backend/csharp/tenancy/membership/) explains registration and the check's scope.
 
-1. A **resolver selects a tenant id** from a claim, header, or other configured source. A header resolver simply reads the value; running it after authentication does **not** prove membership.
-2. Your trusted ingress or application **authorizes the user's membership** in the selected tenant before serving tenant data. The id is then available through tenant context.
-3. Configure and verify **tenant-aware storage** separately — database routing, partitions, or application query filters. Tenant selection alone neither isolates data nor proves every command/query uses the selected store. Test both cross-tenant membership rejection and storage separation.
+Storage isolation is a separate responsibility. Tenant-aware database routing, partitions, or application query filters must keep an allowed operation within the selected tenant's data. Resolving a tenant id does not add filters to every query or make every store tenant-aware. Verify both boundaries: a caller cannot select a tenant they do not belong to, and an allowed request cannot read or change another tenant's data.
 
 <Aside type="caution" title="Resolve the tenant after you authenticate">
-Tenant id is sensitive. Resolve it from authenticated claims, validate membership, and never trust a raw header or query parameter — otherwise tenant isolation is one spoofed value away from breaking. In production, [Cratis AuthProxy](/authproxy/) can take this on at the edge: it strips spoofable identity and tenant headers from every inbound request, resolves the tenant after the user signs in, and validates it before the request reaches your app.
+Use trusted identity claims or verify membership against authoritative data before accepting a tenant selected by a header or query parameter. [Cratis AuthProxy](/authproxy/) strips spoofable identity and tenant headers before forwarding its own values. Its optional tenant verification checks that a tenant exists, not that the caller belongs to it. Enforce caller-to-tenant membership separately, and prevent callers from bypassing any trusted ingress to reach the backend directly.
 </Aside>
 
-Set it up with [tenant resolvers](/arc/backend/csharp/tenancy/resolvers/), reach it through [tenant context](/arc/backend/csharp/tenancy/tenant-context/), and isolate storage with [database resolvers](/arc/backend/csharp/tenancy/database-resolvers/) — the [tenancy overview](/arc/backend/csharp/tenancy/) ties them together.
+Choose how requests select a tenant with [tenant resolvers](/arc/backend/csharp/tenancy/resolvers/), then use [tenant context](/arc/backend/csharp/tenancy/tenant-context/) to read the selected id in application services. For MongoDB, [database resolvers](/arc/backend/csharp/tenancy/database-resolvers/) route storage by tenant. The [tenancy overview](/arc/backend/csharp/tenancy/) connects these choices.
 
 ## Where to go next
 
-- [Identity](/arc/backend/csharp/identity/) — the provider flow, contracts, and multi-service topologies in full.
-- [Authorization](/arc/backend/csharp/core/authorization/) — every attribute, the inheritance rules, and claims-based custom logic.
-- [Tenancy](/arc/backend/csharp/tenancy/) — resolvers, context, and per-tenant data isolation.
-- [Microsoft Identity headers](/arc/backend/csharp/asp-net-core/microsoft-identity/) — accepting the `x-ms-client-principal` family of HTTP headers from your ingress. These are unsigned assertions accepted from a **trusted ingress**, not bearer tokens validated by Arc. The ingress must replace spoofable headers and prevent direct backend access, and the host has to opt in with `TrustForwardedIdentityHeaders` before Arc trusts them. For local-only fixtures, see [Generate a principal](/arc/backend/csharp/development/generating-principal/).
+- [Supply identity details](/arc/backend/csharp/identity/) when the UI needs application-specific information about the caller.
+- [Authorize commands and queries](/arc/backend/csharp/core/authorization/) when you need to restrict an operation by authentication, role, or policy.
+- [Configure tenancy](/arc/backend/csharp/tenancy/) when one deployment serves customers whose data must stay separate.
+
+If a trusted ingress supplies the caller's identity, follow [Microsoft Identity headers](/arc/backend/csharp/asp-net-core/microsoft-identity/) to configure the `x-ms-client-principal` header family. These headers carry unsigned assertions, not bearer tokens validated by Arc. The ingress must replace spoofable headers and prevent direct backend access. The host must opt in with `TrustForwardedIdentityHeaders` before Arc trusts them. For local-only fixtures, see [Generate a principal](/arc/backend/csharp/development/generating-principal/).

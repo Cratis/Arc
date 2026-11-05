@@ -3,7 +3,7 @@ title: CommandResult
 description: "Read a CommandResult: success, authorization, validation, exception details, and response values, and chain handlers per outcome."
 ---
 
-When a command is executed, it returns a `CommandResult<TResponse>` that provides comprehensive information about the execution outcome. The result includes success/failure status, validation errors, authorization status, exceptions, and optional response data.
+Executing a Cratis Arc command returns a `CommandResult<TResponse>` with outcome flags, validation results, authorization details, exception information, and optional response data. Use `isSuccess` for the reported outcome, then inspect the other properties to choose the appropriate feedback.
 
 ## Structure
 
@@ -32,10 +32,12 @@ Use the status properties to distinguish these outcomes:
 
 ### isSuccess
 
-Indicates whether the command executed successfully **overall**. This is the primary indicator of whether the operation completed as intended.
+Reports the overall outcome. The TypeScript result copies this flag from the returned payload rather than calculating it from the other properties.
 
-- `true`: The command executed without any issues (authorized, valid, and no exceptions)
-- `false`: The command failed for one or more reasons (could be authorization, validation, or exceptions)
+- `true`: The result reports success. For the C# command result, this means authorized, no validation results, and no exception messages.
+- `false`: The result reports failure; inspect authorization, validation results, and exception information for the cause.
+
+`validate()` and `validateClientSide()` also return command results. Success from either means that validation reported no blocking failure, not that the command handler executed.
 
 **Use this when:**
 
@@ -75,10 +77,10 @@ if (!result.isAuthorized) {
 
 ### isValid
 
-Indicates whether the command payload passed validation rules.
+Reports validation status; it does not prove every rule ran. For example, an authorization failure or a client-side request failure can carry `isValid: true` without server validation completing.
 
-- `true`: All validation rules passed
-- `false`: One or more validation rules failed (check `validationResults` for details)
+- `true`: The result reports no validation failure. The C# command result uses this value when `validationResults` is empty.
+- `false`: Inspect `validationResults` and each result's `reason`. The cause can be an authored rule, a malformed request, an unavailable dependency, or another framework-composed rejection.
 
 **Use this when:**
 
@@ -98,10 +100,10 @@ if (!result.isValid) {
 
 ### hasExceptions
 
-Indicates whether any exceptions occurred during command execution.
+Reports exception information in the result, including failures composed by the client.
 
-- `true`: One or more exceptions were thrown
-- `false`: No exceptions occurred
+- `true`: The result carries an exception failure. A missing route (HTTP 404), a network error, or an unreadable response also produces this flag through the client's failure result; it does not necessarily mean the handler threw.
+- `false`: The result reports no exception failure; validation or authorization can still have failed.
 
 **Use this when:**
 
@@ -123,7 +125,7 @@ if (result.hasExceptions) {
 
 ## Understanding the Relationship
 
-The status properties work together to provide a complete picture:
+These examples show common flag combinations, not proof that each pipeline stage ran. TypeScript copies the flags independently from the payload; it does not recompute them:
 
 ```typescript
 // Scenario 1: Complete success
@@ -311,7 +313,7 @@ result
     });
 ```
 
-Each callback method returns the `CommandResult` instance, allowing you to chain multiple handlers.
+Each callback method checks its corresponding flag immediately and returns the `CommandResult` instance. These are independent checks, not an exclusive choice: a failed result can invoke `onFailed` as well as one or more specific failure callbacks.
 
 ## Best Practices
 

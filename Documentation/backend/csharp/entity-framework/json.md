@@ -1,30 +1,21 @@
 ---
-title: JSON conversion
-description: Store explicitly marked EF properties as JSON with separate conversion options.
+title: Entity Framework Core JSON property conversion
+description: Store marked Entity Framework Core properties as JSON with Cratis Arc, using provider-specific column types and configurable JSON converters.
 ---
 
-The JSON conversion feature provides automatic serialization and deserialization of complex objects to JSON format in the database. This cross-database approach allows you to store rich data structures while maintaining compatibility across different database providers.
+Cratis Arc's JSON conversion stores a complex property or collection in one database column rather than mapping it to separate tables. Mark the property with `[Json]` and apply the conversion through `BaseDbContext` or `ApplyJsonConversion`; Arc serializes the value on save and deserializes it on load.
 
 ## What it does
 
-With `BaseDbContext`, or an explicit `ApplyJsonConversion` call, Arc configures properties marked with `[Json]`. These model/startup fragments extend the host from [getting started](./getting-started.md); they are not independent programs.
+Arc adds a value converter and a value comparer to each marked property. The converter handles JSON storage; the comparer uses serialized values for equality and creates snapshots for EF change tracking. The default JSON options include converters for Cratis concepts, so domain value types can also appear inside the stored object.
 
-1. **Serialization**: Complex objects are automatically serialized to JSON when saving to the database
-2. **Deserialization**: JSON data is automatically converted back to objects when loading from the database
-3. **Cross-Provider Compatibility**: Uses the most appropriate JSON storage method for each database provider
-4. **Concept Support**: Includes automatic support for Cratis concepts through the integrated converter factory
-
-This automatic configuration ensures that complex data structures are properly stored and retrieved while maintaining type safety and database compatibility.
+The model and startup fragments below extend the host from [getting started](./getting-started.md); they are not independent programs.
 
 ## Why it's important
 
-Using JSON conversion provides several key benefits:
+Use JSON conversion when the application loads and saves a property as a whole, such as customer preferences or a collection of addresses. You keep that data together without defining a table for each nested type.
 
-- **Rich Data Storage**: Store complex objects and collections without creating separate tables
-- **Schema Flexibility**: Easily evolve object structures without complex database migrations
-- **Cross-Database Compatibility**: Consistent JSON handling across different database providers
-- **Performance**: Reduces the need for complex joins when loading related data
-- **Type Safety**: Maintains strong typing while providing flexible storage
+The stored JSON is still a data contract. When you change an object's shape or its converters, check how existing rows will deserialize and whether they need a data migration. If you need to filter or join on nested values, verify the provider's query support before choosing JSON storage.
 
 ## Model Usage
 
@@ -53,19 +44,15 @@ public class Address
 }
 ```
 
-The conversion will automatically:
+Here, `Addresses` and `Preferences` each occupy a JSON-converted column. Nested objects and collections use the same JSON options, including the default Cratis concept converters.
 
-- Store collections and complex objects as JSON in the database
-- Handle serialization of nested objects and collections
-- Support Cratis concepts within the JSON data
-- Maintain type safety when loading the data back
+Arc selects PostgreSQL `jsonb`, SQL Server `nvarchar(max)`, and SQLite `TEXT`. These are provider-specific column mappings, not equivalent server-side JSON query capabilities. A value converter alone does not translate arbitrary nested-property LINQ expressions into JSON operators.
 
-The selected column types are PostgreSQL `jsonb`, SQL Server `nvarchar(max)`, and SQLite `text`. This is value conversion, not a promise that arbitrary nested-property LINQ expressions translate to server-side JSON operators. Test provider query support explicitly. JSON options are separate from the plain serializer used by `AsPoint()` / `AsLineString()` / `AsPolygon()`; do not apply both paths to one property.
+The JSON options are separate from the plain serializer used by `AsPoint()`, `AsLineString()`, and `AsPolygon()`. Do not apply both conversion paths to one property; use the [geometry storage-path matrix](./point-conversion.md#choose-one-storage-path) to choose a representation.
 
 ## Default Converters
 
-`JsonConversionOptions` is pre-populated with all Arc default JSON converters so that common types work
-out of the box without any extra configuration:
+`JsonConversionOptions` starts with these converters:
 
 | Converter | Handles |
 | --------- | ------- |
@@ -83,7 +70,7 @@ out of the box without any extra configuration:
 
 ## Registering Custom Converters
 
-Some property types require a custom `JsonConverter` to round-trip correctly — for example, interface types, abstract base classes, or discriminated unions. Without a matching converter, `JsonSerializer` throws `NotSupportedException: Deserialization of interface or abstract types is not supported`.
+If a property's declared type does not tell `JsonSerializer` which concrete type to construct, supply a matching converter or polymorphic type configuration. Interface and abstract types can otherwise fail to deserialize with `NotSupportedException`. The example below uses a converter to read an interface-typed property back as a concrete record.
 
 Register additional converters at startup through the `JsonConverters` list on `EntityFrameworkCoreOptions`. The converters are appended after the built-in Arc defaults:
 
@@ -173,15 +160,10 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 }
 ```
 
-> Note: When using [`BaseDbContext`](./base-db-context.md) with `WithEntityFrameworkCore`, the `JsonConversionOptions` singleton is resolved automatically from DI — you only need to populate `EntityFrameworkCoreOptions.JsonConverters` at startup.
+When you use [`BaseDbContext`](./base-db-context.md) with `WithEntityFrameworkCore`, the context resolves the `JsonConversionOptions` singleton from dependency injection. Populate `EntityFrameworkCoreOptions.JsonConverters` at startup; you do not need to pass the options into model configuration yourself.
 
 ## How it works
 
-The conversion system uses reflection to:
+`JsonConversion.ApplyJsonConversion()` inspects the supplied entity types for `[Json]` properties and annotated constructor parameters. It configures the corresponding properties with value converters, serialized-value comparers, and column types for the selected provider.
 
-1. Identify all properties in your entities that are marked with the `[Json]` attribute
-2. Create appropriate value converters that handle serialization and deserialization
-3. Configure value comparers for proper change tracking
-4. Apply these converters to the Entity Framework model builder
-
-The conversion is handled by the `JsonConversion.ApplyJsonConversion()` extension method, which automatically discovers and configures all JSON properties in your model.
+For context-wide conventions, continue with [BaseDbContext](./base-db-context.md). If a property holds geometry, compare [string conversion, JSON properties, and spatial column declarations](./point-conversion.md#choose-one-storage-path) before writing its migration.

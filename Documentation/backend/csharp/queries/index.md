@@ -1,22 +1,32 @@
 ---
 title: Queries
-description: Read application state once or observe updates with standalone Arc.
+description: Read application state once or observe updates with Cratis Arc queries, without requiring event sourcing.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-A screen needs a list, a detail view, or a dashboard—not another hand-written API client. Arc lets you declare the read, expose it through HTTP, and generate a typed TypeScript proxy for the frontend.
+To show accounts on a screen, declare a query that returns the account data the caller may read. Arc exposes the read through HTTP and generates a typed TypeScript proxy, so the frontend can consume the result without maintaining a separate request contract.
 
-Queries read **application state**. That can be a MongoDB document, an EF Core entity, data from a service, or an in-memory model. **Arc queries do not require Chronicle or event sourcing.** A database query or MongoDB `Observe()` call is not a Chronicle projection. If your application optionally uses Chronicle, its projected read models can be queried too; see [Chronicle integration](../chronicle/index.md).
+A read model is the shape a query serves. Its data can come from MongoDB, EF Core, a service, or an in-memory model. Arc queries do not require Chronicle or event sourcing. A database query or MongoDB `Observe()` call is not a Chronicle projection. If your application uses Chronicle, queries can also serve its projected read models; see [Chronicle integration](../chronicle/index.md).
 
 ## Choose a declaration style
 
 | Style | What you write | Choose it when |
 | --- | --- | --- |
 | [Model-bound](model-bound/index.md) | Static query method on the `[ReadModel]` type it returns | You want the query next to its data shape with minimal endpoint boilerplate |
-| [Controller-based](controller-based/index.md) | MVC GET action | You need MVC route-value/DTO binding, filters, or HTTP response control |
+| [Controller-based](controller-based/index.md) | MVC GET action | You need MVC route binding, data transfer objects, filters, or HTTP response control |
 
-The two paths share result rendering but **not all binding, validation, or authorization behavior**. Start with the model-bound example, then use the controller path deliberately where its contract fits better.
+The two paths share result rendering but not all binding, validation, or authorization behavior. Start with the model-bound example, then use the controller path where you need its HTTP controls.
+
+For example, this method on `[ReadModel] DebitAccount` reads the collection once:
+
+```csharp
+[Path("/api/accounts")]
+public static IEnumerable<DebitAccount> AllAccounts(IMongoCollection<DebitAccount> collection) =>
+    collection.Find(_ => true).ToList();
+```
+
+This is a method excerpt from the [model-bound example](model-bound/index.md#start-with-one-read), which supplies the model, imports, and MongoDB setup. `GET /api/accounts` returns the accounts in the query result's `data`. An empty list is different from an unauthorized or failed read, so check the result before rendering an empty state. Add [authorization](model-bound/authorization.md) before exposing private account data.
 
 ## Request once or observe updates
 
@@ -33,7 +43,9 @@ flowchart LR
 | Mode | Behavior | Use it for |
 | --- | --- | --- |
 | Request/response | Read once through GET or [generated HTTP QUERY](using-the-http-query-method.md) | One-off reads and reports |
-| [Observable](model-bound/observable-queries.md) | Subscribe to a producer over SSE/WebSocket | Lists or dashboards that should stay current |
+| [Observable](model-bound/observable-queries.md) | Subscribe to a producer over Server-Sent Events (SSE) or WebSocket | Lists or dashboards that should stay current |
+
+Choose a one-off read when the caller needs a result at that moment. Choose an observable query when a list or dashboard should update as its source changes. The subscription carries results over SSE or WebSocket, and its resources need to be released when the caller disconnects.
 
 An observable query needs a producer that detects changes; a return type alone does not watch your database. Arc's MongoDB integration supplies `Observe()`. Other providers need their own observation mechanism. An update may follow a [command](../commands/index.md) changing database state directly, or an optional Chronicle projection updating it.
 
@@ -45,7 +57,7 @@ An observable query needs a producer that detects changes; a return type alone d
 4. Expose [observable updates](model-bound/observable-queries.md) and understand subscription disposal.
 5. For advanced delivery, use the [hub protocol](observable-query-demultiplexer.md), [change streams](change-stream.md), and [emission guards](observable-query-emission-guards.md).
 
-[Read-model interception](read-model-interception.md) transforms supported result paths, but currently excludes observable HTTP snapshots. [Query health](query-health.md) helps diagnose hub subscriptions but exposes sensitive telemetry unless you restrict it. Use [cURL workflows](using-observable-queries-with-curl.md) to distinguish a snapshot from a live stream.
+[Read-model interception](read-model-interception.md) transforms supported results, including observable HTTP snapshots, but does not replace authorization or caller-scoped data selection. [Query health](query-health.md) helps diagnose hub subscriptions but exposes sensitive telemetry unless you restrict it. Use [cURL workflows](using-observable-queries-with-curl.md) to distinguish a snapshot from a live stream.
 
 ## Consume the read in React
 

@@ -1,6 +1,6 @@
 ---
 title: Query proxy generation
-description: Query discovery, parameter names, hook tuples, and paging eligibility.
+description: Cratis Arc generates TypeScript query clients from eligible backend methods, with parameter types, React hooks, paging, and observable results.
 ---
 
 ## Discovery and output

@@ -1,6 +1,6 @@
 ---
 title: RadioButtonField
-description: Assign a typed option value to a command property with one radio button.
+description: RadioButtonField assigns a typed option value to a command property in Cratis Arc React forms, with accessor-based type inference.
 ---
 
 A single radio input for assigning a specific value to a command property.

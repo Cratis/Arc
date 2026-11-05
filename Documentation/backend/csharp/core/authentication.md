@@ -1,9 +1,9 @@
 ---
-title: Authentication
-description: Authenticate lightweight Arc requests without confusing credential validation with forwarded identity headers.
+title: Authenticate requests in Cratis Arc.Core
+description: Establish a trusted request principal in Cratis Arc.Core with authentication handlers, and configure the trust boundary for forwarded identity headers.
 ---
 
-Before a command can check a role, something must establish who sent the request. In the lightweight `Cratis.Arc.Core` host, `IAuthenticationHandler` implementations produce a `ClaimsPrincipal`. ASP.NET Core applications instead configure their host's authentication; see [Microsoft Identity integration](../asp-net-core/microsoft-identity.md).
+In a lightweight `Cratis.Arc.Core` service, authentication handlers establish who sent an HTTP request by producing a `ClaimsPrincipal`, the .NET object that holds the caller's identity and claims. Configure this before protecting commands or queries with roles and policies. ASP.NET Core applications use their host's authentication instead; follow [Microsoft Identity integration](../asp-net-core/microsoft-identity.md) for that setup.
 
 ## Authentication flow
 
@@ -13,7 +13,7 @@ Arc discovers `IAuthenticationHandler` implementations through `IInstancesOf<IAu
 2. `AuthenticationResult.Succeeded(principal)` stops the sequence and supplies the request principal.
 3. `AuthenticationResult.Failed(reason)` stops the sequence without authenticating.
 
-Do not depend on a particular discovery order or assume individual DI registrations define that order. If mechanisms overlap, make their applicability unambiguous. An earlier success means later handlers cannot veto it.
+Do not depend on a particular discovery order or assume individual dependency-injection registrations define that order. If mechanisms overlap, make their applicability unambiguous. An earlier success means later handlers cannot veto it.
 
 ```mermaid
 flowchart LR
@@ -25,7 +25,7 @@ flowchart LR
 
 ## Implementing an authentication handler
 
-This **illustrative integration fragment** defines the Arc adapter and an application-owned validator contract, not a runnable JWT implementation. Register a real `ITokenValidator` implementation before using it. The validator must verify signature, trusted issuer, audience, lifetime, and applicable revocation requirements using your identity library. Decoding a token is not validation.
+The fragment below connects bearer credentials to Arc; it is not a complete JSON Web Token (JWT) implementation. `ITokenValidator` is an application-owned contract, so you must implement and register it before using the handler. Use your identity library to verify the token's signature, trusted issuer, audience, lifetime, and applicable revocation requirements. Decoding a token alone does not validate it.
 
 ```csharp
 using System.Security.Claims;
@@ -72,7 +72,7 @@ Missing bearer credentials let another mechanism try. Empty, invalid, or unverif
 
 ## Microsoft Identity Platform (Azure)
 
-Core already supplies `Cratis.Arc.Identity.MicrosoftIdentityPlatformAuthenticationHandler`, discovered with the other authentication handlers. Do not implement a second EasyAuth parser. It reads these forwarded headers:
+Core includes `Cratis.Arc.Identity.MicrosoftIdentityPlatformAuthenticationHandler`, discovered alongside other authentication handlers. It can read the Azure-style forwarded identity headers below, so you do not need to write another parser for them:
 
 | Header | Purpose |
 | --- | --- |
@@ -80,12 +80,13 @@ Core already supplies `Cratis.Arc.Identity.MicrosoftIdentityPlatformAuthenticati
 | `x-ms-client-principal-name` | Display name |
 | `x-ms-client-principal` | Base64 JSON principal containing roles and claims |
 
-The handler requires all three headers, rejects an invalid principal representation, replaces forwarded subject/identifier claims, and takes the reserved `MicrosoftIdentityPlatformClaims.IdentityProvider` claim from the payload's `identityProvider` field. This establishes single provenance **within the payload**, not authenticity of the sender.
+In the unsigned-header mode described here, the handler requires all three headers and rejects an invalid principal representation. It replaces forwarded subject/identifier claims and takes the reserved `MicrosoftIdentityPlatformClaims.IdentityProvider` claim from the payload's `identityProvider` field. That gives the claim one source within the payload; it does not prove who sent the headers.
 
-> [!WARNING]
-> These headers are not signed credentials. Deploy this mechanism only behind trusted ingress that authenticates callers, strips caller-supplied identity headers, writes its own values, and prevents direct access to the backend. A custom `X-User-ID` or `X-User-Role` header needs the same protections. Adding a bearer validator does not make a separately accepted forwarded-header mechanism safe.
+:::caution[Forwarded headers need a trusted sender]
+These headers alone are not signed credentials. Deploy this mechanism only behind trusted ingress: a gateway or proxy that authenticates callers, strips caller-supplied identity headers, writes its own values, and prevents direct access to the backend. A custom `X-User-ID` or `X-User-Role` header needs the same protections. Adding a bearer validator does not secure a separately accepted forwarded-header mechanism.
+:::
 
-The handler ignores the forwarded headers, and returns `AuthenticationResult.Anonymous`, unless the host opts in with `Cratis:Arc:TrustForwardedIdentityHeaders` (`ArcOptions.TrustForwardedIdentityHeaders`). The setting defaults to `false` and applies to every request, including protected [introspection catalogs](../introspection/index.md). Turn it on only when the host runs behind such an ingress:
+Unless signed forwarding is enabled separately, the handler ignores the forwarded headers and returns `AuthenticationResult.Anonymous` until the host opts in with `Cratis:Arc:TrustForwardedIdentityHeaders` (`ArcOptions.TrustForwardedIdentityHeaders`). The setting defaults to `false` and applies to every request, including protected [introspection catalogs](../introspection/index.md). Turn it on only behind the trusted ingress described above:
 
 ```json
 {
@@ -99,7 +100,9 @@ The handler ignores the forwarded headers, and returns `AuthenticationResult.Ano
 
 The first request that carries the headers while they are not trusted logs a warning that names this setting.
 
-A request carrying an on-behalf header, `x-cratis-on-behalf-actor` or `x-cratis-on-behalf-assertion`, is different: it fails authentication unless the headers are trusted, `Cratis:Arc:OnBehalfOf:Enabled` is on and its signed assertion verifies. A verified on-behalf forward authenticates as the represented user with the actor as `ClaimsIdentity.Actor`; see [Acting on behalf of a user](../asp-net-core/acting-on-behalf-of.md).
+In this unsigned-header mode, a request carrying `x-cratis-on-behalf-actor` or `x-cratis-on-behalf-assertion` also needs `Cratis:Arc:OnBehalfOf:Enabled` and a verified signed assertion; otherwise authentication fails. A verified forward authenticates as the represented user, with the actor attached as `ClaimsIdentity.Actor`. See [Acting on behalf of a user](../asp-net-core/acting-on-behalf-of.md).
+
+`ArcOptions.ForwardedIdentity.Enabled` selects a separate signed-forwarding path before the unsigned-header handling above. In that mode, the handler verifies the forwarding signature rather than relying on `TrustForwardedIdentityHeaders`; enabling trust alone is not a signed-forwarding setup.
 
 Arc cannot detect a custom handler that reads forwarded headers. If yours does, check the same option through `IOptions<ArcOptions>` and return `AuthenticationResult.Anonymous` when `TrustForwardedIdentityHeaders` is `false`.
 
@@ -107,11 +110,15 @@ In the ASP.NET Core package, the corresponding registration is `builder.Services
 
 ## Endpoint enforcement and limits
 
-The lightweight authentication middleware installs the successful principal on `IHttpRequestContext.User`. With handlers present, an endpoint not explicitly allowing anonymous access returns HTTP 401 if authentication does not succeed. An endpoint with `AllowAnonymous = true` proceeds even when credentials fail. If **no handlers** are available, the middleware proceeds without authenticating, except for an endpoint whose metadata sets `RequireAuthentication = true`: for that endpoint it throws `AuthenticationRequiredWithoutHandlers` (`Cratis.Arc.Http`) instead of letting the request through. Metadata without `RequireAuthentication` is not a fail-closed protection in that configuration.
+The lightweight authentication middleware places a successful principal on `IHttpRequestContext.User`. With handlers present, an endpoint that does not allow anonymous access returns HTTP 401 if authentication fails. If its metadata specifies `Roles`, an authenticated caller without any listed role receives 403. An endpoint with `AllowAnonymous = true` proceeds even when credentials fail and bypasses the role check.
 
-By default, handlers still run on an `AllowAnonymous` endpoint because establishing `context.User` there is often wanted - Arc's current-caller identity and observable query demultiplexer endpoints are anonymous yet can still depend on the principal being set for a signed-in caller. Discovery endpoints are anonymous by default only in Development, or when `ArcOptions.Introspection.RequireAuthentication` is explicitly `false`; elsewhere they require authentication by default and remain unmapped with a warning if the host cannot authenticate.
+With no handlers, the middleware proceeds without authenticating unless the endpoint metadata sets `RequireAuthentication = true`. For that endpoint it throws `AuthenticationRequiredWithoutHandlers` (`Cratis.Arc.Http`) instead. Without that property, metadata alone does not protect against a missing authentication setup.
 
-For a handler that should do no work on anonymous endpoints, implement `AppliesToAnonymousEndpoints => false`. Arc skips that handler entirely on those endpoints, including its rejection logging, and continues to the next handler. The default interface implementation returns `true`, so existing implementations need no change. Opting out never skips a protected endpoint or a request without endpoint metadata.
+Anonymous access means credentials are not required, not that an identity is unwanted. Handlers therefore run on `AllowAnonymous` endpoints by default. Arc's current-caller identity and observable query demultiplexer endpoints can use the principal of a signed-in caller even though they allow anonymous requests.
+
+Discovery endpoints have a different default: they are anonymous only in Development, or when `ArcOptions.Introspection.RequireAuthentication` is explicitly `false`. Elsewhere they require authentication and remain unmapped with a warning if the host cannot authenticate.
+
+If your handler should do no work on anonymous endpoints, implement `AppliesToAnonymousEndpoints => false`. Arc skips the handler entirely there, including its rejection logging, and continues to the next handler. The interface defaults to `true`; opting out never skips a protected endpoint or a request without endpoint metadata.
 
 In an `IAuthenticationHandler` implementation:
 
@@ -127,7 +134,9 @@ Arc command/query authorization is a separate pipeline check. Read the current p
 
 ## Testing authentication handlers
 
-Before exposing the service, exercise missing credentials, malformed input, arbitrary tokens, expired/wrong-issuer/wrong-audience tokens, a genuinely valid token, forged forwarded headers, and backend access bypassing ingress. Also test endpoints with and without anonymous metadata and every accepted authentication mechanism. A valid-token-only test cannot establish a fail-closed boundary.
+Before exposing the service, test every accepted authentication mechanism with missing, malformed, invalid, and valid credentials. For tokens, include expired tokens and tokens from the wrong issuer or for the wrong audience. For forwarded identity, include forged headers and attempts to reach the backend without passing through ingress.
+
+Exercise endpoints with and without anonymous metadata, and verify that protected endpoints cannot proceed when authentication handlers are missing. A test that accepts only a valid token does not show that invalid requests are denied.
 
 ## Next steps
 

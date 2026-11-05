@@ -1,9 +1,9 @@
 ---
-title: Returning EventSourceId from a command
-description: Hand the generated identity back to the caller when the command is what creates the entity.
+title: Return EventSourceId from Chronicle commands
+description: Return a typed EventSourceId with a command event so Chronicle appends under the new entity's id and the caller receives that same identity.
 ---
 
-When a command creates a customer and chooses the identity in `Handle()`, return a `CustomerId` alongside the event. Derive it from `EventSourceId<Guid>` so it names the domain entity and tells Chronicle where to append. The caller receives the same identity for its next query or command.
+Return a typed event source id alongside the creation event when a command chooses a new entity's identity in `Handle()`. Cratis Chronicle uses that id for the returned event, and Cratis Arc sends the same identity to the caller for its next query or command. For a customer, `CustomerId : EventSourceId<Guid>` gives the value both a domain name and append-routing meaning.
 
 ## Return EventSourceId together with the event
 
@@ -63,11 +63,11 @@ public (CustomerRegistered, CustomerId) Handle()
 }
 ```
 
-Chronicle recognizes the identity in either position; the event does not need to carry it in its payload.
+Chronicle recognizes the identity in either position. The event does not need to carry its own source id in its payload; that identity is stored in the event context.
 
 ## Use typed ids
 
-Reuse `CustomerId` in subsequent commands and read models so unrelated identities cannot be swapped accidentally. `CustomerEmail` and `CustomerDisplayName` likewise keep two different domain values distinct in C#. These concepts retain simple underlying wire values; add concept validators when their invariants should follow them through validation.
+Reuse `CustomerId` in subsequent commands and read models to keep unrelated identities distinct in C#. `CustomerEmail` and `CustomerDisplayName` serve the same purpose for the two customer details. These concepts retain simple underlying wire values; add concept validators when the values also have rules to enforce.
 
 Bare `EventSourceId` remains supported by the API, but `CustomerId : EventSourceId<Guid>` gives that framework meaning a domain name. Return the domain type rather than converting it to a raw `Guid`.
 
@@ -95,6 +95,8 @@ An unrelated confirmation Guid with a generated fallback event source is valid. 
 
 ## Important behavior
 
-- Chronicle treats the returned `EventSourceId` as append metadata and as the command response value.
-- If the command record already had an event source id, the returned value wins for return-driven appends. It does not reload earlier dependencies, retarget an injected aggregate, or move already-enrolled events.
-- If you need to target several different event sources from one command, use [Events](./events.md#events-for-specific-event-sources) and return `EventForEventSourceId` values instead.
+The returned `EventSourceId` serves as both append metadata and the command response. It wins over an id resolved from the command record for return-driven appends, but it arrives after dependencies have been loaded. Returning a different id does not reload those dependencies, retarget an injected aggregate, or move events already enrolled in the transaction.
+
+`CustomerId.New()` in this example chooses an identity inside the handler. That is not an Arc `[GeneratedValue]` capture and does not automatically require the source to be empty. Use a [guarded generated parameter](./fresh-identifiers.md) when a create command must reject an occupied destination rather than extend its history.
+
+For one command that writes to several sources, return [`EventForEventSourceId` values](./events.md#events-for-specific-event-sources) instead of trying to select every destination with one returned id.

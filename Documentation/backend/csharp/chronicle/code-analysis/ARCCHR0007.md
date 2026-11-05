@@ -1,6 +1,6 @@
 ---
 title: "ARCCHR0007: Command handler injects IEventLog"
-description: Express command writes through returned events or transactional appends.
+description: ARCCHR0007 in Cratis Arc warns when Handle or Provide injects IEventLog; express command writes with returned events or transactional appends.
 ---
 
 ## Rule

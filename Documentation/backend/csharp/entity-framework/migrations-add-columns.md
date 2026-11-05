@@ -1,6 +1,6 @@
 ---
 title: Add columns in migrations
-description: Reference for Arc migration column helpers and provider-specific declarations.
+description: Cratis Arc EF Core migration helpers add columns to existing tables with SQL type mappings for PostgreSQL, SQL Server, and SQLite.
 ---
 
 Arc's column helpers let a migration select the corresponding database type for PostgreSQL, SQL Server, or SQLite. The mappings below show where those providers differ.

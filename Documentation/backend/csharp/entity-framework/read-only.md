@@ -1,13 +1,13 @@
 ---
-title: Read-only DbContext
-description: Configure query-oriented contexts while keeping database permissions as the write boundary.
+title: Entity Framework Core read-only contexts
+description: Configure Cratis Arc query contexts with no-tracking reads and SaveChanges guards, while using database permissions to prevent writes.
 ---
 
-For query code, no-tracking reads and accidental-write guards express intent. Arc offers both a base class and registration helpers, but they are **not interchangeable security boundaries**.
+Use Cratis Arc's read-only Entity Framework Core contexts for code that should query data rather than save changes. Combine the base class with read-only registration to get automatic navigation loading, no-tracking reads, and SaveChanges guards. These guards catch accidental saves; use database permissions when you must prevent writes.
 
 ## Define a query context
 
-Model declaration fragment; supply the `Customer` entity:
+Derive your query context from `ReadOnlyDbContext`. This declaration assumes your application supplies a `Customer` entity:
 
 ```csharp
 using Cratis.Arc.EntityFrameworkCore;
@@ -35,11 +35,13 @@ Import `Microsoft.Extensions.DependencyInjection` for service registration.
 | `AddReadOnlyDbContext<T>` | Registers a pooled factory and scoped context; configures `NoTracking` and a SaveChanges interceptor; accepts any EF `DbContext` subclass |
 | `AddReadOnlyDbContextWithConnectionString<T>` | Adds provider detection to read-only registration; requires a `BaseDbContext` subclass |
 
-Inheritance alone does not override the Boolean `acceptAllChangesOnSuccess` SaveChanges overloads. Registration's interceptor protects the SaveChanges path but does not prohibit raw SQL, `ExecuteUpdate`, `ExecuteDelete`, or writes through another context. Use database credentials with read-only permissions when preventing writes is a requirement.
+The base class and registration helpers do different work. Inheritance alone does not set `NoTracking` or override the Boolean `acceptAllChangesOnSuccess` SaveChanges overloads. Read-only registration adds an interceptor that rejects the SaveChanges path, including those overloads.
+
+Neither mechanism prohibits raw SQL, `ExecuteUpdate`, `ExecuteDelete`, or writes through another context. Use database credentials with read-only permissions when preventing writes is a requirement.
 
 ## Automatic eager loading
 
-`ReadOnlyDbContext` marks navigations returned by EF's `GetNavigations()` as auto-included. Choose purpose-built models and inspect generated queries rather than assuming every relationship is cheap. Skip navigations are not included by that loop.
+`ReadOnlyDbContext` marks the navigation properties returned by EF's `GetNavigations()` as auto-included, so EF loads those related entities without an explicit `Include` call. Inspect the generated queries for your model before relying on this default. The loop does not include EF skip navigations, which represent many-to-many relationships without an explicit join entity.
 
 To disable this behavior globally, add this member to your derived context:
 
@@ -53,7 +55,7 @@ To skip auto-includes for an individual query:
 var customers = await context.Customers.IgnoreAutoIncludes().ToListAsync();
 ```
 
-To override a particular navigation, configure it **after** the base call:
+To override a particular navigation, configure it after the base call so your setting takes precedence:
 
 ```csharp
 protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -76,4 +78,4 @@ services.AddReadModelDbContextsWithConnectionStringFromAssemblies(
     typeof(StoreDbContext).Assembly);
 ```
 
-See [automatic database hookup](./automatic-database-hookup.md) for pooling and tenant limitations, then [observation](./observing.md) for live query results.
+Continue with [automatic database hookup](./automatic-database-hookup.md) to understand provider selection and pooled context registration. If clients need refreshed query results after changes, follow [DbSet observation](./observing.md), including its provider setup and lifetime requirements.

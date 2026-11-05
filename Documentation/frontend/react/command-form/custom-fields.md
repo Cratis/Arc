@@ -1,15 +1,15 @@
 ---
-title: Creating custom fields
-description: Adapt a native or library control to CommandForm while preserving change, blur, and validation behavior.
+title: CommandForm custom field adapters
+description: Adapt native or library inputs to Cratis Arc CommandForm with asCommandFormField, forwarding changes and blur events to the form-owned command.
 ---
 
-Use a custom field when the built-in props do not cover your control—for example, a text input with an explicit accessible label and `maxLength`. `asCommandFormField` connects the control to the surrounding form. It does not turn HTML attributes into command rules.
+Use `asCommandFormField` in Cratis Arc to connect a native or library input to the command already owned by `CommandForm`. An adapter lets you keep your input's presentation and event API while the form handles binding and validation feedback. HTML attributes such as `maxLength` still need corresponding command rules.
 
 <a id="overview"></a>
 
 ## Basic anatomy
 
-This is a complete `fields/MyField.tsx` module. It converts native change events to strings and forwards the form's **blur callback**, so the default blur-validation behavior still runs.
+Create `fields/MyField.tsx` with the adapter below. `extractValue` takes the text from a native change event; forwarding `onBlur` lets the form run its default blur validation. The input renders its own accessible label and accepts `maxLength`, which the built-in field does not expose.
 
 ```tsx
 import { useId, type ChangeEvent } from 'react';
@@ -48,9 +48,9 @@ export const MyField = asCommandFormField<MyFieldProps>(
 );
 ```
 
-The extractor above expects a native input change event because that is the only event this control emits. If your control also emits values directly, handle both shapes explicitly. The component lets CommandForm render messages, rather than rendering the same errors a second time.
+Typing calls the extractor with the native input event, then updates the bound command property. A control that emits both events and values needs an extractor that handles both shapes. This adapter leaves messages to CommandForm so each error appears once.
 
-Use a **generated command class** as the constructor. This complete form uses `UpdateProfile` from the [overview](./index.md), not an interface named like a command:
+Mount it inside a form using the generated `UpdateProfile` from the [setup example](./index.md):
 
 ```tsx
 import { CommandForm } from '@cratis/arc.react/commands';
@@ -84,15 +84,15 @@ No `title` is supplied because each control renders its own label. If you use a 
 
 ## Configuration object
 
-The configuration requires `defaultValue: TValue` and optionally accepts `extractValue: (event: unknown) => TValue`. Without an extractor the emitted value is used directly. A fallback only changes display; it does not seed the command or its baseline. Define a deliberate null/empty policy for numeric/date controls rather than silently converting every empty value to a business value.
+Set `defaultValue: TValue` for the display fallback and, when the control emits an event, supply `extractValue: (event: unknown) => TValue`. Without an extractor the emitted value is used directly. The fallback only changes what the control displays; it does not initialize the command or its change-tracking baseline. For numeric and date controls, decide whether an empty input means `null`, `undefined`, or another value before implementing the conversion.
 
 For a field with multiple inputs, set `groupRole: 'group'` (or `'radiogroup'` for radio options) in the `asCommandFormField` configuration alongside `defaultValue` and any `extractValue`. CommandForm then renders the `title` as the group's accessible name, not as a label for the first option. Forward `props.id` to the group container if it needs an id; never put it on one of the options. Label each option individually. The form-rendered title is omitted when `showTitles={false}`; in that case provide an accessible group name yourself. Existing single-input adapters need no configuration change.
 
 ## How a field is recognized
 
-`asCommandFormField` marks the returned component with a static `isCommandFormField` property. Its `displayName` is `CommandFormField` as a compatibility fallback. It also binds itself when an opaque layout creates or transforms the field at render time, so custom layouts can preserve the original element type and change its presentation/binding props before registration.
+`asCommandFormField` marks the returned component with a static `isCommandFormField` property and sets `displayName` to `CommandFormField` as a compatibility fallback. This lets the form recognize the adapter among its children. The adapter can also bind itself when a custom layout creates or transforms it during rendering, where the form cannot inspect the field in advance.
 
-Binding uses a private framework marker, not the presence of an `onValueChange` prop. A layout can wrap `onValueChange` without disabling binding; the form updates the command before invoking that consumer callback. Do not treat that callback's presence as proof of prior binding.
+Keep the original field type when a layout changes presentation or binding props. A private framework marker tracks binding; an `onValueChange` prop does not. You can wrap that callback for your own notification, and the form updates the command before calling it.
 
 :::caution[Keep command-form field markers intact]
 Do not strip field static markers. If both recognition markers disappear, CommandForm no longer discovers the field. In development, an unresolved accessor produces a warning; production remains non-throwing and unbound. Use a simple accessor such as `c => c.name` rather than a computed expression.
@@ -167,7 +167,7 @@ export const PrimeInputTextField = asCommandFormField<PrimeInputTextFieldProps>(
 );
 ```
 
-`onBlur` deliberately remains in `...rest`, which is spread onto `InputText`; **blur is forwarded**. If you destructure it later, add `onBlur={onBlur}` explicitly. Do not remove that forwarding. The adapter excludes `errors` from the input and leaves messages to the form to avoid duplicate error text.
+Here `onBlur` reaches `InputText` through `...rest`, preserving blur validation. If you later destructure it, forward it explicitly with `onBlur={onBlur}`. The adapter removes `errors` before spreading props onto the input because CommandForm owns the error text.
 
 ### Usage
 
@@ -205,11 +205,11 @@ Supply the command type in JSX (`<MyField<UpdateProfile> ... />`) or annotate th
 
 ## Best practices
 
-Forward blur as well as change. Choose one owner for error display; custom fields that render `errors` themselves must opt out of the form's display to avoid duplicates, and `showErrors={false}` does not suppress an adapter's own markup. Associate labels and messages with controls in your adapter, test keyboard navigation, and keep blocking rules on the command.
+Check the adapter with both typing and keyboard focus changes: omitting `onBlur` can leave the value bound while silently losing blur validation. Associate labels and messages with the rendered controls. If the adapter displays `errors` itself, turn off the form's competing display; `showErrors={false}` does not hide markup your adapter renders. Keep blocking rules on the command so they also apply to programmatically supplied values.
 
 ## Reusable field library
 
-Export the adapters you actually implement from your application's field module. Keep generated commands in the configured proxy output, and import those classes when constructing forms. Do not substitute application interfaces for executable command constructors.
+Export reusable adapters from your application's field module and keep generated command classes in the configured proxy output. Reuse the adapter across forms by supplying each form's command type and property accessor. For shared labels, containers, and error presentation, continue with [CommandForm customization](./customization.md).
 
 ## See also
 

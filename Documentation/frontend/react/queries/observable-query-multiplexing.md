@@ -1,13 +1,15 @@
 ---
-title: Observable query multiplexing
-description: Compare direct and shared-hub SSE/WebSocket connections and understand the streaming handshake and control requests.
+title: "Observable query multiplexing: share live connections"
+description: "Share SSE or WebSocket connections across Cratis Arc observable queries, choose direct mode when needed, and understand pool limits and ownership."
 ---
 
-A screen with many live queries does not need one persistent connection per query. Hub mode shares transport connections and routes each result to its subscription. Direct mode remains useful for per-query debugging or hosts without hub endpoints.
+Observable query multiplexing lets several live queries share persistent connections to a hub, which routes each result to its subscription. Use hub mode for a screen with multiple live queries; choose direct mode when debugging a query's own endpoint or connecting to a host without hub endpoints.
+
+Connection sharing is separate from [query instance caching](./query-instance-caching.md). The cache lets matching consumers share one subscription; multiplexing lets different subscriptions travel over the same connection.
 
 ## How it works
 
-For streaming transports, the two configuration choices are independent. Polling always bypasses the hub:
+Choose SSE (Server-Sent Events) or WebSocket with `queryTransportMethod`, then choose hub or direct routing with `queryDirectMode`. Polling uses ordinary HTTP requests and always bypasses the hub:
 
 | `queryTransportMethod` | `queryDirectMode` | Connection and subscription path |
 | --- | --- | --- |
@@ -21,7 +23,7 @@ Paths above are relative to the configured origin/API base path. `<Arc>` default
 
 ### SSE hub connection
 
-The streaming GET does **not** subscribe with `?query=Name`. After the connection handshake supplies a connection ID, the client submits control requests:
+The browser first opens the SSE stream. The hub returns a connection ID, which the client uses in separate subscription control POSTs. Adding `?query=Name` to the streaming GET does not subscribe a query:
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +37,7 @@ sequenceDiagram
     Browser->>Hub: POST /.cratis/queries/sse/unsubscribe
 ```
 
-Multiple subscriptions share that EventSource. Reconnection and resubscription are managed by the client. For payloads and server authorization, use the [hub protocol reference](../../../backend/csharp/queries/observable-query-demultiplexer.md).
+Multiple subscriptions share that EventSource, the browser API for receiving SSE. The client manages reconnection and resubscription. If you are inspecting requests or implementing a host, continue with the [hub protocol reference](../../../backend/csharp/queries/observable-query-demultiplexer.md) for payloads and server authorization.
 
 ### WebSocket hub connection
 
@@ -56,21 +58,23 @@ export const App = () => (
 );
 ```
 
-For normal shared-hub use, leave `queryDirectMode` false. `queryConnectionCount` configures pool slots, not subscriptions; direct mode does not use the pool.
+For shared-hub use, leave `queryDirectMode` false. `queryConnectionCount` sets the number of connection slots in the pool, not the number of queries you may subscribe to. Direct mode and polling do not use this pool.
 
 ### SSE connection limit (HTTP/1.1)
 
-The client unconditionally caps SSE **hub** connections at four and warns if you request more. This leaves room for control POSTs and ordinary fetches in browsers with HTTP/1.1 per-origin connection limits. HTTP/2 changes network multiplexing but **does not remove Arc's current four-slot cap**. Direct SSE connections are not protected by this pool cap.
+Arc caps SSE hub pools at four connections and warns if you request more. Browsers using HTTP/1.1 limit concurrent connections per origin; leaving slots free allows subscription control POSTs and ordinary fetches to proceed. Arc applies its four-slot cap even when the server uses HTTP/2.
 
-WebSocket hub pools do not use this SSE cap. More slots are not automatically faster; measure your workload before increasing the count.
+Direct SSE connections are outside this pool cap, so opening many of them can still exhaust the browser's connection slots. WebSocket hub pools do not use the SSE cap. Start with the default pool size and inspect your workload before increasing it.
 
 ## Provider ownership
 
-The multiplexer is module-global, not isolated per nested `<Arc>`. Changing its origin/service/configuration key disposes the previous shared multiplexer. Do not use provider nesting as a guarantee of simultaneous independent authenticated hubs. See [provider limitations](../arc.md#multiple-microservices-in-one-frontend).
+Nested `<Arc>` providers share the module-global multiplexer. When connection count, transport, origin, API base path or microservice changes its configuration key, the previous multiplexer is disposed and replaced. Provider nesting therefore does not create independent authenticated hub connections. Review [provider limitations](../arc.md#multiple-microservices-in-one-frontend) before combining services in one frontend.
 
 ## Controlling change-stream transfer mode
 
-`observableQueryTransferMode` is included in shared-hub subscription requests. Full mode asks the server for full snapshots; Delta mode sends an initial snapshot followed by delta-only collection updates. The same global setting controls fallback handling in `useChangeStream`; server-provided changesets take precedence over that fallback. Set it before establishing subscriptions, not as a per-provider isolation mechanism. It does not select SSE versus WebSocket. See [change streams](./change-stream.md) and the [observable Suspense delta limitation](./suspense-queries.md#observable-collections-and-delta-only-updates).
+Transport chooses how results travel; `observableQueryTransferMode` chooses what shared-hub subscriptions ask the server to send. Full mode requests complete snapshots. Delta mode, the default, requests an initial snapshot followed by collection changes rather than the whole collection on every update.
+
+Set this before establishing subscriptions. It is a global setting, not a per-provider isolation mechanism, and also controls fallback handling in `useChangeStream`. Server-provided changesets take precedence over that fallback. Continue with [change streams](./change-stream.md) to consume item-level changes, and check the [observable Suspense delta limitation](./suspense-queries.md#observable-collections-and-delta-only-updates) before using delta-only collection updates with Suspense.
 
 ## See also
 

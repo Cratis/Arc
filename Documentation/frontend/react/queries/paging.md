@@ -1,19 +1,19 @@
 ---
-title: Paging
-description: Page enumerable query results in React with useWithPaging and useSuspenseWithPaging, backed by server-side paging.
+title: "React query paging: navigate server-side results"
+description: "Page and sort collection results in React with Cratis Arc query helpers, server-side slicing, paging metadata and matching cached subscriptions."
 ---
 
-Enumerable query proxies expose paging helpers. The backend must implement paging: ordinary automatic pipeline paging uses `IQueryable<T>`, while observable providers can apply paging themselves (for example MongoDB `Observe()` uses the query context's Skip/Limit).
+Use a generated query's `useWithPaging(pageSize)` helper to load a collection one page at a time and connect it to navigation controls. The hook sends the requested page to the backend; it does not slice a full result set in the browser.
 
 ## How Paging Works
 
-When the backend returns `IQueryable<T>`, the query pipeline applies `.Skip()` and `.Take()` on the server so only the requested page is fetched. Generated proxies expose `useWithPaging` and `useSuspenseWithPaging` for this flow.
+The backend must apply the requested paging. For `IQueryable<T>` results, Arc's query pipeline counts the matching items, applies sorting, then uses `.Skip()` and `.Take()` for the selected page. Observable providers can apply paging themselves; MongoDB `Observe()`, for example, reads paging from the query context and applies Skip/Limit.
 
-For backend implementation details, see [Controller-based Paging](../../../backend/csharp/queries/controller-based/paging.md) and [Model-bound Paging](../../../backend/csharp/queries/model-bound/paging.md).
+Generated collection proxies expose `useWithPaging` and `useSuspenseWithPaging`. Before wiring up the controls, check that your backend supports the flow in [Controller-based Paging](../../../backend/csharp/queries/controller-based/paging.md) or [Model-bound Paging](../../../backend/csharp/queries/model-bound/paging.md).
 
 ## Enabling Paging
 
-Use `useWithPaging` instead of `use`, passing a page size. This example assumes a generated, non-observable `AllAccounts` query proxy whose items have `id`, `name`, and `balance`; adjust the import to your proxy output path:
+Replace `use` with `useWithPaging` and pass the number of items per page. This example focuses on navigation and assumes a generated, non-observable `AllAccounts` proxy whose items have `id`, `name`, and `balance`. Adjust the import to your proxy output path and add the [loading and failure handling](./usage.mdx) used by the rest of your screen:
 
 ```tsx
 import { AllAccounts } from './Accounts/AllAccounts';
@@ -57,7 +57,7 @@ export const AccountList = () => {
 
 ## Return Tuple for Paged Queries
 
-For an **ordinary** query, `useWithPaging` returns an extended tuple:
+For an ordinary query, `useWithPaging` returns the result followed by controls for refreshing, sorting and navigation:
 
 | Index | Name | Type | Description |
 | ----- | ---- | ---- | ----------- |
@@ -67,15 +67,15 @@ For an **ordinary** query, `useWithPaging` returns an extended tuple:
 | 3 | `setPage` | `(page: number) => Promise<void>` | Navigate to a specific page (zero-based) |
 | 4 | `setPageSize` | `(pageSize: number) => Promise<void>` | Change number of items per page |
 
-For an **observable enumerable** query the tuple is `[result, setSorting, setPage, setPageSize]`; there is no `perform` delegate. Single-result proxies do not generate paging helpers. Suspense variants preserve these tuple shapes.
+An observable collection query returns `[result, setSorting, setPage, setPageSize]`. It receives updates through its subscription, so there is no `perform` delegate. Suspense variants keep the corresponding tuple shape. Single-result proxies do not generate paging helpers.
 
 ### Cached observable subscriptions
 
-In non-Suspense observable hooks, `setPage`, `setPageSize`, and `setSorting` move to a cache entry for the requested paging and sorting. Each new subscription sends those settings to the server. Consumers on different pages or sort orders have independent subscriptions; consumers with matching query arguments, paging and sorting share one.
+In non-Suspense observable hooks, changing page, page size or sort order selects a cache entry for those settings. If it needs a new subscription, that subscription sends the settings to the server. Consumers with matching queries, arguments and settings share one subscription; consumers on different pages do not.
 
-While the new page is pending, the result shows its cached data if available. Otherwise it shows the query's default value with `isReady: false` and `isPerforming: true`, not the previous page's rows. Returning to a retained entry reuses its cached result and live subscription without subscribing again.
+The selected entry supplies the visible result. If it has no cached result, the hook shows the query's default value with `isReady: false` and `isPerforming: true`, rather than the previous page's rows. Returning while an entry is retained reuses its cached result and live subscription without subscribing again.
 
-Ordinary paged queries also reset to the matching entry, but perform a fresh request and mark cached data as `isPerforming: true` until it settles. Suspense uses separate resource caches. See [query instance caching](./query-instance-caching.md) for retention and sharing.
+Ordinary paged queries also select a matching entry when these settings change, but fetch again. They expose matching cached data with `isPerforming: true` while the new request runs. Suspense uses separate resource caches; see [query instance caching](./query-instance-caching.md) for the sharing and retention rules.
 
 ## Paging Metadata
 
@@ -100,7 +100,9 @@ Parameterized proxies accept `(pageSize, args?, sorting?)`; parameterless enumer
 
 ## Sorting with Paging
 
-Sorting is independent of paging. Changing sort order fetches the matching ordinary-query result or selects the matching observable subscription. The following ordinary-query fragment shows initial sorting and a dynamic change.
+Choose a sort order that makes the page sequence meaningful for your view. Changing sorting keeps the current page number; call `setPage(0)` as well if your controls should return to the first page. The change fetches the matching ordinary-query result or selects the matching observable subscription.
+
+These ordinary-query fragments show initial sorting and a dynamic change:
 
 ```tsx
 import { Sorting, SortDirection } from '@cratis/arc/queries';
@@ -115,7 +117,7 @@ await setSorting(new Sorting('balance', SortDirection.descending));
 
 ## Important Requirement
 
-Ordinary automatic query-pipeline paging requires `IQueryable<T>`. A materialized `IEnumerable<T>` or `List<T>` does not gain automatic server slicing merely because a paging hook exists. An application/provider may explicitly consume paging context, including for observable `ISubject` results. Verify both returned rows and paging metadata against that provider.
+For automatic ordinary-query paging, return `IQueryable<T>`. A materialized `IEnumerable<T>` or `List<T>` does not gain server-side slicing merely because its generated proxy has a paging helper. If your application or observable provider handles paging explicitly, it must use the paging context and supply the corresponding totals. Check both the returned rows and `result.paging` before relying on the navigation controls.
 
 ## See Also
 

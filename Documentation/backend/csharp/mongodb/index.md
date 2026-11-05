@@ -1,13 +1,13 @@
 ---
-title: MongoDB
-description: Optional document persistence, BSON conventions, and observation for standalone Arc.
+title: MongoDB persistence in Cratis Arc
+description: Use MongoDB document storage in Cratis Arc with injectable collections, BSON mapping, tenant-aware connections, and shared change-stream observation.
 ---
 
-Use MongoDB when your Arc application needs document storage. `Cratis.Arc.MongoDB` handles collection injection and BSON conventions while letting you use the MongoDB driver directly. It is optional and does not require Chronicle.
+Cratis Arc's MongoDB integration gives commands and queries access to document storage through the MongoDB driver. Add `Cratis.Arc.MongoDB` to inject typed collections and configure how your .NET types are stored as BSON, MongoDB's binary document format. You can use it without Chronicle or event sourcing.
 
 ## Start with a read
 
-Follow [getting started](./getting-started.md) to install the package, configure a server/database, and activate your host. Keep that page as the canonical setup path rather than copying an incomplete bootstrap.
+Follow [getting started](./getting-started.md) to install the package, connect your host to a database, and resolve an `IMongoCollection<T>`. Get ordinary reads working before adding live queries: those use change streams and need a replica set or sharded cluster with permission to watch the database.
 
 ## Model your documents
 
@@ -23,5 +23,6 @@ Follow [getting started](./getting-started.md) to install the package, configure
 - [Observe collections](./observing-collections.md): observations over the shared change stream, lifetime, and errors.
 - [Watch multiple collections](./change-stream-watcher.md): shared database change streams and joined results.
 - [Tenancy](./tenancy.md): database naming and scope boundaries.
+- [Connection resolution](./connection-resolution.md): choose a server, database, or credentials for each tenant.
 
-MongoDB observation is not an event log, and MongoDB persistence does not append Chronicle events. See the separate [Chronicle integration](../chronicle/index.md) if you intentionally add event sourcing.
+Observation refreshes query results when stored documents change; it is not an event log. Storing a document does not append Chronicle events. If you need event sourcing as well, continue with the separate [Chronicle integration](../chronicle/index.md).

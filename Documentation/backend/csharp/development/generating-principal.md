@@ -1,17 +1,17 @@
 ---
-title: Generate a Microsoft identity principal for local development
-description: Simulate trusted-ingress principal headers on a loopback-only development host, without confusing Base64 assertions with validated bearer tokens.
+title: "Cratis Arc: simulate a Microsoft identity principal locally"
+description: Simulate users and roles in Cratis Arc with local identity headers on a loopback-only development host, without validating production login tokens.
 ---
 
-Need to exercise different users and roles before wiring production login? The [Microsoft identity header adapter](../asp-net-core/microsoft-identity.md) can construct a principal from development HTTP headers. This is **identity simulation**, not token validation.
+Cratis Arc's [Microsoft identity header adapter](../asp-net-core/microsoft-identity.md) lets you simulate users and roles on an isolated, loopback-bound development host. Use it to check authorization before connecting production login: the adapter constructs a principal from headers rather than validating a bearer token.
 
 ## Understand the trust boundary first
 
-`x-ms-client-principal` is Base64-encoded JSON — an **unsigned assertion**, not a signed bearer token. Arc's header handlers decode it and construct claims; they do not validate a signature, issuer, or audience. Header presence and valid JSON do not prove who sent it. That is why Arc ignores these headers until the host opts in with `Cratis:Arc:TrustForwardedIdentityHeaders`; your loopback development host has to opt in too, as the [authorization tutorial](/arc/tutorial/authorization/) shows.
+The local `x-ms-client-principal` fixture is Base64-encoded JSON, an unsigned assertion rather than a signed bearer token. The adapter decodes it into claims without validating a signature, issuer, or audience. Anyone who can send these headers can choose the identity they assert.
 
-Use manually supplied headers only on an isolated, loopback-bound development host. In production, either configure a real token/cookie authentication scheme or accept these assertions only from a trusted authenticated ingress. That ingress must **strip and replace all incoming identity headers**, and the backend must not be reachable through a bypass route. An arbitrary browser or proxy sending these headers is not trustworthy.
+Before sending headers, follow the [authorization tutorial](/arc/tutorial/authorization/) to register the ASP.NET adapter and place its authentication middleware only in `Development`. That setup also opts in with `Cratis:Arc:TrustForwardedIdentityHeaders`; without the opt-in, Arc ignores the unsigned headers. Bind the host to loopback as the tutorial shows. A localhost browser URL alone does not prevent other machines from reaching a server bound to all interfaces. The [lightweight host authentication](../core/authentication.md) uses different APIs; keep its setup separate from this ASP.NET procedure.
 
-The [authorization tutorial](/arc/tutorial/authorization/) shows the ASP.NET registration and middleware placement for a Development-only fixture. The [lightweight host authentication](../core/authentication.md) is a different setup; do not mix their APIs.
+Use manually supplied headers only on that isolated development host. In production, configure a token/cookie authentication scheme or accept these assertions only from a trusted authenticated ingress, the service through which requests reach your backend. That ingress must strip and replace all incoming identity headers, and the backend must not be reachable through a bypass route. A browser or arbitrary proxy sending the headers does not establish trust.
 
 ## Construct the assertion
 
@@ -56,7 +56,7 @@ Save this synthetic fixture as `principal.json` in your local application worksp
 }
 ```
 
-`userRoles` is mapped to role claims by the header adapter. Include `Librarian` for the successful tutorial case; remove it for an authenticated-but-not-authorized case. A role field returned by `IProvideIdentityDetails` would not have the same effect.
+The adapter maps `userRoles` to role claims, so `Librarian` lets this fixture pass the tutorial's role check. Remove it to exercise an authenticated user who lacks permission. Changing a role field returned by `IProvideIdentityDetails` would not grant or remove a role claim.
 
 Encode locally, keeping the result on one line:
 
@@ -81,13 +81,17 @@ Set:
 
 ![Older ModHeader header-field example; replace its All requests scope with a localhost include filter](./configure-mod-header.png)
 
-Use separate filtered profiles for different synthetic users. Confirm in browser developer tools that headers are sent only to your intended localhost application.
+Use separate filtered profiles for different synthetic users. When you change `principal.json`, encode it again and replace the profile's `x-ms-client-principal` value. Confirm in browser developer tools that headers are sent only to your intended localhost application.
 
 ## Verify the distinct behaviors
+
+With the tutorial's Development-only adapter and role-protected operations in place, check each case separately:
 
 - No headers: protected operations reject an unauthenticated caller.
 - Valid fixture without `Librarian`: authentication succeeds but role-protected operations reject access.
 - Fixture with `Librarian`: role-protected operations can execute, subject to their other checks.
-- Identity-details provider returning `IsUserAuthorized: false`: `/.cratis/me` rejects that identity result. This does **not** replace operation authorization.
+- Identity-details provider returning `IsUserAuthorized: false`: `/.cratis/me` rejects that identity result. This does not replace operation authorization.
 
-These checks test the adapter and your authorization configuration, not production token verification. For production, independently test ingress header replacement, blocked direct backend access, and the real authentication scheme. See [identity and access](/arc/understanding-identity-and-access/) for how claims, details, operation permissions, and tenant membership differ.
+If the valid fixture still leaves the caller unauthenticated, check that the host runs in `Development`, has opted in to trusting the unsigned headers, and receives all three headers. The tutorial shows where to register the adapter and place the middleware.
+
+These checks exercise the adapter and your authorization configuration, not production token verification. Before deploying, test the authentication scheme you will use and, if you accept forwarded identity headers, verify ingress header replacement and blocked direct backend access. Continue with [identity and access](/arc/understanding-identity-and-access/) to distinguish role claims from identity details, operation permissions, and tenant membership.

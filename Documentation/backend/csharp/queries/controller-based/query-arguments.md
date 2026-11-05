@@ -1,18 +1,22 @@
 ---
-title: Controller query arguments
-description: Bind MVC route values, query strings, collections, and validated DTOs.
+title: Bind arguments for Cratis Arc controller queries
+description: Use ASP.NET Core MVC binding to accept route values, query strings, arrays, and validated request objects in Cratis Arc controller GET actions.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
+ASP.NET Core MVC binds request values to your controller GET action's arguments. Use explicit binding attributes when you need to accept an account ID from the route, search criteria from the query string, or a value from a header.
+
 ## MVC binding is a separate contract
 
-Controller GET actions use ASP.NET Core model binding, not Arc's scalar model-bound query readers. Use `[FromRoute]`, `[FromQuery]`, and `[FromHeader]` to make each source explicit. MVC can bind arrays and DTO properties from query strings; this does not imply a static `[ReadModel]` method supports those same HTTP input shapes.
+`[FromRoute]`, `[FromQuery]`, and `[FromHeader]` identify where MVC should read each value. MVC can also bind repeated query-string keys to an array and bind query-string fields to a request data transfer object (DTO).
+
+These examples use MVC's binding path. Arc-generated query endpoints use Arc's argument readers and the query pipeline, even when the discovered query is a controller method. Their conversion rules are a separate contract; the MVC DTO example below does not establish support for the same request shape on a generated endpoint or a static `[ReadModel]` method.
 
 ## Bind and validate a search DTO
 
-This alternative banking example uses the [shared `AccountId` and `AccountName` concepts](../model-bound/index.md#model-account-identities-and-names) and an ASP.NET Core Arc host with MVC, authorization, and the MongoDB provider configured. `Prefix` is search text—not a complete account name—so it remains a string at the request boundary:
+`AccountSearch` groups the search fields and their validation rules into one request object. `Prefix` remains a string because it contains part of an account name, not a complete domain `AccountName`. The example uses the [shared `AccountId` and `AccountName` concepts](../model-bound/index.md#model-account-identities-and-names) and an ASP.NET Core Arc host with MVC, authorization, and the MongoDB provider configured. Use this `DebitAccount` declaration instead of the model-bound alternative:
 
 ```csharp
 using System;
@@ -66,22 +70,24 @@ GET /api/accounts/search?prefix=Sav&minimumBalance=100
 GET /api/accounts/by-ids?ids=11111111-1111-1111-1111-111111111111&ids=22222222-2222-2222-2222-222222222222
 ```
 
-The GUID array is an explicit MVC wire boundary; the action converts it to domain `AccountId` values before querying. The prefix filter targets the stored account-name field and escapes the caller's search text rather than interpreting it as a regular expression.
+The first request binds `prefix` and `minimumBalance` to `AccountSearch`. The action escapes the prefix before building the regular expression, so caller text is treated literally when matching the start of the stored account name. The second request binds repeated `ids` keys to a GUID array. `ByIds()` converts those GUIDs to domain `AccountId` values before querying.
 
-The validation attributes in this example belong to **MVC DTO properties**. Arc's GET action filter consults MVC model state before invoking the action. `[ApiController]` and custom MVC filters can add their own earlier validation responses; do not assume all configurations return the identical envelope.
+MVC validates the DTO properties using `[Required]`, `[StringLength]`, and `[Range]`. Arc's GET action filter checks MVC model state before invoking the action and rejects invalid input. `[ApiController]` or custom MVC filters can respond earlier, so their validation response may differ from Arc's wrapper.
 
-A filter on caller-supplied IDs is not owner authorization. This example deliberately requires a role allowed to read all matching accounts.
+Both actions require the `AccountReader` role because they can read any matching account. Filtering by caller-supplied IDs does not establish that the caller owns those accounts.
 
 ## Defaults, sorting, and paging
 
-Nullable/defaulted scalar action arguments support optional input according to MVC's binding rules. For Arc-generated controller query endpoints, invalid supplied scalars, concepts, and collection elements are rejected with HTTP 400 and a malformed-request validation error naming the argument and its type for both GET and QUERY; the action does not run. This includes nullable and defaulted concept parameters when an invalid value is supplied, rather than treating that value as missing. MVC's own model-binding responses can differ. For Arc paging, prefer returning `IQueryable<T>` and using [the paging context](paging.md) instead of slicing twice.
+For optional MVC input, use nullable scalar arguments or give them defaults according to MVC's binding rules. Keep those rules separate from Arc-generated controller query endpoints: on that path, invalid supplied scalars, concepts, and collection elements produce HTTP 400 with a malformed-request validation error naming the argument and its type, for both GET and QUERY. The action does not run. Supplying an invalid nullable or defaulted concept value is still an error; it is not treated as missing input.
 
-If composing a MongoDB fluent query yourself, use expression-based sorting such as `SortBy(account => account.Name)`, or a `Builders<T>.Sort` definition passed to `Sort(...)`. There is no `SortBy(string)` overload. Constrain client-selectable sort fields to your intended public fields.
+To page the result, return `IQueryable<T>` and let [the paging context](paging.md) drive Arc's renderer. Avoid slicing in the action as well, which would page the result twice.
+
+If you compose a MongoDB fluent query yourself, use expression-based sorting such as `SortBy(account => account.Name)`, or pass a `Builders<T>.Sort` definition to `Sort(...)`. There is no `SortBy(string)` overload. Restrict client-selectable sort fields to the fields you intend to expose.
 
 ## Request body arguments
 
-An ordinary MVC action can use `[FromBody]` and a suitable verb for structured JSON. That is **not** a drop-in Arc GET observable query: `QueryActionFilter` runs for GET, and the standard Arc POST command surface has a different contract. Do not put `[HttpPost]` on a subject-returning action and assume Arc will stream it.
+An ordinary MVC action can accept structured JSON with `[FromBody]` and a suitable HTTP verb. Arc's `QueryActionFilter` handles GET, however, so changing a subject-returning action to `[HttpPost]` does not retain Arc's streaming behavior. The standard Arc POST command surface also has a different contract.
 
-For model-bound one-shot queries needing a body, see [HTTP QUERY](../using-the-http-query-method.md); its body envelope still uses scalar argument conversion, not MVC DTO deserialization. Choose and test the endpoint/client contract explicitly rather than treating these paths as interchangeable.
+For a model-bound one-shot query that needs a body, follow [HTTP QUERY](../using-the-http-query-method.md). That body envelope uses Arc's argument conversion, not MVC DTO deserialization. Choose the endpoint and client together, then test the request shape they actually use.
 
-Continue with [route templates](route-templates.md) for path parameters and [validation](../validation.md) for the model-bound/MVC distinction.
+If an identifier belongs in the URL path, continue with [route templates](route-templates.md). Use [validation](../validation.md) to compare MVC model-state handling with validation on the model-bound path.

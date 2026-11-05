@@ -1,6 +1,6 @@
 ---
 title: Tenancy Configuration
-description: Configure tenant resolution in code or configuration files for Arc.Core and ASP.NET Core hosts.
+description: Cratis Arc configures tenant resolution through code or appsettings.json, with separate membership checks for request-selected tenants.
 ---
 
 You can configure tenancy programmatically or through configuration files. Both approaches map to the same options and resolver types.

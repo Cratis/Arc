@@ -1,12 +1,12 @@
 ---
 uid: Arc.Testing
-title: Testing
-description: Test standalone Arc commands through the real pipeline, with optional Chronicle event-sourcing support.
+title: Choose a test boundary in Cratis Arc
+description: Choose direct specs for command decisions, Arc scenarios for pipeline behavior, and integration tests for real hosts, providers, and application flows.
 ---
 
-A useful spec answers a precise question: is the decision right, did Arc enforce the rule, or did the real system persist and serve the intended result? Cratis lets you test each of those without forcing every case through the widest—and slowest—boundary.
+Test a Cratis Arc command's decision by calling `Handle()` directly. Use `CommandScenario<TCommand>` to prove that Arc validates input, supplies dependencies, and executes the handler through its pipeline. Hosted or provider-backed integration tests cover the real infrastructure that these specs do not exercise.
 
-A command's `Handle()` is an ordinary C# method. Call it directly for a deterministic decision; use `CommandScenario<TCommand>` when the framework's composition is part of what you need to prove. Use [query scenarios](./query-scenario.md) for static read-model queries that need Arc's binding, filters, or authorization, and [observable query scenarios](./query-scenario.md#observable-queries) to assert initial and subsequent emissions. Add hosted or provider-backed tests for boundaries neither can cover.
+Choose the boundary around the failure you need to catch. A wrong calculation belongs in a direct spec; a validator that never runs needs a pipeline spec. For queries, use [query scenarios](./query-scenario.md) to check read-model binding, filters, or authorization, and [observable query scenarios](./query-scenario.md#observable-queries) to assert initial and subsequent emissions.
 
 ## Choose the boundary that can catch the bug
 
@@ -22,13 +22,15 @@ A command's `Handle()` is an ordinary C# method. Call it directly for a determin
 | Projection/reducer state from history                                      | Chronicle read-model scenario                                    | Production sink configuration and transport                       |
 | Actual host, provider, or asynchronous application flow                    | Hosted/provider-backed integration spec                          | Every business edge case unless you explicitly cover it           |
 
-**Our recommendation: combine boundaries, rather than choose one for every test.** Cover decision branches with fast direct specs, add focused scenario specs for the important Arc contracts, and use a smaller set of integration tests to prove real composition. Keep the action in `Because()`, give every `should_...` assertion a concrete outcome, and wait for facts rather than sleeping.
+Cover decision branches with direct specs, then add scenario specs for the Arc contracts those calls bypass. Keep a smaller set of integration tests for real composition. That way, a calculation change does not need a running host to tell you it is wrong. Keep the action in `Because()`, give every `should_...` assertion a concrete outcome, and wait for facts rather than sleeping.
 
 Start with [the decision-and-pipeline lesson](./command-decisions.md). It tests the same strongly typed command both ways. For inline side effects, [test command operations](./command-operations.md): inspect declarations directly, then let `CommandScenario` run actual execution and compensation with substitutes. For event-sourced applications, [the Chronicle lesson](./event-sourced-commands.md) shows why a correct returned event is not enough: the appended identity must be correct too.
 
-This separation is one of Arc's useful design properties. `Provide()` can acquire data while `Handle()` expresses the decision, without an application-specific handler abstraction or a test-only execution path. A service-backed `Handle()` is also supported; it is testable but is not a pure function merely because it lives on a command.
+`Provide()` can acquire data while `Handle()` expresses the decision. A direct spec supplies that data itself; a scenario checks that Arc supplies it. Neither needs an application-specific handler abstraction or a test-only execution path. A handler can also call services directly, but a method with I/O or mutable external state is not a pure function merely because it lives on a command.
 
-For pipeline specs, start with `Cratis.Arc.Testing`. It has no Chronicle dependency. Your handlers still need their application services; register test implementations or real dependencies as appropriate. The scenario does not automatically replace external databases or services your code uses.
+For pipeline specs, start with `Cratis.Arc.Testing`. It has no Cratis Chronicle dependency. Your handlers still need their application services; register test implementations or real dependencies as appropriate. The scenario does not automatically replace external databases or services your code uses.
+
+Generated values are another explicit choice: command scenarios fail an unpinned generated parameter by default. [Pin generated values](./generated-values.md) when the exact value matters, or call `AllowGeneration()` before execution to exercise the factory. A fixed clock controls time, not the random part of an identifier.
 
 ## Packages
 
@@ -95,7 +97,9 @@ Run `dotnet test`. Both facts should pass: the result succeeds and its response 
 
 ## Add validation and dependencies
 
-The scenario builds its service provider lazily on the first `Execute` or `Validate` call. Register application dependencies through `Services` before that point, usually in `Establish()`. Use `Validate` to run the pipeline filters without calling `Provide()` or `Handle()`.
+The scenario builds its service provider lazily on the first `Execute` or `Validate` call. Register application dependencies through `Services` before that point, usually in `Establish()`. Configure a fixed clock before either call too; pins, generation policy, and tenant selection must be set before the first execution. See the [generated-value configuration rules](./generated-values.md#finish-configuration-before-the-first-execution) if a spec validates before executing.
+
+Use `Validate` to run the pipeline filters without calling `Provide()` or `Handle()`. It does not generate values.
 
 Continue with [command scenarios](./command-scenario.md) for validation, authorization, assertion contracts, and disposal.
 
@@ -103,6 +107,6 @@ Continue with [command scenarios](./command-scenario.md) for validation, authori
 
 ## Optional: Test event-sourced commands
 
-Only commands using the Chronicle integration need `Cratis.Arc.Chronicle.Testing`. When its extender is discovered, the same scenario gains `Given`, `EventScenario`, `EventLog`, `EventSequence`, and `AppendedEvents`. You can seed state and inspect appended events without an external Chronicle server.
+Only commands using the Chronicle integration need `Cratis.Arc.Chronicle.Testing`. Its discovered extender lets you seed state and inspect appended events without an external Chronicle server. Ordinary event-log scenarios expose `Given`, `EventScenario`, `EventLog`, `EventSequence`, and `AppendedEvents`; commands with protected dependencies use the decision store instead.
 
 See the [optional Chronicle testing extension](./chronicle.md) for setup, the distinction between event-log and read-model seeding, and event assertions. Keep the standalone package when you do not use event sourcing. The broader [Testing with Cratis guide](/testing-with-cratis/) connects Arc scenarios to the other product-specific test helpers.

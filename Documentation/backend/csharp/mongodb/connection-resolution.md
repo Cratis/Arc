@@ -1,15 +1,15 @@
 ---
-title: Connection resolution
-description: Resolve the MongoDB server, database and identity per tenant through configuration, a template, an HTTP endpoint or your own resolver.
+title: Resolve MongoDB connections per tenant in Cratis Arc
+description: Configure tenant-specific MongoDB servers, databases, and credentials in Cratis Arc using a template, an HTTP endpoint, or a custom resolver.
 ---
 
-Use connection resolution when each tenant's MongoDB database lives somewhere your platform decides, or authenticates with its own credentials. For the concepts and the resolvers, read [connection resolution](../tenancy/connection-resolution.md) first; for the endpoint an `Http` resolver calls, see the [connection resolution contract](../../../connection-resolution-contract.md).
+Connection resolution lets Cratis Arc choose a MongoDB server, database, or credentials for the current tenant. Use it when tenant placement or authentication comes from your platform rather than one fixed connection. A resolver supplies those choices from configuration, a template, an HTTP endpoint, or your own implementation.
 
-This page configures resolution for MongoDB only. To configure it once for every storage, set it on Arc instead, as described in [configure it once for the whole application](../tenancy/connection-resolution.md#configure-it-once-for-the-whole-application). What you configure here replaces the application-wide configuration for MongoDB.
+The settings below apply to MongoDB only and replace any application-wide connection-resolution configuration for this storage. If several storage integrations should share the same settings, [configure resolution once on Arc](../tenancy/connection-resolution.md#configure-it-once-for-the-whole-application) instead. The [tenancy guide](../tenancy/connection-resolution.md) explains how to choose a resolver; the [HTTP contract](../../../connection-resolution-contract.md) describes the endpoint an `Http` resolver calls.
 
 ## Fetch the identity from your platform
 
-Keep `Server` and `Database` as they are, and resolve only who connects:
+If tenants share a server and database naming scheme but connect with different credentials, resolve only the identity. Keep `Server` and `Database` configured:
 
 ```json
 {
@@ -31,14 +31,14 @@ Keep `Server` and `Database` as they are, and resolve only who connects:
 }
 ```
 
-The same in code:
+Alternatively, select the HTTP identity resolver in code, keeping the normal MongoDB connection settings in configuration:
 
 ```csharp
 builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
     configureOptions: mongo => mongo.ConnectionResolution.Identity.UseHttp(new Uri("https://platform.example/connections"))));
 ```
 
-Each request scope now resolves for its tenant. `IMongoClient`, `IMongoDatabase` and `IMongoCollection<T>` in that scope all come from the same resolution.
+Arc resolves the connection once per service scope using the current tenant. The injected `IMongoClient`, `IMongoDatabase`, and `IMongoCollection<T>` in that scope use the same resolution.
 
 ## What Arc applies
 
@@ -47,16 +47,16 @@ Each request scope now resolves for its tenant. `IMongoClient`, `IMongoDatabase`
 | `ConnectionString` | Replaces `Server`. |
 | `Database` | Replaces the database name. Without it, the [tenant database naming](./tenancy.md) applies as before. |
 | `Identity.UserName` and `Identity.Password` | Becomes a SCRAM credential. It authenticates against the connection string's `authSource`, else its database, else `admin`. |
-| `Identity.AccessToken` | Becomes a `MONGODB-OIDC` credential. When the driver needs a new token, Arc resolves again, so a rotating token never needs a new client. |
+| `Identity.AccessToken` | Becomes a `MONGODB-OIDC` credential. When the driver requests a new token, Arc invalidates the cached resolution and resolves again through the existing client's callback. |
 | `Schema` | Not used by MongoDB. |
 
 Clients are shared per server and credential, never across credentials. A connection that fails to authenticate drops the cached resolution, and the next scope resolves fresh credentials.
 
-Change-stream [observation](./observing-collections.md) follows the same resolution, partitioned per server and database.
+Change-stream [observation](./observing-collections.md) follows the same resolution. Shared watches are keyed by the client's servers and credential together with the database name, keeping observations for different connections separate.
 
 ## Place tenants with a template
 
-When placement follows a rule, you do not need an endpoint:
+When tenant placement follows a naming rule, use a template instead of calling an endpoint. For example, this `ConnectionResolution` fragment names databases `tenant-{tenant}`:
 
 ```json
 "ConnectionResolution": {
@@ -68,5 +68,5 @@ When placement follows a rule, you do not need an endpoint:
 ```
 
 :::caution[Resolution replaces the default tenant naming]
-A resolved `Database` replaces the `{Database}+{tenant}` naming entirely, including for the default tenant, which resolves as `Default`. Data already stored under the old names stays there. Treat switching as a data migration.
+A resolved `Database` bypasses default tenant naming. Without it, the default tenant uses the configured database name and other tenants use `{Database}+{tenant}`. In the template above, the default tenant resolves to `tenant-Default`. Data already stored under the old names stays there, so plan a data migration before switching.
 :::

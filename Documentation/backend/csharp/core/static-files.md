@@ -1,15 +1,17 @@
 ---
-title: Static Files
-description: Serve static files and a single-page application fallback from the lightweight Arc.Core host.
+title: Cratis Arc.Core static file hosting
+description: Serve public assets and a single-page application from the Cratis Arc.Core host, with explicit asset paths, GET fallback, and routing limits.
 ---
 
-Arc.Core provides built-in support for serving static files, similar to the `UseStaticFiles()` middleware in ASP.NET Core. This is essential for hosting Single Page Applications (SPAs), serving assets like CSS, JavaScript, images, and other static content.
+Cratis Arc.Core can serve public files and a single-page application (SPA) from the same `HttpListener` host as your commands and queries. Use `UseStaticFiles()` to serve assets and `MapFallbackToFile()` to send unmatched GET requests to the SPA's entry file, where its client-side router handles navigation.
 
-Except for the complete SPA example, code blocks below are configuration fragments for the [Core host](getting-started.md), with `using Cratis.Arc;` in scope. Supply the static asset files yourself; Arc does not build a frontend bundle.
+Start with the [Core host setup](getting-started.md) and place your built frontend assets in `wwwroot` or another dedicated public directory. Arc serves those files; it does not build a frontend bundle. The examples use `using Cratis.Arc;`. Configuration fragments assume an existing builder or app; the complete SPA example includes both.
+
+Only put public assets in a served directory. Static-file requests do not pass through command or query authorization checks.
 
 ## Basic Usage
 
-To serve static files from the default `wwwroot` directory:
+Call `UseStaticFiles()` before starting the application to serve GET requests from the default `wwwroot` directory:
 
 ```csharp
 var builder = ArcApplication.CreateBuilder(args);
@@ -24,11 +26,11 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-> **Important**: Configure static files and fallback before `StartAsync()` or `RunAsync()`. `UseCratisArc()` schedules listener startup; it does not start the listener immediately. Static-file configuration may precede or follow that call.
+Configure static files and fallback before `StartAsync()` or `RunAsync()`. `UseCratisArc()` schedules listener startup, so static-file configuration may come before or after that call. With `wwwroot/index.html` in place, a GET request to `/` serves that file. Other HTTP methods, including HEAD, are not handled by static-file serving.
 
 ## Configuration Options
 
-You can customize static file serving using `StaticFileOptions`:
+Use `StaticFileOptions` to choose the directory and URL prefix independently. In this example, a request for `/static/styles.css` reads `styles.css` from `public`:
 
 ```csharp
 app.UseStaticFiles(options =>
@@ -56,20 +58,16 @@ app.UseStaticFiles(options =>
 | ---------- | ------ | --------- | ------------- |
 | `FileSystemPath` | `string` | `"wwwroot"` | The directory to serve files from |
 | `RequestPath` | `string` | `""` (root) | URL prefix for static file requests |
-| `ServeDefaultFiles` | `bool` | `true` | Whether to serve index.html for directory requests |
+| `ServeDefaultFiles` | `bool` | `true` | Whether to look for a file from `DefaultFileNames` on directory requests |
 | `DefaultFileNames` | `IList<string>` | `["index.html", "index.htm", "default.html", "default.htm"]` | Files to look for when requesting a directory |
-| `EnableDirectoryBrowsing` | `bool` | `false` | Whether to allow directory listing (not yet implemented) |
+| `EnableDirectoryBrowsing` | `bool` | `false` | Has no effect; directory listing is not implemented |
 | `ContentTypeMappings` | `IDictionary<string, string>` | Empty | Custom file extension to MIME type mappings |
 
 ## File System Path Resolution
 
-Arc.Core resolves relative paths in the following order:
+Arc.Core first checks whether the configured directory exists relative to `Directory.GetCurrentDirectory()`. If it does not, Arc resolves it relative to `AppContext.BaseDirectory`, the application binary directory. Absolute paths are used as supplied.
 
-1. **Current Working Directory** - First checks if the path exists relative to `Directory.GetCurrentDirectory()`. This is typically your project directory when running with `dotnet run`.
-
-2. **Application Base Directory** - Falls back to `AppContext.BaseDirectory` (the `bin/Debug/net10.0/` output folder) if not found in the current directory.
-
-This behavior matches how ASP.NET Core resolves content root paths during development and ensures your `wwwroot` folder is found whether you're running from the project directory or from the compiled output.
+The working directory can differ between local development and deployment. Include the assets in your deployment and check which directory the process uses. Arc selects a directory before looking for a requested file; it does not search the application base directory for individual files missing from an existing working-directory tree.
 
 ### Example: Custom Static Directory
 
@@ -89,7 +87,7 @@ app.UseStaticFiles(options =>
 
 ## SPA Fallback with MapFallbackToFile
 
-For Single Page Applications that use client-side routing, you need to serve your `index.html` for any route that doesn't match a static file or API endpoint. Use `MapFallbackToFile()`:
+A browser that opens a client-side route such as `/dashboard/users/123` needs the SPA's entry HTML before its router can handle the URL. `MapFallbackToFile()` serves that entry file after both registered routes and static files fail to handle a GET request:
 
 ```csharp
 var app = builder.Build();
@@ -107,16 +105,13 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-The fallback file is served when:
+The fallback uses the directory from the first `UseStaticFiles()` configuration. Register static files as well as the fallback, and keep the entry file in that directory. Calling `MapFallbackToFile()` again replaces the previous fallback filename; the example above ends with `app.html` as its fallback.
 
-1. No registered API route matches the request
-2. No static file matches the request path
-3. The request method is GET
-4. The fallback file exists in the static files directory
+An unmatched GET receives the fallback if that file exists. The fallback does not reserve an API prefix or exclude URLs with file extensions: a missing `/api/users` endpoint or `/missing.js` asset can receive the entry HTML too. Check those responses when diagnosing a client that expected JSON or JavaScript.
 
 ## Complete SPA Example
 
-Here's a complete example for hosting a React, Angular, or Vue SPA:
+Place your SPA's built assets in `wwwroot`, including `index.html`, then use this host setup:
 
 ```csharp
 using Cratis.Arc;
@@ -138,7 +133,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-With this configuration:
+With the corresponding files present, this configuration handles GET requests as follows:
 
 - `/` → Serves `wwwroot/index.html`
 - `/styles.css` → Serves `wwwroot/styles.css`
@@ -148,11 +143,13 @@ With this configuration:
 
 ## Hosting under a path prefix
 
-In the lightweight Arc.Core host, `app.UsePathBase("/workbench")` prefixes endpoints mapped **after** that call, including Arc endpoints when called before `app.UseCratisArc()`. It does not prefix static files or scope `MapFallbackToFile()` to `/workbench`. Set `StaticFileOptions.RequestPath` explicitly for assets you want under that path, and account for the fallback's behavior on unmatched GET requests separately. In the frontend, set `apiBasePath` for Arc requests and your router's `basename` for navigation; see [React provider configuration](../../../frontend/react/arc.md#hosting-under-a-path-prefix).
+In the lightweight Arc.Core host, `app.UsePathBase("/workbench")` prefixes endpoints mapped after that call. Call it before `app.UseCratisArc()` to prefix Arc endpoints.
+
+That setting neither prefixes static files nor limits `MapFallbackToFile()` to `/workbench`. Set `StaticFileOptions.RequestPath` explicitly for assets under that path. The fallback still handles unmatched GET requests outside the prefix, so a path base alone does not isolate the SPA. In the frontend, set `apiBasePath` for Arc requests and your router's `basename` for navigation; see [React provider configuration](../../../frontend/react/arc.md#hosting-under-a-path-prefix).
 
 ## Multiple Static File Configurations
 
-You can call `UseStaticFiles()` multiple times to serve from different directories:
+Call `UseStaticFiles()` for each public directory you want to serve. Configurations are checked in registration order, so the first matching file wins. The fallback still uses only the first configuration's directory:
 
 ```csharp
 // Serve from wwwroot at root
@@ -168,7 +165,7 @@ app.UseStaticFiles(options =>
 
 ## Middleware Order
 
-Request precedence is **registered routes → static files → SPA fallback**, regardless of the relative order of these configuration calls. This is not ASP.NET's ordered middleware pipeline:
+The host checks registered routes first, static files second, and SPA fallback last. Moving these configuration calls around does not change that precedence. Unlike ASP.NET's middleware pipeline, their relative order does not let a static file override a registered route:
 
 ```csharp
 var app = builder.Build();
@@ -187,7 +184,7 @@ await app.RunAsync();
 
 ## MIME Types
 
-Arc.Core includes built-in MIME type mappings for common file extensions:
+Arc.Core sets the response's MIME type, the content type a browser uses to interpret a file, from its extension. Built-in mappings include:
 
 | Category | Extensions |
 | ---------- | ------------ |
@@ -201,7 +198,7 @@ Arc.Core includes built-in MIME type mappings for common file extensions:
 | Video | `.mp4`, `.webm`, `.avi`, `.mov` |
 | Web | `.wasm`, `.webmanifest` |
 
-For unknown extensions, `application/octet-stream` is returned.
+Unknown extensions use `application/octet-stream`. A mapping only sets the content type: serving `.ts`, `.tsx`, or `.jsx` files does not compile them into browser-ready JavaScript.
 
 ### Adding Custom MIME Types
 
@@ -215,4 +212,8 @@ app.UseStaticFiles(options =>
 
 ## Security
 
-Serve only public assets from dedicated directories; do not place secrets or private uploads in a served tree. Static files are not command/query pipeline operations and do not inherit their role checks. The implementation normalizes paths and checks containment, but do not treat this as a security certification for every filesystem or symlink arrangement. Test your deployment and enforce private-file access through an authorized endpoint instead.
+Keep secrets and private uploads outside every served directory. Static files and the SPA fallback do not inherit command or query role checks; serve private content through an authorized endpoint instead.
+
+The implementation normalizes paths and checks whether the resolved path starts with the configured base path. That string check does not establish a filesystem or symlink security boundary. Check the deployed directory layout and permissions before exposing files.
+
+For the host's route APIs, continue with [endpoint mapping](endpoint-mapping.md). For protected application operations, configure [authorization](authorization.md).

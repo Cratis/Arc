@@ -1,6 +1,6 @@
 ---
 title: Code analysis rules
-description: Core Arc diagnostic inventory, default severities, analyzer packaging, and available editor fixes.
+description: Cratis Arc code analysis checks command, query, validation, and concept declarations at compile time. Find rule severities and available editor fixes.
 ---
 
 Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The model-graph generator also reports [ARC0030](ARC0030.md) for composite protected-read keys when Chronicle's accessor registry is referenced, and [ARC0031](ARC0031.md) for commands whose key properties cannot be generated. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.

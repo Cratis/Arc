@@ -3,27 +3,23 @@ title: Commands
 description: Execute backend commands from React through the generated proxy's .use() hook, with change tracking, validation, and typed results.
 ---
 
-Commands represent actions you want to perform against the system. Arc generates their HTTP surface from model-bound commands, and in C# also from discovered controller actions. Either style can use validation and authorization; neither requires Chronicle or event sourcing.
+To open an account from React, fill in the generated command's properties and execute it from a component's event handler. Arc generates the HTTP surface from model-bound commands, and in C# also from discovered controller actions. Either style can use validation and authorization; neither requires Chronicle or event sourcing.
 
 ## Overview
 
-Commands provide a structured way to:
+A command represents a requested change. Its generated proxy gives the component typed input, change tracking, and an execution result without a separate HTTP client. The `.use()` hook keeps that command available to the component as it renders.
 
-- Encapsulate business operations and state changes
-- Validate input before execution
-- Track changes from original values
-- Integrate with React's rendering pipeline
-- Handle authorization and error scenarios
+Use a command for the write and a [query](../queries/index.md) to read the resulting state. The hook does not provide a complete form or disable the submit button during a request: manage execution state in the component, or use [CommandForm](../command-form/index.md) for a declarative form.
 
 ## Quick Start
 
-**Backend fragment:** these are the declarations the proxy below is generated from.
+Start with the backend declarations used to generate the proxy below:
 
 <ArcBackendTabs snippet="frontend/react/commands/index/command-payload" />
 
-The backend tabs reach the shared generated-command runtime from different starting points. The C# record is a **payload DTO**: it requires an already-defined controller endpoint accepting it, because a record alone is not enough for proxy discovery. The JVM has no controller-based discovery, so the model-bound `@Command` *is* the endpoint. TypeScript's source preview generates from decorated `@command()` classes with a `handle()` method; see its [generator setup](/arc/backend/typescript/proxy-generation/getting-started/). For a complete model-bound C# example, follow [getting started](/arc/frontend/react/getting-started/).
+The backend tabs reach the shared generated-command runtime from different starting points. The C# record is a payload data transfer object (DTO): it requires an already-defined controller endpoint accepting it, because a record alone is not enough for proxy discovery. The JVM has no controller-based discovery, so the model-bound `@Command` *is* the endpoint. The TypeScript backend generates from decorated `@command()` classes with a `handle()` method; see its [generator setup](/arc/backend/typescript/proxy-generation/getting-started/). For a complete model-bound C# example, follow [getting started](/arc/frontend/react/getting-started/).
 
-**Consumer fragment:** call this hook inside a component, and execute from its event handler. This example assumes string-backed `AccountId` and `CustomerId`; use Fundamentals `Guid` values instead if the generated model maps Guid-backed concepts.
+In the React consumer, call the hook inside a component and execute from its event handler. This example assumes string-backed `AccountId` and `CustomerId`; use Fundamentals `Guid` values instead if the generated model maps Guid-backed concepts.
 
 ```tsx
 import { OpenDebitAccount } from './generated/commands';
@@ -42,25 +38,21 @@ export function OpenAccount() {
 }
 ```
 
+The initial values describe the account to open; `execute()` submits them and returns the result. The example logs a summary. A form should also show the relevant validation or authorization feedback and prevent unintended repeated submissions while a request is pending.
+
 ## HTTP Headers
 
 Command fetches include `httpHeadersCallback` headers configured in [Arc](../arc.md). Supply Authorization or application headers there; cookies are browser-managed, not configurable `Cookie` request headers.
 
 ## Proxy Generation
 
-Commands are automatically generated from your backend using the [proxy generator](../../../backend/csharp/proxy-generation/index.md). The generator scans HTTP Post actions during compile time and creates TypeScript classes that:
+The generated class follows the backend command's input contract and adds validation support, change tracking, and `.use()`. On C#, the [proxy generator](../../../backend/csharp/proxy-generation/index.md) discovers HTTP POST actions from the compiled assembly in a configured post-build step. It does not run as a compiler source generator.
 
-- Match your backend command structure
-- Provide type-safe properties
-- Include validation support
-- Offer a `.use()` method for React integration
-- Track changes automatically
-
-See [Proxy Generation](../../../backend/csharp/proxy-generation/index.md) for setup details.
+Regenerate after changing the backend contract, then type-check the frontend to find callers that need updating. [Consume generated proxies](../proxy-generation.mdx) connects the backend-specific setup to React usage.
 
 ## Command Result
 
-When executed, commands return a `CommandResult` with detailed information about the outcome:
+Await `execute()` and inspect its `CommandResult` before treating the change as successful. Authorization and validation failures need different feedback from a successful response:
 
 ```typescript
 const result = await command.execute();
@@ -77,7 +69,7 @@ if (result.isSuccess) {
 }
 ```
 
-For comprehensive details, see [Command Result documentation](../../core/commands/command-result.md).
+These checks distinguish authorization and validation failures; they do not cover every unsuccessful result. Use the [Command Result documentation](../../core/commands/command-result.md) for exception information and the complete result contract. Continue with [React usage](./react-usage.md) to manage the command through the component's lifecycle.
 
 ## Topics
 

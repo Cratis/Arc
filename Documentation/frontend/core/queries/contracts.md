@@ -1,6 +1,6 @@
 ---
 title: Query Contracts
-description: Reference for the IQuery, IQueryFor, and observable query contracts in @cratis/arc that generated query proxies implement.
+description: Cratis Arc query proxies implement IQuery and IQueryFor for typed parameters, sorting, paging, HTTP method selection, and execution.
 ---
 
 Core query support in `@cratis/arc` is built on typed query classes and generated proxies.

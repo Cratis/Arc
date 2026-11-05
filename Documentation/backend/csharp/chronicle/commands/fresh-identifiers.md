@@ -1,21 +1,17 @@
 ---
-title: Fresh identifiers
-description: Reject a generated append target that already has events, without rerunning the command handler.
+title: Guard generated Chronicle event source ids
+description: Keep generated event source ids from extending an existing Chronicle history, handle collisions, and verify that rejected commands append nothing.
 ---
 
-A generated identifier is meant to open a new event source, not accidentally add facts to an existing one.
-With Arc's Chronicle integration, a [`[GeneratedValue]` Handle parameter](../../commands/generated-values.md)
-uses `GeneratedValueFreshness.Guarded` by default. When an Arc-owned append or a write through the command's
-unit of work targets that value, Arc requires
-the **whole event source** to be empty before the command's events are appended.
+Cratis Arc guards generated event source ids so a create command cannot accidentally extend an existing history in Cratis Chronicle. A [`[GeneratedValue]` Handle parameter](../../commands/generated-values.md) uses `GeneratedValueFreshness.Guarded` by default. When returned events or writes through the command's unit of work target that value, the whole event source must be empty.
+
+An occupied destination rejects the command; Arc does not rerun `Handle()`. Keep the rejection visible to the caller and submit a new invocation only when creating another identity is the intended recovery.
 
 ## What is guarded
 
-Arc compares each actual append destination with the validated values generated in the same invocation.
-It unwraps concepts and typed event-source identifiers. A Guid uses lowercase `D` format; strings compare
-exactly, with ordinal case sensitivity. A string that looks like a Guid remains a string. Other supported
-primitive identities use Chronicle's invariant formatting, including round-trip dates and times.
-Arbitrary records' display strings are not identifiers.
+The guard follows the append destination, not every use of the generated value. Arc compares that destination with the invocation's validated generated values after unwrapping concepts and typed event-source identifiers.
+
+A Guid uses lowercase `D` format. Strings compare exactly with ordinal case sensitivity, even when they look like Guids. Other supported primitive identities use Chronicle's invariant formatting, including round-trip dates and times. Arc does not treat an arbitrary record's display string as an identifier.
 
 The guard covers:
 
@@ -44,13 +40,9 @@ This expression uses `Cratis.Chronicle.Events` and `Cratis.Chronicle.EventSequen
 actual append destination. It has no stream, source-type or event-type narrowing. Existing events in a
 different stream or of another type still occupy that identifier.
 
-Several events for one new source share the same immutable expectation: all can succeed in one transaction.
-Routing metadata, concurrency attributes and the normal concurrency strategy cannot replace it with a later
-tail or a narrowed expectation. Exact scopes supplied through `EventsWithConcurrencyScopes` or direct
-unit-of-work and transactional calls are checked for conflicts. A compatible explicit whole-source `BeforeFirst` scope merges with the guard,
-including scopes emitted by Stage. A different explicit intent, such as a narrowed scope, a tail revision
-or `ConcurrencyScope.None`, fails the command with `ConflictingConcurrencyScopes` before the batch is
-enrolled or appended.
+Several events for one new source share the same expectation and can succeed in one transaction. Routing metadata, concurrency attributes and the normal strategy cannot replace whole-source emptiness with a later tail or a narrower check.
+
+Arc checks explicit scopes from `EventsWithConcurrencyScopes`, direct unit-of-work calls and transactional calls for conflicts. A whole-source `BeforeFirst` scope merges with the guard, including scopes emitted by Stage. A narrowed scope, a tail revision or `ConcurrencyScope.None` expresses a different requirement and fails with `ConflictingConcurrencyScopes` before the batch is enrolled or appended.
 
 Without a transaction, Arc appends a returned collection as one batch, so a generated source's freshness guard
 stays in the same atomic append as every other event of the command, whatever routes those events use and
@@ -69,17 +61,11 @@ An occupied generated destination produces a validation result with:
 | `Reason` | `ValidationResultReason.ConcurrencyViolation` |
 | `ReasonDetail` | `"GeneratedIdentifierCollision"` |
 
-Arc classifies this result using the generated guard's provenance. An unrelated `BeforeFirst` failure does
-not acquire that detail. Arc's collision and `ConflictingConcurrencyScopes` messages do not include the
-generated value. Arc also maps conflicts Chronicle detects against an already enrolled generated guard to
-`ConflictingConcurrencyScopes`, using typed scope properties and the command unit's provenance rather than
-parsing messages. Unrelated enrollment conflicts retain Chronicle's own redacted failure; they are not
-classified as generated-identifier conflicts.
+Arc records which scope came from a generated-value guard and uses that origin to classify collisions. An unrelated `BeforeFirst` failure does not get `GeneratedIdentifierCollision`. Neither the collision message nor Arc's `ConflictingConcurrencyScopes` message includes the generated value.
 
-Arc never reruns `Handle()`. To retry a collision, submit a **new command invocation**, which generates a new
-value. Do not keep retrying a fixed scenario pin against an occupied source. This policy is not an
-idempotency protocol: after an uncertain commit, determine whether the first invocation committed before
-creating another source.
+If Chronicle detects a conflict with a generated guard already enrolled in the command's unit, Arc maps it to `ConflictingConcurrencyScopes`. The mapping uses typed scope properties and the recorded guard origin, not message parsing. Unrelated enrollment conflicts retain Chronicle's own redacted failure.
+
+To retry a collision, submit a new command invocation, which generates a new value. Repeating a fixed scenario pin against an occupied source will keep failing. After an uncertain commit, first determine whether the original invocation committed: this guard prevents identity reuse, not duplicate creation under different ids.
 
 ## Opt out deliberately
 
@@ -119,9 +105,7 @@ scope before Arc's contributor runs, Arc translates conflicts against that recor
 requirements but do not call contributors, create a new freshness guard or record generated provenance.
 An identifier captured by a completed nested invocation but never targeted has no enrolled requirement.
 
-Nested pipeline scopes leave commit and rollback to the outer command. Propagate a nested rejection so the
-outer command rolls back instead of committing earlier events. An explicit aggregate `Commit()` can still
-finalize the shared unit early; see [Nested commands and aggregates](transactional-commands.md#nested-commands-and-aggregates).
+The outer command owns commit and rollback for nested pipeline invocations. Propagate a nested rejection; treating it as success can commit events enrolled earlier in the outer command. An explicit aggregate `Commit()` can still finalize the shared unit early. See [Nested commands and aggregates](transactional-commands.md#nested-commands-and-aggregates) before mixing these paths.
 
 Custom `IUnitOfWork` implementations must support Chronicle's enrollment contributors. A handler declaring
 at least one guarded `[GeneratedValue]` parameter fails closed with Arc's
@@ -170,8 +154,7 @@ result.ValidationResults.Single().ReasonDetail.ShouldEqual("GeneratedIdentifierC
 command.Calls.ShouldEqual(1);
 ```
 
-Seed an event for the same identifier, including a different stream if your command routes to a specific
-stream. Also exercise an empty source with two events through your chosen append API: both must append successfully under one guard.
+The assertions check the failure category, an unchanged log tail and a single call to `Handle()`. Seed the same identifier in a different stream as well if your command has a specific route; that history must still cause a collision. Also test an empty source with two events through your chosen append API. Both events should append under the shared guard.
 
 A fixed pin is reused across executions. A second create invocation with the same pin should collide rather
 than silently continue the first source.

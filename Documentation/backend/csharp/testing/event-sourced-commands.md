@@ -1,11 +1,11 @@
 ---
-title: Test an event-sourced command
-description: Combine direct decision specs with Arc–Chronicle pipeline specs that check event content, identity, and append outcomes.
+title: Cratis Arc event-sourced command tests
+description: Test an event-sourced Cratis Arc command directly, then use Chronicle scenarios to check that the event is appended under the returned identity.
 ---
 
-A command returning the right event is a good start. For an event-sourced application, also prove that Arc and Chronicle append that event to the **intended event source**, and that rejection appends nothing.
+Test an event-sourced Cratis Arc command at two boundaries: call `Handle()` to check the returned decision, then use Cratis Chronicle's extension to `CommandScenario` to check the append. The event must reach the intended event source, the identity whose history it belongs to.
 
-Use direct specs for the decision and the Chronicle extension to `CommandScenario` for the append contract. You do not need an external Chronicle server for these in-process checks.
+This lesson registers an author and checks that the returned author id matches the stored event's identity. The checks run in process without an external Chronicle server. If your command does not use Chronicle, follow [the standalone decision and pipeline lesson](./command-decisions.md) instead.
 
 ## Set up an integration spec project
 
@@ -63,7 +63,7 @@ public record RegisterAuthor(AuthorName Name)
 public record AuthorRegistered(AuthorName Name);
 ```
 
-The concepts have different jobs. `AuthorName` gives an ordinary value its domain meaning. `AuthorId` additionally tells Chronicle that the value identifies an event source. Reuse both within the author feature; in an application, shared concepts normally live in their own files there.
+`AuthorName` gives a string its domain meaning. `AuthorId` also tells Chronicle that the value identifies an event source, so the integration can use it for the append. Reuse both concepts within the author feature; shared concepts normally live in their own files.
 
 `Provide()` creates the new identity. `Handle()` is deterministic for a given command and supplied identity: it returns the identity and a fact containing the name. The event does not repeat its own event-source ID; Chronicle stores that in event context.
 
@@ -98,7 +98,7 @@ public class when_deciding_to_register_an_author : Specification
 
 This is plain C# testing. It does not call `Provide()`, append an event, or validate the command. The supplied identity makes the decision easy to test without controlling a random-number generator or mocking an event log.
 
-Direct specs are a good place for all the decision branches. They are not a replacement for the next boundary.
+Add decision branches alongside this spec. To catch mistakes in identity resolution or event appending, run the same command through the scenario next.
 
 ## Prove the response and appended identity agree
 
@@ -147,15 +147,15 @@ Run:
 dotnet test Catalog.Specs
 ```
 
-The five facts across the two specs should pass. The scenario spec exercises identity creation, argument resolution, response handling, and the in-process append. The final assertion searches the captured append by the **returned identity and expected payload**; the separate count assertion rules out duplicate appends.
+The expected result is five passing facts across the two specs. The scenario exercises identity creation and argument resolution, then checks the response against the captured append. Matching both the returned identity and payload catches misrouted or incorrect events; the separate count assertion catches duplicate appends.
 
 This catches a mistake a direct test could miss: `(Guid, AuthorRegistered)` can return a plausible GUID and event while the integration uses a different fallback event-source ID. Returning `AuthorId : EventSourceId<Guid>` makes the intent explicit. [ARCCHR0010](../chronicle/code-analysis/ARCCHR0010.md) warns about suspicious signatures, while this behavioral spec protects the actual contract.
 
 ## Prove rejection for the intended reason
 
-For a rejected command, assert its specific validation reason or named constraint **and** that it appended no new events. A broad “not successful” assertion can otherwise pass because a dependency was unavailable or the host was misconfigured.
+When you add a rejection rule, check its specific validation reason or named constraint and the absence of new events. A broad “not successful” assertion could pass because a dependency was unavailable, without ever reaching the rule.
 
-Seed the state required by the rule before executing. Choose between historical events and a pinned read-model instance deliberately; they are not interchangeable setup shortcuts. The [Chronicle scenario reference](./chronicle.md) shows those builders and precise assertions. Captured append lists can include setup appends, so compare the post-action additions or establish the appropriate baseline rather than assuming the list always starts empty.
+Seed the state required by that rule before executing. Historical log events and a pinned read-model instance serve different purposes; the [Chronicle scenario reference](./chronicle.md) explains which builder to use. In ordinary scenarios, captured append lists include event-log setup, so establish a baseline before checking additions. Protected decision scenarios capture successful command appends separately from their seeds.
 
 ## Test each additional boundary on purpose
 
@@ -168,6 +168,6 @@ Seed the state required by the rule before executing. Choose between historical 
 | Do database mappings, serialization, and constraints work with the deployed provider? | Provider-backed integration test                                                     |
 | Does the caller receive the expected HTTP result and generated-client value?          | Host/transport or full-stack test                                                    |
 
-A successful `CommandScenario.Execute()` is not proof that every projection and reactor in a running application has finished. Do not import that assumption from another framework's asynchronous test harness. For live observer tests, wait on an observable completion condition with a deadline—not an arbitrary sleep.
+A successful `CommandScenario.Execute()` does not mean every projection or reactor in a running application has finished. A projection derives read-model state from events; a reactor handles events to perform follow-up work. For live observer tests, wait for the intended outcome with a deadline rather than sleeping for an arbitrary interval.
 
-This combination keeps most business specs quick and focused, while a smaller set of boundary tests proves that the framework, storage, and application are connected correctly. Continue with [choosing a test boundary](./index.md#choose-the-boundary-that-can-catch-the-bug) and the [Chronicle testing reference](./chronicle.md).
+Use [choosing a test boundary](./index.md#choose-the-boundary-that-can-catch-the-bug) to select the next test your feature needs. The [Chronicle testing reference](./chronicle.md) covers seeding, read-model dependencies, and append assertions in more detail.
