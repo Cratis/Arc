@@ -7,6 +7,8 @@ Signed forwarding lets a provisioned ingress attest the identity headers it send
 
 See also [configuration](configuration.md), [Microsoft identity](microsoft-identity.md), and [on-behalf forwarding](acting-on-behalf-of.md).
 
+For the proposed ES256 contract, see [signed forwarded identity v2 (draft)](signed-forwarded-identity-v2.md). The v1 contract below is unchanged.
+
 ## Configure a verifier
 
 Enable both `Cratis:Arc:TrustForwardedIdentityHeaders` and `Cratis:Arc:ForwardedIdentity:Enabled`. Set `ForwardedIdentity:Audience` to your integration's audience and provision `ForwardedIdentity:Keys` with entries containing `KeyId` and `SecretBase64`. Each secret is exactly 32 freshly generated random bytes, standard-base64 encoded. Configure secrets through your secret provider, for example the configuration key `Cratis__Arc__ForwardedIdentity__Keys__0__SecretBase64`; never check them into configuration files. Do not reuse OIDC, cookie, or on-behalf keys.
