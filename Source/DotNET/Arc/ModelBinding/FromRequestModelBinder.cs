@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -15,8 +16,12 @@ namespace Cratis.Arc.ModelBinding;
 /// </remarks>
 /// <param name="bodyModelBinder">The <see cref="IModelBinder"/> for resolving values from the HTTP body.</param>
 /// <param name="complexModelBinder">The <see cref="IModelBinder"/> for resolving values from other parts of the HTTP request.</param>
+[RequiresUnreferencedCode(Message)]
+[RequiresDynamicCode(Message)]
 public class FromRequestModelBinder(IModelBinder bodyModelBinder, IModelBinder complexModelBinder) : IModelBinder
 {
+    const string Message = "[FromRequest] binding clones and merges the bound model through reflection and reflection-based JSON, which trimming and NativeAOT do not support. Use model-bound commands and queries in a trimmed application.";
+
     static readonly Dictionary<Type, MethodInfo> _isDefaultMethodsByType = [];
 
     readonly IModelBinder _bodyModelBinder = bodyModelBinder;

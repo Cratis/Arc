@@ -5,7 +5,7 @@ description: Bind JSON, route, and query values into one MVC request model with 
 
 Use Cratis Arc's `[FromRequest]` when an MVC action needs one input model assembled from JSON, route values, and query parameters. The action and its validator receive the merged object, so rules can check related values together.
 
-This attribute belongs to the ASP.NET Core MVC integration. Model-bound Arc commands and queries use their own binding contracts. Before applying it to an existing action, check the precedence below: merging can change which client-supplied value wins.
+This is an ASP.NET Core integration feature, not the binding contract for model-bound Arc commands or queries. The binder is marked `RequiresUnreferencedCode` and `RequiresDynamicCode`, so a trimmed or NativeAOT application [turns controllers off](configuration.md#removing-mvc-from-a-trimmed-or-nativeaot-publish) and uses model-bound commands and queries instead. Before applying it to an existing action, check the precedence below: merging can change which client-supplied value wins.
 
 ## Overview
 

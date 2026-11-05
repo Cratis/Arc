@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Authorization;
@@ -17,7 +18,7 @@ public static class AuthorizationPolicyServiceCollectionExtensions
     /// <param name="services">The application's services.</param>
     /// <param name="name">The name used by an Authorize attribute.</param>
     /// <returns>The service collection.</returns>
-    public static IServiceCollection AddArcAuthorizationPolicy<TPolicy>(this IServiceCollection services, string name)
+    public static IServiceCollection AddArcAuthorizationPolicy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPolicy>(this IServiceCollection services, string name)
         where TPolicy : class, IAuthorizationPolicy
     {
         return services.AddArcAuthorizationPolicy<TPolicy>(name, false);
@@ -31,7 +32,7 @@ public static class AuthorizationPolicyServiceCollectionExtensions
     /// <param name="name">The policy name.</param>
     /// <param name="evaluatesAnonymous">Whether the policy evaluates unauthenticated callers.</param>
     /// <returns>The service collection.</returns>
-    public static IServiceCollection AddArcAuthorizationPolicy<TPolicy>(this IServiceCollection services, string name, bool evaluatesAnonymous)
+    public static IServiceCollection AddArcAuthorizationPolicy<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPolicy>(this IServiceCollection services, string name, bool evaluatesAnonymous)
         where TPolicy : class, IAuthorizationPolicy
     {
         services.AddScoped<TPolicy>();
