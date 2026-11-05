@@ -51,10 +51,14 @@ step. Apply the entry point's check/restore/cleanup sequence to both repositorie
    export CHRONICLE_KERNEL_VERSION="$stamp"
    cd "$consumer"
    dotnet build path/to/Studio.slnx -c Release -p:StudioFullBuild=true -warnaserror
-   dotnet test Source/Integrations/Specs/Specs.csproj -c Release --no-build \
-     --filter '<regression>'
+   ./<integration-project-dir>/bin/Release/<TFM>/<AssemblyName> <runner-specific-filter>
    ```
 
+   Resolve the actual output and filter for `Source/Integrations/Specs/Specs.csproj`
+   via [running-specs](../../cratis-specifications-csharp/references/running-specs.md).
+   Without apphost use `dotnet <TargetPath.dll>`; only VSTest uses
+   `dotnet test <project> -c Release --no-build --filter '<regression>'`.
+   Inspect the current consumer workflow before claiming CI equivalence.
    Studio defaults kernel selection to the client version when the environment
    override is absent. Ensure logs show the stamped local image. Local Debug
    Studio builds skip analyzers; use `-p:StudioFullBuild=true` to match CI analyzer
@@ -84,9 +88,11 @@ bash "$local" use-nuget "$arc" "$stamp"
 Gates (Arc `dotnet-build.yml`), run in this order after sourcing the printed env:
 `yarn install --immutable`; in `Source/DotNET/Screenplay.Embedded`: `npm ci --workspaces=false`,
 `npm run typecheck`, `npm test`, `npm run build`; `dotnet build --configuration Release
--p:CratisSpecsTargetFramework=net10.0`; then `dotnet test <project> --no-build --configuration
-Release --framework net10.0` for each project that `python3 scripts/ci-test-shards.py projects
---shard specs-N` prints. Finish by listing Arc's `obj/project.assets.json` files for the stamp.
+-p:CratisSpecsTargetFramework=net10.0`; then each project's evaluated Release/net10.0
+spec executable (or `dotnet <TargetPath.dll>` without apphost) for each project that
+`python3 scripts/ci-test-shards.py projects --shard specs-N` prints. Only identified
+VSTest projects use `dotnet test <project> --no-build --configuration Release --framework
+net10.0`. Inspect the current consumer workflow before claiming equivalence. Finish by listing Arc's `obj/project.assets.json` files for the stamp.
 
 - Pass: the Fundamentals IDs in `project.assets.json` are at the stamp, build has 0 warnings and 0 errors, 18 spec projects run and none fail.
 - Time: pack about 4 min, build about 6 min, the spec projects about 18 min.
@@ -135,9 +141,12 @@ bash "$local" use-nuget "$direct" "$stamp"
 ```
 
 Gates (Direct `build.yml`): `dotnet build Source/Direct/Direct.csproj -c Release
--p:DisableProxyGenerator=true`, the same in Debug with `-warnaserror`, `dotnet test` of that
-project with `--no-build`, and `dotnet test Source/Assurance/Assurance.csproj`. Then
-check `project.assets.json`. Image-based specs also need the producer image tag.
+-p:DisableProxyGenerator=true`, the same in Debug with `-warnaserror`, then the project's
+verified built Debug spec entrypoint. Build `Source/Assurance/Assurance.csproj` in the
+matching configuration and run its verified spec entrypoint too; do not guess assembly
+names or start an application server. See [running-specs](../../cratis-specifications-csharp/references/running-specs.md);
+only VSTest uses `dotnet test <project> --no-build` in that configuration. Inspect the
+current consumer workflow before claiming equivalence. Then check `project.assets.json`. Image-based specs also need the producer image tag.
 
 - Pass for a consumer whose pins lag the producer: every Chronicle ID is in the feed at the
   stamp, the Release build with the owner's floors passes, and `project.assets.json` shows every
@@ -163,6 +172,10 @@ bash "$local" use-nuget "$stage" "$stamp"; bash "$local" use-nuget "$studio" "$s
 bash "$local" use-npm "$studio" "$stamp"       # at the workspace root, not the nested app
 ```
 
+`closure` exits 2 for this chain until `dependency-map.tsv` has the Screenplay NuGet `ids` (it lists
+only npm IDs); add them from the publish workflow first, then use the printed commands and its one
+`verify-pack`.
+
 Gates: Stage's frontend `npm ci`, test and build, then `dotnet build` in Debug and the repository's
 own spec-shard helper; skip probes that need a live kernel or database and say so. Studio:
 `dotnet build` of its solution in Debug with warnings as errors, then the frontend `yarn ci` and
@@ -172,7 +185,7 @@ own spec-shard helper; skip probes that need a live kernel or database and say s
 - Pitfall: a repository without a committed lockfile fails `yarn install --immutable`; use plain
   `yarn install` there.
 - Pitfall: yarn hoists to the root `node_modules`; check and install at the root.
-- Pitfall: the packed language tarball must contain its built bundles. `pack-npm` uses `yarn pack`;
+- Pitfall: the packed language tarball must contain its built bundles. `pack-npm` uses `npm pack`;
   a package whose `files` lists a gitignored folder can ship only part of it. Compare the
   tarball file list with the package's `dist` folder.
 - Pitfall: multi-hop. Studio keeps its released Stage; a binary break is a finding.
