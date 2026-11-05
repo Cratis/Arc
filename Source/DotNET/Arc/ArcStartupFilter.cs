@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.AspNetCore.Http;
+using Cratis.Arc.Capabilities;
 using Cratis.Arc.Execution;
 using Microsoft.AspNetCore.Hosting;
 
@@ -22,6 +23,12 @@ public class ArcStartupFilter : IStartupFilter
             // request and resolves no tenant when it runs before an endpoint delegate assigns the context.
             app.UseMiddleware<HttpRequestContextMiddleware>();
             app.UseMiddleware<CorrelationIdMiddleware>();
+
+            // The local-port gate runs before routing and covers every endpoint on the capability port.
+            if (app.ApplicationServices.GetService<CapabilityGateMiddleware>() is not null)
+            {
+                app.UseMiddleware<CapabilityGateMiddleware>();
+            }
 
             // Continue with the rest of the pipeline
             next(app);

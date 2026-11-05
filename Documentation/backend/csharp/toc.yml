@@ -20,6 +20,8 @@
   href: authorizing-commands-and-queries.md
 - name: Endpoint groups
   href: endpoint-groups.md
+- name: Capability hosting
+  href: capability-hosting.md
 - name: Identity
   href: identity/toc.yml
 - name: Tenancy
