@@ -1,18 +1,28 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Identity.Callers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Capabilities;
 
-/// <summary>Refuses startup when the capability group has no assigned port.</summary>
+/// <summary>Refuses startup when the capability group has no port or no usable credential installation.</summary>
 /// <param name="arc">The endpoint-group assignments.</param>
 /// <param name="capabilities">The capability options.</param>
-internal sealed class CapabilitiesStartupValidation(IOptions<ArcOptions> arc, IOptions<CapabilitiesOptions> capabilities) : IHostedLifecycleService
+/// <param name="installation">The verified-caller installation.</param>
+/// <param name="catalog">The resource-to-audience catalog.</param>
+/// <param name="scopes">The factory for resolving scoped credential sources.</param>
+internal sealed class CapabilitiesStartupValidation(
+    IOptions<ArcOptions> arc,
+    IOptions<CapabilitiesOptions> capabilities,
+    VerifiedCallerInstallation installation,
+    CallerResourceCatalog catalog,
+    IServiceScopeFactory scopes) : IHostedLifecycleService
 {
     /// <inheritdoc/>
     /// <exception cref="CapabilityEndpointGroupHasNoPort">The capability group has no port.</exception>
+    /// <exception cref="CapabilityHostingHasNoCredentialInstallation">The verified-caller installation is not usable.</exception>
     public Task StartingAsync(CancellationToken cancellationToken)
     {
         var group = capabilities.Value.EndpointGroup;
@@ -20,6 +30,21 @@ internal sealed class CapabilitiesStartupValidation(IOptions<ArcOptions> arc, IO
         {
             throw new CapabilityEndpointGroupHasNoPort(group);
         }
+        if (string.IsNullOrWhiteSpace(installation.Resource) || string.IsNullOrWhiteSpace(installation.Environment))
+        {
+            throw new CapabilityHostingHasNoCredentialInstallation("the installation names no resource and environment");
+        }
+        if (!installation.IsConfigured(catalog))
+        {
+            throw new CapabilityHostingHasNoCredentialInstallation("the resource has no single receiving audience in the resource catalog");
+        }
+
+        using var scope = scopes.CreateScope();
+        if (!scope.ServiceProvider.GetServices<IVerifiedCredentialSource>().Any())
+        {
+            throw new CapabilityHostingHasNoCredentialInstallation("no credential verifier is registered");
+        }
+
         return Task.CompletedTask;
     }
 

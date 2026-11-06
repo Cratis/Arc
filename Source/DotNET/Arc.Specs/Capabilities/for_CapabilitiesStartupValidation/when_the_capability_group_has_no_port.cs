@@ -1,19 +1,19 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.Extensions.Options;
-
 namespace Cratis.Arc.Capabilities.for_CapabilitiesStartupValidation;
 
-public class when_the_capability_group_has_no_port : Specification
+public class when_the_capability_group_has_no_port : given.a_capability_startup_validation
 {
-    Exception? _exception;
-    async Task Because()
+    void Establish()
     {
-        var validation = new CapabilitiesStartupValidation(Options.Create(new ArcOptions()), Options.Create(new CapabilitiesOptions()));
-        try { await validation.StartingAsync(CancellationToken.None); }
-        catch (Exception exception) { _exception = exception; }
+        _arc = new ArcOptions();
+        _installation = new(null, null);
+        _services.Clear();
     }
-    [Fact] void should_refuse_startup() => _exception.ShouldBeOfExactType<CapabilityEndpointGroupHasNoPort>();
-    [Fact] void should_explain_how_to_assign_a_port() => _exception!.Message.ShouldContain("EndpointGroups.Assign");
+
+    Task Because() => Validate();
+
+    [Fact] void should_refuse_startup() => _error.ShouldBeOfExactType<CapabilityEndpointGroupHasNoPort>();
+    [Fact] void should_explain_how_to_assign_a_port() => _error!.Message.ShouldContain("EndpointGroups.Assign");
 }
