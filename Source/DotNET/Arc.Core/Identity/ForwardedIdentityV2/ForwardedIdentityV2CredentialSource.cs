@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Frozen;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
+using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Identity.ForwardedIdentityV2;
@@ -44,6 +46,10 @@ internal sealed class ForwardedIdentityV2CredentialSource(
         var context = result.Context!;
         if (context.CredentialKind == CallerCredentialKind.PersonalAccessToken) return Refuse(ForwardedIdentityV2Rejection.Credential);
         if (!IsDirectBrowser(context)) return CredentialVerification.Refused(CallerRefusal.UnsupportedProfile);
+        if (context.TenantTargets.Any(string.IsNullOrEmpty) || context.TenantTargets.Distinct(StringComparer.Ordinal).Skip(1).Any()) return CredentialVerification.Refused(CallerRefusal.TenantMismatch);
+        TenantId? tenant = context.TenantTargets.Count == 0 ? null : new(context.TenantTargets[0]);
+        if (!TryScopes(context.TokenScope, out var scopes) || context.TokenClientId is { Length: 0 }) return Refuse(ForwardedIdentityV2Rejection.Metadata);
+        var client = context.TokenClientId is { Length: > 0 } id ? new CallerClient(id, CallerClientAuthentication.Declared) : null;
         var account = new CallerAccountKey(context.Issuer!, context.Subject!);
         var found = await persons.Find(account, cancellationToken);
         if (found.Person is not { } person) return CredentialVerification.Refused(CallerRefusal.MissingRequiredField);
@@ -53,12 +59,22 @@ internal sealed class ForwardedIdentityV2CredentialSource(
             Person = person,
             Assurance = new(context.Idp!, context.AuthTime!.Value, context.Acr, context.Amr),
             PolicyEpoch = context.PolicyEpoch,
+            Tenant = tenant,
+            Scopes = scopes,
+            Client = client,
             Cnf = context.SenderBinding.KeyThumbprint,
             Proof = context.SenderBinding
         });
     }
 
     static bool IsDirectBrowser(ForwardedIdentityV2Context context) => context.CredentialKind == CallerCredentialKind.BrowserSession && context.Actor is null && context.GrantId is null;
+
+    static bool TryScopes(string? value, out FrozenSet<string> scopes)
+    {
+        var tokens = value?.Split(' ') ?? [];
+        scopes = tokens.ToFrozenSet(StringComparer.Ordinal);
+        return scopes.Count == tokens.Length && tokens.All(token => token.Length > 0 && token.All(character => character is >= (char)0x21 and <= (char)0x7e and not '"' and not '\\'));
+    }
 
     CredentialVerification Refuse(ForwardedIdentityV2Rejection reason)
     {

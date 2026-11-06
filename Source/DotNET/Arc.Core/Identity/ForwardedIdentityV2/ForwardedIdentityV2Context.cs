@@ -23,6 +23,9 @@ namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 /// <param name="PolicyEpoch">The signed policy version.</param>
 /// <param name="SenderBinding">The signed proof evidence.</param>
 /// <param name="ForwardedTokenHash">The signed exact-token hash, if present.</param>
+/// <param name="TenantTargets">The raw signed tenant targets, in canonical-then-alias order.</param>
+/// <param name="TokenScope">The raw signed token scope.</param>
+/// <param name="TokenClientId">The raw signed token client identifier.</param>
 internal sealed record ForwardedIdentityV2Context(
     CallerCredentialKind CredentialKind,
     string CredentialId,
@@ -36,13 +39,17 @@ internal sealed record ForwardedIdentityV2Context(
     string? GrantId,
     ulong? PolicyEpoch,
     CallerProof SenderBinding,
-    string? ForwardedTokenHash)
+    string? ForwardedTokenHash,
+    IReadOnlyList<string> TenantTargets,
+    string? TokenScope,
+    string? TokenClientId)
 {
     /// <summary>Validates metadata only after signature and principal verification.</summary>
     /// <param name="headers">The canonical signed fields.</param>
     /// <param name="realmIssuer">The configured realm issuer.</param>
+    /// <param name="tenantHeader">The configured tenant header alias.</param>
     /// <returns>The validated context.</returns>
-    internal static ForwardedIdentityV2Context Create(IReadOnlyDictionary<string, string> headers, string realmIssuer)
+    internal static ForwardedIdentityV2Context Create(IReadOnlyDictionary<string, string> headers, string realmIssuer, string? tenantHeader = null)
     {
         try
         {
@@ -55,13 +62,21 @@ internal sealed record ForwardedIdentityV2Context(
             var actor = ReadActor(headers, kind);
             var binding = ReadBinding(Required(headers, "x-cratis-sender-binding"));
             var epoch = headers.GetValueOrDefault("x-cratis-policy-epoch");
-            return new(kind, credentialId, headers.GetValueOrDefault("x-cratis-issuer"), headers.GetValueOrDefault("x-cratis-subject"), headers.GetValueOrDefault("x-cratis-idp"), service ? null : long.Parse(headers["x-cratis-auth-time"], CultureInfo.InvariantCulture), headers.GetValueOrDefault("x-cratis-acr"), methods, actor, headers.GetValueOrDefault("x-cratis-grant-id"), epoch is null ? null : ulong.Parse(epoch, CultureInfo.InvariantCulture), binding, headers.GetValueOrDefault("x-cratis-forwarded-token-sha256"));
+            return new(kind, credentialId, headers.GetValueOrDefault("x-cratis-issuer"), headers.GetValueOrDefault("x-cratis-subject"), headers.GetValueOrDefault("x-cratis-idp"), service ? null : long.Parse(headers["x-cratis-auth-time"], CultureInfo.InvariantCulture), headers.GetValueOrDefault("x-cratis-acr"), methods, actor, headers.GetValueOrDefault("x-cratis-grant-id"), epoch is null ? null : ulong.Parse(epoch, CultureInfo.InvariantCulture), binding, headers.GetValueOrDefault("x-cratis-forwarded-token-sha256"), TenantTargetsFrom(headers, tenantHeader), headers.GetValueOrDefault("x-cratis-token-scope"), headers.GetValueOrDefault("x-cratis-token-client-id"));
         }
         catch (Exception error) when (error is FormatException or JsonException or DecoderFallbackException or InvalidOperationException)
         {
             throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Metadata);
         }
     }
+
+    static ReadOnlyCollection<string> TenantTargetsFrom(IReadOnlyDictionary<string, string> headers, string? tenantHeader) =>
+        Array.AsReadOnly(new[] { "x-cratis-tenant-id", "tenant-id", tenantHeader?.ToLowerInvariant() }
+            .Where(name => name is not null)
+            .Distinct(StringComparer.Ordinal)
+            .Where(name => headers.ContainsKey(name!))
+            .Select(name => headers[name!])
+            .ToArray());
 
     static void CheckPersonFields(IReadOnlyDictionary<string, string> headers, bool service, string realmIssuer)
     {
