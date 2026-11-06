@@ -17,6 +17,7 @@ internal static class ForwardedIdentityOptionsBinding
 
     static Member[] Members() =>
     [
+        Member.Of<ForwardedIdentityOptions, ForwardedIdentityClientCertificateOptions>("ClientCertificate", ForwardedIdentityClientCertificateOptionsBinding.Bound, static _ => _.ClientCertificate, static (o, v) => o.ClientCertificate = v),
         Member.Of<ForwardedIdentityOptions, bool>("Enabled", Leaves.Bool, static _ => _.Enabled, static (o, v) => o.Enabled = v),
         Member.Of<ForwardedIdentityOptions, string>("Audience", Leaves.String, static _ => _.Audience, static (o, v) => o.Audience = v),
         Member.Of<ForwardedIdentityOptions, IList<ForwardedIdentityKey>>("Keys", new ListType<ForwardedIdentityKey>(ForwardedIdentityKeyBinding.Bound), static _ => _.Keys, static (o, v) => o.Keys = v)

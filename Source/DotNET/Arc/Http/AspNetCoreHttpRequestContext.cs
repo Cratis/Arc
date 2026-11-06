@@ -2,10 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Security.Claims;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
+using Microsoft.AspNetCore.Server.Kestrel.Core.Features;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.AspNetCore.Http;
@@ -14,10 +16,16 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// ASP.NET Core implementation of <see cref="IHttpRequestContext"/>.
 /// </summary>
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
-public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders
+public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders, ICanReadClientCertificate
 {
     readonly AsyncLocal<Selection?> _selected = new();
     JsonSerializerOptions? _jsonOptions;
+
+    /// <inheritdoc/>
+    X509Certificate2? ICanReadClientCertificate.TransportClientCertificate =>
+        httpContext.Features.Get<ISslStreamFeature>()?.SslStream is { IsAuthenticated: true, IsEncrypted: true, RemoteCertificate: { } certificate }
+            ? new X509Certificate2(certificate)
+            : null;
 
     /// <inheritdoc/>
     bool ICanPreserveCallerCredentialHeaders.PreservesDuplicateCredentialHeaders => true;
