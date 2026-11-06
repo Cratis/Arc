@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Identity.Callers;
+using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -76,10 +77,30 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        if (!MembershipAllows(context, caller, principal))
+        {
+            await Refuse(context, StatusCodes.Status403Forbidden);
+            return;
+        }
+
         context.User = principal;
         context.Items[VerifiedCallerPrincipal.ItemKey] = principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
+    }
+
+    static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
+    {
+        // The product's membership check runs here, once, for the verified principal and the caller's checked tenant.
+        try
+        {
+            _ = context.RequestServices.GetService<TenantMembershipVerification>()?.Verify(caller.Tenant ?? TenantId.NotSet, principal);
+            return true;
+        }
+        catch (TenantMembershipDenied)
+        {
+            return false;
+        }
     }
 
     static async Task<bool> ConflictsWithAnotherPrincipal(HttpContext context, VerifiedCaller caller)

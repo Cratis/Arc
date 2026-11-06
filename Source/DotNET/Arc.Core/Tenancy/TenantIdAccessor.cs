@@ -60,6 +60,31 @@ public class TenantIdAccessor : ITenantIdAccessor, ITenantScope
     }
 
     /// <summary>
+    /// Gets the tenant candidate for the current flow without checking membership or caching the result.
+    /// </summary>
+    /// <remarks>
+    /// For a caller whose principal is not yet established; the owner must verify membership itself once it is.
+    /// </remarks>
+    internal TenantId Candidate
+    {
+        get
+        {
+            if (_explicit.Value is { } frame)
+            {
+                return frame.Tenant;
+            }
+
+            if (_current.Value is not null)
+            {
+                return _current.Value;
+            }
+
+            var tenantId = _tenantIdResolver.Resolve();
+            return string.IsNullOrEmpty(tenantId) ? TenantId.NotSet : new TenantId(tenantId);
+        }
+    }
+
+    /// <summary>
     /// Gets the tenant already cached on this execution flow without causing it to resolve.
     /// </summary>
     internal TenantId? Cached => _current.Value;
