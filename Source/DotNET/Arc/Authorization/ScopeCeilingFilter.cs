@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Identity.Callers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -26,7 +27,7 @@ internal sealed class ScopeCeilingFilter : IAuthorizationFilter
         }
 
         var required = AuthorizationDeclarations.RequiredScopesOf(action.ControllerTypeInfo, action.MethodInfo);
-        if (!ScopeCeiling.Allows(context.HttpContext.User, required))
+        if (!ScopeCeiling.Allows(VerifiedCallerPrincipal.PrincipalFor(context.HttpContext.Items, context.HttpContext.User), required))
         {
             context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
         }

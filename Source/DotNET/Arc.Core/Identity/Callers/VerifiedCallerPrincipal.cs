@@ -27,8 +27,26 @@ internal static class VerifiedCallerPrincipal
     /// </summary>
     /// <param name="request">The request.</param>
     /// <returns>The verified principal, or null when the request has none.</returns>
-    internal static ClaimsPrincipal? From(IHttpRequestContext request) =>
-        request.Items.TryGetValue(ItemKey, out var value) ? value as ClaimsPrincipal : null;
+    internal static ClaimsPrincipal? From(IHttpRequestContext request) => From(request.Items);
+
+    /// <summary>
+    /// Reads the verified principal from a request's item bag.
+    /// </summary>
+    /// <param name="items">The request items.</param>
+    /// <returns>The verified principal, or null when the items hold none.</returns>
+    internal static ClaimsPrincipal? From(IDictionary<object, object?> items) =>
+        items.TryGetValue(ItemKey, out var value) ? value as ClaimsPrincipal : null;
+
+    /// <summary>
+    /// The single source of the principal Arc authorizes against: the gate's verified principal when the request has one,
+    /// otherwise the supplied fallback. Hosts replace the request user after the gate runs, so the user alone is never trusted
+    /// once a verified principal exists.
+    /// </summary>
+    /// <param name="items">The request items.</param>
+    /// <param name="fallback">The principal to use when the request carries no verified principal.</param>
+    /// <returns>The principal to authorize.</returns>
+    internal static ClaimsPrincipal? PrincipalFor(IDictionary<object, object?> items, ClaimsPrincipal? fallback) =>
+        From(items) ?? fallback;
 
     /// <summary>
     /// Determines whether a principal carries the identity of exactly this verified caller.

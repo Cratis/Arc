@@ -21,7 +21,7 @@ public class CurrentPrincipalAccessor(IHttpRequestContextAccessor httpRequestCon
     /// <inheritdoc/>
     public ClaimsPrincipal? Current =>
         _authorizationPrincipal.Value ?? (httpRequestContextAccessor.Current is { } request
-            ? VerifiedCallerPrincipal.From(request) ?? request.User
+            ? VerifiedCallerPrincipal.PrincipalFor(request.Items, request.User)
             : _override.Value);
 
     /// <summary>
