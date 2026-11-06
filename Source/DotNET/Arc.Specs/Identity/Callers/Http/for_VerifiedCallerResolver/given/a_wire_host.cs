@@ -17,7 +17,7 @@ public class a_wire_host : Specification
     internal int _authorizationValues;
     internal IVerifiedCredentialSource _source;
 
-    internal async Task ResolveWire(string headers)
+    internal async Task ResolveWire(string headers, bool rewriteAuthorization = false)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -33,6 +33,11 @@ public class a_wire_host : Specification
             accessor.Current.Returns(context);
             var resolver = new VerifiedCallerResolver(accessor, [_source], new(), new(new(new Dictionary<string, string>())), new(null, null), Substitute.For<ITenantIdAccessor>());
             _result = await resolver.GetCurrent();
+            if (rewriteAuthorization)
+            {
+                http.Request.Headers.Authorization = "Bearer changed-fixture";
+                _result = await resolver.GetCurrent();
+            }
             http.Response.StatusCode = _result.Refusal!.Value.HttpStatus();
         });
         await app.StartAsync();

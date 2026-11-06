@@ -67,6 +67,9 @@ internal sealed class ForwardedIdentityV2CredentialSource(
         });
     }
 
+    /// <inheritdoc/>
+    bool IVerifiedCredentialSource.Consumes(string headerName) => ForwardedIdentityV2Canonicalization.IsCovered(headerName, settings.TenantHeader);
+
     static bool IsDirectBrowser(ForwardedIdentityV2Context context) => context.CredentialKind == CallerCredentialKind.BrowserSession && context.Actor is null && context.GrantId is null;
 
     static bool TryScopes(string? value, out FrozenSet<string> scopes)

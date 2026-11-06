@@ -15,7 +15,7 @@ public class with_a_cached_refusal : given.a_resolver
         _again = await _resolver.GetCurrent();
     }
 
-    [Fact] void should_retain_the_first_refusal() => _again.Refusal.ShouldEqual(CallerRefusal.MultipleCredentials);
-    [Fact] void should_reuse_the_resolution() => _again.ShouldBeSame(_result);
+    [Fact] void should_refuse_changed_inputs() => _again.Refusal.ShouldEqual(CallerRefusal.RequestChanged);
+    [Fact] void should_have_no_caller() => _again.Caller.ShouldBeNull();
     [Fact] async Task should_never_verify_ambiguous_credentials() => await _source.DidNotReceive().Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
 }
