@@ -36,6 +36,17 @@ public class when_calling_the_capability_host(given.a_host host) : IClassFixture
     }
 
     [Fact]
+    public async Task should_refuse_a_signed_caller_without_a_client_certificate()
+    {
+        await AcceptControl();
+        var before = host.Counts.Publishes;
+        using var request = host.Signer.Request(host.CapabilityPort, "POST", "/articles/publish");
+        using var response = await host.NoCertificateClient.SendAsync(request, TestContext.Current.CancellationToken);
+        response.StatusCode.ShouldEqual(HttpStatusCode.Unauthorized);
+        host.Counts.Publishes.ShouldEqual(before);
+    }
+
+    [Fact]
     public async Task should_reject_unsigned_forwarding() => await Refuse(host.Signer.Request(host.CapabilityPort, "POST", "/articles/publish", new() { OmitSignature = true }), HttpStatusCode.Unauthorized);
 
     [Fact]
@@ -62,6 +73,7 @@ public class when_calling_the_capability_host(given.a_host host) : IClassFixture
     [Fact]
     public async Task should_refuse_when_product_roles_do_not_authorize()
     {
+        await AcceptControl();
         var before = host.Counts.Publishes;
         using var request = host.Signer.Request(host.CapabilityPort, "POST", "/articles/publish", new() { Subject = VerifiedCallerAcceptanceSettings.Reader });
         using var response = await host.Client.SendAsync(request, TestContext.Current.CancellationToken);
@@ -96,12 +108,22 @@ public class when_calling_the_capability_host(given.a_host host) : IClassFixture
     }
 
     [Fact]
-    public async Task should_reject_a_capability_route_on_the_default_listener() => await Refuse(host.Signer.Request(host.DefaultPort, "POST", "/articles/publish"), HttpStatusCode.NotFound);
+    public async Task should_reject_a_capability_route_on_the_default_listener() => await Refuse(host.Signer.Request(host.DefaultPort, "POST", "/articles/publish", useHttps: false), HttpStatusCode.NotFound);
+
+    async Task AcceptControl()
+    {
+        var before = host.Counts.Publishes;
+        using var request = host.Signer.Request(host.CapabilityPort, "POST", "/articles/publish");
+        using var response = await host.Client.SendAsync(request, TestContext.Current.CancellationToken);
+        response.StatusCode.ShouldEqual(HttpStatusCode.OK);
+        host.Counts.Publishes.ShouldEqual(before + 1);
+    }
 
     async Task Refuse(HttpRequestMessage request, HttpStatusCode status)
     {
         using (request)
         {
+            await AcceptControl();
             var before = host.Counts.Publishes;
             using var response = await host.Client.SendAsync(request, TestContext.Current.CancellationToken);
             response.StatusCode.ShouldEqual(status);

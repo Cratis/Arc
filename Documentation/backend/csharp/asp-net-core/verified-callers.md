@@ -3,21 +3,35 @@ title: Install verified callers in Cratis Arc
 description: Configure signed v2 browser callers with an explicit resource binding, person directory, public verification keys, and replay store for capability hosting.
 ---
 
-Cratis Arc can install a signed v2 **browser-session** caller for a receiving capability resource. The verified person becomes the principal used by Arc authorization, `ICurrentPrincipalAccessor`, and Chronicle identity/causation when Chronicle is installed. A signature authenticates the caller; it does not grant product access.
+Cratis Arc can install a signed v2 **browser-session** caller for a receiving capability resource. The verified person becomes the principal used by Arc authorization, `ICurrentPrincipalAccessor`, and Chronicle identity/causation when Chronicle is installed. Arc accepts signed v2 callers only through an admitted forwarding hop: the immediate TLS peer must present a client certificate from a trusted CA with an allowed peer identity. The signature and hop admission do not grant product access.
 
 ## Install one receiving resource
 
 The runnable acceptance sample in the repository's `Samples/VerifiedCallerAcceptance` folder shows a complete host and product-owned authorization. This **configuration fragment** belongs in its `Program.Build`, where `builder`, `settings`, and the sample's `PersonDirectory` are available:
 
 ```csharp
+using System.Net;
 using Cratis.Arc;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using VerifiedCallerAcceptance;
 
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    kestrel.Listen(IPAddress.Loopback, settings.CapabilityPort, listen => listen.UseHttps(settings.ServerCertificate, https =>
+    {
+        https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+        https.AllowAnyClientCertificate();
+    }));
+    kestrel.Listen(IPAddress.Loopback, settings.DefaultPort);
+});
 builder.AddCratisArc(
     options =>
     {
         options.EndpointGroups.Assign("capabilities", settings.CapabilityPort);
         options.Tenancy.HttpHeader = "x-example-tenant";
+        options.ForwardedIdentity.ClientCertificate.Required = true;
+        options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = settings.TrustedCertificateAuthoritiesPath;
+        options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add(settings.AllowedPeerDnsName);
     },
     arc => arc.WithoutControllers().WithCapabilities().WithVerifiedCallers(callers => callers
         .ForResource("https://api.example.test", "example-api", "sample")
@@ -29,7 +43,9 @@ builder.AddCratisArc(
             .UseProcessLocalNonceStore())));
 ```
 
-Configure the corresponding server listeners, then call `app.UseCratisArc()`, as in the sample. The capability port must be reachable only through the trusted ingress. An endpoint-group assignment alone does not establish that boundary.
+`settings.ServerCertificate` is the backend's TLS certificate with its private key; the trusted CA bundle and allowed DNS name identify the forwarding proxy's client certificate, not the browser. The sample uses `AllowCertificate` and delegates peer validation to Arc through `AllowAnyClientCertificate()`. This lets the acceptance specs prove Arc returns HTTP 401 without dispatch when a valid signed envelope arrives without a client certificate. Arc refuses signed v2 callers without a trusted client certificate regardless of the transport mode, including when `ClientCertificate.Required` is false. Production hosts may additionally require the certificate at TLS with `ClientCertificateMode.RequireCertificate`, rejecting missing certificates before HTTP.
+
+Call `app.UseCratisArc()` after building the host, as in the sample. The capability port must be reachable only through the trusted ingress. An endpoint-group assignment alone does not establish that boundary.
 
 `WithVerifiedCallers` installs exactly one resource/audience/environment binding without normalizing it. It is separate from `WithCapabilities`, which enables the request gate. Missing binding values, a missing person directory, missing realm issuer or keys, and a second installation throw `InvalidVerifiedCallerInstallation` during registration, before requests are served. Capability hosting without an installation continues to fail startup.
 
@@ -63,7 +79,7 @@ From the repository root:
 dotnet test Samples/VerifiedCallerAcceptance.Specs/VerifiedCallerAcceptance.Specs.csproj -c Release
 ```
 
-The specs use only public APIs, a real HTTP host, and synthetic signing material from the shared v2 fixture. They compare the test signer's framing to the shared vector bytes, then exercise command/query dispatch, scopes, roles, membership, replay, key/audience mismatch, missing people, unsigned forwarding, and listener isolation. The command returns `ICurrentPrincipalAccessor`'s subject, the same identity source used for causation; this sample does not append Chronicle events.
+The specs use only public Arc APIs, a real HTTPS capability listener, synthetic signing material from the shared v2 fixture, and freshly generated test CA, server, and forwarding-peer certificates. Clients pin the test server certificate; no machine trust-store changes are needed. They compare the test signer's framing to the shared vector bytes, then exercise command/query dispatch, scopes, roles, membership, replay, key/audience mismatch, missing people, unsigned forwarding, and listener isolation. The command returns `ICurrentPrincipalAccessor`'s subject, the same identity source used for causation; this sample does not append Chronicle events.
 
 ## Boundaries
 

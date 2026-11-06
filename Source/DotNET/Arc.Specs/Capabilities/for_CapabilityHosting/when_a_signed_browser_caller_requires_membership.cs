@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -13,6 +14,7 @@ using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Capabilities.for_CapabilityHosting;
@@ -43,6 +45,9 @@ public class when_a_signed_browser_caller_requires_membership
     public async Task should_refuse_without_invoking_the_operation_when_membership_denies()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var control = await Send(key, new ProductMembership());
+        control.Status.ShouldEqual(HttpStatusCode.OK);
+        control.Invoked.ShouldBeTrue();
         var membership = new ProductMembership { Deny = true };
         var result = await Send(key, membership);
         membership.Calls.ShouldBeGreaterThan(0);
@@ -78,17 +83,45 @@ public class when_a_signed_browser_caller_requires_membership
         membership.Subject.ShouldBeNull();
     }
 
-    static async Task<Outcome> Send(ECDsa key, ProductMembership? membership, string? resolvedTenant = null, bool defaultPort = false)
+    [Fact]
+    public async Task should_refuse_a_signed_caller_without_a_client_certificate()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var control = await Send(key, new ProductMembership());
+        control.Status.ShouldEqual(HttpStatusCode.OK);
+        control.Invoked.ShouldBeTrue();
+        var membership = new ProductMembership();
+        var result = await Send(key, membership, clientCertificate: false);
+        result.Status.ShouldEqual(HttpStatusCode.Unauthorized);
+        result.Invoked.ShouldBeFalse();
+        membership.Calls.ShouldEqual(0);
+    }
+
+    static async Task<Outcome> Send(ECDsa key, ProductMembership? membership, string? resolvedTenant = null, bool defaultPort = false, bool clientCertificate = true)
     {
         var capabilityPort = FreePort();
         var otherPort = FreePort();
         var invoked = false;
+        using var certificates = new Identity.for_ForwardedIdentityHop.given.certificates();
+        var server = certificates.Leaf("localhost", clientAuth: false);
+        var peer = certificates.Leaf();
         var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls($"http://127.0.0.1:{capabilityPort}", $"http://127.0.0.1:{otherPort}");
+        builder.WebHost.ConfigureKestrel(kestrel =>
+        {
+            kestrel.Listen(IPAddress.Loopback, capabilityPort, listen => listen.UseHttps(server, https =>
+            {
+                https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+                https.AllowAnyClientCertificate();
+            }));
+            kestrel.Listen(IPAddress.Loopback, otherPort);
+        });
         builder.AddCratisArc(
             options =>
             {
                 options.EndpointGroups.Assign("capabilities", capabilityPort);
+                options.ForwardedIdentity.ClientCertificate.Required = true;
+                options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = certificates.Bundle;
+                options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("authproxy.internal");
                 if (resolvedTenant is not null) options.Tenancy.HttpHeader = "x-product-tenant";
             },
             configureBuilder: arc => arc
@@ -106,8 +139,16 @@ public class when_a_signed_browser_caller_requires_membership
         await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            using var request = SignedRequest(key, defaultPort ? otherPort : capabilityPort);
+            using var client = new HttpClient(new SocketsHttpHandler
+            {
+                SslOptions = new SslClientAuthenticationOptions
+                {
+                    RemoteCertificateValidationCallback = (_, remote, _, _) => remote?.GetCertHashString(HashAlgorithmName.SHA256) == server.GetCertHashString(HashAlgorithmName.SHA256),
+                    ClientCertificates = clientCertificate ? [peer] : []
+                }
+            })
+            { Timeout = TimeSpan.FromSeconds(10) };
+            using var request = SignedRequest(key, defaultPort ? otherPort : capabilityPort, useHttps: !defaultPort);
             if (resolvedTenant is not null) request.Headers.Add("x-product-tenant", resolvedTenant);
             using var response = await client.SendAsync(request, global::Xunit.TestContext.Current.CancellationToken);
             return new(response.StatusCode, invoked, await response.Content.ReadAsStringAsync(global::Xunit.TestContext.Current.CancellationToken));
@@ -118,11 +159,15 @@ public class when_a_signed_browser_caller_requires_membership
         }
     }
 
-    static HttpRequestMessage SignedRequest(ECDsa key, int port)
+    static HttpRequestMessage SignedRequest(ECDsa key, int port, bool useHttps)
     {
         var principal = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new
         {
-            identityProvider = "https://login.example.test", userId = Subject, userDetails = "Test User", userRoles = new[] { "user" }, claims = Array.Empty<object>()
+            identityProvider = "https://login.example.test",
+            userId = Subject,
+            userDetails = "Test User",
+            userRoles = new[] { "user" },
+            claims = Array.Empty<object>()
         }));
         var headers = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
@@ -150,7 +195,7 @@ public class when_a_signed_browser_caller_requires_membership
             Frame(input, header.Value);
         }
         var signature = Url(key.SignData(Encoding.UTF8.GetBytes(input.ToString()), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
-        var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port}{Route}");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{(useHttps ? "https" : "http")}://127.0.0.1:{port}{Route}");
         foreach (var header in headers) request.Headers.Add(header.Key, header.Value);
         request.Headers.Add("x-cratis-forwarded-identity-signature", $"v2.test.{timestamp}.{nonce}.{signature}");
         return request;

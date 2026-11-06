@@ -1,6 +1,6 @@
 # Verified caller acceptance specs
 
-These executable specs reference the sample host, not Arc internals. One shared Kestrel host receives real HTTP requests on separate capability and default listeners. Every rejection also checks that the publish dispatch count did not change.
+These executable specs reference the sample host, not Arc internals. One shared Kestrel host receives real HTTPS requests with a trusted client certificate on the capability listener and HTTP requests on the default listener. The fixture generates synthetic TLS certificates and pins the server certificate without modifying machine trust. A separate certificate-less client proves that Arc returns HTTP 401 without dispatch even for a valid signed envelope. Every rejection also checks that the publish dispatch count did not change.
 
 `given/TestSigner.cs` implements the documented v2 UTF-8 length framing and P-256 P1363 signing without calling Arc's canonicalizer or verifier. Its sample-local vector subset contains only the first **synthetic test key** and `valid-v2` case from the shared fixture. It uses those inputs, adapting the credential metadata to a browser session and signing a fresh timestamp and nonce. No bearer verifier is installed.
 

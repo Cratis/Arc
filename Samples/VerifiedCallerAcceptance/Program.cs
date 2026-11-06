@@ -1,9 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using Cratis.Arc;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 
 namespace VerifiedCallerAcceptance;
 
@@ -15,12 +18,13 @@ public static class Program
     /// <summary>
     /// Runs the sample on ports 8081 (capabilities) and 8080 (default).
     /// </summary>
-    /// <param name="args">The path to a public-only P-256 PEM file.</param>
+    /// <param name="args">Paths to the public-only P-256 PEM, server certificate PEM, server key PEM, trusted CA bundle, and allowed peer DNS name.</param>
     /// <returns>The running host task.</returns>
     public static async Task Main(string[] args)
     {
         var publicKey = await File.ReadAllTextAsync(args[0]);
-        await using var app = Build([], new(8081, 8080, publicKey));
+        using var serverCertificate = X509Certificate2.CreateFromPemFile(args[1], args[2]);
+        await using var app = Build([], new(8081, 8080, publicKey, serverCertificate, args[3], args[4]));
         await app.RunAsync();
     }
 
@@ -33,12 +37,25 @@ public static class Program
     public static WebApplication Build(string[] args, VerifiedCallerAcceptanceSettings settings)
     {
         var builder = WebApplication.CreateBuilder(args);
-        builder.WebHost.UseUrls($"http://127.0.0.1:{settings.CapabilityPort}", $"http://127.0.0.1:{settings.DefaultPort}");
+        builder.WebHost.ConfigureKestrel(kestrel =>
+        {
+            kestrel.Listen(IPAddress.Loopback, settings.CapabilityPort, listen => listen.UseHttps(settings.ServerCertificate, https =>
+            {
+                https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+
+                // Arc validates the immediate peer against the configured CA and DNS identity.
+                https.AllowAnyClientCertificate();
+            }));
+            kestrel.Listen(IPAddress.Loopback, settings.DefaultPort);
+        });
         builder.AddCratisArc(
             options =>
             {
                 options.EndpointGroups.Assign("capabilities", settings.CapabilityPort);
                 options.Tenancy.HttpHeader = VerifiedCallerAcceptanceSettings.TenantHeader;
+                options.ForwardedIdentity.ClientCertificate.Required = true;
+                options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = settings.TrustedCertificateAuthoritiesPath;
+                options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add(settings.AllowedPeerDnsName);
             },
             arc => arc.WithoutControllers().WithCapabilities().WithVerifiedCallers(callers => callers
                 .ForResource(VerifiedCallerAcceptanceSettings.Resource, VerifiedCallerAcceptanceSettings.Audience, "sample")

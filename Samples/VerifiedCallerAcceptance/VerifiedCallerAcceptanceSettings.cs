@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Cryptography.X509Certificates;
+
 namespace VerifiedCallerAcceptance;
 
 /// <summary>
@@ -9,8 +11,11 @@ namespace VerifiedCallerAcceptance;
 /// <param name="CapabilityPort">The capability listener port.</param>
 /// <param name="DefaultPort">The default listener port.</param>
 /// <param name="PublicKeyPem">Public-only P-256 PEM verification material.</param>
+/// <param name="ServerCertificate">The capability listener's TLS certificate.</param>
+/// <param name="TrustedCertificateAuthoritiesPath">The forwarding peer's trusted CA bundle.</param>
+/// <param name="AllowedPeerDnsName">The allowed forwarding peer's DNS identity.</param>
 /// <param name="KeyId">The exact key identifier.</param>
-public sealed record VerifiedCallerAcceptanceSettings(int CapabilityPort, int DefaultPort, string PublicKeyPem, string KeyId = "sample")
+public sealed record VerifiedCallerAcceptanceSettings(int CapabilityPort, int DefaultPort, string PublicKeyPem, X509Certificate2 ServerCertificate, string TrustedCertificateAuthoritiesPath, string AllowedPeerDnsName, string KeyId = "sample")
 {
     /// <summary>Gets the receiving resource.</summary>
     public static string Resource => "https://api.example.test";

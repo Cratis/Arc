@@ -37,7 +37,7 @@ public sealed class TestSigner : IDisposable
     public string PublicKeyPem { get; }
     public string KeyId { get; }
 
-    public HttpRequestMessage Request(int port, string method, string target, RequestOptions? options = null)
+    public HttpRequestMessage Request(int port, string method, string target, RequestOptions? options = null, bool useHttps = true)
     {
         options ??= new();
         var headers = new SortedDictionary<string, string>(_headers, StringComparer.Ordinal)
@@ -61,7 +61,7 @@ public sealed class TestSigner : IDisposable
         var keyId = options.KeyId ?? KeyId;
         var input = Canonical(options.Audience, keyId, timestamp, nonce, method, target, headers);
         var signature = Base64Url(_key.SignData(Encoding.UTF8.GetBytes(input), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
-        var request = new HttpRequestMessage(new HttpMethod(method), $"http://127.0.0.1:{port}{target}");
+        var request = new HttpRequestMessage(new HttpMethod(method), $"{(useHttps ? "https" : "http")}://127.0.0.1:{port}{target}");
         foreach (var header in headers) request.Headers.Add(header.Key, header.Value);
         if (!options.OmitSignature) request.Headers.Add("x-cratis-forwarded-identity-signature", $"v2.{keyId}.{timestamp}.{nonce}.{signature}");
         if (method == "POST") request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
