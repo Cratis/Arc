@@ -7,6 +7,8 @@ using System.Text;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.ForwardedIdentityV2;
 using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity.Callers;
 
@@ -36,7 +38,7 @@ internal sealed class CallerResolutionInputs
         AppendHeaders(framed, raw, sources);
         AppendTenant(framed, tenant);
 
-        // When #3704 lands: frame ForwardedIdentityHop.IsAdmitted(request).
+        AppendHop(framed, request);
         return new(SHA256.HashData(Encoding.UTF8.GetBytes(framed.ToString())));
     }
 
@@ -65,6 +67,23 @@ internal sealed class CallerResolutionInputs
         }
         framed.Append(ForwardedIdentityCanonicalization.Frame("tenant:value"))
             .Append(ForwardedIdentityCanonicalization.Frame(tenant.Value));
+    }
+
+    static void AppendHop(StringBuilder framed, IHttpRequestContext request)
+    {
+        var admission = request.RequestServices?.GetService<IOptions<ArcOptions>>() is { } options
+            ? ForwardedIdentityHop.Admit(request, options.Value)
+            : ForwardedIdentityHopAdmission.NotRequired;
+        framed.Append(ForwardedIdentityCanonicalization.Frame("hop:admission"))
+            .Append(ForwardedIdentityCanonicalization.Frame(((int)admission).ToString(CultureInfo.InvariantCulture)));
+        if (request is not ICanReadClientCertificate transport)
+        {
+            framed.Append(ForwardedIdentityCanonicalization.Frame("hop:no-transport"));
+            return;
+        }
+        using var certificate = transport.TransportClientCertificate;
+        framed.Append(ForwardedIdentityCanonicalization.Frame(certificate is null ? "hop:no-certificate" : "hop:certificate"));
+        if (certificate is not null) framed.Append(ForwardedIdentityCanonicalization.Frame(certificate.GetCertHashString(HashAlgorithmName.SHA256)));
     }
 
     static void AppendHeaders(StringBuilder framed, ICanReadForwardedIdentityRequest raw, IEnumerable<IVerifiedCredentialSource> sources)
