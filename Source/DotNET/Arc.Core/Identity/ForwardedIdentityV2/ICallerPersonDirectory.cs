@@ -6,7 +6,7 @@ using Cratis.Arc.Identity.Callers;
 namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 
 /// <summary>Finds a persisted person by verified account key, never by claims projection.</summary>
-internal interface ICallerPersonDirectory
+public interface ICallerPersonDirectory
 {
     /// <summary>Finds the persisted person linked to an account.</summary>
     /// <param name="accountKey">The verified account key.</param>
