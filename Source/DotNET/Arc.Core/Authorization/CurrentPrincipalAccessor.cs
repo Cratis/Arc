@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 
 namespace Cratis.Arc.Authorization;
 
@@ -19,8 +20,8 @@ public class CurrentPrincipalAccessor(IHttpRequestContextAccessor httpRequestCon
 
     /// <inheritdoc/>
     public ClaimsPrincipal? Current =>
-        _authorizationPrincipal.Value ?? (httpRequestContextAccessor.Current is not null
-            ? httpRequestContextAccessor.Current.User
+        _authorizationPrincipal.Value ?? (httpRequestContextAccessor.Current is { } request
+            ? VerifiedCallerPrincipal.From(request) ?? request.User
             : _override.Value);
 
     /// <summary>

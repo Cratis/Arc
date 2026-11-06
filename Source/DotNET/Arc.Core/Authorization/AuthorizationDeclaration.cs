@@ -12,6 +12,11 @@ namespace Cratis.Arc.Authorization;
 public record AuthorizationDeclaration(bool AllowsAnonymous, bool IsExplicit, IReadOnlyList<AuthorizationRequirement> Requirements)
 {
     /// <summary>
+    /// Gets the scopes a verified caller's scope ceiling must hold, in ordinal order without duplicates.
+    /// </summary>
+    public IReadOnlyList<string> RequiredScopes { get; init; } = [];
+
+    /// <summary>
     /// Gets whether a policy or explicit scheme needs asynchronous evaluation.
     /// </summary>
     public bool RequiresAsynchronousEvaluation => Requirements.Any(requirement =>
