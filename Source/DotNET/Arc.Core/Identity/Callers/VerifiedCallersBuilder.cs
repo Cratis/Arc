@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Identity.ForwardedIdentityV2;
+using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -68,11 +69,11 @@ public sealed class VerifiedCallersBuilder
             throw new InvalidVerifiedCallerInstallation("Verified callers require a resource, audience, environment, person directory and signed forwarding configuration.");
         }
         var settings = _forwarding.Settings(_resource!, _audience!);
-        if (services.Any(descriptor => descriptor.ServiceType == typeof(ForwardedIdentityV2Settings) ||
-            (descriptor.ServiceType == typeof(VerifiedCallerInstallation) && descriptor.ImplementationInstance is not VerifiedCallerInstallation { Resource: null, Environment: null })))
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(InstallationMarker)))
         {
             throw new InvalidVerifiedCallerInstallation("Verified callers already have an installation.");
         }
+        services.AddSingleton(new InstallationMarker());
         services.RemoveAll<VerifiedCallerInstallation>();
         services.RemoveAll<CallerResourceCatalog>();
         services.AddSingleton(new VerifiedCallerInstallation(_resource, _environment));
@@ -82,4 +83,7 @@ public sealed class VerifiedCallersBuilder
         services.AddVerifiedCallers();
         services.AddForwardedIdentityV2(settings);
     }
+
+    [IgnoreConvention]
+    sealed class InstallationMarker;
 }
