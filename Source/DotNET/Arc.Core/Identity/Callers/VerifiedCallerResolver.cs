@@ -86,6 +86,8 @@ internal sealed class VerifiedCallerResolver(
 
     async Task<CallerResolution> Resolve(IHttpRequestContext request)
     {
+        // The gate and source capture all credential request inputs synchronously before the first await,
+        // matching the cached snapshot. ASP.NET does not support concurrent HttpContext writes.
         var presented = gate.Inspect(request);
         if (presented.Refusal is not null)
         {

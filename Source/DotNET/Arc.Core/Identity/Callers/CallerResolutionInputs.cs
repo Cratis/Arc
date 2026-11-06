@@ -31,10 +31,10 @@ internal sealed class CallerResolutionInputs
                 .Append(ForwardedIdentityCanonicalization.Frame(request.Method));
             return new(SHA256.HashData(Encoding.UTF8.GetBytes(framed.ToString())));
         }
-        framed.Append(ForwardedIdentityCanonicalization.Frame(request.Method))
-            .Append(ForwardedIdentityCanonicalization.Frame(raw.RawTarget ?? string.Empty));
+        framed.Append(ForwardedIdentityCanonicalization.Frame(request.Method));
+        AppendTarget(framed, raw.RawTarget);
         AppendHeaders(framed, raw, sources);
-        framed.Append(ForwardedIdentityCanonicalization.Frame(tenant is null ? "none" : tenant == TenantId.NotSet ? "notset" : tenant.Value));
+        AppendTenant(framed, tenant);
 
         // When #3704 lands: frame ForwardedIdentityHop.IsAdmitted(request).
         return new(SHA256.HashData(Encoding.UTF8.GetBytes(framed.ToString())));
@@ -44,6 +44,28 @@ internal sealed class CallerResolutionInputs
     /// <param name="other">The other captured inputs.</param>
     /// <returns>Whether the inputs match.</returns>
     internal bool Matches(CallerResolutionInputs other) => CryptographicOperations.FixedTimeEquals(_digest, other._digest);
+
+    static void AppendTarget(StringBuilder framed, string? target)
+    {
+        framed.Append(ForwardedIdentityCanonicalization.Frame(target is null ? "target:none" : "target:value"));
+        if (target is not null) framed.Append(ForwardedIdentityCanonicalization.Frame(target));
+    }
+
+    static void AppendTenant(StringBuilder framed, TenantId? tenant)
+    {
+        if (tenant is null)
+        {
+            framed.Append(ForwardedIdentityCanonicalization.Frame("tenant:none"));
+            return;
+        }
+        if (tenant == TenantId.NotSet)
+        {
+            framed.Append(ForwardedIdentityCanonicalization.Frame("tenant:notset"));
+            return;
+        }
+        framed.Append(ForwardedIdentityCanonicalization.Frame("tenant:value"))
+            .Append(ForwardedIdentityCanonicalization.Frame(tenant.Value));
+    }
 
     static void AppendHeaders(StringBuilder framed, ICanReadForwardedIdentityRequest raw, IEnumerable<IVerifiedCredentialSource> sources)
     {
