@@ -7,7 +7,7 @@ Cratis Arc can install a signed v2 **browser-session** caller for a receiving ca
 
 ## Install one receiving resource
 
-The [runnable acceptance sample](https://github.com/Cratis/Arc/blob/main/Samples/VerifiedCallerAcceptance/README.md) shows a complete host and product-owned authorization. This **configuration fragment** belongs in its `Program.Build`, where `builder`, `settings`, and the sample's `PersonDirectory` are available:
+The runnable acceptance sample in the repository's `Samples/VerifiedCallerAcceptance` folder shows a complete host and product-owned authorization. This **configuration fragment** belongs in its `Program.Build`, where `builder`, `settings`, and the sample's `PersonDirectory` are available:
 
 ```csharp
 using Cratis.Arc;

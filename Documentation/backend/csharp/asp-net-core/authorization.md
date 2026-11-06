@@ -78,7 +78,7 @@ public record PublishContent
 
 Both requirements apply: the caller needs the product's editor role and the credential's exact `content:write` scope. An absent scope ceiling is empty. A role, policy, or same-subject product scheme cannot add scopes to the credential ceiling. Scopes never authorize a person who fails product authorization. Role enrichment must preserve the verified subject on each authenticated identity it adds.
 
-See the [acceptance sample](https://github.com/Cratis/Arc/blob/main/Samples/VerifiedCallerAcceptance/README.md) for real HTTP checks of roles, tenant membership, scope narrowing, and subject conflicts. PAT, OAuth-grant, service-account, and on-behalf installation are not supplied by the browser-session installer.
+See the acceptance sample in the repository's `Samples/VerifiedCallerAcceptance` folder for real HTTP checks of roles, tenant membership, scope narrowing, and subject conflicts. PAT, OAuth-grant, service-account, and on-behalf installation are not supplied by the browser-session installer.
 
 ## Role-based authorization
 
