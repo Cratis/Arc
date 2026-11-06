@@ -79,8 +79,9 @@ public sealed class TestSigner : IDisposable
         }
         var target = inputs.GetProperty("path").GetString()!;
         var input = Canonical(inputs.GetProperty("aud").GetString()!, parts[1], parts[2], parts[3], inputs.GetProperty("method").GetString()!, target, headers);
-        var bytes = Encoding.UTF8.GetBytes(input);
-        var signature = _key.SignData(bytes, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+        var bytes = Encoding.UTF8.GetBytes(_vector.GetProperty("signingInput").GetString()!);
+        var encodedSignature = parts[4].Replace('-', '+').Replace('_', '/');
+        var signature = Convert.FromBase64String(encodedSignature.PadRight((encodedSignature.Length + 3) / 4 * 4, '='));
         using var publicKey = ECDsa.Create();
         publicKey.ImportFromPem(PublicKeyPem);
         return (input == _vector.GetProperty("signingInput").GetString(), publicKey.VerifyData(bytes, signature, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));

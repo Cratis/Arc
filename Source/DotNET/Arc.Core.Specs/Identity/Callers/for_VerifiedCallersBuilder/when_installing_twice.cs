@@ -7,15 +7,28 @@ namespace Cratis.Arc.Identity.Callers.for_VerifiedCallersBuilder;
 
 public class when_installing_twice : given.an_installation
 {
-    int _count;
+    ServiceDescriptor[] _descriptors;
+    ServiceProvider _provider;
     void Establish()
     {
         Configure();
         _services.AddVerifiedCallers(_builder);
-        _count = _services.Count;
+        _descriptors = _services.ToArray();
         _builder.ForResource("https://other.example", "other-audience", "other-environment");
     }
-    void Because() => _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
+    void Because()
+    {
+        _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
+        _provider = _services.BuildServiceProvider();
+    }
+    void Destroy() => _provider.Dispose();
     [Fact] void should_refuse_a_second_installation() => _exception.ShouldBeOfExactType<InvalidVerifiedCallerInstallation>();
-    [Fact] void should_leave_the_first_installation_unchanged() => _services.Count.ShouldEqual(_count);
+    [Fact] void should_leave_the_first_installation_unchanged() => _services.SequenceEqual(_descriptors).ShouldBeTrue();
+    [Fact] void should_keep_the_original_resource() => _provider.GetRequiredService<VerifiedCallerInstallation>().Resource.ShouldEqual("https://resource.example");
+    [Fact] void should_keep_the_original_environment() => _provider.GetRequiredService<VerifiedCallerInstallation>().Environment.ShouldEqual("test");
+    [Fact] void should_keep_the_original_audience()
+    {
+        _provider.GetRequiredService<CallerResourceCatalog>().TryGetAudience("https://resource.example", out var audience);
+        audience.ShouldEqual("audience");
+    }
 }

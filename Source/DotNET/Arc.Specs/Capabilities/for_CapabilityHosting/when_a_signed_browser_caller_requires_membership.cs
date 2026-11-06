@@ -54,9 +54,15 @@ public class when_a_signed_browser_caller_requires_membership
     public async Task should_refuse_when_the_resolved_tenant_differs_from_the_signed_tenant()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        var membership = new ProductMembership();
+        var controlMembership = new ProductMembership { AllowAnyTenant = true };
+        var control = await Send(key, controlMembership, resolvedTenant: "tenant-test");
+        control.Status.ShouldEqual(HttpStatusCode.OK);
+        control.Invoked.ShouldBeTrue();
+        controlMembership.Calls.ShouldBeGreaterThan(0);
+        var membership = new ProductMembership { AllowAnyTenant = true };
         var result = await Send(key, membership, resolvedTenant: "tenant-other");
-        result.Status.ShouldNotEqual(HttpStatusCode.OK);
+        result.Status.ShouldEqual(HttpStatusCode.Unauthorized);
+        membership.Calls.ShouldEqual(0);
         result.Invoked.ShouldBeFalse();
     }
 
@@ -173,13 +179,14 @@ public class when_a_signed_browser_caller_requires_membership
         public string? Tenant { get; private set; }
         public bool Deny { get; init; }
         public bool AllowAnyone { get; init; }
+        public bool AllowAnyTenant { get; init; }
         public bool IsMember(ClaimsPrincipal principal, TenantId tenantId)
         {
             Calls++;
             Subject = principal.FindFirst("sub")?.Value;
             Tenant = tenantId.Value;
             if (Deny) return false;
-            return tenantId.Value == "tenant-test" && (AllowAnyone || Subject == when_a_signed_browser_caller_requires_membership.Subject);
+            return (AllowAnyTenant || tenantId.Value == "tenant-test") && (AllowAnyone || Subject == when_a_signed_browser_caller_requires_membership.Subject);
         }
     }
 }

@@ -11,4 +11,5 @@ public class when_installing_without_public_keys : given.an_installation
         .UseSignedForwardedIdentityV2(v2 => v2.WithRealmIssuer("https://issuer.example").UseProcessLocalNonceStore());
     void Because() => _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
     [Fact] void should_refuse_the_installation() => _exception.ShouldBeOfExactType<InvalidVerifiedCallerInstallation>();
+    [Fact] void should_not_partially_register_services() => _services.ShouldBeEmpty();
 }

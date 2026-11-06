@@ -14,4 +14,5 @@ public class when_installing_without_a_resource : given.an_installation
     }
     void Because() => _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
     [Fact] void should_refuse_the_installation() => _exception.ShouldBeOfExactType<InvalidVerifiedCallerInstallation>();
+    [Fact] void should_not_partially_register_services() => _services.ShouldBeEmpty();
 }
