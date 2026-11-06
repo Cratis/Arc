@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -52,7 +53,6 @@ public class when_exercising_the_real_kestrel_hop : Specification
         builder.Logging.ClearProviders();
         var clock = new Clock();
         builder.Services.AddSingleton<TimeProvider>(clock);
-        builder.Services.AddSingleton<IConfigureOptions<KestrelServerOptions>, ForwardedIdentityClientCertificateKestrelOptions>();
         builder.Services.AddCertificateForwarding(forwarding =>
         {
             forwarding.CertificateHeader = "X-Forwarded-Client-Cert";
@@ -61,11 +61,8 @@ public class when_exercising_the_real_kestrel_hop : Specification
         builder.Services.AddSingleton(monitor);
         builder.Services.AddSingleton(Options.Create(options));
         builder.Services.AddSingleton<ForwardedIdentityClientCertificateTrustStore>();
-        builder.WebHost.ConfigureKestrel(kestrel =>
-        {
-            kestrel.Listen(IPAddress.Loopback, 0);
-            kestrel.Listen(IPAddress.Loopback, 0, listen => listen.UseHttps(server));
-        });
+        ListenOptions noCertificateListener = null;
+        builder.WebHost.ConfigureKestrel(kestrel => ConfigureListeners(kestrel, server, listen => noCertificateListener = listen));
         await using var app = builder.Build();
         app.Services.GetRequiredService<ForwardedIdentityClientCertificateTrustStore>().ValidateConfiguration();
         app.UseCertificateForwarding();
@@ -84,7 +81,8 @@ public class when_exercising_the_real_kestrel_hop : Specification
         try
         {
             var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>().Addresses;
-            var tls = addresses.Single(address => address.StartsWith("https:", StringComparison.Ordinal));
+            var noCertificate = $"https://127.0.0.1:{((IPEndPoint)noCertificateListener.EndPoint).Port}";
+            var tls = addresses.Single(address => address.StartsWith("https:", StringComparison.Ordinal) && address != noCertificate);
             var clear = addresses.Single(address => address.StartsWith("http:", StringComparison.Ordinal));
             using var admitted = Client(clientA);
             using var otherCa = Client(clientB);
@@ -93,6 +91,7 @@ public class when_exercising_the_real_kestrel_hop : Specification
             using var expired = Client(Leaf(rootA, "authproxy.internal", true, true));
             using var wrongEku = Client(Leaf(rootA, "authproxy.internal", false));
             _outcomes["trusted"] = await Send(admitted, tls);
+            _outcomes["listener-not-requesting-certificates"] = await Send(admitted, noCertificate);
             _outcomes["unrelated"] = await Send(unrelated, tls);
             _outcomes["wrong-ca"] = await Send(otherCa, tls);
             _outcomes["missing"] = await Send(missing, tls);
@@ -128,6 +127,7 @@ public class when_exercising_the_real_kestrel_hop : Specification
     }
 
     [Fact] void should_accept_the_real_trusted_peer() => _outcomes["trusted"].ShouldEqual(HttpStatusCode.OK);
+    [Fact] void should_refuse_even_a_trusted_caller_when_the_listener_does_not_request_certificates() => _outcomes["listener-not-requesting-certificates"].ShouldEqual(HttpStatusCode.Unauthorized);
     [Fact] void should_refuse_all_hostile_tls_peers() => new[] { "unrelated", "wrong-ca", "missing", "expired", "wrong-eku" }.All(Refused).ShouldBeTrue();
     [Fact] void should_ignore_forwarded_transport_headers_on_http_and_tls() => new[] { "http-spoof", "tls-spoof" }.All(Refused).ShouldBeTrue();
     [Fact] void should_support_live_ca_rotation_and_recovery() => new[] { "overlap-a", "overlap-b", "current-b", "bad-bundle", "recovered" }.All(name => _outcomes[name] == HttpStatusCode.OK).ShouldBeTrue();
@@ -153,6 +153,23 @@ public class when_exercising_the_real_kestrel_hop : Specification
             }
         };
         return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+    }
+
+    static void ConfigureListeners(KestrelServerOptions kestrel, X509Certificate2 server, Action<ListenOptions> onNoCertificate)
+    {
+        // The host explicitly delegates transport certificate validation to Arc's admission policy.
+        kestrel.ConfigureHttpsDefaults(https =>
+        {
+            https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+            https.AllowAnyClientCertificate();
+        });
+        kestrel.Listen(IPAddress.Loopback, 0);
+        kestrel.Listen(IPAddress.Loopback, 0, listen => listen.UseHttps(server));
+        kestrel.Listen(IPAddress.Loopback, 0, listen =>
+        {
+            onNoCertificate(listen);
+            listen.UseHttps(server, https => https.ClientCertificateMode = ClientCertificateMode.NoCertificate);
+        });
     }
 
     static async Task<HttpStatusCode?> Send(HttpClient client, string address, bool spoof = false)
