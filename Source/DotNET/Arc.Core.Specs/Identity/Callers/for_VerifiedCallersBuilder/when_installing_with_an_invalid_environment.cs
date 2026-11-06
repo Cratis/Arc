@@ -13,5 +13,5 @@ public class when_installing_with_an_invalid_environment : given.an_installation
         _builder.ForResource("https://resource.example", "audience", " ");
     }
     void Because() => _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
-    [Fact] void should_refuse_the_installation() => _exception.ShouldBeOfExactType<InvalidOperationException>();
+    [Fact] void should_refuse_the_installation() => _exception.ShouldBeOfExactType<InvalidVerifiedCallerInstallation>();
 }

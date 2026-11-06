@@ -13,5 +13,5 @@ public class when_adding_a_private_key : given.an_installation
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         _exception = Catch.Exception(() => new SignedForwardedIdentityV2Builder().AddPublicKey("test", key.ExportECPrivateKeyPem()));
     }
-    [Fact] void should_refuse_private_material() => _exception.ShouldBeOfExactType<ArgumentException>();
+    [Fact] void should_refuse_private_material() => _exception.ShouldBeOfExactType<InvalidForwardedIdentityPublicKey>();
 }

@@ -10,6 +10,6 @@ public class when_installing_without_replay_protection : given.an_installation
     void Establish() => _builder.ForResource("https://resource.example", "audience", "test").UsePersonDirectory<PersonDirectory>()
         .UseSignedForwardedIdentityV2(v2 => v2.WithRealmIssuer("https://issuer.example").AddPublicKey("test", _publicKey));
     void Because() => _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
-    [Fact] void should_refuse_the_installation() => _exception.ShouldBeOfExactType<InvalidOperationException>();
+    [Fact] void should_refuse_the_installation() => _exception.ShouldBeOfExactType<ForwardedIdentityV2.ForwardedIdentityNonceStoreNotConfigured>();
     [Fact] void should_not_partially_register_services() => _services.ShouldBeEmpty();
 }

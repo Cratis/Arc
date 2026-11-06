@@ -13,5 +13,5 @@ public class when_adding_a_key_with_the_wrong_curve : given.an_installation
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP384);
         _exception = Catch.Exception(() => new SignedForwardedIdentityV2Builder().AddPublicKey("test", key.ExportSubjectPublicKeyInfoPem()));
     }
-    [Fact] void should_refuse_the_curve() => _exception.ShouldBeOfExactType<ArgumentException>();
+    [Fact] void should_refuse_the_curve() => _exception.ShouldBeOfExactType<InvalidForwardedIdentityPublicKey>();
 }

@@ -16,6 +16,6 @@ public class when_installing_twice : given.an_installation
         _builder.ForResource("https://other.example", "other-audience", "other-environment");
     }
     void Because() => _exception = Catch.Exception(() => _services.AddVerifiedCallers(_builder));
-    [Fact] void should_refuse_a_second_installation() => _exception.ShouldBeOfExactType<InvalidOperationException>();
+    [Fact] void should_refuse_a_second_installation() => _exception.ShouldBeOfExactType<InvalidVerifiedCallerInstallation>();
     [Fact] void should_leave_the_first_installation_unchanged() => _services.Count.ShouldEqual(_count);
 }

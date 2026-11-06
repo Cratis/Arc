@@ -7,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>Configures one receiving resource and its signed browser-hop trust boundary.</summary>
+/// <summary>
+/// Configures one receiving resource and its signed browser-hop trust boundary.
+/// </summary>
 public sealed class VerifiedCallersBuilder
 {
     string? _resource;
@@ -16,7 +18,9 @@ public sealed class VerifiedCallersBuilder
     ServiceDescriptor? _directory;
     SignedForwardedIdentityV2Builder? _forwarding;
 
-    /// <summary>Binds the exact resource, audience and environment without normalization.</summary>
+    /// <summary>
+    /// Binds the exact resource, audience and environment without normalization.
+    /// </summary>
     /// <param name="resource">The receiving resource.</param>
     /// <param name="audience">Its unique audience.</param>
     /// <param name="environment">The receiving environment.</param>
@@ -29,7 +33,9 @@ public sealed class VerifiedCallersBuilder
         return this;
     }
 
-    /// <summary>Selects the persisted-person directory, resolved in the request scope.</summary>
+    /// <summary>
+    /// Selects the persisted-person directory, resolved in the request scope.
+    /// </summary>
     /// <typeparam name="TDirectory">The product-owned directory implementation.</typeparam>
     /// <returns>This builder.</returns>
     public VerifiedCallersBuilder UsePersonDirectory<TDirectory>()
@@ -39,7 +45,9 @@ public sealed class VerifiedCallersBuilder
         return this;
     }
 
-    /// <summary>Configures the v2-only signed browser-hop verifier.</summary>
+    /// <summary>
+    /// Configures the v2-only signed browser-hop verifier.
+    /// </summary>
     /// <param name="configure">The explicit trust configuration.</param>
     /// <returns>This builder.</returns>
     public VerifiedCallersBuilder UseSignedForwardedIdentityV2(Action<SignedForwardedIdentityV2Builder> configure)
@@ -52,18 +60,18 @@ public sealed class VerifiedCallersBuilder
 
     /// <summary>Validates and atomically registers the installation configuration.</summary>
     /// <param name="services">The receiving service collection.</param>
-    /// <exception cref="InvalidOperationException">The configuration is incomplete or already installed.</exception>
+    /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete or already installed.</exception>
     internal void Install(IServiceCollection services)
     {
         if (!VerifiedCallerInstallation.IsValid(_resource, _audience, _environment) || _directory is null || _forwarding is null)
         {
-            throw new InvalidOperationException("Verified callers require a resource, audience, environment, person directory and signed forwarding configuration.");
+            throw new InvalidVerifiedCallerInstallation("Verified callers require a resource, audience, environment, person directory and signed forwarding configuration.");
         }
         var settings = _forwarding.Settings(_resource!, _audience!);
         if (services.Any(descriptor => descriptor.ServiceType == typeof(ForwardedIdentityV2Settings) ||
             (descriptor.ServiceType == typeof(VerifiedCallerInstallation) && descriptor.ImplementationInstance is not VerifiedCallerInstallation { Resource: null, Environment: null })))
         {
-            throw new InvalidOperationException("Verified callers already have an installation.");
+            throw new InvalidVerifiedCallerInstallation("Verified callers already have an installation.");
         }
         services.RemoveAll<VerifiedCallerInstallation>();
         services.RemoveAll<CallerResourceCatalog>();

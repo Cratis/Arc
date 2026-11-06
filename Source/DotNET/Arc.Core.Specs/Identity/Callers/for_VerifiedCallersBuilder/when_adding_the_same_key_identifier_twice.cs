@@ -8,5 +8,5 @@ namespace Cratis.Arc.Identity.Callers.for_VerifiedCallersBuilder;
 public class when_adding_the_same_key_identifier_twice : given.an_installation
 {
     void Because() => _exception = Catch.Exception(() => new SignedForwardedIdentityV2Builder().AddPublicKey("test", _publicKey).AddPublicKey("test", _publicKey));
-    [Fact] void should_refuse_the_duplicate() => _exception.ShouldBeOfExactType<ArgumentException>();
+    [Fact] void should_refuse_the_duplicate() => _exception.ShouldBeOfExactType<InvalidVerifiedCallerInstallation>();
 }
