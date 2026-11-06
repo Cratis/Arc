@@ -60,9 +60,15 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
-        context.Items[VerifiedCallerPrincipal.CallerItemKey] = caller;
-        var result = await context.AuthenticateAsync(VerifiedCallerAuthentication.Scheme);
-        if (!result.Succeeded || !VerifiedCallerPrincipal.Carries(result.Principal, caller))
+        // The verified principal is built here and never registered as an authentication scheme, so the host's own
+        // default scheme selection is untouched. The product's claims transformation still applies.
+        var principal = VerifiedCallerPrincipal.Create(caller);
+        if (context.RequestServices.GetService<IClaimsTransformation>() is { } transformation)
+        {
+            principal = await transformation.TransformAsync(principal);
+        }
+
+        if (!VerifiedCallerPrincipal.Carries(principal, caller))
         {
             // A claims transformation or another component dropped the verified identity: the principal cannot be proved.
             logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
@@ -70,8 +76,8 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
-        context.User = result.Principal!;
-        context.Items[VerifiedCallerPrincipal.ItemKey] = result.Principal;
+        context.User = principal;
+        context.Items[VerifiedCallerPrincipal.ItemKey] = principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
     }
@@ -86,7 +92,7 @@ internal sealed class CapabilityGateMiddleware(
         }
 
         var defaultScheme = await context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>().GetDefaultAuthenticateSchemeAsync();
-        if (defaultScheme is not null && !string.Equals(defaultScheme.Name, VerifiedCallerAuthentication.Scheme, StringComparison.Ordinal))
+        if (defaultScheme is not null)
         {
             var result = await context.AuthenticateAsync(defaultScheme.Name);
             if (result.Succeeded && result.Principal is { } principal)

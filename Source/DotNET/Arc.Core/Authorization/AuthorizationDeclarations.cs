@@ -51,7 +51,14 @@ public class AuthorizationDeclarations(
     public AuthorizationDeclaration For(MethodInfo method) =>
         ResolveMethod(method) with { RequiredScopes = RequiredScopesOf(method.DeclaringType, method) };
 
-    static string[] RequiredScopesOf(Type? type, MethodInfo? method)
+    /// <summary>
+    /// Reads the scopes a method and its declaring type require, as one ordinal sorted set.
+    /// </summary>
+    /// <param name="type">The declaring type, if any.</param>
+    /// <param name="method">The method, if any.</param>
+    /// <returns>The required scopes.</returns>
+    /// <exception cref="InvalidAuthorizationConfiguration">A required scope is blank.</exception>
+    internal static string[] RequiredScopesOf(Type? type, MethodInfo? method)
     {
         IEnumerable<RequiresScopeAttribute> attributes = [];
         if (method is not null)

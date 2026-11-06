@@ -15,9 +15,6 @@ internal static class VerifiedCallerPrincipal
     /// <summary>The request item holding the verified principal Arc authorizes.</summary>
     internal const string ItemKey = "Cratis.Arc.VerifiedCallerPrincipal";
 
-    /// <summary>The request item holding the admitted caller handed to the authentication handler.</summary>
-    internal const string CallerItemKey = "Cratis.Arc.VerifiedCaller";
-
     /// <summary>
     /// Creates the principal for a verified caller.
     /// </summary>
@@ -41,4 +38,22 @@ internal static class VerifiedCallerPrincipal
     /// <returns>True when any identity of the principal was created for the same caller instance.</returns>
     internal static bool Carries(ClaimsPrincipal? principal, VerifiedCaller caller) =>
         principal?.Identities.OfType<VerifiedCallerIdentity>().Any(identity => ReferenceEquals(identity.Caller, caller)) == true;
+
+    /// <summary>
+    /// Determines whether a principal carries another authenticated identity whose subject is missing or differs from the caller's.
+    /// </summary>
+    /// <param name="principal">The principal.</param>
+    /// <param name="caller">The verified caller.</param>
+    /// <returns>True when such an identity is present, so the principal must be refused rather than merged.</returns>
+    internal static bool CarriesAnotherSubject(ClaimsPrincipal? principal, VerifiedCaller caller)
+    {
+        var subject = VerifiedCallerIdentity.SubjectOf(caller);
+        return principal?.Identities.Any(identity =>
+            identity.IsAuthenticated &&
+            !(identity is VerifiedCallerIdentity verified && ReferenceEquals(verified.Caller, caller)) &&
+            !string.Equals(
+                (identity.FindFirst(VerifiedCallerIdentity.SubjectClaim) ?? identity.FindFirst(ClaimTypes.NameIdentifier))?.Value,
+                subject,
+                StringComparison.Ordinal)) == true;
+    }
 }

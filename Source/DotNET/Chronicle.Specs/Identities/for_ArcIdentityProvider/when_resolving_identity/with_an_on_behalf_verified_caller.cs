@@ -24,5 +24,9 @@ public class with_an_on_behalf_verified_caller : given.an_identity_provider
 
     [Fact] void should_cause_with_the_actor() => _result.Subject.ShouldEqual("actor-1");
 
-    [Fact] void should_act_on_behalf_of_the_verified_person() => _result.OnBehalfOf.ShouldEqual(new ChronicleIdentity("person-1", "person-1", "person-1"));
+    [Fact] void should_mark_the_actor_as_a_verified_caller() => _result.Name.ShouldEqual(ArcIdentityProvider.VerifiedCallerName);
+
+    [Fact] void should_act_on_behalf_of_the_verified_subject() => _result.OnBehalfOf!.Subject.ShouldEqual("person-1");
+
+    [Fact] void should_mark_the_represented_identity_as_a_verified_caller() => _result.OnBehalfOf!.Name.ShouldEqual(ArcIdentityProvider.VerifiedCallerName);
 }

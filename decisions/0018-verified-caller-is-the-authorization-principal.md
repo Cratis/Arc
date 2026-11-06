@@ -27,7 +27,9 @@ A request admitted on a capability port carries a verified caller, but Arc autho
 - Roles and tenant membership stay owned by the product and apply to the verified caller's subject.
 - The scope ceiling is enforced once, in Arc's authorization evaluator. An operation declares the scopes it needs with `[RequiresScope("…")]`, and every declared scope must be held by the caller. The ceiling reads the verified caller, never claims, so a claims transformation cannot widen it. A principal without a verified caller is not narrowed.
 - A request already authenticated as a different or unidentifiable subject is refused with 403 rather than merged.
-- Chronicle causation flows through `ICurrentPrincipalAccessor`.
+- Chronicle causation flows through `ICurrentPrincipalAccessor`. A verified caller is recorded as its own identity: the verified subject, marked as a verified caller by name and by a user name carrying the credential kind. It is never mapped to a user identity of the request. A delegated caller is recorded as a chain, the actor first and the verified subject as the identity it acts on behalf of.
+- The scope ceiling also applies to MVC controller actions, through an authorization filter.
+- When a verified caller is present, a principal that also carries another authenticated identity with a missing or different subject is refused.
 - A minimal public installation API ships only together with an acceptance sample that uses the public API alone.
 
 ## Options considered

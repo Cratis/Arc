@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Identity.Callers;
 using Cratis.Chronicle.Identities;
 using static Cratis.Arc.Identity.OnBehalfOfPrincipalExtensions;
 
@@ -34,6 +35,12 @@ internal class ArcIdentityProvider(
     ICurrentPrincipalAccessor principals,
     Func<bool> hasHttpRequest) : IIdentityProvider
 {
+    /// <summary>The name that marks a Chronicle identity as a verified service or workload caller.</summary>
+    internal const string VerifiedCallerName = "Verified caller";
+
+    /// <summary>The prefix of the user name of a verified caller; the credential kind follows.</summary>
+    internal const string VerifiedCallerUserNamePrefix = "verified-caller:";
+
     readonly AsyncLocal<bool> _explicitIdentity = new();
 
     /// <inheritdoc/>
@@ -43,6 +50,11 @@ internal class ArcIdentityProvider(
         var principal = principals.Current;
         if (hasHttpRequest())
         {
+            if (!_explicitIdentity.Value && VerifiedCallerOf(principal) is { } verified)
+            {
+                return FromVerifiedCaller(verified);
+            }
+
             return !_explicitIdentity.Value && principal?.IsActedOnBehalfOf() == true
                 ? FromPrincipal(principal)
                 : identity;
@@ -105,6 +117,18 @@ internal class ArcIdentityProvider(
         }
 
         return represented == ChronicleIdentity.NotSet ? acting : acting with { OnBehalfOf = represented };
+    }
+
+    static VerifiedCaller? VerifiedCallerOf(ClaimsPrincipal? principal) =>
+        principal?.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault()?.Caller;
+
+    static ChronicleIdentity FromVerifiedCaller(VerifiedCaller caller)
+    {
+        var userName = $"{VerifiedCallerUserNamePrefix}{caller.CredentialKind}";
+        var own = new ChronicleIdentity(VerifiedCallerIdentity.SubjectOf(caller) ?? caller.CredentialId.Value, VerifiedCallerName, userName);
+        return caller.Actor is { } actor
+            ? new ChronicleIdentity(actor.Subject, VerifiedCallerName, userName) { OnBehalfOf = own }
+            : own;
     }
 
     static ChronicleIdentity Append(ChronicleIdentity head, ChronicleIdentity? tail) => head.OnBehalfOf is null

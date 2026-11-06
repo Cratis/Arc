@@ -5,6 +5,8 @@ using System.Security.Claims;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
 
+using ChronicleIdentity = Cratis.Chronicle.Identities.Identity;
+
 namespace Cratis.Arc.Chronicle.Identities.for_ArcIdentityProvider.when_resolving_identity;
 
 public class with_a_verified_caller : given.an_identity_provider
@@ -20,7 +22,15 @@ public class with_a_verified_caller : given.an_identity_provider
 
     void Because() => _result = _provider.GetCurrent();
 
+    [Fact] void should_use_the_verified_subject() => _result.Subject.ShouldEqual("person-1");
+
+    [Fact] void should_mark_it_as_a_verified_caller() => _result.Name.ShouldEqual(ArcIdentityProvider.VerifiedCallerName);
+
+    [Fact] void should_name_the_credential_kind() => _result.UserName.ShouldEqual($"{ArcIdentityProvider.VerifiedCallerUserNamePrefix}{nameof(CallerCredentialKind.BrowserSession)}");
+
     [Fact] void should_not_record_the_request_user() => _result.Subject.ShouldNotEqual("someone-else");
 
-    [Fact] void should_leave_a_plain_caller_to_the_wrapped_provider() => _result.ShouldEqual(_fallback.GetCurrent());
+    [Fact] void should_not_be_a_delegation_chain() => _result.OnBehalfOf.ShouldBeNull();
+
+    [Fact] void should_not_collapse_to_a_system_or_unknown_identity() => (_result == ChronicleIdentity.System || _result == ChronicleIdentity.NotSet).ShouldBeFalse();
 }

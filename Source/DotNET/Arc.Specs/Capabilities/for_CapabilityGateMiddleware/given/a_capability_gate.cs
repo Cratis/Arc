@@ -35,7 +35,7 @@ public class a_capability_gate : Specification
         _verified = Substitute.For<IVerifiedCallerAccessor>();
         _verified.GetCurrent().Returns(new CallerResolution(null, CallerRefusal.NoCredential));
         var services = new ServiceCollection().AddLogging().AddSingleton(_verified);
-        VerifiedCallerAuthentication.Register(services);
+        services.AddAuthenticationCore();
         Configure(services);
         _services = services.BuildServiceProvider();
         _context.RequestServices = _services;

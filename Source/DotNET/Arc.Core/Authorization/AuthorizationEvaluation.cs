@@ -61,9 +61,11 @@ public class AuthorizationEvaluation(
         if (services.GetService<IHttpRequestContextAccessor>()?.Current is { } request &&
             VerifiedCallerPrincipal.From(request) is { } verified &&
             verified.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault() is { } verifiedIdentity &&
-            !VerifiedCallerPrincipal.Carries(selectedPrincipal, verifiedIdentity.Caller))
+            (!VerifiedCallerPrincipal.Carries(selectedPrincipal, verifiedIdentity.Caller) ||
+             VerifiedCallerPrincipal.CarriesAnotherSubject(selectedPrincipal, verifiedIdentity.Caller)))
         {
-            // A scheme selected a principal other than the verified caller: refuse by making it anonymous, never merge.
+            // A scheme selected a principal other than the verified caller, or merged another subject into it:
+            // refuse by making it anonymous, never merge.
             selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
         }
 
