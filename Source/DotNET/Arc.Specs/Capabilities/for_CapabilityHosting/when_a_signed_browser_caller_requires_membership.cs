@@ -9,7 +9,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Cratis.Arc.Identity.Callers;
-using Cratis.Arc.Identity.ForwardedIdentityV2;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

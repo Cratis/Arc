@@ -33,6 +33,6 @@ The default key identifier is `sample`. A trusted proxy must sign requests for `
 ## Deliberate sample boundaries
 
 - The directory contains two synthetic persisted accounts; it does not provision people from headers.
-- `ProductHeader` is a deliberately insecure, **sample-only** stand-in for another authentication scheme. It proves that a same-subject product principal cannot widen the signed credential ceiling and a different subject is refused. Never authenticate production users from `X-Product-User`.
+- The specs host fixture alone registers `ProductHeader`, a **test-only** stand-in for another authentication scheme. It proves that a same-subject product principal cannot widen the signed credential ceiling and a different subject is refused. The runnable sample does not include or register this scheme.
 - Process-local nonces are suitable only for this single-process proof. A fleet must install a product-owned `IForwardedIdentityNonceStore` with atomic, shared reservations and replay retention.
 - The specs keep a sample-local subset of the existing public, synthetic v2 fixture: only its first test key and `valid-v2` case. Test signing material stays in the specs' output; it is not referenced by the host project and must never be used outside tests.

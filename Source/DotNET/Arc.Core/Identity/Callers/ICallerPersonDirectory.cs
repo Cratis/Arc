@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Identity.ForwardedIdentityV2;
-
 namespace Cratis.Arc.Identity.Callers;
 
 /// <summary>Finds a persisted person by verified account key, never by claims projection.</summary>

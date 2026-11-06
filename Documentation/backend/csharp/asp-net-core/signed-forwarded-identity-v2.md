@@ -18,7 +18,7 @@ Sign every identity-bearing producer before switching a backend: YARP requests, 
 
 ## Install browser-session verification
 
-For the supported public browser-session installer, receiving resource binding, persisted-person directory, and explicit nonce-store selection, see [Install verified callers](verified-callers.md). The [acceptance sample](../../../../Samples/VerifiedCallerAcceptance/README.md) exercises that flow over real HTTP without internal APIs. This does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters; product authorization and live tenant membership still apply.
+For the supported public browser-session installer, receiving resource binding, persisted-person directory, and explicit nonce-store selection, see [Install verified callers](verified-callers.md). The [acceptance sample](https://github.com/Cratis/Arc/blob/main/Samples/VerifiedCallerAcceptance/README.md) exercises that flow over real HTTP without internal APIs. This does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters; product authorization and live tenant membership still apply.
 
 ## Normative vocabulary
 

@@ -3,8 +3,10 @@
 
 using System.Net;
 using System.Net.Sockets;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace VerifiedCallerAcceptance.Specs.given;
 
@@ -20,6 +22,8 @@ public sealed class a_host : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _app = Program.Build([], new(CapabilityPort, DefaultPort, Signer.PublicKeyPem, Signer.KeyId));
+        _app.Services.GetRequiredService<IOptions<AuthenticationOptions>>().Value.DefaultAuthenticateScheme = "ProductHeader";
+        _app.Services.GetRequiredService<IAuthenticationSchemeProvider>().AddScheme(new("ProductHeader", null, typeof(ProductHeader)));
         await _app.StartAsync(TestContext.Current.CancellationToken);
     }
 

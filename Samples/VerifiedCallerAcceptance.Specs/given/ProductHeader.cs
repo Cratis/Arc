@@ -4,13 +4,14 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace VerifiedCallerAcceptance;
+namespace VerifiedCallerAcceptance.Specs.given;
 
 /// <summary>
-/// A sample-only default scheme for checking same-subject narrowing and different-subject refusal.
-/// Never use a caller-supplied header as production authentication.
+/// A test-only default scheme for checking same-subject narrowing and different-subject refusal.
+/// This scheme is registered only by the specs host fixture.
 /// </summary>
 /// <param name="options">Scheme options.</param>
 /// <param name="logger">Logging factory.</param>

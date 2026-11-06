@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Identity.Callers;
-using Cratis.Arc.Identity.ForwardedIdentityV2;
 
 namespace VerifiedCallerAcceptance;
 

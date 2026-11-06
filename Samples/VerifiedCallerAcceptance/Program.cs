@@ -51,7 +51,7 @@ public static class Program
         builder.Services.AddSingleton<InvocationCounts>();
         builder.Services.AddTransient<IClaimsTransformation, ProductRoles>();
         builder.Services.AddSingleton<ITenantMembership, ProductMembership>();
-        builder.Services.AddAuthentication("ProductHeader").AddScheme<AuthenticationSchemeOptions, ProductHeader>("ProductHeader", null);
+        builder.Services.AddAuthentication();
         var app = builder.Build();
         app.UseAuthentication();
         app.UseCratisArc();

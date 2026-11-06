@@ -7,7 +7,7 @@ Cratis Arc can install a signed v2 **browser-session** caller for a receiving ca
 
 ## Install one receiving resource
 
-The [runnable acceptance sample](../../../../Samples/VerifiedCallerAcceptance/README.md) shows a complete host and product-owned authorization. This **configuration fragment** belongs in its `Program.Build`, where `builder`, `settings`, and the sample's `PersonDirectory` are available:
+The [runnable acceptance sample](https://github.com/Cratis/Arc/blob/main/Samples/VerifiedCallerAcceptance/README.md) shows a complete host and product-owned authorization. This **configuration fragment** belongs in its `Program.Build`, where `builder`, `settings`, and the sample's `PersonDirectory` are available:
 
 ```csharp
 using Cratis.Arc;
@@ -37,7 +37,7 @@ Configure the corresponding server listeners, then call `app.UseCratisArc()`, as
 
 ## Supply a persisted-person directory
 
-Implement `Cratis.Arc.Identity.Callers.ICallerPersonDirectory`. Its `Find(CallerAccountKey, CancellationToken)` returns `CallerPersonFound.Found(CallerPersonId)` only for an existing persisted account mapping; otherwise return `CallerPersonFound.NotFound()`. The result type is in `Cratis.Arc.Identity.ForwardedIdentityV2`.
+Implement `Cratis.Arc.Identity.Callers.ICallerPersonDirectory`. Its `Find(CallerAccountKey, CancellationToken)` returns `CallerPersonFound.Found(CallerPersonId)` only for an existing persisted account mapping; otherwise return `CallerPersonFound.NotFound()`. The result type is in `Cratis.Arc.Identity.Callers`.
 
 The account key consists of the exact trusted realm issuer and canonical lowercase UUID subject. `idp` describes the upstream connection; it is not the account-key namespace. Arc registers the selected directory in the request scope, so it can depend on scoped persistence services. Do not provision people or infer authorization from forwarded headers. The sample directory contains synthetic persisted mappings solely to keep the proof self-contained.
 

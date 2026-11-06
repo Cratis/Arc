@@ -1,9 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Identity.Callers;
-
-namespace Cratis.Arc.Identity.ForwardedIdentityV2;
+namespace Cratis.Arc.Identity.Callers;
 
 /// <summary>An explicit persisted-person lookup result.</summary>
 public sealed class CallerPersonFound

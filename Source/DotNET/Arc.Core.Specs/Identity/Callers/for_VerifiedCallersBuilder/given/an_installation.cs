@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Security.Cryptography;
-using Cratis.Arc.Identity.ForwardedIdentityV2;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Identity.Callers.for_VerifiedCallersBuilder.given;
