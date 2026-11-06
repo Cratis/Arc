@@ -32,16 +32,25 @@ internal sealed class VerifiedCallerResolver(
         {
             return Task.FromResult(new CallerResolution(null, CallerRefusal.NoCredential));
         }
+        var tenant = tenants.Current;
+        var inputs = CallerResolutionInputs.Capture(request, sources, tenant);
+        Entry entry;
         lock (request.Items)
         {
-            if (request.Items.TryGetValue(_cacheKey, out var cached) && cached is Task<CallerResolution> resolution)
+            if (request.Items.TryGetValue(_cacheKey, out var cached) && cached is Entry existing)
             {
-                return resolution;
+                if (!existing.CanReuse(inputs, installation))
+                {
+                    existing.Poisoned = true;
+                    return Task.FromResult(new CallerResolution(null, CallerRefusal.RequestChanged));
+                }
+                return existing.Resolution.Task;
             }
-            var task = Resolve(request);
-            request.Items[_cacheKey] = task;
-            return task;
+            entry = new(inputs, installation);
+            request.Items[_cacheKey] = entry;
         }
+        _ = ResolveBound(request, entry);
+        return entry.Resolution.Task;
     }
 
     static async Task<CredentialVerification> Verify(IVerifiedCredentialSource source, CredentialPresentation presented, CancellationToken cancellationToken)
@@ -57,8 +66,28 @@ internal sealed class VerifiedCallerResolver(
         }
     }
 
+    async Task ResolveBound(IHttpRequestContext request, Entry entry)
+    {
+        try
+        {
+            var resolution = await Resolve(request);
+            var current = CallerResolutionInputs.Capture(request, sources, tenants.Current);
+            lock (request.Items)
+            {
+                if (!entry.Inputs.Matches(current)) entry.Poisoned = true;
+                entry.Resolution.SetResult(entry.Poisoned ? new(null, CallerRefusal.RequestChanged) : resolution);
+            }
+        }
+        catch (Exception exception)
+        {
+            entry.Resolution.SetException(exception);
+        }
+    }
+
     async Task<CallerResolution> Resolve(IHttpRequestContext request)
     {
+        // The gate and source capture all credential request inputs synchronously before the first await,
+        // matching the cached snapshot. ASP.NET does not support concurrent HttpContext writes.
         var presented = gate.Inspect(request);
         if (presented.Refusal is not null)
         {
@@ -89,5 +118,20 @@ internal sealed class VerifiedCallerResolver(
         }
         var result = builder.Build(verification.Facts, installation, tenants.Current);
         return new(result.Caller, result.Refusal);
+    }
+
+    sealed class Entry(CallerResolutionInputs inputs, VerifiedCallerInstallation installation)
+    {
+        internal CallerResolutionInputs Inputs { get; } = inputs;
+        internal VerifiedCallerInstallation Installation { get; } = installation;
+        internal TaskCompletionSource<CallerResolution> Resolution { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool Poisoned { get; set; }
+
+        internal bool CanReuse(CallerResolutionInputs current, VerifiedCallerInstallation currentInstallation)
+        {
+            if (Poisoned) return false;
+            if (!ReferenceEquals(Installation, currentInstallation)) return false;
+            return Inputs.Matches(current);
+        }
     }
 }

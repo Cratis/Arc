@@ -33,7 +33,7 @@ public class when_resolving_browser_contexts : Specification
         var requests = Substitute.For<IHttpRequestContextAccessor>();
         requests.Current.Returns(request);
         var tenants = Substitute.For<ITenantIdAccessor>();
-        tenants.Current.Returns(TenantId.NotSet);
+        tenants.Current.Returns(new TenantId("tenant-test"));
         var source = VerificationFixture.Source(vector, persons: persons);
         var catalog = new CallerResourceCatalog(new Dictionary<string, string> { ["resource"] = vector.Inputs.Aud });
         var resolver = new VerifiedCallerResolver(requests, [source], new(), new(catalog), new("resource", "test"), tenants);

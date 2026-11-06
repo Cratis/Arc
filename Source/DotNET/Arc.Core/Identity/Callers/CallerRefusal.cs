@@ -71,5 +71,8 @@ internal enum CallerRefusal
     MalformedAuthorization = 20,
 
     /// <summary>More than one source is registered for the selected shape.</summary>
-    SourceConflict = 21
+    SourceConflict = 21,
+
+    /// <summary>The request inputs consumed by an earlier resolution changed.</summary>
+    RequestChanged = 22
 }

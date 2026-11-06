@@ -29,7 +29,7 @@ app.UseCratisArc();
 app.Run();
 ```
 
-Tag capability commands, read models, or query methods with `[EndpointGroup("capabilities")]`. Group membership is the explicit exposure choice; commands and queries outside that group retain their existing routing. Enabling capabilities without assigning the group's port fails startup with `CapabilityEndpointGroupHasNoPort`.
+Tag capability commands, read models, or query methods with `[EndpointGroup("capabilities")]`. Group membership is the explicit exposure choice; commands and queries outside that group retain their existing routing. Enabling capabilities without assigning the group's port fails startup with `CapabilityEndpointGroupHasNoPort`. Startup also fails with `CapabilityHostingHasNoCredentialInstallation` when no credential verifier and receiving installation are registered.
 
 For a different group name, set `EndpointGroup` through the `WithCapabilities` configuration delegate and assign a port to that same group.
 
@@ -61,7 +61,7 @@ Absent values are omitted, including an unset tenant. Tokens, secrets, scopes, a
 
 ## Limits today
 
-- A credential verifier must be installed, such as a PAT package or forwarded-identity verifier. The inert defaults refuse every capability call.
+- There is no public API yet to install a credential verifier, so turning on capability hosting fails at startup. Capability hosting cannot admit callers until that installation is available.
 - Product authorization still applies: a capability is not authority. The verified caller is not mapped to `HttpContext.User`; commands using `[Authorize]` still evaluate that principal.
 - Keep the group port private. Never expose it publicly or forward public traffic to it.
 - Default-group endpoints reachable on the capability port also require a caller. There are no anonymous paths on that port, including health probes.
