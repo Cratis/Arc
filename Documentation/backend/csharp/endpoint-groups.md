@@ -5,7 +5,7 @@ description: Serve internal Cratis Arc commands and queries on assigned local po
 
 Cratis Arc endpoint groups serve selected commands and queries only on assigned local ports. Use a group when an operations tool or another internal service needs endpoints that should not be routed through the public API. Tag the commands, read models, or query methods, then configure both the server listener and the group's port assignment.
 
-Groups control where an endpoint is reachable, not who may call it. Keep [authorization](authorizing-commands-and-queries.md) on protected commands and queries, and configure the network to keep group ports private.
+Groups control where an endpoint is reachable, not who may call it. Keep [authorization](authorizing-commands-and-queries.md) on protected commands and queries, and configure the network to keep group ports private. Use [capability hosting](capability-hosting.md) to require a verified caller on a dedicated group port.
 
 > [!WARNING]
 > The port is the boundary only if the network makes it one. Never expose or forward a group port to the public network, and never let a reverse proxy route public traffic to it. Arc decides by the local port of the connection, which is only as trustworthy as the network in front of it.

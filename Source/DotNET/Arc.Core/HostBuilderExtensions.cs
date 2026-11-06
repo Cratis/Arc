@@ -4,6 +4,7 @@
 using System.Diagnostics.Metrics;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Calendar;
+using Cratis.Arc.Capabilities;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
@@ -91,6 +92,7 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddVerifiedCallers();
+        services.TryAddSingleton<ICapabilityCallers, CapabilityCallers>();
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddConnectionResolution();

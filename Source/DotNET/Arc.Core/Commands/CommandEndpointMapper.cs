@@ -5,6 +5,7 @@ using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Approvals;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -175,6 +176,12 @@ public static class CommandEndpointMapper
                     else if (!CanExecuteWithCustomPipeline(context.RequestServices, commandType, logger))
                     {
                         commandResult = CommandResult.Unauthorized(correlationIdAccessor.Current);
+                    }
+                    else if (ApprovalGate.RequiresApproval(commandType))
+                    {
+                        commandResult = context.RequestServices.GetService<IAuthorizationEvaluator>()?.IsAuthorized(commandType) == true
+                            ? ApprovalGate.Refusal(correlationIdAccessor.Current)
+                            : CommandResult.Unauthorized(correlationIdAccessor.Current);
                     }
                     else
                     {

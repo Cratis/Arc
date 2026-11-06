@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
 using Cratis.Traces;
@@ -30,6 +31,20 @@ public class CommandActionFilter(
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        if (context.ActionDescriptor.Parameters.Any(parameter => RequiresApproval(parameter.ParameterType)) ||
+            context.ActionArguments.Values.Any(argument => argument is not null && RequiresApproval(argument.GetType())))
+        {
+            using var approvalReceipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
+            var approvalContext = EstablishCommandContext(context);
+            PublishResult(context, null, new CommandResult<object>
+            {
+                CorrelationId = approvalContext.CorrelationId,
+                IsAuthorized = false,
+                AuthorizationFailureReason = ApprovalGate.RefusalReason
+            });
+            return;
+        }
+
         if (context.HttpContext.Request.Method != HttpMethod.Post.Method)
         {
             await next();
@@ -48,6 +63,11 @@ public class CommandActionFilter(
         }
 
         await ExecuteCommand(context, next, commandContext);
+
+        bool RequiresApproval(Type type) =>
+            ApprovalGate.RequiresApproval(type) ||
+            (context.HttpContext.RequestServices?.GetService<IModelMetadataProvider>()?.GetMetadataForType(type).ElementMetadata?.ModelType is { } elementType &&
+             ApprovalGate.RequiresApproval(elementType));
     }
 
     static async Task ExecuteCommand(ActionExecutingContext context, ActionExecutionDelegate next, CommandContext commandContext)
