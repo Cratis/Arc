@@ -3,7 +3,9 @@
 
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 
@@ -14,13 +16,15 @@ namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 /// <param name="installation">The receiving installation.</param>
 /// <param name="persons">The persisted-person directory.</param>
 /// <param name="logger">The fixed-reason logger.</param>
+/// <param name="hopLogging">The shared hop warning limiter unless explicitly supplied.</param>
 internal sealed class ForwardedIdentityV2CredentialSource(
     IHttpRequestContextAccessor requests,
     ForwardedIdentityV2Settings settings,
     ForwardedIdentityV2Verifier verifier,
     VerifiedCallerInstallation installation,
     ICallerPersonDirectory persons,
-    ILogger<ForwardedIdentityV2CredentialSource> logger) : IVerifiedCredentialSource
+    ILogger<ForwardedIdentityV2CredentialSource> logger,
+    ForwardedIdentityHopLogging? hopLogging = null) : IVerifiedCredentialSource
 {
     /// <inheritdoc/>
     PresentedCredentialShape IVerifiedCredentialSource.Shape => PresentedCredentialShape.Envelope;
@@ -29,7 +33,7 @@ internal sealed class ForwardedIdentityV2CredentialSource(
     async Task<CredentialVerification> IVerifiedCredentialSource.Verify(CredentialPresentation presentation, CancellationToken cancellationToken)
     {
         if (requests.Current is not { } request || request is not ICanReadForwardedIdentityRequest) return CredentialVerification.Refused(CallerRefusal.UnreadableCredentialHeaders);
-        if (!ForwardedIdentityHop.IsAdmitted(request)) return Refuse(ForwardedIdentityV2Rejection.Hop);
+        if (!IsHopAdmitted(request)) return Refuse(ForwardedIdentityV2Rejection.Hop);
         var signatures = presentation.Envelope.Values.SelectMany(values => values).ToArray();
         if (signatures.Length != 1) return Refuse(ForwardedIdentityV2Rejection.Format);
         if (!signatures[0].StartsWith("v2.", StringComparison.Ordinal))
@@ -60,6 +64,18 @@ internal sealed class ForwardedIdentityV2CredentialSource(
     }
 
     static bool IsDirectBrowser(ForwardedIdentityV2Context context) => context.CredentialKind == CallerCredentialKind.BrowserSession && context.Actor is null && context.GrantId is null;
+
+    bool IsHopAdmitted(IHttpRequestContext request)
+    {
+        var hop = request.RequestServices?.GetService<IOptions<ArcOptions>>() is { } options
+            ? ForwardedIdentityHop.Admit(request, options.Value)
+            : ForwardedIdentityHopAdmission.NotRequired;
+        if (hop is not (ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated) && ForwardedIdentityHeaders.ArePresent(request))
+        {
+            (hopLogging ?? ForwardedIdentityHopLogging.Shared).Report(logger, hop, request);
+        }
+        return hop == ForwardedIdentityHopAdmission.Authenticated;
+    }
 
     CredentialVerification Refuse(ForwardedIdentityV2Rejection reason)
     {
