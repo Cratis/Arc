@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Identity.Callers;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -51,8 +53,53 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        if (await ConflictsWithAnotherPrincipal(context, caller))
+        {
+            logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
+            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            return;
+        }
+
+        context.Items[VerifiedCallerPrincipal.CallerItemKey] = caller;
+        var result = await context.AuthenticateAsync(VerifiedCallerAuthentication.Scheme);
+        if (!result.Succeeded || !VerifiedCallerPrincipal.Carries(result.Principal, caller))
+        {
+            // A claims transformation or another component dropped the verified identity: the principal cannot be proved.
+            logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
+            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            return;
+        }
+
+        context.User = result.Principal!;
+        context.Items[VerifiedCallerPrincipal.ItemKey] = result.Principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
+    }
+
+    static async Task<bool> ConflictsWithAnotherPrincipal(HttpContext context, VerifiedCaller caller)
+    {
+        var subject = VerifiedCallerIdentity.SubjectOf(caller);
+        var others = new List<ClaimsPrincipal>();
+        if (context.User.Identities.Any(identity => identity.IsAuthenticated))
+        {
+            others.Add(context.User);
+        }
+
+        var defaultScheme = await context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>().GetDefaultAuthenticateSchemeAsync();
+        if (defaultScheme is not null && !string.Equals(defaultScheme.Name, VerifiedCallerAuthentication.Scheme, StringComparison.Ordinal))
+        {
+            var result = await context.AuthenticateAsync(defaultScheme.Name);
+            if (result.Succeeded && result.Principal is { } principal)
+            {
+                others.Add(principal);
+            }
+        }
+
+        return others.Exists(other =>
+        {
+            var otherSubject = (other.FindFirst("sub") ?? other.FindFirst(ClaimTypes.NameIdentifier))?.Value;
+            return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
+        });
     }
 
     static async Task Refuse(HttpContext context, int status)
