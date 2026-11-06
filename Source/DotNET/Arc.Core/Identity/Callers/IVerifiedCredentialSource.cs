@@ -16,6 +16,11 @@ internal interface IVerifiedCredentialSource
     /// <summary>Gets the one credential shape this source owns.</summary>
     PresentedCredentialShape Shape { get; }
 
+    /// <summary>Header names this source reads beyond the presentation.</summary>
+    /// <param name="headerName">The header name.</param>
+    /// <returns>Whether the source consumes the header.</returns>
+    bool Consumes(string headerName);
+
     /// <summary>Verifies a copied presentation without consulting untrusted identity claims.</summary>
     /// <param name="presentation">The copied credentials.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>

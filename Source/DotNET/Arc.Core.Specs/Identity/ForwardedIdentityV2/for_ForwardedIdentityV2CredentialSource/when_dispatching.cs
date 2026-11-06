@@ -61,7 +61,7 @@ public class when_dispatching : Specification
     [Fact] void should_map_browser_account_through_the_directory() => _browser.Facts!.Person!.Value.ShouldEqual("persisted-person");
     [Fact] void should_lookup_the_person_once() => _personCalls.ShouldEqual(1);
     [Fact] void should_not_promote_the_raw_subject_into_a_person() => _browser.Facts!.Person!.Value.ShouldNotEqual(_browser.Facts.AccountKey!.Subject);
-    [Fact] void should_not_fabricate_scopes() => _browser.Facts!.Scopes.ShouldBeEmpty();
+    [Fact] void should_preserve_the_signed_scope_ceiling() => _browser.Facts!.Scopes.SetEquals(["example:read", "example:write"]).ShouldBeTrue();
     [Fact] void should_not_fabricate_permissions() => _browser.Facts!.Permissions.ShouldBeEmpty();
     [Fact] void should_copy_verified_assurance() => _browser.Facts!.Assurance.ShouldNotBeNull();
     [Fact] void should_preserve_credential_kind() => _browser.Facts!.CredentialKind.ShouldEqual(CallerCredentialKind.BrowserSession);

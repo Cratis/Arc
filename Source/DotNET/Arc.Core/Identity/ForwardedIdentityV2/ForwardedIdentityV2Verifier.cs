@@ -27,7 +27,7 @@ internal sealed class ForwardedIdentityV2Verifier(IForwardedIdentityNonceStore n
             var (bytes, headers) = ForwardedIdentityV2Canonicalization.Create(settings, request, envelope.Parts);
             CheckSignature(key, bytes, envelope.Signature);
             ForwardedIdentityV2Principal.Validate(headers);
-            var context = ForwardedIdentityV2Context.Create(headers, settings.RealmIssuer);
+            var context = ForwardedIdentityV2Context.Create(headers, settings.RealmIssuer, settings.TenantHeader);
             var bearer = await ForwardedBearerBinding.Bind(request, context, bearers, cancellationToken);
             if (request.ReplaySensitive) await Reserve(settings.Audience, envelope, now, cancellationToken);
             return ForwardedIdentityV2Verification.Accepted(context, bearer);

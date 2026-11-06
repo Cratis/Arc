@@ -28,7 +28,7 @@ internal sealed class VerifiedCallerBuilder(CallerResourceCatalog catalog)
 
     static VerifiedCaller CreateCaller(VerifiedCredentialFacts facts)
     {
-        var client = facts.CredentialKind == CallerCredentialKind.PersonalAccessToken && facts.Client is not null
+        var client = facts.CredentialKind is CallerCredentialKind.PersonalAccessToken or CallerCredentialKind.BrowserSession && facts.Client is not null
             ? facts.Client with { Authentication = CallerClientAuthentication.Declared }
             : facts.Client;
         var binding = facts.Cnf is null ? null : new CallerSenderBinding(facts.Cnf, facts.Proof.Jti!);
