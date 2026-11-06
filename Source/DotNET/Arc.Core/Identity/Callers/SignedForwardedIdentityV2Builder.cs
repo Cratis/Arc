@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Identity.ForwardedIdentityV2;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -75,7 +76,7 @@ public sealed class SignedForwardedIdentityV2Builder
     /// </summary>
     /// <typeparam name="TStore">The singleton, concurrency-safe store implementation.</typeparam>
     /// <returns>This builder.</returns>
-    public SignedForwardedIdentityV2Builder UseNonceStore<TStore>()
+    public SignedForwardedIdentityV2Builder UseNonceStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IForwardedIdentityNonceStore
     {
         _nonceStore = ServiceDescriptor.Singleton<IForwardedIdentityNonceStore, TStore>();

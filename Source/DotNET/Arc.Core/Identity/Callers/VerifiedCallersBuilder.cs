@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Identity.ForwardedIdentityV2;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +40,7 @@ public sealed class VerifiedCallersBuilder
     /// </summary>
     /// <typeparam name="TDirectory">The product-owned directory implementation.</typeparam>
     /// <returns>This builder.</returns>
-    public VerifiedCallersBuilder UsePersonDirectory<TDirectory>()
+    public VerifiedCallersBuilder UsePersonDirectory<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDirectory>()
         where TDirectory : class, ICallerPersonDirectory
     {
         _directory = ServiceDescriptor.Scoped<ICallerPersonDirectory, TDirectory>();

@@ -44,6 +44,7 @@ from unittest.mock import patch
 PROXY_SPECS = Path("Source/DotNET/Tools/ProxyGenerator.Specs")
 PROXY_SPECS_PROJECT_FILE = "ProxyGenerator.Specs.csproj"
 SPEC_ROOT = Path("Source/DotNET")
+VERIFIED_CALLER_SAMPLE = Path("Samples/VerifiedCallerAcceptance.Specs/VerifiedCallerAcceptance.Specs.csproj")
 SHARDS_FILE = Path(".github/test-shards.json")
 SKIPPED_DIRECTORIES = {"bin", "obj", "node_modules", ".git"}
 TRX_NAMESPACE = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
@@ -97,6 +98,8 @@ def discover_spec_projects(root: Path) -> list[str]:
     for path in walk_files(folder):
         if path.name.endswith(".Specs.csproj") and path.name != PROXY_SPECS_PROJECT_FILE:
             projects.add(path.parent.relative_to(root).as_posix())
+    if (root / VERIFIED_CALLER_SAMPLE).is_file():
+        projects.add(VERIFIED_CALLER_SAMPLE.parent.as_posix())
     return sorted(projects)
 
 
@@ -629,6 +632,12 @@ def self_test() -> int:
         write(root / SPEC_ROOT / "Fresh.Specs" / "Fresh.Specs.csproj", "<Project />")
         expect_status("new spec project fails until assigned", run_check(valid), 1)
         (root / SPEC_ROOT / "Fresh.Specs" / "Fresh.Specs.csproj").unlink()
+        write(root / VERIFIED_CALLER_SAMPLE, "<Project />")
+        expect("acceptance sample is discovered outside Source/DotNET", VERIFIED_CALLER_SAMPLE.parent.as_posix() in discover_spec_projects(root), True)
+        expect_status("acceptance sample fails until assigned", run_check(valid), 1)
+        assigned_sample = mutated(lambda document: document["specShards"][0]["projects"].append(VERIFIED_CALLER_SAMPLE.parent.as_posix()))
+        expect_status("assigned acceptance sample passes", run_check(assigned_sample), 0)
+        (root / VERIFIED_CALLER_SAMPLE).unlink()
         write(proxy / "for_New" / "when_n.cs", "namespace Cratis.P.for_New;\n")
         expect_status("new namespace fails until assigned", run_check(valid), 1)
         shutil.rmtree(proxy / "for_New")
