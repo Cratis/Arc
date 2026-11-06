@@ -29,6 +29,7 @@ public class when_checking_binding_table_coverage : Specification
         [typeof(OnBehalfOfOptions)] = OnBehalfOfOptionsBinding.Bound,
         [typeof(OnBehalfOfSigningKey)] = OnBehalfOfSigningKeyBinding.Bound,
         [typeof(ForwardedIdentityOptions)] = ForwardedIdentityOptionsBinding.Bound,
+        [typeof(ForwardedIdentityClientCertificateOptions)] = ForwardedIdentityClientCertificateOptionsBinding.Bound,
         [typeof(ForwardedIdentityKey)] = ForwardedIdentityKeyBinding.Bound,
         [typeof(Calendar.CalendarOptions)] = CalendarOptionsBinding.Bound,
         [typeof(Commands.CommandOptions)] = CommandOptionsBinding.Bound,

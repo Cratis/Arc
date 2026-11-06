@@ -34,10 +34,12 @@ public class AuthorizationDeclarations(
     /// </summary>
     /// <param name="type">The declared type.</param>
     /// <returns>The declaration.</returns>
+    /// <exception cref="InvalidAuthorizationConfiguration">A required scope is blank.</exception>
     public AuthorizationDeclaration For(Type type)
     {
         var declaration = Resolve(type, evaluator => evaluator.IsAnonymousAllowed(type), evaluator => evaluator.GetAuthorizationRequirements(type));
-        return declaration.IsExplicit ? declaration : Baseline(_fallbackEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(type)));
+        var resolved = declaration.IsExplicit ? declaration : Baseline(_fallbackEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(type)));
+        return resolved with { RequiredScopes = RequiredScopesOf(type, null) };
     }
 
     /// <summary>
@@ -45,25 +47,42 @@ public class AuthorizationDeclarations(
     /// </summary>
     /// <param name="method">The declared method.</param>
     /// <returns>The declaration.</returns>
-    public AuthorizationDeclaration For(MethodInfo method)
+    /// <exception cref="InvalidAuthorizationConfiguration">A required scope is blank.</exception>
+    public AuthorizationDeclaration For(MethodInfo method) =>
+        ResolveMethod(method) with { RequiredScopes = RequiredScopesOf(method.DeclaringType, method) };
+
+    /// <summary>
+    /// Reads the scopes a method and its declaring type require, as one ordinal sorted set.
+    /// </summary>
+    /// <param name="type">The declaring type, if any.</param>
+    /// <param name="method">The method, if any.</param>
+    /// <returns>The required scopes.</returns>
+    /// <exception cref="InvalidAuthorizationConfiguration">A required scope is blank.</exception>
+    internal static string[] RequiredScopesOf(Type? type, MethodInfo? method)
     {
-        var declaration = Resolve(method, evaluator => evaluator.IsAnonymousAllowed(method), evaluator => evaluator.GetAuthorizationRequirements(method));
-        if (declaration.IsExplicit)
+        IEnumerable<RequiresScopeAttribute> attributes = [];
+        if (method is not null)
         {
-            return declaration;
+            attributes = attributes.Concat(method.GetCustomAttributes<RequiresScopeAttribute>(true));
         }
 
-        if (method.DeclaringType is { } type)
+        if (type is not null)
         {
-            declaration = Resolve(type, evaluator => evaluator.IsAnonymousAllowed(type), evaluator => evaluator.GetAuthorizationRequirements(type));
-            if (declaration.IsExplicit)
+            attributes = attributes.Concat(type.GetCustomAttributes<RequiresScopeAttribute>(true));
+        }
+
+        var scopes = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var attribute in attributes)
+        {
+            if (string.IsNullOrWhiteSpace(attribute.Scope))
             {
-                return declaration;
+                throw new InvalidAuthorizationConfiguration($"A required scope on '{method as MemberInfo ?? type}' is blank.");
             }
+
+            scopes.Add(attribute.Scope);
         }
 
-        return Baseline(_fallbackEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(method)
-            .Concat(method.DeclaringType is { } declaringType ? evaluator.GetAuthorizationRequirements(declaringType) : [])));
+        return [.. scopes];
     }
 
     static AuthorizationDeclaration Baseline(IEnumerable<AuthorizationRequirement> requirements) =>
@@ -105,5 +124,26 @@ public class AuthorizationDeclarations(
             anonymous is not null,
             anonymous is not null || requirements.Any(result => result.Requirements.Length > 0),
             requirements.SelectMany(result => result.Requirements).ToArray());
+    }
+
+    AuthorizationDeclaration ResolveMethod(MethodInfo method)
+    {
+        var declaration = Resolve(method, evaluator => evaluator.IsAnonymousAllowed(method), evaluator => evaluator.GetAuthorizationRequirements(method));
+        if (declaration.IsExplicit)
+        {
+            return declaration;
+        }
+
+        if (method.DeclaringType is { } type)
+        {
+            declaration = Resolve(type, evaluator => evaluator.IsAnonymousAllowed(type), evaluator => evaluator.GetAuthorizationRequirements(type));
+            if (declaration.IsExplicit)
+            {
+                return declaration;
+            }
+        }
+
+        return Baseline(_fallbackEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(method)
+            .Concat(method.DeclaringType is { } declaringType ? evaluator.GetAuthorizationRequirements(declaringType) : [])));
     }
 }

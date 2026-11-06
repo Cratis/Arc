@@ -22,7 +22,7 @@ public class when_importing : Specification
                 _ = ForwardedIdentityV2PublicKey.FromPem(id, pem);
                 _refusals.Add(false);
             }
-            catch (ArgumentException)
+            catch (InvalidForwardedIdentityPublicKey)
             {
                 _refusals.Add(true);
             }

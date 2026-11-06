@@ -45,6 +45,11 @@ public class AuthorizationEvaluator(
     /// <exception cref="AsynchronousAuthorizationRequired">A policy or scheme requires the asynchronous pipeline.</exception>
     public static bool Check(AuthorizationDeclaration declaration, ClaimsPrincipal? principal)
     {
+        if (!ScopeCeiling.Allows(principal, declaration.RequiredScopes))
+        {
+            return false;
+        }
+
         if (declaration.AllowsAnonymous || declaration.Requirements.Count == 0)
         {
             return true;
@@ -72,10 +77,11 @@ public class AuthorizationEvaluator(
     /// <param name="evaluatesAnonymous">Whether all resolved policies allow anonymous evaluation.</param>
     /// <returns>True when all authentication and role requirements are met.</returns>
     internal static bool CheckRoles(AuthorizationDeclaration declaration, ClaimsPrincipal? principal, bool evaluatesAnonymous = false) =>
-        declaration.Requirements.Count == 0 ||
+        ScopeCeiling.Allows(principal, declaration.RequiredScopes) &&
+        (declaration.Requirements.Count == 0 ||
         ((principal?.Identity?.IsAuthenticated == true || evaluatesAnonymous) &&
          declaration.Requirements.All(requirement => requirement.AnyOfRoles.Count == 0 ||
-             (principal?.Identity?.IsAuthenticated == true && requirement.AnyOfRoles.Any(principal.IsInRole))));
+             (principal?.Identity?.IsAuthenticated == true && requirement.AnyOfRoles.Any(principal.IsInRole)))));
 
     /// <summary>
     /// Detects authentication on any identity, including identities added after an unauthenticated primary identity.
@@ -125,7 +131,8 @@ public class AuthorizationEvaluator(
     {
         if (checkedDeclaration.AllowsAnonymous != current.AllowsAnonymous ||
             checkedDeclaration.IsExplicit != current.IsExplicit ||
-            checkedDeclaration.Requirements.Count != current.Requirements.Count)
+            checkedDeclaration.Requirements.Count != current.Requirements.Count ||
+            !checkedDeclaration.RequiredScopes.SequenceEqual(current.RequiredScopes, StringComparer.Ordinal))
         {
             return false;
         }

@@ -2,18 +2,27 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Identity.ForwardedIdentityV2.given;
 
 internal static class VerificationFixture
 {
+    static readonly Lazy<(Identity.for_ForwardedIdentityHop.given.certificates Authority, X509Certificate2 Certificate)> _transport = new(() =>
+    {
+        var authority = new Identity.for_ForwardedIdentityHop.given.certificates();
+        return (authority, authority.Leaf("proxy.test"));
+    });
+
     internal static ForwardedIdentityV2Settings Settings(Inputs input) => new(input.Aud, "resource", input.RealmIssuer, input.TenantHeader, ForwardedIdentityV2Vectors.Fixture.TestKeys.SelectMany(key => key.KeyIds.Select(id => new KeyValuePair<string, ForwardedIdentityV2PublicKey>(id, ForwardedIdentityV2PublicKey.FromPem(id, key.PublicKeyPem)))).ToDictionary(), false);
 
-    internal static ForwardedIdentityV2Request Request(Vector vector) => new(vector.Inputs.Method, vector.Inputs.Path, vector.Inputs.Headers.Select(header => new ForwardedIdentityV2Header(header.Name, header.Value)).Append(new(ForwardedIdentityV2Envelope.Header, vector.Envelope)).ToArray(), vector.Inputs.ReplaySensitive);
+    internal static ForwardedIdentityV2Request Request(Vector vector) => new(vector.Inputs.Method, vector.Inputs.Path, vector.Inputs.Headers.Select(header => new ForwardedIdentityV2Header(header.Name, header.Value)).Append(new(ForwardedIdentityV2Envelope.Header, vector.Envelope)).ToArray(), vector.Inputs.ReplaySensitive, vector.Inputs.AuthenticatedTls);
 
     internal static Vector Sign(Vector vector)
     {
@@ -59,7 +68,13 @@ internal static class VerificationFixture
 
     internal static IHttpRequestContext RawRequest(Vector vector)
     {
-        var request = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders>();
+        var request = (IHttpRequestContext)Substitute.For([typeof(IHttpRequestContext), typeof(ICanReadForwardedIdentityRequest), typeof(ICanPreserveCallerCredentialHeaders), typeof(ICanReadClientCertificate)], []);
+        ((ICanReadClientCertificate)request).TransportClientCertificate.Returns(_ => vector.Inputs.AuthenticatedTls ? new X509Certificate2(_transport.Value.Certificate) : null);
+        var options = new ArcOptions { TrustForwardedIdentityHeaders = true };
+        options.ForwardedIdentity.ClientCertificate.Required = true;
+        options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = _transport.Value.Authority.Bundle;
+        options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("proxy.test");
+        request.RequestServices.Returns(new ServiceCollection().AddSingleton<IOptions<ArcOptions>>(Options.Create(options)).BuildServiceProvider());
         var raw = (ICanReadForwardedIdentityRequest)request;
         var snapshot = Request(vector);
         request.Items.Returns(new Dictionary<object, object?>());

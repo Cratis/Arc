@@ -7,9 +7,18 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Cratis.Arc.Identity.Callers;
 
 /// <summary>Registers inert, internal caller resolution without credential-source discovery.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 internal static class VerifiedCallerServiceCollectionExtensions
 {
+    /// <summary>Registers a validated explicit installation.</summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="builder">The installation builder.</param>
+    /// <returns>The same collection.</returns>
+    internal static IServiceCollection AddVerifiedCallers(this IServiceCollection services, VerifiedCallersBuilder builder)
+    {
+        builder.Install(services);
+        return services;
+    }
+
     /// <summary>Adds the scoped accessor and fail-closed installation defaults.</summary>
     /// <param name="services">The receiving services.</param>
     /// <returns>The same service collection.</returns>

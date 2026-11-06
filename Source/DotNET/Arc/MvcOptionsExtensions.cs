@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,7 @@ public static class MvcOptionsExtensions
     /// <returns><see cref="MvcOptions"/> for building continuation.</returns>
     public static MvcOptions AddCQRS(this MvcOptions options)
     {
+        options.Filters.Add<ScopeCeilingFilter>();
         options.Filters.Add<CommandActionFilter>();
         options.Filters.Add<QueryActionFilter>();
         options.OutputFormatters.Insert(0, new JsonLinesStreamingFormatter());

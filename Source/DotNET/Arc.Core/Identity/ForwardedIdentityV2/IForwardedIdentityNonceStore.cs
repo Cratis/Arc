@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 
 /// <summary>Atomically reserves nonces until the inclusive timestamp-plus-60 boundary.</summary>
-internal interface IForwardedIdentityNonceStore
+public interface IForwardedIdentityNonceStore
 {
     /// <summary>Reserves a nonce without evicting live reservations.</summary>
     /// <param name="aud">The configured audience.</param>

@@ -16,10 +16,10 @@ internal static class ForwardedIdentityV2ServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="settings">The explicit installation settings.</param>
     /// <returns>The same collection for chained registration.</returns>
-    /// <exception cref="InvalidOperationException">No nonce store was explicitly registered.</exception>
+    /// <exception cref="ForwardedIdentityNonceStoreNotConfigured">No nonce store was explicitly registered.</exception>
     internal static IServiceCollection AddForwardedIdentityV2(this IServiceCollection services, ForwardedIdentityV2Settings settings)
     {
-        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IForwardedIdentityNonceStore))) throw new InvalidOperationException("Forwarded identity v2 requires an explicitly registered nonce store.");
+        if (!services.Any(descriptor => descriptor.ServiceType == typeof(IForwardedIdentityNonceStore))) throw new ForwardedIdentityNonceStoreNotConfigured();
         services.AddSingleton(settings);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddScoped<IForwardedBearerVerifier, ForwardedBearerVerifierAdapter>();

@@ -86,6 +86,8 @@ public static class WebApplicationBuilderExtensions
         builder.Services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyRuntime, AspNetAuthorizationPolicyRuntime>());
         builder.Services.Replace(ServiceDescriptor.Transient<IEndpointFallbackAuthorization, AspNetCoreEndpointFallbackAuthorization>());
         builder.Services.AddHostedService<AuthorizationStartupValidation>();
+        builder.Services.TryAddSingleton<Cratis.Arc.Identity.ForwardedIdentityClientCertificateTrustStore>();
+        builder.Services.AddHostedService<Cratis.Arc.Identity.ForwardedIdentityHopStartupValidation>();
         builder.Services.AddIdentityProvider();
         OperationHttpContextAccessorRegistration.Add(builder.Services);
         var discoverableValidators = builder.Services.AddArcAspNetCore(Internals.Types);

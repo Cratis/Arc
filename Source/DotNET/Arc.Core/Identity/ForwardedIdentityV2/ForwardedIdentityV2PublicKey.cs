@@ -16,14 +16,27 @@ internal sealed class ForwardedIdentityV2PublicKey
     /// <param name="kid">The key identifier.</param>
     /// <param name="pem">The public key PEM.</param>
     /// <returns>The validated verification material.</returns>
-    /// <exception cref="ArgumentException">The identifier, key visibility or curve is invalid.</exception>
+    /// <exception cref="InvalidForwardedIdentityPublicKey">The identifier, key visibility or curve is invalid.</exception>
     internal static ForwardedIdentityV2PublicKey FromPem(string kid, string pem)
     {
-        if (!ForwardedIdentityV2Envelope.KeyIdPattern().IsMatch(kid) || pem.Contains("PRIVATE KEY", StringComparison.Ordinal)) throw new ArgumentException("A forwarded identity key must be a named P-256 public key.");
+        if (string.IsNullOrEmpty(kid) || !ForwardedIdentityV2Envelope.KeyIdPattern().IsMatch(kid) || string.IsNullOrWhiteSpace(pem) || pem.Contains("PRIVATE KEY", StringComparison.Ordinal))
+        {
+            throw new InvalidForwardedIdentityPublicKey(kid, "A named P-256 public key is required.");
+        }
         using var key = ECDsa.Create();
-        key.ImportFromPem(pem);
+        try
+        {
+            key.ImportFromPem(pem);
+        }
+        catch (Exception exception) when (exception is ArgumentException or CryptographicException)
+        {
+            throw new InvalidForwardedIdentityPublicKey(kid, "The public key PEM could not be imported.");
+        }
         var parameters = key.ExportParameters(false);
-        if (parameters.Curve.Oid.Value != "1.2.840.10045.3.1.7" || parameters.D is not null) throw new ArgumentException("A forwarded identity key must be a named P-256 public key.");
+        if (parameters.Curve.Oid.Value != "1.2.840.10045.3.1.7" || parameters.D is not null)
+        {
+            throw new InvalidForwardedIdentityPublicKey(kid, "A named P-256 public key is required.");
+        }
         return new(parameters);
     }
 

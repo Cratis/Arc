@@ -59,6 +59,27 @@ Arc's [`IFallbackAuthorizationEvaluator`](../core/authorization.md#set-baseline-
 > [!WARNING]
 > Normal Arc activation maps the discovery endpoints (command/query introspection, development-user/tenant discovery and the identity schema) anonymously only in Development; elsewhere they require an authenticated caller unless `ArcOptions.Introspection.RequireAuthentication` is `false`. A fallback policy does **not** protect endpoints that are explicitly anonymous. Review [production discovery exposure](../introspection/index.md#production-access).
 
+## Verified capability callers and scopes
+
+On a capability listener, the [verified caller](verified-callers.md) becomes the principal used by Arc authorization, `ICurrentPrincipalAccessor`, and Chronicle identity/causation. Product roles, policies, and live tenant membership still apply to that subject. A signed tenant is only a candidate, not proof of membership. A different authenticated subject is refused instead of merged.
+
+Use `[RequiresScope]` to narrow an operation against the verified credential's scope ceiling. This complete type fragment belongs in an installed capability host:
+
+```csharp
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands.ModelBound;
+
+[Command, Roles("editor"), RequiresScope("content:write")]
+public record PublishContent
+{
+    public string Handle() => "published";
+}
+```
+
+Both requirements apply: the caller needs the product's editor role and the credential's exact `content:write` scope. An absent scope ceiling is empty. A role, policy, or same-subject product scheme cannot add scopes to the credential ceiling. Scopes never authorize a person who fails product authorization. Role enrichment must preserve the verified subject on each authenticated identity it adds.
+
+See the acceptance sample in the repository's `Samples/VerifiedCallerAcceptance` folder for real HTTP checks of roles, tenant membership, scope narrowing, and subject conflicts. PAT, OAuth-grant, service-account, and on-behalf installation are not supplied by the browser-session installer.
+
 ## Role-based authorization
 
 For model-bound commands and queries, use explicit Arc imports. These are complete type fragments for an existing Arc host; neither needs a database or Chronicle:

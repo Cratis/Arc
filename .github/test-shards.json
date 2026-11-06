@@ -160,6 +160,7 @@
     {
       "name": "specs-3",
       "projects": [
+        "Samples/VerifiedCallerAcceptance.Specs",
         "Source/DotNET/Arc.Core.Generators.Specs",
         "Source/DotNET/Chronicle.CodeAnalysis.Specs",
         "Source/DotNET/Chronicle.Specs",

@@ -142,7 +142,16 @@ public class IdentityProvider(
         var identityName = claimsPrincipal.Identity?.Name;
         if (string.IsNullOrEmpty(identityName) && options.Value.TrustForwardedIdentityHeaders && options.Value.ForwardedIdentity?.Enabled != true)
         {
-            context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out identityName);
+            var hop = ForwardedIdentityHop.Admit(context, options.Value);
+            if (hop is ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated)
+            {
+                context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out identityName);
+            }
+            else if (ForwardedIdentityHeaders.ArePresent(context))
+            {
+                var logger = context.RequestServices?.GetService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<IdentityProvider>.Instance;
+                ForwardedIdentityHopLogging.Shared.Report(logger, hop, context);
+            }
         }
         identityName = string.IsNullOrEmpty(identityName) ? "unknown" : identityName;
         var claims = claimsPrincipal.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value));

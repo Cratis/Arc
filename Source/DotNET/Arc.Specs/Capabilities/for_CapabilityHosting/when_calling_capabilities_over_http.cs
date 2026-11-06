@@ -4,6 +4,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.EndpointGroups;
@@ -54,6 +55,7 @@ public class when_calling_capabilities_over_http
             probe.CapabilityCommands.ShouldEqual(1);
             probe.Caller!.Person.ShouldEqual("person");
             probe.Caller.EndpointGroup.ShouldEqual("capabilities");
+            probe.Subject.ShouldEqual("person");
             verified.ClearReceivedCalls();
             using var wrongPort = await client.PostAsJsonAsync($"http://127.0.0.1:{defaultPort}/capability-spec", new { }, global::Xunit.TestContext.Current.CancellationToken);
             wrongPort.StatusCode.ShouldEqual(HttpStatusCode.NotFound);
@@ -97,15 +99,17 @@ public class when_calling_capabilities_over_http
         public int CapabilityCommands { get; set; }
         public int OrdinaryCommands { get; set; }
         public CapabilityCaller? Caller { get; set; }
+        public string? Subject { get; set; }
     }
 
     [Path("/capability-spec"), EndpointGroup("capabilities")]
     public record CapabilityCommand
     {
-        public void Handle(Probe probe, ICapabilityCallers callers)
+        public void Handle(Probe probe, ICapabilityCallers callers, ICurrentPrincipalAccessor principals)
         {
             probe.CapabilityCommands++;
             probe.Caller = callers.Current;
+            probe.Subject = principals.Current?.FindFirst("sub")?.Value;
         }
     }
 

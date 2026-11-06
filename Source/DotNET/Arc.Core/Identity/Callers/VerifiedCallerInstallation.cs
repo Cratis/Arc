@@ -12,12 +12,16 @@ internal sealed record VerifiedCallerInstallation(string? Resource, string? Envi
     /// <summary>
     /// Checks whether the installation names a resource, environment, and unambiguous receiving audience.
     /// </summary>
-    /// <remarks>Mirrors the verified-caller builder's installation check.</remarks>
     /// <param name="catalog">The configured resource catalog.</param>
     /// <returns>Whether the installation can receive verified callers.</returns>
     internal bool IsConfigured(CallerResourceCatalog catalog) =>
-        !string.IsNullOrWhiteSpace(Resource) &&
-        !string.IsNullOrWhiteSpace(Environment) &&
-        catalog.TryGetAudience(Resource, out var audience) &&
-        !string.IsNullOrWhiteSpace(audience);
+        Resource is not null && catalog.TryGetAudience(Resource, out var audience) && IsValid(Resource, audience, Environment);
+
+    /// <summary>Checks the shared installation binding requirements.</summary>
+    /// <param name="resource">The receiving resource.</param>
+    /// <param name="audience">The receiving audience.</param>
+    /// <param name="environment">The receiving environment.</param>
+    /// <returns>Whether all binding values are present.</returns>
+    internal static bool IsValid(string? resource, string? audience, string? environment) =>
+        !string.IsNullOrWhiteSpace(resource) && !string.IsNullOrWhiteSpace(audience) && !string.IsNullOrWhiteSpace(environment);
 }

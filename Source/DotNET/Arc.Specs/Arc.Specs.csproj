@@ -11,6 +11,7 @@
         <ProjectReference Include="../Arc/Arc.csproj" />
     </ItemGroup>
     <ItemGroup>
+        <Compile Include="../Arc.Core.Specs/Identity/ForwardedIdentityHop/given/certificates.cs" Link="Identity/ForwardedIdentityHop/given/certificates.cs" />
         <Compile Include="../Specs.Shared/OnBehalfOfAssertionsForSpecs.cs" Link="Identity/OnBehalfOfAssertionsForSpecs.cs" />
         <Compile Include="../Specs.Shared/ForwardedIdentityForSpecs.cs" Link="Identity/ForwardedIdentityForSpecs.cs" />
     </ItemGroup>

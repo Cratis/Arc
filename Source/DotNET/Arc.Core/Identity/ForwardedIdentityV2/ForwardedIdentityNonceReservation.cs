@@ -4,9 +4,10 @@
 namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 
 /// <summary>The atomic replay reservation outcome.</summary>
-internal enum ForwardedIdentityNonceReservation
+public enum ForwardedIdentityNonceReservation
 {
     /// <summary>A new reservation was recorded.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1700:Do not name enum values 'Reserved'", Justification = "Reserved denotes a successfully recorded nonce reservation, not a reserved placeholder.")]
     Reserved = 0,
 
     /// <summary>The nonce is already live.</summary>

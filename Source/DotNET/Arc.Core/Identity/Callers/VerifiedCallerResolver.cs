@@ -32,7 +32,7 @@ internal sealed class VerifiedCallerResolver(
         {
             return Task.FromResult(new CallerResolution(null, CallerRefusal.NoCredential));
         }
-        var tenant = tenants.Current;
+        var tenant = CurrentTenant();
         var inputs = CallerResolutionInputs.Capture(request, sources, tenant);
         Entry entry;
         lock (request.Items)
@@ -71,7 +71,7 @@ internal sealed class VerifiedCallerResolver(
         try
         {
             var resolution = await Resolve(request);
-            var current = CallerResolutionInputs.Capture(request, sources, tenants.Current);
+            var current = CallerResolutionInputs.Capture(request, sources, CurrentTenant());
             lock (request.Items)
             {
                 if (!entry.Inputs.Matches(current)) entry.Poisoned = true;
@@ -116,9 +116,13 @@ internal sealed class VerifiedCallerResolver(
         {
             return new(null, verification.Refusal ?? CallerRefusal.SourceRefused);
         }
-        var result = builder.Build(verification.Facts, installation, tenants.Current);
+        var result = builder.Build(verification.Facts, installation, CurrentTenant());
         return new(result.Caller, result.Refusal);
     }
+
+    /// <summary>Reads the tenant without a membership check, which runs once the verified principal exists.</summary>
+    /// <returns>The tenant candidate.</returns>
+    TenantId CurrentTenant() => tenants is TenantIdAccessor accessor ? accessor.Candidate : tenants.Current;
 
     sealed class Entry(CallerResolutionInputs inputs, VerifiedCallerInstallation installation)
     {
