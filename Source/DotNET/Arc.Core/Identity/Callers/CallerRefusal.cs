@@ -74,5 +74,8 @@ internal enum CallerRefusal
     SourceConflict = 21,
 
     /// <summary>The request inputs consumed by an earlier resolution changed.</summary>
-    RequestChanged = 22
+    RequestChanged = 22,
+
+    /// <summary>Another scheme authenticated a different subject on the request.</summary>
+    AmbiguousPrincipal = 23
 }

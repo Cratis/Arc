@@ -1,8 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Identity.Callers;
+using Cratis.Arc.Tenancy;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -51,8 +54,79 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        if (await ConflictsWithAnotherPrincipal(context, caller))
+        {
+            logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
+            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            return;
+        }
+
+        // The verified principal is built here and never registered as an authentication scheme, so the host's own
+        // default scheme selection is untouched. The product's claims transformation still applies.
+        var principal = VerifiedCallerPrincipal.Create(caller);
+        if (context.RequestServices.GetService<IClaimsTransformation>() is { } transformation)
+        {
+            principal = await transformation.TransformAsync(principal);
+        }
+
+        if (!VerifiedCallerPrincipal.Carries(principal, caller))
+        {
+            // A claims transformation or another component dropped the verified identity: the principal cannot be proved.
+            logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
+            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            return;
+        }
+
+        if (!MembershipAllows(context, caller, principal))
+        {
+            await Refuse(context, StatusCodes.Status403Forbidden);
+            return;
+        }
+
+        context.User = principal;
+        context.Items[VerifiedCallerPrincipal.ItemKey] = principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
+    }
+
+    static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
+    {
+        // The product's membership check runs here, once, for the verified principal and the caller's checked tenant.
+        try
+        {
+            _ = context.RequestServices.GetService<TenantMembershipVerification>()?.Verify(caller.Tenant ?? TenantId.NotSet, principal);
+            return true;
+        }
+        catch (TenantMembershipDenied)
+        {
+            return false;
+        }
+    }
+
+    static async Task<bool> ConflictsWithAnotherPrincipal(HttpContext context, VerifiedCaller caller)
+    {
+        var subject = VerifiedCallerIdentity.SubjectOf(caller);
+        var others = new List<ClaimsPrincipal>();
+        if (context.User.Identities.Any(identity => identity.IsAuthenticated))
+        {
+            others.Add(context.User);
+        }
+
+        var defaultScheme = await context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>().GetDefaultAuthenticateSchemeAsync();
+        if (defaultScheme is not null)
+        {
+            var result = await context.AuthenticateAsync(defaultScheme.Name);
+            if (result.Succeeded && result.Principal is { } principal)
+            {
+                others.Add(principal);
+            }
+        }
+
+        return others.Exists(other =>
+        {
+            var otherSubject = (other.FindFirst("sub") ?? other.FindFirst(ClaimTypes.NameIdentifier))?.Value;
+            return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
+        });
     }
 
     static async Task Refuse(HttpContext context, int status)

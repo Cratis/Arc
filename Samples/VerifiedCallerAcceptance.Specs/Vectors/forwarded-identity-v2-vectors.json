@@ -1,0 +1,60 @@
+{
+  "warning": "TEST ONLY: public private keys; NEVER deploy these keys or fixture credentials. Subset of the shared Arc v2 vectors: first test key and valid-v2 only.",
+  "format": "Cratis.AuthProxy.ForwardedIdentity.v2",
+  "testKeys": [
+    {
+      "name": "signer",
+      "keyIds": ["k1", "k1-alias", "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK"],
+      "privateKeyPem": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgt7UBsteQHs38vxg5\n8isIeNE3QCvpccMhPETcl44\u002B97ehRANCAASEaNDdhL9cNTMe\u002BcbU\u002B/7aXjaTjeEA\nbO\u002BUSpoXMaZBBJrBHMybOBgLpfpze8j7SKOghxrHI/zW0CVDgCz30tMs\n-----END PRIVATE KEY-----",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhGjQ3YS/XDUzHvnG1Pv\u002B2l42k43h\nAGzvlEqaFzGmQQSawRzMmzgYC6X6c3vI\u002B0ijoIcaxyP81tAlQ4As99LTLA==\n-----END PUBLIC KEY-----"
+    }
+  ],
+  "cases": [
+    {
+      "name": "valid-v2",
+      "inputs": {
+        "method": "POST",
+        "path": "/api/a%2fb//./task?x=1",
+        "aud": "example-api",
+        "now": 1700000000,
+        "headers": [
+          {"name": "x-ms-client-principal", "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119"},
+          {"name": "x-ms-client-principal-id", "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"},
+          {"name": "x-ms-client-principal-name", "value": "Test User"},
+          {"name": "x-ms-client-principal-extension", "value": "opaque,extension"},
+          {"name": "x-cratis-token-client-id", "value": "client-test"},
+          {"name": "x-cratis-token-scope", "value": "example:read example:write"},
+          {"name": "x-cratis-tenant-id", "value": "tenant-test"},
+          {"name": "tenant-id", "value": "tenant-test"},
+          {"name": "x-cratis-microservice", "value": "service-test"},
+          {"name": "service-id", "value": "service-test"},
+          {"name": "x-example-tenant", "value": "tenant-test"},
+          {"name": "x-cratis-on-behalf-context", "value": "opaque"},
+          {"name": "x-cratis-credential-kind", "value": "oauth-grant"},
+          {"name": "x-cratis-credential-id", "value": "credential-test"},
+          {"name": "x-cratis-issuer", "value": "https://identity.example.test"},
+          {"name": "x-cratis-subject", "value": "8b167ad2-0f89-4c78-9d42-6d4580495d32"},
+          {"name": "x-cratis-idp", "value": "https://login.example.test"},
+          {"name": "x-cratis-auth-time", "value": "1699999900"},
+          {"name": "x-cratis-acr", "value": "basic"},
+          {"name": "x-cratis-amr", "value": "WyJwd2QiXQ=="},
+          {"name": "x-cratis-act", "value": "eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0="},
+          {"name": "x-cratis-grant-id", "value": "grant-test"},
+          {"name": "x-cratis-policy-epoch", "value": "7"},
+          {"name": "x-cratis-sender-binding", "value": "eyJqa3QiOiJBQUVDQXdRRkJnY0lDUW9MREEwT0R4QVJFaE1VRlJZWEdCa2FHeHdkSGg4IiwianRpIjoicHJvb2YtdGVzdCJ9"}
+        ],
+        "tenantHeader": "x-example-tenant",
+        "replaySensitive": true,
+        "authenticatedTls": true,
+        "storeAvailable": true,
+        "storeFull": false,
+        "replica": "replica-a",
+        "realmIssuer": "https://identity.example.test"
+      },
+      "envelope": "v2.k1.1700000000.AAECAwQFBgcICQoLDA0ODw.wxz9wqSak_SaJ63DUi_5VSajBHVKH2PnOasXiAM-2bagFGAe48LGiETqwSpvxI1OlHAhjmGFusPzpKZk1rigfw",
+      "signingInput": "Cratis.AuthProxy.ForwardedIdentity.v2\n11:example-api\n2:k1\n10:1700000000\n22:AAECAwQFBgcICQoLDA0ODw\n4:POST\n18:/api/a%2Fb//./task\n2:24\n10:service-id\n12:service-test\n9:tenant-id\n11:tenant-test\n12:x-cratis-acr\n5:basic\n12:x-cratis-act\n72:eyJpc3MiOiJodHRwczovL2FjdG9ycy5leGFtcGxlLnRlc3QiLCJzdWIiOiJhZ2VudC03In0=\n12:x-cratis-amr\n12:WyJwd2QiXQ==\n18:x-cratis-auth-time\n10:1699999900\n22:x-cratis-credential-id\n15:credential-test\n24:x-cratis-credential-kind\n11:oauth-grant\n17:x-cratis-grant-id\n10:grant-test\n12:x-cratis-idp\n26:https://login.example.test\n15:x-cratis-issuer\n29:https://identity.example.test\n21:x-cratis-microservice\n12:service-test\n26:x-cratis-on-behalf-context\n6:opaque\n21:x-cratis-policy-epoch\n1:7\n23:x-cratis-sender-binding\n96:eyJqa3QiOiJBQUVDQXdRRkJnY0lDUW9MREEwT0R4QVJFaE1VRlJZWEdCa2FHeHdkSGg4IiwianRpIjoicHJvb2YtdGVzdCJ9\n16:x-cratis-subject\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n18:x-cratis-tenant-id\n11:tenant-test\n24:x-cratis-token-client-id\n11:client-test\n20:x-cratis-token-scope\n26:example:read example:write\n16:x-example-tenant\n11:tenant-test\n21:x-ms-client-principal\n208:eyJpZGVudGl0eVByb3ZpZGVyIjoiaHR0cHM6Ly9sb2dpbi5leGFtcGxlLnRlc3QiLCJ1c2VySWQiOiI4YjE2N2FkMi0wZjg5LTRjNzgtOWQ0Mi02ZDQ1ODA0OTVkMzIiLCJ1c2VyRGV0YWlscyI6IlRlc3QgVXNlciIsInVzZXJSb2xlcyI6WyJ1c2VyIl0sImNsYWltcyI6W119\n31:x-ms-client-principal-extension\n16:opaque,extension\n24:x-ms-client-principal-id\n36:8b167ad2-0f89-4c78-9d42-6d4580495d32\n26:x-ms-client-principal-name\n9:Test User\n",
+      "expected": {"result": "accept", "reason": "ok"},
+      "replayGroup": null
+    }
+  ]
+}

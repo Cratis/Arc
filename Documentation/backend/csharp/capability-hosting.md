@@ -13,25 +13,26 @@ The default allowlist admits `Person` and `DelegatedActor`. Configure `AllowedPr
 
 ## Turn it on
 
-Configure both the server listener and the [endpoint-group assignment](endpoint-groups.md). This host setup enables the default `capabilities` group:
+Configure the server listener, the [endpoint-group assignment](endpoint-groups.md), and a [verified caller installation](asp-net-core/verified-callers.md). The following **configuration fragment** belongs in the runnable acceptance sample's `Program.Build`, where `settings` supplies public verification material and the sample's `PersonDirectory` provides persisted account mappings:
 
 ```csharp
 using Cratis.Arc;
+using VerifiedCallerAcceptance;
 
-var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://*:5000", "http://*:5001");
+builder.WebHost.UseUrls($"http://127.0.0.1:{settings.DefaultPort}", $"http://127.0.0.1:{settings.CapabilityPort}");
 builder.AddCratisArc(
-    options => options.EndpointGroups.Assign("capabilities", 5001),
-    configureBuilder: arc => arc.WithCapabilities());
-
-var app = builder.Build();
-app.UseCratisArc();
-app.Run();
+    options => options.EndpointGroups.Assign("capabilities", settings.CapabilityPort),
+    configureBuilder: arc => arc.WithCapabilities().WithVerifiedCallers(callers => callers
+        .ForResource("https://api.example.test", "example-api", "sample")
+        .UsePersonDirectory<PersonDirectory>()
+        .UseSignedForwardedIdentityV2(v2 => v2.WithRealmIssuer("https://identity.example.test")
+            .AddPublicKey(settings.KeyId, settings.PublicKeyPem)
+            .UseProcessLocalNonceStore())));
 ```
 
 Tag capability commands, read models, or query methods with `[EndpointGroup("capabilities")]`. Group membership is the explicit exposure choice; commands and queries outside that group retain their existing routing. Enabling capabilities without assigning the group's port fails startup with `CapabilityEndpointGroupHasNoPort`. Startup also fails with `CapabilityHostingHasNoCredentialInstallation` when no credential verifier and receiving installation are registered.
 
-For a different group name, set `EndpointGroup` through the `WithCapabilities` configuration delegate and assign a port to that same group.
+For a different group name, set `EndpointGroup` through the `WithCapabilities` configuration delegate and assign a port to that same group. The [verified caller guide](asp-net-core/verified-callers.md) explains custom signed tenant headers and fleet-wide nonce stores. Process-local replay protection is only a single-process sample choice.
 
 ## Read the caller
 
@@ -61,8 +62,10 @@ Absent values are omitted, including an unset tenant. Tokens, secrets, scopes, a
 
 ## Limits today
 
-- There is no public API yet to install a credential verifier, so turning on capability hosting fails at startup. Capability hosting cannot admit callers until that installation is available.
-- Product authorization still applies: a capability is not authority. The verified caller is not mapped to `HttpContext.User`; commands using `[Authorize]` still evaluate that principal.
+- The public installer supports signed v2 browser-session callers; PAT, OAuth-grant, service-account, bearer-verifier, and on-behalf installation are separate work.
+- Product authorization still applies: a capability is not authority. The verified caller is the principal used by Arc authorization, the current-principal accessor, and Chronicle identity/causation. Roles, policies, and live tenant membership must authorize that subject.
+- `[RequiresScope]` narrows access against the verified credential's scope ceiling. Missing scopes mean an empty ceiling. Product cookies, roles, or a same-subject scheme cannot widen it, and scopes cannot replace product authorization.
+- A signed tenant is a candidate, not proof of membership. A conflicting authenticated subject is refused, not merged.
 - Keep the group port private. Never expose it publicly or forward public traffic to it.
 - Default-group endpoints reachable on the capability port also require a caller. There are no anonymous paths on that port, including health probes.
 - MCP serving and protected-resource metadata follow separately; this API hosts REST capabilities only.

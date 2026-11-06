@@ -4,6 +4,5 @@
 namespace Cratis.Arc.Identity.Callers;
 
 /// <summary>A verified person identifier.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 /// <param name="Value">The identifier.</param>
-internal sealed record CallerPersonId(string Value) : ConceptAs<string>(Value);
+public sealed record CallerPersonId(string Value) : ConceptAs<string>(Value);

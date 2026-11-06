@@ -16,6 +16,10 @@ Published v1 remains unchanged: `v1.<kid>.<ts>.<nonce>.<mac>`, HMAC-SHA256, with
 
 Sign every identity-bearing producer before switching a backend: YARP requests, identity-details calls, and tenant-list calls. On every inbound request, the edge MUST remove every covered header (including all names under the two covered prefixes, every v2 context header, and the configured tenancy header) and every occurrence of `x-cratis-forwarded-identity-signature`, case-insensitively. It MUST then set the covered headers and envelope only from its own verified authentication, credential, catalog, routing and policy state. It MUST NOT preserve, merge, endorse or re-sign a caller's supplied values. Any downstream Authorization bearer must also come from that same verified credential/session state, not a copied caller header. If verification fails, it emits no signed downstream request. Production startup must refuse trusted forwarded headers without verification. Only an explicitly named local-development profile may relax that configuration rule.
 
+## Install browser-session verification
+
+For the supported public browser-session installer, receiving resource binding, persisted-person directory, and explicit nonce-store selection, see [Install verified callers](verified-callers.md). The acceptance sample in the repository's `Samples/VerifiedCallerAcceptance` folder exercises that flow over real HTTP without internal APIs. This does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters; product authorization and live tenant membership still apply.
+
 ## Normative vocabulary
 
 This contract depends on Identity's `identity-contract` version 1, Terms and §§2, 4–6. The relevant definitions below are reused verbatim.

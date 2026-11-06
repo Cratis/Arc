@@ -9,10 +9,11 @@ internal static class CallerRefusalExtensions
 {
     /// <summary>Gets the transport status appropriate for the refusal.</summary>
     /// <param name="refusal">The refusal.</param>
-    /// <returns>400 for multiple or URI credentials; 401 for other caller-resolution refusals. Endpoint admission is separate.</returns>
+    /// <returns>400 for multiple or URI credentials; 403 for an ambiguous principal; 401 for other caller-resolution refusals. Endpoint admission is separate.</returns>
     internal static int HttpStatus(this CallerRefusal refusal) => refusal switch
     {
         CallerRefusal.CredentialInUri or CallerRefusal.MultipleCredentials or CallerRefusal.MalformedAuthorization => 400,
+        CallerRefusal.AmbiguousPrincipal => 403,
         _ => 401
     };
 }

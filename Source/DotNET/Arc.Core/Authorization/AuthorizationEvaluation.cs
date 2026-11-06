@@ -4,6 +4,8 @@
 using System.Reflection;
 using System.Security.Claims;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -53,6 +55,17 @@ public class AuthorizationEvaluation(
         if (resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } &&
             selectedPrincipal?.Identity?.IsAuthenticated != true)
         {
+            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+
+        if (services.GetService<IHttpRequestContextAccessor>()?.Current is { } request &&
+            VerifiedCallerPrincipal.From(request) is { } verified &&
+            verified.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault() is { } verifiedIdentity &&
+            (!VerifiedCallerPrincipal.Carries(selectedPrincipal, verifiedIdentity.Caller) ||
+             VerifiedCallerPrincipal.CarriesAnotherSubject(selectedPrincipal, verifiedIdentity.Caller)))
+        {
+            // A scheme selected a principal other than the verified caller, or merged another subject into it:
+            // refuse by making it anonymous, never merge.
             selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
         }
 

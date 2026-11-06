@@ -195,7 +195,7 @@ internal sealed class VerifiedCallerBuilder(CallerResourceCatalog catalog)
     bool TryGetConfiguredAudience(VerifiedCallerInstallation installation, out string audience)
     {
         audience = string.Empty;
-        return !string.IsNullOrWhiteSpace(installation.Resource) && !string.IsNullOrWhiteSpace(installation.Environment) &&
-            catalog.TryGetAudience(installation.Resource, out audience) && !string.IsNullOrWhiteSpace(audience);
+        return installation.Resource is not null && catalog.TryGetAudience(installation.Resource, out audience) &&
+            VerifiedCallerInstallation.IsValid(installation.Resource, audience, installation.Environment);
     }
 }
