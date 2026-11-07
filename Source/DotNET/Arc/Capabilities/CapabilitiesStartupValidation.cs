@@ -30,6 +30,7 @@ internal sealed class CapabilitiesStartupValidation(
         {
             throw new CapabilityEndpointGroupHasNoPort(group);
         }
+        new CapabilityEndpointSelection(capabilities).Validate();
         if (string.IsNullOrWhiteSpace(installation.Resource) || string.IsNullOrWhiteSpace(installation.Environment))
         {
             throw new CapabilityHostingHasNoCredentialInstallation("the installation names no resource and environment");

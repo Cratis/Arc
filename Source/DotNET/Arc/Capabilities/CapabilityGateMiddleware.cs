@@ -15,10 +15,12 @@ namespace Cratis.Arc.Capabilities;
 /// <param name="arc">The endpoint-group port assignments.</param>
 /// <param name="capabilities">The capability admission options.</param>
 /// <param name="logger">The refusal logger.</param>
+/// <param name="selection">The startup endpoint selection.</param>
 internal sealed class CapabilityGateMiddleware(
     IOptions<ArcOptions> arc,
     IOptions<CapabilitiesOptions> capabilities,
-    ILogger<CapabilityGateMiddleware> logger) : IMiddleware
+    ILogger<CapabilityGateMiddleware> logger,
+    CapabilityEndpointSelection selection) : IMiddleware
 {
     readonly IReadOnlySet<CallerPrincipalKind> _allowed = capabilities.Value.AllowedPrincipalKinds.Select(kind => kind switch
     {
@@ -34,7 +36,7 @@ internal sealed class CapabilityGateMiddleware(
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         var group = capabilities.Value.EndpointGroup;
-        if (!arc.Value.EndpointGroups.PortsFor(group).Contains(context.Connection.LocalPort))
+        if (IsOutsideGate(context, group))
         {
             await next(context);
             return;
@@ -152,4 +154,8 @@ internal sealed class CapabilityGateMiddleware(
         await writer.FlushAsync(context.RequestAborted);
         await context.Response.BodyWriter.FlushAsync(context.RequestAborted);
     }
+
+    bool IsOutsideGate(HttpContext context, string group) =>
+        !arc.Value.EndpointGroups.PortsFor(group).Contains(context.Connection.LocalPort) ||
+        selection.IsOutside(context.GetEndpoint());
 }
