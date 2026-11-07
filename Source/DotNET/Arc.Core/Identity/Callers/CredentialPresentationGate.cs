@@ -13,12 +13,13 @@ namespace Cratis.Arc.Identity.Callers;
 /// DPoP sender-binding transport support is deferred to the PAT/workload work.
 /// A recognized session cookie counts as a credential: with an Authorization value or a non-v2 envelope it is refused as MultipleCredentials.
 /// With a v2 envelope it is one credential, because the verified envelope is the session. Cookie values are matched by exact, case-insensitive name
-/// across every Cookie header value and are never copied or logged. Hosts that flatten repeated Cookie headers cannot reveal split values; the
+/// across every Cookie header value and are never copied or logged. Counted names are the fixed internal set plus any names supplied by the host through <see cref="IAdditionalSessionCookieNames"/>. Hosts that flatten repeated Cookie headers cannot reveal split values; the
 /// duplicate-preserving capability gate in <see cref="Inspect"/> already refuses those hosts.
 /// </summary>
 /// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 /// <param name="reservedPrefixes">Optional additional retired namespaces. Built-in retired prefixes are always refused before dispatch.</param>
-internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? reservedPrefixes = null)
+/// <param name="additionalSessionCookieNames">Optional host-supplied session cookie names counted in addition to the fixed set.</param>
+internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? reservedPrefixes = null, IAdditionalSessionCookieNames? additionalSessionCookieNames = null)
 {
     static readonly FrozenSet<string> _queryCredentials = new[]
     {
@@ -26,10 +27,11 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         "session", "session_token", "credential", "authorization"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    static readonly FrozenSet<string> _sessionCookies = new[] { "cratis-identity-session", ".AspNetCore.Cookies" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    static readonly string[] _fixedSessionCookies = ["cratis-identity-session", ".AspNetCore.Cookies"];
     static readonly char[] _cookieSeparators = [';', ','];
 
     readonly ReservedCredentialPrefixes _reservedPrefixes = reservedPrefixes ?? new([]);
+    readonly IAdditionalSessionCookieNames? _additionalSessionCookieNames = additionalSessionCookieNames;
 
     /// <summary>
     /// Isolated cardinality decision. A v2 envelope may carry a bearer for its verifier to bind.
@@ -82,7 +84,8 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         {
             return Refuse(CallerRefusal.LegacyCredentialUnsupported);
         }
-        var sessionCookie = raw.GetHeaderValues("Cookie").Any(HasSessionCookie);
+        var sessionCookieNames = _fixedSessionCookies.Concat(_additionalSessionCookieNames?.Names ?? []).Where(name => !string.IsNullOrWhiteSpace(name)).ToArray();
+        var sessionCookie = raw.GetHeaderValues("Cookie").Any(header => HasSessionCookie(header, sessionCookieNames));
         return Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase), sessionCookiePresent: sessionCookie));
     }
 
@@ -94,18 +97,24 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
 
     static bool HasRepeatedCredentialFields(CredentialPresentation presented) => presented.Authorization.Count > 1 || presented.Envelope.Values.Any(values => values.Count != 1);
 
-    static bool HasSessionCookie(string? header) => header?.Split(_cookieSeparators).Any(pair =>
+    static bool HasSessionCookie(string? header, string[] sessionCookieNames) => header?.Split(_cookieSeparators).Any(pair =>
     {
         var equals = pair.IndexOf('=');
-        return (equals > 0 && _sessionCookies.Contains(pair[..equals].Trim())) || IsChunkedAspNetCookie(pair, equals);
+        return equals > 0 && IsSessionCookieName(pair[..equals].Trim(), sessionCookieNames);
     }) == true;
 
-    static bool IsChunkedAspNetCookie(string pair, int equals)
-    {
-        const string prefix = ".AspNetCore.CookiesC";
-        var name = equals > 0 ? pair[..equals].Trim() : string.Empty;
-        return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && name.Length > prefix.Length && name[prefix.Length..].All(char.IsAsciiDigit);
-    }
+    static bool IsSessionCookieName(string name, string[] sessionCookieNames) => sessionCookieNames.Any(counted =>
+        name.Equals(counted, StringComparison.OrdinalIgnoreCase) || IsChunkOf(name, counted));
+
+    /// <summary>ASP.NET Core chunks a large cookie as the name, then <c>C</c>, then a number.</summary>
+    /// <param name="name">The presented cookie name.</param>
+    /// <param name="counted">The counted session cookie name.</param>
+    /// <returns>True when the presented name is a numbered chunk of the counted name.</returns>
+    static bool IsChunkOf(string name, string counted) =>
+        name.Length > counted.Length + 1 &&
+        name.StartsWith(counted, StringComparison.OrdinalIgnoreCase) &&
+        char.ToUpperInvariant(name[counted.Length]) == 'C' &&
+        name[(counted.Length + 1)..].All(char.IsAsciiDigit);
 
     static bool HasBearerWithoutEnvelope(CredentialPresentation presented) => presented.Authorization.Count != 0 && presented.Envelope.Count == 0;
 
