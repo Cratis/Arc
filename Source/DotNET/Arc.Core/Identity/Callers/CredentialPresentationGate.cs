@@ -13,7 +13,7 @@ namespace Cratis.Arc.Identity.Callers;
 /// DPoP sender-binding transport support is deferred to the PAT/workload work. Session cookies are not counted as credentials in v1.
 /// </summary>
 /// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-/// <param name="reservedPrefixes">Optional explicitly retired namespaces, refused before dispatch.</param>
+/// <param name="reservedPrefixes">Optional additional retired namespaces. Built-in retired prefixes are always refused before dispatch.</param>
 internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? reservedPrefixes = null)
 {
     static readonly FrozenSet<string> _queryCredentials = new[]
@@ -21,6 +21,8 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         "access_token", "accessToken", "id_token", "refresh_token", "token", "bearer", "pat",
         "session", "session_token", "credential", "authorization"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    readonly ReservedCredentialPrefixes _reservedPrefixes = reservedPrefixes ?? new([]);
 
     /// <summary>
     /// Isolated cardinality decision. A v2 envelope may carry a bearer for its verifier to bind.
@@ -50,6 +52,10 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         {
             return Refuse(CallerRefusal.UnreadableCredentialHeaders);
         }
+        if (HasRetiredUriCredential(raw.RawTarget!))
+        {
+            return Refuse(CallerRefusal.LegacyCredentialUnsupported);
+        }
         if (HasUriCredential(raw.RawTarget!))
         {
             return Refuse(CallerRefusal.CredentialInUri);
@@ -61,7 +67,7 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         {
             envelope.Add(name, Array.AsReadOnly(raw.GetHeaderValues(name).ToArray()));
         }
-        if (reservedPrefixes is not null && authorization.Any(reservedPrefixes.Refuses))
+        if (authorization.Concat(envelope.Values.SelectMany(values => values)).Any(_reservedPrefixes.Refuses))
         {
             return Refuse(CallerRefusal.LegacyCredentialUnsupported);
         }
@@ -143,5 +149,16 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         var key = equals < 0 ? pair : pair[..equals];
         var value = equals < 0 ? string.Empty : pair[(equals + 1)..];
         return _queryCredentials.Contains(Uri.UnescapeDataString(key.Replace('+', ' '))) || InPatNamespace(value);
+    }
+
+    bool HasRetiredUriCredential(string target)
+    {
+        var query = target.IndexOf('?');
+        if (query < 0) return false;
+        return target[(query + 1)..].Split('&').Any(pair =>
+        {
+            var equals = pair.IndexOf('=');
+            return equals >= 0 && _reservedPrefixes.Refuses(Uri.UnescapeDataString(pair[(equals + 1)..].Replace('+', ' ')));
+        });
     }
 }

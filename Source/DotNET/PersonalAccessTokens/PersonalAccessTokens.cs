@@ -88,6 +88,7 @@ internal sealed class PersonalAccessTokens(
         {
             var caller = await context.GetCurrent(cancellationToken);
             if (!PatValidation.HasOwner(caller, settings) || string.IsNullOrWhiteSpace(credentialId?.Value)) return PatRevokeResult.Refused;
+            if (caller!.CredentialKind != CallerCredentialKind.PersonalAccessToken) return PatRevokeResult.Refused;
             return await authority.TryRevoke(new(settings.Target.Resource, settings.Target.Environment, caller!.Person!, caller.AccountKey!, caller.Tenant!), credentialId, cancellationToken);
         }
         catch (Exception)

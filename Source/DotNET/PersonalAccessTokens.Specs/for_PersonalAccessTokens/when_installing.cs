@@ -15,7 +15,7 @@ public class when_installing : given.a_pat_module
         var services = new ServiceCollection();
         var arc = Substitute.For<IArcBuilder>();
         arc.Services.Returns(services);
-        arc.WithPersonalAccessTokens(new("direct") { AllowedScopes = ["read"], ReservedLegacyPrefixes = ["dpat_"] },
+        arc.WithPersonalAccessTokens(new("direct") { AllowedScopes = ["read"] },
             callers => callers.ForResource("resource-a", "https://resource-a.example", "test").UsePersonDirectory<PersonDirectory>());
         services.AddSingleton(_context);
         services.AddSingleton(_clock);

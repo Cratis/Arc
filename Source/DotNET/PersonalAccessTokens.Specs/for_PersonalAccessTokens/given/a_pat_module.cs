@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 
@@ -13,6 +14,8 @@ public class a_pat_module : Specification
     internal readonly TenantId _tenant = new("tenant-one");
     internal readonly CallerAccountKey _account = new("https://identity.example", "8b167ad2-0f89-4c78-9d42-6d4580495d32");
     internal readonly CallerPersonId _person = new("person-one");
+    internal string _rawTarget = "/mcp";
+    internal string? _envelope;
     internal IPatAuthority _authority;
     internal IPatRecoveryEpoch _epochs;
     internal IPatPolicy _policy;
@@ -51,7 +54,8 @@ public class a_pat_module : Specification
         _authority.ReadAuthoritative(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ => _record is null ? null : _record with { Revoked = _revoked });
         _authority.TryRevoke(Arg.Any<PatOwner>(), Arg.Any<CredentialId>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            if (_record is null || call.Arg<PatOwner>() != new PatOwner(_record.Resource, _record.Environment, _record.Person, _record.AccountKey, _record.Tenant)) return PatRevokeResult.Refused;
+            if (_record is null || call.Arg<CredentialId>() != _record.CredentialId) return PatRevokeResult.Refused;
+            if (call.Arg<PatOwner>() != new PatOwner(_record.Resource, _record.Environment, _record.Person, _record.AccountKey, _record.Tenant)) return PatRevokeResult.Refused;
             if (_revoked) return PatRevokeResult.AlreadyRevoked;
             _revoked = true;
             return PatRevokeResult.Revoked;
@@ -93,10 +97,11 @@ public class a_pat_module : Specification
         request.Items.Returns(new Dictionary<object, object?>());
         ((ICanPreserveCallerCredentialHeaders)request).PreservesDuplicateCredentialHeaders.Returns(true);
         var raw = (ICanReadForwardedIdentityRequest)request;
-        raw.RawTarget.Returns("/mcp");
-        raw.HeaderNames.Returns(new[] { "Authorization" }.Concat(markers ?? []));
+        raw.RawTarget.Returns(_rawTarget);
+        raw.HeaderNames.Returns(new[] { "Authorization" }.Concat(markers ?? []).Concat(_envelope is null ? [] : [ForwardedIdentityEnvelope.Header]));
         raw.GetHeaderValues(Arg.Any<string>()).Returns(["untrusted-marker"]);
-        raw.GetHeaderValues("Authorization").Returns([authorization]);
+        raw.GetHeaderValues("Authorization").Returns(string.IsNullOrEmpty(authorization) ? [] : [authorization]);
+        if (_envelope is not null) raw.GetHeaderValues(ForwardedIdentityEnvelope.Header).Returns([_envelope]);
         var requests = Substitute.For<IHttpRequestContextAccessor>();
         requests.Current.Returns(request);
         var tenants = Substitute.For<ITenantIdAccessor>();
@@ -104,7 +109,7 @@ public class a_pat_module : Specification
         return new VerifiedCallerResolver(
             requests,
             oauth is null ? [pat ?? Source()] : [pat ?? Source(), oauth],
-            new(new(reserved ?? ["dpat_"])),
+            new(new(reserved ?? [])),
             new(new(new Dictionary<string, string> { ["resource-a"] = "https://resource-a.example" })),
             new("resource-a", "test"),
             tenants);

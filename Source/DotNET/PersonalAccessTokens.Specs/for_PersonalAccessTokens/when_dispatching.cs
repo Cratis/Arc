@@ -60,6 +60,46 @@ public class when_dispatching : given.a_pat_module
         await oauth.Received(1).Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData("Authorization")]
+    [InlineData("access_token")]
+    [InlineData("accessToken")]
+    [InlineData("id_token")]
+    [InlineData("refresh_token")]
+    [InlineData("token")]
+    [InlineData("bearer")]
+    [InlineData("pat")]
+    [InlineData("session")]
+    [InlineData("session_token")]
+    [InlineData("credential")]
+    [InlineData("authorization")]
+    [InlineData("%61ccess%5Ftoken")]
+    [InlineData("other")]
+    [InlineData("envelope")]
+    public async Task should_refuse_known_and_host_added_retired_formats_on_every_arrival_path_without_fallback(string arrival)
+    {
+        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
+        var pat = Substitute.For<IVerifiedCredentialSource>();
+        pat.Shape.Returns(PresentedCredentialShape.PatBearer);
+        foreach (var prefix in ReservedCredentialPrefixes.KnownRetiredPrefixes.Concat(["hostlegacy"]))
+        {
+            var token = prefix == "dpat" ? $"dpat_{new string('a', 32)}_{new string('b', 64)}" : $"{prefix}_synthetic-opaque";
+            PatNamespace.Classify(token).ShouldEqual(PresentedCredentialShape.OAuthBearer);
+            PatFormat.TryParse(token, out _).ShouldBeFalse();
+            var authorization = arrival == "Authorization" ? "Bearer " + token : string.Empty;
+            _rawTarget = arrival == "Authorization" || arrival == "envelope" ? "/mcp" : $"/mcp?{arrival}={Uri.EscapeDataString("Bearer\t" + token)}";
+            _envelope = arrival == "envelope" ? token : null;
+            var result = await Resolver(authorization, oauth: oauth, pat: pat, reserved: prefix == "hostlegacy" ? ["hostlegacy_"] : null).GetCurrent();
+            result.Refusal.ShouldEqual(CallerRefusal.LegacyCredentialUnsupported);
+            result.Caller.ShouldBeNull();
+        }
+        await oauth.DidNotReceive().Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
+        await pat.DidNotReceive().Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
+        await _authority.DidNotReceive().ReadAuthoritative(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        _policyCalls.ShouldEqual(0);
+    }
+
     [Fact]
     public async Task should_refuse_a_corrupted_secret_without_oauth_fallback()
     {
@@ -72,14 +112,14 @@ public class when_dispatching : given.a_pat_module
     }
 
     [Fact]
-    public async Task should_not_reserve_legacy_namespaces_unless_explicitly_configured()
+    public async Task should_not_reserve_values_without_the_retired_prefix_delimiter()
     {
         var token = await Issue();
         var facts = (await Source().Verify(Presentation(token), TestContext.Current.CancellationToken)).Facts!;
         var oauth = Substitute.For<IVerifiedCredentialSource>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         oauth.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(CredentialVerification.Verified(facts with { CredentialKind = CallerCredentialKind.OAuthGrant }));
-        (await Resolver("Bearer dpat_example", oauth: oauth, reserved: []).GetCurrent()).Caller.ShouldNotBeNull();
+        (await Resolver("Bearer dpatient", oauth: oauth).GetCurrent()).Caller.ShouldNotBeNull();
         await oauth.Received(1).Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
     }
 
@@ -89,6 +129,7 @@ public class when_dispatching : given.a_pat_module
         var token = await Issue();
         var stale = await Resolver("Bearer " + token).GetCurrent();
         stale.Caller.ShouldNotBeNull();
+        _caller = stale.Caller!;
         (await _tokens.Revoke(_record!.CredentialId, TestContext.Current.CancellationToken)).ShouldEqual(PatRevokeResult.Revoked);
         (await _tokens.Revoke(_record.CredentialId, TestContext.Current.CancellationToken)).ShouldEqual(PatRevokeResult.AlreadyRevoked);
         (await Resolver("Bearer " + token).GetCurrent()).Caller.ShouldBeNull();
@@ -101,7 +142,8 @@ public class when_dispatching : given.a_pat_module
     [InlineData("account")]
     public async Task should_refuse_revocation_outside_the_complete_verified_owner_binding(string mismatch)
     {
-        await Issue();
+        var token = await Issue();
+        _caller = (await Resolver("Bearer " + token).GetCurrent()).Caller!;
         _caller = mismatch switch
         {
             "person" => _caller with { Person = new("another-person") },
