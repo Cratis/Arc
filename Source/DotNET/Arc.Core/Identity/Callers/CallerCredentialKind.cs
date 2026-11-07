@@ -3,9 +3,10 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>The verified credential category.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-internal enum CallerCredentialKind
+/// <summary>
+/// The verified credential category.
+/// </summary>
+public enum CallerCredentialKind
 {
     /// <summary>A persisted personal access token.</summary>
     PersonalAccessToken = 0,

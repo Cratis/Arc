@@ -3,9 +3,10 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>Closed caller-resolution failures, with no credential contents.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-internal enum CallerRefusal
+/// <summary>
+/// Closed caller-resolution failures, with no credential contents.
+/// </summary>
+public enum CallerRefusal
 {
     /// <summary>No credential was presented.</summary>
     NoCredential = 0,

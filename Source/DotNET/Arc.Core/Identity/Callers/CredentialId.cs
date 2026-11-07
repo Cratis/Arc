@@ -3,7 +3,8 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>A verifier-supplied credential identifier, not a raw secret.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
+/// <summary>
+/// A verifier-supplied credential identifier, not a raw secret.
+/// </summary>
 /// <param name="Value">The identifier.</param>
-internal sealed record CredentialId(string Value) : ConceptAs<string>(Value);
+public sealed record CredentialId(string Value) : ConceptAs<string>(Value);

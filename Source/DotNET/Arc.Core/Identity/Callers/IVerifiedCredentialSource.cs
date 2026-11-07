@@ -8,9 +8,9 @@ namespace Cratis.Arc.Identity.Callers;
 /// NotApplicable does not claim a credential. Refused is terminal, not permission to try a weaker credential source.
 /// The v1 envelope, arbitrary ClaimsPrincipal, and an OAuth jti alone cannot supply the required credential or grant identity.
 /// No default source ships: v1 envelopes and host bearer validation cannot guarantee credential identity and assurance.
-/// A later source may supply them from verified claims and server-side mappings. Only Arc friend assemblies can add sources before lock.
+/// A later source may supply them from verified claims and server-side mappings. Only Arc friend assemblies can add sources.
+/// This remains internal after contract lock; public consumers can only read IVerifiedCallerAccessor.
 /// </summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 internal interface IVerifiedCredentialSource
 {
     /// <summary>Gets the one credential shape this source owns.</summary>
