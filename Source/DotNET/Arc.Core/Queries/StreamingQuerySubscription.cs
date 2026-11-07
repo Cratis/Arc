@@ -20,6 +20,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
     IDisposable? _producer;
     int _activeOperations;
     bool _disposeRequested;
+    bool _producerStopped;
     bool _resourcesTaken;
 
     /// <summary>
@@ -131,7 +132,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
         lock (_sync)
         {
             _activeOperations--;
-            if (_disposeRequested && _activeOperations == 0)
+            if (_producerStopped && _activeOperations == 0)
             {
                 resources = TakeResourcesForDisposal();
             }
@@ -172,6 +173,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
 
         lock (_sync)
         {
+            _producerStopped = true;
             if (_activeOperations == 0)
             {
                 resources = TakeResourcesForDisposal();
