@@ -29,9 +29,13 @@ public class ArcStartupFilter : IStartupFilter
             var selectiveCapabilities = hasCapabilities && app.ApplicationServices.GetRequiredService<IOptions<CapabilitiesOptions>>().Value.GatedEndpoints is not null;
 
             // Only selective hosting needs routing before admission; the default gate stays pre-routing.
+            IEndpointRouteBuilder? capabilityRoutes = null;
             if (selectiveCapabilities)
             {
                 app.UseRouting();
+                capabilityRoutes = app.Properties.TryGetValue("__EndpointRouteBuilder", out var earlyRoutes)
+                    ? earlyRoutes as IEndpointRouteBuilder
+                    : null;
             }
             if (hasCapabilities)
             {
@@ -42,23 +46,28 @@ public class ArcStartupFilter : IStartupFilter
             next(app);
             if (selectiveCapabilities)
             {
-                CompileSelection(app);
+                CompileSelection(app, capabilityRoutes);
             }
         };
     }
 
-    static void CompileSelection(IApplicationBuilder app)
+    static void CompileSelection(IApplicationBuilder app, IEndpointRouteBuilder? capabilityRoutes)
     {
         var routes = app.Properties.TryGetValue("__EndpointRouteBuilder", out var routeBuilder)
             ? routeBuilder as IEndpointRouteBuilder
             : null;
 
-        // Minimal hosting restores this filter's route builder after configuring its own graph.
-        // Give the early matcher the same startup endpoint instances, not a separate path matcher.
-        if (routes?.DataSources.Count == 0 && app.ApplicationServices.GetService<EndpointDataSource>() is { } source)
+        // The host may create its own route builder. Populate the gate's early matcher with the
+        // completed graph's exact endpoint instances, or refuse startup if no rules can be matched.
+        if (capabilityRoutes?.DataSources.Count == 0)
         {
-            routes.DataSources.Add(new DefaultEndpointDataSource(source.Endpoints));
+            var endpoints = routes?.DataSources.SelectMany(source => source.Endpoints).ToArray() ?? [];
+            if (endpoints.Length == 0 && app.ApplicationServices.GetService<EndpointDataSource>() is { } source)
+            {
+                endpoints = source.Endpoints.ToArray();
+            }
+            capabilityRoutes.DataSources.Add(new DefaultEndpointDataSource(endpoints));
         }
-        app.ApplicationServices.GetRequiredService<CapabilityEndpointSelection>().Compile(routes?.DataSources ?? []);
+        app.ApplicationServices.GetRequiredService<CapabilityEndpointSelection>().Compile(capabilityRoutes?.DataSources ?? []);
     }
 }
