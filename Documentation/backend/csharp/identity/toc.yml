@@ -10,3 +10,5 @@
   href: development-and-topologies.md
 - name: Migrating from the Identity Cookie
   href: migrating-from-the-identity-cookie.md
+- name: Personal Access Token Audit
+  href: personal-access-token-audit.md
