@@ -3,7 +3,7 @@ title: "Cratis Arc capability hosting"
 description: Require verified callers on a dedicated Cratis Arc endpoint-group port, read the admitted caller, and record capability causation with Chronicle.
 ---
 
-Cratis Arc capability hosting requires a verified caller for every request on an assigned endpoint-group port. Place the commands and queries you want to expose in that group, then enable the caller gate.
+Cratis Arc capability hosting requires a verified caller for every request on an assigned endpoint-group port by default. Place the commands and queries you want to expose in that group, then enable the caller gate.
 
 ## What it does
 
@@ -33,6 +33,36 @@ builder.AddCratisArc(
 Tag capability commands, read models, or query methods with `[EndpointGroup("capabilities")]`. Group membership is the explicit exposure choice; commands and queries outside that group retain their existing routing. Enabling capabilities without assigning the group's port fails startup with `CapabilityEndpointGroupHasNoPort`. Startup also fails with `CapabilityHostingHasNoCredentialInstallation` when no credential verifier and receiving installation are registered.
 
 For a different group name, set `EndpointGroup` through the `WithCapabilities` configuration delegate and assign a port to that same group. The [verified caller guide](asp-net-core/verified-callers.md) explains custom signed tenant headers and fleet-wide nonce stores. Process-local replay protection is only a single-process sample choice.
+
+## Select gated endpoints on a shared listener
+
+Leave `GatedEndpoints` unset to gate the whole capability port, including health probes. To share that listener with existing routes, explicitly select the **gated** endpoints:
+
+```csharp
+arc.WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector()
+    .ForRoutePattern("/tools/{name}"));
+```
+
+This configuration fragment uses `Cratis.Arc.Capabilities`. Patterns match the registered endpoint's `RoutePattern.RawText` exactly with ordinal comparison: include route parameters, preserve case and slashes, and do not use a request path, prefix, wildcard, or regular expression. ASP.NET Core routing decides which endpoint a request reaches; the gate never compares the request path to these patterns. Controller route text commonly has no leading slash (`"tools/{name}"`), while a minimal endpoint may register `"/tools/{name}"`. Those are distinct selector rules even if they accept the same request path. Review both registrations as aliases or select their metadata instead.
+
+For endpoints with aliases, prefer server-attached metadata. Define a marker type such as `ToolEndpointMetadata`, attach an instance with `.WithMetadata(new ToolEndpointMetadata())` to **every** alias's endpoint builder, and configure:
+
+```csharp
+arc.WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector()
+    .ForEndpointMetadata<ToolEndpointMetadata>());
+```
+
+Metadata matches assignable instances, including derived types. Pattern and metadata rules may be combined; they form a union, and selecting the same endpoint with both kinds is allowed. Pattern selection alone does not cover a different registered alias to the same handler. Unselected routes present at startup are outside the gate, so review every alias and prefer metadata for shared handlers. This option selects gated endpoints, not exemptions.
+
+Startup rejects an explicitly empty selector or **any individual rule** matching no registered route endpoints with `CapabilityEndpointSelectorMatchesNothing`. Every route-pattern rule and every metadata-type rule must match at least one endpoint, even when another rule matches successfully. Blank patterns are rejected during configuration. Duplicate or case-colliding patterns, duplicate metadata types, and assignable metadata types are rejected with `CapabilityEndpointSelectorIsAmbiguous`. These checks do not replace the port and credential-installation requirements.
+
+Only a routed endpoint instance positively known to be outside the selection bypasses capability verification on that port. The bypass does not install a capability caller or verified principal. Missing or routing-generated non-route endpoints remain gated. A registered, unselected `MapFallback` is a known outside route: it can capture otherwise unmatched paths and let those requests through without capability verification. The same applies when an endpoint-less branch or static-file request first matches a known outside fallback. Select the fallback too if it must be gated; an eventual 404 status does not classify admission.
+
+The endpoint snapshot is frozen at startup. A new or replacement instance is unknown and gated if the gate sees it or it is assigned later, including a replacement for an outside route. However, the early router can continue matching a previously frozen outside instance or fallback even after a runtime data-source change. Adding an endpoint does not guarantee every request for its path becomes gated. Restart to classify the new graph consistently. Other ports retain their existing behavior.
+
+Outside admission is also enforced across later endpoint assignments. Status-code or exception re-execution and rewriters that clear and re-run routing cannot use an outside route to reach a selected or unknown endpoint: it is replaced with a 401 refusal endpoint, and that refusal cannot be cleared by subsequent endpoint assignments. Clearing the endpoint to run routing again is allowed, but only another exact, positively outside instance may execute. A downstream router may construct new instances even for unchanged route text; those are unknown and fail closed. Do not replace the guarded `IEndpointFeature` or invoke endpoint delegates directly around admission.
+
+Selective hosting runs routing immediately before the gate. Configure server-owned `UsePathBase` or URL rewriting **before** Arc's startup filter, for example in an earlier `IStartupFilter`. A path base configured later in the application's pipeline is not visible to early routing; unclassified requests remain gated. Forwarded-prefix, forwarded-host, and original-URL headers do not select outside endpoints. Later path rewriting or re-execution is subject to the endpoint-assignment guard described above, not a second authentication attempt. For Startup-class hosts with capability services registered, the filter populates its early router from the completed host route graph, including the host's own `UseRouting`/`UseEndpoints`; it refuses startup if the configured rules cannot be resolved rather than silently skipping selection. CORS preflight on selected or unclassified endpoints is gated too; later CORS or authorization middleware cannot exempt it. Only routing moves earlier, not the host's authentication or authorization policy.
 
 ## Read the caller
 
@@ -67,5 +97,5 @@ Absent values are omitted, including an unset tenant. Tokens, secrets, scopes, a
 - `[RequiresScope]` narrows access against the verified credential's scope ceiling. Missing scopes mean an empty ceiling. Product cookies, roles, or a same-subject scheme cannot widen it, and scopes cannot replace product authorization.
 - A signed tenant is a candidate, not proof of membership. A conflicting authenticated subject is refused, not merged.
 - Keep the group port private. Never expose it publicly or forward public traffic to it.
-- Default-group endpoints reachable on the capability port also require a caller. There are no anonymous paths on that port, including health probes.
+- By default, default-group endpoints reachable on the capability port also require a caller. Anonymous routes on that port require an explicit gated-endpoint selection as described above.
 - MCP serving and protected-resource metadata follow separately; this API hosts REST capabilities only.

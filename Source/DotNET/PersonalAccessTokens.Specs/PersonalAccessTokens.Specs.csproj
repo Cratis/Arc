@@ -12,5 +12,7 @@
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Vectors/format-v1.json" />
+        <Compile Include="../Specs.Shared/VerifiedCredentialSourceForSpecs.cs" Link="Identity/VerifiedCredentialSourceForSpecs.cs" />
+        <Compile Include="../Specs.Shared/CredentialHeaderPreservationForSpecs.cs" Link="Identity/CredentialHeaderPreservationForSpecs.cs" />
     </ItemGroup>
 </Project>

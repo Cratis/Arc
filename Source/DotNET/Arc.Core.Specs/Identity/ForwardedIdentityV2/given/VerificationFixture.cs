@@ -68,7 +68,7 @@ internal static class VerificationFixture
 
     internal static IHttpRequestContext RawRequest(Vector vector)
     {
-        var request = (IHttpRequestContext)Substitute.For([typeof(IHttpRequestContext), typeof(ICanReadForwardedIdentityRequest), typeof(ICanPreserveCallerCredentialHeaders), typeof(ICanReadClientCertificate)], []);
+        var request = (IHttpRequestContext)Substitute.For<ClientCertificateForSpecs, IHttpRequestContext, ICanReadForwardedIdentityRequest>();
         ((ICanReadClientCertificate)request).TransportClientCertificate.Returns(_ => vector.Inputs.AuthenticatedTls ? new X509Certificate2(_transport.Value.Certificate) : null);
         var options = new ArcOptions { TrustForwardedIdentityHeaders = true };
         options.ForwardedIdentity.ClientCertificate.Required = true;

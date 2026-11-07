@@ -11,7 +11,7 @@ public class and_a_command_without_approval_requirement_has_an_approval_flow_reg
     void Establish()
     {
         _commandHandler.CommandType.Returns(typeof(string));
-        _flow = Substitute.For<IApprovalFlow>();
+        _flow = Substitute.For<ApprovalFlowForSpecs>();
         _serviceProvider.GetService(typeof(IEnumerable<IApprovalFlow>)).Returns(new[] { _flow });
     }
     async Task Because() => await _commandPipeline.Execute(_command, _serviceProvider);

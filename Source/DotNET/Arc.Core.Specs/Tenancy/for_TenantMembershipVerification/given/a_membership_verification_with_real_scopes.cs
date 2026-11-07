@@ -16,7 +16,7 @@ public class a_membership_verification_with_real_scopes : Specification
 {
     protected ConcurrentQueue<RecordingMembership> _created;
     protected HttpRequestContextAccessor _requests;
-    internal ILogger<TenantMembershipVerification> _logger;
+    internal ILogger _logger;
     internal TenantMembershipVerification _verification;
     protected ServiceProvider _root;
     protected List<IDisposable> _disposables;
@@ -26,9 +26,9 @@ public class a_membership_verification_with_real_scopes : Specification
         _created = new();
         _disposables = [];
         _requests = new HttpRequestContextAccessor();
-        _logger = Substitute.For<ILogger<TenantMembershipVerification>>();
+        _logger = Substitute.For<ILogger>();
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
-        _verification = new TenantMembershipVerification(_requests, new CurrentPrincipalAccessor(_requests), _logger);
+        _verification = new TenantMembershipVerification(_requests, new CurrentPrincipalAccessor(_requests), new LoggerForSpecs<TenantMembershipVerification>(_logger));
     }
 
     void Destroy()

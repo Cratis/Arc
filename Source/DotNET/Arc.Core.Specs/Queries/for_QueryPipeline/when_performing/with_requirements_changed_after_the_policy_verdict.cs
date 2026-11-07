@@ -48,7 +48,7 @@ public class with_requirements_changed_after_the_policy_verdict : given.a_query_
             call[1] = performer;
             return true;
         });
-        var filters = Substitute.For<IStagedQueryFilters>();
+        var filters = Substitute.For<StagedQueryFiltersForSpecs>();
         filters.Authorize(Arg.Any<QueryContext>()).Returns(async call =>
         {
             var context = call.Arg<QueryContext>();

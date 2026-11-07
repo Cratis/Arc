@@ -26,7 +26,7 @@ public class a_resolver : Specification
         _requests.Current.Returns(_request);
         _tenants = Substitute.For<ITenantIdAccessor>();
         _tenants.Current.Returns(verified_facts.Tenant);
-        _source = Substitute.For<IVerifiedCredentialSource>();
+        _source = Substitute.For<VerifiedCredentialSourceForSpecs>();
         _source.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         _source.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(CredentialVerification.Verified(verified_facts.Person()));
         _sources.Add(_source);
@@ -35,7 +35,7 @@ public class a_resolver : Specification
 
     internal static IHttpRequestContext NewRequest()
     {
-        var request = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders>();
+        var request = (IHttpRequestContext)Substitute.For<CredentialHeaderPreservationForSpecs, IHttpRequestContext, ICanReadForwardedIdentityRequest>();
         request.Items.Returns(new Dictionary<object, object?>());
         request.Query.Returns(new Dictionary<string, string>());
         ((ICanPreserveCallerCredentialHeaders)request).PreservesDuplicateCredentialHeaders.Returns(true);

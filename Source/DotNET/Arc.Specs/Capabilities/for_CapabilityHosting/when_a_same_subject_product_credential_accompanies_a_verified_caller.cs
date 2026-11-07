@@ -33,7 +33,7 @@ public class when_a_same_subject_product_credential_accompanies_a_verified_calle
         builder.Services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, ProductHandler>(ProductScheme, null);
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped(_ => Substitute.For<IVerifiedCredentialSource>());
+        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
         var verified = Substitute.For<IVerifiedCallerAccessor>();
         builder.Services.AddScoped(_ => verified);
         builder.Services.AddControllers().ConfigureApplicationPartManager(parts => parts.FeatureProviders.Add(new ScopedProbeControllerFeature()));

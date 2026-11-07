@@ -23,7 +23,7 @@ public class a_wire_host : Specification
         builder.Logging.ClearProviders();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
-        _source = Substitute.For<IVerifiedCredentialSource>();
+        _source = Substitute.For<VerifiedCredentialSourceForSpecs>();
         _source.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         app.MapPost("/mcp", async http =>
         {

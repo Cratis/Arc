@@ -21,6 +21,7 @@ public static class CapabilitiesArcBuilderExtensions
     public static IArcBuilder WithCapabilities(this IArcBuilder builder, Action<CapabilitiesOptions>? configure = null)
     {
         builder.Services.Configure(configure ?? (_ => { }));
+        builder.Services.TryAddSingleton<CapabilityEndpointSelection>();
         builder.Services.TryAddTransient<CapabilityGateMiddleware>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, CapabilitiesStartupValidation>());
         return builder;

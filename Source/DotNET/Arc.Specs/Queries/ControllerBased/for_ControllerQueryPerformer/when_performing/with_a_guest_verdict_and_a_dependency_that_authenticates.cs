@@ -68,7 +68,7 @@ public class with_a_guest_verdict_and_a_dependency_that_authenticates : Specific
             call[1] = performer;
             return true;
         });
-        var filters = Substitute.For<IStagedQueryFilters>();
+        var filters = Substitute.For<StagedQueryFiltersForSpecs>();
         filters.Authorize(Arg.Any<QueryContext>()).Returns(async call =>
         {
             var context = call.Arg<QueryContext>();

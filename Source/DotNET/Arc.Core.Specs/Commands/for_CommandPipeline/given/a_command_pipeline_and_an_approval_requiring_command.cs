@@ -21,7 +21,7 @@ public class a_command_pipeline_and_an_approval_requiring_command : a_command_pi
             call[1] = _commandHandler;
             return true;
         });
-        _flow = Substitute.For<IApprovalFlow>();
+        _flow = Substitute.For<ApprovalFlowForSpecs>();
     }
 
     [RequiresApproval]

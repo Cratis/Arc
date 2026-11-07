@@ -28,7 +28,7 @@ public class a_capability_gate : Specification
         var arc = new ArcOptions();
         arc.EndpointGroups.Assign("capabilities", 42001);
         _logged = new();
-        _gate = new(Options.Create(arc), Options.Create(new CapabilitiesOptions()), new CapturingLogger(_logged));
+        _gate = new(Options.Create(arc), Options.Create(new CapabilitiesOptions()), new CapturingLogger(_logged), new CapabilityEndpointSelection(Options.Create(new CapabilitiesOptions())));
         _context = new DefaultHttpContext();
         _context.Connection.LocalPort = 42001;
         _context.Response.Body = new MemoryStream();

@@ -14,7 +14,7 @@ public class with_staged_filter_supplied_subscription_scope : given.a_query_pipe
 
     void Establish()
     {
-        var stagedFilters = Substitute.For<IStagedQueryFilters>();
+        var stagedFilters = Substitute.For<StagedQueryFiltersForSpecs>();
         stagedFilters.Authorize(Arg.Any<QueryContext>()).Returns(call =>
         {
             _authorizedContext = call.Arg<QueryContext>();

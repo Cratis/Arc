@@ -29,7 +29,7 @@ public class when_an_operation_requires_a_scope
         builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities());
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped(_ => Substitute.For<IVerifiedCredentialSource>());
+        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
         var verified = Substitute.For<IVerifiedCallerAccessor>();
         builder.Services.AddScoped(_ => verified);
         var probe = new Probe();

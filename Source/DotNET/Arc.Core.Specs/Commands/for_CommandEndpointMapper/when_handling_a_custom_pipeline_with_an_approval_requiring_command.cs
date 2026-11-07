@@ -24,7 +24,7 @@ public class when_handling_a_custom_pipeline_with_an_approval_requiring_command
     public async Task should_refuse_execute_and_validate_without_entering_the_pipeline(bool registerFlow, bool authorized, bool supportedConfiguration)
     {
         var pipeline = Substitute.For<ICommandPipeline>();
-        var flow = Substitute.For<IApprovalFlow>();
+        IApprovalFlow flow = Substitute.For<ApprovalFlowForSpecs>();
         var handler = Substitute.For<ICommandHandler>();
         handler.CommandType.Returns(typeof(ProtectedCommand));
         handler.Location.Returns(["Features", "Commands"]);

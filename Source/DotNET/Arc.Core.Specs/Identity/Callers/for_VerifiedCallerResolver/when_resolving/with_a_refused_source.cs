@@ -12,7 +12,7 @@ public class with_a_refused_source : given.a_resolver
         _source.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(CredentialVerification.Refused(CallerRefusal.SourceRefused));
         _raw.GetHeaderValues("Authorization").Returns(["Bearer fixture_pat_secret"]);
         _source.Shape.Returns(PresentedCredentialShape.PatBearer);
-        _fallback = Substitute.For<IVerifiedCredentialSource>();
+        _fallback = Substitute.For<VerifiedCredentialSourceForSpecs>();
         _fallback.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         _sources.Add(_fallback);
     }

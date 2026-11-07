@@ -29,7 +29,7 @@ public class when_calling_capabilities_over_http
         builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities());
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped(_ => Substitute.For<IVerifiedCredentialSource>());
+        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
         var verified = Substitute.For<IVerifiedCallerAccessor>();
         verified.GetCurrent().Returns(new CallerResolution(null, CallerRefusal.NoCredential));
         builder.Services.AddScoped(_ => verified);

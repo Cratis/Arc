@@ -19,5 +19,14 @@
     <ItemGroup>
         <Compile Include="../Specs.Shared/OnBehalfOfAssertionsForSpecs.cs" Link="Identity/OnBehalfOfAssertionsForSpecs.cs" />
         <Compile Include="../Specs.Shared/ForwardedIdentityForSpecs.cs" Link="Identity/ForwardedIdentityForSpecs.cs" />
+        <Compile Include="../Specs.Shared/VerifiedCredentialSourceForSpecs.cs" Link="Identity/VerifiedCredentialSourceForSpecs.cs" />
+        <Compile Include="../Specs.Shared/CredentialHeaderPreservationForSpecs.cs" Link="Identity/CredentialHeaderPreservationForSpecs.cs" />
+        <Compile Include="../Specs.Shared/AdditionalSessionCookieNamesForSpecs.cs" Link="Identity/AdditionalSessionCookieNamesForSpecs.cs" />
+        <Compile Include="../Specs.Shared/ClientCertificateForSpecs.cs" Link="Http/ClientCertificateForSpecs.cs" />
+        <Compile Include="../Specs.Shared/ResponseHeadersForSpecs.cs" Link="Http/ResponseHeadersForSpecs.cs" />
+        <Compile Include="../Specs.Shared/StagedQueryFiltersForSpecs.cs" Link="Queries/StagedQueryFiltersForSpecs.cs" />
+        <Compile Include="../Specs.Shared/ApprovalFlowForSpecs.cs" Link="Identity/ApprovalFlowForSpecs.cs" />
+        <Compile Include="../Specs.Shared/GeneratedValueFixtureForSpecs.cs" Link="Commands/GeneratedValueFixtureForSpecs.cs" />
+        <Compile Include="../Specs.Shared/LoggerForSpecs.cs" Link="LoggerForSpecs.cs" />
     </ItemGroup>
 </Project>

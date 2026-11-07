@@ -23,7 +23,7 @@ public class when_requiring_a_hop_for_v1 : for_ForwardedIdentityAuthentication.g
         using var authority = new certificates();
         _options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = authority.Bundle;
         _options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("authproxy.internal");
-        var request = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest, ICanReadClientCertificate>();
+        var request = (IHttpRequestContext)Substitute.For<ClientCertificateForSpecs, IHttpRequestContext, ICanReadForwardedIdentityRequest>();
         request.Method.Returns("POST");
         request.Path.Returns("/base/a%2Fb");
         request.Headers.Returns(_headers);

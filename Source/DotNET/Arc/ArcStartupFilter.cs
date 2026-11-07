@@ -5,6 +5,7 @@ using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Capabilities;
 using Cratis.Arc.Execution;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
 
@@ -24,14 +25,49 @@ public class ArcStartupFilter : IStartupFilter
             app.UseMiddleware<HttpRequestContextMiddleware>();
             app.UseMiddleware<CorrelationIdMiddleware>();
 
-            // The local-port gate runs before routing and covers every endpoint on the capability port.
-            if (app.ApplicationServices.GetService<CapabilityGateMiddleware>() is not null)
+            var hasCapabilities = app.ApplicationServices.GetService<CapabilityGateMiddleware>() is not null;
+            var selectiveCapabilities = hasCapabilities && app.ApplicationServices.GetRequiredService<IOptions<CapabilitiesOptions>>().Value.GatedEndpoints is not null;
+
+            // Only selective hosting needs routing before admission; the default gate stays pre-routing.
+            IEndpointRouteBuilder? capabilityRoutes = null;
+            if (selectiveCapabilities)
+            {
+                app.UseRouting();
+                capabilityRoutes = app.Properties.TryGetValue("__EndpointRouteBuilder", out var earlyRoutes)
+                    ? earlyRoutes as IEndpointRouteBuilder
+                    : null;
+            }
+            if (hasCapabilities)
             {
                 app.UseMiddleware<CapabilityGateMiddleware>();
             }
 
-            // Continue with the rest of the pipeline
+            // Continue with the rest of the pipeline before compiling the complete endpoint graph.
             next(app);
+            if (selectiveCapabilities)
+            {
+                CompileSelection(app, capabilityRoutes);
+            }
         };
+    }
+
+    static void CompileSelection(IApplicationBuilder app, IEndpointRouteBuilder? capabilityRoutes)
+    {
+        var routes = app.Properties.TryGetValue("__EndpointRouteBuilder", out var routeBuilder)
+            ? routeBuilder as IEndpointRouteBuilder
+            : null;
+
+        // The host may create its own route builder. Populate the gate's early matcher with the
+        // completed graph's exact endpoint instances, or refuse startup if no rules can be matched.
+        if (capabilityRoutes?.DataSources.Count == 0)
+        {
+            var endpoints = routes?.DataSources.SelectMany(source => source.Endpoints).ToArray() ?? [];
+            if (endpoints.Length == 0 && app.ApplicationServices.GetService<EndpointDataSource>() is { } source)
+            {
+                endpoints = source.Endpoints.ToArray();
+            }
+            capabilityRoutes.DataSources.Add(new DefaultEndpointDataSource(endpoints));
+        }
+        app.ApplicationServices.GetRequiredService<CapabilityEndpointSelection>().Compile(capabilityRoutes?.DataSources ?? []);
     }
 }

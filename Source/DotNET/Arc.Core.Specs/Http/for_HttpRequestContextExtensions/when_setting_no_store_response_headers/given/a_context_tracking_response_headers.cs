@@ -11,7 +11,7 @@ public class a_context_tracking_response_headers : Specification
     void Establish()
     {
         _responseHeaders = new(StringComparer.OrdinalIgnoreCase);
-        _context = Substitute.For<IHttpRequestContext, ICanReadResponseHeaders>();
+        _context = (IHttpRequestContext)Substitute.For<ResponseHeadersForSpecs, IHttpRequestContext>();
         ((ICanReadResponseHeaders)_context).GetResponseHeader(Arg.Any<string>()).Returns(call => _responseHeaders.TryGetValue(call.Arg<string>(), out var value) ? value : null);
         _context
             .When(_ => _.SetResponseHeader(Arg.Any<string>(), Arg.Any<string>()))
