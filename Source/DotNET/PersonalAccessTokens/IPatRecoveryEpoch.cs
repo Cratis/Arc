@@ -3,8 +3,12 @@
 
 namespace Cratis.Arc.PersonalAccessTokens;
 
-/// <summary>Current authoritative issuance epoch for this installation. Null or unavailable always refuses.</summary>
-internal interface IPatRecoveryEpoch
+/// <summary>
+/// Trusted-host recovery contract, not a sandbox. Null or unavailable always refuses.
+/// Evidence must live outside the store's restore domain; restore must fence old credentials.
+/// Missing evidence must never be recreated by reading it.
+/// </summary>
+public interface IPatRecoveryEpoch
 {
     /// <summary>
     /// Reads current authoritative recovery state with linearizable reads ordered against revocation and recovery-epoch advancement.

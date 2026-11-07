@@ -5,11 +5,14 @@ using Cratis.Arc.Identity.Callers;
 
 namespace Cratis.Arc.PersonalAccessTokens;
 
-/// <summary>Internal persistence boundary. No adapter is supplied by the core module.</summary>
-internal interface IPatAuthority
+/// <summary>
+/// Trusted-host persistence contract, not a sandbox. No adapter is supplied by the core module.
+/// Store only one-way verifiers; deny on uncertainty and never log credential material.
+/// </summary>
+public interface IPatAuthority
 {
     /// <summary>Atomically creates a unique verifier and its secret-free issuance intent; false means nothing was committed.</summary>
-    /// <remarks>An audit-enabled adapter also commits a stable <see cref="PatAuditIntent"/> snapshot in this transaction, exposed only through <see cref="IPatAuditOutbox"/>.</remarks>
+    /// <remarks>An audit-enabled adapter also commits a stable audit snapshot in this transaction. The audit outbox remains internal.</remarks>
     /// <param name="record">Verifier metadata, never the secret.</param>
     /// <param name="intent">Secret-free issuance intent.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

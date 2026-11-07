@@ -7,8 +7,9 @@ namespace Cratis.Arc.PersonalAccessTokens;
 /// Re-evaluates current person, account, tenant and organization status, membership, scope ceilings,
 /// upstream SSO freshness and organization PAT policy on every issuance and verification.
 /// Recorded policy epochs are hints, not authorization. Missing or unavailable policy refuses.
+/// This is a trusted-host security contract, not a sandbox; deny on uncertainty.
 /// </summary>
-internal interface IPatPolicy
+public interface IPatPolicy
 {
     /// <summary>Evaluates every current status, membership and SSO requirement.</summary>
     /// <param name="record">Credential metadata.</param>
