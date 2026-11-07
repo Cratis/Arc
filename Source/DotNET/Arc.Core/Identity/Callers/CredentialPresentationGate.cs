@@ -13,7 +13,8 @@ namespace Cratis.Arc.Identity.Callers;
 /// DPoP sender-binding transport support is deferred to the PAT/workload work. Session cookies are not counted as credentials in v1.
 /// </summary>
 /// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-internal sealed class CredentialPresentationGate
+/// <param name="reservedPrefixes">Optional explicitly retired namespaces, refused before dispatch.</param>
+internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? reservedPrefixes = null)
 {
     static readonly FrozenSet<string> _queryCredentials = new[]
     {
@@ -59,6 +60,10 @@ internal sealed class CredentialPresentationGate
         foreach (var name in raw.HeaderNames.Where(IsEnvelope).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             envelope.Add(name, Array.AsReadOnly(raw.GetHeaderValues(name).ToArray()));
+        }
+        if (reservedPrefixes is not null && authorization.Any(reservedPrefixes.Refuses))
+        {
+            return Refuse(CallerRefusal.LegacyCredentialUnsupported);
         }
         return Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase)));
     }

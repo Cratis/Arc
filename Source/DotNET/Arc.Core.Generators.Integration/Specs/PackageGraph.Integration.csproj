@@ -13,7 +13,14 @@
     <ItemGroup>
         <ProjectReference Include="../../Cratis/Cratis.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <ProjectReference Include="../../Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../../PersonalAccessTokens/PersonalAccessTokens.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../../PersonalAccessTokens.Chronicle/PersonalAccessTokens.Chronicle.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <PackageReference Include="Cratis.Fundamentals" />
     </ItemGroup>
+
+    <!-- The package fixture packs every target framework without building, so build the PAT packages for all of them. -->
+    <Target Name="BuildPersonalAccessTokenPackages" AfterTargets="Build">
+        <MSBuild Projects="../../PersonalAccessTokens/PersonalAccessTokens.csproj;../../PersonalAccessTokens.Chronicle/PersonalAccessTokens.Chronicle.csproj" Targets="Build" Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;TargetFrameworks" />
+    </Target>
 
 </Project>

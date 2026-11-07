@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.PersonalAccessTokens.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.PersonalAccessTokens</RootNamespace>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../PersonalAccessTokens/PersonalAccessTokens.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Vectors/format-v1.json" />
+    </ItemGroup>
+</Project>

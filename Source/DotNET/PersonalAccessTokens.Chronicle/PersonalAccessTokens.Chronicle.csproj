@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.PersonalAccessTokens.Chronicle</AssemblyName>
+        <RootNamespace>Cratis.Arc.PersonalAccessTokens.Chronicle</RootNamespace>
+        <Description>Audit-only Chronicle events and projections for resource-local personal access tokens.</Description>
+        <PackageTags>cratis;arc;personal-access-tokens;chronicle;audit</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.PersonalAccessTokens.Chronicle.Specs" />
+        <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../PersonalAccessTokens/PersonalAccessTokens.csproj" />
+        <PackageReference Include="Cratis.Chronicle" />
+    </ItemGroup>
+</Project>

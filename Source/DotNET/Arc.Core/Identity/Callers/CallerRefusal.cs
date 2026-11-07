@@ -78,5 +78,8 @@ public enum CallerRefusal
     RequestChanged = 22,
 
     /// <summary>Another scheme authenticated a different subject on the request.</summary>
-    AmbiguousPrincipal = 23
+    AmbiguousPrincipal = 23,
+
+    /// <summary>A credential belongs to an explicitly retired namespace.</summary>
+    LegacyCredentialUnsupported = 24
 }
