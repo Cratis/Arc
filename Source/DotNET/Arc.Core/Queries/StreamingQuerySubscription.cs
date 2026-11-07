@@ -167,20 +167,27 @@ internal sealed class StreamingQuerySubscription : IDisposable
         {
             // The deferred cleanup already completed.
         }
-
-        // Stop new observer callbacks before considering gates and scopes for disposal.
-        producer?.Dispose();
-
-        lock (_sync)
+        finally
         {
-            _producerStopped = true;
-            if (_activeOperations == 0)
+            try
             {
-                resources = TakeResourcesForDisposal();
+                // Stop new observer callbacks before considering gates and scopes for disposal.
+                producer?.Dispose();
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    _producerStopped = true;
+                    if (_activeOperations == 0)
+                    {
+                        resources = TakeResourcesForDisposal();
+                    }
+                }
+
+                StartDisposingResources(resources);
             }
         }
-
-        StartDisposingResources(resources);
     }
 
     List<IDisposable>? TakeResourcesForDisposal()
