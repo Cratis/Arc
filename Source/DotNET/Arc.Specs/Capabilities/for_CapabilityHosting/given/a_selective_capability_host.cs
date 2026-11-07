@@ -36,7 +36,7 @@ public class a_selective_capability_host : Specification
         builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", _capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities(options => options.GatedEndpoints = Selector));
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped(_ => Substitute.For<IVerifiedCredentialSource>());
+        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
         _verified = Substitute.For<IVerifiedCallerAccessor>();
         _verified.GetCurrent().Returns(new CallerResolution(null, CallerRefusal.NoCredential));
         builder.Services.AddScoped(_ => _verified);

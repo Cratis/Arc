@@ -12,7 +12,7 @@ public class when_a_scoped_credential_verifier_is_registered : given.a_capabilit
 
     void Establish()
     {
-        _source = Substitute.For<IVerifiedCredentialSource, IDisposable>();
+        _source = Substitute.For<VerifiedCredentialSourceForSpecs, IDisposable>();
         _services.Clear();
         _services.AddScoped(_ => _source);
     }

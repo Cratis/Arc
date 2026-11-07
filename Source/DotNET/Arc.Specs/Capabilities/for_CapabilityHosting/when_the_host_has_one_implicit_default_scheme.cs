@@ -38,7 +38,7 @@ public class when_the_host_has_one_implicit_default_scheme
         builder.Services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, ProductHandler>(ProductScheme, null);
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped(_ => Substitute.For<IVerifiedCredentialSource>());
+        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
         var verified = Substitute.For<IVerifiedCallerAccessor>();
         var person = new VerifiedCaller("1", CallerPrincipalKind.Person, CallerCredentialKind.PersonalAccessToken, new("credential"), null, new("person"), null, null, null, null, null, "resource", null, null, null, "test", new HashSet<string>(), new HashSet<string>(), null);
         verified.GetCurrent().Returns(new CallerResolution(person, null));

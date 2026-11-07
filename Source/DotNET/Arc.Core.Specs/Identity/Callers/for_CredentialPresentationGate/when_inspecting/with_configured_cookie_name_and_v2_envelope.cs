@@ -8,7 +8,7 @@ public class with_configured_cookie_name_and_v2_envelope : given.a_gate
 {
     void Establish()
     {
-        var names = Substitute.For<IAdditionalSessionCookieNames>();
+        var names = Substitute.For<AdditionalSessionCookieNamesForSpecs>();
         names.Names.Returns(["my-app-session"]);
         _configured = new(additionalSessionCookieNames: names);
         _raw.HeaderNames.Returns(["Cookie", "Authorization", "x-cratis-forwarded-identity-signature"]);

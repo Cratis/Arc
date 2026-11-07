@@ -28,7 +28,7 @@ public class a_hop_reader : Specification
         _warnings = [];
         var vector = VerificationFixture.DirectBrowser();
         _presentation = VerificationFixture.Presentation(vector);
-        var request = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest, ICanReadClientCertificate>();
+        var request = (IHttpRequestContext)Substitute.For<ClientCertificateForSpecs, IHttpRequestContext, ICanReadForwardedIdentityRequest>();
         request.Headers.Returns(_headers);
         _services = new ServiceCollection().AddSingleton<IOptions<ArcOptions>>(Options.Create(_options)).BuildServiceProvider();
         request.RequestServices.Returns(_services);

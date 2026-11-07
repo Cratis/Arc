@@ -22,7 +22,7 @@ public class a_host_with_tenancy : Specification
 
     void Establish()
     {
-        _logger = Substitute.For<ILogger<TenantMembershipStartupWarning>>();
+        _logger = Substitute.For<ILogger>();
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
     }
 
@@ -38,7 +38,7 @@ public class a_host_with_tenancy : Specification
             })
             .ConfigureServices(services =>
             {
-                services.AddSingleton(typeof(ILogger<TenantMembershipStartupWarning>), _logger);
+                services.AddSingleton<ILogger<TenantMembershipStartupWarning>>(new LoggerForSpecs<TenantMembershipStartupWarning>(_logger));
                 if (_membership)
                 {
                     services.AddScoped(_ => _membershipFactoryThrows ? throw new InvalidOperationException("Not available at startup") : Substitute.For<ITenantMembership>());

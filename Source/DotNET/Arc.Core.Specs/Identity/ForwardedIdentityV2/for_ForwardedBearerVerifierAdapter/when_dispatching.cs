@@ -23,14 +23,14 @@ public class when_dispatching : Specification
         var vector = ForwardedIdentityV2Vectors.Named("pat-bearer-caller-from-local-pat-verifier");
         var verified = await new VectorBearerVerifier(vector.Inputs.VerifiedBearer).Verify(ForwardedBearerVerifierKind.Pat, "Bearer fixture", CancellationToken.None);
         _facts = verified.Facts!;
-        var pat = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource pat = Substitute.For<VerifiedCredentialSourceForSpecs>();
         pat.Shape.Returns(PresentedCredentialShape.PatBearer);
-        pat.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(call =>
+        pat.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns<object>(call =>
         {
             _presentation = call.Arg<CredentialPresentation>();
             return Task.FromResult(CredentialVerification.Verified(_facts));
         });
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         oauth.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(CredentialVerification.Verified(_facts)));
         _accepted = await Verify([pat, oauth]);
@@ -39,7 +39,7 @@ public class when_dispatching : Specification
         _oauthCalls = oauth.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IVerifiedCredentialSource.Verify));
         _missing = await Verify([oauth]);
         _duplicate = await Verify([pat, pat]);
-        pat.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns<Task<CredentialVerification>>(_ => throw new InvalidOperationException("Synthetic verifier failure."));
+        pat.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns<object>(_ => throw new InvalidOperationException("Synthetic verifier failure."));
         _thrown = await Verify([pat, oauth]);
     }
 

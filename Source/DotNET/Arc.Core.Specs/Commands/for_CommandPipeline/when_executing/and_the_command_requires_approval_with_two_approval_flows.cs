@@ -11,7 +11,7 @@ public class and_the_command_requires_approval_with_two_approval_flows : given.a
     CommandResult _result;
     void Establish()
     {
-        _otherFlow = Substitute.For<IApprovalFlow>();
+        _otherFlow = Substitute.For<ApprovalFlowForSpecs>();
         _serviceProvider.GetService(typeof(IEnumerable<IApprovalFlow>)).Returns(new[] { _flow, _otherFlow });
     }
     async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);

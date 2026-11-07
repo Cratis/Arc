@@ -92,7 +92,7 @@ public class a_pat_module : Specification
 
     internal IVerifiedCallerAccessor Resolver(string authorization, IEnumerable<string>? markers = null, IVerifiedCredentialSource? oauth = null, IVerifiedCredentialSource? pat = null, IEnumerable<string>? reserved = null)
     {
-        var request = Substitute.For<IHttpRequestContext, ICanReadForwardedIdentityRequest, ICanPreserveCallerCredentialHeaders>();
+        var request = (IHttpRequestContext)Substitute.For<CredentialHeaderPreservationForSpecs, IHttpRequestContext, ICanReadForwardedIdentityRequest>();
         request.Items.Returns(new Dictionary<object, object?>());
         ((ICanPreserveCallerCredentialHeaders)request).PreservesDuplicateCredentialHeaders.Returns(true);
         var raw = (ICanReadForwardedIdentityRequest)request;

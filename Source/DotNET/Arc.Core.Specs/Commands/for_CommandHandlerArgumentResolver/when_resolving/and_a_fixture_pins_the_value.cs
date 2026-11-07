@@ -10,7 +10,7 @@ public class and_a_fixture_pins_the_value : given.a_generated_value_resolver
 
     void Establish()
     {
-        _fixture = Substitute.For<IGeneratedValueFixture>();
+        _fixture = Substitute.For<GeneratedValueFixtureForSpecs>();
         _fixture.TryGet(typeof(CreatesId), "id", typeof(Id), out Arg.Any<object>()).Returns(call =>
         {
             call[3] = _pinned;

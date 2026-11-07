@@ -49,7 +49,7 @@ public class with_a_principal_changed_inside_the_model_bound_performer : given.a
             call[1] = _queryPerformer;
             return true;
         });
-        var filters = Substitute.For<IStagedQueryFilters>();
+        var filters = Substitute.For<StagedQueryFiltersForSpecs>();
         filters.Authorize(Arg.Any<QueryContext>()).Returns(call =>
         {
             var context = call.Arg<QueryContext>();

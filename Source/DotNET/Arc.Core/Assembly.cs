@@ -10,5 +10,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Cratis")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Specs")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Core.Specs")]
-[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Testing")]

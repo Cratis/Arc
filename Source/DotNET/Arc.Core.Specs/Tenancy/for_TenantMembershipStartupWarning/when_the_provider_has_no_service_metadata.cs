@@ -11,7 +11,7 @@ namespace Cratis.Arc.Tenancy.for_TenantMembershipStartupWarning;
 public class when_the_provider_has_no_service_metadata : Specification
 {
     IServiceScope _scope;
-    ILogger<TenantMembershipStartupWarning> _logger;
+    ILogger _logger;
     Exception _exception;
     async Task Because()
     {
@@ -25,9 +25,9 @@ public class when_the_provider_has_no_service_metadata : Specification
         var scopedServices = Substitute.For<IServiceProvider>();
         scopedServices.GetService(typeof(IEnumerable<ITenantMembership>)).Returns(Array.Empty<ITenantMembership>());
         _scope.ServiceProvider.Returns(scopedServices);
-        _logger = Substitute.For<ILogger<TenantMembershipStartupWarning>>();
+        _logger = Substitute.For<ILogger>();
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
-        var warning = new TenantMembershipStartupWarning(services, options, _logger);
+        var warning = new TenantMembershipStartupWarning(services, options, new LoggerForSpecs<TenantMembershipStartupWarning>(_logger));
         _exception = await Catch.Exception(() => warning.StartAsync(TestContext.Current.CancellationToken));
     }
     [Fact] void should_complete_the_diagnostic() => _exception.ShouldBeNull();

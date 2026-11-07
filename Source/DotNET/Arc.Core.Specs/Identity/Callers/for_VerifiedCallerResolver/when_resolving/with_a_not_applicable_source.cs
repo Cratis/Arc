@@ -7,7 +7,7 @@ public class with_a_not_applicable_source : given.a_resolver
 {
     void Establish()
     {
-        var unrelated = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource unrelated = Substitute.For<VerifiedCredentialSourceForSpecs>();
         unrelated.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(CredentialVerification.NotApplicable());
         unrelated.Shape.Returns(PresentedCredentialShape.PatBearer);
         _sources.Insert(0, unrelated);

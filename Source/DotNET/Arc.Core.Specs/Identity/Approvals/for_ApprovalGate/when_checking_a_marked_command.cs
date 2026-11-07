@@ -19,7 +19,7 @@ public class when_checking_a_marked_command : Specification
     [InlineData(2)]
     public async Task should_only_validate_with_exactly_one_flow_without_beginning_it(int count)
     {
-        var flow = Substitute.For<IApprovalFlow>();
+        IApprovalFlow flow = Substitute.For<ApprovalFlowForSpecs>();
         var registrations = new ServiceCollection();
         for (var index = 0; index < count; index++) registrations.AddSingleton(flow);
         await using var services = registrations.BuildServiceProvider();
@@ -69,7 +69,7 @@ public class when_checking_a_marked_command : Specification
     [Fact]
     public async Task should_not_translate_flow_cancellation_to_configuration_failure()
     {
-        var flow = Substitute.For<IApprovalFlow>();
+        IApprovalFlow flow = Substitute.For<ApprovalFlowForSpecs>();
         flow.Begin(Arg.Any<CommandContext>()).Returns(Task.FromException<CommandResult>(new OperationCanceledException()));
         await using var services = new ServiceCollection().AddSingleton(flow).BuildServiceProvider();
         await Assert.ThrowsAsync<OperationCanceledException>(() => ApprovalGate.ForExecution(CreateContext(), services));
@@ -79,7 +79,7 @@ public class when_checking_a_marked_command : Specification
 
     static IEnumerable<IApprovalFlow> FailingEnumeration()
     {
-        yield return Substitute.For<IApprovalFlow>();
+        yield return Substitute.For<ApprovalFlowForSpecs>();
         throw new InvalidOperationException("Not returned to the caller");
     }
 }

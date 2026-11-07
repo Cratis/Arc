@@ -29,7 +29,7 @@ public class and_the_command_requires_approval : given.a_post_request_for_a_comm
     public async Task should_refuse_without_executing_the_action_or_beginning_approval(bool registerFlow, bool validateOnly, bool nullArgument)
     {
         if (nullArgument) _actionContext.ActionArguments["command"] = null;
-        var flow = Substitute.For<IApprovalFlow>();
+        IApprovalFlow flow = Substitute.For<ApprovalFlowForSpecs>();
         var registrations = new ServiceCollection();
         if (registerFlow) registrations.AddSingleton(flow);
         await using var services = registrations.BuildServiceProvider();

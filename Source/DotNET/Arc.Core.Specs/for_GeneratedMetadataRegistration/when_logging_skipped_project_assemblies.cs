@@ -8,11 +8,11 @@ namespace Cratis.Arc.for_GeneratedMetadataRegistration;
 
 public class when_logging_skipped_project_assemblies : given.a_generated_metadata_registration
 {
-    ILogger<GeneratedMetadataRegistration> _logger;
+    ILogger _logger;
 
     void Establish()
     {
-        _logger = Substitute.For<ILogger<GeneratedMetadataRegistration>>();
+        _logger = Substitute.For<ILogger>();
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         _getDependencyContextProjectNames().Returns(["Missing.Project"]);
         _loadAssembly(Arg.Any<AssemblyName>()).Returns(_ => throw new FileNotFoundException("Not deployed", "Missing.Project"));
@@ -21,8 +21,9 @@ public class when_logging_skipped_project_assemblies : given.a_generated_metadat
 
     void Because()
     {
-        _registration.LogSkipped(_logger);
-        _registration.LogSkipped(_logger);
+        var logger = new LoggerForSpecs<GeneratedMetadataRegistration>(_logger);
+        _registration.LogSkipped(logger);
+        _registration.LogSkipped(logger);
     }
 
     [Fact] void should_log_the_skipped_assembly_once() => _logger.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(ILogger.Log)).ShouldEqual(1);

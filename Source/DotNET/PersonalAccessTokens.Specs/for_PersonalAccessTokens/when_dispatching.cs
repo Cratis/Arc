@@ -19,9 +19,9 @@ public class when_dispatching : given.a_pat_module
     [InlineData("Bearer dpat_expired", true)]
     public async Task should_terminally_refuse_every_reserved_legacy_presentation(string authorization, bool markers)
     {
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
-        var pat = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource pat = Substitute.For<VerifiedCredentialSourceForSpecs>();
         pat.Shape.Returns(PresentedCredentialShape.PatBearer);
         var resolution = await Resolver(authorization, markers ? [ForwardedIdentityEnvelope.Header, "X-Forwarded-User"] : [], oauth, pat).GetCurrent();
         resolution.Refusal.ShouldEqual(CallerRefusal.LegacyCredentialUnsupported);
@@ -40,7 +40,7 @@ public class when_dispatching : given.a_pat_module
     [InlineData("Bearer unregistered_pat_v1_")]
     public async Task should_not_dispatch_pat_namespace_values_to_oauth(string authorization)
     {
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         (await Resolver(authorization, oauth: oauth).GetCurrent()).Caller.ShouldBeNull();
         await oauth.DidNotReceive().Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
@@ -51,7 +51,7 @@ public class when_dispatching : given.a_pat_module
     {
         var token = await Issue();
         var facts = (await Source().Verify(Presentation(token), TestContext.Current.CancellationToken)).Facts!;
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         oauth.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(CredentialVerification.Verified(facts with { CredentialKind = CallerCredentialKind.OAuthGrant }));
         (await Resolver("Bearer " + token, oauth: oauth).GetCurrent()).Caller.ShouldNotBeNull();
@@ -78,9 +78,9 @@ public class when_dispatching : given.a_pat_module
     [InlineData("envelope")]
     public async Task should_refuse_known_and_host_added_retired_formats_on_every_arrival_path_without_fallback(string arrival)
     {
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
-        var pat = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource pat = Substitute.For<VerifiedCredentialSourceForSpecs>();
         pat.Shape.Returns(PresentedCredentialShape.PatBearer);
         foreach (var prefix in ReservedCredentialPrefixes.KnownRetiredPrefixes.Concat(["hostlegacy"]))
         {
@@ -105,7 +105,7 @@ public class when_dispatching : given.a_pat_module
     {
         var token = await Issue();
         var corrupted = token[..^1] + (token[^1] == 'A' ? 'Q' : 'A');
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         (await Resolver("Bearer " + corrupted, oauth: oauth).GetCurrent()).Caller.ShouldBeNull();
         await oauth.DidNotReceive().Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>());
@@ -116,7 +116,7 @@ public class when_dispatching : given.a_pat_module
     {
         var token = await Issue();
         var facts = (await Source().Verify(Presentation(token), TestContext.Current.CancellationToken)).Facts!;
-        var oauth = Substitute.For<IVerifiedCredentialSource>();
+        IVerifiedCredentialSource oauth = Substitute.For<VerifiedCredentialSourceForSpecs>();
         oauth.Shape.Returns(PresentedCredentialShape.OAuthBearer);
         oauth.Verify(Arg.Any<CredentialPresentation>(), Arg.Any<CancellationToken>()).Returns(CredentialVerification.Verified(facts with { CredentialKind = CallerCredentialKind.OAuthGrant }));
         (await Resolver("Bearer dpatient", oauth: oauth).GetCurrent()).Caller.ShouldNotBeNull();

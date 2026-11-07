@@ -26,7 +26,7 @@ public class a_capability_startup_validation : Specification
         _installation = new("https://resource.example", "test");
         _catalog = new(new Dictionary<string, string> { ["https://resource.example"] = "audience" });
         _services = new ServiceCollection();
-        _services.AddScoped(_ => Substitute.For<IVerifiedCredentialSource>());
+        _services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
     }
 
     protected async Task Validate()

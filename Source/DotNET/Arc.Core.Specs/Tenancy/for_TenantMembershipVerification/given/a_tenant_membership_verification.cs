@@ -16,7 +16,7 @@ public class a_tenant_membership_verification : Specification
     protected ICurrentPrincipalAccessor _principals;
     protected ITenantMembership _membership;
     internal TenantMembershipVerification _verification;
-    internal ILogger<TenantMembershipVerification> _logger;
+    internal ILogger _logger;
     protected ClaimsPrincipal _principal;
     protected TenantId _tenant;
 
@@ -35,8 +35,8 @@ public class a_tenant_membership_verification : Specification
         _request.Items.Returns(new Dictionary<object, object?>());
         _services.GetService(typeof(IEnumerable<ITenantMembership>)).Returns(new[] { _membership });
         _membership.IsMember(Arg.Any<ClaimsPrincipal>(), Arg.Any<TenantId>()).Returns(true);
-        _logger = Substitute.For<ILogger<TenantMembershipVerification>>();
+        _logger = Substitute.For<ILogger>();
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
-        _verification = new TenantMembershipVerification(_requests, _principals, _logger);
+        _verification = new TenantMembershipVerification(_requests, _principals, new LoggerForSpecs<TenantMembershipVerification>(_logger));
     }
 }
