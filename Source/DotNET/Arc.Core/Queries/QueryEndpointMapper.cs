@@ -112,7 +112,7 @@ public static class QueryEndpointMapper
         var metadata = new EndpointMetadata(
             endpointName,
             $"{reader.EndpointNamePrefix} {performer.Name} query",
-            [string.Join('.', locationForTag)],
+            [.. new[] { string.Join('.', locationForTag) }.Where(tag => !string.IsNullOrEmpty(tag))],
             QueryEndpointAccess.AllowsAnonymous(performer, services),
             RequestBodyType: reader.RequestBodyType,
             ResponseType: typeof(QueryResult),
