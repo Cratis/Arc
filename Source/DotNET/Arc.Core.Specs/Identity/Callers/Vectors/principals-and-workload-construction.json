@@ -2,7 +2,7 @@
   "source": "Cratis/Identity/Source/Identity.Specs/Vectors/arc-verified-caller-v1/principals-and-workload.json",
   "commit": "bc7402b9e9a53e8b7114117f0f6022b3690419b8",
   "license": "MIT",
-  "boundary": "Selected zero-based rows; construction from already verified facts only, not credential verification or full vector conformance.",
+  "boundary": "Selected zero-based rows (including row 28, credential cardinality at the presentation gate); construction from already verified facts only, not credential verification or full vector conformance.",
   "vectors": [
     {
       "row": 15,
@@ -39,6 +39,12 @@
       "given": { "cnf": { "jkt": "synthetic-key-a" }, "dpopHeaderPresent": true, "proofKeyThumbprint": "synthetic-key-a", "proofJti": "proof-replay-fixture", "proofJtiAlreadyAccepted": true },
       "when": { "operation": "build-caller" },
       "then": { "status": 401, "callerConstructed": false }
+    },
+    {
+      "row": 28,
+      "given": { "sessionCookiePresent": true, "authorizationBearerPresent": true },
+      "when": { "operation": "build-caller" },
+      "then": { "credentialCount": 2, "accepted": false, "callerConstructed": false }
     }
   ]
 }

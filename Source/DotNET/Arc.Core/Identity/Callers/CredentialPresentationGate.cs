@@ -10,7 +10,11 @@ namespace Cratis.Arc.Identity.Callers;
 /// Refuses ambiguous or URI credentials before verification. Form-body credentials are not inspected: Arc commands and queries use JSON.
 /// Raw header values are copied once; neither flattened headers nor request identity can replace this input.
 /// Only the Bearer Authorization scheme is accepted in v1; the DPoP scheme is refused as MalformedAuthorization.
-/// DPoP sender-binding transport support is deferred to the PAT/workload work. Session cookies are not counted as credentials in v1.
+/// DPoP sender-binding transport support is deferred to the PAT/workload work.
+/// A recognized session cookie counts as a credential: with an Authorization value or a non-v2 envelope it is refused as MultipleCredentials.
+/// With a v2 envelope it is one credential, because the verified envelope is the session. Cookie values are matched by exact, case-insensitive name
+/// across every Cookie header value and are never copied or logged. Hosts that flatten repeated Cookie headers cannot reveal split values; the
+/// duplicate-preserving capability gate in <see cref="Inspect"/> already refuses those hosts.
 /// </summary>
 /// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
 /// <param name="reservedPrefixes">Optional additional retired namespaces. Built-in retired prefixes are always refused before dispatch.</param>
@@ -21,6 +25,9 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         "access_token", "accessToken", "id_token", "refresh_token", "token", "bearer", "pat",
         "session", "session_token", "credential", "authorization"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    static readonly FrozenSet<string> _sessionCookies = new[] { "cratis-identity-session", ".AspNetCore.Cookies" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    static readonly char[] _cookieSeparators = [';', ','];
 
     readonly ReservedCredentialPrefixes _reservedPrefixes = reservedPrefixes ?? new([]);
 
@@ -37,6 +44,10 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
             return CallerRefusal.MultipleCredentials;
         }
         if (HasBearerAndEnvelope(presented) && !IsV2WithBearer(presented))
+        {
+            return CallerRefusal.MultipleCredentials;
+        }
+        if (presented.SessionCookiePresent && (HasBearerWithoutEnvelope(presented) || HasNonV2Envelope(presented)))
         {
             return CallerRefusal.MultipleCredentials;
         }
@@ -71,7 +82,8 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         {
             return Refuse(CallerRefusal.LegacyCredentialUnsupported);
         }
-        return Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase)));
+        var sessionCookie = raw.GetHeaderValues("Cookie").Any(HasSessionCookie);
+        return Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase), sessionCookiePresent: sessionCookie));
     }
 
     static bool TryReadRawRequest(IHttpRequestContext request, out ICanReadForwardedIdentityRequest raw)
@@ -81,6 +93,24 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
     }
 
     static bool HasRepeatedCredentialFields(CredentialPresentation presented) => presented.Authorization.Count > 1 || presented.Envelope.Values.Any(values => values.Count != 1);
+
+    static bool HasSessionCookie(string? header) => header?.Split(_cookieSeparators).Any(pair =>
+    {
+        var equals = pair.IndexOf('=');
+        return (equals > 0 && _sessionCookies.Contains(pair[..equals].Trim())) || IsChunkedAspNetCookie(pair, equals);
+    }) == true;
+
+    static bool IsChunkedAspNetCookie(string pair, int equals)
+    {
+        const string prefix = ".AspNetCore.CookiesC";
+        var name = equals > 0 ? pair[..equals].Trim() : string.Empty;
+        return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && name.Length > prefix.Length && name[prefix.Length..].All(char.IsAsciiDigit);
+    }
+
+    static bool HasBearerWithoutEnvelope(CredentialPresentation presented) => presented.Authorization.Count != 0 && presented.Envelope.Count == 0;
+
+    static bool HasNonV2Envelope(CredentialPresentation presented) => presented.Envelope.Count != 0 &&
+        !presented.Envelope.Values.All(values => values.Count == 1 && values[0].StartsWith("v2.", StringComparison.Ordinal));
 
     static bool HasBearerAndEnvelope(CredentialPresentation presented) => presented.Authorization.Count != 0 && presented.Envelope.Count != 0;
 
