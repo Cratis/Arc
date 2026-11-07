@@ -6,10 +6,49 @@ using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.PersonalAccessTokens;
 
-/// <summary>Verified owner binding required by atomic revocation.</summary>
-/// <param name="Resource">Receiving resource.</param>
-/// <param name="Environment">Receiving environment.</param>
-/// <param name="Person">Verified person.</param>
-/// <param name="AccountKey">Verified upstream account.</param>
-/// <param name="Tenant">Verified tenant.</param>
-internal sealed record PatOwner(string Resource, string Environment, CallerPersonId Person, CallerAccountKey AccountKey, TenantId Tenant);
+/// <summary>
+/// Framework-created owner binding required by atomic revocation.
+/// Adapters may inspect this value but cannot create or change it.
+/// </summary>
+public sealed record PatOwner
+{
+    /// <summary>Initializes a new instance of the <see cref="PatOwner"/> class.</summary>
+    /// <param name="resource">The checked resource.</param>
+    /// <param name="environment">The checked environment.</param>
+    /// <param name="person">The verified person.</param>
+    /// <param name="accountKey">The verified account.</param>
+    /// <param name="tenant">The verified tenant.</param>
+    internal PatOwner(string resource, string environment, CallerPersonId person, CallerAccountKey accountKey, TenantId tenant)
+    {
+        Resource = resource;
+        Environment = environment;
+        Person = person;
+        AccountKey = accountKey;
+        Tenant = tenant;
+    }
+
+    /// <summary>
+    /// Gets the receiving resource.
+    /// </summary>
+    public string Resource { get; internal init; }
+
+    /// <summary>
+    /// Gets the receiving environment.
+    /// </summary>
+    public string Environment { get; internal init; }
+
+    /// <summary>
+    /// Gets the verified person.
+    /// </summary>
+    public CallerPersonId Person { get; internal init; }
+
+    /// <summary>
+    /// Gets the verified upstream account.
+    /// </summary>
+    public CallerAccountKey AccountKey { get; internal init; }
+
+    /// <summary>
+    /// Gets the verified tenant.
+    /// </summary>
+    public TenantId Tenant { get; internal init; }
+}

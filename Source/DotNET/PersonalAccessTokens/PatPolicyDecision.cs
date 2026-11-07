@@ -7,4 +7,4 @@ namespace Cratis.Arc.PersonalAccessTokens;
 /// <param name="Permitted">Whether current policy permits the credential.</param>
 /// <param name="MaximumLifetime">Current organization lifetime ceiling.</param>
 /// <param name="PolicyEpoch">Current policy epoch.</param>
-internal sealed record PatPolicyDecision(bool Permitted, TimeSpan MaximumLifetime, ulong? PolicyEpoch);
+public sealed record PatPolicyDecision(bool Permitted, TimeSpan MaximumLifetime, ulong? PolicyEpoch);

@@ -26,6 +26,10 @@ public static class PersonalAccessTokensArcBuilderExtensions
         var installation = new VerifiedCallersBuilder();
         configure(installation);
         var target = installation.InstallPersonalAccessTokens(builder.Services, validated.ReservedLegacyPrefixes);
+        builder.Services.AddOptions<PatAdapterRegistrationOptions>()
+            .Configure(options => options.Services = builder.Services)
+            .Validate(options => PatAdapterRegistrationCheck.Validate(options.Services) is null, "Ambiguous adapter registration.")
+            .ValidateOnStart();
         builder.Services.AddSingleton(validated with { Target = target });
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddScoped<IPatAuthority, UnavailablePatAuthority>();

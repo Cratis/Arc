@@ -24,7 +24,7 @@ namespace Cratis.Arc.PersonalAccessTokens;
 /// <param name="RecoveryEpoch">Authoritative issuance epoch.</param>
 /// <param name="PolicyEpoch">Policy snapshot hint, never independent authorization.</param>
 /// <param name="Revoked">Authoritative revocation status.</param>
-internal sealed record PatRecord(
+public sealed record PatRecord(
     CredentialId CredentialId,
     string Verifier,
     string ResourceKey,
@@ -41,4 +41,8 @@ internal sealed record PatRecord(
     CallerAssurance Assurance,
     ulong? RecoveryEpoch,
     ulong? PolicyEpoch,
-    bool Revoked = false);
+    bool Revoked = false)
+{
+    /// <inheritdoc/>
+    public override string ToString() => $"PatRecord {{ CredentialId = {CredentialId}, Revoked = {Revoked} }}";
+}
