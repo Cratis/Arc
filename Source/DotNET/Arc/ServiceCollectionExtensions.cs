@@ -80,6 +80,7 @@ public static class ServiceCollectionExtensions
         // register. Both use TryAdd, so they are no-ops alongside MVC or the application's own registrations.
         services.AddAuthorization();
         services.AddAuthenticationCore();
+        services.TryAddSingleton<Cratis.Arc.Identity.Callers.IAdditionalSessionCookieNames, Cratis.Arc.Identity.Callers.CookieSchemeSessionCookieNames>();
 
         services.AddSingleton<IPostConfigureOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>, ConfigureHttpJsonOptionsFromArcOptions>();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
