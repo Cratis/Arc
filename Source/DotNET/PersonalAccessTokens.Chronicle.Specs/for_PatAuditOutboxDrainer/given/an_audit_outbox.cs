@@ -15,7 +15,7 @@ public class an_audit_outbox : Specification
     internal const string ForbiddenToken = "dpat_fixture_forbidden_full_token";
     internal const string ForbiddenSecret = "fixture-forbidden-secret";
     internal const string ForbiddenVerifier = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    internal IPatAuditOutbox _outbox;
+    internal FakeAuditOutbox _outbox;
     internal PatAuditIntent _issuance;
     internal PatAuditIntent _revocation;
     internal EventStoreForTesting _store;
@@ -48,15 +48,13 @@ public class an_audit_outbox : Specification
         _revocation = new(new Guid(2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), metadata, IssuedAt.AddMinutes(5), true);
         _pending = [_issuance, _revocation];
         _acknowledged = [];
-        _outbox = Substitute.For<IPatAuditOutbox>();
-        _outbox.ReadPending(Arg.Any<CancellationToken>()).Returns(_ => _pending.ToArray());
-        _outbox.Acknowledge(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(call =>
-        {
-            var id = call.Arg<Guid>();
-            _acknowledged.Add(id);
-            _pending.RemoveAll(intent => intent.Id == id);
-            return Task.CompletedTask;
-        });
+        _outbox = new(
+            () => _pending.ToArray(),
+            id =>
+            {
+                _acknowledged.Add(id);
+                _pending.RemoveAll(intent => intent.Id == id);
+            });
         _store = new(new DefaultServiceProvider());
         _drainer = new(_outbox, _store.EventLog);
     }

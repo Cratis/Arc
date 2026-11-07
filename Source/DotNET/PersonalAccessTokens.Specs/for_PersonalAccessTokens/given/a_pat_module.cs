@@ -60,7 +60,7 @@ public class a_pat_module : Specification
             _revoked = true;
             return PatRevokeResult.Revoked;
         });
-        _context = Substitute.For<IPatIssuanceContext>();
+        _context = new FakeIssuanceContext(() => _caller);
         _caller = new VerifiedCallerBuilder(new(new Dictionary<string, string> { ["resource-a"] = "https://resource-a.example" })).Build(
             new(CallerPrincipalKind.Person, CallerCredentialKind.BrowserSession, new("session-one"), _settings.Target)
             {
@@ -72,7 +72,6 @@ public class a_pat_module : Specification
             },
             new("resource-a", "test"),
             _tenant).Caller!;
-        _context.GetCurrent(Arg.Any<CancellationToken>()).Returns(_ => _caller);
         _tokens = new(_settings, _authority, _epochs, _policy, _context, _clock);
     }
 

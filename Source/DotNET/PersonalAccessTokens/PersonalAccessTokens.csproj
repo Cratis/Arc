@@ -10,7 +10,6 @@
         <InternalsVisibleTo Include="Cratis.Arc.PersonalAccessTokens.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.PersonalAccessTokens.Chronicle" />
         <InternalsVisibleTo Include="Cratis.Arc.PersonalAccessTokens.Chronicle.Specs" />
-        <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />

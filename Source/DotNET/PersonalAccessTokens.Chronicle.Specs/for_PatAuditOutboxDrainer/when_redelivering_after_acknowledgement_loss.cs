@@ -10,7 +10,7 @@ public class when_redelivering_after_acknowledgement_loss : given.an_audit_outbo
     async Task Establish()
     {
         _pending = [_issuance];
-        _outbox.Acknowledge(_issuance.Id, Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Acknowledgement unavailable.")));
+        _outbox.FailAcknowledgement = true;
         try
         {
             await _drainer.Drain(TestContext.Current.CancellationToken);
@@ -19,7 +19,7 @@ public class when_redelivering_after_acknowledgement_loss : given.an_audit_outbo
         {
             _firstFailure = exception;
         }
-        _outbox.Acknowledge(_issuance.Id, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        _outbox.FailAcknowledgement = false;
     }
 
     async Task Because() => _result = await new PatAuditOutboxDrainer(_outbox, _store.EventLog).Drain(TestContext.Current.CancellationToken);
