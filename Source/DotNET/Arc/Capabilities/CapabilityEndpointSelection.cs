@@ -38,7 +38,7 @@ internal sealed class CapabilityEndpointSelection(IOptions<CapabilitiesOptions> 
 
     /// <summary>Freezes known outside endpoints from the completed startup endpoint graph.</summary>
     /// <param name="sources">The application's configured endpoint data sources.</param>
-    /// <exception cref="CapabilityEndpointSelectorMatchesNothing">No route endpoints match the selector.</exception>
+    /// <exception cref="CapabilityEndpointSelectorMatchesNothing">A selector rule matches no route endpoints.</exception>
     public void Compile(IEnumerable<EndpointDataSource> sources)
     {
         Validate();
@@ -48,13 +48,14 @@ internal sealed class CapabilityEndpointSelection(IOptions<CapabilitiesOptions> 
             return;
         }
         var endpoints = sources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Distinct().ToArray();
-        var selected = endpoints.Where(endpoint =>
-            selector.RoutePatterns.Contains(endpoint.RoutePattern.RawText, StringComparer.Ordinal) ||
-            selector.MetadataTypes.Exists(type => endpoint.Metadata.Any(type.IsInstanceOfType))).ToHashSet();
-        if (selected.Count == 0)
+        if (selector.RoutePatterns.Exists(pattern => !endpoints.Any(endpoint => string.Equals(endpoint.RoutePattern.RawText, pattern, StringComparison.Ordinal))) ||
+            selector.MetadataTypes.Exists(type => !endpoints.Any(endpoint => endpoint.Metadata.Any(type.IsInstanceOfType))))
         {
             throw new CapabilityEndpointSelectorMatchesNothing();
         }
+        var selected = endpoints.Where(endpoint =>
+            selector.RoutePatterns.Contains(endpoint.RoutePattern.RawText, StringComparer.Ordinal) ||
+            selector.MetadataTypes.Exists(type => endpoint.Metadata.Any(type.IsInstanceOfType))).ToHashSet();
         Volatile.Write(ref _outside, endpoints.Where(endpoint => !selected.Contains(endpoint)).Cast<Endpoint>().ToFrozenSet<Endpoint>(ReferenceEqualityComparer.Instance));
     }
 
