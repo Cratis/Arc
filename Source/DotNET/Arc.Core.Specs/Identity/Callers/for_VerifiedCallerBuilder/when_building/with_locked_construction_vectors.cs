@@ -22,6 +22,10 @@ public class with_locked_construction_vectors : Specification
         foreach (var vector in document.RootElement.GetProperty("vectors").EnumerateArray())
         {
             var row = vector.GetProperty("row").GetInt32();
+            if (row == 28)
+            {
+                continue; // Credential cardinality is the presentation gate's, see with_locked_cardinality_vector.
+            }
             var facts = Facts(row, vector.GetProperty("given"));
             var result = new VerifiedCallerBuilder(verified_facts.Catalog).Build(facts, verified_facts.Installation, verified_facts.Tenant);
             _results.Add(row, (vector.GetProperty("then").Clone(), result));
