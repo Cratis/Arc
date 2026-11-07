@@ -85,6 +85,32 @@ public sealed class VerifiedCallersBuilder
         services.AddForwardedIdentityV2(settings);
     }
 
+    /// <summary>Installs the separate PAT path without changing signed-forwarding requirements.</summary>
+    /// <param name="services">The receiving service collection.</param>
+    /// <param name="legacyPrefixes">Explicitly retired credential namespaces.</param>
+    /// <returns>The exact receiving target.</returns>
+    /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete, duplicated or contains forwarding configuration.</exception>
+    internal CallerCredentialTarget InstallPersonalAccessTokens(IServiceCollection services, IEnumerable<string> legacyPrefixes)
+    {
+        if (!VerifiedCallerInstallation.IsValid(_resource, _audience, _environment) || _directory is null || _forwarding is not null)
+        {
+            throw new InvalidVerifiedCallerInstallation("PAT callers require a resource, audience, environment and person directory, without signed forwarding configuration.");
+        }
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(InstallationMarker)))
+        {
+            throw new InvalidVerifiedCallerInstallation("Verified callers already have an installation.");
+        }
+        services.AddSingleton(new InstallationMarker());
+        services.RemoveAll<VerifiedCallerInstallation>();
+        services.RemoveAll<CallerResourceCatalog>();
+        services.AddSingleton(new VerifiedCallerInstallation(_resource, _environment));
+        services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string>(StringComparer.Ordinal) { [_resource!] = _audience! }));
+        services.Add(_directory);
+        services.AddSingleton(new ReservedCredentialPrefixes(legacyPrefixes));
+        services.AddVerifiedCallers();
+        return new(_resource!, _audience!, _environment!);
+    }
+
     [IgnoreConvention]
     sealed class InstallationMarker;
 }
