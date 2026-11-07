@@ -103,6 +103,7 @@ export function withViewModel<TViewModel extends object, TProps extends object =
         const queryParamsObject = Object.fromEntries(queryParams.entries());
         const dialogMediatorContext = useRef<IDialogMediatorHandler | null>(null);
         const currentViewModel = useRef<TViewModel | null>(null);
+        const pendingDisposal = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
         const [, setInitialRender] = useState(true);
         const parentDialogMediator = useDialogMediator();
         const dialogContext = useDialogContext();
@@ -119,10 +120,20 @@ export function withViewModel<TViewModel extends object, TProps extends object =
             queryParamsType ? JsonSerializer.deserializeFromInstance(queryParamsType, rawQueryParams) as object : rawQueryParams;
 
         useEffect(() => {
+            clearTimeout(pendingDisposal.current);
+
+            const cleanup = (viewModel: IViewModel) => {
+                if (applicationContext.development === false) {
+                    disposeViewModel(viewModel);
+                } else {
+                    // StrictMode replays effects immediately; only a real unmount leaves this disposal pending.
+                    pendingDisposal.current = setTimeout(() => disposeViewModel(viewModel), 0);
+                }
+            };
+
             if (currentViewModel.current !== null) {
-                return () => {
-                    disposeViewModel(currentViewModel.current as IViewModel);
-                };
+                const viewModel = currentViewModel.current as IViewModel;
+                return () => cleanup(viewModel);
             }
 
             dialogMediatorContext.current = new DialogMediatorHandler(parentDialogMediator);
@@ -178,11 +189,7 @@ export function withViewModel<TViewModel extends object, TProps extends object =
             handleParams(viewModel, deserializeRouteParams(params));
             handleQueryParams(viewModel, deserializeQueryParams(queryParamsObject));
 
-            return () => {
-                if (applicationContext.development === false) {
-                    disposeViewModel(viewModel);
-                }
-            };
+            return () => cleanup(viewModel);
         }, []);
 
         if (currentViewModel.current === null) return null;

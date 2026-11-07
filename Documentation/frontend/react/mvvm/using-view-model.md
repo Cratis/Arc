@@ -383,6 +383,4 @@ export class MyViewModel implements IViewModelDetached {
 }
 ```
 
-:::caution[Not called in development mode]
-`withViewModel()` reliably disposes the view model, and calls `detached()`, on unmount only when `<Arc>` runs with `development` unset or `false`. With `<Arc development>`, an ordinary unmount skips disposal, although React StrictMode's repeated effects can still trigger it. Treat `detached()` as not guaranteed during development, and do not rely on it to release resources there.
-:::
+On a real unmount, `withViewModel()` calls `detached()` and disposes the view model's child dependency container, including in development mode. With `<Arc development>`, cleanup is deferred until the next timer turn so React StrictMode's immediate effect remount can cancel it and retain the same view model. When `development` is `false`, cleanup remains synchronous.
