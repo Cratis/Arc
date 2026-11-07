@@ -10,8 +10,9 @@ authorization, or acknowledge a revocation. Verification must read the
 resource-local authority and current policy and recovery epoch, failing closed
 when those are unavailable. A delayed audit event does not delay revocation.
 
-The internal `IPatAuthority` and `IPatRecoveryEpoch` adapters must provide
-linearizable reads ordered against revocation and recovery-epoch advancement.
+The public `IPatAuthority` and `IPatRecoveryEpoch` adapters are a
+[trusted-host security contract, not a sandbox](../asp-net-core/personal-access-token-adapters.md).
+They must provide linearizable reads ordered against revocation and recovery-epoch advancement.
 A request after an acknowledged revocation or epoch advancement must not accept
 stale active state. Bypassing a positive cache alone is not sufficient: adapters
 that cannot guarantee this ordering must fail closed.
@@ -65,7 +66,8 @@ Replay rebuilds audit state only; it must never recreate or reactivate credentia
 
 The core currently supplies no durable authority adapter or outbox implementation.
 Installing either package alone does not enable issuance or start a background
-delivery worker. The internal `IPatAuditOutbox` port is a delivery seam, not a
+delivery worker. The public persistence and recovery ports do not expose audit
+delivery. The internal `IPatAuditOutbox` port remains a delivery seam, not a
 public authoritative-lookup API.
 
 An audit-enabled authority adapter must capture an immutable, allowlisted
