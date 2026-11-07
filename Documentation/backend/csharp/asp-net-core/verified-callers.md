@@ -1,6 +1,6 @@
 ---
 title: Install verified callers in Cratis Arc
-description: Configure signed v2 browser callers with an explicit resource binding, person directory, public verification keys, and replay store for capability hosting.
+description: Configure signed v2 browser callers and read verified request facts while keeping membership and operation authorization in the product.
 ---
 
 Cratis Arc can install a signed v2 **browser-session** caller for a receiving capability resource. The verified person becomes the principal used by Arc authorization, `ICurrentPrincipalAccessor`, and Chronicle identity/causation when Chronicle is installed. Arc accepts signed v2 callers only through an admitted forwarding hop: the immediate TLS peer must present a client certificate from a trusted CA with an allowed peer identity. The signature and hop admission do not grant product access.
@@ -71,6 +71,49 @@ A valid caller is evaluated as its verified subject. Product roles, policies, an
 
 A request already authenticated as a different subject is refused rather than merged with the verified person. A signed tenant header is only a candidate: Arc checks live `ITenantMembership` against the verified principal before publishing it or invoking the operation. The sample covers both missing roles and tenant non-membership and checks that neither invokes the command.
 
+## Read the current caller
+
+Backend handlers and HTTP-hosted tools can consume `IVerifiedCallerAccessor` from `Cratis.Arc.Identity.Callers`. It reads framework-verified facts for the current request; it does not turn the current `ClaimsPrincipal`, arbitrary headers, query values, or a tool payload into verified identity.
+
+The signed v2 installation above supplies the supported browser-session source. Publishing the accessor adds no new credential source: existing host bearer validation and v1 forwarded identity do not guarantee the required credential identity and assurance. A bearer-shaped presentation without a matching trusted source is refused with `NoMatchingSource`.
+
+This handler illustrates the consumer boundary, not MCP server registration or token verification. The host supplies the accessor, and `authorize` is the product's own membership and operation policy:
+
+```csharp
+using Cratis.Arc.Identity.Callers;
+
+public sealed class ToolHandler(IVerifiedCallerAccessor callers)
+{
+    public async Task<VerifiedCaller?> Handle(Func<VerifiedCaller, bool> authorize)
+    {
+        var resolution = await callers.GetCurrent();
+        return resolution.Refusal is null && resolution.Caller is { } caller && authorize(caller) ? caller : null;
+    }
+}
+```
+
+A refusal never falls back to user claims or a client-declared person. A successful resolution still passes through `authorize`: verified tenant binding is not tenant membership, and verified scopes and permissions are ceilings, not an operation decision. Return your tool's normal denial response when the handler returns null. Identity display data returned through `/.cratis/me` is a [separate concern](../identity/index.md), not an alternative verified caller source.
+
+`GetCurrent()` resolves lazily and caches both success and refusal for the unchanged request. Changes to consumed request inputs poison reuse with `RequestChanged`; another request resolves independently. Outside a request it returns no caller and `NoCredential`. Do not retain a caller as authority for a later request.
+
+### Caller fields
+
+`CallerResolution.Caller` is a `VerifiedCaller` on success; `Refusal` classifies failure without exposing credential contents. Both records have framework-only constructors and initialization. Application code can read them but cannot construct or alter trusted caller or resolution fields. The verifier seam and the principal-stamping machinery remain internal.
+
+| Fields | Meaning |
+| --- | --- |
+| `ContractVersion` | The locally assigned verified-caller contract version. |
+| `PrincipalKind`, `CredentialKind`, `CredentialId` | The verified principal and credential categories and a non-secret credential identifier. |
+| `AccountKey`, `Person`, `Assurance` | Person-specific verified account, person mapping, and assurance; absent for service callers. |
+| `ServicePrincipal` | The verified service identity, separate from a person. |
+| `Actor`, `GrantId` | A delegated actor and its checked grant, separate from the delegating person. |
+| `Client` | Client metadata. A PAT label stays `Declared` and never grants actor authority. |
+| `Resource`, `Tenant`, `Organisation`, `Environment`, `PolicyEpoch` | Checked receiving and policy bindings, not independent product authorization. |
+| `Scopes`, `Permissions` | Immutable snapshots of verified scope and permission ceilings. |
+| `SenderBinding` | A successfully checked sender binding, or null; never an unchecked proof. |
+
+The return model distinguishes person and delegated callers from organization automation, cluster workloads, and runners; those model categories do not enable the adapters excluded below. A delegated actor does not replace the person. Service callers must not acquire person or delegation fields. Use the typed fields instead of reconstructing identity from claims.
+
 ## Run the acceptance proof
 
 From the repository root:
@@ -84,5 +127,9 @@ The specs use only public Arc APIs, a real HTTPS capability listener, synthetic 
 ## Boundaries
 
 This installer supports the signed v2 browser-session flow. It does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters. Those flows cannot be enabled by changing a header or credential kind. MCP serving, `--as` clients, protected-resource metadata, and OAuth registration are separate work.
+
+Client-declared names, scope strings, grant references, or body arguments cannot supply missing verified facts or upgrade actor authority. The accessor does not implement PAT authentication, OAuth introspection, DPoP verification, workload verification, or an MCP server.
+
+The locked identity vectors are only partially exercised at existing Arc boundaries. Construction checks consume already verified facts, including proof outcomes; they do not prove cryptographic verification, proof replay detection, or full vector conformance. Cookie plus bearer credential counting (zero-based row 28 of the locked principals-and-workload artifact) remains explicitly uncovered. Full MCP integration and the remaining credential-verification work are not complete.
 
 For proxy-side framing, ingress admission, rotation, and replay retention requirements, see [signed forwarded identity v2](signed-forwarded-identity-v2.md). For capability listener exposure, see [capability hosting](../capability-hosting.md).

@@ -1,0 +1,44 @@
+{
+  "source": "Cratis/Identity/Source/Identity.Specs/Vectors/arc-verified-caller-v1/principals-and-workload.json",
+  "commit": "bc7402b9e9a53e8b7114117f0f6022b3690419b8",
+  "license": "MIT",
+  "boundary": "Selected zero-based rows; construction from already verified facts only, not credential verification or full vector conformance.",
+  "vectors": [
+    {
+      "row": 15,
+      "given": { "contractVersion": "2" },
+      "when": { "operation": "consume-caller-v1" },
+      "then": { "accepted": false, "reason": "unsupported-version" }
+    },
+    {
+      "row": 16,
+      "given": { "validPat": true, "patLabel": "privileged-agent-fixture", "authenticatedActor": null },
+      "when": { "operation": "build-caller" },
+      "then": { "actor": null, "client": { "id": "privileged-agent-fixture", "authentication": "declared" }, "actorAuthorityGranted": false }
+    },
+    {
+      "row": 17,
+      "given": { "verifiedTokenActor": { "iss": "https://agents.example.test", "sub": "agent-B" }, "grantActor": { "iss": "https://agents.example.test", "sub": "agent-A" }, "otherCredentialBindingsMatch": true },
+      "when": { "operation": "build-caller" },
+      "then": { "accepted": false, "callerConstructed": false }
+    },
+    {
+      "row": 19,
+      "given": { "cnf": { "jkt": "synthetic-key-a" }, "dpopHeaderPresent": false },
+      "when": { "operation": "build-caller", "authorizationScheme": "Bearer" },
+      "then": { "status": 401, "callerConstructed": false, "plainBearerAccepted": false }
+    },
+    {
+      "row": 20,
+      "given": { "cnf": { "jkt": "synthetic-key-a" }, "dpopHeaderPresent": true, "proofKeyThumbprint": "synthetic-key-b" },
+      "when": { "operation": "build-caller" },
+      "then": { "status": 401, "callerConstructed": false }
+    },
+    {
+      "row": 21,
+      "given": { "cnf": { "jkt": "synthetic-key-a" }, "dpopHeaderPresent": true, "proofKeyThumbprint": "synthetic-key-a", "proofJti": "proof-replay-fixture", "proofJtiAlreadyAccepted": true },
+      "when": { "operation": "build-caller" },
+      "then": { "status": 401, "callerConstructed": false }
+    }
+  ]
+}

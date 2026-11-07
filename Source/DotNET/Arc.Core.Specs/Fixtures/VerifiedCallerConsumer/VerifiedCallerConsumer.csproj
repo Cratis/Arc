@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>VerifiedCallerConsumer</AssemblyName>
+        <RootNamespace>VerifiedCallerConsumer</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>
