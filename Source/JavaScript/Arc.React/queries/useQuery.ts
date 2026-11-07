@@ -18,11 +18,24 @@ import type { InFlightRequest } from './InFlightRequest.js';
 import { type QueryExecution, startQueryExecution } from './QueryExecution.js';
 import { buildQueryKey } from './buildQueryKey.js';
 import { useResultForKey } from './useResultForKey.js';
+import { QueryDeadline } from './QueryDeadline.js';
+
+/** Options for a single query execution. */
+export interface QueryOptions {
+    /** Read deadline in milliseconds. Omitted, nonpositive or nonfinite values disable the deadline. */
+    timeoutMs?: number;
+}
+
+/** Options for a query hook, accepted in place of the existing isEnabled boolean. */
+export interface QueryHookOptions extends QueryOptions {
+    /** Whether to execute the query. Defaults to true. */
+    isEnabled?: boolean;
+}
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
  */
-export type PerformQuery<TArguments = object> = (args?: TArguments) => Promise<void>;
+export type PerformQuery<TArguments = object> = (args?: TArguments, options?: QueryOptions) => Promise<void>;
 
 type QueryPerformer<TQuery extends IQueryFor<TDataType>, TDataType, TArguments = object> = (performer: TQuery, args?: TArguments) => Promise<QueryResult<TDataType>>;
 
@@ -77,9 +90,10 @@ const latestRequests = new WeakMap<object, InFlightRequest>();
  * @template TDataType Type of model the query is for.
  * @param queryInstance The shared query instance.
  * @param abortedRequest The request that was aborted.
+ * @param deadline The deadline shared with the original execution.
  * @returns The superseding result, the error it failed with, or `undefined` when there is nothing to adopt.
  */
-async function settleFromSupersedingRequest<TDataType>(queryInstance: object, abortedRequest: InFlightRequest): Promise<{ result?: QueryResult<TDataType>; error?: unknown } | undefined> {
+async function settleFromSupersedingRequest<TDataType>(queryInstance: object, abortedRequest: InFlightRequest, deadline: QueryDeadline): Promise<{ result?: QueryResult<TDataType>; error?: unknown } | undefined> {
     let current = abortedRequest;
     for (;;) {
         const latest = latestRequests.get(queryInstance);
@@ -88,7 +102,7 @@ async function settleFromSupersedingRequest<TDataType>(queryInstance: object, ab
         }
         current = latest;
         try {
-            return { result: await latest.request as QueryResult<TDataType> };
+            return { result: await deadline.waitFor(latest.request) as QueryResult<TDataType> };
         } catch (error) {
             if (!isAbortError(error)) {
                 return { error };
@@ -114,9 +128,9 @@ function createFreshInstance<TQuery extends IQueryFor<unknown>>(query: Construct
     return freshInstance;
 }
 
-function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
+function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string, options?: QueryOptions):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
-function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
+function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string, options?: QueryOptions):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
@@ -127,6 +141,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const queryCache = useContext(QueryInstanceCacheContext);
     const requestVersionRef = useRef(0);
     const executionRef = useRef<QueryExecution | undefined>(undefined);
+    const deadlineRef = useRef<QueryDeadline | undefined>(undefined);
     const ownerRef = useRef<string | undefined>(owner);
     ownerRef.current = owner;
 
@@ -160,13 +175,14 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
         queryInstance.defaultValue,
         cached => QueryResultWithState.fromQueryResult(cached, isEnabled !== false));
 
-    const queryExecutor = (async (requestArgs?: TArguments) => {
+    const queryExecutor = (async (requestArgs?: TArguments, executionOptions?: QueryOptions) => {
         if (queryInstance) {
             // A newer execution retires the one before it. The earlier one may be waiting on a request this hook
             // does not own - one a co-subscriber started - which can outlive it by any amount; left alone it would
             // keep this hook's query scope performing until that request settles. The request itself is not
             // aborted: it is shared, and the co-subscriber that started it still needs its outcome.
             executionRef.current?.retire();
+            deadlineRef.current?.dispose();
             const execution = startQueryExecution(queryScope);
             executionRef.current = execution;
 
@@ -181,7 +197,11 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 }
             };
             const argumentsKey = serializeArgsForDependency((requestArgs ?? args) as object | undefined);
-            const inFlight: InFlightRequest = { request: performer(queryInstance, requestArgs), argumentsKey };
+            const request = performer(queryInstance, requestArgs);
+            // Capture this request's controller: a later request may replace the shared instance's controller.
+            const deadline = new QueryDeadline(executionOptions?.timeoutMs ?? options?.timeoutMs, (queryInstance as { abortController?: AbortController }).abortController);
+            deadlineRef.current = deadline;
+            const inFlight: InFlightRequest = { request: deadline.waitFor(request), argumentsKey };
             latestRequests.set(queryInstance, inFlight);
             try {
                 const queryResult = await inFlight.request as QueryResult<TDataType>;
@@ -204,7 +224,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 // otherwise a co-subscriber that never issued the newer request settles on its initial,
                 // never-ready state. When this hook superseded itself, that outcome is its own newer one.
                 if (isAbortError(error)) {
-                    const superseding = await settleFromSupersedingRequest<TDataType>(queryInstance, inFlight);
+                    const superseding = await settleFromSupersedingRequest<TDataType>(queryInstance, inFlight, deadline);
                     if (superseding === undefined) {
                         settle(current => QueryResultWithState.fromQueryResult(current, false));
                     } else if (superseding.result !== undefined) {
@@ -216,6 +236,10 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 }
                 settle(failedResult(queryInstance.defaultValue, error));
             } finally {
+                deadline.dispose();
+                if (deadlineRef.current === deadline) {
+                    deadlineRef.current = undefined;
+                }
                 execution.complete();
                 if (executionRef.current === execution) {
                     executionRef.current = undefined;
@@ -229,6 +253,8 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     useEffect(() => () => {
         executionRef.current?.retire();
         executionRef.current = undefined;
+        deadlineRef.current?.dispose();
+        deadlineRef.current = undefined;
     }, []);
 
     useEffect(() => {
@@ -252,9 +278,9 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     return [
         isEnabled === false ? QueryResultWithState.empty(queryInstance.defaultValue) : result!,
-        async (args?: TArguments) => {
+        async (args?: TArguments, executionOptions?: QueryOptions) => {
             setResult(QueryResultWithState.fromQueryResult(result!, true));
-            await queryExecutor(args);
+            await queryExecutor(args, executionOptions);
         },
         async (sorting: Sorting) => {
             setCurrentSorting(sorting);
@@ -275,14 +301,16 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
  * @param query Query type constructor.
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query, if any
- * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result.
+ * @param isEnabled Optional: Whether to execute the query, or options including isEnabled and timeoutMs. Defaults to enabled with no deadline.
  * @returns Tuple of {@link QueryResultWithState}, a {@link PerformQuery} delegate, and a {@link SetSorting} delegate.
  */
-export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean):
+export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean | QueryHookOptions):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting];
-export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean, owner?: string):
+export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, args?: TArguments, sorting?: Sorting, isEnabled?: boolean | QueryHookOptions, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting] {
-    const [result, perform, setSorting] = useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, undefined, args, isEnabled, owner);
+    const options = typeof isEnabled === 'object' ? isEnabled : undefined;
+    const enabled = typeof isEnabled === 'object' ? isEnabled.isEnabled : isEnabled;
+    const [result, perform, setSorting] = useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, undefined, args, enabled, owner, options);
     return [result, perform, setSorting];
 }
 
@@ -295,12 +323,14 @@ export function useQuery<TDataType, TQuery extends IQueryFor<TDataType>, TArgume
  * @param paging Paging information.
  * @param args Optional: Arguments for the query, if any
  * @param sorting Optional: Sorting for the query, if any
- * @param isEnabled Optional: Whether the query should be executed. Defaults to true. When false, the hook is a no-op and returns an empty result.
+ * @param isEnabled Optional: Whether to execute the query, or options including isEnabled and timeoutMs. Defaults to enabled with no deadline.
  * @returns Tuple of {@link QueryResult} and a {@link PerformQuery} delegate.
  */
-export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean):
+export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean | QueryHookOptions):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
-export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean, owner?: string):
+export function useQueryWithPaging<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, paging: Paging, args?: TArguments, sorting?: Sorting, isEnabled?: boolean | QueryHookOptions, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
-    return useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, paging, args, isEnabled, owner);
+    const options = typeof isEnabled === 'object' ? isEnabled : undefined;
+    const enabled = typeof isEnabled === 'object' ? isEnabled.isEnabled : isEnabled;
+    return useQueryInternal(query, async (queryInstance: TQuery, actualArgs?: TArguments) => await queryInstance.perform(actualArgs!), sorting, paging, args, enabled, owner, options);
 }

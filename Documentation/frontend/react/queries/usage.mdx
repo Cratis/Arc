@@ -85,6 +85,25 @@ With ordinary `.use()`, query failures are represented in the returned result, r
 
 Render query data when the ready result is successful. Checking only `!isSuccess` cannot distinguish waiting from failure, and checking only `data` can mistake a query's default empty value for a completed result. If a parent component should own the loading and error UI, see [Suspense Queries](./suspense-queries.md) for boundary-based handling and its retry limits.
 
+## Read deadlines
+
+Ordinary queries have no deadline by default. To bound a stalled read, call `useQuery` or `useQueryWithPaging` directly and pass an options object in the existing `isEnabled` position:
+
+```typescript
+import { Paging } from '@cratis/arc/queries';
+import { useQuery, useQueryWithPaging } from '@cratis/arc.react/queries';
+
+// Inside a component, using the generated AllAccounts proxy:
+const [accounts, refresh] = useQuery(AllAccounts, undefined, undefined, { timeoutMs: 5000 });
+const [pagedAccounts] = useQueryWithPaging(AllAccounts, new Paging(0, 20), undefined, undefined, { timeoutMs: 5000 });
+```
+
+The options also accept `isEnabled`; existing boolean arguments continue to work. Generated `.use()` helpers do not expose hook deadline options. The returned refresh delegate accepts an optional second argument to override the hook deadline for one execution: `await refresh(undefined, { timeoutMs: 1000 })`.
+
+On expiry, the hook stops performing and returns an unsuccessful, ready result with `hasExceptions: true` and a message such as `Query timed out after 5000 ms.`. The request's abort controller is aborted when available. A late response cannot replace the timeout result, even if the transport ignores abort. A subsequent refresh can succeed normally.
+
+A positive, finite `timeoutMs` enables the deadline; zero, negative or nonfinite values disable it. Deadlines cover one execution, including waiting for a superseding shared request. Timers are cleared on completion, supersession by this hook, or unmount. Unmounting does not abort a request another hook may still need.
+
 ## Query Parameters
 
 Pass query inputs as a named object to the generated hook. The backend declares those inputs, and the proxy gives them TypeScript types. These examples declare an optional `filter` input for finding accounts by name:
