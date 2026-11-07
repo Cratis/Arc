@@ -7,6 +7,7 @@ namespace Cratis.Arc.Identity.Callers.for_CredentialPresentationGate.when_inspec
 public class with_session_cookie_chunks_and_bearer : given.a_gate
 {
     CredentialPresentation _lookalike;
+    CredentialPresentation _lowercased;
 
     void Establish()
     {
@@ -18,10 +19,13 @@ public class with_session_cookie_chunks_and_bearer : given.a_gate
     void Because()
     {
         _result = _gate.Inspect(_request);
+        _raw.GetHeaderValues("Cookie").Returns([".aspnetcore.cookiesC3=fixture"]);
+        _lowercased = _gate.Inspect(_request);
         _raw.GetHeaderValues("Cookie").Returns([".AspNetCore.CookiesCx=fixture; .AspNetCore.CookiesC=fixture"]);
         _lookalike = _gate.Inspect(_request);
     }
 
     [Fact] void should_refuse_multiple_credentials() => _result.Refusal.ShouldEqual(CallerRefusal.MultipleCredentials);
+    [Fact] void should_match_the_chunk_prefix_case_insensitively() => _lowercased.Refusal.ShouldEqual(CallerRefusal.MultipleCredentials);
     [Fact] void should_not_count_a_lookalike_chunk_name() => _lookalike.Refusal.ShouldBeNull();
 }

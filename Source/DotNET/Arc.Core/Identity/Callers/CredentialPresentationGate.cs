@@ -12,7 +12,7 @@ namespace Cratis.Arc.Identity.Callers;
 /// Only the Bearer Authorization scheme is accepted in v1; the DPoP scheme is refused as MalformedAuthorization.
 /// DPoP sender-binding transport support is deferred to the PAT/workload work.
 /// A recognized session cookie counts as a credential: with an Authorization value or a non-v2 envelope it is refused as MultipleCredentials.
-/// With a v2 envelope it is one credential, because the verified envelope is the session. Cookie values are matched by exact, case-sensitive name
+/// With a v2 envelope it is one credential, because the verified envelope is the session. Cookie values are matched by exact, case-insensitive name
 /// across every Cookie header value and are never copied or logged. Hosts that flatten repeated Cookie headers cannot reveal split values; the
 /// duplicate-preserving capability gate in <see cref="Inspect"/> already refuses those hosts.
 /// </summary>
@@ -26,7 +26,8 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         "session", "session_token", "credential", "authorization"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    static readonly FrozenSet<string> _sessionCookies = new[] { "cratis-identity-session", ".AspNetCore.Cookies" }.ToFrozenSet(StringComparer.Ordinal);
+    static readonly FrozenSet<string> _sessionCookies = new[] { "cratis-identity-session", ".AspNetCore.Cookies" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    static readonly char[] _cookieSeparators = [';', ','];
 
     readonly ReservedCredentialPrefixes _reservedPrefixes = reservedPrefixes ?? new([]);
 
@@ -93,7 +94,7 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
 
     static bool HasRepeatedCredentialFields(CredentialPresentation presented) => presented.Authorization.Count > 1 || presented.Envelope.Values.Any(values => values.Count != 1);
 
-    static bool HasSessionCookie(string? header) => header?.Split(';').Any(pair =>
+    static bool HasSessionCookie(string? header) => header?.Split(_cookieSeparators).Any(pair =>
     {
         var equals = pair.IndexOf('=');
         return (equals > 0 && _sessionCookies.Contains(pair[..equals].Trim())) || IsChunkedAspNetCookie(pair, equals);
@@ -103,7 +104,7 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
     {
         const string prefix = ".AspNetCore.CookiesC";
         var name = equals > 0 ? pair[..equals].Trim() : string.Empty;
-        return name.StartsWith(prefix, StringComparison.Ordinal) && name.Length > prefix.Length && name[prefix.Length..].All(char.IsAsciiDigit);
+        return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && name.Length > prefix.Length && name[prefix.Length..].All(char.IsAsciiDigit);
     }
 
     static bool HasBearerWithoutEnvelope(CredentialPresentation presented) => presented.Authorization.Count != 0 && presented.Envelope.Count == 0;

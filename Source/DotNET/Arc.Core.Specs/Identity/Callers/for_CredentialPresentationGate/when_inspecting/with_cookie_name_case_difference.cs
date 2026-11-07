@@ -3,7 +3,7 @@
 
 namespace Cratis.Arc.Identity.Callers.for_CredentialPresentationGate.when_inspecting;
 
-/// <summary>Cookie names are case-sensitive, so a differently cased name is not the session cookie.</summary>
+/// <summary>Cookie names are matched case-insensitively (fail closed), so a differently cased name is still the session cookie.</summary>
 public class with_cookie_name_case_difference : given.a_gate
 {
     void Establish()
@@ -15,5 +15,5 @@ public class with_cookie_name_case_difference : given.a_gate
 
     void Because() => _result = _gate.Inspect(_request);
 
-    [Fact] void should_not_refuse() => _result.Refusal.ShouldBeNull();
+    [Fact] void should_refuse_multiple_credentials() => _result.Refusal.ShouldEqual(CallerRefusal.MultipleCredentials);
 }
