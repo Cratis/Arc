@@ -100,7 +100,7 @@ public class when_inspecting_packed_packages(PackageGraphFixture fixture) : Spec
     [Fact]
     public void should_not_physically_forward_analyzers_through_aggregate_packages()
     {
-        foreach (var packageId in new[] { "Cratis.Arc", "Cratis.Arc.Chronicle", "Cratis.Arc.PersonalAccessTokens", "Cratis", "Cratis.CodeAnalysis" })
+        foreach (var packageId in new[] { "Cratis.Arc", "Cratis.Arc.Chronicle", "Cratis.Arc.PersonalAccessTokens", "Cratis.Arc.PersonalAccessTokens.Chronicle", "Cratis", "Cratis.CodeAnalysis" })
         {
             AnalyzerEntries(packageId).ShouldBeEmpty();
         }
@@ -127,6 +127,7 @@ public class when_inspecting_packed_packages(PackageGraphFixture fixture) : Spec
         AssertRuntimeDependency("Cratis.Arc", "Cratis.Arc.Core");
         AssertRuntimeDependency("Cratis.Arc.Chronicle", "Cratis.Arc.Core");
         AssertRuntimeDependency("Cratis.Arc.PersonalAccessTokens", "Cratis.Arc.Core");
+        AssertRuntimeDependency("Cratis.Arc.PersonalAccessTokens.Chronicle", "Cratis.Arc.PersonalAccessTokens");
         AssertRuntimeDependency("Cratis", "Cratis.Arc");
         AssertRuntimeDependency("Cratis", "Cratis.Arc.Chronicle");
     }
