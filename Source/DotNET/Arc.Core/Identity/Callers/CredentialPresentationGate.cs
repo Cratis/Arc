@@ -93,11 +93,11 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
 
     static bool HasRepeatedCredentialFields(CredentialPresentation presented) => presented.Authorization.Count > 1 || presented.Envelope.Values.Any(values => values.Count != 1);
 
-    static bool HasSessionCookie(string? header) => header is not null && header.Split(';').Any(pair =>
+    static bool HasSessionCookie(string? header) => header?.Split(';').Any(pair =>
     {
         var equals = pair.IndexOf('=');
         return (equals > 0 && _sessionCookies.Contains(pair[..equals].Trim())) || IsChunkedAspNetCookie(pair, equals);
-    });
+    }) == true;
 
     static bool IsChunkedAspNetCookie(string pair, int equals)
     {
