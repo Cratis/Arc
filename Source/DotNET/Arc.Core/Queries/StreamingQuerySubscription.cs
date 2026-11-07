@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.ExceptionServices;
+
 namespace Cratis.Arc.Queries;
 
 /// <summary>
@@ -20,6 +22,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
     IDisposable? _producer;
     int _activeOperations;
     bool _disposeRequested;
+    bool _producerStopped;
     bool _resourcesTaken;
 
     /// <summary>
@@ -131,7 +134,7 @@ internal sealed class StreamingQuerySubscription : IDisposable
         lock (_sync)
         {
             _activeOperations--;
-            if (_disposeRequested && _activeOperations == 0)
+            if (_producerStopped && _activeOperations == 0)
             {
                 resources = TakeResourcesForDisposal();
             }
@@ -158,6 +161,8 @@ internal sealed class StreamingQuerySubscription : IDisposable
             _producer = null;
         }
 
+        Exception? cancellationFailure = null;
+        Exception? producerFailure = null;
         try
         {
             _cancel();
@@ -166,19 +171,49 @@ internal sealed class StreamingQuerySubscription : IDisposable
         {
             // The deferred cleanup already completed.
         }
-
-        // Stop new observer callbacks before considering gates and scopes for disposal.
-        producer?.Dispose();
-
-        lock (_sync)
+        catch (Exception exception)
         {
-            if (_activeOperations == 0)
-            {
-                resources = TakeResourcesForDisposal();
-            }
+            cancellationFailure = exception;
         }
 
-        StartDisposingResources(resources);
+        try
+        {
+            // Stop new observer callbacks before considering gates and scopes for disposal.
+            producer?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            producerFailure = exception;
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _producerStopped = true;
+                if (_activeOperations == 0)
+                {
+                    resources = TakeResourcesForDisposal();
+                }
+            }
+
+            StartDisposingResources(resources);
+        }
+
+        RethrowStopFailures(cancellationFailure, producerFailure);
+    }
+
+    static void RethrowStopFailures(Exception? cancellationFailure, Exception? producerFailure)
+    {
+        if (cancellationFailure is not null && producerFailure is not null)
+        {
+            throw new AggregateException(cancellationFailure, producerFailure);
+        }
+
+        var failure = cancellationFailure ?? producerFailure;
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     List<IDisposable>? TakeResourcesForDisposal()
