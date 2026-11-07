@@ -4,21 +4,29 @@
 namespace Cratis.Arc.Identity.Callers;
 
 /// <summary>
-/// An explicit, immutable installation boundary for retired credential namespaces.
+/// An immutable installation boundary for built-in and host-added retired credential namespaces.
 /// This runs before source selection, including when an envelope or another header is present.
 /// </summary>
 /// <param name="prefixes">Validated ASCII prefixes owned by this installation.</param>
 internal sealed class ReservedCredentialPrefixes(IEnumerable<string> prefixes)
 {
-    readonly string[] _prefixes = prefixes.ToArray();
+    readonly string[] _prefixes = KnownRetiredPrefixes.Select(prefix => $"{prefix}_").Concat(prefixes).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
-    /// <summary>Checks only an explicitly reserved ASCII namespace, independently of the scheme.</summary>
-    /// <param name="authorization">The raw Authorization value. Never log it.</param>
+    /// <summary>Gets the retired ASCII public format markers that are always refused.</summary>
+    internal static IReadOnlyList<string> KnownRetiredPrefixes { get; } = Array.AsReadOnly<string>(["dpat", "drun"]);
+
+    /// <summary>Checks a retired ASCII namespace, independently of the scheme.</summary>
+    /// <param name="authorization">The raw credential value. Never log it.</param>
     /// <returns>Whether the value must be refused before dispatch.</returns>
     internal bool Refuses(string authorization)
     {
-        var separator = authorization.IndexOf(' ');
-        var value = separator < 0 ? authorization.AsSpan() : authorization.AsSpan(separator + 1).TrimStart(' ');
+        if (HasRetiredPrefix(authorization.AsSpan())) return true;
+        var separator = authorization.IndexOfAny([' ', '\t', '\r', '\n', '\f', '\v']);
+        return separator >= 0 && HasRetiredPrefix(authorization.AsSpan(separator + 1).TrimStart(" \t\r\n\f\v"));
+    }
+
+    bool HasRetiredPrefix(ReadOnlySpan<char> value)
+    {
         foreach (var prefix in _prefixes)
         {
             if (value.Length >= prefix.Length && System.Text.Ascii.EqualsIgnoreCase(value[..prefix.Length], prefix)) return true;

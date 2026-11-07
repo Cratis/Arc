@@ -15,7 +15,10 @@ public interface IPersonalAccessTokens
     /// <returns>A single-use reveal handle, or a secret-free refusal.</returns>
     Task<PatIssueResult> Issue(TimeSpan lifetime, IEnumerable<string> scopes, CancellationToken cancellationToken = default);
 
-    /// <summary>Revokes only a credential owned by the current verified person and tenant.</summary>
+    /// <summary>
+    /// Revokes only a PAT credential owned by the current verified person and tenant, authenticated with a PAT credential.
+    /// Other caller credential kinds are refused.
+    /// </summary>
     /// <param name="credentialId">The non-secret credential identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The idempotent revocation outcome.</returns>

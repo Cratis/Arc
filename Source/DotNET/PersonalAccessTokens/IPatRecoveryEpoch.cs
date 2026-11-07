@@ -6,7 +6,12 @@ namespace Cratis.Arc.PersonalAccessTokens;
 /// <summary>Current authoritative issuance epoch for this installation. Null or unavailable always refuses.</summary>
 internal interface IPatRecoveryEpoch
 {
-    /// <summary>Reads current authoritative recovery state without a positive cache.</summary>
+    /// <summary>
+    /// Reads current authoritative recovery state with linearizable reads ordered against revocation and recovery-epoch advancement.
+    /// </summary>
+    /// <remarks>
+    /// Bypass positive caches. Adapters that cannot guarantee this ordering must fail closed and return null or fail the read.
+    /// </remarks>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The epoch, or null on uncertainty.</returns>
     Task<ulong?> Read(CancellationToken cancellationToken);

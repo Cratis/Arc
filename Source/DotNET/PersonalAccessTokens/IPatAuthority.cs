@@ -16,7 +16,12 @@ internal interface IPatAuthority
     /// <returns>Whether the atomic commit was acknowledged.</returns>
     Task<bool> TryCreate(PatRecord record, PatIssuedIntent intent, CancellationToken cancellationToken);
 
-    /// <summary>Reads active authoritative state, bypassing positive caches and failing on unavailable or uncertain state.</summary>
+    /// <summary>
+    /// Reads active authoritative state with linearizable reads ordered against revocation and recovery-epoch advancement.
+    /// </summary>
+    /// <remarks>
+    /// Bypass positive caches. Adapters that cannot guarantee this ordering must fail closed on unavailable or uncertain state.
+    /// </remarks>
     /// <param name="resource">Exact receiving resource.</param>
     /// <param name="verifier">Derived verifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

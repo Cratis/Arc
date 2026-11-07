@@ -13,6 +13,9 @@ public sealed record PatOptions(string ResourceKey)
     /// <summary>Gets the explicit case-sensitive scope allowlist. Wildcards and administrative or approval scopes are not supported.</summary>
     public IReadOnlyCollection<string> AllowedScopes { get; init; } = [];
 
-    /// <summary>Gets retired ASCII credential prefixes, refused under every Authorization scheme. Empty by default.</summary>
+    /// <summary>
+    /// Gets additional retired ASCII credential prefixes, including the trailing underscore, refused on every inspected credential arrival path.
+    /// The built-in dpat_ and drun_ prefixes are always refused and cannot be disabled.
+    /// </summary>
     public IReadOnlyCollection<string> ReservedLegacyPrefixes { get; init; } = [];
 }
