@@ -78,6 +78,8 @@ internal sealed class PatContractCases(CancellationToken cancellationToken)
         {
             var record = fixture.Record with { CredentialId = new(Guid.NewGuid().ToString("D")), Verifier = PatVerifier.Derive($"synthetic-order-{index}") };
             if (!await fixture.Adapter.Authority.TryCreate(record, new(record.CredentialId, record.CreatedAt), cancellationToken)) return false;
+            var warmed = await fixture.Adapter.Authority.ReadAuthoritative(record.Resource, record.Verifier, cancellationToken);
+            if (warmed?.Revoked != false) return false;
             var revoke = fixture.Adapter.Authority.TryRevoke(fixture.Owner, record.CredentialId, cancellationToken);
             var read = ReadAfterRevoke(fixture, record, revoke);
             await Task.WhenAll(revoke, read);
@@ -188,7 +190,7 @@ internal sealed class PatContractCases(CancellationToken cancellationToken)
         {
             await fixture.Adapter.AdvanceRecoveryEpoch!();
             var after = await fixture.Adapter.RecoveryEpoch.Read(cancellationToken);
-            if (after is null || after < before) return false;
+            if (after is null || after <= before) return false;
             before = after;
         }
         return true;

@@ -57,6 +57,8 @@ The check uses `ValidateOnStart` and the generic host's `IStartupValidator`. Bui
 
 The framework-independent kit ships in the same PAT assembly under `Cratis.Arc.PersonalAccessTokens.Contract`; it does not require a separate testing package or a particular test framework. Every adapter must pass it against its real persistence and external recovery services, not only against an in-memory substitute.
 
+Never run `PatAdapterContract.Run` against any production store: it issues real records and executes restore and outage hooks.
+
 Call this complete helper from a test. Supply a factory returning a fresh, isolated `PatAdapterInstance` wired to your three ports:
 
 ```csharp
@@ -94,7 +96,7 @@ Prepare synthetic enabled person, account, tenant, organization, membership, sco
 
 Fixtures use current timestamps, a one-hour credential lifetime, and sign-in five minutes earlier. Initial recovery evidence must exist, and initial policy must permit those facts for issuance and verification. Never point the harness at live credentials or a shared production store.
 
-The 22 named checks cover duplicates, malformed and noncanonical-case verifier lookups, 100 ordered revoke/read interleavings, owner binding, concurrent creation, outages, mutable input isolation, cancellation, recovery fencing, current policy, and real module issuance and verification. Canonical verifier hex is uppercase; lowercase hex is noncanonical. Each case has a one-minute limit, and a timeout fails. Caller cancellation propagates. Reports omit adapter exception text and credential material. A passing report is behavioral evidence, not certification or permission to trust an adapter without review.
+The 22 named checks cover duplicates, malformed and noncanonical-case verifier lookups, 100 sequential revoke-then-read ordering checks with warmed reads, owner binding, concurrent creation, outages, mutable input isolation, cancellation, recovery fencing, current policy, and real module issuance and verification. Canonical verifier hex is uppercase; lowercase hex is noncanonical. The kit holds adapters to canonical uppercase lookup keys, while the framework verifier compares decoded digest bytes rather than hex casing. Each case has a one-minute limit, and a timeout fails. Caller cancellation propagates. Reports omit adapter exception text and credential material. A passing report is behavioral evidence, not certification or permission to trust an adapter without review.
 
 ## Audit boundary
 

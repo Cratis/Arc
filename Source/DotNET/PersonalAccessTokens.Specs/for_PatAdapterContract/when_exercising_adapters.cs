@@ -28,11 +28,22 @@ public class when_exercising_adapters : given.a_contract_harness
     [InlineData("missing recovery evidence")]
     [InlineData("policy outage")]
     [InlineData("positive policy lifetime")]
+    [InlineData("concurrent create")]
+    [InlineData("monotonic recovery epoch")]
+    [InlineData("policy denial")]
+    [InlineData("recovery outage")]
     public async Task should_reject_the_named_defect(string defect)
     {
         var report = await PatAdapterContract.Run(Harness(defect), TestContext.Current.CancellationToken);
         report.Passed.ShouldBeFalse();
         report.Results.Single(result => result.Name == defect).Passed.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task should_reject_a_cache_filled_only_by_reads()
+    {
+        var report = await PatAdapterContract.Run(Harness("cache-filled-on-read"), TestContext.Current.CancellationToken);
+        report.Results.Single(result => result.Name == "revoke-before-read ordering").Passed.ShouldBeFalse();
     }
 
     [Fact]

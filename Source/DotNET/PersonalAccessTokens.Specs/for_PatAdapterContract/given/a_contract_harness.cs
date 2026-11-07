@@ -17,7 +17,7 @@ public class a_contract_harness : Specification
         {
             AdvanceRecoveryEpoch = () =>
             {
-                adapter.Epoch++;
+                if (defect != "monotonic recovery epoch") adapter.Epoch++;
                 return Task.CompletedTask;
             },
             Restore = () =>
@@ -59,12 +59,19 @@ public class a_contract_harness : Specification
         internal bool Permitted = true;
         internal TimeSpan Maximum = TimeSpan.FromDays(90);
 
+        bool CachesReads => defect == "revoke-before-read ordering" || defect == "cache-filled-on-read";
+
         public Task<bool> TryCreate(PatRecord record, PatIssuedIntent intent, CancellationToken cancellationToken)
         {
             if (defect != "cancelled create") cancellationToken.ThrowIfCancellationRequested();
             if (Outage && defect != "authority outage") return Task.FromResult(false);
             lock (_gate)
             {
+                if (defect == "concurrent create")
+                {
+                    _records[record.Verifier] = Copy(record);
+                    return Task.FromResult(true);
+                }
                 if (defect != "duplicate verifier" && _records.ContainsKey(record.Verifier)) return Task.FromResult(false);
                 if (defect != "duplicate credential" && _records.Values.Any(stored => stored.CredentialId == record.CredentialId)) return Task.FromResult(false);
                 _records[record.Verifier] = Copy(record);
@@ -78,7 +85,7 @@ public class a_contract_harness : Specification
             if (Outage && defect != "authority outage") throw new InvalidOperationException("synthetic adapter failure");
             lock (_gate)
             {
-                if (defect == "revoke-before-read ordering" && _cache.TryGetValue(verifier, out var cached)) return Task.FromResult<PatRecord?>(cached);
+                if (CachesReads && _cache.TryGetValue(verifier, out var cached)) return Task.FromResult<PatRecord?>(cached);
                 if (!_records.TryGetValue(verifier, out var record)) return Task.FromResult<PatRecord?>(null);
                 if (defect != "authoritative lookup" && record.Resource != resource) return Task.FromResult<PatRecord?>(null);
                 _cache[verifier] = record;
@@ -106,7 +113,7 @@ public class a_contract_harness : Specification
         public Task<ulong?> Read(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (Outage) throw new InvalidOperationException("synthetic recovery failure");
+            if (Outage && defect != "recovery outage") throw new InvalidOperationException("synthetic recovery failure");
             if (Epoch is null && defect == "missing recovery evidence") Epoch = 0;
             return Task.FromResult(Epoch);
         }
@@ -117,6 +124,7 @@ public class a_contract_harness : Specification
             if (Outage && defect != "policy outage") throw new InvalidOperationException("synthetic policy failure");
             var permitted = Permitted && Maximum > TimeSpan.Zero;
             if (defect == "positive policy lifetime") permitted = Permitted;
+            if (defect == "policy denial") permitted = Maximum > TimeSpan.Zero;
             return Task.FromResult(new PatPolicyDecision(permitted, Maximum, 7));
         }
 
