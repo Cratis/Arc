@@ -3,11 +3,15 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>Lazy resolution for UI, REST, and HTTP-hosted MCP. Never promotes User claims or unsigned headers.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-internal interface IVerifiedCallerAccessor
+/// <summary>
+/// Lazy request-local resolution for UI, REST, and HTTP-hosted tools.
+/// Never promotes User claims or unsigned headers. Verification is not authorization.
+/// </summary>
+public interface IVerifiedCallerAccessor
 {
-    /// <summary>Resolves at most once per request, caching success and refusal.</summary>
+    /// <summary>
+    /// Resolves at most once per unchanged request, caching success and refusal. Refuses outside a request.
+    /// </summary>
     /// <returns>The request's caller or refusal.</returns>
     Task<CallerResolution> GetCurrent();
 }

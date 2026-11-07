@@ -3,8 +3,9 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>A successfully checked sender binding. Absence is represented by null, not by an unchecked proof.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
+/// <summary>
+/// A successfully checked sender binding. Absence is represented by null, not by an unchecked proof.
+/// </summary>
 /// <param name="KeyThumbprint">The matching verified key.</param>
 /// <param name="Jti">The replay-checked identifier.</param>
-internal sealed record CallerSenderBinding(string KeyThumbprint, string Jti);
+public sealed record CallerSenderBinding(string KeyThumbprint, string Jti);

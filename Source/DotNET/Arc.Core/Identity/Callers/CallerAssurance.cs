@@ -3,10 +3,11 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>Verified person assurance; never fabricated for a service.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
+/// <summary>
+/// Verified person assurance; never fabricated for a service.
+/// </summary>
 /// <param name="Idp">The identity provider.</param>
 /// <param name="AuthTime">The authentication time in Unix seconds.</param>
 /// <param name="Acr">The assurance context.</param>
 /// <param name="Amr">Optional authentication methods.</param>
-internal sealed record CallerAssurance(string Idp, long AuthTime, string? Acr, IReadOnlyList<string>? Amr);
+public sealed record CallerAssurance(string Idp, long AuthTime, string? Acr, IReadOnlyList<string>? Amr);

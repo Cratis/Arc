@@ -3,9 +3,10 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>Whether client metadata was declared or authenticated.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-internal enum CallerClientAuthentication
+/// <summary>
+/// Whether client metadata was declared or authenticated.
+/// </summary>
+public enum CallerClientAuthentication
 {
     /// <summary>Metadata only; grants no actor authority.</summary>
     Declared = 0,

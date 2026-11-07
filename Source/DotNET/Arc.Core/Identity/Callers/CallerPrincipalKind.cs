@@ -3,9 +3,10 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>The authenticated principal category, independent of credential type.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
-internal enum CallerPrincipalKind
+/// <summary>
+/// The authenticated principal category, independent of credential type.
+/// </summary>
+public enum CallerPrincipalKind
 {
     /// <summary>A person acting directly.</summary>
     Person = 0,

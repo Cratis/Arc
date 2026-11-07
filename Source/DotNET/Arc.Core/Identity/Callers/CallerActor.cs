@@ -3,8 +3,9 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>The current authenticated actor, separate from the delegating person.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
+/// <summary>
+/// The current authenticated actor, separate from the delegating person.
+/// </summary>
 /// <param name="Issuer">The actor issuer.</param>
 /// <param name="Subject">The actor subject.</param>
-internal sealed record CallerActor(string Issuer, string Subject);
+public sealed record CallerActor(string Issuer, string Subject);

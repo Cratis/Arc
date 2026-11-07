@@ -3,7 +3,8 @@
 
 namespace Cratis.Arc.Identity.Callers;
 
-/// <summary>A verified grant identifier, never an OAuth jti or request reference.</summary>
-/// <remarks>Internal until Cratis/Arc#3701 locks; then publish.</remarks>
+/// <summary>
+/// A verified grant identifier, never an OAuth jti or request reference.
+/// </summary>
 /// <param name="Value">The identifier.</param>
-internal sealed record CallerGrantId(string Value) : ConceptAs<string>(Value);
+public sealed record CallerGrantId(string Value) : ConceptAs<string>(Value);
