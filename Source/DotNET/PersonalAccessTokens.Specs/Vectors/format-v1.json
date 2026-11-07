@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/Cratis/Identity/blob/bc7402b9/Source/Identity.Specs/Vectors/arc-pat-format-v1/dispatch-and-policy.json",
+  "construction": {
+    "secretHex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "body": "resourceKey + '_pat_v1_' + secretHex",
+    "checksum": "lowercase_hex(SHA256(ASCII(body)))[0:8]",
+    "token": "body + '_' + checksum",
+    "exactChecksumsVerified": true,
+    "expectedChecksums": {"direct": "000eb748", "studio": "fa5d04f9", "stage-atlas": "38cf83ba"},
+    "badChecksumFixture": {"resourceKey": "direct", "checksum": "000eb749"}
+  }
+}

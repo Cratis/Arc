@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.PersonalAccessTokens</AssemblyName>
+        <RootNamespace>Cratis.Arc.PersonalAccessTokens</RootNamespace>
+        <Description>Resource-local personal access token support for Cratis Arc.</Description>
+        <PackageTags>cratis;arc;cqrs;personal-access-tokens;aspnetcore</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.PersonalAccessTokens.Specs" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>

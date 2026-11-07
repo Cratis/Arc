@@ -154,7 +154,8 @@
         "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs",
         "Source/DotNET/EntityFrameworkCore.Specs",
         "Source/DotNET/EntityFrameworkCore.SqlServer.Specs",
-        "Source/DotNET/OpenApi.Specs"
+        "Source/DotNET/OpenApi.Specs",
+        "Source/DotNET/PersonalAccessTokens.Specs"
       ]
     },
     {
