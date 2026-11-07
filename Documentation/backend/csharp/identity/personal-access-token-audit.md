@@ -10,6 +10,31 @@ authorization, or acknowledge a revocation. Verification must read the
 resource-local authority and current policy and recovery epoch, failing closed
 when those are unavailable. A delayed audit event does not delay revocation.
 
+The internal `IPatAuthority` and `IPatRecoveryEpoch` adapters must provide
+linearizable reads ordered against revocation and recovery-epoch advancement.
+A request after an acknowledged revocation or epoch advancement must not accept
+stale active state. Bypassing a positive cache alone is not sufficient: adapters
+that cannot guarantee this ordering must fail closed.
+
+## Credential boundaries
+
+`IPersonalAccessTokens.Revoke` accepts only PAT credentials owned by the current
+verified person and tenant, and requires a caller authenticated with a PAT.
+Other caller credential kinds and unknown credential identifiers are refused.
+
+The retired ASCII format markers `dpat` and `drun` are always refused when
+followed by an underscore, case-insensitively. This includes the public shapes
+`dpat_<32 lowercase hex>_<64 lowercase hex>` and `drun_<opaque>`, even though
+neither is in Arc's `<segment>_pat_` namespace. The refusal applies before
+verification or fallback to Authorization values under any scheme, credential
+query values, and the custom credential envelope header inspected by Arc.
+A name such as `dpatient` does not match this boundary.
+
+These defaults cannot be disabled. Hosts can add retired prefixes, including
+the trailing underscore, through `PatOptions.ReservedLegacyPrefixes`.
+Direct's existing `dpat` tokens are not accepted by the Arc module; they must be
+migrated separately.
+
 ## Audit content
 
 `PatIssued` and `PatRevoked` record the credential identifier, resource,
