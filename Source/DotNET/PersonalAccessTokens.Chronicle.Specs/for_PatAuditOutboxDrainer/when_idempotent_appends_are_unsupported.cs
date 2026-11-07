@@ -19,5 +19,5 @@ public class when_idempotent_appends_are_unsupported : given.an_audit_outbox
 
     [Fact] void should_leave_delivery_pending() => _result.ShouldBeFalse();
     [Fact] void should_not_acknowledge_any_intent() => _acknowledged.ShouldBeEmpty();
-    [Fact] void should_not_read_a_batch() => _outbox.DidNotReceive().ReadPending(Arg.Any<CancellationToken>());
+    [Fact] void should_not_read_a_batch() => _outbox.ReadCount.ShouldEqual(0);
 }
