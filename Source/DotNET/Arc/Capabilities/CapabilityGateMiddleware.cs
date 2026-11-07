@@ -6,6 +6,7 @@ using System.Text.Json;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,6 +23,7 @@ internal sealed class CapabilityGateMiddleware(
     ILogger<CapabilityGateMiddleware> logger,
     CapabilityEndpointSelection selection) : IMiddleware
 {
+    static readonly Endpoint _outsideRefusal = new(context => Refuse(context, StatusCodes.Status401Unauthorized), EndpointMetadataCollection.Empty, "Capability admission refused");
     readonly IReadOnlySet<CallerPrincipalKind> _allowed = capabilities.Value.AllowedPrincipalKinds.Select(kind => kind switch
     {
         CapabilityPrincipalKind.Person => CallerPrincipalKind.Person,
@@ -36,7 +38,7 @@ internal sealed class CapabilityGateMiddleware(
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         var group = capabilities.Value.EndpointGroup;
-        if (IsOutsideGate(context, group))
+        if (TryBypassGate(context, group))
         {
             await next(context);
             return;
@@ -155,7 +157,18 @@ internal sealed class CapabilityGateMiddleware(
         await context.Response.BodyWriter.FlushAsync(context.RequestAborted);
     }
 
-    bool IsOutsideGate(HttpContext context, string group) =>
-        !arc.Value.EndpointGroups.PortsFor(group).Contains(context.Connection.LocalPort) ||
-        selection.IsOutside(context.GetEndpoint());
+    bool TryBypassGate(HttpContext context, string group)
+    {
+        if (!arc.Value.EndpointGroups.PortsFor(group).Contains(context.Connection.LocalPort))
+        {
+            return true;
+        }
+        var endpoint = context.GetEndpoint();
+        if (endpoint is null || !selection.IsOutside(endpoint))
+        {
+            return false;
+        }
+        context.Features.Set<IEndpointFeature>(new CapabilityOutsideEndpointFeature(selection, endpoint, _outsideRefusal));
+        return true;
+    }
 }

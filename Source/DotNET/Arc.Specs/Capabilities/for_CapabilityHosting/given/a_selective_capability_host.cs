@@ -49,6 +49,7 @@ public class a_selective_capability_host : Specification
         {
             _app.UsePathBase("/base");
         }
+        ConfigurePipeline(_app);
         if (ExplicitRouting)
         {
             _app.UseRouting();
@@ -58,6 +59,7 @@ public class a_selective_capability_host : Specification
         _app.MapGet("/alias/mcp", Selected).WithMetadata(new GatedMarker());
         _app.MapGet("/legacy/ping", Outside);
         _app.MapGet("/legacy/{id}", (HttpContext context, ICapabilityCallers callers, string id) => Outside(context, callers));
+        ConfigureEndpoints(_app);
         if (CaptureStartupError)
         {
             _startupError = await Catch.Exception(() => _app.StartAsync(global::Xunit.TestContext.Current.CancellationToken));
@@ -66,6 +68,14 @@ public class a_selective_capability_host : Specification
         {
             await _app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         }
+    }
+
+    protected virtual void ConfigurePipeline(WebApplication app)
+    {
+    }
+
+    protected virtual void ConfigureEndpoints(WebApplication app)
+    {
     }
 
     protected async Task<int> Request(string path, string method = "GET", string headers = "", bool defaultPort = false)
