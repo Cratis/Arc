@@ -13,6 +13,8 @@
     <ItemGroup>
         <ProjectReference Include="../../Cratis/Cratis.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <ProjectReference Include="../../Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../../PersonalAccessTokens/PersonalAccessTokens.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+        <ProjectReference Include="../../PersonalAccessTokens.Chronicle/PersonalAccessTokens.Chronicle.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <PackageReference Include="Cratis.Fundamentals" />
     </ItemGroup>
 
