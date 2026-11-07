@@ -19,21 +19,16 @@ public static class PersonalAccessTokensArcBuilderExtensions
     /// <param name="options">The explicit resource key, scope and lifetime limits and retired namespaces.</param>
     /// <param name="configure">The receiving caller installation, without signed-forwarding configuration.</param>
     /// <returns>The builder for continued configuration.</returns>
-    /// <exception cref="InvalidOperationException">Personal access tokens are already installed.</exception>
     public static IArcBuilder WithPersonalAccessTokens(this IArcBuilder builder, PatOptions options, Action<VerifiedCallersBuilder> configure)
     {
-        if (builder.Services.Any(descriptor => descriptor.ServiceType == typeof(IPersonalAccessTokens)))
-        {
-            throw new InvalidOperationException("Personal access tokens are already installed.");
-        }
-
         // Validate options before touching the service collection. The builder validates its target before registration.
         var validated = PatSettings.Create(options, new(string.Empty, string.Empty, string.Empty));
         var installation = new VerifiedCallersBuilder();
         configure(installation);
         var target = installation.InstallPersonalAccessTokens(builder.Services, validated.ReservedLegacyPrefixes);
-        builder.Services.AddOptions<PatAdapterRegistration>()
-            .Validate(_ => PatAdapterRegistration.IsUnambiguous(builder.Services), "Personal access token adapters must be unique and unkeyed.")
+        builder.Services.AddOptions<PatAdapterRegistrationOptions>()
+            .Configure(options => options.Services = builder.Services)
+            .Validate(options => PatAdapterRegistrationCheck.Validate(options.Services) is null, "Ambiguous adapter registration.")
             .ValidateOnStart();
         builder.Services.AddSingleton(validated with { Target = target });
         builder.Services.TryAddSingleton(TimeProvider.System);

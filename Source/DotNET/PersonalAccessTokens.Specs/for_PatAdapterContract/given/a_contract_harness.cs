@@ -8,105 +8,122 @@ namespace Cratis.Arc.PersonalAccessTokens.for_PatAdapterContract.given;
 
 public class a_contract_harness : Specification
 {
-    protected static PatAdapterHarness Harness(string defect = "none") => new()
-    {
-        Create = _ => Task.FromResult(Instance(new(new(), defect))),
-        HasIssuedIntent = (instance, id, _) => Task.FromResult(AdapterFor(instance).State.Intents.Contains(id)),
-        FailNextCommit = (instance, _) => Change(instance, state => state.FailCommit = true),
-        SecondProcess = (instance, _) => Task.FromResult(Instance(new(AdapterFor(instance).State, defect))),
-        Snapshot = (instance, _) => Change(instance, state => state.Snapshot = state.Record),
-        Restore = (instance, _) => Change(instance, state => state.Record = state.Snapshot),
-        AdvanceRecoveryEpoch = (instance, _) => Change(instance, state => state.Epoch += defect == "restore fence" ? 0UL : 1UL),
-        RemoveRecoveryEvidence = (instance, _) => Change(instance, state => state.Epoch = null),
-        BlockAuthority = (instance, _) => Change(instance, state => state.AuthorityUnavailable = true),
-        BlockRecovery = (instance, _) => Change(instance, state => state.RecoveryUnavailable = true),
-        BlockPolicy = (instance, _) => Change(instance, state => state.PolicyUnavailable = true),
-        DisablePerson = (instance, _) => Change(instance, state => state.PersonEnabled = false),
-        RemoveMembership = (instance, _) => Change(instance, state => state.Member = false),
-        ReduceLifetime = (instance, _) => Change(instance, state => state.Lifetime = TimeSpan.FromMinutes(1)),
-        ReduceScopes = (instance, _) => Change(instance, state => state.ReadScope = false),
-        ExpireSso = (instance, _) => Change(instance, state => state.Sso = false)
-    };
+    protected static PatAdapterHarness Harness(string defect = "none") => new() { CreateInstance = () => Create(defect) };
 
-    static PatAdapterInstance Instance(Adapter adapter) => new(adapter, adapter, adapter);
-    static Adapter AdapterFor(PatAdapterInstance instance) => (Adapter)instance.Authority;
-    static Task Change(PatAdapterInstance instance, Action<State> change)
+    static PatAdapterInstance Create(string defect)
     {
-        change(AdapterFor(instance).State);
-        return Task.CompletedTask;
+        var adapter = new ReferenceAdapter(defect);
+        return new(adapter, adapter, adapter)
+        {
+            AdvanceRecoveryEpoch = () =>
+            {
+                adapter.Epoch++;
+                return Task.CompletedTask;
+            },
+            Restore = () =>
+            {
+                if (defect != "restore fence") adapter.Epoch++;
+                return Task.CompletedTask;
+            },
+            RemoveRecoveryEvidence = () =>
+            {
+                adapter.Epoch = null;
+                return Task.CompletedTask;
+            },
+            SetOutage = outage =>
+            {
+                adapter.Outage = outage;
+                return Task.CompletedTask;
+            },
+            DenyEverything = () =>
+            {
+                adapter.Permitted = false;
+                return Task.CompletedTask;
+            },
+            Permit = maximum =>
+            {
+                adapter.Maximum = maximum;
+                adapter.Permitted = true;
+                return Task.CompletedTask;
+            }
+        };
     }
 
-    sealed class State
+    sealed class ReferenceAdapter(string defect) : IPatAuthority, IPatRecoveryEpoch, IPatPolicy
     {
-        internal PatRecord? Record;
-        internal PatRecord? Snapshot;
-        internal HashSet<CredentialId> Intents = [];
+        readonly object _gate = new();
+        readonly Dictionary<string, PatRecord> _records = [];
+        readonly Dictionary<string, PatRecord> _cache = [];
         internal ulong? Epoch = 4;
-        internal bool FailCommit;
-        internal bool AuthorityUnavailable;
-        internal bool RecoveryUnavailable;
-        internal bool PolicyUnavailable;
-        internal bool PersonEnabled = true;
-        internal bool Member = true;
-        internal bool ReadScope = true;
-        internal bool Sso = true;
-        internal TimeSpan Lifetime = TimeSpan.FromDays(90);
-    }
-
-    sealed class Adapter(State state, string defect) : IPatAuthority, IPatRecoveryEpoch, IPatPolicy
-    {
-        PatRecord? _cached;
-        internal State State => state;
+        internal bool Outage;
+        internal bool Permitted = true;
+        internal TimeSpan Maximum = TimeSpan.FromDays(90);
 
         public Task<bool> TryCreate(PatRecord record, PatIssuedIntent intent, CancellationToken cancellationToken)
         {
-            if (state.AuthorityUnavailable && defect != "unavailable authority") return Task.FromResult(false);
-            if (state.FailCommit)
+            if (defect != "cancelled create") cancellationToken.ThrowIfCancellationRequested();
+            if (Outage && defect != "authority outage") return Task.FromResult(false);
+            lock (_gate)
             {
-                state.FailCommit = false;
-                if (defect == "failed issuance rollback") state.Record = record;
-                return Task.FromResult(false);
+                if (defect != "duplicate verifier" && _records.ContainsKey(record.Verifier)) return Task.FromResult(false);
+                if (defect != "duplicate credential" && _records.Values.Any(stored => stored.CredentialId == record.CredentialId)) return Task.FromResult(false);
+                _records[record.Verifier] = Copy(record);
+                return Task.FromResult(true);
             }
-            if (state.Record is not null && (state.Record.CredentialId == record.CredentialId || state.Record.Verifier == record.Verifier) && defect != "duplicate credential" && defect != "duplicate verifier") return Task.FromResult(false);
-            state.Record = record;
-            if (defect != "atomic issuance") state.Intents.Add(intent.CredentialId);
-            return Task.FromResult(true);
         }
 
         public Task<PatRecord?> ReadAuthoritative(string resource, string verifier, CancellationToken cancellationToken)
         {
-            if (state.AuthorityUnavailable && defect != "unavailable authority") throw new InvalidOperationException("synthetic adapter failure");
-            if (defect == "second-process revocation" && _cached is not null) return Task.FromResult<PatRecord?>(_cached);
-            var result = state.Record;
-            if (result?.Verifier != verifier) result = null;
-            if (defect != "resource partition" && result?.Resource != resource) result = null;
-            _cached = result;
-            return Task.FromResult(result);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Outage && defect != "authority outage") throw new InvalidOperationException("synthetic adapter failure");
+            lock (_gate)
+            {
+                if (defect == "revoke-before-read ordering" && _cache.TryGetValue(verifier, out var cached)) return Task.FromResult<PatRecord?>(cached);
+                if (!_records.TryGetValue(verifier, out var record)) return Task.FromResult<PatRecord?>(null);
+                if (defect != "authoritative lookup" && record.Resource != resource) return Task.FromResult<PatRecord?>(null);
+                _cache[verifier] = record;
+                return Task.FromResult<PatRecord?>(Copy(record));
+            }
         }
 
         public Task<PatRevokeResult> TryRevoke(PatOwner owner, CredentialId credentialId, CancellationToken cancellationToken)
         {
-            var record = state.Record;
-            if (record is null || record.CredentialId != credentialId) return Task.FromResult(PatRevokeResult.Refused);
-            var expected = new PatOwner(record.Resource, record.Environment, record.Person, record.AccountKey, record.Tenant);
-            if (defect != "wrong resource owner" && owner != expected) return Task.FromResult(PatRevokeResult.Refused);
-            if (record.Revoked && defect != "revocation idempotency") return Task.FromResult(PatRevokeResult.AlreadyRevoked);
-            state.Record = record with { Revoked = true };
-            return Task.FromResult(PatRevokeResult.Revoked);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Outage) return Task.FromResult(PatRevokeResult.Unavailable);
+            lock (_gate)
+            {
+                var record = _records.Values.SingleOrDefault(record => record.CredentialId == credentialId);
+                if (record is null) return Task.FromResult(PatRevokeResult.Refused);
+                var expected = new PatOwner(record.Resource, record.Environment, record.Person, record.AccountKey, record.Tenant);
+                if (defect != "owner-bound revocation" && owner != expected) return Task.FromResult(PatRevokeResult.Refused);
+                if (record.Revoked) return Task.FromResult(PatRevokeResult.AlreadyRevoked);
+                if (defect == "revoke-before-read ordering") _cache[record.Verifier] = record;
+                _records[record.Verifier] = record with { Revoked = true };
+                return Task.FromResult(PatRevokeResult.Revoked);
+            }
         }
 
         public Task<ulong?> Read(CancellationToken cancellationToken)
         {
-            if (state.RecoveryUnavailable && defect != "unavailable recovery") throw new InvalidOperationException("synthetic recovery failure");
-            if (state.Epoch is null && defect == "missing recovery evidence") state.Epoch = 4;
-            return Task.FromResult(state.Epoch);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Outage) throw new InvalidOperationException("synthetic recovery failure");
+            if (Epoch is null && defect == "missing recovery evidence") Epoch = 0;
+            return Task.FromResult(Epoch);
         }
 
         public Task<PatPolicyDecision> Evaluate(PatRecord record, bool issuing, CancellationToken cancellationToken)
         {
-            if (state.PolicyUnavailable && defect != "unavailable policy") throw new InvalidOperationException("synthetic policy failure");
-            var permitted = defect == "disabled person" || (state.PersonEnabled && state.Member && state.ReadScope && state.Sso);
-            return Task.FromResult(new PatPolicyDecision(permitted, state.Lifetime, 7));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Outage && defect != "policy outage") throw new InvalidOperationException("synthetic policy failure");
+            var permitted = Permitted && Maximum > TimeSpan.Zero;
+            if (defect == "positive policy lifetime") permitted = Permitted;
+            return Task.FromResult(new PatPolicyDecision(permitted, Maximum, 7));
         }
+
+        PatRecord Copy(PatRecord record) => defect == "immutable stored metadata" ? record : record with
+        {
+            Scopes = record.Scopes.ToHashSet(StringComparer.Ordinal),
+            Assurance = record.Assurance with { Amr = record.Assurance.Amr?.ToArray() }
+        };
     }
 }

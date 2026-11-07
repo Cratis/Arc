@@ -85,14 +85,22 @@ internal sealed class PatContractFixture : IPatIssuanceContext
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="adapter">An optional second process.</param>
     /// <returns>The framework verification result.</returns>
-    internal Task<CredentialVerification> Verify(CancellationToken cancellationToken, PatAdapterInstance? adapter = null)
+    internal Task<CredentialVerification> Verify(CancellationToken cancellationToken, PatAdapterInstance? adapter = null) => VerifyRaw(_raw, cancellationToken, adapter);
+
+    /// <summary>Verifies an issued token through the real framework path.</summary>
+    /// <param name="raw">The synthetic token.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="adapter">An optional observing authority.</param>
+    /// <returns>The framework verification result.</returns>
+    internal Task<CredentialVerification> VerifyRaw(string raw, CancellationToken cancellationToken, PatAdapterInstance? adapter = null)
     {
         var current = adapter ?? Adapter;
         var source = new PatCredentialSource(Settings, current.Authority, current.RecoveryEpoch, current.Policy, TimeProvider.System);
-        return source.Verify(new(["Bearer " + _raw], new Dictionary<string, IReadOnlyList<string>>(), shape: PresentedCredentialShape.PatBearer), cancellationToken);
+        return source.Verify(new(["Bearer " + raw], new Dictionary<string, IReadOnlyList<string>>(), shape: PresentedCredentialShape.PatBearer), cancellationToken);
     }
 
     /// <summary>Creates the framework issuance module.</summary>
+    /// <param name="authority">An optional observing authority.</param>
     /// <returns>The module bound to synthetic checked facts.</returns>
-    internal PersonalAccessTokens Module() => new(Settings, Adapter.Authority, Adapter.RecoveryEpoch, Adapter.Policy, this, TimeProvider.System);
+    internal PersonalAccessTokens Module(IPatAuthority? authority = null) => new(Settings, authority ?? Adapter.Authority, Adapter.RecoveryEpoch, Adapter.Policy, this, TimeProvider.System);
 }

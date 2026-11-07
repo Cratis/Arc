@@ -12,24 +12,22 @@ public class when_exercising_adapters : given.a_contract_harness
     {
         var report = await PatAdapterContract.Run(Harness(), TestContext.Current.CancellationToken);
         report.Results.Where(result => !result.Passed).ShouldBeEmpty();
-        report.Results.Count.ShouldEqual(24);
+        report.Results.Count.ShouldEqual(22);
     }
 
     [Theory]
-    [InlineData("atomic issuance")]
-    [InlineData("failed issuance rollback")]
-    [InlineData("resource partition")]
-    [InlineData("duplicate credential")]
     [InlineData("duplicate verifier")]
-    [InlineData("wrong resource owner")]
-    [InlineData("revocation idempotency")]
-    [InlineData("second-process revocation")]
+    [InlineData("duplicate credential")]
+    [InlineData("authoritative lookup")]
+    [InlineData("revoke-before-read ordering")]
+    [InlineData("owner-bound revocation")]
+    [InlineData("authority outage")]
+    [InlineData("immutable stored metadata")]
+    [InlineData("cancelled create")]
     [InlineData("restore fence")]
     [InlineData("missing recovery evidence")]
-    [InlineData("unavailable authority")]
-    [InlineData("unavailable recovery")]
-    [InlineData("unavailable policy")]
-    [InlineData("disabled person")]
+    [InlineData("policy outage")]
+    [InlineData("positive policy lifetime")]
     public async Task should_reject_the_named_defect(string defect)
     {
         var report = await PatAdapterContract.Run(Harness(defect), TestContext.Current.CancellationToken);
@@ -41,29 +39,38 @@ public class when_exercising_adapters : given.a_contract_harness
     public async Task should_sanitize_adapter_exceptions()
     {
         const string marker = "synthetic-private-diagnostic";
-        var harness = Harness();
-        var hostile = new PatAdapterHarness
-        {
-            Create = _ => throw new InvalidOperationException(marker),
-            HasIssuedIntent = harness.HasIssuedIntent,
-            FailNextCommit = harness.FailNextCommit,
-            SecondProcess = harness.SecondProcess,
-            Snapshot = harness.Snapshot,
-            Restore = harness.Restore,
-            AdvanceRecoveryEpoch = harness.AdvanceRecoveryEpoch,
-            RemoveRecoveryEvidence = harness.RemoveRecoveryEvidence,
-            BlockAuthority = harness.BlockAuthority,
-            BlockRecovery = harness.BlockRecovery,
-            BlockPolicy = harness.BlockPolicy,
-            DisablePerson = harness.DisablePerson,
-            RemoveMembership = harness.RemoveMembership,
-            ReduceLifetime = harness.ReduceLifetime,
-            ReduceScopes = harness.ReduceScopes,
-            ExpireSso = harness.ExpireSso
-        };
-        var report = await PatAdapterContract.Run(hostile, TestContext.Current.CancellationToken);
+        var report = await PatAdapterContract.Run(new() { CreateInstance = () => throw new InvalidOperationException(marker) }, TestContext.Current.CancellationToken);
         report.Passed.ShouldBeFalse();
         report.ToString().Contains(marker, StringComparison.Ordinal).ShouldBeFalse();
-        report.Results.All(result => result.Diagnostic?.Contains(marker, StringComparison.Ordinal) != true).ShouldBeTrue();
+        report.Results.All(result => result.Failure?.Contains(marker, StringComparison.Ordinal) != true).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task should_reject_missing_instance_hooks()
+    {
+        var factory = Harness().CreateInstance!;
+        var report = await PatAdapterContract.Run(new() { CreateInstance = () => factory() with { Restore = null } }, TestContext.Current.CancellationToken);
+        report.Passed.ShouldBeFalse();
+        report.Results.All(result => !result.Passed).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task should_dispose_every_instance()
+    {
+        var disposed = 0;
+        var factory = Harness().CreateInstance!;
+        var harness = new PatAdapterHarness
+        {
+            CreateInstance = () => factory() with
+            {
+                Dispose = () =>
+                {
+                    disposed++;
+                    return ValueTask.CompletedTask;
+                }
+            }
+        };
+        await PatAdapterContract.Run(harness, TestContext.Current.CancellationToken);
+        disposed.ShouldEqual(22);
     }
 }

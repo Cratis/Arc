@@ -17,5 +17,5 @@ public sealed class PatContractReport
     public bool Passed => Results.Count > 0 && Results.All(result => result.Passed);
 
     /// <inheritdoc/>
-    public override string ToString() => string.Join(Environment.NewLine, Results.Select(result => $"{result.Name}: {(result.Passed ? "passed" : result.Diagnostic)}"));
+    public override string ToString() => string.Join(Environment.NewLine, Results.Select(result => $"{result.Name}: {(result.Passed ? "passed" : result.Failure)}"));
 }
