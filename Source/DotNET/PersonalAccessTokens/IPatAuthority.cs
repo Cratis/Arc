@@ -9,6 +9,7 @@ namespace Cratis.Arc.PersonalAccessTokens;
 internal interface IPatAuthority
 {
     /// <summary>Atomically creates a unique verifier and its secret-free issuance intent; false means nothing was committed.</summary>
+    /// <remarks>An audit-enabled adapter also commits a stable <see cref="PatAuditIntent"/> snapshot in this transaction, exposed only through <see cref="IPatAuditOutbox"/>.</remarks>
     /// <param name="record">Verifier metadata, never the secret.</param>
     /// <param name="intent">Secret-free issuance intent.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -23,6 +24,7 @@ internal interface IPatAuthority
     Task<PatRecord?> ReadAuthoritative(string resource, string verifier, CancellationToken cancellationToken);
 
     /// <summary>Atomically checks every owner binding and revokes. Repeated owner revocation is idempotent; another owner is refused.</summary>
+    /// <remarks>An audit-enabled adapter commits one revocation snapshot in the same transaction. Repeated revocation must not enqueue another intent. Chronicle delivery is never the revocation fence.</remarks>
     /// <param name="owner">Complete verified ownership binding.</param>
     /// <param name="credentialId">Non-secret credential identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
