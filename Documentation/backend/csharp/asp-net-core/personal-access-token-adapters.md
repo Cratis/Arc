@@ -53,6 +53,38 @@ More than one custom registration for a port, including instance or factory regi
 
 The check uses `ValidateOnStart` and the generic host's `IStartupValidator`. Building or resolving a service provider without starting a host does not execute startup validation automatically. Such hosts must explicitly run startup validation before serving requests.
 
+## Compose browser issuance and PAT callers
+
+Use one `WithPersonalAccessTokens` call for both credential paths on the same resource. Configure signed v2 forwarding and explicitly call `AllowPersonalAccessTokenCallers()` in that call's delegate. Do not also call `WithVerifiedCallers`: a second installation is rejected.
+
+The following **configuration fragment** assumes `arc`, public verification `settings`, and a persisted `PersonDirectory` as in the [verified caller guide](verified-callers.md). It selects `/mcp` as the gated endpoint while leaving the host's other routes unchanged:
+
+```csharp
+using Cratis.Arc;
+using Cratis.Arc.Capabilities;
+using Cratis.Arc.PersonalAccessTokens;
+
+arc.WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector()
+        .ForRoutePattern("/mcp"))
+    .WithPersonalAccessTokens(new PatOptions("example-api") { AllowedScopes = ["content:write"] }, callers => callers
+        .ForResource("https://api.example.test", "example-api", "sample")
+        .UsePersonDirectory<PersonDirectory>()
+        .UseSignedForwardedIdentityV2(v2 => v2
+            .WithRealmIssuer("https://identity.example.test")
+            .WithTenantHeader("x-example-tenant")
+            .AddPublicKey(settings.KeyId, settings.PublicKeyPem)
+            .UseProcessLocalNonceStore())
+        .AllowPersonalAccessTokenCallers());
+```
+
+Keep the forwarding-hop client-certificate configuration from that guide, and register the three authoritative adapters described above. Process-local nonce storage is only a single-process development choice. The selected route pattern must match an actual registered endpoint; Arc does not implement an MCP server or an issuance HTTP endpoint here.
+
+On an unselected browser route, call `IPersonalAccessTokens.Issue` after authenticating the signed browser session. Issuance uses the verified persisted person, exact account key, tenant, receiving resource, environment, and upstream assurance; request fields or a claims principal cannot replace those facts. This composition supports **browser-session issuance only**. It installs no OAuth verifier, and a PAT cannot issue another PAT.
+
+Selected capability endpoints require a single raw PAT bearer. Signed browser envelopes, session cookies, another authentication scheme, and identity headers do not admit a capability caller. Outside selected capability endpoints, a PAT carried inside a signed envelope is still bound to a fresh verification by the PAT authority. It remains a PAT caller and cannot issue another PAT, even if an envelope claims a browser or OAuth credential kind. Selected capability endpoints refuse every envelope and require a raw PAT bearer. PAT-plus-cookie, duplicate credentials, retired namespaces, and URI credentials are refused rather than falling back to a browser identity. PAT verification still reads current authoritative credential, recovery, and policy state for every request. Product membership and authorization remain required.
+
+A PAT-only installation can omit forwarding configuration and `AllowPersonalAccessTokenCallers()` as before; its capability endpoints are also PAT-only. A signed-only `WithVerifiedCallers` installation without the opt-in retains its browser capability behavior. Missing signed-forwarding configuration with the opt-in, incomplete bindings, duplicate installation, or a PAT-capable host without a PAT verifier fail closed.
+
 ## Run the refusal suite
 
 The framework-independent kit ships in the same PAT assembly under `Cratis.Arc.PersonalAccessTokens.Contract`; it does not require a separate testing package or a particular test framework. Every adapter must pass it against its real persistence and external recovery services, not only against an in-memory substitute.

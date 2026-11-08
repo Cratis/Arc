@@ -97,7 +97,26 @@ public class when_a_signed_browser_caller_requires_membership
         membership.Calls.ShouldEqual(0);
     }
 
-    static async Task<Outcome> Send(ECDsa key, ProductMembership? membership, string? resolvedTenant = null, bool defaultPort = false, bool clientCertificate = true)
+    [Theory]
+    [InlineData(PatEndpoint.Selected, HttpStatusCode.Unauthorized, false)]
+    [InlineData(PatEndpoint.Outside, HttpStatusCode.OK, true)]
+    public async Task should_apply_pat_only_admission_to_selected_endpoints(PatEndpoint endpoint, HttpStatusCode expectedStatus, bool expectedInvocation)
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var membership = new ProductMembership { AllowAnyone = true };
+        var result = await Send(key, membership, patEndpoint: endpoint);
+        result.Status.ShouldEqual(expectedStatus);
+        result.Invoked.ShouldEqual(expectedInvocation);
+        membership.Subject.ShouldBeNull();
+    }
+
+    public enum PatEndpoint
+    {
+        Selected = 0,
+        Outside = 1
+    }
+
+    static async Task<Outcome> Send(ECDsa key, ProductMembership? membership, string? resolvedTenant = null, bool defaultPort = false, bool clientCertificate = true, PatEndpoint? patEndpoint = null)
     {
         var capabilityPort = FreePort();
         var otherPort = FreePort();
@@ -124,13 +143,11 @@ public class when_a_signed_browser_caller_requires_membership
                 options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("authproxy.internal");
                 if (resolvedTenant is not null) options.Tenancy.HttpHeader = "x-product-tenant";
             },
-            configureBuilder: arc => arc
-                .WithoutControllers().WithCapabilities().WithVerifiedCallers(callers => callers
-                    .ForResource("https://resource.example", "example-api", "test").UsePersonDirectory<PersonDirectory>()
-                    .UseSignedForwardedIdentityV2(v2 => v2.WithRealmIssuer(Issuer).AddPublicKey("test", key.ExportSubjectPublicKeyInfoPem()).UseProcessLocalNonceStore())));
+            configureBuilder: arc => ConfigureCallers(arc, key, patEndpoint));
         if (membership is not null) builder.Services.AddSingleton<ITenantMembership>(membership);
         await using var app = builder.Build();
         app.UseCratisArc();
+        app.MapPost("/mcp", () => Results.Ok());
         app.MapPost(Route, (ITenantIdAccessor tenants) =>
         {
             invoked = true;
@@ -156,6 +173,25 @@ public class when_a_signed_browser_caller_requires_membership
         finally
         {
             await app.StopAsync(global::Xunit.TestContext.Current.CancellationToken);
+        }
+    }
+
+    static void ConfigureCallers(IArcBuilder arc, ECDsa key, PatEndpoint? endpoint)
+    {
+        arc.WithoutControllers().WithCapabilities(options =>
+        {
+            if (endpoint == PatEndpoint.Outside) options.GatedEndpoints = new CapabilityEndpointSelector().ForRoutePattern("/mcp");
+        }).WithVerifiedCallers(callers =>
+        {
+            callers.ForResource("https://resource.example", "example-api", "test").UsePersonDirectory<PersonDirectory>()
+                .UseSignedForwardedIdentityV2(v2 => v2.WithRealmIssuer(Issuer).AddPublicKey("test", key.ExportSubjectPublicKeyInfoPem()).UseProcessLocalNonceStore());
+            if (endpoint is not null) callers.AllowPersonalAccessTokenCallers();
+        });
+        if (endpoint is not null)
+        {
+            IVerifiedCredentialSource patSource = Substitute.For<VerifiedCredentialSourceForSpecs>();
+            patSource.Shape.Returns(PresentedCredentialShape.PatBearer);
+            arc.Services.AddSingleton(patSource);
         }
     }
 

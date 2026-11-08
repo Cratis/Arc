@@ -19,6 +19,7 @@ public sealed class VerifiedCallersBuilder
     string? _environment;
     ServiceDescriptor? _directory;
     SignedForwardedIdentityV2Builder? _forwarding;
+    bool _allowPersonalAccessTokenCallers;
 
     /// <summary>
     /// Binds the exact resource, audience and environment without normalization.
@@ -60,6 +61,17 @@ public sealed class VerifiedCallersBuilder
         return this;
     }
 
+    /// <summary>
+    /// Allows raw PAT callers alongside signed browser issuance in one installation.
+    /// The PAT module supplies verification; capability endpoints accept only PAT presentations in this mode.
+    /// </summary>
+    /// <returns>This builder.</returns>
+    public VerifiedCallersBuilder AllowPersonalAccessTokenCallers()
+    {
+        _allowPersonalAccessTokenCallers = true;
+        return this;
+    }
+
     /// <summary>Validates and atomically registers the installation configuration.</summary>
     /// <param name="services">The receiving service collection.</param>
     /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete or already installed.</exception>
@@ -70,32 +82,38 @@ public sealed class VerifiedCallersBuilder
             throw new InvalidVerifiedCallerInstallation("Verified callers require a resource, audience, environment, person directory and signed forwarding configuration.");
         }
         var settings = _forwarding.Settings(_resource!, _audience!);
-        if (services.Any(descriptor => descriptor.ServiceType == typeof(InstallationMarker)))
-        {
-            throw new InvalidVerifiedCallerInstallation("Verified callers already have an installation.");
-        }
-        services.AddSingleton(new InstallationMarker());
-        services.RemoveAll<VerifiedCallerInstallation>();
-        services.RemoveAll<CallerResourceCatalog>();
-        services.AddSingleton(new VerifiedCallerInstallation(_resource, _environment));
-        services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string>(StringComparer.Ordinal) { [_resource!] = _audience! }));
-        services.Add(_directory);
+        RegisterInstallation(services);
         _forwarding.InstallNonceStore(services);
-        services.AddVerifiedCallers();
         services.AddForwardedIdentityV2(settings);
+        if (_allowPersonalAccessTokenCallers) services.AddSingleton(new PatCapableCallerInstallation());
     }
 
-    /// <summary>Installs the separate PAT path without changing signed-forwarding requirements.</summary>
+    /// <summary>Installs PAT callers, optionally composing signed browser issuance through the explicit opt-in.</summary>
     /// <param name="services">The receiving service collection.</param>
     /// <param name="legacyPrefixes">Explicitly retired credential namespaces.</param>
     /// <returns>The exact receiving target.</returns>
-    /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete, duplicated or contains forwarding configuration.</exception>
+    /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete, duplicated or contains forwarding without the composition opt-in.</exception>
     internal CallerCredentialTarget InstallPersonalAccessTokens(IServiceCollection services, IEnumerable<string> legacyPrefixes)
     {
-        if (!VerifiedCallerInstallation.IsValid(_resource, _audience, _environment) || _directory is null || _forwarding is not null)
+        if (_allowPersonalAccessTokenCallers)
         {
-            throw new InvalidVerifiedCallerInstallation("PAT callers require a resource, audience, environment and person directory, without signed forwarding configuration.");
+            Install(services);
         }
+        else
+        {
+            if (!VerifiedCallerInstallation.IsValid(_resource, _audience, _environment) || _directory is null || _forwarding is not null)
+            {
+                throw new InvalidVerifiedCallerInstallation("PAT callers require a resource, audience, environment and person directory, without signed forwarding configuration.");
+            }
+            RegisterInstallation(services);
+            services.AddSingleton(new PatCapableCallerInstallation());
+        }
+        services.AddSingleton(new ReservedCredentialPrefixes(legacyPrefixes));
+        return new(_resource!, _audience!, _environment!);
+    }
+
+    void RegisterInstallation(IServiceCollection services)
+    {
         if (services.Any(descriptor => descriptor.ServiceType == typeof(InstallationMarker)))
         {
             throw new InvalidVerifiedCallerInstallation("Verified callers already have an installation.");
@@ -105,10 +123,8 @@ public sealed class VerifiedCallersBuilder
         services.RemoveAll<CallerResourceCatalog>();
         services.AddSingleton(new VerifiedCallerInstallation(_resource, _environment));
         services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string>(StringComparer.Ordinal) { [_resource!] = _audience! }));
-        services.Add(_directory);
-        services.AddSingleton(new ReservedCredentialPrefixes(legacyPrefixes));
+        services.Add(_directory!);
         services.AddVerifiedCallers();
-        return new(_resource!, _audience!, _environment!);
     }
 
     [IgnoreConvention]

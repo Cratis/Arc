@@ -64,6 +64,12 @@ Outside admission is also enforced across later endpoint assignments. Status-cod
 
 Selective hosting runs routing immediately before the gate. Configure server-owned `UsePathBase` or URL rewriting **before** Arc's startup filter, for example in an earlier `IStartupFilter`. A path base configured later in the application's pipeline is not visible to early routing; unclassified requests remain gated. Forwarded-prefix, forwarded-host, and original-URL headers do not select outside endpoints. Later path rewriting or re-execution is subject to the endpoint-assignment guard described above, not a second authentication attempt. For Startup-class hosts with capability services registered, the filter populates its early router from the completed host route graph, including the host's own `UseRouting`/`UseEndpoints`; it refuses startup if the configured rules cannot be resolved rather than silently skipping selection. CORS preflight on selected or unclassified endpoints is gated too; later CORS or authorization middleware cannot exempt it. Only routing moves earlier, not the host's authentication or authorization policy.
 
+## PAT-capable installations
+
+A `WithPersonalAccessTokens` installation restricts selected capability endpoints to a single raw PAT bearer before resolving a caller. This also applies when signed browser-session verification is composed through `AllowPersonalAccessTokenCallers()`. A valid signed browser session, cookie, identity header, or existing authenticated principal cannot admit a capability caller on those endpoints. Preflight refusals return `401` without invoking the endpoint or publishing a caller. Unselected routes and other listeners are unchanged.
+
+The [PAT adapter guide](asp-net-core/personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers) shows one installation for browser-only issuance and PAT verification. It requires live authoritative storage, recovery, and policy adapters. A PAT cannot issue another PAT. Selected capability endpoints refuse forwarded envelopes; outside those endpoints, a forwarded PAT remains authority-verified and cannot issue another PAT. OAuth issuance and MCP serving are not installed by this composition. Signed-only capability installations retain their existing browser-session behavior.
+
 ## Read the caller
 
 Inject `Cratis.Arc.Capabilities.ICapabilityCallers` into capability code. Its `Current` property returns the admitted `CapabilityCaller`, including the endpoint group, protocol `rest`, principal kind, person, current delegated actor, client metadata, credential identifier, checked grant identifier, tenant, and scope ceiling. Outside a capability call it is null.
@@ -92,7 +98,7 @@ Absent values are omitted, including an unset tenant. Tokens, secrets, scopes, a
 
 ## Limits today
 
-- The public installer supports signed v2 browser-session callers; PAT, OAuth-grant, service-account, bearer-verifier, and on-behalf installation are separate work.
+- The public installers support signed v2 browser-session callers and resource-local PATs, including browser-only PAT issuance on the same resource. OAuth-grant, service-account, and on-behalf installation remain separate work.
 - Product authorization still applies: a capability is not authority. The verified caller is the principal used by Arc authorization, the current-principal accessor, and Chronicle identity/causation. Roles, policies, and live tenant membership must authorize that subject.
 - `[RequiresScope]` narrows access against the verified credential's scope ceiling. Missing scopes mean an empty ceiling. Product cookies, roles, or a same-subject scheme cannot widen it, and scopes cannot replace product authorization.
 - A signed tenant is a candidate, not proof of membership. A conflicting authenticated subject is refused, not merged.
