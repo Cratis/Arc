@@ -57,5 +57,5 @@ internal static class McpProtectedResourceMetadata
     static IEnumerable<string> ScopesSupported(McpOptions options) =>
         options.ScopesSupported.Count > 0
             ? options.ScopesSupported
-            : new[] { options.ReadScope, options.WriteScope }.OfType<string>().Where(_ => !string.IsNullOrWhiteSpace(_)).Distinct(StringComparer.Ordinal);
+            : new[] { options.ReadScope }.Concat(options.ConfiguredWriteScopes()).OfType<string>().Where(_ => !string.IsNullOrWhiteSpace(_)).Distinct(StringComparer.Ordinal);
 }

@@ -43,6 +43,19 @@ Query tools take the query parameters as arguments. Like the REST endpoints, pag
 
 Read tools require the read scope and write tools require the write scope. By default they are `<ApplicationName>:read` and `<ApplicationName>:write`; set `ReadScope` and `WriteScope` to choose your own. If neither an application name nor an explicit scope is configured, startup fails with `McpToolHasNoScope` rather than exposing a tool that requires no scope.
 
+An application with several areas often has more than one write scope. List the others in `WriteScopes`; `WriteScope` is always a write scope too, so an empty list means `WriteScope` alone:
+
+```csharp
+mcp.Configure(options =>
+{
+    options.ApplicationName = "notes";
+    options.WriteScopes.Add("notes:publish");
+    options.WriteScopes.Add("archive:write");
+});
+```
+
+Commands exposed with `Expose` or `[ExposeOverMcp]` require `WriteScope`. A blank or repeated entry in `WriteScopes`, or an entry equal to `ReadScope`, fails startup with `McpOptionsInvalid`, so a read-only grant never holds a write scope. Protected resource metadata lists the read scope and every write scope unless you set `ScopesSupported` yourself.
+
 ## Curated tools with `IMcpToolSource`
 
 Implement `IMcpToolSource` for a tool that is not a plain command or query, and register it with `AddToolSource<TSource>()`. The source describes its tools (name, description, required scopes, whether it reads or writes, and an input schema) and handles the call. `McpToolDescriptor.Custom(...)` builds a descriptor and picks the conservative hints for reads or writes:
@@ -64,7 +77,7 @@ The ceiling checks every described tool at startup:
 
 - The name and description must be valid, and names must be unique.
 - The tool must require at least one non-blank scope.
-- A tool that writes must require the write scope. Requiring only the read scope fails startup with `McpWriteToolLacksWriteScope`.
+- A tool that writes must require a write scope: `WriteScope` or one of `WriteScopes`. Requiring only the read scope, or only scopes that are not write scopes, fails startup with `McpWriteToolLacksWriteScope`.
 
 A curated tool can also accept alternative scope sets. A caller may call the tool when it holds every required scope, or every scope of any one alternative set:
 
@@ -75,7 +88,7 @@ McpToolDescriptor.Custom("audit_log", "Reads the audit log.", ["notes:read"], Mc
 }
 ```
 
-The same check decides what `tools/list` shows, what the HTTP admission lets through and what the dispatcher runs, so they always agree. An empty or blank alternative set fails startup, and for a tool that writes every alternative set must include the write scope. A caller that holds only part of a set is refused, and the `insufficient_scope` challenge names the required scopes.
+The same check decides what `tools/list` shows, what the HTTP admission lets through and what the dispatcher runs, so they always agree. An empty or blank alternative set fails startup, and for a tool that writes every alternative set must include a write scope. One alternative without a write scope fails startup, because a caller holding only that set could otherwise change state. A caller that holds only part of a set is refused, and the `insufficient_scope` challenge names the required scopes.
 
 An exception thrown by a tool is reported to the caller as a generic tool error. Its message is not returned.
 
@@ -130,7 +143,7 @@ public class PlanAuthorizer(IPlans plans) : IMcpToolAuthorizer
 Authorizers only narrow access:
 
 - They run only for a caller whose scopes already satisfy the tool.
-- Every registered authorizer must allow the tool. One that denies or throws hides the tool from `tools/list` and refuses the call with `403 forbidden` before the MCP server reads it. The dispatcher checks again before it runs the tool.
+- Every registered authorizer must allow the tool. One that denies or throws hides the tool from `tools/list`. A client that calls the hidden tool anyway gets HTTP `403` with the body `{"error":"forbidden"}` and no `WWW-Authenticate` challenge, before the MCP server reads the request; it is not a tool error, and no reason is returned. The dispatcher checks again before it runs the tool.
 - They apply to the tools of the ceiling only, not to tools registered directly on the MCP server.
 - They run for every ceiling tool on every `tools/list`, and again for each call, in admission and in the dispatcher. Keep them cheap, and cache any lookup they need.
 
@@ -164,13 +177,13 @@ Arc governs tools only. Prompts and resources you add to the server are not filt
 
 | Profile | Accepts |
 | --- | --- |
-| `PatOnly` (default) | Personal access tokens. No metadata is advertised. |
+| `PatOnly` (default) | Personal access tokens. No metadata is advertised: the metadata route is still mapped and answers `404`. |
 | `OAuthOnly` | OAuth access tokens. |
 | `Combined` | Both, each by its own verifier. |
 
 A caller verified with any other credential kind, such as a browser session, is refused with the same `401` and `WWW-Authenticate` challenge as a request without a caller, and the tool does not run. The refusal says nothing about why. The default is `PatOnly`.
 
-The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. Startup validates them:
+The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. `MapCratisArcMcp` maps the metadata route under every profile, so a client probing a personal-access-token-only endpoint gets a JSON `404` rather than a fallback page. Startup validates them:
 
 - `PublicOrigin` must be an origin (no path, query, or fragment) and use `https`. Plain `http` is accepted only for loopback. This applies under every profile whenever `PublicOrigin` is set, including the personal access token profile.
 - `Resource` must be `PublicOrigin` plus `Path`, with no fragment, query, or user info.
@@ -187,7 +200,7 @@ mcp.Configure(options =>
 });
 ```
 
-Each entry must be an `https` origin (loopback may use `http`). Comparison ignores case. More than one `Origin` value, or an `Origin` that is not an origin (such as `null` or a URL with a path), is refused.
+This applies under every profile, including `PatOnly`. If browser-based clients call your endpoint, list their origins, otherwise every call from them is refused with `403 origin_not_allowed`. Each entry must be an `https` origin (loopback may use `http`). Comparison ignores case. More than one `Origin` value, or an `Origin` that is not an origin (such as `null` or a URL with a path), is refused.
 
 ## Related
 

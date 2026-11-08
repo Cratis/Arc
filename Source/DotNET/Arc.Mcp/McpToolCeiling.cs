@@ -62,7 +62,8 @@ public sealed class McpToolCeiling
     /// <exception cref="McpApprovalRequiredCommandExposed">A command requiring approval is exposed.</exception>
     /// <exception cref="McpToolHasNoScope">A tool would require no scope.</exception>
     /// <exception cref="McpToolScopeBlank">An exposed operation declares a blank required scope.</exception>
-    /// <exception cref="McpWriteToolLacksWriteScope">A curated tool that may change state does not require the write scope.</exception>
+    /// <exception cref="McpOptionsInvalid">A write scope is blank, repeated or equal to the read scope.</exception>
+    /// <exception cref="McpWriteToolLacksWriteScope">A curated tool that may change state does not require a write scope in every scope set.</exception>
     /// <exception cref="McpToolOutputSchemaInvalid">A curated tool declares an output schema that does not describe an object.</exception>
     internal static McpToolCeiling Build(
         McpExposure exposure,
@@ -71,6 +72,7 @@ public sealed class McpToolCeiling
         IQueryPerformerProviders queries,
         IEnumerable<IMcpToolSource>? sources = null)
     {
+        var writeScopes = WriteScopesOf(options);
         var handlers = commands.Handlers.ToArray();
         var handlerTypes = handlers.Select(_ => _.CommandType).ToHashSet();
         var performers = queries.Performers.ToArray();
@@ -98,7 +100,7 @@ public sealed class McpToolCeiling
         {
             foreach (var described in source.Describe())
             {
-                var tool = Curated(described, source, options);
+                var tool = Curated(described, source, writeScopes);
                 if (!tools.TryAdd(tool.Name, tool))
                 {
                     throw new McpToolNameDuplicated(tool.Name);
@@ -130,7 +132,25 @@ public sealed class McpToolCeiling
         }
     }
 
-    static McpToolDescriptor Curated(McpToolDescriptor described, IMcpToolSource source, McpOptions options)
+    static FrozenSet<string> WriteScopesOf(McpOptions options)
+    {
+        var listed = options.WriteScopes;
+        if (listed.Any(string.IsNullOrWhiteSpace) ||
+            listed.Distinct(StringComparer.Ordinal).Count() != listed.Count)
+        {
+            throw new McpOptionsInvalid(nameof(McpOptions.WriteScopes), options.Profile);
+        }
+
+        var writeScopes = options.ConfiguredWriteScopes().ToFrozenSet(StringComparer.Ordinal);
+        if (options.ReadScope is { } readScope && writeScopes.Contains(readScope))
+        {
+            throw new McpOptionsInvalid(nameof(McpOptions.WriteScopes), options.Profile);
+        }
+
+        return writeScopes;
+    }
+
+    static McpToolDescriptor Curated(McpToolDescriptor described, IMcpToolSource source, FrozenSet<string> writeScopes)
     {
         if (!IsValidName(described.Name))
         {
@@ -158,7 +178,7 @@ public sealed class McpToolCeiling
             throw new McpToolScopeBlank(described.Name);
         }
         if (described.Access == McpToolAccess.Write &&
-            (options.WriteScope is not { } writeScope || !scopes.Contains(writeScope) || alternatives.Any(_ => !_.Contains(writeScope))))
+            !alternatives.Prepend(scopes).All(_ => _.Any(writeScopes.Contains)))
         {
             throw new McpWriteToolLacksWriteScope(described.Name);
         }

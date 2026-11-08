@@ -68,6 +68,14 @@ public class McpOptions
     }
 
     /// <summary>
+    /// Gets the other write scopes of the application. A curated write tool must require, in every scope set it declares,
+    /// at least one write scope: <see cref="WriteScope"/> or one listed here. <see cref="WriteScope"/> is always a write
+    /// scope, so an empty list means the write scopes are just <see cref="WriteScope"/>. A blank or repeated entry, or an
+    /// entry equal to <see cref="ReadScope"/>, fails startup.
+    /// </summary>
+    public IList<string> WriteScopes { get; } = [];
+
+    /// <summary>
     /// Gets or sets the accepted credential profile.
     /// </summary>
     public McpProfile Profile { get; set; } = McpProfile.PatOnly;
@@ -84,6 +92,13 @@ public class McpOptions
     /// can list and call them without a scope check, and a warning is logged at startup.
     /// </summary>
     public bool ExclusiveTools { get; set; } = true;
+
+    /// <summary>
+    /// Gets every configured write scope: <see cref="WriteScope"/> first, when configured, followed by <see cref="WriteScopes"/>.
+    /// </summary>
+    /// <returns>The distinct write scopes, in configured order.</returns>
+    internal IReadOnlyList<string> ConfiguredWriteScopes() =>
+        [.. new[] { WriteScope }.Concat(WriteScopes).OfType<string>().Where(_ => !string.IsNullOrWhiteSpace(_)).Distinct(StringComparer.Ordinal)];
 
     string? DefaultScope(string suffix) => string.IsNullOrWhiteSpace(ApplicationName) ? null : $"{ApplicationName}:{suffix}";
 }
