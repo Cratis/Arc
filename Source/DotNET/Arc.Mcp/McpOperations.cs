@@ -5,6 +5,7 @@ using System.Text.Json;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Validation;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Mcp;
@@ -105,6 +106,12 @@ internal sealed class McpOperations(
 
         var result = await hosted.PerformHosted(name, arguments, paging, Sorting.None, call.Services, call.CancellationToken);
         using var ownedScope = result.OwnedScope;
+        if (result.IsSuccess && call.Services.GetService<IObservableQueryHandler>()?.IsStreamingResult(result.Data) == true)
+        {
+            // A tool call is one request and one response: a stream would outlive the caller's admission and emission identity.
+            return McpToolResult.Error(Unsupported);
+        }
+
         var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
         var text = JsonSerializer.Serialize(
             new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },

@@ -147,10 +147,25 @@ internal sealed class CapabilityGateMiddleware(
         });
     }
 
-    static Task Refuse(HttpContext context, CapabilityRefusal refusal) =>
-        context.GetEndpoint()?.Metadata.GetMetadata<ICapabilityRefusalWriter>() is { } writer
-            ? writer.Write(context, refusal)
-            : Refuse(context, refusal.StatusCode);
+    static async Task Refuse(HttpContext context, CapabilityRefusal refusal)
+    {
+        if (context.GetEndpoint()?.Metadata.GetMetadata<ICapabilityRefusalWriter>() is not { } writer)
+        {
+            await Refuse(context, refusal.StatusCode);
+            return;
+        }
+
+        // The refusal status is in place before the writer runs, so a writer that only writes a body still refuses.
+        context.Response.StatusCode = refusal.StatusCode;
+        await writer.Write(context, refusal);
+
+        // A custom writer must never turn a refusal into a success: a status it set to 2xx is put back.
+        // Reading it after a body was written is fine: that case keeps the status set above.
+        if (!context.Response.HasStarted && context.Response.StatusCode < StatusCodes.Status400BadRequest)
+        {
+            context.Response.StatusCode = refusal.StatusCode;
+        }
+    }
 
     static async Task Refuse(HttpContext context, int status)
     {

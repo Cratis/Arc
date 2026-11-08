@@ -28,6 +28,13 @@ public class McpOptions
     public string? PublicOrigin { get; set; }
 
     /// <summary>
+    /// Gets the browser origins allowed to call the MCP endpoint, in addition to <see cref="PublicOrigin"/>. A request
+    /// without an <c>Origin</c> header (a non-browser client) is always allowed; a request whose <c>Origin</c> is not
+    /// listed is refused. Empty by default.
+    /// </summary>
+    public IList<string> AllowedOrigins { get; } = [];
+
+    /// <summary>
     /// Gets the issuer URLs of the authorization servers. Required for OAuth and combined profiles.
     /// </summary>
     public IList<string> AuthorizationServers { get; } = [];

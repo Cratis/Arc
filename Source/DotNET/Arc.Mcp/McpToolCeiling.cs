@@ -61,6 +61,7 @@ public sealed class McpToolCeiling
     /// <exception cref="McpApprovalRequiredCommandExposed">A command requiring approval is exposed.</exception>
     /// <exception cref="McpToolHasNoScope">A tool would require no scope.</exception>
     /// <exception cref="McpToolScopeBlank">An exposed operation declares a blank required scope.</exception>
+    /// <exception cref="McpWriteToolLacksWriteScope">A curated tool that may change state does not require the write scope.</exception>
     internal static McpToolCeiling Build(
         McpExposure exposure,
         McpOptions options,
@@ -95,7 +96,7 @@ public sealed class McpToolCeiling
         {
             foreach (var described in source.Describe())
             {
-                var tool = Curated(described, source);
+                var tool = Curated(described, source, options);
                 if (!tools.TryAdd(tool.Name, tool))
                 {
                     throw new McpToolNameDuplicated(tool.Name);
@@ -127,7 +128,7 @@ public sealed class McpToolCeiling
         }
     }
 
-    static McpToolDescriptor Curated(McpToolDescriptor described, IMcpToolSource source)
+    static McpToolDescriptor Curated(McpToolDescriptor described, IMcpToolSource source, McpOptions options)
     {
         if (!IsValidName(described.Name))
         {
@@ -144,6 +145,10 @@ public sealed class McpToolCeiling
         if (scopes.Any(string.IsNullOrWhiteSpace))
         {
             throw new McpToolScopeBlank(described.Name);
+        }
+        if (described.Access == McpToolAccess.Write && (options.WriteScope is not { } writeScope || !scopes.Contains(writeScope)))
+        {
+            throw new McpWriteToolLacksWriteScope(described.Name);
         }
 
         return described with

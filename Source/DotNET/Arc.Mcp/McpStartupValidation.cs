@@ -77,18 +77,23 @@ internal sealed class McpStartupValidation(
             throw new McpOptionsInvalid(nameof(McpOptions.MaxRequestBodySize), value.Profile);
         }
 
+        if (value.AllowedOrigins.Any(_ => !McpOrigins.IsOrigin(_)))
+        {
+            throw new McpOptionsInvalid(nameof(McpOptions.AllowedOrigins), value.Profile);
+        }
+
         if (value.Profile == McpProfile.PatOnly)
         {
             return;
         }
 
-        if (!IsAbsoluteUri(value.Resource))
-        {
-            throw new McpOptionsInvalid(nameof(McpOptions.Resource), value.Profile);
-        }
-        if (!IsAbsoluteUri(value.PublicOrigin))
+        if (!McpOrigins.IsOrigin(value.PublicOrigin))
         {
             throw new McpOptionsInvalid(nameof(McpOptions.PublicOrigin), value.Profile);
+        }
+        if (!McpOrigins.ResourceMatches(value))
+        {
+            throw new McpOptionsInvalid(nameof(McpOptions.Resource), value.Profile);
         }
         if (value.AuthorizationServers.Count == 0 || value.AuthorizationServers.Any(_ => !IsAbsoluteUri(_)))
         {

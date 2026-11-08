@@ -43,16 +43,39 @@ internal static class McpQueryArguments
             {
                 continue;
             }
-            if (!arguments.TryAdd(parameter.Name, value.ValueKind == JsonValueKind.String ? value.GetString()! : value.GetRawText()))
+            if (!arguments.TryAdd(parameter.Name, ArgumentValue(call, parameter, value)))
             {
                 throw new McpArgumentsInvalid(call.Tool.Name);
             }
         }
 
-        var paging = page is null && pageSize is null
-            ? Paging.NotPaged
-            : new Paging(page ?? 0, pageSize ?? int.MaxValue, true);
+        // Like REST, a page size is what turns paging on; a page alone leaves the query unpaged.
+        var paging = pageSize is null ? Paging.NotPaged : new Paging(page ?? 0, pageSize.Value, true);
         return (arguments, paging);
+    }
+
+    static object ArgumentValue(McpOperationCall call, QueryParameter parameter, JsonElement value)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.String:
+                return value.GetString()!;
+
+            case JsonValueKind.Array when parameter.Type.IsEnumerableOfQueryArgumentElement(out _):
+                return value.EnumerateArray()
+                    .Select(element => element.ValueKind is JsonValueKind.Array or JsonValueKind.Object
+                        ? throw new McpArgumentsInvalid(call.Tool.Name)
+                        : element.ValueKind == JsonValueKind.Null ? null : element.ToString())
+                    .ToArray();
+
+            case JsonValueKind.Array:
+            case JsonValueKind.Object:
+                // Structured values are only meaningful for a collection parameter, the same as for REST.
+                throw new McpArgumentsInvalid(call.Tool.Name);
+
+            default:
+                return value.GetRawText();
+        }
     }
 
     static int PagingValue(McpOperationCall call, JsonElement value, int minimum) =>

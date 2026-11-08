@@ -27,6 +27,12 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
     internal async Task Invoke(HttpContext context, RequestDelegate next)
     {
         var settings = options.Value;
+        if (!McpOrigins.Allows(context.Request.Headers.Origin.ToArray(), settings))
+        {
+            await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "origin_not_allowed");
+            return;
+        }
+
         if (McpCaller.From(context) is not { } caller)
         {
             await McpChallenge.Write(context, StatusCodes.Status401Unauthorized, "unauthorized", McpChallenge.Unauthorized(settings));

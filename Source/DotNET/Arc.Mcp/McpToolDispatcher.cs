@@ -69,6 +69,10 @@ internal sealed class McpToolDispatcher(
         }
 
         var call = new McpOperationCall(tool, caller.Capability, arguments?.AsReadOnly() ?? new Dictionary<string, JsonElement>().AsReadOnly(), context!.RequestServices, cancellationToken);
+
+        // The correlation id is already set for this request by Arc's startup middleware, which runs for every request, the
+        // same as REST. Receipt is captured here the way the REST endpoints do before they enter a pipeline.
+        using var receipt = OperationContextScope.Begin(context!.RequestServices);
         try
         {
             var outcome = await operations.Run(call);
