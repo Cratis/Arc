@@ -126,7 +126,9 @@ The specs use only public Arc APIs, a real HTTPS capability listener, synthetic 
 
 ## Boundaries
 
-This installer supports the signed v2 browser-session flow. It does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters. Those flows cannot be enabled by changing a header or credential kind. MCP serving, `--as` clients, protected-resource metadata, and OAuth registration are separate work.
+`WithVerifiedCallers` supports the signed v2 browser-session flow. To compose browser-session PAT issuance with raw PAT verification on the same resource, use one `WithPersonalAccessTokens` call with signed forwarding and `AllowPersonalAccessTokenCallers()` as shown in [personal access token adapters](personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers). In that mode, selected capability endpoints accept only raw PAT bearers; unselected browser routes retain their behavior. Do not install both helpers separately.
+
+The signed-only installer does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters. Those flows cannot be enabled by changing a header or credential kind. MCP serving, `--as` clients, protected-resource metadata, and OAuth registration are separate work.
 
 Client-declared names, scope strings, grant references, or body arguments cannot supply missing verified facts or upgrade actor authority. The accessor does not implement PAT authentication, OAuth introspection, DPoP verification, workload verification, or an MCP server.
 

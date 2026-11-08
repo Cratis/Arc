@@ -41,9 +41,14 @@ internal sealed class CapabilitiesStartupValidation(
         }
 
         using var scope = scopes.CreateScope();
-        if (!scope.ServiceProvider.GetServices<IVerifiedCredentialSource>().Any())
+        var sources = scope.ServiceProvider.GetServices<IVerifiedCredentialSource>().ToArray();
+        if (sources.Length == 0)
         {
             throw new CapabilityHostingHasNoCredentialInstallation("no credential verifier is registered");
+        }
+        if (scope.ServiceProvider.GetService<PatCapableCallerInstallation>() is not null && !sources.Any(source => source.Shape == PresentedCredentialShape.PatBearer))
+        {
+            throw new CapabilityHostingHasNoCredentialInstallation("no PAT credential verifier is registered for the PAT-capable installation");
         }
 
         return Task.CompletedTask;
