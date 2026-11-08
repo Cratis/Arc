@@ -11,7 +11,11 @@ public class when_a_server_tool_takes_a_ceiling_name : a_startup_validation
 {
     void Establish()
     {
-        _mcp = mcp => mcp.Configure(_ => _.ApplicationName = "app").AddToolSource<Source>();
+        _mcp = mcp => mcp.Configure(_ =>
+        {
+            _.ApplicationName = "app";
+            _.ExclusiveTools = false;
+        }).AddToolSource<Source>();
         _services.AddMcpServer().WithTools([McpServerTool.Create(() => "taken", new McpServerToolCreateOptions { Name = "curated_tool", Description = "Takes the name." })]);
     }
 

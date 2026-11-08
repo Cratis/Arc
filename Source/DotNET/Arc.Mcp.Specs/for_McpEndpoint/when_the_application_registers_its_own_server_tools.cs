@@ -14,6 +14,8 @@ public class when_the_application_registers_its_own_server_tools : an_mcp_host
     McpResponse _called;
     McpResponse _ceilingCall;
 
+    protected override void ConfigureOptions(McpOptions options) => options.ExclusiveTools = false;
+
     protected override void ConfigureServices(IServiceCollection services) =>
         services.AddMcpServer().WithTools([McpServerTool.Create((string text) => $"echo:{text}", new McpServerToolCreateOptions { Name = "app_echo", Description = "Echoes." })]);
 

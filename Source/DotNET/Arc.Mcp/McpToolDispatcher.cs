@@ -99,7 +99,7 @@ internal sealed class McpToolDispatcher(
 
             return new CallToolResult
             {
-                Content = [new TextContentBlock { Text = outcome.Text }, .. outcome.ResourceLinks.Select(ToBlock)],
+                Content = [new TextContentBlock { Text = outcome.Text }, .. (outcome.ResourceLinks ?? []).Select(ToBlock)],
                 StructuredContent = outcome.StructuredContent?.Clone(),
                 IsError = outcome.IsError
             };

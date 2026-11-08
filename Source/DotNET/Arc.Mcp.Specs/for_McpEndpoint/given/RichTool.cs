@@ -18,7 +18,8 @@ public class RichTool : IMcpToolSource
         McpToolDescriptor.Custom("count_notes", "Counts notes.", ["app:read"], McpToolAccess.Read) with { Title = "Count notes", OutputSchema = Schema },
         McpToolDescriptor.Custom("missing_structure", "Declares a schema but returns no structure.", ["app:read"], McpToolAccess.Read) with { OutputSchema = Schema },
         McpToolDescriptor.Custom("array_structure", "Returns a structure that is not an object.", ["app:read"], McpToolAccess.Read),
-        McpToolDescriptor.Custom("relative_link", "Returns a link without an absolute URI.", ["app:read"], McpToolAccess.Read)
+        McpToolDescriptor.Custom("relative_link", "Returns a link without an absolute URI.", ["app:read"], McpToolAccess.Read),
+        McpToolDescriptor.Custom("null_links", "Returns null resource links.", ["app:read"], McpToolAccess.Read)
     ];
 
     /// <inheritdoc/>
@@ -31,6 +32,7 @@ public class RichTool : IMcpToolSource
         },
         "array_structure" => McpToolResult.Success("[]") with { StructuredContent = JsonDocument.Parse("[]").RootElement.Clone() },
         "relative_link" => McpToolResult.Success("linked") with { ResourceLinks = [new McpResourceLink("notes/1", "Relative")] },
+        "null_links" => McpToolResult.Success("no links") with { ResourceLinks = null! },
         _ => McpToolResult.Success("no structure")
     });
 }

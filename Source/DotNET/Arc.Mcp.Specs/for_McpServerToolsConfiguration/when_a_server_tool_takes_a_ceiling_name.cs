@@ -2,9 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Mcp.for_McpServerToolsConfiguration.given;
 using Cratis.Arc.Mcp.for_McpToolCeiling.given;
 using Cratis.Arc.Queries;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
@@ -17,9 +19,16 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
     Exception? _otherCase;
     McpServerOptions _merged;
     McpServerOptions _exclusive;
+    McpServerOptions _default;
+    WarningRecorder _logger;
+    WarningRecorder _defaultLogger;
 
     void Because()
     {
+        _defaultLogger = new();
+        _default = Configure(null, "app_echo", _defaultLogger);
+        _logger = new();
+        Configure(false, "app_echo", _logger);
         _sameName = Catch.Exception(() => Configure(false, "declared_command"));
         _otherCase = Catch.Exception(() => Configure(false, "Declared_Command"));
         _merged = Configure(false, "app_echo");
@@ -31,10 +40,19 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
     [Fact] void should_serve_the_server_tool_next_to_the_ceiling() => _merged.ToolCollection!.PrimitiveNames.ShouldContainOnly("app_echo", "declared_command");
     [Fact] void should_serve_only_the_ceiling_when_exclusive() => _exclusive.ToolCollection!.PrimitiveNames.ShouldContainOnly("declared_command");
     [Fact] void should_remove_custom_call_handlers_when_exclusive() => _exclusive.Handlers.CallToolHandler.ShouldBeNull();
+    [Fact] void should_serve_only_the_ceiling_by_default() => _default.ToolCollection!.PrimitiveNames.ShouldContainOnly("declared_command");
+    [Fact] void should_remove_custom_call_handlers_by_default() => _default.Handlers.CallToolHandler.ShouldBeNull();
+    [Fact] void should_not_warn_by_default() => _defaultLogger.Warnings.ShouldEqual(0);
+    [Fact] void should_warn_when_serving_server_tools() => _logger.Warnings.ShouldEqual(1);
 
-    McpServerOptions Configure(bool exclusive, string serverToolName)
+    McpServerOptions Configure(bool? exclusive, string serverToolName, ILogger<McpServerToolsConfiguration>? logger = null)
     {
-        var options = Options.Create(new McpOptions { ApplicationName = "app", ExclusiveTools = exclusive });
+        var mcp = new McpOptions { ApplicationName = "app" };
+        if (exclusive is { } value)
+        {
+            mcp.ExclusiveTools = value;
+        }
+        var options = Options.Create(mcp);
         var factory = new McpToolCeilingFactory(new McpExposure().Expose<DeclaredCommand>("declared_command", "One."), options, _commands, _queries, []);
         var operations = new McpOperations(Substitute.For<ICommandPipeline>(), Substitute.For<IQueryPipeline>(), _queries, Options.Create(new ArcOptions()));
         var dispatcher = new McpToolDispatcher(Substitute.For<IHttpContextAccessor>(), factory, operations, NullLogger<McpToolDispatcher>.Instance);
@@ -44,7 +62,7 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
         };
         server.Handlers.CallToolHandler = (_, _) => ValueTask.FromResult(new ModelContextProtocol.Protocol.CallToolResult());
 
-        new McpServerToolsConfiguration(factory, dispatcher, options).PostConfigure(null, server);
+        new McpServerToolsConfiguration(factory, dispatcher, options, logger ?? NullLogger<McpServerToolsConfiguration>.Instance).PostConfigure(null, server);
         return server;
     }
 }
