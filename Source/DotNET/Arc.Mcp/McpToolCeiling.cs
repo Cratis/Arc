@@ -59,13 +59,15 @@ public sealed class McpToolCeiling
     /// <exception cref="McpExposedOperationUnknown">An operation is unknown to Arc.</exception>
     /// <exception cref="McpApprovalRequiredCommandExposed">A command requiring approval is exposed.</exception>
     /// <exception cref="McpToolHasNoScope">A tool would require no scope.</exception>
+    /// <exception cref="McpToolScopeBlank">An exposed operation declares a blank required scope.</exception>
     internal static McpToolCeiling Build(
         McpExposure exposure,
         McpOptions options,
         ICommandHandlerProviders commands,
         IQueryPerformerProviders queries)
     {
-        var handlerTypes = commands.Handlers.Select(_ => _.CommandType).ToHashSet();
+        var handlers = commands.Handlers.ToArray();
+        var handlerTypes = handlers.Select(_ => _.CommandType).ToHashSet();
         var performers = queries.Performers.ToArray();
         var tools = new Dictionary<string, McpToolDescriptor>(StringComparer.Ordinal);
 
@@ -84,53 +86,10 @@ public sealed class McpToolCeiling
                 throw new McpToolDescriptionMissing(declaration.Name);
             }
 
-            tools.Add(declaration.Name, Describe(declaration, options, handlerTypes, performers));
+            tools.Add(declaration.Name, McpToolMapper.Map(declaration, options, handlers, performers));
         }
 
         return new McpToolCeiling(tools.Values);
-    }
-
-    static McpToolDescriptor Describe(
-        McpExposureDeclaration declaration,
-        McpOptions options,
-        HashSet<Type> handlerTypes,
-        IQueryPerformer[] performers)
-    {
-        var isCommand = declaration.Kind == McpToolKind.Command;
-        if (isCommand)
-        {
-            var commandType = declaration.Operation as Type ?? throw new McpExposedOperationUnknown(declaration.Name, declaration.Operation);
-            if (commandType.IsDefined(typeof(Identity.Approvals.RequiresApprovalAttribute), true))
-            {
-                throw new McpApprovalRequiredCommandExposed(declaration.Name, commandType);
-            }
-            if (!handlerTypes.Contains(commandType))
-            {
-                throw new McpExposedOperationUnknown(declaration.Name, commandType);
-            }
-        }
-        else if (declaration.Kind != McpToolKind.Query ||
-            declaration.Operation is not string query ||
-            !performers.Any(_ => string.Equals(_.FullyQualifiedName.Value, query, StringComparison.Ordinal)))
-        {
-            throw new McpExposedOperationUnknown(declaration.Name, declaration.Operation);
-        }
-
-        var scope = isCommand ? options.WriteScope : options.ReadScope;
-        if (string.IsNullOrWhiteSpace(scope))
-        {
-            throw new McpToolHasNoScope(declaration.Name);
-        }
-
-        return new McpToolDescriptor(
-            declaration.Name,
-            declaration.Description!,
-            declaration.Kind,
-            isCommand ? declaration.Operation : new FullyQualifiedQueryName((string)declaration.Operation),
-            Array.AsReadOnly([scope]),
-            isCommand ? McpToolAccess.Write : McpToolAccess.Read,
-            null,
-            isCommand ? McpToolAnnotations.ForWrite : McpToolAnnotations.ForRead);
     }
 
     static IEnumerable<McpExposureDeclaration> Discover(HashSet<Type> handlerTypes, IQueryPerformer[] performers)

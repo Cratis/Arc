@@ -44,12 +44,15 @@ public class a_ceiling_context : Specification
         _handlers[typeof(TCommand)] = handler;
     }
 
-    protected void AddPerformerFor(string method)
+    protected void AddPerformerFor(string method, bool supportsPaging = false, params QueryParameter[] parameters)
     {
         var performer = Substitute.For<IQueryPerformer>();
         performer.Name.Returns(new QueryName(method));
         performer.FullyQualifiedName.Returns(new FullyQualifiedQueryName($"{typeof(ReadModelWithQueries).FullName}.{method}"));
         performer.ReadModelType.Returns(typeof(ReadModelWithQueries));
+        performer.Type.Returns(typeof(ReadModelWithQueries));
+        performer.SupportsPaging.Returns(supportsPaging);
+        performer.Parameters.Returns(new QueryParameters(parameters));
         _performers.Add(performer);
     }
 
