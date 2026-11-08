@@ -1,0 +1,93 @@
+---
+title: "Serving MCP tools from Cratis Arc"
+description: Expose commands and queries to MCP clients on the Cratis Arc capabilities port, with scoped access, a fixed tool ceiling, an Origin check, and protected resource metadata.
+---
+
+The `Cratis.Arc.Mcp` package serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint from your Arc application. MCP clients call the commands and queries you choose, as the verified caller the [capability gate](capability-hosting.md) admitted. Nothing is exposed unless you declare it.
+
+## What it does
+
+The endpoint is stateless: every request is one call that runs in the scope of its HTTP request. It is served only on the capabilities [endpoint group](endpoint-groups.md) port, behind the capability gate. A request on the default port is not served. Gate refusals use the MCP error shape, with `WWW-Authenticate` for authentication failures.
+
+The tools a caller sees depend on that caller's scopes. A caller without the write scope never sees a write tool, and a call to a tool outside the caller's scopes is refused before it reaches the server.
+
+## Turn it on
+
+Capability hosting with a verified caller installation is required. Then add `WithMcp` and map the endpoint:
+
+```csharp
+builder.AddCratisArc(
+    options => options.EndpointGroups.Assign("capabilities", capabilityPort),
+    configureBuilder: arc => arc
+        .WithCapabilities()
+        .WithVerifiedCallers(callers => /* your installation */)
+        .WithMcp(mcp => mcp
+            .Configure(options =>
+            {
+                options.ApplicationName = "notes";
+                options.PublicOrigin = "https://notes.example.test";
+            })
+            .Expose<AddNote>("add_note", "Adds a note.")
+            .ExposeQuery("Notes.NoteReadModel.All", "list_notes", "Lists notes.")));
+
+var app = builder.Build();
+app.UseCratisArc();
+app.MapCratisArcMcp();
+```
+
+You can also declare a tool next to the code with `[ExposeOverMcp("add_note", Description = "Adds a note.")]` on a command class or a read model query method. Tool names are explicit and stable; they are never derived from the CLR name. A tool without a description fails startup.
+
+Query tools take the query parameters as arguments. Like the REST endpoints, paging applies only when `page_size` is given (with an optional `page`), and an argument value must be a scalar, or an array for a collection parameter. Streaming query results are not available as tools.
+
+## Scopes
+
+Read tools require the read scope and write tools require the write scope. By default they are `<ApplicationName>:read` and `<ApplicationName>:write`; set `ReadScope` and `WriteScope` to choose your own. If neither an application name nor an explicit scope is configured, startup fails with `McpToolHasNoScope` rather than exposing a tool that requires no scope.
+
+## Curated tools with `IMcpToolSource`
+
+Implement `IMcpToolSource` for a tool that is not a plain command or query, and register it with `AddToolSource<TSource>()`. The source describes its tools (name, description, required scopes, whether it reads or writes, and an input schema) and handles the call. The ceiling checks every described tool at startup:
+
+- The name and description must be valid, and names must be unique.
+- The tool must require at least one non-blank scope.
+- A tool that writes must require the write scope. Requiring only the read scope fails startup with `McpWriteToolLacksWriteScope`.
+
+An exception thrown by a tool is reported to the caller as a generic tool error. Its message is not returned.
+
+## The ceiling
+
+The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
+
+## Credentials and protected resource metadata
+
+`Profile` selects the accepted credentials:
+
+| Profile | Accepts |
+| --- | --- |
+| `PatOnly` (default) | Personal access tokens. No metadata is advertised. |
+| `OAuthOnly` | OAuth access tokens. |
+| `Combined` | Both, each by its own verifier. |
+
+The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. Startup validates them:
+
+- `PublicOrigin` must be an origin (no path, query, or fragment) and use `https`. Plain `http` is accepted only for loopback.
+- `Resource` must be `PublicOrigin` plus `Path`, with no fragment, query, or user info.
+
+## Origin check
+
+Browsers attach an `Origin` header to cross-site requests, which lets a web page call a local MCP endpoint. The endpoint therefore refuses a request whose `Origin` is not allowed, with `403`. A request without an `Origin` header, such as one from a command-line or desktop client, is allowed. The allowed set is `PublicOrigin` plus `AllowedOrigins`:
+
+```csharp
+mcp.Configure(options =>
+{
+    options.PublicOrigin = "https://notes.example.test";
+    options.AllowedOrigins.Add("https://app.example.test");
+});
+```
+
+Each entry must be an `https` origin (loopback may use `http`). Comparison ignores case. More than one `Origin` value, or an `Origin` that is not an origin (such as `null` or a URL with a path), is refused.
+
+## Related
+
+- [Capability hosting](capability-hosting.md)
+- [Endpoint groups](endpoint-groups.md)
+- [Verified callers](asp-net-core/verified-callers.md)
