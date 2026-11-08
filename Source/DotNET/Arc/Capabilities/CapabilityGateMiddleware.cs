@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using System.Text.Json;
+using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Authentication;
@@ -44,7 +45,7 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
-        var resolution = await context.RequestServices.GetRequiredService<IVerifiedCallerAccessor>().GetCurrent();
+        var resolution = await ResolveCapabilityCaller(context);
         if (resolution.Caller is not { } caller)
         {
             var refusal = resolution.Refusal!.Value;
@@ -91,6 +92,19 @@ internal sealed class CapabilityGateMiddleware(
         context.Items[VerifiedCallerPrincipal.ItemKey] = principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
+    }
+
+    static Task<CallerResolution> ResolveCapabilityCaller(HttpContext context)
+    {
+        if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
+        {
+            var presentation = context.RequestServices.GetRequiredService<CredentialPresentationGate>().Inspect(new AspNetCoreHttpRequestContext(context));
+            if (presentation.Refusal is not null || presentation.Shape != PresentedCredentialShape.PatBearer)
+            {
+                return Task.FromResult(new CallerResolution(null, CallerRefusal.SourceRefused));
+            }
+        }
+        return context.RequestServices.GetRequiredService<IVerifiedCallerAccessor>().GetCurrent();
     }
 
     static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)

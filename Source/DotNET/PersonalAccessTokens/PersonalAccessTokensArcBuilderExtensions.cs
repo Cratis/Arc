@@ -12,12 +12,17 @@ namespace Cratis.Arc;
 public static class PersonalAccessTokensArcBuilderExtensions
 {
     /// <summary>
-    /// Installs resource-local PATs without forwarding keys. Requires a resource, audience, environment and person directory.
-    /// Without internal authoritative storage, recovery and policy adapters, issuance and verification fail closed.
+    /// Installs resource-local PATs. Requires a resource, audience, environment and person directory.
+    /// Without authoritative storage, recovery and policy adapters, issuance and verification fail closed.
     /// </summary>
+    /// <remarks>
+    /// To verify signed browser callers for issuance on the same resource, configure signed v2 forwarding and
+    /// call <see cref="VerifiedCallersBuilder.AllowPersonalAccessTokenCallers"/> in the same delegate.
+    /// This is one installation; do not also call WithVerifiedCallers. Capability endpoints remain PAT-only.
+    /// </remarks>
     /// <param name="builder">The Arc builder.</param>
     /// <param name="options">The explicit resource key, scope and lifetime limits and retired namespaces.</param>
-    /// <param name="configure">The receiving caller installation, without signed-forwarding configuration.</param>
+    /// <param name="configure">The receiving caller installation, optionally composing signed browser issuance with PAT callers.</param>
     /// <returns>The builder for continued configuration.</returns>
     public static IArcBuilder WithPersonalAccessTokens(this IArcBuilder builder, PatOptions options, Action<VerifiedCallersBuilder> configure)
     {
