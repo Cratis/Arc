@@ -12,4 +12,9 @@ public static class CapabilityProtocol
     /// The REST protocol.
     /// </summary>
     public const string Rest = "rest";
+
+    /// <summary>
+    /// The Model Context Protocol.
+    /// </summary>
+    public const string Mcp = "mcp";
 }

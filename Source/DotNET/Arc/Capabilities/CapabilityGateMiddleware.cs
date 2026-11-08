@@ -50,19 +50,19 @@ internal sealed class CapabilityGateMiddleware(
         {
             var refusal = resolution.Refusal!.Value;
             logger.CallerRefused(refusal);
-            await Refuse(context, refusal.HttpStatus());
+            await Refuse(context, new CapabilityRefusal(refusal.HttpStatus(), refusal));
             return;
         }
         if (!CallerAdmission.Allows(caller, _allowed))
         {
-            await Refuse(context, StatusCodes.Status403Forbidden);
+            await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
             return;
         }
 
         if (await ConflictsWithAnotherPrincipal(context, caller))
         {
             logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
-            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            await Refuse(context, new CapabilityRefusal(CallerRefusal.AmbiguousPrincipal.HttpStatus(), CallerRefusal.AmbiguousPrincipal));
             return;
         }
 
@@ -78,13 +78,13 @@ internal sealed class CapabilityGateMiddleware(
         {
             // A claims transformation or another component dropped the verified identity: the principal cannot be proved.
             logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
-            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            await Refuse(context, new CapabilityRefusal(CallerRefusal.AmbiguousPrincipal.HttpStatus(), CallerRefusal.AmbiguousPrincipal));
             return;
         }
 
         if (!MembershipAllows(context, caller, principal))
         {
-            await Refuse(context, StatusCodes.Status403Forbidden);
+            await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
             return;
         }
 
@@ -146,6 +146,11 @@ internal sealed class CapabilityGateMiddleware(
             return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
         });
     }
+
+    static Task Refuse(HttpContext context, CapabilityRefusal refusal) =>
+        context.GetEndpoint()?.Metadata.GetMetadata<ICapabilityRefusalWriter>() is { } writer
+            ? writer.Write(context, refusal)
+            : Refuse(context, refusal.StatusCode);
 
     static async Task Refuse(HttpContext context, int status)
     {
