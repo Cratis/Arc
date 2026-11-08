@@ -59,13 +59,15 @@ The set of tools is fixed at startup. Exposure, scopes, names, and input schemas
 
 ## Credentials and protected resource metadata
 
-`Profile` selects the accepted credentials:
+`Profile` selects the accepted credentials, and the endpoint enforces it against the verified caller's credential kind:
 
 | Profile | Accepts |
 | --- | --- |
 | `PatOnly` (default) | Personal access tokens. No metadata is advertised. |
 | `OAuthOnly` | OAuth access tokens. |
 | `Combined` | Both, each by its own verifier. |
+
+A caller verified with any other credential kind, such as a browser session, is refused with the same `401` and `WWW-Authenticate` challenge as a request without a caller, and the tool does not run. The refusal says nothing about why. The default is `PatOnly`.
 
 The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. Startup validates them:
 

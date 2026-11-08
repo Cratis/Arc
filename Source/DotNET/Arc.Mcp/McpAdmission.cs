@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Capabilities;
+using Cratis.Arc.Identity.Callers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
@@ -33,8 +34,9 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
             return;
         }
 
-        if (McpCaller.From(context) is not { } caller)
+        if (McpCaller.From(context) is not { } caller || !AcceptsCredential(settings.Profile, caller.Verified.CredentialKind))
         {
+            // A verified caller whose credential kind the profile does not accept is refused exactly like no caller.
             await McpChallenge.Write(context, StatusCodes.Status401Unauthorized, "unauthorized", McpChallenge.Unauthorized(settings));
             return;
         }
@@ -66,6 +68,14 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         context.Request.ContentLength = body.Length;
         await next(context);
     }
+
+    static bool AcceptsCredential(McpProfile profile, CallerCredentialKind kind) => profile switch
+    {
+        McpProfile.PatOnly => kind == CallerCredentialKind.PersonalAccessToken,
+        McpProfile.OAuthOnly => kind == CallerCredentialKind.OAuthGrant,
+        McpProfile.Combined => kind is CallerCredentialKind.PersonalAccessToken or CallerCredentialKind.OAuthGrant,
+        _ => false
+    };
 
     static async Task<byte[]?> ReadBounded(HttpContext context, long limit)
     {
