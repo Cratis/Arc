@@ -3,14 +3,16 @@
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
-/// Filters <c>tools/list</c> down to the tools the verified caller's scopes cover. A request without a verified caller
-/// lists nothing.
+/// Filters <c>tools/list</c> down to the ceiling tools the verified caller's scopes cover, plus the tools the application
+/// registered directly on the server unless <see cref="McpOptions.ExclusiveTools"/> is set. A request without a verified
+/// caller lists nothing.
 /// </summary>
 internal static class McpToolListFilter
 {
@@ -26,11 +28,13 @@ internal static class McpToolListFilter
             var services = request.Services;
             var caller = McpCaller.From(services?.GetService<IHttpContextAccessor>()?.HttpContext);
             var ceiling = services?.GetService<McpToolCeilingFactory>()?.Ceiling;
+            var exclusive = services?.GetService<IOptions<McpOptions>>()?.Value.ExclusiveTools ?? true;
             result.Tools = [.. result.Tools.Where(tool =>
                 caller is not null &&
                 ceiling is not null &&
-                ceiling.TryGet(tool.Name, out var descriptor) &&
-                caller.Holds(descriptor!.RequiredScopes))];
+                (ceiling.TryGet(tool.Name, out var descriptor)
+                    ? caller.Holds(descriptor!.RequiredScopes)
+                    : !exclusive))];
             return result;
         };
 }

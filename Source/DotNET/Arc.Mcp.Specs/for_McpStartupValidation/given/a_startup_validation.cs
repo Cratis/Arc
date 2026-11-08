@@ -41,6 +41,9 @@ public class a_startup_validation : Specification
         _services.AddSingleton(Options.Create(_arc));
         _services.AddSingleton(Substitute.For<ICommandHandlerProviders>());
         _services.AddSingleton(Substitute.For<IQueryPerformerProviders>());
+        _services.AddSingleton(Substitute.For<ICommandPipeline>());
+        _services.AddSingleton(Substitute.For<IQueryPipeline>());
+        _services.AddLogging();
         _provider = _services.BuildServiceProvider();
         var validation = ActivatorUtilities.CreateInstance<McpStartupValidation>(_provider);
         _error = Catch.Exception(() => validation.StartingAsync(CancellationToken.None).GetAwaiter().GetResult());

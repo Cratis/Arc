@@ -57,6 +57,20 @@ An exception thrown by a tool is reported to the caller as a generic tool error.
 
 The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
 
+## Tools registered on the MCP server
+
+Tools you register directly on the MCP server, for example with `AddMcpServer().WithTools(...)`, are served next to the ceiling. They are not part of the ceiling and Arc does not govern them:
+
+- They are listed to every admitted caller and their calls reach the server without a scope check. Arc still admits the request first, so the caller is verified, the credential profile and the `Origin` check apply, and the body is bounded.
+- Check scopes and any other authorization inside these tools yourself.
+- A server tool whose name matches a ceiling tool, ignoring case, fails startup with `McpToolNameTakenByServerTool`, so it can never stand in for a ceiling tool.
+
+Set `ExclusiveTools` to serve only the ceiling. Arc then removes the server's own tools, and any custom list or call handlers, from the server:
+
+```csharp
+mcp.Configure(options => options.ExclusiveTools = true);
+```
+
 ## Credentials and protected resource metadata
 
 `Profile` selects the accepted credentials, and the endpoint enforces it against the verified caller's credential kind:

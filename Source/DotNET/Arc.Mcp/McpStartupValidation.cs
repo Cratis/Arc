@@ -4,6 +4,7 @@
 using Cratis.Arc.Capabilities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Server;
 
 namespace Cratis.Arc.Mcp;
 
@@ -25,6 +26,7 @@ internal sealed class McpStartupValidation(
     /// <exception cref="CapabilityEndpointGroupHasNoPort">The capability group has no port.</exception>
     /// <exception cref="McpOptionsInvalid">Options are missing or invalid for the profile.</exception>
     /// <exception cref="InvalidMcpConfiguration">The exposure would not fail closed.</exception>
+    /// <exception cref="McpToolNameTakenByServerTool">A tool registered on the MCP server has the name of a ceiling tool.</exception>
     public Task StartingAsync(CancellationToken cancellationToken)
     {
         if (services.GetService(typeof(CapabilityEndpointSelection)) is null)
@@ -47,6 +49,9 @@ internal sealed class McpStartupValidation(
 
         // Building the ceiling validates every declaration; a failure is cached and rethrown to every caller.
         _ = ceiling.Ceiling;
+
+        // Resolving the server options merges the ceiling with the server's own tools, so a name collision fails here.
+        _ = (services.GetService(typeof(IOptions<McpServerOptions>)) as IOptions<McpServerOptions>)?.Value;
         return Task.CompletedTask;
     }
 

@@ -43,6 +43,10 @@ public class an_mcp_host : Specification
     {
     }
 
+    protected virtual void ConfigureServices(IServiceCollection services)
+    {
+    }
+
     protected CancellationToken CancellationToken => global::Xunit.TestContext.Current.CancellationToken;
 
     async Task Establish()
@@ -72,6 +76,7 @@ public class an_mcp_host : Specification
         builder.Services.AddScoped(_ => _verified);
         builder.Services.AddSingleton(_probe);
         RegisterCommands(builder.Services);
+        ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
         _app.MapCratisArcMcp();

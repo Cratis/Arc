@@ -77,5 +77,12 @@ public class McpOptions
     /// </summary>
     public long MaxRequestBodySize { get; set; } = 1024 * 1024;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether only the tools of the ceiling are served. False by default: tools the
+    /// application registers directly on the MCP server are served next to the ceiling, but are not governed by it.
+    /// When true, those tools and any custom tool list or call handlers are removed.
+    /// </summary>
+    public bool ExclusiveTools { get; set; }
+
     string? DefaultScope(string suffix) => string.IsNullOrWhiteSpace(ApplicationName) ? null : $"{ApplicationName}:{suffix}";
 }
