@@ -31,14 +31,39 @@ public static class McpVectorRunner
 
     static readonly Dictionary<int, string> _notApplicable = new()
     {
-        [2] = Verifier, [3] = Verifier, [6] = Verifier, [7] = Verifier, [8] = Verifier, [9] = Verifier, [12] = Verifier,
-        [13] = Client, [14] = Client,
-        [15] = AuthorizationServer, [16] = AuthorizationServer, [17] = AuthorizationServer,
-        [20] = Client, [21] = Client, [22] = Client, [23] = Client,
-        [24] = Verifier, [28] = Verifier, [29] = Verifier, [30] = Verifier, [31] = Verifier, [32] = Verifier, [33] = Verifier, [34] = Verifier, [35] = Verifier,
+        [2] = Verifier,
+        [3] = Verifier,
+        [6] = Verifier,
+        [7] = Verifier,
+        [8] = Verifier,
+        [9] = Verifier,
+        [12] = Verifier,
+        [13] = Client,
+        [14] = Client,
+        [15] = AuthorizationServer,
+        [16] = AuthorizationServer,
+        [17] = AuthorizationServer,
+        [20] = Client,
+        [21] = Client,
+        [22] = Client,
+        [23] = Client,
+        [24] = Verifier,
+        [28] = Verifier,
+        [29] = Verifier,
+        [30] = Verifier,
+        [31] = Verifier,
+        [32] = Verifier,
+        [33] = Verifier,
+        [34] = Verifier,
+        [35] = Verifier,
         [36] = Client,
-        [37] = AuthorizationServer, [38] = AuthorizationServer, [39] = AuthorizationServer,
-        [42] = Verifier, [43] = Verifier, [44] = Verifier, [45] = Verifier
+        [37] = AuthorizationServer,
+        [38] = AuthorizationServer,
+        [39] = AuthorizationServer,
+        [42] = Verifier,
+        [43] = Verifier,
+        [44] = Verifier,
+        [45] = Verifier
     };
 
     /// <summary>

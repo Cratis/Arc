@@ -27,4 +27,14 @@ public record NoteReadModel(string Text)
             .Where(_ => prefix is null || _.Text.StartsWith(prefix, StringComparison.Ordinal))
             .AsQueryable();
     }
+
+    /// <summary>
+    /// Streams the notes, which a one-shot tool call cannot carry.
+    /// </summary>
+    /// <returns>The notes as an asynchronous stream.</returns>
+    public static async IAsyncEnumerable<NoteReadModel> Stream()
+    {
+        yield return new NoteReadModel("streamed");
+        await Task.CompletedTask;
+    }
 }

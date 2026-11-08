@@ -26,7 +26,8 @@ public class when_an_oauth_caller_lacks_the_write_scope : an_mcp_host
     }
 
     [Fact] void should_refuse_as_forbidden() => _refused.Status.ShouldEqual(HttpStatusCode.Forbidden);
-    [Fact] void should_challenge_for_step_up_through_the_configured_metadata() =>
+    [Fact]
+    void should_challenge_for_step_up_through_the_configured_metadata() =>
         _refused.Challenge.ShouldEqual($"Bearer error=\"insufficient_scope\", scope=\"app:write\", resource_metadata=\"{PublicOrigin}/.well-known/oauth-protected-resource/mcp\"");
     [Fact] void should_not_dispatch_the_refused_call() => _dispatchedWhenRefused.ShouldEqual(0);
     [Fact] void should_run_the_call_once_the_scope_is_granted_in_the_same_setup() => (_control.IsToolError, _probe.Count).ShouldEqual((false, 1));

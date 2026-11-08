@@ -15,9 +15,11 @@ public class when_calling_query_tools : an_mcp_host
     McpResponse _arrayArgument;
     McpResponse _unknownArgument;
     McpResponse _listed;
+    McpResponse _streamed;
 
     protected override void ConfigureMcp(McpBuilder mcp) =>
-        mcp.ExposeQuery($"{typeof(NoteReadModel).FullName}.{nameof(NoteReadModel.All)}", "list_notes", "Lists notes.");
+        mcp.ExposeQuery($"{typeof(NoteReadModel).FullName}.{nameof(NoteReadModel.All)}", "list_notes", "Lists notes.")
+            .ExposeQuery($"{typeof(NoteReadModel).FullName}.{nameof(NoteReadModel.Stream)}", "stream_notes", "Streams notes.");
 
     async Task Because()
     {
@@ -28,6 +30,7 @@ public class when_calling_query_tools : an_mcp_host
         _pageWithoutSize = await CallTool("list_notes", """{"page":2}""");
         _objectArgument = await CallTool("list_notes", """{"prefix":{"startsWith":"b"}}""");
         _arrayArgument = await CallTool("list_notes", """{"prefix":["a","b"]}""");
+        _streamed = await CallTool("stream_notes", "{}");
         _unknownArgument = await CallTool("list_notes", """{"tenant":"tenant-b"}""");
     }
 
@@ -39,5 +42,6 @@ public class when_calling_query_tools : an_mcp_host
     [Fact] void should_refuse_an_object_argument() => _objectArgument.IsToolError.ShouldBeTrue();
     [Fact] void should_refuse_an_array_for_a_single_value_argument() => _arrayArgument.IsToolError.ShouldBeTrue();
     [Fact] void should_refuse_an_argument_the_query_does_not_declare() => _unknownArgument.IsToolError.ShouldBeTrue();
+    [Fact] void should_refuse_a_streaming_query_instead_of_serving_it_without_emission_identity() => (_streamed.IsToolError, _streamed.ToolText.Contains("streamed")).ShouldEqual((true, false));
     [Fact] void should_not_run_a_refused_call() => _probe.Dispatched.Count(_ => _.Operation == "list_notes").ShouldEqual(3);
 }
