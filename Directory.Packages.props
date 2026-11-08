@@ -17,15 +17,15 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.123.1" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.123.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.123.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.142.0" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.142.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.142.0" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.33.1" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.33.1" />
-    <PackageVersion Include="Cratis.Screenplay" Version="5.1.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.19.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.19.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.19.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="6.0.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.20.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.20.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.20.0" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.14" />
