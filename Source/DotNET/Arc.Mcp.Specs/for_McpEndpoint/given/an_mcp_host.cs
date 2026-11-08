@@ -35,6 +35,14 @@ public class an_mcp_host : Specification
     protected virtual McpProfile Profile => McpProfile.PatOnly;
     protected virtual long MaxRequestBodySize => 1024 * 1024;
 
+    protected virtual void ConfigureMcp(McpBuilder mcp)
+    {
+    }
+
+    protected virtual void ConfigureOptions(McpOptions options)
+    {
+    }
+
     protected CancellationToken CancellationToken => global::Xunit.TestContext.Current.CancellationToken;
 
     async Task Establish()
@@ -49,10 +57,13 @@ public class an_mcp_host : Specification
             configureBuilder: arc => arc
                 .WithoutControllers()
                 .WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector())
-                .WithMcp(mcp => mcp
-                    .Configure(Configure)
-                    .Expose<WriteNote>("write_note", "Writes a note.")
-                    .AddToolSource<WhoAmI>()));
+                .WithMcp(mcp =>
+                {
+                    mcp.Configure(Configure)
+                        .Expose<WriteNote>("write_note", "Writes a note.")
+                        .AddToolSource<WhoAmI>();
+                    ConfigureMcp(mcp);
+                }));
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
         builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
@@ -79,15 +90,25 @@ public class an_mcp_host : Specification
     protected void AuthenticateIn(string tenant, CallerCredentialKind credential, params string[] scopes) =>
         _verified.GetCurrent().Returns(new CallerResolution(Caller(credential, tenant, scopes), null));
 
+    protected static VerifiedCaller VerifiedCallerFor(CallerCredentialKind credential, string tenant, params string[] scopes) => Caller(credential, tenant, scopes);
+
+    protected void Refuse(CallerRefusal refusal) => _verified.GetCurrent().Returns(new CallerResolution(null, refusal));
+
     protected void Unauthenticate() => _verified.GetCurrent().Returns(new CallerResolution(null, CallerRefusal.NoCredential));
 
-    protected Task<McpResponse> Post(string body, string accept = "application/json, text/event-stream", string? host = null)
+    protected Task<McpResponse> Post(
+        string body,
+        string accept = "application/json, text/event-stream",
+        string? host = null,
+        Action<HttpRequestMessage>? customize = null,
+        int? port = null)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{_capabilityPort}/mcp")
+        var request = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{port ?? _capabilityPort}/mcp")
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
         request.Headers.TryAddWithoutValidation("Accept", accept);
+        customize?.Invoke(request);
         if (host is not null)
         {
             request.Headers.Host = host;
@@ -100,8 +121,8 @@ public class an_mcp_host : Specification
     protected Task<McpResponse> CallTool(string name, string arguments) =>
         Post($$$"""{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"{{{name}}}","arguments":{{{arguments}}}}}""");
 
-    protected Task<McpResponse> ListTools() =>
-        Post("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""");
+    protected Task<McpResponse> ListTools(Action<HttpRequestMessage>? customize = null) =>
+        Post("""{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}""", customize: customize);
 
     protected Task<McpResponse> Get(string path, string? host = null)
     {
@@ -171,6 +192,8 @@ public class an_mcp_host : Specification
             options.PublicOrigin = PublicOrigin;
             options.AuthorizationServers.Add("https://login.example.test");
         }
+
+        ConfigureOptions(options);
     }
 
     async Task<McpResponse> Send(HttpRequestMessage request)

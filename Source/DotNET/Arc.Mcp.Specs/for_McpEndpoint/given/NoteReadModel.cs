@@ -1,0 +1,30 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Capabilities;
+using Cratis.Arc.Queries.ModelBound;
+
+namespace Cratis.Arc.Mcp.for_McpEndpoint.given;
+
+/// <summary>
+/// A read model with a query that the specs that need it expose over MCP explicitly.
+/// </summary>
+/// <param name="Text">The note.</param>
+[ReadModel]
+public record NoteReadModel(string Text)
+{
+    /// <summary>
+    /// Gets the notes, optionally those starting with a prefix.
+    /// </summary>
+    /// <param name="prefix">The prefix.</param>
+    /// <param name="probe">The probe.</param>
+    /// <param name="callers">The capability callers.</param>
+    /// <returns>The notes.</returns>
+    public static IQueryable<NoteReadModel> All(string? prefix, McpProbe probe, ICapabilityCallers callers)
+    {
+        probe.Record("list_notes", prefix, callers.Current);
+        return new[] { new NoteReadModel("alpha"), new NoteReadModel("beta"), new NoteReadModel("gamma") }
+            .Where(_ => prefix is null || _.Text.StartsWith(prefix, StringComparison.Ordinal))
+            .AsQueryable();
+    }
+}
