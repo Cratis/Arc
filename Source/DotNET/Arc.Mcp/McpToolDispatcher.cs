@@ -86,7 +86,18 @@ internal sealed class McpToolDispatcher(
         try
         {
             var outcome = await operations.Run(call);
-            return new CallToolResult { Content = [new TextContentBlock { Text = outcome.Text }], IsError = outcome.IsError };
+            if (!IsWellFormed(tool, outcome))
+            {
+                logger.ToolResultMalformed(tool.Name);
+                return Error(Failed);
+            }
+
+            return new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = outcome.Text }, .. outcome.ResourceLinks.Select(ToBlock)],
+                StructuredContent = outcome.StructuredContent?.Clone(),
+                IsError = outcome.IsError
+            };
         }
         catch (McpArgumentsInvalid)
         {
@@ -98,6 +109,32 @@ internal sealed class McpToolDispatcher(
             return Error(Failed);
         }
     }
+
+    static bool IsWellFormed(McpToolDescriptor tool, McpToolResult outcome)
+    {
+        if (outcome.StructuredContent is { ValueKind: not JsonValueKind.Object })
+        {
+            return false;
+        }
+        if (tool.OutputSchema is not null && !outcome.IsError && outcome.StructuredContent is null)
+        {
+            return false;
+        }
+
+        return (outcome.ResourceLinks ?? []).All(link =>
+            link is not null &&
+            !string.IsNullOrWhiteSpace(link.Name) &&
+            Uri.TryCreate(link.Uri, UriKind.Absolute, out _));
+    }
+
+    static ResourceLinkBlock ToBlock(McpResourceLink link) => new()
+    {
+        Uri = link.Uri,
+        Name = link.Name,
+        Title = link.Title,
+        Description = link.Description,
+        MimeType = link.MimeType
+    };
 
     static CallToolResult Error(string message) => new() { Content = [new TextContentBlock { Text = message }], IsError = true };
 }

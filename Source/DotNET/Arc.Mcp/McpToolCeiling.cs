@@ -3,6 +3,7 @@
 
 using System.Collections.Frozen;
 using System.Reflection;
+using System.Text.Json;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 
@@ -62,6 +63,7 @@ public sealed class McpToolCeiling
     /// <exception cref="McpToolHasNoScope">A tool would require no scope.</exception>
     /// <exception cref="McpToolScopeBlank">An exposed operation declares a blank required scope.</exception>
     /// <exception cref="McpWriteToolLacksWriteScope">A curated tool that may change state does not require the write scope.</exception>
+    /// <exception cref="McpToolOutputSchemaInvalid">A curated tool declares an output schema that does not describe an object.</exception>
     internal static McpToolCeiling Build(
         McpExposure exposure,
         McpOptions options,
@@ -160,6 +162,10 @@ public sealed class McpToolCeiling
         {
             throw new McpWriteToolLacksWriteScope(described.Name);
         }
+        if (described.OutputSchema is not null && !DescribesAnObject(described.OutputSchema))
+        {
+            throw new McpToolOutputSchemaInvalid(described.Name);
+        }
 
         return described with
         {
@@ -169,6 +175,22 @@ public sealed class McpToolCeiling
             AlternativeScopes = [.. alternatives.Select(_ => (IReadOnlyList<string>)[.. _])],
             InputSchema = described.InputSchema ?? """{"type":"object"}"""
         };
+    }
+
+    static bool DescribesAnObject(string schema)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(schema);
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("type", out var type) &&
+                type.ValueKind == JsonValueKind.String &&
+                type.GetString() == "object";
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     static bool IsValidName(string? name)

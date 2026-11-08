@@ -79,6 +79,30 @@ The same check decides what `tools/list` shows, what the HTTP admission lets thr
 
 An exception thrown by a tool is reported to the caller as a generic tool error. Its message is not returned.
 
+### Rich results
+
+A curated tool can return more than text. Set `Title` and `OutputSchema` on the descriptor, and `StructuredContent` and `ResourceLinks` on the result:
+
+```csharp
+McpToolDescriptor.Custom("count_notes", "Counts notes.", ["notes:read"], McpToolAccess.Read) with
+{
+    Title = "Count notes",
+    OutputSchema = """{"type":"object","properties":{"count":{"type":"integer"}}}"""
+};
+
+McpToolResult.Success("""{"count":2}""") with
+{
+    StructuredContent = JsonDocument.Parse("""{"count":2}""").RootElement.Clone(),
+    ResourceLinks = [new McpResourceLink("notes://notes/1", "First note") { MimeType = "text/plain" }]
+};
+```
+
+The text is sent first, followed by one `resource_link` block for each link. Keep the text a serialized copy of the structured result so clients without structured support see the same data. Arc checks the shape and fails closed:
+
+- An output schema that is not a JSON schema of type `object` fails startup with `McpToolOutputSchemaInvalid`.
+- A result is replaced by a generic tool error when its structured content is not a JSON object, when a tool with an output schema succeeds without structured content, or when a link has no name or no absolute URI.
+- Arc does not validate structured content against the output schema.
+
 ## The ceiling
 
 The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.

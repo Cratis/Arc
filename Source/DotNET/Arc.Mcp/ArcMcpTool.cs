@@ -23,8 +23,10 @@ internal sealed class ArcMcpTool(McpToolDescriptor descriptor, McpToolDispatcher
     public override Tool ProtocolTool { get; } = new()
     {
         Name = descriptor.Name,
+        Title = descriptor.Title,
         Description = descriptor.Description,
         InputSchema = JsonDocument.Parse(descriptor.InputSchema ?? """{"type":"object"}""").RootElement.Clone(),
+        OutputSchema = descriptor.OutputSchema is null ? null : JsonDocument.Parse(descriptor.OutputSchema).RootElement.Clone(),
         Annotations = new ToolAnnotations
         {
             ReadOnlyHint = descriptor.Annotations.ReadOnly,

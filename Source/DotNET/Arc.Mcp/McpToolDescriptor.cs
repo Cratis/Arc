@@ -35,6 +35,17 @@ public sealed record McpToolDescriptor(
     public IReadOnlyList<IReadOnlyList<string>> AlternativeScopes { get; init; } = [];
 
     /// <summary>
+    /// Gets the title shown to people, if any.
+    /// </summary>
+    public string? Title { get; init; }
+
+    /// <summary>
+    /// Gets the JSON schema of the structured result of a curated tool, if any. It must describe an object; a tool that
+    /// declares it must return <see cref="McpToolResult.StructuredContent"/> on success.
+    /// </summary>
+    public string? OutputSchema { get; init; }
+
+    /// <summary>
     /// Describes a curated tool provided by an <see cref="IMcpToolSource"/>.
     /// </summary>
     /// <param name="name">The stable, explicit snake_case tool name.</param>

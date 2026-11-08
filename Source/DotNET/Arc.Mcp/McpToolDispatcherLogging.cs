@@ -12,4 +12,7 @@ internal static partial class McpToolDispatcherLogging
 {
     [LoggerMessage(LogLevel.Warning, "MCP tool '{Tool}' failed")]
     internal static partial void ToolFailed(this ILogger<McpToolDispatcher> logger, string tool, Exception exception);
+
+    [LoggerMessage(LogLevel.Warning, "MCP tool '{Tool}' returned a result that breaks the result rules; it was not sent")]
+    internal static partial void ToolResultMalformed(this ILogger<McpToolDispatcher> logger, string tool);
 }
