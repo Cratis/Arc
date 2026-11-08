@@ -38,6 +38,11 @@ internal sealed class McpToolDispatcher(
     internal const string InsufficientScope = "The caller lacks a scope this tool requires.";
 
     /// <summary>
+    /// The message for a tool an authorizer denied.
+    /// </summary>
+    internal const string NotAllowed = "The caller is not allowed to call this tool.";
+
+    /// <summary>
     /// The message for a tool that failed.
     /// </summary>
     internal const string Failed = "The tool failed.";
@@ -66,6 +71,11 @@ internal sealed class McpToolDispatcher(
         if (!caller.HoldsScopesFor(tool))
         {
             return Error(InsufficientScope);
+        }
+
+        if (!await McpToolAuthorizers.Allow(tool, caller, context!.RequestServices, cancellationToken))
+        {
+            return Error(NotAllowed);
         }
 
         var call = new McpOperationCall(tool, caller.Capability, arguments?.AsReadOnly() ?? new Dictionary<string, JsonElement>().AsReadOnly(), context!.RequestServices, cancellationToken);

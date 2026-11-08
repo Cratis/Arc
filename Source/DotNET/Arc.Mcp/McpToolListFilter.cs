@@ -26,15 +26,25 @@ internal static class McpToolListFilter
         {
             var result = await next(request, cancellationToken);
             var services = request.Services;
-            var caller = McpCaller.From(services?.GetService<IHttpContextAccessor>()?.HttpContext);
+            var http = services?.GetService<IHttpContextAccessor>()?.HttpContext;
+            var caller = McpCaller.From(http);
             var ceiling = services?.GetService<McpToolCeilingFactory>()?.Ceiling;
             var exclusive = services?.GetService<IOptions<McpOptions>>()?.Value.ExclusiveTools ?? true;
-            result.Tools = [.. result.Tools.Where(tool =>
-                caller is not null &&
-                ceiling is not null &&
-                (ceiling.TryGet(tool.Name, out var descriptor)
-                    ? caller.HoldsScopesFor(descriptor!)
-                    : !exclusive))];
+            var listed = new List<Tool>();
+            if (caller is not null && ceiling is not null && http is not null)
+            {
+                foreach (var tool in result.Tools)
+                {
+                    if (ceiling.TryGet(tool.Name, out var descriptor)
+                        ? caller.HoldsScopesFor(descriptor!) && await McpToolAuthorizers.Allow(descriptor!, caller, http.RequestServices, cancellationToken)
+                        : !exclusive)
+                    {
+                        listed.Add(tool);
+                    }
+                }
+            }
+
+            result.Tools = listed;
             return result;
         };
 }

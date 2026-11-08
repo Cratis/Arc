@@ -11,7 +11,8 @@ namespace Cratis.Arc.Mcp;
 
 /// <summary>
 /// Admits a request to the MCP transport after the capability gate: the caller must be verified, the body bounded, and
-/// a <c>tools/call</c> must be covered by the caller's scopes before the MCP server reads it.
+/// a <c>tools/call</c> of a ceiling tool must be covered by the caller's scopes and allowed by every
+/// <see cref="IMcpToolAuthorizer"/> before the MCP server reads it.
 /// </summary>
 /// <param name="options">The MCP options.</param>
 /// <param name="ceiling">The factory of the tool ceiling.</param>
@@ -57,10 +58,16 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
             return;
         }
 
-        var refusal = Inspect(body, caller);
+        var (refusal, tool) = Inspect(body, caller);
         if (refusal is not null)
         {
             await refusal(context, settings);
+            return;
+        }
+
+        if (tool is not null && !await McpToolAuthorizers.Allow(tool, caller, context.RequestServices, context.RequestAborted))
+        {
+            await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "forbidden");
             return;
         }
 
@@ -125,7 +132,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         }
     }
 
-    Func<HttpContext, McpOptions, Task>? Inspect(byte[] body, McpCaller caller)
+    (Func<HttpContext, McpOptions, Task>? Refusal, McpToolDescriptor? Tool) Inspect(byte[] body, McpCaller caller)
     {
         JsonDocument document;
         try
@@ -135,7 +142,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         }
         catch (JsonException)
         {
-            return InvalidRequest;
+            return (InvalidRequest, null);
         }
 
         using (document)
@@ -143,13 +150,13 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
             var root = document.RootElement;
             if (HasDuplicateProperties(root))
             {
-                return InvalidRequest;
+                return (InvalidRequest, null);
             }
 
             if (root.ValueKind == JsonValueKind.Array)
             {
                 // Batches were removed from MCP; refusing them keeps one request to one checked message.
-                return InvalidRequest;
+                return (InvalidRequest, null);
             }
 
             if (root.ValueKind != JsonValueKind.Object ||
@@ -160,18 +167,22 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
                 parameters.ValueKind != JsonValueKind.Object ||
                 !parameters.TryGetProperty("name", out var name) ||
                 name.ValueKind != JsonValueKind.String ||
-                !ceiling.Ceiling.TryGet(name.GetString(), out var tool) ||
-                caller.HoldsScopesFor(tool!))
+                !ceiling.Ceiling.TryGet(name.GetString(), out var tool))
             {
-                return null;
+                return (null, null);
             }
 
-            var scopes = tool.RequiredScopes;
-            return (context, settings) => McpChallenge.Write(
+            if (caller.HoldsScopesFor(tool!))
+            {
+                return (null, tool);
+            }
+
+            var scopes = tool!.RequiredScopes;
+            return ((context, settings) => McpChallenge.Write(
                 context,
                 StatusCodes.Status403Forbidden,
                 "insufficient_scope",
-                McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp));
+                McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), null);
         }
     }
 }

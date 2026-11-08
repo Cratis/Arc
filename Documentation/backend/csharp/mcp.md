@@ -83,6 +83,24 @@ An exception thrown by a tool is reported to the caller as a generic tool error.
 
 The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
 
+## Tool authorizers
+
+Scopes decide which tools a credential may use. For a decision scopes cannot express, such as a per-tenant plan or a feature flag, implement `IMcpToolAuthorizer` and register it with `AddToolAuthorizer<TAuthorizer>()`. Authorizers are resolved from the services of each request:
+
+```csharp
+public class PlanAuthorizer(IPlans plans) : IMcpToolAuthorizer
+{
+    public async ValueTask<bool> IsAllowed(McpToolAuthorization authorization) =>
+        await plans.Includes(authorization.Caller.Tenant, authorization.Tool.Name);
+}
+```
+
+Authorizers only narrow access:
+
+- They run only for a caller whose scopes already satisfy the tool.
+- Every registered authorizer must allow the tool. One that denies or throws hides the tool from `tools/list` and refuses the call with `403 forbidden` before the MCP server reads it. The dispatcher checks again before it runs the tool.
+- They apply to the tools of the ceiling only, not to tools registered directly on the MCP server.
+
 ## Tools registered on the MCP server
 
 Tools you register directly on the MCP server, for example with `AddMcpServer().WithTools(...)`, are served next to the ceiling. They are not part of the ceiling and Arc does not govern them:

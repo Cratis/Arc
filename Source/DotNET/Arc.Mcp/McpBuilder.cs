@@ -50,6 +50,18 @@ public sealed class McpBuilder
     }
 
     /// <summary>
+    /// Adds an authorizer that every tool of the ceiling must pass, on top of its scopes.
+    /// </summary>
+    /// <typeparam name="TAuthorizer">The authorizer type, resolved from the services of each request.</typeparam>
+    /// <returns>The builder for continuation.</returns>
+    public McpBuilder AddToolAuthorizer<TAuthorizer>()
+        where TAuthorizer : class, IMcpToolAuthorizer
+    {
+        _services.TryAddEnumerable(ServiceDescriptor.Scoped<IMcpToolAuthorizer, TAuthorizer>());
+        return this;
+    }
+
+    /// <summary>
     /// Exposes a command as a write tool.
     /// </summary>
     /// <typeparam name="TCommand">The command type.</typeparam>
