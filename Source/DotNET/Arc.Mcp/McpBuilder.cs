@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.Mcp;
 
@@ -33,6 +34,18 @@ public sealed class McpBuilder
     {
         ArgumentNullException.ThrowIfNull(configure);
         _services.Configure(configure);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a source of curated tools. Its tools join the frozen ceiling at startup and run as the verified caller.
+    /// </summary>
+    /// <typeparam name="TSource">The tool source type.</typeparam>
+    /// <returns>The builder for continuation.</returns>
+    public McpBuilder AddToolSource<TSource>()
+        where TSource : class, IMcpToolSource
+    {
+        _services.TryAddEnumerable(ServiceDescriptor.Singleton<IMcpToolSource, TSource>());
         return this;
     }
 

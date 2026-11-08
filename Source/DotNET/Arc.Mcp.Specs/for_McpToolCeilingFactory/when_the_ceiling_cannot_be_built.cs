@@ -22,17 +22,20 @@ public class when_the_ceiling_cannot_be_built : a_ceiling_context
             new McpExposure().Expose<DeclaredCommand>("same_name", "One.").ExposeQuery(QueryName(nameof(ReadModelWithQueries.Everything)), "same_name", "Two."),
             Options.Create(_options),
             _commands,
-            _queries);
+            _queries,
+            []);
         _unscoped = new McpToolCeilingFactory(
             new McpExposure().Expose<DeclaredCommand>("declared_command", "One."),
             Options.Create(new McpOptions()),
             _commands,
-            _queries);
+            _queries,
+            []);
         _valid = new McpToolCeilingFactory(
             new McpExposure().Expose<DeclaredCommand>("declared_command", "One."),
             Options.Create(_options),
             _commands,
-            _queries);
+            _queries,
+            []);
     }
 
     void Because()

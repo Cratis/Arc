@@ -65,5 +65,10 @@ public class McpOptions
     /// </summary>
     public McpProfile Profile { get; set; } = McpProfile.PatOnly;
 
+    /// <summary>
+    /// Gets or sets the largest MCP request body, in bytes, that is read. Larger requests are refused before any tool runs.
+    /// </summary>
+    public long MaxRequestBodySize { get; set; } = 1024 * 1024;
+
     string? DefaultScope(string suffix) => string.IsNullOrWhiteSpace(ApplicationName) ? null : $"{ApplicationName}:{suffix}";
 }

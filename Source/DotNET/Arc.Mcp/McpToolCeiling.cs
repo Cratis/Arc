@@ -52,6 +52,7 @@ public sealed class McpToolCeiling
     /// <param name="options">The MCP options.</param>
     /// <param name="commands">The command handler providers.</param>
     /// <param name="queries">The query performer providers.</param>
+    /// <param name="sources">The registered tool sources contributing curated tools.</param>
     /// <returns>The frozen ceiling.</returns>
     /// <exception cref="McpToolNameInvalid">A name is not a stable snake_case name.</exception>
     /// <exception cref="McpToolNameDuplicated">A name is declared twice.</exception>
@@ -64,7 +65,8 @@ public sealed class McpToolCeiling
         McpExposure exposure,
         McpOptions options,
         ICommandHandlerProviders commands,
-        IQueryPerformerProviders queries)
+        IQueryPerformerProviders queries,
+        IEnumerable<IMcpToolSource>? sources = null)
     {
         var handlers = commands.Handlers.ToArray();
         var handlerTypes = handlers.Select(_ => _.CommandType).ToHashSet();
@@ -89,6 +91,18 @@ public sealed class McpToolCeiling
             tools.Add(declaration.Name, McpToolMapper.Map(declaration, options, handlers, performers));
         }
 
+        foreach (var source in sources ?? [])
+        {
+            foreach (var described in source.Describe())
+            {
+                var tool = Curated(described, source);
+                if (!tools.TryAdd(tool.Name, tool))
+                {
+                    throw new McpToolNameDuplicated(tool.Name);
+                }
+            }
+        }
+
         return new McpToolCeiling(tools.Values);
     }
 
@@ -111,6 +125,34 @@ public sealed class McpToolCeiling
                 yield return new McpExposureDeclaration(McpToolKind.Query, performer.FullyQualifiedName.Value, attribute.Name, attribute.Description);
             }
         }
+    }
+
+    static McpToolDescriptor Curated(McpToolDescriptor described, IMcpToolSource source)
+    {
+        if (!IsValidName(described.Name))
+        {
+            throw new McpToolNameInvalid(described.Name);
+        }
+        if (string.IsNullOrWhiteSpace(described.Description))
+        {
+            throw new McpToolDescriptionMissing(described.Name);
+        }
+        if (described.RequiredScopes is not { Count: > 0 } scopes)
+        {
+            throw new McpToolHasNoScope(described.Name);
+        }
+        if (scopes.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new McpToolScopeBlank(described.Name);
+        }
+
+        return described with
+        {
+            Kind = McpToolKind.Custom,
+            Operation = source,
+            RequiredScopes = [.. scopes],
+            InputSchema = described.InputSchema ?? """{"type":"object"}"""
+        };
     }
 
     static bool IsValidName(string? name)

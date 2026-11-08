@@ -38,6 +38,11 @@ internal sealed class McpStartupValidation(
             throw new CapabilityEndpointGroupHasNoPort(group);
         }
 
+        if (capabilities.Value.GatedEndpoints is null)
+        {
+            throw new McpRequiresGatedEndpoints();
+        }
+
         ValidateOptions(options.Value);
 
         // Building the ceiling validates every declaration; a failure is cached and rethrown to every caller.
@@ -65,6 +70,11 @@ internal sealed class McpStartupValidation(
         if (string.IsNullOrWhiteSpace(value.Path) || !value.Path.StartsWith('/'))
         {
             throw new McpOptionsInvalid(nameof(McpOptions.Path), value.Profile);
+        }
+
+        if (value.MaxRequestBodySize <= 0)
+        {
+            throw new McpOptionsInvalid(nameof(McpOptions.MaxRequestBodySize), value.Profile);
         }
 
         if (value.Profile == McpProfile.PatOnly)

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Capabilities;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ public class a_startup_validation : Specification
     protected ServiceCollection _services;
     protected Action<McpBuilder> _mcp;
     protected bool _withCapabilities;
+    protected bool _withGatedEndpoints;
     protected Exception? _error;
     ServiceProvider _provider;
 
@@ -24,6 +26,7 @@ public class a_startup_validation : Specification
         _services = [];
         _mcp = _ => { };
         _withCapabilities = true;
+        _withGatedEndpoints = true;
     }
 
     protected void Validate()
@@ -32,7 +35,7 @@ public class a_startup_validation : Specification
         builder.Services.Returns(_services);
         if (_withCapabilities)
         {
-            builder.WithCapabilities();
+            builder.WithCapabilities(capabilities => capabilities.GatedEndpoints = _withGatedEndpoints ? new CapabilityEndpointSelector().ForRoutePattern("/other") : null);
         }
         builder.WithMcp(_mcp);
         _services.AddSingleton(Options.Create(_arc));

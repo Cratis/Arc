@@ -14,13 +14,15 @@ namespace Cratis.Arc.Mcp;
 /// <param name="options">The MCP options.</param>
 /// <param name="commands">The command handler providers.</param>
 /// <param name="queries">The query performer providers.</param>
+/// <param name="sources">The curated tool sources.</param>
 internal sealed class McpToolCeilingFactory(
     McpExposure exposure,
     IOptions<McpOptions> options,
     ICommandHandlerProviders commands,
-    IQueryPerformerProviders queries)
+    IQueryPerformerProviders queries,
+    IEnumerable<IMcpToolSource> sources)
 {
-    readonly Lazy<McpToolCeiling> _ceiling = new(() => McpToolCeiling.Build(exposure, options.Value, commands, queries));
+    readonly Lazy<McpToolCeiling> _ceiling = new(() => McpToolCeiling.Build(exposure, options.Value, commands, queries, sources));
 
     /// <summary>
     /// Gets the ceiling.

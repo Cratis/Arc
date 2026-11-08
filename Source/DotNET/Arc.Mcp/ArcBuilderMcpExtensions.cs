@@ -1,9 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Capabilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using ModelContextProtocol.AspNetCore;
+using ModelContextProtocol.Server;
 
 namespace Cratis.Arc.Mcp;
 
@@ -18,19 +22,38 @@ public static class ArcBuilderMcpExtensions
     /// <param name="builder">The Arc builder.</param>
     /// <param name="configure">An optional delegate declaring options and exposed operations.</param>
     /// <returns>The builder for continuation.</returns>
+    /// <remarks>
+    /// Map the endpoint with <see cref="McpEndpointRouteBuilderExtensions.MapCratisArcMcp"/>. The endpoint is served
+    /// only on the capabilities endpoint group, behind selective capability gating, and is stateless: every request
+    /// is one call that runs in the scope of its HTTP request, as the caller the capability gate verified.
+    /// </remarks>
     public static IArcBuilder WithMcp(this IArcBuilder builder, Action<McpBuilder>? configure = null)
     {
         var services = builder.Services;
         services.AddOptions<McpOptions>();
-        services.TryAddSingleton<McpToolCeilingFactory>();
-        services.TryAddSingleton(provider => provider.GetRequiredService<McpToolCeilingFactory>().Ceiling);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, McpStartupValidation>());
+        services.AddHttpContextAccessor();
 
-        var exposure = (McpExposure?)services.FirstOrDefault(_ => _.ServiceType == typeof(McpExposure))?.ImplementationInstance;
+        // Replace, not TryAdd: Arc's convention and self bindings may already have registered these with another
+        // lifetime, and the ceiling must be built exactly once so every part of MCP sees the same frozen tools.
+        services.Replace(ServiceDescriptor.Singleton<McpToolCeilingFactory, McpToolCeilingFactory>());
+        services.Replace(ServiceDescriptor.Singleton(provider => provider.GetRequiredService<McpToolCeilingFactory>().Ceiling));
+        services.Replace(ServiceDescriptor.Singleton<McpAdmission, McpAdmission>());
+        services.Replace(ServiceDescriptor.Singleton<McpRefusalWriter, McpRefusalWriter>());
+        services.Replace(ServiceDescriptor.Singleton<McpToolDispatcher, McpToolDispatcher>());
+        services.Replace(ServiceDescriptor.Singleton<McpOperations, McpOperations>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, McpStartupValidation>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<McpServerOptions>, McpServerToolsConfiguration>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<CapabilitiesOptions>, McpGatedEndpoints>());
+
+        var exposure = services.Where(_ => !_.IsKeyedService).Select(_ => _.ImplementationInstance).OfType<McpExposure>().FirstOrDefault();
         if (exposure is null)
         {
             exposure = new McpExposure();
-            services.AddSingleton(exposure);
+            services.Replace(ServiceDescriptor.Singleton(exposure));
+            services
+                .AddMcpServer()
+                .WithHttpTransport(_ => _.SessionMode = HttpServerSessionMode.Stateless)
+                .WithRequestFilters(_ => _.AddListToolsFilter(McpToolListFilter.Filter));
         }
 
         configure?.Invoke(new McpBuilder(services, exposure));
