@@ -63,7 +63,7 @@ internal sealed class McpToolDispatcher(
             throw new McpProtocolException($"Unknown tool: '{tool.Name}'", McpErrorCode.InvalidParams);
         }
 
-        if (!caller.Holds(tool.RequiredScopes))
+        if (!caller.HoldsScopesFor(tool))
         {
             return Error(InsufficientScope);
         }

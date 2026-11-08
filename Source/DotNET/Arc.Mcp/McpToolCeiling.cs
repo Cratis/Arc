@@ -146,7 +146,17 @@ public sealed class McpToolCeiling
         {
             throw new McpToolScopeBlank(described.Name);
         }
-        if (described.Access == McpToolAccess.Write && (options.WriteScope is not { } writeScope || !scopes.Contains(writeScope)))
+        var alternatives = described.AlternativeScopes ?? [];
+        if (alternatives.Any(_ => _ is not { Count: > 0 }))
+        {
+            throw new McpToolHasNoScope(described.Name);
+        }
+        if (alternatives.Any(_ => _.Any(string.IsNullOrWhiteSpace)))
+        {
+            throw new McpToolScopeBlank(described.Name);
+        }
+        if (described.Access == McpToolAccess.Write &&
+            (options.WriteScope is not { } writeScope || !scopes.Contains(writeScope) || alternatives.Any(_ => !_.Contains(writeScope))))
         {
             throw new McpWriteToolLacksWriteScope(described.Name);
         }
@@ -156,6 +166,7 @@ public sealed class McpToolCeiling
             Kind = McpToolKind.Custom,
             Operation = source,
             RequiredScopes = [.. scopes],
+            AlternativeScopes = [.. alternatives.Select(_ => (IReadOnlyList<string>)[.. _])],
             InputSchema = described.InputSchema ?? """{"type":"object"}"""
         };
     }

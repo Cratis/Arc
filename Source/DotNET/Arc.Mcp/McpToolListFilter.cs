@@ -33,7 +33,7 @@ internal static class McpToolListFilter
                 caller is not null &&
                 ceiling is not null &&
                 (ceiling.TryGet(tool.Name, out var descriptor)
-                    ? caller.Holds(descriptor!.RequiredScopes)
+                    ? caller.HoldsScopesFor(descriptor!)
                     : !exclusive))];
             return result;
         };

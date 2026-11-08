@@ -39,9 +39,9 @@ internal sealed record McpCaller(CapabilityCaller Capability, VerifiedCaller Ver
     }
 
     /// <summary>
-    /// Determines whether the caller holds every scope in a set.
+    /// Determines whether the caller's scopes satisfy a tool.
     /// </summary>
-    /// <param name="scopes">The required scopes.</param>
-    /// <returns>True when every scope is held.</returns>
-    internal bool Holds(IEnumerable<string> scopes) => scopes.All(Verified.Scopes.Contains);
+    /// <param name="tool">The tool.</param>
+    /// <returns>True when the caller holds the required scopes or one complete alternative set.</returns>
+    internal bool HoldsScopesFor(McpToolDescriptor tool) => tool.IsSatisfiedBy(Verified.Scopes);
 }

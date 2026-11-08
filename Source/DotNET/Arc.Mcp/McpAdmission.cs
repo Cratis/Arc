@@ -161,7 +161,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
                 !parameters.TryGetProperty("name", out var name) ||
                 name.ValueKind != JsonValueKind.String ||
                 !ceiling.Ceiling.TryGet(name.GetString(), out var tool) ||
-                caller.Holds(tool!.RequiredScopes))
+                caller.HoldsScopesFor(tool!))
             {
                 return null;
             }

@@ -66,6 +66,17 @@ The ceiling checks every described tool at startup:
 - The tool must require at least one non-blank scope.
 - A tool that writes must require the write scope. Requiring only the read scope fails startup with `McpWriteToolLacksWriteScope`.
 
+A curated tool can also accept alternative scope sets. A caller may call the tool when it holds every required scope, or every scope of any one alternative set:
+
+```csharp
+McpToolDescriptor.Custom("audit_log", "Reads the audit log.", ["notes:read"], McpToolAccess.Read) with
+{
+    AlternativeScopes = [["audit:read", "audit:export"]]
+}
+```
+
+The same check decides what `tools/list` shows, what the HTTP admission lets through and what the dispatcher runs, so they always agree. An empty or blank alternative set fails startup, and for a tool that writes every alternative set must include the write scope. A caller that holds only part of a set is refused, and the `insufficient_scope` challenge names the required scopes.
+
 An exception thrown by a tool is reported to the caller as a generic tool error. Its message is not returned.
 
 ## The ceiling
