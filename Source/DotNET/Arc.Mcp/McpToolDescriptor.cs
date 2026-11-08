@@ -22,4 +22,32 @@ public sealed record McpToolDescriptor(
     IReadOnlyList<string> RequiredScopes,
     McpToolAccess Access,
     string? InputSchema,
-    McpToolAnnotations Annotations);
+    McpToolAnnotations Annotations)
+{
+    /// <summary>
+    /// Describes a curated tool provided by an <see cref="IMcpToolSource"/>.
+    /// </summary>
+    /// <param name="name">The stable, explicit snake_case tool name.</param>
+    /// <param name="description">The required tool description.</param>
+    /// <param name="requiredScopes">The scopes the verified caller must hold.</param>
+    /// <param name="access">Whether the tool reads or writes. A tool that writes must require the write scope.</param>
+    /// <param name="inputSchema">The JSON schema of the tool input; an object without declared properties when null.</param>
+    /// <param name="annotations">The behavioural hints; the conservative hints for <paramref name="access"/> when null.</param>
+    /// <returns>The descriptor.</returns>
+    public static McpToolDescriptor Custom(
+        string name,
+        string description,
+        IReadOnlyList<string> requiredScopes,
+        McpToolAccess access,
+        string? inputSchema = null,
+        McpToolAnnotations? annotations = null) =>
+        new(
+            name,
+            description,
+            McpToolKind.Custom,
+            null,
+            requiredScopes,
+            access,
+            inputSchema,
+            annotations ?? (access == McpToolAccess.Write ? McpToolAnnotations.ForWrite : McpToolAnnotations.ForRead));
+}

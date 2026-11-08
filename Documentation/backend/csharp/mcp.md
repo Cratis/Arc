@@ -45,7 +45,22 @@ Read tools require the read scope and write tools require the write scope. By de
 
 ## Curated tools with `IMcpToolSource`
 
-Implement `IMcpToolSource` for a tool that is not a plain command or query, and register it with `AddToolSource<TSource>()`. The source describes its tools (name, description, required scopes, whether it reads or writes, and an input schema) and handles the call. The ceiling checks every described tool at startup:
+Implement `IMcpToolSource` for a tool that is not a plain command or query, and register it with `AddToolSource<TSource>()`. The source describes its tools (name, description, required scopes, whether it reads or writes, and an input schema) and handles the call. `McpToolDescriptor.Custom(...)` builds a descriptor and picks the conservative hints for reads or writes:
+
+```csharp
+public class NoteTools : IMcpToolSource
+{
+    public IEnumerable<McpToolDescriptor> Describe() =>
+    [
+        McpToolDescriptor.Custom("count_notes", "Counts the notes.", ["notes:read"], McpToolAccess.Read)
+    ];
+
+    public ValueTask<McpToolResult> Invoke(McpToolInvocation invocation) =>
+        ValueTask.FromResult(McpToolResult.Success("42"));
+}
+```
+
+The ceiling checks every described tool at startup:
 
 - The name and description must be valid, and names must be unique.
 - The tool must require at least one non-blank scope.
