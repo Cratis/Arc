@@ -103,6 +103,10 @@ The text is sent first, followed by one `resource_link` block for each link. Kee
 - A result is replaced by a generic tool error when its structured content is not a JSON object, when a tool with an output schema succeeds without structured content, or when a link has no name or no absolute URI.
 - Arc does not validate structured content against the output schema.
 
+### The protocol request
+
+`McpToolInvocation.Request` is the MCP protocol request the call arrived in. Use its `Server` for protocol features such as progress notifications, logging to the client, sampling or elicitation. Identity still comes only from `invocation.Caller`: never read the caller, tenant or scopes from the request, and treat its `Params` as untrusted input. It is null when the tool is invoked outside a protocol request.
+
 ## The ceiling
 
 The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
@@ -138,6 +142,15 @@ Set `ExclusiveTools` to serve only the ceiling. Arc then removes the server's ow
 ```csharp
 mcp.Configure(options => options.ExclusiveTools = true);
 ```
+
+## What Arc owns of the MCP server
+
+`WithMcp` calls `AddMcpServer` and configures the HTTP transport, and `MapCratisArcMcp` maps the endpoint. Adding your own `AddMcpServer()` call is fine: it returns a builder for the same server, so tools, prompts and resources you add through it are kept. Arc owns these parts; do not change them in your own configuration:
+
+- the tool collection, which Arc sets after your configuration to your server tools plus the ceiling (or only the ceiling with `ExclusiveTools`);
+- the `tools/list` filter and the stateless HTTP transport.
+
+Arc governs tools only. Prompts and resources you add to the server are not filtered by scope or tool authorizers; every admitted caller can list and read them. Check access inside their handlers, or do not register them on a server that serves callers with different rights.
 
 ## Credentials and protected resource metadata
 

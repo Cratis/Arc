@@ -41,7 +41,7 @@ internal sealed class McpOperations(
     {
         McpToolKind.Command => RunCommand(call),
         McpToolKind.Query => RunQuery(call),
-        _ => ((IMcpToolSource)call.Tool.Operation!).Invoke(new McpToolInvocation(call.Tool, call.Caller, call.Arguments, call.Services, call.CancellationToken))
+        _ => ((IMcpToolSource)call.Tool.Operation!).Invoke(new McpToolInvocation(call.Tool, call.Caller, call.Arguments, call.Services, call.CancellationToken) { Request = call.Request })
     };
 
     static object Outcome(bool isSuccess, bool isAuthorized, bool isValid, IEnumerable<ValidationResult> validationResults) => new

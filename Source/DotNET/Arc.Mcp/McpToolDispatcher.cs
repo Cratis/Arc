@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace Cratis.Arc.Mcp;
 
@@ -53,9 +54,10 @@ internal sealed class McpToolDispatcher(
     /// <param name="tool">The tool being called.</param>
     /// <param name="arguments">The arguments the client sent.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="request">The MCP protocol request the call arrived in, if any; handed to curated tools.</param>
     /// <returns>The tool result.</returns>
     /// <exception cref="McpProtocolException">The request carries no verified caller, or the tool is not in the ceiling.</exception>
-    internal async ValueTask<CallToolResult> Dispatch(McpToolDescriptor tool, IDictionary<string, JsonElement>? arguments, CancellationToken cancellationToken)
+    internal async ValueTask<CallToolResult> Dispatch(McpToolDescriptor tool, IDictionary<string, JsonElement>? arguments, CancellationToken cancellationToken, RequestContext<CallToolRequestParams>? request = null)
     {
         var context = requests.HttpContext;
         if (McpCaller.From(context) is not { Capability.Protocol: CapabilityProtocol.Mcp } caller)
@@ -78,7 +80,10 @@ internal sealed class McpToolDispatcher(
             return Error(NotAllowed);
         }
 
-        var call = new McpOperationCall(tool, caller.Capability, arguments?.AsReadOnly() ?? new Dictionary<string, JsonElement>().AsReadOnly(), context!.RequestServices, cancellationToken);
+        var call = new McpOperationCall(tool, caller.Capability, arguments?.AsReadOnly() ?? new Dictionary<string, JsonElement>().AsReadOnly(), context!.RequestServices, cancellationToken)
+        {
+            Request = request
+        };
 
         // The correlation id is already set for this request by Arc's startup middleware, which runs for every request, the
         // same as REST. Receipt is captured here the way the REST endpoints do before they enter a pipeline.

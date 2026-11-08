@@ -3,6 +3,8 @@
 
 using System.Text.Json;
 using Cratis.Arc.Capabilities;
+using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace Cratis.Arc.Mcp;
 
@@ -19,4 +21,15 @@ public sealed record McpToolInvocation(
     CapabilityCaller Caller,
     IReadOnlyDictionary<string, JsonElement> Arguments,
     IServiceProvider Services,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    /// <summary>
+    /// Gets the MCP protocol request the call arrived in, or null outside one.
+    /// </summary>
+    /// <remarks>
+    /// Use it for protocol features such as progress notifications, logging to the client, sampling or elicitation through
+    /// its <c>Server</c>. Identity comes only from <see cref="Caller"/>: never read the caller, tenant or scopes from the
+    /// request, and treat its <c>Params</c> as untrusted input.
+    /// </remarks>
+    public RequestContext<CallToolRequestParams>? Request { get; init; }
+}

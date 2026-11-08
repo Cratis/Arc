@@ -41,5 +41,5 @@ internal sealed class ArcMcpTool(McpToolDescriptor descriptor, McpToolDispatcher
 
     /// <inheritdoc/>
     public override ValueTask<CallToolResult> InvokeAsync(RequestContext<CallToolRequestParams> request, CancellationToken cancellationToken = default) =>
-        dispatcher.Dispatch(descriptor, request.Params?.Arguments, cancellationToken);
+        dispatcher.Dispatch(descriptor, request.Params?.Arguments, cancellationToken, request);
 }

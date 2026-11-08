@@ -3,6 +3,8 @@
 
 using System.Text.Json;
 using Cratis.Arc.Capabilities;
+using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace Cratis.Arc.Mcp;
 
@@ -19,4 +21,10 @@ internal sealed record McpOperationCall(
     CapabilityCaller Caller,
     IReadOnlyDictionary<string, JsonElement> Arguments,
     IServiceProvider Services,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    /// <summary>
+    /// Gets the MCP protocol request the call arrived in, if any.
+    /// </summary>
+    internal RequestContext<CallToolRequestParams>? Request { get; init; }
+}
