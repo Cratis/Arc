@@ -71,7 +71,7 @@ A caller verified with any other credential kind, such as a browser session, is 
 
 The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. Startup validates them:
 
-- `PublicOrigin` must be an origin (no path, query, or fragment) and use `https`. Plain `http` is accepted only for loopback.
+- `PublicOrigin` must be an origin (no path, query, or fragment) and use `https`. Plain `http` is accepted only for loopback. This applies under every profile whenever `PublicOrigin` is set, including the personal access token profile.
 - `Resource` must be `PublicOrigin` plus `Path`, with no fragment, query, or user info.
 
 ## Origin check

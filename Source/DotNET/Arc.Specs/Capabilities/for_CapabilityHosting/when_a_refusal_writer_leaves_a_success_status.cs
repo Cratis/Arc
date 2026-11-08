@@ -14,8 +14,10 @@ public class when_a_refusal_writer_leaves_a_success_status : a_selective_capabil
     HttpResponseMessage _refused;
     string _body;
     HttpResponseMessage _resetToSuccess;
+    HttpResponseMessage _startedAsSuccess;
+    string _startedBody;
 
-    protected override CapabilityEndpointSelector Selector => new CapabilityEndpointSelector().ForRoutePattern("/mcp-spec").ForRoutePattern("/forgetful").ForRoutePattern("/resetting");
+    protected override CapabilityEndpointSelector Selector => new CapabilityEndpointSelector().ForRoutePattern("/mcp-spec").ForRoutePattern("/forgetful").ForRoutePattern("/resetting").ForRoutePattern("/starting");
 
     protected override void ConfigureEndpoints(WebApplication app)
     {
@@ -29,6 +31,7 @@ public class when_a_refusal_writer_leaves_a_success_status : a_selective_capabil
             Interlocked.Increment(ref _writtenCalls);
             return "resetting";
         }).WithMetadata(new ResettingWriter());
+        app.MapGet("/starting", () => "starting").WithMetadata(new StartingWriter());
     }
 
     async Task Because()
@@ -38,11 +41,15 @@ public class when_a_refusal_writer_leaves_a_success_status : a_selective_capabil
         _refused = await client.GetAsync($"http://127.0.0.1:{_capabilityPort}/forgetful", cancellationToken);
         _body = await _refused.Content.ReadAsStringAsync(cancellationToken);
         _resetToSuccess = await client.GetAsync($"http://127.0.0.1:{_capabilityPort}/resetting", cancellationToken);
+        _startedAsSuccess = await client.GetAsync($"http://127.0.0.1:{_capabilityPort}/starting", cancellationToken);
+        _startedBody = await _startedAsSuccess.Content.ReadAsStringAsync(cancellationToken);
     }
 
     [Fact] void should_still_refuse_with_the_refusal_status() => _refused.StatusCode.ShouldEqual(HttpStatusCode.Unauthorized);
     [Fact] void should_keep_what_the_writer_wrote() => _body.ShouldEqual("refused without a status");
     [Fact] void should_put_the_refusal_status_back_when_the_writer_sets_a_success_status() => _resetToSuccess.StatusCode.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] void should_force_the_refusal_status_when_the_writer_starts_the_response_as_success() => _startedAsSuccess.StatusCode.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] void should_keep_the_body_of_a_writer_that_starts_the_response() => _startedBody.ShouldEqual("started as success");
     [Fact] void should_not_dispatch_the_refused_request() => _writtenCalls.ShouldEqual(0);
 
     sealed class ResettingWriter : ICapabilityRefusalWriter
@@ -51,6 +58,16 @@ public class when_a_refusal_writer_leaves_a_success_status : a_selective_capabil
         {
             context.Response.StatusCode = StatusCodes.Status200OK;
             return Task.CompletedTask;
+        }
+    }
+
+    sealed class StartingWriter : ICapabilityRefusalWriter
+    {
+        public async Task Write(HttpContext context, CapabilityRefusal refusal)
+        {
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            await context.Response.WriteAsync("started as success", context.RequestAborted);
+            await context.Response.Body.FlushAsync(context.RequestAborted);
         }
     }
 

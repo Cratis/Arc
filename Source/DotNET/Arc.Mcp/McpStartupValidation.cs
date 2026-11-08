@@ -82,6 +82,11 @@ internal sealed class McpStartupValidation(
             throw new McpOptionsInvalid(nameof(McpOptions.AllowedOrigins), value.Profile);
         }
 
+        if (value.PublicOrigin is not null && !McpOrigins.IsOrigin(value.PublicOrigin))
+        {
+            throw new McpOptionsInvalid(nameof(McpOptions.PublicOrigin), value.Profile);
+        }
+
         if (value.Profile == McpProfile.PatOnly)
         {
             return;

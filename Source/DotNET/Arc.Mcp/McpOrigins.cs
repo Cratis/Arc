@@ -75,7 +75,7 @@ internal static class McpOrigins
         var allowed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var configured in options.AllowedOrigins.Append(options.PublicOrigin))
         {
-            if (TryNormalize(configured, out var origin))
+            if (IsOrigin(configured) && TryNormalize(configured, out var origin))
             {
                 allowed.Add(origin);
             }
