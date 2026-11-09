@@ -2,7 +2,7 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <!-- net11.0 uses the 11.x line of the runtime-aligned Microsoft packages; the base file is the net10.0 pin.
          Microsoft.Extensions.Telemetry, Resilience and TimeProvider.Testing have no 11.x release, so they stay on 10.x. -->
-    <ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' != 'net10.0' AND '$(TargetFramework)' != 'netstandard2.0' ">
         <PackageVersion Update="Microsoft.EntityFrameworkCore" Version="11.0.0-rc.3.26522.148" />
         <PackageVersion Update="Microsoft.EntityFrameworkCore.Relational" Version="11.0.0-rc.3.26522.148" />
         <PackageVersion Update="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0-rc.3.26522.148" />
