@@ -26,7 +26,7 @@ public class cancelled_while_waiting_for_a_connection_slot : given.an_intercepto
         await _cancellation.CancelAsync();
 
         // A deadline, not a sleep: without the fix the task never completes and this turns a hang into a failure.
-        _completedInTime = await Task.WhenAny(_returnValue, Task.Delay(TimeSpan.FromSeconds(10))) == _returnValue;
+        _completedInTime = await SpecTasks.CompletesWithin(_returnValue, TimeSpan.FromSeconds(10));
     }
 
     void Destroy() => _cancellation.Dispose();

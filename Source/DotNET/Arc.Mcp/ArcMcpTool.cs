@@ -25,8 +25,8 @@ internal sealed class ArcMcpTool(McpToolDescriptor descriptor, McpToolDispatcher
         Name = descriptor.Name,
         Title = descriptor.Title,
         Description = descriptor.Description,
-        InputSchema = JsonDocument.Parse(descriptor.InputSchema ?? """{"type":"object"}""").RootElement.Clone(),
-        OutputSchema = descriptor.OutputSchema is null ? null : JsonDocument.Parse(descriptor.OutputSchema).RootElement.Clone(),
+        InputSchema = ParseSchema(descriptor.InputSchema ?? """{"type":"object"}"""),
+        OutputSchema = descriptor.OutputSchema is null ? null : ParseSchema(descriptor.OutputSchema),
         Annotations = new ToolAnnotations
         {
             ReadOnlyHint = descriptor.Annotations.ReadOnly,
@@ -42,4 +42,10 @@ internal sealed class ArcMcpTool(McpToolDescriptor descriptor, McpToolDispatcher
     /// <inheritdoc/>
     public override ValueTask<CallToolResult> InvokeAsync(RequestContext<CallToolRequestParams> request, CancellationToken cancellationToken = default) =>
         dispatcher.Dispatch(descriptor, request.Params?.Arguments, cancellationToken, request);
+
+    static JsonElement ParseSchema(string schema)
+    {
+        using var document = JsonDocument.Parse(schema);
+        return document.RootElement.Clone();
+    }
 }

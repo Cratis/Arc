@@ -27,12 +27,18 @@ public class RichTool : IMcpToolSource
     {
         "count_notes" => McpToolResult.Success("""{"count":2}""") with
         {
-            StructuredContent = JsonDocument.Parse("""{"count":2}""").RootElement.Clone(),
+            StructuredContent = Structured("""{"count":2}"""),
             ResourceLinks = [new McpResourceLink("notes://notes/1", "First note") { Title = "First", MimeType = "text/plain" }]
         },
-        "array_structure" => McpToolResult.Success("[]") with { StructuredContent = JsonDocument.Parse("[]").RootElement.Clone() },
+        "array_structure" => McpToolResult.Success("[]") with { StructuredContent = Structured("[]") },
         "relative_link" => McpToolResult.Success("linked") with { ResourceLinks = [new McpResourceLink("notes/1", "Relative")] },
         "null_links" => McpToolResult.Success("no links") with { ResourceLinks = null! },
         _ => McpToolResult.Success("no structure")
     });
+
+    static JsonElement Structured(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
 }

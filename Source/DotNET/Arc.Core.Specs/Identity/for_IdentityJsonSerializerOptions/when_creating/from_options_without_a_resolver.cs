@@ -4,6 +4,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
+#pragma warning disable CA2263 // The generic GetTypeInfo<T>() exists on net11.0 only.
 namespace Cratis.Arc.Identity.for_IdentityJsonSerializerOptions.when_creating;
 
 /// <summary>

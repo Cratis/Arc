@@ -5,6 +5,7 @@ using Cratis.Arc.Identity.Callers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable SYSLIB0066 // IStartupValidator is obsolete on net11.0 (IAsyncStartupValidator); the spec still exercises the net10.0 synchronous contract.
 namespace Cratis.Arc.PersonalAccessTokens.for_PatAdapterRegistration;
 
 [PerFactSpecificationLifecycle]

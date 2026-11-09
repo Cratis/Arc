@@ -25,7 +25,9 @@ public class DataAnnotationValidationFilter : ICommandFilter
         }
         else
         {
+#pragma warning disable CA1849, MA0042 // TryValidateObjectAsync exists on net11.0 only; the filter contract is synchronous.
             Validator.TryValidateObject(context.Command, validationContext, validationResults, true);
+#pragma warning restore CA1849, MA0042
         }
 
         if (validationResults.Count > 0)
