@@ -242,6 +242,27 @@ Authentication and roles do not establish ownership, tenant membership, or permi
 
 For a business rejection rather than a permission denial, a handler can return `ValidationResult.Error(...)` through a typed `Result<TResponse, ValidationResult>`. Callers receive validation errors, not a forbidden result. This is not policy enforcement and does not imply rollback of side effects already performed. Standalone Arc does not append events; event-return behavior belongs to the optional [Chronicle integration](../chronicle/commands/events.md).
 
+## Policies that decide from recorded state
+
+Some permissions depend on what the application has recorded, such as whether the plan of the asset a command acts on includes a feature. Derive from `StateAwareAuthorizationPolicy<TState>`, register it as a named policy, and implement three members: `GetKey` takes the key from the command or query, `Read` fetches the state (typically a read model through your own lookup service, which returns `null` when nothing is recorded) and `Decide` compares it with the caller.
+
+```csharp
+public class DataQualityEnabled(IAssetPlans plans) : StateAwareAuthorizationPolicy<AssetPlan>
+{
+    protected override object? GetKey(AuthorizationPolicyContext context) =>
+        (context.Resource as CommandContext)?.Command is RequestScopedToken command ? command.AssetId : null;
+
+    protected override async ValueTask<AssetPlan?> Read(object key, CancellationToken cancellationToken) =>
+        await plans.Find((AssetId)key, cancellationToken);
+
+    protected override bool Decide(ClaimsPrincipal principal, AssetPlan state) => state.DataQuality;
+}
+```
+
+The policy fails closed. A missing key, no recorded state, a failed read (for example an unavailable store) and a rejecting decision all deny, and none of them throws. Override `OnDenied` to log or count the cause (`StateDenialReason`), which keeps a denial distinguishable from an exception. Cancellation is not a denial and propagates.
+
+The read is an admission check only. It does not enrol in decision reads, and access granted at admission is not revoked when the state later changes. A read model can lag the events that produced it, so a rule that must hold under concurrent writers belongs in the handler as a protected decision read, not only in a policy. To specify such a policy, call `IsAuthorized` with an `AuthorizationPolicyContext` and seed the state your `Read` override returns.
+
 ## Authorization results
 
 An Arc pipeline authorization rejection sets `IsAuthorized = false`; mapped HTTP results use **403 Forbidden**. Lightweight authentication middleware may reject earlier with **401 Unauthorized**. ASP.NET Core authentication/authorization middleware has its own challenge/forbid behavior. Do not infer which layer ran solely from an HTTP status.

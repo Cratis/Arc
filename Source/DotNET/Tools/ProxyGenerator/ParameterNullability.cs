@@ -27,7 +27,6 @@ static class ParameterNullability
             return parameter.ParameterType.IsNullable();
         }
 
-        var context = new NullabilityInfoContext();
-        return context.Create(parameter).WriteState == NullabilityState.Nullable;
+        return Nullability.IsNullable(parameter);
     }
 }

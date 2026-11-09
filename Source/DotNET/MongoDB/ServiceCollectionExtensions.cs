@@ -4,6 +4,7 @@
 using System.Diagnostics.Metrics;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
+using Cratis.Arc.MongoDB.Sinks;
 using Cratis.Metrics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -114,6 +115,11 @@ public static class ServiceCollectionExtensions
             var connection = sp.GetRequiredService<MongoDBConnection>();
             return connection.Client.GetDatabase(connection.DatabaseName);
         });
+
+        services.AddReadModelSinks();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDBOptions>, MongoDBSinksOptionsValidation>());
+        services.AddSingleton<IMongoDBSinks, MongoDBSinks>();
+        services.AddScoped<IMongoDBReadModelDatabases, MongoDBReadModelDatabases>();
 
         services.AddScoped(typeof(IMongoCollection<>), typeof(MongoCollectionAdapter<>));
 

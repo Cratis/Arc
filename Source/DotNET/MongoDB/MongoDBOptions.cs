@@ -3,6 +3,8 @@
 
 using System.ComponentModel.DataAnnotations;
 using Cratis.Arc.Connections;
+using Cratis.Arc.MongoDB.Sinks;
+using MongoDB.Driver;
 
 namespace Cratis.Arc.MongoDB;
 
@@ -73,4 +75,15 @@ public class MongoDBOptions
     /// identity becomes the credential — a user name and password for SCRAM, or an access token for MONGODB-OIDC.
     /// </remarks>
     public ConnectionResolutionOptions ConnectionResolution { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the named sinks: MongoDB servers that read models stored in a named sink are read from, by name.
+    /// </summary>
+    /// <remarks>
+    /// A read model declares its sink with Chronicle's <c>[Sink("name")]</c> or Arc's <see cref="Cratis.Arc.Sinks.ReadModelSinkAttribute"/>.
+    /// Its <see cref="IMongoCollection{TDocument}"/> then comes from the sink's server, in the database the default connection resolves -
+    /// the name Chronicle gives a named MongoDB sink's databases. Names are matched without regard to case. Without sinks,
+    /// every read model is read through the default connection.
+    /// </remarks>
+    public IDictionary<string, MongoDBSinkOptions> Sinks { get; set; } = new Dictionary<string, MongoDBSinkOptions>(StringComparer.OrdinalIgnoreCase);
 }

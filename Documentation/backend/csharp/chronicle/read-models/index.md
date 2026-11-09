@@ -145,3 +145,4 @@ Choose the state shape separately from the concurrency rule. Aggregate or event-
 | [Read models in commands](./injecting-into-commands.md) | Injecting into a validator, `Provide()`, and `Handle()`, and what nullability means. |
 | [Read models from other providers](./other-providers.md) | Injecting one backed by Entity Framework Core or MongoDB, and declaring the key without Chronicle. |
 | [When resolution fails](./failures.md) | Every failure mode, what it means, and how to fix it. |
+| [Read models in named sinks](../../mongodb/named-sinks.md) | Querying a read model the Kernel stores in a named MongoDB sink on another server. |
