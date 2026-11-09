@@ -55,6 +55,7 @@
         <Project Path="Source/DotNET/Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Screenplay.Embedded.Specs.csproj" />
         <Project Path="Source/DotNET/Arc.Core.Specs/Fixtures/SliceLocationConsumer/SliceLocationConsumer.csproj" />
+        <Project Path="Source/DotNET/Arc.Core.Specs/Fixtures/VerifiedCallerConsumer/VerifiedCallerConsumer.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/Consumer/Consumer.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/Interceptors.Generator/Interceptors.Generator.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/XunitConsumer/XunitConsumer.csproj" />
@@ -75,6 +76,7 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptCommand\ReferencedConceptCommand.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptValidator\ReferencedConceptValidator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\TransitiveConceptValidator\TransitiveConceptValidator.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\SourceFileResolverFixture\SourceFileResolverFixture.csproj" />
     </Folder>
     <Folder Name="/Samples/">
         <Project Path="Samples\AspNetCore\AspNetCore.csproj" />
