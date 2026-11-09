@@ -12,9 +12,25 @@ description: ES256 wire contract for AuthProxy identity attestation, authenticat
 
 AuthProxy signs the identity facts it forwards; Arc verifies them with an app-specific public key. This reference specifies the v2 wire contract, not an already released configuration API.
 
-Published v1 remains unchanged: `v1.<kid>.<ts>.<nonce>.<mac>`, HMAC-SHA256, with a 32-byte nonce and process-local replay detection. Existing opt-in integrations and explicitly named local-development profiles may retain v1. The production target is v2-only. A v2-only backend rejects v1 and unsigned forwarding; it never retries another version or falls back to native authentication after a failed forwarded credential. This fail-closed request policy is intentionally stricter than v1's authentication-scheme composition.
+Published v1 remains unchanged: `v1.<kid>.<ts>.<nonce>.<mac>`, HMAC-SHA256, with a 32-byte nonce and process-local replay detection. Existing opt-in integrations retain their released behavior during migration; only explicitly named local-development profiles may retain v1 after production retirement. The production target is v2-only; see the conditional [v1 retirement plan](#v1-retirement-plan). A v2-only backend rejects v1 and unsigned forwarding; it never retries another version or falls back to native authentication after a failed forwarded credential. This fail-closed request policy is intentionally stricter than v1's authentication-scheme composition.
 
 Sign every identity-bearing producer before switching a backend: YARP requests, identity-details calls, and tenant-list calls. On every inbound request, the edge MUST remove every covered header (including all names under the two covered prefixes, every v2 context header, and the configured tenancy header) and every occurrence of `x-cratis-forwarded-identity-signature`, case-insensitively. It MUST then set the covered headers and envelope only from its own verified authentication, credential, catalog, routing and policy state. It MUST NOT preserve, merge, endorse or re-sign a caller's supplied values. Any downstream Authorization bearer must also come from that same verified credential/session state, not a copied caller header. If verification fails, it emits no signed downstream request. Production startup must refuse trusted forwarded headers without verification. Only an explicitly named local-development profile may relax that configuration rule.
+
+### v1 retirement plan
+
+The migration target is **2026-12-15** and the **proposed** production retirement date is **2026-12-31**. Both are conditional on a confirmed consumer inventory and producer/consumer feasibility review; contract sign-off remains conditional until those are complete. These dates do not change the startup behavior of any released version.
+
+AuthProxy is the identified producer and Arc the verifier; this is not a confirmed consumer inventory. AuthProxy's v2 producer is not yet implemented. The AuthProxy maintainer owns producer readiness and migration; the Arc maintainer owns verifier readiness and obtaining configuration/code and owner confirmations from Direct, Studio, Stage, generated applications, and custom integrations. No response is not evidence of no use.
+
+Before adopting production retirement:
+
+1. Inventory each v1 producer, verifier, receiving resource, deployed version, configuration, and responsible owner. Confirm every consumer and record migration dependencies.
+2. Deliver AuthProxy v2 signing and key publication, and select Arc verifier releases supporting the required v2 profile, authenticated TLS hop, resource binding, rotation, and durable replay protection. Publish the affected producer and consumer version requirements once releases exist; no producer v2 minimum version is available yet.
+3. Configure each receiving resource's public keys and catalog binding, migrate all identity-bearing routes, and verify fail-closed credential selection, cross-replica replay/revocation, and live membership. Switch each backend to v2-only only after its producer and all direct calls are ready.
+4. Obtain an independent feasibility review of the producer/consumer evidence, confirm owners and supported version requirements, and adopt or revise the proposed dates.
+5. Ship production startup refusal for v1 in an explicitly named release. If this breaks supported integrations, it MUST be a named major release reserved for the maintainer (`woksin`), never a patch/minor. Only named local-development profiles may retain v1. Do not add a calendar time bomb to existing releases.
+
+This is a rollout requirement, not a claim of shipped startup refusal or completed migration.
 
 ## Install browser-session verification
 
@@ -118,7 +134,9 @@ There is no silent missing-value fallback for a person's `idp` or `auth_time`. E
 
 ## Forwarded bearer binding and the credential gate
 
-Cookie-session routes may continue forwarding the session's access token in `Authorization: Bearer <token>` because some backends call downstream APIs on the user's behalf. Dropping the token would break that capability. Instead, the edge selects the access token from the same verified session/credential and signs `x-cratis-forwarded-token-sha256`. It must not bind an unrelated caller-supplied token.
+Before validation, the edge MUST select the credential type once from the request and trusted route policy. It MUST refuse multiple credential presentations, including bearer plus session cookie and repeated Authorization values. A failed bearer MUST end in 401, even when a valid cookie is present; never retry cookie authentication or another credential type. These are required producer behaviors, not a claim that a fail-closed AuthProxy release is available.
+
+Cookie-session routes may deliver the session's access token in `Authorization: Bearer <token>` only to that token's intended resource. The edge selects it from the same verified session/credential and signs `x-cratis-forwarded-token-sha256`; it MUST NOT bind an unrelated caller-supplied token. Neither the edge nor a backend/tool may pass the client's token to a different resource. A call to another resource requires a separately authorized credential for that resource; a signed envelope or matching token hash does not widen the audience.
 
 Compute SHA-256 over the token value after the scheme and its single ASCII SP, excluding the `Bearer` scheme and that SP. Token bytes must satisfy RFC 6750's bearer-token syntax; preserve their exact case and padding, with no decoding, reserialization or whitespace normalization. The scheme is case-insensitive; the token is not. Encode the digest as canonical unpadded base64url (43 characters). `Authorization` is not itself a canonical header pair; the signed hash is its binding.
 
@@ -128,7 +146,7 @@ Only a matching bearer and verified envelope count as **one credential** for the
 
 Use the Arc PAT specification's **PAT namespace**: any credential value beginning with `<key>_pat_`, matched ASCII case-insensitively by `^[a-z0-9-]+_pat_`. Namespace recognition precedes OAuth verification and does not establish valid PAT format. A verified envelope covering a PAT-namespace bearer MUST be refused unless its credential kind is `pat`; there is no OAuth fallback. A **person envelope** means an envelope whose credential kind is not `pat`; AuthProxy MUST NOT attach one to a forwarded PAT. Even a `pat` envelope does not assert a verified PAT caller: local PAT verification, including revocation, the scope ceiling and applicable policy epoch, remains mandatory. Signed person/assurance fields in a `pat` envelope, and in a bearer-bound `oauth-grant` envelope, are attestation to compare against verified credential evidence, not authority to construct or elevate a caller.
 
-The hash neither grants permission nor replaces DPoP/credential validation; bound tokens still require verified sender binding and cannot fall back to plain bearer authentication. Include the exact Authorization snapshot in any request-local authentication-cache comparison; changing it invalidates reuse even if canonical headers are unchanged. Never log the token or digest.
+The CLI, agent, and runner profiles MUST require DPoP. For each of these profiles, `senderBinding=none` MUST be refused; neither a valid signature nor an otherwise valid credential permits downgrade. Other profiles' explicit `none` value does not relax this rule. The hash neither grants permission nor replaces DPoP/credential validation; bound tokens still require verified sender binding and cannot fall back to plain bearer authentication. Include the exact Authorization snapshot in any request-local authentication-cache comparison; changing it invalidates reuse even if canonical headers are unchanged. Never log the token or digest.
 
 ## Canonical signing input
 
@@ -181,9 +199,24 @@ At a v2-only backend, apply these checks before endpoint execution:
 3. Check freshness, then select the exact configured key. Build bounded canonical bytes from the local catalog `aud` and the observed covered headers, method, and path.
 4. Verify ES256. Validate the explicit account key and legacy tuple binding, credential-kind-specific metadata and assurance, forwarded bearer/hash pairing and credential gate, and any separate on-behalf assertion, current-actor and grant bindings. Only then construct a caller.
 5. For replay-sensitive flows, perform the durable atomic nonce reservation. Only a confirmed new reservation permits dispatch. Reuse a complete authentication result only within the same unchanged request, not across new requests.
-6. Run live membership and authorization checks. Authentication does not grant tenant access, roles, delegation authority, or approval consumption.
+6. Re-check current credential/grant fences and live membership and authorization on every request, including requests carrying a session identifier. Refuse if a required status authority is unavailable. Apply the [session authority and revocation bounds](../capability-hosting.md#session-authority-contract); initialization or a previous caller cannot authorize a new request. Authentication does not grant tenant access, roles, delegation authority, or approval consumption.
 
 Every envelope/admission failure that reaches HTTP processing returns the same 401 status with the same generic response, no distinguishing body, challenge detail, header, or fallback path. Internal fixed reason codes may distinguish format, version, freshness, key, signature, identity, metadata, credential binding, replay, store, or hop failures in protected logs only. Do not log envelopes, signatures, Authorization values, token digests, principal payloads, credential IDs, keys or snapshots. No timing-equality guarantee is implied. A subsequent authorization denial for a valid authenticated caller is separate from envelope rejection.
+
+### Refusal precedence
+
+The first applicable boundary determines the response; never fall back to another credential after refusal. This matrix distinguishes the public capability preflight from the private v2 envelope verifier, rather than exposing envelope failure reasons.
+
+| Boundary, in order | Failure | Result |
+| --- | --- | --- |
+| TLS admission | TLS handshake or required client-certificate admission fails before HTTP | No HTTP response |
+| Edge credential selection | Multiple credential presentations, including bearer plus cookie or repeated Authorization | Refuse before signing; 401, no cookie fallback |
+| Public capability preflight | Malformed authorization, multiple unrelated credentials, or credentials in URI | 400 before caller resolution |
+| Private v2 envelope/hop/credential verification | Any envelope admission failure, including malformed/repeated Authorization or failed bearer/hash binding | Generic 401; no alternative verifier |
+| Capability authentication | No verified caller | 401 with Bearer challenge |
+| Authorization after successful authentication | Principal kind outside allowlist, denied membership, scope, or operation | 403; no handler execution |
+
+If multiple failures apply, an earlier boundary's refusal wins; do not inspect later failures to select a more revealing response. A bearer and its matching verified envelope count as one credential only at the private verifier. Required-authority outages MUST refuse dispatch, not reuse cached session authority; envelope admission outages use the generic 401 rule above.
 
 ## What the envelope does not attest
 
@@ -199,6 +232,13 @@ The envelope attests AuthProxy's identity facts and their binding to the method,
 - Keep all identity-bearing direct calls on the same signing and authenticated-TLS path as proxied requests.
 
 ## Testing with the shared vectors
+
+The following additional conformance cases are required integration coverage, not claims of existing vectors or passing tests:
+
+- With a controlled clock, present an invalid or expired bearer alongside a valid session cookie for another tenant. Require refusal, no signed downstream request, no cookie fallback, and no caller or tenant selected from the cookie. Repeat with duplicate Authorization values.
+- Deliver a valid credential to its intended resource, then attempt delivery or tool passthrough to another resource. Require refusal there; signing or hashing the original token MUST NOT authorize the second resource.
+- For each CLI, agent, and runner profile, refuse `senderBinding=none`, a missing proof, a wrong-key or wrong-target proof, and a replayed proof, even with an otherwise valid credential/envelope. No case may downgrade to bearer-only authentication.
+- Exercise the [session lifecycle cases](../capability-hosting.md#session-authority-contract), including cross-replica revoke/rotate → call and required-authority outages. Stateless MCP requests are not evidence for a valid server-issued session lifecycle.
 
 The repository fixture `Documentation/backend/csharp/asp-net-core/forwarded-identity-v2/forwarded-identity-v2-vectors.json` contains public **TEST-ONLY** private/public P-256 key pairs. Never deploy them. Cases use the earlier fixture's name/value header array and PEM key representation, not its superseded compact JWS format. Each case supplies `inputs` (method, raw target as `path`, headers including any synthetic TEST-ONLY bearer, `aud`, `now`, configured tenancy header, trusted realm issuer, replay class, and simulated transport/store availability), `envelope`, and one `expected` result plus internal reason. `signingInput` records the bytes originally signed, so it intentionally differs from the recomputed input in tamper cases. The envelope is supplied separately rather than duplicated in the header array.
 
