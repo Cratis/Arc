@@ -99,13 +99,17 @@ internal sealed class CapabilityGateMiddleware(
         if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
         {
             var presentation = context.RequestServices.GetRequiredService<CredentialPresentationGate>().Inspect(new AspNetCoreHttpRequestContext(context));
-            if (presentation.Refusal is not null || presentation.Shape != PresentedCredentialShape.PatBearer)
+            if (presentation.Refusal is not null || !AdmitsPresentation(context.GetEndpoint(), presentation.Shape))
             {
                 return Task.FromResult(new CallerResolution(null, CallerRefusal.SourceRefused));
             }
         }
         return context.RequestServices.GetRequiredService<IVerifiedCallerAccessor>().GetCurrent();
     }
+
+    static bool AdmitsPresentation(Endpoint? endpoint, PresentedCredentialShape? shape) =>
+        shape == PresentedCredentialShape.PatBearer ||
+        (shape == PresentedCredentialShape.OAuthBearer && endpoint?.Metadata.GetMetadata<AcceptsOAuthCapability>() is not null);
 
     static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
     {

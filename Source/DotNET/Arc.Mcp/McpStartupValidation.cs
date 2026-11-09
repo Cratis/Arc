@@ -105,11 +105,13 @@ internal sealed class McpStartupValidation(
         {
             throw new McpOptionsInvalid(nameof(McpOptions.Resource), value.Profile);
         }
-        if (value.AuthorizationServers.Count == 0 || value.AuthorizationServers.Any(_ => !IsAbsoluteUri(_)))
+        if (value.AuthorizationServers.Count == 0 || value.AuthorizationServers.Any(_ => !IsAuthorizationServer(_)))
         {
             throw new McpOptionsInvalid(nameof(McpOptions.AuthorizationServers), value.Profile);
         }
     }
 
-    static bool IsAbsoluteUri(string? value) => Uri.TryCreate(value, UriKind.Absolute, out _);
+    static bool IsAuthorizationServer(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment) &&
+        (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback));
 }

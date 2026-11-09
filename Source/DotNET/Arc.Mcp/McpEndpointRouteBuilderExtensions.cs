@@ -48,7 +48,7 @@ public static class McpEndpointRouteBuilderExtensions
 
     static void Admit(IEndpointConventionBuilder builder, EndpointGroupMetadata group, McpRefusalWriter refusals)
     {
-        builder.WithMetadata(group, McpEndpointMetadata.Instance, refusals);
+        builder.WithMetadata(group, McpEndpointMetadata.Instance, refusals, AcceptsOAuthCapability.Instance);
         builder.Add(endpoint =>
         {
             if (endpoint.RequestDelegate is not { } inner)

@@ -54,6 +54,7 @@ public sealed class McpToolCeiling
     /// <param name="commands">The command handler providers.</param>
     /// <param name="queries">The query performer providers.</param>
     /// <param name="sources">The registered tool sources contributing curated tools.</param>
+    /// <param name="serializerOptions">The effective Arc serializer options.</param>
     /// <returns>The frozen ceiling.</returns>
     /// <exception cref="McpToolNameInvalid">A name is not a stable snake_case name.</exception>
     /// <exception cref="McpToolNameDuplicated">A name is declared twice.</exception>
@@ -70,8 +71,10 @@ public sealed class McpToolCeiling
         McpOptions options,
         ICommandHandlerProviders commands,
         IQueryPerformerProviders queries,
-        IEnumerable<IMcpToolSource>? sources = null)
+        IEnumerable<IMcpToolSource>? sources = null,
+        JsonSerializerOptions? serializerOptions = null)
     {
+        serializerOptions ??= new JsonSerializerOptions().ConfigureArcDefaults();
         var writeScopes = WriteScopesOf(options);
         var handlers = commands.Handlers.ToArray();
         var handlerTypes = handlers.Select(_ => _.CommandType).ToHashSet();
@@ -93,7 +96,7 @@ public sealed class McpToolCeiling
                 throw new McpToolDescriptionMissing(declaration.Name);
             }
 
-            tools.Add(declaration.Name, McpToolMapper.Map(declaration, options, handlers, performers));
+            tools.Add(declaration.Name, McpToolMapper.Map(declaration, options, handlers, performers, serializerOptions));
         }
 
         foreach (var source in sources ?? [])

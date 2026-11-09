@@ -98,7 +98,7 @@ internal sealed class McpOperations(
         }
 
         RejectUndeclared(call);
-        var (arguments, paging) = McpQueryArguments.From(call, performer);
+        var (arguments, paging) = McpQueryArguments.From(call, performer, arcOptions.Value.JsonSerializerOptions);
         if (queries is not QueryPipeline hosted)
         {
             return McpToolResult.Error(Unsupported);
@@ -128,12 +128,19 @@ internal sealed class McpOperations(
             using (var writer = new Utf8JsonWriter(buffer))
             {
                 writer.WriteStartObject();
-                foreach (var (key, value) in call.Arguments.Where(_ => _.Key != McpSchemaBuilder.IdempotencyKeyName))
+                foreach (var (key, value) in call.Arguments)
                 {
                     writer.WritePropertyName(key);
                     value.WriteTo(writer);
                 }
                 writer.WriteEndObject();
+            }
+
+            using var input = JsonDocument.Parse(buffer.ToArray());
+            using var schema = JsonDocument.Parse(call.Tool.InputSchema!);
+            if (!McpCommandArguments.Matches(input.RootElement, schema.RootElement))
+            {
+                throw new McpArgumentsInvalid(call.Tool.Name);
             }
 
             return JsonSerializer.Deserialize(buffer.ToArray(), commandType, arcOptions.Value.JsonSerializerOptions)

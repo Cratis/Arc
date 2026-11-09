@@ -31,7 +31,7 @@ public class when_mapping_a_query : a_mapper_context
     [Fact] void should_be_read_only() => _paged.Annotations.ReadOnly.ShouldBeTrue();
     [Fact] void should_not_be_destructive() => _paged.Annotations.Destructive.ShouldBeFalse();
     [Fact] void should_be_idempotent() => _paged.Annotations.Idempotent.ShouldBeTrue();
-    [Fact] void should_not_accept_an_idempotency_key() => _pagedSchema["properties"]![McpSchemaBuilder.IdempotencyKeyName].ShouldBeNull();
+    [Fact] void should_not_accept_an_idempotency_key() => _pagedSchema["properties"]!["idempotency_key"].ShouldBeNull();
     [Fact] void should_offer_paging_when_the_query_supports_it() => _pagedSchema["properties"]![McpSchemaBuilder.PageSizeName].ShouldNotBeNull();
     [Fact] void should_not_offer_paging_when_the_query_does_not_support_it() => _unpagedSchema["properties"]![McpSchemaBuilder.PageSizeName].ShouldBeNull();
     [Fact] void should_describe_the_query_parameters() => _pagedSchema["properties"]!["value"].ShouldNotBeNull();

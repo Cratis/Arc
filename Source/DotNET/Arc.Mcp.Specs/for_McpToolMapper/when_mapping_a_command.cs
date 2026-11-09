@@ -25,7 +25,7 @@ public class when_mapping_a_command : a_mapper_context
     [Fact] void should_be_destructive() => _descriptor.Annotations.Destructive.ShouldBeTrue();
     [Fact] void should_not_be_idempotent() => _descriptor.Annotations.Idempotent.ShouldBeFalse();
     [Fact] void should_not_be_open_world() => _descriptor.Annotations.OpenWorld.ShouldBeFalse();
-    [Fact] void should_accept_an_idempotency_key() => _schema["properties"]![McpSchemaBuilder.IdempotencyKeyName].ShouldNotBeNull();
+    [Fact] void should_not_advertise_an_ignored_idempotency_key() => _schema["properties"]!["idempotency_key"].ShouldBeNull();
     [Fact] void should_describe_the_command_input() => _schema["properties"]!["value"].ShouldNotBeNull();
     [Fact] void should_not_have_dispatched() => ShouldNotHaveDispatched();
 }

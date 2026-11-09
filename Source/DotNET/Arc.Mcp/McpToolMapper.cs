@@ -3,6 +3,7 @@
 
 using System.Collections.ObjectModel;
 using System.Reflection;
+using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity.Approvals;
@@ -27,6 +28,7 @@ static class McpToolMapper
     /// <param name="options">The MCP options.</param>
     /// <param name="handlers">The known command handlers.</param>
     /// <param name="performers">The known query performers.</param>
+    /// <param name="serializerOptions">The effective Arc serializer options.</param>
     /// <returns>The descriptor.</returns>
     /// <exception cref="McpExposedOperationUnknown">The operation is unknown to Arc.</exception>
     /// <exception cref="McpApprovalRequiredCommandExposed">The command requires approval, directly or by inheritance.</exception>
@@ -36,17 +38,19 @@ static class McpToolMapper
         McpExposureDeclaration declaration,
         McpOptions options,
         IReadOnlyCollection<ICommandHandler> handlers,
-        IReadOnlyCollection<IQueryPerformer> performers)
+        IReadOnlyCollection<IQueryPerformer> performers,
+        JsonSerializerOptions? serializerOptions = null)
     {
+        serializerOptions ??= new JsonSerializerOptions().ConfigureArcDefaults();
         return declaration.Kind switch
         {
-            McpToolKind.Command => MapCommand(declaration, options, handlers),
-            McpToolKind.Query => MapQuery(declaration, options, performers),
+            McpToolKind.Command => MapCommand(declaration, options, handlers, serializerOptions),
+            McpToolKind.Query => MapQuery(declaration, options, performers, serializerOptions),
             _ => throw new McpExposedOperationUnknown(declaration.Name, declaration.Operation)
         };
     }
 
-    static McpToolDescriptor MapCommand(McpExposureDeclaration declaration, McpOptions options, IReadOnlyCollection<ICommandHandler> handlers)
+    static McpToolDescriptor MapCommand(McpExposureDeclaration declaration, McpOptions options, IReadOnlyCollection<ICommandHandler> handlers, JsonSerializerOptions serializerOptions)
     {
         var commandType = declaration.Operation as Type ?? throw new McpExposedOperationUnknown(declaration.Name, declaration.Operation);
         if (commandType.IsDefined(typeof(RequiresApprovalAttribute), true))
@@ -71,11 +75,11 @@ static class McpToolMapper
             commandType,
             ScopesOf(declaration.Name, options.WriteScope, carriers),
             McpToolAccess.Write,
-            McpSchemaBuilder.ForCommand(commandType),
+            McpSchemaBuilder.ForCommand(commandType, serializerOptions),
             McpToolAnnotations.ForWrite);
     }
 
-    static McpToolDescriptor MapQuery(McpExposureDeclaration declaration, McpOptions options, IReadOnlyCollection<IQueryPerformer> performers)
+    static McpToolDescriptor MapQuery(McpExposureDeclaration declaration, McpOptions options, IReadOnlyCollection<IQueryPerformer> performers, JsonSerializerOptions serializerOptions)
     {
         var performer = (declaration.Operation is string query
             ? performers.FirstOrDefault(_ => string.Equals(_.FullyQualifiedName.Value, query, StringComparison.Ordinal))
@@ -95,7 +99,7 @@ static class McpToolMapper
             performer.FullyQualifiedName,
             ScopesOf(declaration.Name, options.ReadScope, carriers),
             McpToolAccess.Read,
-            McpSchemaBuilder.ForQuery(performer.Parameters, performer.SupportsPaging),
+            McpSchemaBuilder.ForQuery(performer.Parameters, performer.SupportsPaging, serializerOptions),
             McpToolAnnotations.ForRead);
     }
 

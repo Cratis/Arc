@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using Cratis.Arc.Queries;
 using Cratis.Concepts;
+using Cratis.Json;
 
 namespace Cratis.Arc.Mcp;
 
@@ -19,11 +20,6 @@ namespace Cratis.Arc.Mcp;
 public static class McpSchemaBuilder
 {
     /// <summary>
-    /// The name of the optional idempotency key input every write tool accepts.
-    /// </summary>
-    public const string IdempotencyKeyName = "idempotency_key";
-
-    /// <summary>
     /// The name of the optional page number input of a pageable query tool.
     /// </summary>
     public const string PageName = "page";
@@ -33,22 +29,23 @@ public static class McpSchemaBuilder
     /// </summary>
     public const string PageSizeName = "page_size";
 
-    static readonly JsonSerializerOptions _options = CreateOptions();
-    static readonly JsonSchemaExporterOptions _exporterOptions = new()
-    {
-        TreatNullObliviousAsNonNullable = true,
-        TransformSchemaNode = Transform
-    };
-
     /// <summary>
-    /// Builds the input schema of a command: the command's own shape plus an optional idempotency key.
+    /// Builds the input schema of a command.
     /// </summary>
     /// <param name="commandType">The command type.</param>
     /// <returns>The JSON schema as a string.</returns>
-    public static string ForCommand(Type commandType)
+    public static string ForCommand(Type commandType) => ForCommand(commandType, new JsonSerializerOptions().ConfigureArcDefaults());
+
+    /// <summary>
+    /// Builds the input schema using the command binding serializer options.
+    /// </summary>
+    /// <param name="commandType">The command type.</param>
+    /// <param name="options">The effective Arc serializer options.</param>
+    /// <returns>The JSON schema as a string.</returns>
+    public static string ForCommand(Type commandType, JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(commandType);
-        var schema = Export(commandType);
+        var schema = Export(commandType, new JsonSerializerOptions(options));
         if (schema is not JsonObject root)
         {
             root = new JsonObject();
@@ -60,13 +57,7 @@ public static class McpSchemaBuilder
             root = new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() };
         }
 
-        var properties = root["properties"] as JsonObject ?? new JsonObject();
-        root["properties"] = properties;
-        properties[IdempotencyKeyName] = new JsonObject
-        {
-            ["type"] = "string",
-            ["description"] = "Optional key that correlates retries of the same request."
-        };
+        root["properties"] ??= new JsonObject();
         return root.ToJsonString();
     }
 
@@ -76,17 +67,28 @@ public static class McpSchemaBuilder
     /// <param name="parameters">The query parameters.</param>
     /// <param name="supportsPaging">Whether the query supports paging.</param>
     /// <returns>The JSON schema as a string.</returns>
-    public static string ForQuery(IEnumerable<QueryParameter> parameters, bool supportsPaging)
+    public static string ForQuery(IEnumerable<QueryParameter> parameters, bool supportsPaging) =>
+        ForQuery(parameters, supportsPaging, new JsonSerializerOptions().ConfigureArcDefaults());
+
+    /// <summary>
+    /// Builds the input schema using the query binding serializer options.
+    /// </summary>
+    /// <param name="parameters">The query parameters.</param>
+    /// <param name="supportsPaging">Whether the query supports paging.</param>
+    /// <param name="options">The effective Arc serializer options.</param>
+    /// <returns>The JSON schema as a string.</returns>
+    public static string ForQuery(IEnumerable<QueryParameter> parameters, bool supportsPaging, JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(parameters);
+        options = new JsonSerializerOptions(options);
         var properties = new JsonObject();
         var required = new JsonArray();
         foreach (var parameter in parameters)
         {
-            properties[ToWireName(parameter.Name)] = Export(parameter.Type);
+            properties[ToWireName(parameter.Name, options)] = Export(parameter.Type, options);
             if (parameter.IsRequired)
             {
-                required.Add(ToWireName(parameter.Name));
+                required.Add(ToWireName(parameter.Name, options));
             }
         }
 
@@ -106,23 +108,26 @@ public static class McpSchemaBuilder
         return root.ToJsonString();
     }
 
-    static string ToWireName(string name) => _options.PropertyNamingPolicy?.ConvertName(name) ?? name;
+    static string ToWireName(string name, JsonSerializerOptions options) => options.PropertyNamingPolicy?.ConvertName(name) ?? name;
 
-    static JsonNode Export(Type type) => _options.GetJsonSchemaAsNode(type, _exporterOptions);
+    static JsonNode Export(Type type, JsonSerializerOptions options) => options.GetJsonSchemaAsNode(type, new JsonSchemaExporterOptions
+    {
+        TreatNullObliviousAsNonNullable = true,
+        TransformSchemaNode = (context, schema) => Transform(context, schema, options)
+    });
 
-    static JsonSerializerOptions CreateOptions() => new JsonSerializerOptions().ConfigureArcDefaults();
-
-    static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema)
+    static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema, JsonSerializerOptions options)
     {
         var type = Nullable.GetUnderlyingType(context.TypeInfo.Type) ?? context.TypeInfo.Type;
         var isNullable = type != context.TypeInfo.Type || context.PropertyInfo?.IsGetNullable == true;
 
-        if (type.IsConcept())
+        var converter = context.PropertyInfo?.CustomConverter ?? options.Converters.FirstOrDefault(_ => _.CanConvert(type));
+        if (type.IsConcept() && converter is ConceptAsJsonConverterFactory)
         {
-            return WithNullability(Export(type.GetConceptValueType()), isNullable);
+            return WithNullability(Export(type.GetConceptValueType(), options), isNullable);
         }
 
-        if (type.IsEnum)
+        if (type.IsEnum && converter is EnumConverterFactory)
         {
             var names = new JsonArray();
             Array.ForEach(Enum.GetNames(type), _ => names.Add(_));

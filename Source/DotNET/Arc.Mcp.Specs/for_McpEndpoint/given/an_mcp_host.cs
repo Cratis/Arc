@@ -47,6 +47,24 @@ public class an_mcp_host : Specification
     {
     }
 
+    protected virtual void ConfigureArcOptions(ArcOptions options)
+    {
+    }
+
+    protected virtual void ConfigureEndpoints(WebApplication app)
+    {
+    }
+
+    protected virtual void ConfigureCallers(IServiceCollection services)
+    {
+        services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
+        services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
+        services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
+        _verified = Substitute.For<IVerifiedCallerAccessor>();
+        _verified.GetCurrent().Returns(new CallerResolution(null, CallerRefusal.NoCredential));
+        services.AddScoped(_ => _verified);
+    }
+
     protected CancellationToken CancellationToken => global::Xunit.TestContext.Current.CancellationToken;
 
     async Task Establish()
@@ -57,7 +75,11 @@ public class an_mcp_host : Specification
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls($"http://127.0.0.1:{_capabilityPort}", $"http://127.0.0.1:{_defaultPort}");
         builder.AddCratisArc(
-            options => options.EndpointGroups.Assign("capabilities", _capabilityPort),
+            options =>
+            {
+                options.EndpointGroups.Assign("capabilities", _capabilityPort);
+                ConfigureArcOptions(options);
+            },
             configureBuilder: arc => arc
                 .WithoutControllers()
                 .WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector())
@@ -68,18 +90,14 @@ public class an_mcp_host : Specification
                         .AddToolSource<WhoAmI>();
                     ConfigureMcp(mcp);
                 }));
-        builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
-        builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
-        _verified = Substitute.For<IVerifiedCallerAccessor>();
-        _verified.GetCurrent().Returns(new CallerResolution(null, CallerRefusal.NoCredential));
-        builder.Services.AddScoped(_ => _verified);
+        ConfigureCallers(builder.Services);
         builder.Services.AddSingleton(_probe);
         RegisterCommands(builder.Services);
         ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
         _app.MapCratisArcMcp();
+        ConfigureEndpoints(_app);
         await _app.StartAsync(CancellationToken);
         _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
     }
@@ -172,7 +190,7 @@ public class an_mcp_host : Specification
 
     static void RegisterCommands(IServiceCollection services)
     {
-        var handlers = new[] { typeof(WriteNote), typeof(HiddenNote) }
+        var handlers = new[] { typeof(WriteNote), typeof(HiddenNote), typeof(WriteFormattedNote) }
             .Select(type => (ICommandHandler)new ModelBoundCommandHandler(type, type.GetMethod("Handle")!)).ToArray();
         var commands = Substitute.For<ICommandHandlerProviders>();
         commands.Handlers.Returns(handlers);

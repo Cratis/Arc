@@ -16,10 +16,12 @@ internal static class McpQueryArguments
     /// </summary>
     /// <param name="call">The call.</param>
     /// <param name="performer">The performer of the query.</param>
+    /// <param name="options">The effective Arc serializer options.</param>
     /// <returns>The query arguments and the paging.</returns>
     /// <exception cref="McpArgumentsInvalid">An argument is unknown to the query, or paging is malformed.</exception>
-    internal static (QueryArguments Arguments, Paging Paging) From(McpOperationCall call, IQueryPerformer performer)
+    internal static (QueryArguments Arguments, Paging Paging) From(McpOperationCall call, IQueryPerformer performer, JsonSerializerOptions? options = null)
     {
+        options ??= new JsonSerializerOptions().ConfigureArcDefaults();
         var arguments = new QueryArguments();
         int? page = null;
         int? pageSize = null;
@@ -37,7 +39,7 @@ internal static class McpQueryArguments
                 continue;
             }
 
-            var parameter = performer.Parameters.FirstOrDefault(_ => string.Equals(_.Name, key, StringComparison.OrdinalIgnoreCase))
+            var parameter = performer.Parameters.FirstOrDefault(_ => string.Equals(options.PropertyNamingPolicy?.ConvertName(_.Name) ?? _.Name, key, StringComparison.OrdinalIgnoreCase))
                 ?? throw new McpArgumentsInvalid(call.Tool.Name);
             if (value.ValueKind == JsonValueKind.Null)
             {

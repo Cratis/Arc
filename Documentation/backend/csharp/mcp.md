@@ -19,7 +19,7 @@ Capability hosting with a verified caller installation is required. Then add `Wi
 builder.AddCratisArc(
     options => options.EndpointGroups.Assign("capabilities", capabilityPort),
     configureBuilder: arc => arc
-        .WithCapabilities()
+        .WithCapabilities(o => o.GatedEndpoints = new CapabilityEndpointSelector())
         .WithVerifiedCallers(callers => /* your installation */)
         .WithMcp(mcp => mcp
             .Configure(options =>
@@ -181,12 +181,15 @@ Arc governs tools only. Prompts and resources you add to the server are not filt
 | `OAuthOnly` | OAuth access tokens. |
 | `Combined` | Both, each by its own verifier. |
 
+The MCP endpoint explicitly admits both PAT and verified OAuth bearer presentations through the capability gate; its profile then restricts the verified credential kind. Other capability-gated endpoints remain PAT-only when a PAT caller installation is present.
+
 A caller verified with any other credential kind, such as a browser session, is refused with the same `401` and `WWW-Authenticate` challenge as a request without a caller, and the tool does not run. The refusal says nothing about why. The default is `PatOnly`.
 
 The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. `MapCratisArcMcp` maps the metadata route under every profile, so a client probing a personal-access-token-only endpoint gets a JSON `404` rather than a fallback page. Startup validates them:
 
 - `PublicOrigin` must be an origin (no path, query, or fragment) and use `https`. Plain `http` is accepted only for loopback. This applies under every profile whenever `PublicOrigin` is set, including the personal access token profile.
 - `Resource` must be `PublicOrigin` plus `Path`, with no fragment, query, or user info.
+- Each authorization server must be an absolute `https` URI without user info, a query, or a fragment. Plain `http` is accepted only for loopback.
 
 ## Origin check
 

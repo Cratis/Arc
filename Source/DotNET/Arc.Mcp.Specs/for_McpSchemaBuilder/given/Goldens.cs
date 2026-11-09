@@ -15,8 +15,7 @@ public static class Goldens
         "'address':" + Address + "," +
         "'age':{'type':['integer','null']}," +
         "'tags':{'type':'array','items':{'type':'string'}}," +
-        "'previous':{'type':'array','items':" + Address + "}," +
-        "'idempotency_key':{'type':'string','description':'Optional key that correlates retries of the same request.'}}," +
+        "'previous':{'type':'array','items':" + Address + "}}," +
         "'required':['id','name','priority','address','tags','previous']}").Replace('\'', '"');
 
     public static readonly string PagedQuery = (
