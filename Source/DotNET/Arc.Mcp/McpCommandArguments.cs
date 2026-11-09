@@ -15,27 +15,33 @@ internal static class McpCommandArguments
     /// </summary>
     /// <param name="input">The supplied arguments.</param>
     /// <param name="schema">The advertised schema.</param>
+    /// <param name="options">The effective Arc serializer options.</param>
     /// <returns>Whether the arguments satisfy the required and nullable contract.</returns>
-    internal static bool Matches(JsonElement input, JsonElement schema) => Matches(input, schema, schema);
+    internal static bool Matches(JsonElement input, JsonElement schema, JsonSerializerOptions options) =>
+        Matches(input, schema, schema, options.PropertyNameCaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
-    static bool Matches(JsonElement input, JsonElement schema, JsonElement root)
+    static bool Matches(JsonElement input, JsonElement schema, JsonElement root, StringComparer names)
     {
         if (schema.ValueKind is JsonValueKind.True or JsonValueKind.False)
         {
             return schema.GetBoolean();
         }
 
-        if (schema.TryGetProperty("$ref", out var reference) && !Matches(input, Resolve(reference.GetString()!, root), root))
+        if (schema.TryGetProperty("$ref", out var reference) && !Matches(input, Resolve(reference.GetString()!, root), root, names))
         {
             return false;
         }
 
-        return MatchesValue(input, schema, root);
+        return MatchesValue(input, schema, root, names);
     }
 
-    static bool MatchesValue(JsonElement input, JsonElement schema, JsonElement root)
+    static bool MatchesValue(JsonElement input, JsonElement schema, JsonElement root, StringComparer names)
     {
-        if (schema.TryGetProperty("anyOf", out var alternatives) && !alternatives.EnumerateArray().Any(_ => Matches(input, _, root)))
+        if (OnlyAllowsNull(schema))
+        {
+            return input.ValueKind == JsonValueKind.Null;
+        }
+        if (schema.TryGetProperty("anyOf", out var alternatives) && !alternatives.EnumerateArray().Any(_ => Matches(input, _, root, names)))
         {
             return false;
         }
@@ -45,25 +51,43 @@ internal static class McpCommandArguments
         }
         if (input.ValueKind == JsonValueKind.Array && schema.TryGetProperty("items", out var items))
         {
-            return input.EnumerateArray().All(_ => Matches(_, items, root));
+            return input.EnumerateArray().All(_ => Matches(_, items, root, names));
         }
         if (input.ValueKind != JsonValueKind.Object)
         {
             return true;
         }
-        return MatchesObject(input, schema, root);
+        return MatchesObject(input, schema, root, names);
     }
 
-    static bool MatchesObject(JsonElement input, JsonElement schema, JsonElement root)
+    static bool MatchesObject(JsonElement input, JsonElement schema, JsonElement root, StringComparer names)
     {
-        if (schema.TryGetProperty("required", out var required) && required.EnumerateArray().Any(property => !input.TryGetProperty(property.GetString()!, out _)))
+        if (!schema.TryGetProperty("properties", out var properties))
         {
-            return false;
+            return !schema.TryGetProperty("additionalProperties", out var additional) ||
+                input.EnumerateObject().All(property => Matches(property.Value, additional, root, names));
         }
 
-        return !schema.TryGetProperty("properties", out var properties) || input.EnumerateObject().All(property =>
-            !properties.TryGetProperty(property.Name, out var contract) || Matches(property.Value, contract, root));
+        // Schema property names already include the naming policy and explicit JSON names used by the serializer.
+        var contracts = properties.EnumerateObject().ToDictionary(property => property.Name, property => property.Value, names);
+        var supplied = new HashSet<string>(names);
+        foreach (var property in input.EnumerateObject())
+        {
+            if (!supplied.Add(property.Name))
+            {
+                return false;
+            }
+            if (!contracts.TryGetValue(property.Name, out var contract) || !Matches(property.Value, contract, root, names))
+            {
+                return false;
+            }
+        }
+
+        return !schema.TryGetProperty("required", out var required) || required.EnumerateArray().All(property => supplied.Contains(property.GetString()!));
     }
+
+    static bool OnlyAllowsNull(JsonElement schema) =>
+        schema.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.ValueEquals("null");
 
     static bool AllowsNull(JsonElement schema)
     {

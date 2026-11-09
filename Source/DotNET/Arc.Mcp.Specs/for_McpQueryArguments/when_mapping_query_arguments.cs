@@ -18,6 +18,8 @@ public class when_mapping_query_arguments : Specification
     Exception? _arrayElementObject;
     QueryArguments _collection;
     QueryArguments _scalar;
+    QueryArguments _defaultValues;
+    QueryArguments _quotedDefaults;
     IQueryPerformer _performer;
 
     void Establish()
@@ -26,7 +28,10 @@ public class when_mapping_query_arguments : Specification
         _performer.SupportsPaging.Returns(true);
         _performer.Parameters.Returns(new QueryParameters([
             new QueryParameter("Prefix", typeof(string), true),
-            new QueryParameter("Tags", typeof(string[]), true)
+            new QueryParameter("Tags", typeof(string[]), true),
+            new QueryParameter("Number", typeof(int), true),
+            new QueryParameter("Flag", typeof(bool), true),
+            new QueryParameter("Numbers", typeof(int[]), true)
         ]));
     }
 
@@ -42,6 +47,8 @@ public class when_mapping_query_arguments : Specification
         _arrayElementObject = Catch.Exception(() => Map("""{"tags":[{"a":1}]}"""));
         _collection = Map("""{"tags":["a","b"]}""").Arguments;
         _scalar = Map("""{"prefix":"a"}""").Arguments;
+        _defaultValues = Map("""{"number":7,"flag":true,"numbers":[1,2]}""").Arguments;
+        _quotedDefaults = Map("""{"number":"7","flag":"true","numbers":["1","2"]}""").Arguments;
     }
 
     [Fact] void should_not_page_without_arguments() => _none.IsPaged.ShouldBeFalse();
@@ -54,6 +61,10 @@ public class when_mapping_query_arguments : Specification
     [Fact] void should_refuse_an_object_inside_an_array() => _arrayElementObject.ShouldBeOfExactType<McpArgumentsInvalid>();
     [Fact] void should_map_a_collection_parameter() => ((string?[])_collection["Tags"]).ShouldContainOnly("a", "b");
     [Fact] void should_map_a_scalar_parameter() => _scalar["Prefix"].ShouldEqual("a");
+    [Fact] void should_deserialize_default_scalar_types() => (_defaultValues["Number"], _defaultValues["Flag"]).ShouldEqual((7, true));
+    [Fact] void should_deserialize_default_collections() => ((int[])_defaultValues["Numbers"]).ShouldContainOnly(1, 2);
+    [Fact] void should_preserve_quoted_scalar_coercion() => (_quotedDefaults["Number"], _quotedDefaults["Flag"]).ShouldEqual(("7", "true"));
+    [Fact] void should_preserve_quoted_collection_coercion() => ((string[])_quotedDefaults["Numbers"]).ShouldContainOnly("1", "2");
 
     (QueryArguments Arguments, Paging Paging) Map(string arguments)
     {

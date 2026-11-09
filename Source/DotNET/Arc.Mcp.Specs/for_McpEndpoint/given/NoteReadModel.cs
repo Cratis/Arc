@@ -29,6 +29,19 @@ public record NoteReadModel(string Text)
     }
 
     /// <summary>
+    /// Gets a note selected by priority.
+    /// </summary>
+    /// <param name="notePriority">The priority.</param>
+    /// <param name="probe">The probe.</param>
+    /// <param name="callers">The capability callers.</param>
+    /// <returns>The matching note.</returns>
+    public static NoteReadModel ByPriority(NotePriority notePriority, McpProbe probe, ICapabilityCallers callers)
+    {
+        probe.Record("priority_note", notePriority.ToString(), callers.Current);
+        return new NoteReadModel(notePriority.ToString());
+    }
+
+    /// <summary>
     /// Streams the notes, which a one-shot tool call cannot carry.
     /// </summary>
     /// <returns>The notes as an asynchronous stream.</returns>

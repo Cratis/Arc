@@ -190,7 +190,7 @@ public class an_mcp_host : Specification
 
     static void RegisterCommands(IServiceCollection services)
     {
-        var handlers = new[] { typeof(WriteNote), typeof(HiddenNote), typeof(WriteFormattedNote) }
+        var handlers = new[] { typeof(WriteNote), typeof(HiddenNote), typeof(WriteFormattedNote), typeof(WriteNestedNote) }
             .Select(type => (ICommandHandler)new ModelBoundCommandHandler(type, type.GetMethod("Handle")!)).ToArray();
         var commands = Substitute.For<ICommandHandlerProviders>();
         commands.Handlers.Returns(handlers);

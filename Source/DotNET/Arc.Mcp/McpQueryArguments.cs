@@ -45,7 +45,7 @@ internal static class McpQueryArguments
             {
                 continue;
             }
-            if (!arguments.TryAdd(parameter.Name, ArgumentValue(call, parameter, value)))
+            if (!arguments.TryAdd(parameter.Name, ArgumentValue(call, parameter, value, options)))
             {
                 throw new McpArgumentsInvalid(call.Tool.Name);
             }
@@ -56,7 +56,29 @@ internal static class McpQueryArguments
         return (arguments, paging);
     }
 
-    static object ArgumentValue(McpOperationCall call, QueryParameter parameter, JsonElement value)
+    static object ArgumentValue(McpOperationCall call, QueryParameter parameter, JsonElement value, JsonSerializerOptions options)
+    {
+        try
+        {
+            return value.Deserialize(parameter.Type, options) ?? throw new McpArgumentsInvalid(call.Tool.Name);
+        }
+        catch (JsonException) when (UsesBuiltInConverter(parameter.Type, options))
+        {
+            // Preserve REST-style scalar coercion (for example, a quoted number) for default types only.
+            return CoercibleValue(call, parameter, value);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException or FormatException)
+        {
+            throw new McpArgumentsInvalid(call.Tool.Name, ex);
+        }
+    }
+
+    static bool UsesBuiltInConverter(Type type, JsonSerializerOptions options) =>
+        options.GetConverter(type).GetType().Assembly == typeof(JsonSerializer).Assembly &&
+        !type.IsEnum &&
+        (!type.IsEnumerableOfQueryArgumentElement(out var elementType) || UsesBuiltInConverter(elementType, options));
+
+    static object CoercibleValue(McpOperationCall call, QueryParameter parameter, JsonElement value)
     {
         switch (value.ValueKind)
         {

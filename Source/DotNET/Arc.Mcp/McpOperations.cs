@@ -121,7 +121,6 @@ internal sealed class McpOperations(
 
     object Deserialize(McpOperationCall call, Type commandType)
     {
-        RejectUndeclared(call);
         try
         {
             using var buffer = new MemoryStream();
@@ -138,7 +137,7 @@ internal sealed class McpOperations(
 
             using var input = JsonDocument.Parse(buffer.ToArray());
             using var schema = JsonDocument.Parse(call.Tool.InputSchema!);
-            if (!McpCommandArguments.Matches(input.RootElement, schema.RootElement))
+            if (!McpCommandArguments.Matches(input.RootElement, schema.RootElement, arcOptions.Value.JsonSerializerOptions))
             {
                 throw new McpArgumentsInvalid(call.Tool.Name);
             }
