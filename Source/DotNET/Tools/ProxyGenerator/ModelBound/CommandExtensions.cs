@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Text.Json.Serialization;
 using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound;
@@ -13,6 +14,7 @@ public static class CommandExtensions
 {
     /// <summary>
     /// Convert a command <see cref="TypeInfo"/> to a <see cref="CommandDescriptor"/>.
+    /// Public inputs are included from base command types, with the most-derived declaration taking precedence.
     /// </summary>
     /// <param name="commandType">Command type to convert.</param>
     /// <param name="targetPath">The target path the proxies are generated to.</param>
@@ -30,7 +32,7 @@ public static class CommandExtensions
         string apiPrefix,
         IEnumerable<TypeInfo> allCommandTypes)
     {
-        var properties = commandType.GetPropertyDescriptors();
+        var properties = GetInputPropertyDescriptors(commandType);
         var location = commandType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
@@ -69,6 +71,31 @@ public static class CommandExtensions
         {
             BlockOnValidationSeverity = severity
         };
+    }
+
+    static List<PropertyDescriptor> GetInputPropertyDescriptors(Type commandType)
+    {
+        var properties = new List<PropertyInfo>();
+        for (var current = commandType; current is not null; current = current.BaseType)
+        {
+            properties.AddRange(current.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly));
+        }
+
+        // Resolve names before excluding ignored inputs so a hidden base input is not restored.
+        return properties.DistinctBy(property => property.Name)
+            .Where(property => !IsIgnoredInput(property))
+            .Select(property => property.ToPropertyDescriptor())
+            .ToList();
+    }
+
+    static bool IsIgnoredInput(PropertyInfo property)
+    {
+        // Compare attribute names and metadata values to support MetadataLoadContext types.
+        var attribute = property.GetCustomAttributesData().FirstOrDefault(candidate =>
+            candidate.AttributeType.FullName == typeof(JsonIgnoreAttribute).FullName);
+        return attribute?.NamedArguments.All(argument =>
+            argument.MemberName != nameof(JsonIgnoreAttribute.Condition) ||
+            Convert.ToInt32(argument.TypedValue.Value) == (int)JsonIgnoreCondition.Always) == true;
     }
 
     static CustomAttributeData? ResolveBlockingSeverity(TypeInfo commandType)
