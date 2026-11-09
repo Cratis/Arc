@@ -29,9 +29,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  DOTNET8_VERSION: "8.0.407"
-  DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
+  DOTNET11_VERSION: "11.0.x"
 
 jobs:
   nuget:
@@ -45,19 +44,22 @@ jobs:
           persist-credentials: false
 
       # The same SDKs as the build, so the restore downloads exactly the packages the build needs.
-      - name: Setup .Net
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       - name: NuGet cache
         id: nuget
         uses: Cratis/Workflows/.github/actions/dotnet-cache@main
 
-      # Release, as the build: it targets net8.0, net9.0 and net10.0 where Debug targets net10.0 only.
+      # Release, as the build: it targets net10.0 and net11.0 where Debug targets net11.0 only.
       - name: Restore every project
         if: steps.nuget.outputs.cache-hit != 'true'
         run: dotnet restore --property:Configuration=Release

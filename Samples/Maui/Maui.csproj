@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <!-- Directory.Build.props sets TargetFramework=net10.0 when no framework is specified.
+        <!-- Directory.Build.props sets TargetFramework=net11.0 when no framework is specified.
              Clear it so only the MAUI-specific platform targets below apply. -->
         <TargetFramework></TargetFramework>
         <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-maccatalyst</TargetFrameworks>

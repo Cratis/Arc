@@ -4,6 +4,9 @@
         <AssemblyName>Cratis.Arc.Screenplay.Embedded.Build</AssemblyName>
         <RootNamespace>Cratis.Arc.Screenplay.Embedded</RootNamespace>
         <IsPackable>false</IsPackable>
+        <!-- An MSBuild task need not match the consumer's target framework: one net10.0 task serves net10.0 and net11.0 consumers. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <RollForward>Major</RollForward>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
     <ItemGroup>

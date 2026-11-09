@@ -8,9 +8,8 @@ concurrency:
 env:
   NUGET_OUTPUT: ./Artifacts/NuGet
   NUGET_SOURCE: https://nuget.pkg.github.com/cratis/index.json
-  DOTNET8_VERSION: "8.0.407"
-  DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
+  DOTNET11_VERSION: "11.0.x"
 
 # Default to read-only permissions; only the NuGet publishing and commenting job declares write permissions.
 # Jobs that check out PR code run only for pull requests from this repository, never forks.
@@ -62,13 +61,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Setup .Net
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       # PR runs restore the shared caches but never save them.
       - name: Restore NuGet packages

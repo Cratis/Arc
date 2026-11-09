@@ -36,9 +36,8 @@ permissions:
   pull-requests: write
 
 env:
-  DOTNET8_VERSION: "8.0.407"
-  DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
+  DOTNET11_VERSION: "11.0.x"
 
 jobs:
   update:
@@ -183,14 +182,18 @@ jobs:
             --target "$VERSION" \
             --output "$RUNNER_TEMP/release-notes.md"
 
-      - name: Setup .Net
+      - name: Setup .Net 10
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       - name: Setup node
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
@@ -239,7 +242,7 @@ jobs:
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         id: build
         continue-on-error: true
-        run: dotnet build --no-restore --configuration Release -p:CratisSpecsTargetFramework=net10.0
+        run: dotnet build --no-restore --configuration Release -p:CratisSpecsTargetFramework=net11.0
 
       - name: Run specs
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true' && steps.build.outcome == 'success'

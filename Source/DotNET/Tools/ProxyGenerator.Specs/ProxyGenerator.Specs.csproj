@@ -118,7 +118,7 @@
     <Target Name="BuildArcJavaScriptPackage"
             BeforeTargets="BeforeBuild"
             DependsOnTargets="InitializeJavaScriptBuild"
-            Condition="'$(TargetFramework)' == 'net10.0'"
+            Condition="'$(TargetFramework)' != ''"
             Inputs="@(_ArcJavaScriptInput)"
             Outputs="$(ArcJavaScriptStamp);$(ArcJavaScriptPath)/dist/esm/index.js">
         <Message Text="Building @cratis/arc JavaScript package..." Importance="high" />
@@ -130,7 +130,7 @@
     <Target Name="BuildArcReactJavaScriptPackage"
             BeforeTargets="BeforeBuild"
             DependsOnTargets="PrepareArcReactJavaScriptInputs"
-            Condition="'$(TargetFramework)' == 'net10.0'"
+            Condition="'$(TargetFramework)' != ''"
             Inputs="@(_ArcReactJavaScriptInput)"
             Outputs="$(ArcReactJavaScriptStamp);$(ArcReactJavaScriptPath)/dist/esm/index.js">
         <Message Text="Building @cratis/arc.react JavaScript package..." Importance="high" />
@@ -139,7 +139,7 @@
         <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(ArcReactJavaScriptStamp)'))" />
         <Touch Files="$(ArcReactJavaScriptStamp)" AlwaysCreate="true" />
     </Target>
-    <Target Name="CopyProxyJavaScriptDependencies" AfterTargets="Build" Condition="'$(TargetFramework)' == 'net10.0'">
+    <Target Name="CopyProxyJavaScriptDependencies" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
         <Copy SourceFiles="@(ProxyJavaScriptDependency)"
               DestinationFiles="@(ProxyJavaScriptDependency->'$(OutDir)%(TargetPath)')"
               SkipUnchangedFiles="true" />

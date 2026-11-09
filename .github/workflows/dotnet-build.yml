@@ -9,9 +9,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  DOTNET8_VERSION: "8.0.407"
-  DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
+  DOTNET11_VERSION: "11.0.x"
 
 on:
   workflow_dispatch:
@@ -71,9 +70,15 @@ permissions:
   contents: read
 
 jobs:
+  # Two legs: the spec projects compile for, and the specs run on, net11.0 and net10.0 (the two frameworks the libraries
+  # ship for). Both legs build the libraries for both frameworks, so the shipped packages are checked on every leg.
   dotnet-build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        spec-framework: [net11.0, net10.0]
     outputs:
       proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
       spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
@@ -98,13 +103,18 @@ jobs:
           python3 scripts/ci-test-shards.py check
           python3 scripts/ci-test-shards.py matrix >> "$GITHUB_OUTPUT"
 
-      - name: Setup .Net
+      # The 11.0 SDK is a release candidate until GA: dotnet-quality preview selects it and is dropped at GA. The 10.0
+      # SDK is installed alongside so the libraries build for net10.0 as well.
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       # This workflow only restores the shared caches, also when it runs on main: warm-caches.yml is the one place
       # that saves them, so pull request code never writes a cache.
@@ -142,18 +152,18 @@ jobs:
           npm run build
           node --test ../../../scripts/viewer-bundle.test.mjs
 
-      # Every spec job below runs net10.0 only, so the spec projects and their fixtures are compiled for net10.0 only
-      # (Directory.Build.props). The libraries still build for net8.0, net9.0 and net10.0.
+      # Each leg's spec jobs run on one framework, so the spec projects and their fixtures are compiled for that
+      # framework only (Directory.Build.props). The libraries still build for net10.0 and net11.0.
       - name: Build
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }}
 
-      # The specs run on net10.0 only, so the net8.0 and net9.0 branches of Arc's options binder are only exercised here:
-      # the harness compares the binder with the real ConfigurationBinder of each target framework. It exits 1 on a mismatch
-      # and 2 when it could not run, so any non-zero exit fails the step.
-      - name: Options binding parity (net8.0, net9.0, net10.0)
+      # The harness compares Arc's options binder with the real ConfigurationBinder of each target framework. It exits 1
+      # on a mismatch and 2 when it could not run, so any non-zero exit fails the step.
+      - name: Options binding parity (net10.0, net11.0)
+        if: ${{ matrix.spec-framework == 'net11.0' }}
         run: |
           set -euo pipefail
-          for framework in net8.0 net9.0 net10.0; do
+          for framework in net10.0 net11.0; do
             dotnet Source/DotNET/Arc.Core.BindingParity/bin/Release/$framework/Cratis.Arc.Core.Specs.dll --report "$RUNNER_TEMP/binding-parity-$framework.txt"
           done
 
@@ -180,14 +190,14 @@ jobs:
       - name: Upload build output
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: build-output
+          name: build-output-${{ matrix.spec-framework }}
           path: build-output.tar.zst
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
 
   specs:
-    name: ${{ matrix.shard }}
+    name: ${{ matrix.shard }} (${{ matrix.framework }})
     needs: [dotnet-build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -195,6 +205,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJson(needs.dotnet-build.outputs.spec-shards) }}
+        framework: [net11.0, net10.0]
 
     steps:
       - name: Checkout code
@@ -203,16 +214,17 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
+      # The shard runs on one framework, so it needs only that runtime; the build job installs both SDKs.
       - name: Setup .Net
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ matrix.framework == 'net11.0' && env.DOTNET11_VERSION || env.DOTNET10_VERSION }}
+          dotnet-quality: ${{ matrix.framework == 'net11.0' && 'preview' || '' }}
 
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: build-output
+          name: build-output-${{ matrix.framework }}
 
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
@@ -222,7 +234,7 @@ jobs:
       - name: Test (${{ matrix.shard }})
         env:
           SHARD: ${{ matrix.shard }}
-        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --results "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --framework ${{ matrix.framework }} --results "$RUNNER_TEMP/test-results"
 
       # Retain per-project population reporting in addition to the executable runner's strict TRX validation.
       - name: Verify every project ran tests
@@ -235,7 +247,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-results-${{ matrix.shard }}
+          name: test-results-${{ matrix.shard }}-${{ matrix.framework }}
           path: ${{ runner.temp }}/test-results/*.trx
           retention-days: 7
           if-no-files-found: warn
@@ -261,13 +273,16 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - name: Setup .Net
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       # This job restores only the samples, so it never saves the shared cache, even when run by hand on main.
       - name: Restore NuGet packages
@@ -278,7 +293,7 @@ jobs:
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: build-output
+          name: build-output-net11.0
 
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
@@ -293,7 +308,7 @@ jobs:
 
       - name: Generate and check both documents of a real application
         run: |
-          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net11.0/Cratis.Arc.Screenplay.EndToEnd.dll \
             Samples/AspNetCore/AspNetCore.csproj \
             "${RUNNER_TEMP}/AspNetCore.play" \
             --authoring-output "${RUNNER_TEMP}/AspNetCore-authoring.play"
@@ -303,7 +318,7 @@ jobs:
       # of the first one, so its document is generated and read back on its own.
       - name: Generate and check both documents of a real event sourced application
         run: |
-          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net11.0/Cratis.Arc.Screenplay.EndToEnd.dll \
             Samples/Chronicle/Chronicle.csproj \
             "${RUNNER_TEMP}/Chronicle.play" \
             --authoring-output "${RUNNER_TEMP}/Chronicle-authoring.play"
@@ -317,14 +332,14 @@ jobs:
       # Layered expectations describe default emission, so they apply to the default document only.
       - name: Generate and check both documents of a real application written as several projects
         run: |
-          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
+          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net11.0/Cratis.Arc.Screenplay.EndToEnd.dll \
             Samples/Layered/Layered.csproj \
             "${RUNNER_TEMP}/Layered.play" \
             Samples/Layered/Layered.expected \
             --authoring-output "${RUNNER_TEMP}/Layered-authoring.play"
 
   proxy-specs:
-    name: ${{ matrix.shard }}
+    name: ${{ matrix.shard }} (${{ matrix.framework }})
     needs: [dotnet-build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -332,6 +347,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJson(needs.dotnet-build.outputs.proxy-shards) }}
+        framework: [net11.0, net10.0]
 
     steps:
       - name: Checkout code
@@ -340,11 +356,12 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
+      # The shard runs on one framework, so it needs only that runtime; the build job installs both SDKs.
       - name: Setup .Net
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ matrix.framework == 'net11.0' && env.DOTNET11_VERSION || env.DOTNET10_VERSION }}
+          dotnet-quality: ${{ matrix.framework == 'net11.0' && 'preview' || '' }}
 
       # The template contract specs lint generated output with the real ESLint toolchain.
       - name: Setup node
@@ -367,7 +384,7 @@ jobs:
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: build-output
+          name: build-output-${{ matrix.framework }}
 
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
@@ -376,7 +393,7 @@ jobs:
       - name: Test (${{ matrix.shard }})
         env:
           SHARD: ${{ matrix.shard }}
-        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --results "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --framework ${{ matrix.framework }} --results "$RUNNER_TEMP/test-results"
 
       # A filter that matches nothing can pass the runner; this fails the shard when any of its namespaces ran no
       # tests and prints each namespace's count.
@@ -390,7 +407,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-results-${{ matrix.shard }}
+          name: test-results-${{ matrix.shard }}-${{ matrix.framework }}
           path: ${{ runner.temp }}/test-results/*.trx
           retention-days: 7
           if-no-files-found: warn
