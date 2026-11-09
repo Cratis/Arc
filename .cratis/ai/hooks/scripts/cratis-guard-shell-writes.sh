@@ -43,14 +43,16 @@ function candidate(s) {
     # A generic attached option prefix must not hide a path spelling (-t.pi/...).
     if (s ~ /^-/ && match(s, /[.\/]/) && RSTART > 1) candidate(substr(s, RSTART))
 }
-function scan(s,    n, i, c, word) {
+function scan(s,    n, i, c, word, whole) {
     n = length(s)
     for (i = 1; i <= n; i++) {
         c = substr(s, i, 1)
         if (c ~ /[ \t\n\r;|&<>()\047"`$=\\]/) { candidate(word); word = "" }
         else word = word c
+        if (c ~ /[ \t\n\r;|&<>()\047"`$]/) { candidate(whole); whole = "" }
+        else whole = whole c
     }
-    candidate(word)
+    candidate(word); candidate(whole)
     # Braces have a second boundary view; retain the original pattern above too.
     if (s ~ /[{}]/) { gsub(/[{}]/, " ", s); scan(s) }
 }
@@ -99,8 +101,9 @@ function endword() {
     } else {
         if (++argc > 256) bad = 1
         W[argc] = word
+        globbed[argc] = glob
     }
-    word = ""; inword = 0
+    word = ""; inword = glob = 0
 }
 # Each exemption permits only the reviewed read/presentation options below. No unknown
 # options, long-option abbreviations or implicit value-taking short clusters are accepted.
@@ -153,15 +156,27 @@ function options_allowed(verb, first,    i, w) {
     }
     return 1
 }
+# Only git -C <literal-dir> status --short, rev-parse HEAD, branch --show-current,
+# or tag --list <pattern> are exempt, with exact arity; no other global option is.
+# -C gives no protection from hostile repository config (fsmonitor, hooks, pager,
+# diff/textconv helpers). This filter checks syntax, not repository trust.
+function directory_metadata() {
+    if (argc < 5 || W[3] == "" || W[3] ~ /^-/ || globbed[3]) return 0
+    if (argc == 5) return (W[4] == "status" && W[5] == "--short") || (W[4] == "rev-parse" && W[5] == "HEAD") || (W[4] == "branch" && W[5] == "--show-current")
+    return argc == 6 && W[4] == "tag" && W[5] == "--list" && W[6] !~ /^-/
+}
 function allow_command(    verb, first) {
     if (!argc) return
     if (++commands > 64) { bad = 1; return }
     verb = W[1]; first = 2
-    # No global git option is exempt, including -C, -c and --no-pager.
+    if (verb == "git" && W[2] == "-C") {
+        if (!directory_metadata()) bad = 1
+        return
+    }
     if (verb == "git") { verb = verb " " W[2]; first = 3 }
     if (!(verb in verbs) || !options_allowed(verb, first)) bad = 1
 }
-function command_end() { endword(); allow_command(); delete W; argc = 0 }
+function command_end() { endword(); allow_command(); delete W; delete globbed; argc = 0 }
 function readonly(s,    i, c, c2, sq, dq) {
     for (i = 1; i <= length(s); i++) {
         c = substr(s, i, 1); c2 = substr(s, i + 1, 1)
@@ -172,6 +187,8 @@ function readonly(s,    i, c, c2, sq, dq) {
         # Expansions and globs can supply option words the per-verb tables never see.
         if (c == "`" || c == "$") bad = 1
         if (dq) { word = word c; continue }
+        # Directory metadata requires a literal -C operand, not a pathname expansion.
+        if (c == "*" || c == "?" || c == "[") glob = 1
         # A glob that starts a word, or follows a leading dash, may expand to an option word.
         if ((c == "*" || c == "?" || c == "[") && (word == "" ? !(c == "[" && c2 ~ /[ \t]/) : substr(word, 1, 1) == "-")) bad = 1
         if (c == "#" && !inword) { while (i <= length(s) && substr(s, i, 1) != "\n") i++; c = "\n" }
@@ -197,13 +214,14 @@ BEGIN {
     policy("cat", "nAvetsb", "")
     policy("head", "", ""); policy("tail", "", "")
     policy("wc", "lwcm", ""); policy("ls", "laA1hdRtrF", "")
+    policy("rg", "n", "")
     policy("grep", "nirRlLcvwxFEHhoqs", "")
     policy("egrep", "nirRlLcvwxFEHhoqs", ""); policy("fgrep", "nirRlLcvwxFEHhoqs", "")
     policy("echo", "neE", "")
     policy("printf", "", ""); policy("test", "", ""); policy("[", "", "")
     policy("true", "", ""); policy("false", "", ""); policy("pwd", "", "")
     policy("git status", "sb", "--short --porcelain")
-    policy("git diff", "p", "--stat --name-only --name-status --cached --staged --check --no-color")
+    policy("git diff", "p", "--stat --numstat --name-only --name-status --cached --staged --check --no-color")
     policy("git log", "p", "--oneline --stat --name-only --no-color --follow")
     policy("git show", "p", "--stat --name-only --no-color")
     policy("git add", "Aup", ""); policy("git commit", "aq", "")

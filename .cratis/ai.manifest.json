@@ -1,5 +1,5 @@
 {
-  "SourceRevision": "f2109acb38511532b2608bb7a32fab05eef9ce14",
+  "SourceRevision": "7264af898b8a6be1425c66f55bc8451eb73a479d",
   "Files": [
     {
       "Source": "agents/backend-developer.md",
@@ -29,7 +29,7 @@
     {
       "Source": "agents/orchestrator.md",
       "Destination": "agents/orchestrator.md",
-      "Hash": "E2975520A9AC73D6991B56C66135810D71ED7F7F16C65619F78549B7FDDD434E"
+      "Hash": "FD1B027A22A885E4DEE8B4DAD3AD712890535C27DD73943F7D9714520402B8AB"
     },
     {
       "Source": "agents/performance-reviewer.md",
@@ -229,7 +229,7 @@
     {
       "Source": "harnesses/copilot/instructions/glossary.instructions.md",
       "Destination": "harnesses/copilot/instructions/glossary.instructions.md",
-      "Hash": "105BCFEC3F92606F501B0731D769B6EB214E7284E2325CC9521975F3FAF6C234"
+      "Hash": "D0E83D91AE38DD1B74EF0E2609BCA76F599504F6062B3A84875A7BD66AFEE017"
     },
     {
       "Source": "harnesses/copilot/instructions/go-engineering.instructions.md",
@@ -279,7 +279,7 @@
     {
       "Source": "harnesses/copilot/instructions/profiles.instructions.md",
       "Destination": "harnesses/copilot/instructions/profiles.instructions.md",
-      "Hash": "4FDED86F3BC8973AC2DB04D82CE956B9360E1D6B60840F2A5D8DE3B82FC20D9E"
+      "Hash": "E0402D1FED6B92FEC4FF49B47BD4049D0BCD27C07D6A3822FE0D5410FD0A039C"
     },
     {
       "Source": "harnesses/copilot/instructions/pull-requests.instructions.md",
@@ -404,7 +404,7 @@
     {
       "Source": "harnesses/opencode/agents/orchestrator.md",
       "Destination": "harnesses/opencode/agents/orchestrator.md",
-      "Hash": "E16CCB73D4FF8C2DE0C383396B2A91EAA34345EC1C46A41C6D7952A8A049098A"
+      "Hash": "F83AB20486400EA9451B2CD66EC44D7DB61F1EF28034DFE1372FBD73101857C8"
     },
     {
       "Source": "harnesses/opencode/agents/performance-reviewer.md",
@@ -484,7 +484,7 @@
     {
       "Source": "harnesses/pi/agents/orchestrator.md",
       "Destination": "harnesses/pi/agents/orchestrator.md",
-      "Hash": "727ABF521FA08339278F82197CC1E382F3F1382316ABC9D472FFEAF40AF4A1A1"
+      "Hash": "C6616FA97343167C64C73AACA468273073695004D6909CEB245602081650A69A"
     },
     {
       "Source": "harnesses/pi/agents/performance-reviewer.md",
@@ -729,7 +729,7 @@
     {
       "Source": "hooks/README.md",
       "Destination": "hooks/README.md",
-      "Hash": "C696AD50BE18E7F469D77B03AF123287D66F075CDF7C723181EB03F734002E24"
+      "Hash": "AD81A9C84A6CDE74E7DE494088F5D8EFF1879D1DDFF147039E119B7D5C7534A0"
     },
     {
       "Source": "hooks/agent-stop.md",
@@ -764,7 +764,7 @@
     {
       "Source": "hooks/scripts/cratis-guard-shell-writes.sh",
       "Destination": "hooks/scripts/cratis-guard-shell-writes.sh",
-      "Hash": "6C6FB9D8736FBD713D71A63F4A3262C34E1B75C0DCC3164B00F08BF53443AF8F"
+      "Hash": "4005CF0400D9048F7D8EF47F973D2B3A516C31342738E11F3B832365DE1D6899"
     },
     {
       "Source": "hooks/scripts/cratis-guard-store-mutations.sh",
@@ -774,7 +774,7 @@
     {
       "Source": "hooks/scripts/cratis-guard-writes.sh",
       "Destination": "hooks/scripts/cratis-guard-writes.sh",
-      "Hash": "EA89AFD3F0D252BD145C2D6D007DFCCB55F876FAA96BEEE4E8E92FC149F659EF"
+      "Hash": "0D7035B859581DB931A5CF0A219AC8572F23117701A5C92C530F5CA958D3A66B"
     },
     {
       "Source": "hooks/scripts/cratis-nuget-pins.txt",
@@ -859,7 +859,7 @@
     {
       "Source": "profile-catalog.json",
       "Destination": "profile-catalog.json",
-      "Hash": "110238A01A68EEC078221238D5E6459DC8DC0B084116DF5CBC1383185C513641"
+      "Hash": "9862A574DA478BA593280F84F8AB3B8703262B37E7D9026BCAEDC732A184D59D"
     },
     {
       "Source": "prompts/add-business-rule.prompt.md",
@@ -1022,11 +1022,6 @@
       "Hash": "CEDA1835A0CD716EB37EB391954F7D17C46D0954292950F20705032BDE9F2C4C"
     },
     {
-      "Source": "rules/elixir.md",
-      "Destination": "rules/elixir.md",
-      "Hash": "946F045B7D0730DFDCE7AC1E4FF24735BEF357664AE3F7615BC62C6846F212C3"
-    },
-    {
       "Source": "rules/exit-codes-and-wrappers.md",
       "Destination": "rules/exit-codes-and-wrappers.md",
       "Hash": "0CBB33896598BDA8690AE7E16EF23B19E71F6EB3E192A723D282A58FCFDF3346"
@@ -1059,7 +1054,7 @@
     {
       "Source": "rules/glossary.md",
       "Destination": "rules/glossary.md",
-      "Hash": "110C9C8099A28228BB5CE6CCDC355A8C424F77F37F0D3520ACE3E9418125E52C"
+      "Hash": "65ABDEA1241CEE1D90C0A3AB5604B90E8A5BFC8185614F6B0A5FCB4E6AC95C1C"
     },
     {
       "Source": "rules/go-engineering.md",
@@ -1082,14 +1077,9 @@
       "Hash": "B257D77418266CDE2E7C9CDC4E3FB835B53BF451E3348EC35638C5B2D4C28FBC"
     },
     {
-      "Source": "rules/java.md",
-      "Destination": "rules/java.md",
-      "Hash": "E1A036BF334C92E2349640F47EB9FA36B23ED3E8CF24694E06655D9D24912DBB"
-    },
-    {
-      "Source": "rules/kotlin.md",
-      "Destination": "rules/kotlin.md",
-      "Hash": "B3BB8F174DCA3D04D3B96E46935A373B2161367B589690A0ADDB8F73B24580CE"
+      "Source": "rules/local-verification-and-delivery.md",
+      "Destination": "rules/local-verification-and-delivery.md",
+      "Hash": "FEE4A68BC7816AFF01A96EBADFC9F1A9F6C150F61E837A94B83044184BA8AF0C"
     },
     {
       "Source": "rules/local-work-artifacts.md",
@@ -1109,7 +1099,7 @@
     {
       "Source": "rules/profiles.md",
       "Destination": "rules/profiles.md",
-      "Hash": "E875ADE0525F39CD04988F992F2CF45553404F77A3BBB584D845C340E39F03A3"
+      "Hash": "24362A0D59ED8B46E2555E23D785A24A0EF783CA89F9E1590CDF04CCFC201DC8"
     },
     {
       "Source": "rules/pull-requests.md",
