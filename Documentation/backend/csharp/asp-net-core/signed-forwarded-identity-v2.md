@@ -231,6 +231,27 @@ The envelope attests AuthProxy's identity facts and their binding to the method,
 - Review every route's replay class, including MCP tools, before rollout. Store outages must not switch replay-sensitive requests to an in-memory fallback.
 - Keep all identity-bearing direct calls on the same signing and authenticated-TLS path as proxied requests.
 
+## Build a producer
+
+Arc verifies v2 envelopes; the gateway or proxy that forwards identity produces them. Arc ships no production signer, so a producer implements the steps below against the shared vectors.
+
+1. Remove every inbound covered header and any inbound signature header before setting your own values. Never sign a caller-supplied identity header.
+2. Set the covered headers for the verified caller, the three `x-ms-client-principal` headers included, each with exactly one value.
+3. Choose the key identifier (`kid`), the Unix-seconds timestamp (`ts`) and 16 fresh random bytes for the nonce, encoded as 22 base64url characters. Never reuse a nonce.
+4. Build the canonical signing input exactly as in [Canonical signing input](#canonical-signing-input).
+5. Sign the UTF-8 bytes with ECDSA P-256 and SHA-256, using the 64-byte IEEE P1363 `r||s` signature format (in .NET, `DSASignatureFormat.IeeeP1363FixedFieldConcatenation`), encoded as 86 base64url characters without padding.
+6. Emit `v2.<kid>.<ts>.<nonce>.<signature>` in the signature header. The whole value stays within 256 ASCII characters.
+
+Common mistakes: framing with character counts instead of UTF-8 byte counts, signing a decoded path instead of the raw target, changing the case of percent escapes other than upper-casing the hex digits, and signing before the final routing rewrite.
+
+Producer conformance, using the shared vectors:
+
+- For every accepted case, rebuild `signingInput` byte for byte from the case `inputs` and compare.
+- Sign with the case key and verify with its public key. ECDSA is randomized, so never compare signature bytes.
+- For every rejected case, confirm that your producer refuses the input or that its output is not accepted.
+
+[`generate.cs`](forwarded-identity-v2/generate-vectors/generate.cs) is a BCL-only reference signer you can read or copy. Keep real private keys out of source control and never log envelopes or principal payloads.
+
 ## Testing with the shared vectors
 
 The following additional conformance cases are required integration coverage, not claims of existing vectors or passing tests:
