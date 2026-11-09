@@ -18,6 +18,7 @@ using Cratis.Chronicle.Reducers;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -58,6 +59,11 @@ public static class ReadModelServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
         var readModelTypes = DiscoverReadModelTypes(clientArtifactsProvider);
+
+        // Storage integrations read a read model from the named sink Chronicle stores it in.
+        services.AddReadModelSinkNameProvider(sp => new ChronicleReadModelSinkNames(
+            readModelTypes,
+            sp.GetService<IOptions<ChronicleOptions>>()?.Value.DefaultSinkName));
         ProtectedDecisionRegistrationOrigins.For(services).RecognizeReaders(typeof(IDecisionReads), readModelTypes);
 
         // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
