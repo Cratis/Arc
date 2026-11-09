@@ -13,11 +13,6 @@
         <ProjectReference Include="../../Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <PackageReference Include="Microsoft.Build.Framework" PrivateAssets="all" />
         <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" />
-        <PackageVersion Update="Microsoft.NET.StringTools" Version="17.14.28" Condition="'$(TargetFramework)' == 'net9.0'" />
-        <!-- The 17.14 line supplies .NET 9 runtime assets, not .NET 8 ones. -->
-        <PackageVersion Update="Microsoft.Build.Framework" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
-        <PackageVersion Update="Microsoft.Build.Utilities.Core" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
-        <PackageVersion Update="Microsoft.NET.StringTools" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
         <Compile Include="../../Screenplay.Embedded/Build/**/*.cs" />
     </ItemGroup>
 </Project>

@@ -207,7 +207,6 @@ public static class ReadModelServiceCollectionExtensions
         }
     }
 
-#if NET9_0_OR_GREATER
     /// <summary>
     /// Releases a read model without closing a generic method through reflection over dynamic code.
     /// </summary>
@@ -225,7 +224,6 @@ public static class ReadModelServiceCollectionExtensions
 
         return task.GetAwaiter().GetResult();
     }
-#endif
 
     static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes, IDictionary<Type, ServiceDescriptor>? frameworkIssuedTokens = null) =>
         typeof(ReadModelServiceCollectionExtensions)
@@ -322,12 +320,10 @@ public static class ReadModelServiceCollectionExtensions
     {
         try
         {
-#if NET9_0_OR_GREATER
             if (!RuntimeFeature.IsDynamicCodeSupported)
             {
                 return ReleaseReadModelWithoutDynamicCode(readModels, readModelType, readModel);
             }
-#endif
 
             return ReleaseReadModelThroughReflection(readModels, readModelType, readModel);
         }
@@ -337,14 +333,12 @@ public static class ReadModelServiceCollectionExtensions
         }
     }
 
-#if NET9_0_OR_GREATER
     static Task<object> ReleaseAsObject<TReadModel>(IReadModels readModels, object readModel)
         where TReadModel : class =>
         AsObject(readModels.Release((TReadModel)readModel));
 
     static async Task<object> AsObject<T>(Task<T> task)
         where T : class => await task.ConfigureAwait(false);
-#endif
 
     [RequiresDynamicCode("Closes IReadModels.Release over a read model type only known at runtime.")]
     static object ReleaseReadModelThroughReflection(IReadModels readModels, Type readModelType, object readModel)

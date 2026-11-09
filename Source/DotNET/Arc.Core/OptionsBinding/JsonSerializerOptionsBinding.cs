@@ -52,9 +52,7 @@ internal static class JsonSerializerOptionsBinding
         Member.Of<JsonSerializerOptions, string>("NewLine", Leaves.String, static _ => _.NewLine, static (o, v) => o.NewLine = v),
         Member.Of<JsonSerializerOptions, bool>("RespectNullableAnnotations", Leaves.Bool, static _ => _.RespectNullableAnnotations, static (o, v) => o.RespectNullableAnnotations = v),
         Member.Of<JsonSerializerOptions, bool>("RespectRequiredConstructorParameters", Leaves.Bool, static _ => _.RespectRequiredConstructorParameters, static (o, v) => o.RespectRequiredConstructorParameters = v),
-#if NET10_0_OR_GREATER
         Member.Of<JsonSerializerOptions, bool>("AllowDuplicateProperties", Leaves.Bool, static _ => _.AllowDuplicateProperties, static (o, v) => o.AllowDuplicateProperties = v),
-#endif
 #if NET11_0_OR_GREATER
         Member.Of<JsonSerializerOptions, IList<JsonTypeClassifierFactory>>("TypeClassifiers", new ListType<JsonTypeClassifierFactory>(new AbstractType(typeof(JsonTypeClassifierFactory))), static _ => _.TypeClassifiers),
         Member.Of<JsonSerializerOptions, bool>("InferClosedTypePolymorphism", Leaves.Bool, static _ => _.InferClosedTypePolymorphism, static (o, v) => o.InferClosedTypePolymorphism = v),

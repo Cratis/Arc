@@ -5,9 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
-#if NET9_0_OR_GREATER
 using System.Runtime.CompilerServices;
-#endif
 using Cratis.Arc;
 using Cratis.Arc.EntityFrameworkCore;
 using Cratis.Arc.EntityFrameworkCore.Observe;
@@ -167,7 +165,6 @@ public static class DbSetObserveExtensions
         return dbSet.ObserveSingleCore(lambda, configure, ignoreQueryContext);
     }
 
-#if NET9_0_OR_GREATER
     /// <summary>
     /// Sorts a query without closing a generic method through reflection over dynamic code.
     /// </summary>
@@ -194,7 +191,6 @@ public static class DbSetObserveExtensions
             throw new TargetInvocationException(ex);
         }
     }
-#endif
 
     /// <summary>
     /// Observes a single entity matching a filter, backed by the shared observation pipeline.
@@ -567,12 +563,10 @@ public static class DbSetObserveExtensions
     static IQueryable<TEntity> ApplyOrder<TEntity>(IQueryable<TEntity> query, Expression propertyAccess, ParameterExpression parameter, SortDirection direction)
         where TEntity : class
     {
-#if NET9_0_OR_GREATER
         if (!RuntimeFeature.IsDynamicCodeSupported)
         {
             return OrderByWithoutDynamicCode(query, propertyAccess, parameter, direction);
         }
-#endif
 
         return OrderByThroughReflection(query, propertyAccess, parameter, direction);
     }
