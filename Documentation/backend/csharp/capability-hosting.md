@@ -19,7 +19,6 @@ Configure the server listener, the [endpoint-group assignment](endpoint-groups.m
 using Cratis.Arc;
 using VerifiedCallerAcceptance;
 
-builder.WebHost.UseUrls($"http://127.0.0.1:{settings.DefaultPort}", $"http://127.0.0.1:{settings.CapabilityPort}");
 builder.AddCratisArc(
     options => options.EndpointGroups.Assign("capabilities", settings.CapabilityPort),
     configureBuilder: arc => arc.WithCapabilities().WithVerifiedCallers(callers => callers
@@ -29,6 +28,8 @@ builder.AddCratisArc(
             .AddPublicKey(settings.KeyId, settings.PublicKeyPem)
             .UseProcessLocalNonceStore())));
 ```
+
+The fragment omits listener setup: before accepting signed callers, configure HTTPS on the capability port and require a trusted forwarding peer's client certificate as shown in [Install one receiving resource](asp-net-core/verified-callers.md#install-one-receiving-resource). An HTTP-only listener cannot admit signed v2 callers; assigning a port does not establish transport trust.
 
 Tag capability commands, read models, or query methods with `[EndpointGroup("capabilities")]`. Group membership is the explicit exposure choice; commands and queries outside that group retain their existing routing. Enabling capabilities without assigning the group's port fails startup with `CapabilityEndpointGroupHasNoPort`. Startup also fails with `CapabilityHostingHasNoCredentialInstallation` when no credential verifier and receiving installation are registered.
 
@@ -75,6 +76,21 @@ The [PAT adapter guide](asp-net-core/personal-access-token-adapters.md#compose-b
 Inject `Cratis.Arc.Capabilities.ICapabilityCallers` into capability code. Its `Current` property returns the admitted `CapabilityCaller`, including the endpoint group, protocol `rest`, principal kind, person, current delegated actor, client metadata, credential identifier, checked grant identifier, tenant, and scope ceiling. Outside a capability call it is null.
 
 A declared client is metadata, not an authenticated actor. `Client.IsAuthenticated` distinguishes authenticated client metadata from declared metadata. The scopes are a verified ceiling, not an authorization decision.
+
+## Session authority contract
+
+Session identifiers MUST NOT confer authority. Every request MUST re-authenticate its own credential, check current credential and grant fences (including recovery state), and re-check live tenant membership and operation authorization. A session opened before revocation, rotation, or a membership change MUST NOT preserve earlier authority. Refuse the request if a required status authority is unavailable; never use a session snapshot as fallback.
+
+The required revocation bounds depend on credential validation:
+
+| Credential validation | Required bound |
+| --- | --- |
+| Live browser-session, PAT, or grant status | An acknowledged revocation or invalidating rotation takes effect on next use, including on another replica; no session grace period |
+| Offline access-token validation | Previously issued authority is bounded by token lifetime plus accepted clock skew, at most 630 seconds; an online fence check may shorten this bound |
+
+The 630-second bound applies only to authority established by offline token validation. Mandatory online credential and grant fences remain next-use checks; the offline bound is not a grace period for them. Offline token validity does not waive live membership or other required authoritative checks. These are contract requirements, not a claim that every adapter or credential profile is implemented. The released MCP behavior is described in [Session authority](mcp.md#session-authority-arc-mcp-authorization-v1): its stateless transport issues no server session ID.
+
+Conforming stateful integrations MUST test open → revoke → call and open → invalidating rotation → call, both on the opening replica and on another replica, and refuse within the applicable bound. They MUST also test membership removal and required-authority outage after opening. Arc's stateless MCP checks do not establish conformance for a valid server-issued session ID.
 
 ## What events record
 
