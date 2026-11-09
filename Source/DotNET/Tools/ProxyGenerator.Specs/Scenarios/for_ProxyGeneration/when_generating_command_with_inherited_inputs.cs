@@ -38,8 +38,8 @@ public class when_generating_command_with_inherited_inputs : Specification, IDis
             "command.code = 42; " +
             "command.count = 3; " +
             "command.enabled = true; " +
-            "command.suppressedInput = 7; " +
-            "command.ignoredInput = 'Excluded'; " +
+            "command.declaredIgnoredInput = 'Declared'; " +
+            "command.ignoredInput = 'Inherited'; " +
             "command.internalInput = 'Excluded'; " +
             "command.execute(); " +
             "return globalThis.__serializedBody; " +
@@ -57,17 +57,17 @@ public class when_generating_command_with_inherited_inputs : Specification, IDis
     [Fact] void should_resolve_hidden_inputs_to_the_most_derived_type() => _descriptor.Properties.Single(_ => _.Name == "Code").Type.ShouldEqual("number");
     [Fact] void should_not_duplicate_overridden_inputs() => _descriptor.Properties.Count(_ => _.Name == "Description").ShouldEqual(1);
     [Fact] void should_not_duplicate_hidden_inputs() => _descriptor.Properties.Count(_ => _.Name == "Code").ShouldEqual(1);
-    [Fact] void should_use_the_ignore_condition_from_the_override() => _descriptor.Properties.Any(_ => _.Name == "Description").ShouldBeTrue();
-    [Fact] void should_not_restore_a_base_input_hidden_by_an_ignored_input() => _generatedCode.ShouldNotContain("suppressedInput");
+    [Fact] void should_include_declared_json_ignored_inputs() => _generatedCode.ShouldContain("declaredIgnoredInput?: string;");
+    [Fact] void should_treat_inherited_json_ignored_inputs_like_declared_inputs() => _descriptor.Properties.Single(_ => _.Name == "IgnoredInput").Type.ShouldEqual(_descriptor.Properties.Single(_ => _.Name == "DeclaredIgnoredInput").Type);
     [Fact] void should_emit_validation_for_the_inherited_property() => _generatedCode.ShouldContain("this.ruleFor(c => c.name).notEmpty();");
     [Fact] void should_have_the_property_referenced_by_validation() => _descriptor.Properties.Any(_ => _.Name == "Name").ShouldBeTrue();
-    [Fact] void should_exclude_ignored_inputs() => _generatedCode.ShouldNotContain("ignoredInput");
+    [Fact] void should_include_inherited_json_ignored_inputs() => _generatedCode.ShouldContain("ignoredInput?: string;");
     [Fact] void should_exclude_non_public_inputs() => _generatedCode.ShouldNotContain("internalInput");
     [Fact] void should_serialize_the_inherited_scalar() => _serializedBody.ShouldContain("\"name\":\"Example\"");
     [Fact] void should_serialize_the_inherited_complex_input() => _serializedBody.ShouldContain("\"details\":{\"street\":\"Example street\"}");
     [Fact] void should_serialize_the_most_derived_hidden_input() => _serializedBody.ShouldContain("\"code\":42");
-    [Fact] void should_not_serialize_ignored_inputs() => _serializedBody.ShouldNotContain("ignoredInput");
-    [Fact] void should_not_serialize_the_ignored_hidden_input() => _serializedBody.ShouldNotContain("suppressedInput");
+    [Fact] void should_serialize_inherited_json_ignored_inputs_like_declared_inputs() => _serializedBody.ShouldContain("\"ignoredInput\":\"Inherited\"");
+    [Fact] void should_serialize_declared_json_ignored_inputs() => _serializedBody.ShouldContain("\"declaredIgnoredInput\":\"Declared\"");
     [Fact] void should_not_serialize_non_public_inputs() => _serializedBody.ShouldNotContain("internalInput");
     [Fact] void should_produce_valid_typescript() => _diagnostics.ShouldBeEmpty();
 

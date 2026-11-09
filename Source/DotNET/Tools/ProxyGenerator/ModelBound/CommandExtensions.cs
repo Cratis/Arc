@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using System.Text.Json.Serialization;
 using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound;
@@ -81,21 +80,9 @@ public static class CommandExtensions
             properties.AddRange(current.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly));
         }
 
-        // Resolve names before excluding ignored inputs so a hidden base input is not restored.
         return properties.DistinctBy(property => property.Name)
-            .Where(property => !IsIgnoredInput(property))
             .Select(property => property.ToPropertyDescriptor())
             .ToList();
-    }
-
-    static bool IsIgnoredInput(PropertyInfo property)
-    {
-        // Compare attribute names and metadata values to support MetadataLoadContext types.
-        var attribute = property.GetCustomAttributesData().FirstOrDefault(candidate =>
-            candidate.AttributeType.FullName == typeof(JsonIgnoreAttribute).FullName);
-        return attribute?.NamedArguments.All(argument =>
-            argument.MemberName != nameof(JsonIgnoreAttribute.Condition) ||
-            Convert.ToInt32(argument.TypedValue.Value) == (int)JsonIgnoreCondition.Always) == true;
     }
 
     static CustomAttributeData? ResolveBlockingSeverity(TypeInfo commandType)

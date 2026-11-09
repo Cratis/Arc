@@ -14,10 +14,8 @@ public record CommandInputsBase
 {
     public string Name { get; init; } = string.Empty;
     public InheritedCommandDetails Details { get; init; } = new(string.Empty);
-    [JsonIgnore]
     public virtual string Description { get; init; } = string.Empty;
     public string Code { get; init; } = string.Empty;
-    public string SuppressedInput { get; init; } = string.Empty;
 
     [JsonIgnore]
     public string IgnoredInput { get; init; } = string.Empty;
@@ -33,13 +31,12 @@ public record CommandInputsMiddle : CommandInputsBase
 [Command]
 public record CommandWithInheritedInputs : CommandInputsMiddle
 {
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public override string Description { get; init; } = string.Empty;
     public new int Code { get; init; }
     public bool Enabled { get; init; }
 
     [JsonIgnore]
-    public new int SuppressedInput { get; init; }
+    public string DeclaredIgnoredInput { get; init; } = string.Empty;
 
     public void Handle() { }
 }
