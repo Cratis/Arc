@@ -24,6 +24,7 @@ Follow [getting started](./getting-started.md) to install the package, connect y
 - [Watch multiple collections](./change-stream-watcher.md): shared database change streams and joined results.
 - [Tenancy](./tenancy.md): database naming and scope boundaries.
 - [Connection resolution](./connection-resolution.md): choose a server, database, or credentials for each tenant.
+- [Named sinks](./named-sinks.md): read read models a Chronicle named sink stores on another MongoDB server.
 
 Graph data lives in Neo4j rather than MongoDB; the [Neo4j integration](../neo4j/index.md) gives the same tenant-aware convenience for a property graph.
 
