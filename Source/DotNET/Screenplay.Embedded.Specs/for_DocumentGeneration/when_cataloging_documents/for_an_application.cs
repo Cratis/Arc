@@ -23,7 +23,8 @@ public class for_an_application : Specification
         _generation = new EmbeddedDocumentGenerator()
             .Generate(given.an_application.Build(), given.an_application.Options(), []);
         _json = _generation.Catalog.Serialize();
-        _documents = JsonDocument.Parse(_json).RootElement.GetProperty("documents");
+        using var document = JsonDocument.Parse(_json);
+        _documents = document.RootElement.GetProperty("documents").Clone();
     }
 
     JsonElement DocumentOf(string id) =>
