@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
 using System.Text.Json.Nodes;
 using Cratis.Arc.Capabilities;
 using Microsoft.AspNetCore.Http;
@@ -82,14 +83,23 @@ public static class McpVectorRunner
     /// </summary>
     /// <param name="index">The vector index.</param>
     /// <param name="vector">The vector.</param>
+    /// <param name="publicRefusal">Whether to exercise the public refusal writer.</param>
     /// <returns>The mismatches found; empty when the vector holds.</returns>
-    public static async Task<IEnumerable<string>> Check(int index, JsonNode vector)
+    public static async Task<IEnumerable<string>> Check(int index, JsonNode vector, bool publicRefusal = false)
     {
         var mismatches = new List<string>();
         foreach (var profile in Profiles(vector["given"]!))
         {
             var options = OptionsFor(profile);
-            var context = await Respond(index, vector, options);
+            var context = publicRefusal ? await RespondPublic(index, vector, options) : await Respond(index, vector, options);
+            if (publicRefusal)
+            {
+                var existing = await Respond(index, vector, options);
+                if (!((MemoryStream)context.Response.Body).ToArray().SequenceEqual(((MemoryStream)existing.Response.Body).ToArray()))
+                {
+                    mismatches.Add($"#{index}: public refusal body bytes differ from Arc's internal writer");
+                }
+            }
             mismatches.AddRange(Compare(vector["then"]!, context).Select(_ => $"#{index} ({profile}): {_}"));
         }
 
@@ -123,6 +133,27 @@ public static class McpVectorRunner
         };
         options.AuthorizationServers.Add("https://login.example.test");
         return options;
+    }
+
+    static async Task<HttpContext> RespondPublic(int index, JsonNode vector, McpOptions options)
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        if (_insufficientScope.Contains(index))
+        {
+            var scopes = vector["when"]!["requiredScopes"]!.AsArray().Select(_ => _!.GetValue<string>());
+            await McpRefusals.InsufficientScope(context, options, scopes, stepUp: true);
+        }
+        else if (_forbidden.Contains(index))
+        {
+            await McpRefusals.Forbidden(context);
+        }
+        else
+        {
+            await McpRefusals.Unauthorized(context, options);
+        }
+
+        return context;
     }
 
     static async Task<HttpContext> Respond(int index, JsonNode vector, McpOptions options)
@@ -193,10 +224,11 @@ public static class McpVectorRunner
         if (then["body"] is { } body)
         {
             response.Body.Position = 0;
-            var actual = JsonNode.Parse(response.Body);
-            if (!JsonNode.DeepEquals(body, actual))
+            using var actual = new MemoryStream();
+            response.Body.CopyTo(actual);
+            if (!actual.ToArray().SequenceEqual(Encoding.UTF8.GetBytes(body.ToJsonString())))
             {
-                yield return $"body {actual?.ToJsonString()}, expected {body.ToJsonString()}";
+                yield return $"body bytes did not match {body.ToJsonString()}";
             }
         }
     }

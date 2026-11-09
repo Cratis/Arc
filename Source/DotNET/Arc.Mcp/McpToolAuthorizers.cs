@@ -20,10 +20,17 @@ internal static class McpToolAuthorizers
     /// <param name="services">The services of the request.</param>
     /// <param name="cancellationToken">The cancellation token of the request.</param>
     /// <returns>True when every authorizer allows, or none is registered; false when any denies or throws.</returns>
-    internal static async ValueTask<bool> Allow(McpToolDescriptor tool, McpCaller caller, IServiceProvider services, CancellationToken cancellationToken)
+    internal static ValueTask<bool> Allow(McpToolDescriptor tool, McpCaller caller, IServiceProvider services, CancellationToken cancellationToken) =>
+        Allow(new McpToolAuthorization(tool, caller.Capability, services, cancellationToken));
+
+    /// <summary>
+    /// Asks every registered authorizer for the specified operation.
+    /// </summary>
+    /// <param name="authorization">The tool, caller, and operation to authorize.</param>
+    /// <returns>True when every authorizer allows, or none is registered; false when any denies or throws.</returns>
+    internal static async ValueTask<bool> Allow(McpToolAuthorization authorization)
     {
-        var authorization = new McpToolAuthorization(tool, caller.Capability, services, cancellationToken);
-        foreach (var authorizer in services.GetServices<IMcpToolAuthorizer>())
+        foreach (var authorizer in authorization.Services.GetServices<IMcpToolAuthorizer>())
         {
             try
             {
@@ -32,13 +39,13 @@ internal static class McpToolAuthorizers
                     return false;
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (authorization.CancellationToken.IsCancellationRequested)
             {
                 throw;
             }
             catch (Exception ex)
             {
-                services.GetService<ILoggerFactory>()?.CreateLogger(typeof(McpToolAuthorizers)).AuthorizerFailed(tool.Name, ex);
+                authorization.Services.GetService<ILoggerFactory>()?.CreateLogger(typeof(McpToolAuthorizers)).AuthorizerFailed(authorization.Tool.Name, ex);
                 return false;
             }
         }

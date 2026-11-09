@@ -22,9 +22,15 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
     McpServerOptions _default;
     WarningRecorder _logger;
     WarningRecorder _defaultLogger;
+    WarningRecorder _emptyLogger;
+    WarningRecorder _missingLogger;
 
     void Because()
     {
+        _emptyLogger = new();
+        Configure(false, null, _emptyLogger);
+        _missingLogger = new();
+        Configure(false, null, _missingLogger, missingCollection: true);
         _defaultLogger = new();
         _default = Configure(null, "app_echo", _defaultLogger);
         _logger = new();
@@ -44,8 +50,10 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
     [Fact] void should_remove_custom_call_handlers_by_default() => _default.Handlers.CallToolHandler.ShouldBeNull();
     [Fact] void should_not_warn_by_default() => _defaultLogger.Warnings.ShouldEqual(0);
     [Fact] void should_warn_when_serving_server_tools() => _logger.Warnings.ShouldEqual(1);
+    [Fact] void should_not_warn_with_an_empty_server_tool_collection() => _emptyLogger.Warnings.ShouldEqual(0);
+    [Fact] void should_not_warn_without_a_server_tool_collection() => _missingLogger.Warnings.ShouldEqual(0);
 
-    McpServerOptions Configure(bool? exclusive, string serverToolName, ILogger<McpServerToolsConfiguration>? logger = null)
+    McpServerOptions Configure(bool? exclusive, string? serverToolName, ILogger<McpServerToolsConfiguration>? logger = null, bool missingCollection = false)
     {
         var mcp = new McpOptions { ApplicationName = "app" };
         if (exclusive is { } value)
@@ -58,7 +66,8 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
         var dispatcher = new McpToolDispatcher(Substitute.For<IHttpContextAccessor>(), factory, operations, NullLogger<McpToolDispatcher>.Instance);
         var server = new McpServerOptions
         {
-            ToolCollection = [McpServerTool.Create(() => "echo", new McpServerToolCreateOptions { Name = serverToolName, Description = "Echoes." })]
+            ToolCollection = missingCollection ? null : serverToolName is null ? [] :
+                [McpServerTool.Create(() => "echo", new McpServerToolCreateOptions { Name = serverToolName, Description = "Echoes." })]
         };
         server.Handlers.CallToolHandler = (_, _) => ValueTask.FromResult(new ModelContextProtocol.Protocol.CallToolResult());
 

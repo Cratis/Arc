@@ -36,7 +36,7 @@ internal static class McpToolListFilter
                 foreach (var tool in result.Tools)
                 {
                     if (ceiling.TryGet(tool.Name, out var descriptor)
-                        ? caller.HoldsScopesFor(descriptor!) && await McpToolAuthorizers.Allow(descriptor!, caller, http.RequestServices, cancellationToken)
+                        ? caller.HoldsScopesFor(descriptor!) && await McpToolAuthorizers.Allow(new McpToolAuthorization(descriptor!, caller.Capability, http.RequestServices, cancellationToken) { Operation = McpToolOperation.List })
                         : !exclusive)
                     {
                         listed.Add(tool);

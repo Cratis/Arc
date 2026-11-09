@@ -10,6 +10,9 @@ namespace Cratis.Arc.Mcp.for_McpEndpoint.given;
 public class DenyingAuthorizer(ToolGate gate) : IMcpToolAuthorizer
 {
     /// <inheritdoc/>
-    public ValueTask<bool> IsAllowed(McpToolAuthorization authorization) =>
-        ValueTask.FromResult(!gate.Denied.Contains(authorization.Tool.Name));
+    public ValueTask<bool> IsAllowed(McpToolAuthorization authorization)
+    {
+        gate.Operations.Add(authorization.Operation);
+        return ValueTask.FromResult(!gate.Denied.Contains(authorization.Tool.Name));
+    }
 }

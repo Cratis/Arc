@@ -13,7 +13,11 @@ The tools a caller sees depend on that caller's scopes. A caller without the wri
 
 ## Turn it on
 
-Capability hosting with a verified caller installation is required. Then add `WithMcp` and map the endpoint:
+Capability hosting with a verified caller installation is required. Bind both the default public listener and a separate listener on the assigned capabilities port, even when the host serves only `/mcp`. Assigning the port does not bind the listener; configure both through Kestrel or `UseUrls`, as shown in [capability hosting](capability-hosting.md).
+
+Before either listener starts, Arc validates authorization declarations for every discovered command and query, not just the MCP ceiling. Missing or invalid authorization policies can therefore fail startup even for commands you have not exposed as tools.
+
+Then add `WithMcp` and map the endpoint:
 
 ```csharp
 builder.AddCratisArc(
@@ -148,6 +152,8 @@ public class PlanAuthorizer(IPlans plans) : IMcpToolAuthorizer
 }
 ```
 
+`McpToolAuthorization.Operation` is `McpToolOperation.List` when checking list visibility and `McpToolOperation.Call` during call admission and dispatch. Contexts constructed without setting `Operation` default to `Call`.
+
 Authorizers only narrow access:
 
 - They run only for a caller whose scopes already satisfy the tool.
@@ -179,13 +185,19 @@ Those tools are not part of the ceiling and Arc does not govern them, so Arc log
 
 Arc governs tools only. Prompts and resources you add to the server are not filtered by scope or tool authorizers; every admitted caller can list and read them. Check access inside their handlers, or do not register them on a server that serves callers with different rights.
 
+## Write a refusal from host middleware
+
+Use `McpRefusals.Unauthorized(httpContext, options)`, `McpRefusals.Forbidden(httpContext)`, or `McpRefusals.InsufficientScope(httpContext, options, requiredScopes)` to write the same JSON refusals as Arc without copying their bodies. Await the returned task and stop processing the request. These methods only write a response; they do not verify credentials, create a caller, or bypass any authorization check. An `IMcpToolAuthorizer` must still return `false` to deny.
+
+The responses are `401` with `{"error":"unauthorized"}`, `403` with `{"error":"forbidden"}`, and `403` with `{"error":"insufficient_scope"}` respectively. Unauthorized and insufficient-scope responses include the configured Bearer challenge. Pass the host's validated `McpOptions` and configured required scopes, not request-header values. For insufficient scope, set `stepUp: true` only for a verified OAuth caller that supports step-up; it defaults to `false`, so a PAT refusal does not advertise OAuth metadata.
+
 ## Extension points for transport packages
 
 Optional transports can use these public seams without depending on Arc internals:
 
 - `CapabilitiesServiceProviderExtensions.HasCapabilities()` checks host registration; `CapabilityEndpointSelector.HasEndpointMetadata<TMetadata>()` checks an exact gate rule.
 - `CapabilityRequestContext.GetCaller()` and `GetVerifiedCaller()` read facts already admitted in the current request's item bag. They do not trust `HttpContext.User`. `SetProtocol()` labels an existing admitted caller without granting authority. Never reuse an item bag across requests.
-- `OperationContextScope.Begin()` scopes identity, tenant, and correlation caches for one hosted operation.
+- `OperationContextScope.Begin()` captures and restores receipt time only. It does not isolate identity, tenant, or correlation state; use the hosted pipelines and request-scoped services for those boundaries.
 - `CommandPipeline.ExecuteHosted()` and `QueryPipeline.PerformHosted()` retain hosted authorization and identity-bound dependency scopes. Read an untyped command response with `CommandResult.ResponsePayload`. Materialize a query response before calling `QueryResult.ReleaseScope()` in a `finally` block.
 - `ConverterExtensions.IsEnumerableOfQueryArgumentElement()` classifies collection arguments consistently with Arc query binding.
 

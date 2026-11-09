@@ -51,7 +51,10 @@ internal sealed class McpServerToolsConfiguration(
                 tools.Add(serverTool);
             }
 
-            logger.UngovernedServerToolsServed(string.Join(", ", tools.PrimitiveNames));
+            if (tools.PrimitiveNames.Count > 0)
+            {
+                logger.UngovernedServerToolsServed(string.Join(", ", tools.PrimitiveNames));
+            }
         }
 
         foreach (var tool in ceiling.Ceiling.Tools)

@@ -16,4 +16,10 @@ public sealed record McpToolAuthorization(
     McpToolDescriptor Tool,
     CapabilityCaller Caller,
     IServiceProvider Services,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    /// <summary>
+    /// Gets the operation being authorized. Defaults to <see cref="McpToolOperation.Call"/>.
+    /// </summary>
+    public McpToolOperation Operation { get; init; } = McpToolOperation.Call;
+}

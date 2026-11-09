@@ -14,6 +14,11 @@ public class ToolGate
     public HashSet<string> Denied { get; } = [];
 
     /// <summary>
+    /// Gets the operations observed by the denying authorizer.
+    /// </summary>
+    public List<McpToolOperation> Operations { get; } = [];
+
+    /// <summary>
     /// Gets or sets a value indicating whether the throwing authorizer throws.
     /// </summary>
     public bool Throw { get; set; }
