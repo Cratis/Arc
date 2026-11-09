@@ -118,6 +118,11 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     public string OutputPath { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the consuming SDK's compiler directory, used only when its compiler is newer.
+    /// </summary>
+    public string? SdkCompilerDirectory { get; set; }
+
+    /// <summary>
     /// Gets the files to embed, each carrying the logical name it is embedded under.
     /// </summary>
     [Output]
@@ -129,6 +134,14 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     {
         try
         {
+            var isolatedResult = SdkCompilerTask.Execute(this, out var documents);
+            if (isolatedResult.HasValue)
+            {
+                Documents = documents;
+
+                return isolatedResult.Value;
+            }
+
             return Generate();
         }
         catch (Exception exception)
@@ -171,6 +184,7 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     GenerationFingerprint Fingerprint() =>
         new GenerationFingerprint()
             .WithGeneratorAt(typeof(GenerateEmbeddedScreenplayDocuments).Assembly.Location)
+            .WithCompiler(typeof(Microsoft.CodeAnalysis.Compilation).Assembly.GetName())
             .WithSetting(nameof(AssemblyName), AssemblyName)
             .WithSetting(nameof(RootNamespace), RootNamespace)
             .WithSetting(nameof(DefineConstants), DefineConstants)

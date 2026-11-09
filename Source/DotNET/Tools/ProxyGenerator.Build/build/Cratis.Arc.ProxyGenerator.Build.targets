@@ -3,6 +3,13 @@
         <!-- One net10.0 task serves every supported consumer framework (net10.0 and net11.0). -->
         <TargetFrameworkFolder>net10.0</TargetFrameworkFolder>
 
+        <!-- Newer consumers (net11.0, net11.0-windows, later) run the net10.0 tool, rolled forward onto the consumer's runtime. -->
+        <CratisProxyGeneratorRollForward Condition=" '$(TargetFrameworkFolder)' == '' and '$(TargetFramework)' != '' and $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0')) ">true</CratisProxyGeneratorRollForward>
+        <TargetFrameworkFolder Condition=" '$(CratisProxyGeneratorRollForward)' == 'true' ">net10.0</TargetFrameworkFolder>
+        <CratisProxyGeneratorHostArguments Condition=" '$(CratisProxyGeneratorRollForward)' == 'true' and '$(CratisProxyGeneratorHostArguments)' == '' ">--roll-forward LatestMajor</CratisProxyGeneratorHostArguments>
+        <!-- Until the 11 runtime ships as a release, the host only rolls forward onto it when prereleases are allowed. -->
+        <CratisProxyGeneratorEnvironmentVariables Condition=" '$(CratisProxyGeneratorRollForward)' == 'true' and '$(CratisProxyGeneratorEnvironmentVariables)' == '' ">DOTNET_ROLL_FORWARD_TO_PRERELEASE=1</CratisProxyGeneratorEnvironmentVariables>
+
         <CratisProxyDevAssemblyDirectory>$(MSBuildThisFileDirectory)../../ProxyGenerator.Build/bin/$(Configuration)/$(TargetFrameworkFolder)</CratisProxyDevAssemblyDirectory>
         <CratisProxyPackedAssemblyDirectory>$(MSBuildThisFileDirectory)../tasks/$(TargetFrameworkFolder)</CratisProxyPackedAssemblyDirectory>
 
@@ -62,7 +69,8 @@
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true"
-            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) $(EndpointGroup) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; --file-header-base64=$(CratisProxiesEncodedFileHeader) $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(EmitInterfaces) --framework=&quot;$(CratisProxiesFramework)&quot; $(UseProxyFileSuffix) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings) $(StateFileArgument)"
+            EnvironmentVariables="$(CratisProxyGeneratorEnvironmentVariables)"
+            Command="dotnet $(CratisProxyGeneratorHostArguments) $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) $(EndpointGroup) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; --file-header-base64=$(CratisProxiesEncodedFileHeader) $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(EmitInterfaces) --framework=&quot;$(CratisProxiesFramework)&quot; $(UseProxyFileSuffix) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings) $(StateFileArgument)"
             WorkingDirectory="$(CratisProxyGeneratorAssemblyDirectory)" />
     </Target>
 </Project>

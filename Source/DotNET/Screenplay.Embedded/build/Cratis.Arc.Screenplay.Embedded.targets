@@ -85,6 +85,7 @@
         </PropertyGroup>
 
         <GenerateEmbeddedScreenplayDocuments
+            SdkCompilerDirectory="$(RoslynTargetsPath)/bincore"
             Sources="@(Compile)"
             References="@(ReferencePathWithRefAssemblies)"
             Analyzers="@(Analyzer)"
