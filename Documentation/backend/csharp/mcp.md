@@ -157,7 +157,7 @@ public class PlanAuthorizer(IPlans plans) : IMcpToolAuthorizer
 Authorizers only narrow access:
 
 - They run only for a caller whose scopes already satisfy the tool.
-- Every registered authorizer must allow the tool. One that denies or throws hides the tool from `tools/list`. A client that calls the hidden tool anyway gets HTTP `403` with the body `{"error":"forbidden"}` and no `WWW-Authenticate` challenge, before the MCP server reads the request; it is not a tool error, and no reason is returned. The dispatcher checks again before it runs the tool.
+- Every registered authorizer must allow the tool. One that denies or throws for `List` hides the tool from `tools/list`; hiding is visibility only, not execution authorization. One that denies or throws for `Call` refuses the call. A client that calls a tool the authorizer denies for `Call` gets HTTP `403` with the body `{"error":"forbidden"}` and no `WWW-Authenticate` challenge, before the MCP server reads the request; it is not a tool error, and no reason is returned. The dispatcher checks again before it runs the tool.
 - They apply to the tools of the ceiling only, not to tools registered directly on the MCP server.
 - They run for every ceiling tool on every `tools/list`, and again for each call, in admission and in the dispatcher. Keep them cheap, and cache any lookup they need.
 
