@@ -55,6 +55,10 @@ internal static class JsonSerializerOptionsBinding
 #if NET10_0_OR_GREATER
         Member.Of<JsonSerializerOptions, bool>("AllowDuplicateProperties", Leaves.Bool, static _ => _.AllowDuplicateProperties, static (o, v) => o.AllowDuplicateProperties = v),
 #endif
+#if NET11_0_OR_GREATER
+        Member.Of<JsonSerializerOptions, IList<JsonTypeClassifierFactory>>("TypeClassifiers", new ListType<JsonTypeClassifierFactory>(new AbstractType(typeof(JsonTypeClassifierFactory))), static _ => _.TypeClassifiers),
+        Member.Of<JsonSerializerOptions, bool>("InferClosedTypePolymorphism", Leaves.Bool, static _ => _.InferClosedTypePolymorphism, static (o, v) => o.InferClosedTypePolymorphism = v),
+#endif
         Member.Of<JsonSerializerOptions, bool>("IsReadOnly", Leaves.Bool, static _ => _.IsReadOnly)
     ];
 }
