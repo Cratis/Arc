@@ -21,7 +21,7 @@ public static class SpecTasks
             await task.WaitAsync(timeout);
             return true;
         }
-        catch (TimeoutException)
+        catch (TimeoutException) when (!task.IsCompleted)
         {
             return false;
         }
