@@ -44,4 +44,13 @@ public partial class QueryResult
 
     // Cratis.Arc.Testing accesses this through InternalsVisibleTo and releases the scope after snapshot materialization.
     internal IServiceScope? OwnedScope { get; set; }
+
+    /// <summary>Releases the execution scope after a hosted query response has been materialized.</summary>
+    /// <remarks>Transports must call this in a finally block, including when serialization fails.</remarks>
+    public void ReleaseScope()
+    {
+        var scope = OwnedScope;
+        OwnedScope = null;
+        scope?.Dispose();
+    }
 }

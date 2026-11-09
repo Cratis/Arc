@@ -29,12 +29,12 @@ internal sealed record McpCaller(CapabilityCaller Capability, VerifiedCaller Ver
     /// </remarks>
     internal static McpCaller? From(HttpContext? context)
     {
-        if (context?.Items.TryGetValue(CapabilityCallers.ItemKey, out var item) != true || item is not CapabilityCaller capability)
+        if (context is null || CapabilityRequestContext.GetCaller(context.Items) is not { } capability)
         {
             return null;
         }
 
-        var verified = VerifiedCallerPrincipal.From(context.Items)?.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault()?.Caller;
+        var verified = CapabilityRequestContext.GetVerifiedCaller(context.Items);
         return verified is null ? null : new McpCaller(capability, verified);
     }
 

@@ -14,7 +14,7 @@ internal sealed class McpGatedEndpoints : IPostConfigureOptions<CapabilitiesOpti
     /// <inheritdoc/>
     public void PostConfigure(string? name, CapabilitiesOptions options)
     {
-        if (options.GatedEndpoints is { } selector && !selector.MetadataTypes.Contains(typeof(McpEndpointMetadata)))
+        if (options.GatedEndpoints is { } selector && !selector.HasEndpointMetadata<McpEndpointMetadata>())
         {
             selector.ForEndpointMetadata<McpEndpointMetadata>();
         }

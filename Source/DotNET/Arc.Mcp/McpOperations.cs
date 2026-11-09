@@ -85,7 +85,7 @@ internal sealed class McpOperations(
 
         var result = await hosted.ExecuteHosted(command, call.Services, null, call.CancellationToken);
         var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
-        var text = JsonSerializer.Serialize(new { outcome, response = result.IsSuccess ? result.ResponseValue : null }, arcOptions.Value.JsonSerializerOptions);
+        var text = JsonSerializer.Serialize(new { outcome, response = result.IsSuccess ? result.ResponsePayload : null }, arcOptions.Value.JsonSerializerOptions);
         return new McpToolResult(text, !result.IsSuccess);
     }
 
@@ -105,18 +105,24 @@ internal sealed class McpOperations(
         }
 
         var result = await hosted.PerformHosted(name, arguments, paging, Sorting.None, call.Services, call.CancellationToken);
-        using var ownedScope = result.OwnedScope;
-        if (result.IsSuccess && call.Services.GetService<IObservableQueryHandler>()?.IsStreamingResult(result.Data) == true)
+        try
         {
-            // A tool call is one request and one response: a stream would outlive the caller's admission and emission identity.
-            return McpToolResult.Error(Unsupported);
-        }
+            if (result.IsSuccess && call.Services.GetService<IObservableQueryHandler>()?.IsStreamingResult(result.Data) == true)
+            {
+                // A tool call is one request and one response: a stream would outlive the caller's admission and emission identity.
+                return McpToolResult.Error(Unsupported);
+            }
 
-        var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
-        var text = JsonSerializer.Serialize(
-            new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },
-            arcOptions.Value.JsonSerializerOptions);
-        return new McpToolResult(text, !result.IsSuccess);
+            var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
+            var text = JsonSerializer.Serialize(
+                new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },
+                arcOptions.Value.JsonSerializerOptions);
+            return new McpToolResult(text, !result.IsSuccess);
+        }
+        finally
+        {
+            result.ReleaseScope();
+        }
     }
 
     object Deserialize(McpOperationCall call, Type commandType)

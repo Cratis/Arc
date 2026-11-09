@@ -42,7 +42,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
             return;
         }
 
-        context.Items[CapabilityCallers.ItemKey] = caller.Capability with { Protocol = CapabilityProtocol.Mcp };
+        CapabilityRequestContext.SetProtocol(context.Items, CapabilityProtocol.Mcp);
 
         if (!HttpMethods.IsPost(context.Request.Method))
         {

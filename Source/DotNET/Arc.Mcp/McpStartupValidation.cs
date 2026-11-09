@@ -29,7 +29,7 @@ internal sealed class McpStartupValidation(
     /// <exception cref="McpToolNameTakenByServerTool">A tool registered on the MCP server has the name of a ceiling tool.</exception>
     public Task StartingAsync(CancellationToken cancellationToken)
     {
-        if (services.GetService(typeof(CapabilityEndpointSelection)) is null)
+        if (!services.HasCapabilities())
         {
             throw new McpRequiresCapabilities();
         }

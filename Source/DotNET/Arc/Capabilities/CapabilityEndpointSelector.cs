@@ -15,6 +15,11 @@ public sealed class CapabilityEndpointSelector
     /// <summary>Gets the assignable endpoint-metadata rules.</summary>
     internal List<Type> MetadataTypes { get; } = [];
 
+    /// <summary>Checks whether an exact metadata rule is already configured.</summary>
+    /// <typeparam name="TMetadata">The endpoint metadata type.</typeparam>
+    /// <returns>Whether the selector contains this exact metadata rule.</returns>
+    public bool HasEndpointMetadata<TMetadata>() => MetadataTypes.Contains(typeof(TMetadata));
+
     /// <summary>
     /// Includes endpoints whose route pattern's raw text matches exactly, using ordinal comparison.
     /// This is endpoint configuration text, not a request path, prefix, glob, or regular expression.

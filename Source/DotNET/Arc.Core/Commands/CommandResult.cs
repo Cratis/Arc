@@ -72,6 +72,10 @@ public class CommandResult
     [JsonIgnore]
     public IReadOnlyList<CommandOperationOutcome> OperationOutcomes { get; internal set; } = [];
 
+    /// <summary>Gets the command response without knowing its concrete generic type; never serialized as a separate field.</summary>
+    [JsonIgnore]
+    public object? ResponsePayload => ResponseValue;
+
     /// <summary>
     /// Gets or sets a value indicating whether authorization failed because its configuration or evaluation was unavailable,
     /// rather than because the caller was denied. Server-only; never serialized.

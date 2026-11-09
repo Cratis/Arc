@@ -124,6 +124,14 @@ The text is sent first, followed by one `resource_link` block for each link. Kee
 - Identity comes only from `invocation.Caller`. `Request.User` and `Request.Services` are not the verified caller; never read the caller, tenant or scopes from the request.
 - Treat `Params` as untrusted input.
 
+## Session authority (arc-mcp-authorization-v1)
+
+`Mcp-Session-Id` carries no authority. Every HTTP request must authenticate its own credential and pass the current resource, environment, tenant, scope, membership policy, and tool authorization checks. Initialization never freezes those facts. Arc uses stateless HTTP: initialization does not issue a session ID, and a syntactically valid session header cannot restore a previous caller or substitute for a missing or different credential. After admission, the SDK rejects session headers as unsupported in stateless mode.
+
+The PAT verifier performs authoritative credential, recovery-epoch, and policy reads on every request; it has no positive verifier cache. Revocation therefore takes effect on the next request after the authoritative adapter observes it, with no session or cache grace period. Product adapters must provide current authoritative state, including membership decisions.
+
+A client delivers its credential to the intended MCP resource to authenticate that request. This is separate from token passthrough: a tool must not forward the client's credential to another resource. The transport supplies the admitted caller, not a reusable bearer token, to tool handlers.
+
 ## The ceiling
 
 The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
@@ -170,6 +178,18 @@ Those tools are not part of the ceiling and Arc does not govern them, so Arc log
 - the `tools/list` filter and the stateless HTTP transport.
 
 Arc governs tools only. Prompts and resources you add to the server are not filtered by scope or tool authorizers; every admitted caller can list and read them. Check access inside their handlers, or do not register them on a server that serves callers with different rights.
+
+## Extension points for transport packages
+
+Optional transports can use these public seams without depending on Arc internals:
+
+- `CapabilitiesServiceProviderExtensions.HasCapabilities()` checks host registration; `CapabilityEndpointSelector.HasEndpointMetadata<TMetadata>()` checks an exact gate rule.
+- `CapabilityRequestContext.GetCaller()` and `GetVerifiedCaller()` read facts already admitted in the current request's item bag. They do not trust `HttpContext.User`. `SetProtocol()` labels an existing admitted caller without granting authority. Never reuse an item bag across requests.
+- `OperationContextScope.Begin()` scopes identity, tenant, and correlation caches for one hosted operation.
+- `CommandPipeline.ExecuteHosted()` and `QueryPipeline.PerformHosted()` retain hosted authorization and identity-bound dependency scopes. Read an untyped command response with `CommandResult.ResponsePayload`. Materialize a query response before calling `QueryResult.ReleaseScope()` in a `finally` block.
+- `ConverterExtensions.IsEnumerableOfQueryArgumentElement()` classifies collection arguments consistently with Arc query binding.
+
+Use an Arc dependency version that includes these APIs. MCP's package dependency requires its corresponding Arc baseline; older Arc binaries that predate these extension points are not supported overrides. Compatible later Arc releases must preserve these public contracts.
 
 ## Credentials and protected resource metadata
 

@@ -155,6 +155,34 @@ public class CommandPipeline(
         return (CommandResult<TResult>)result;
     }
 
+    /// <summary>
+    /// Executes a command for a hosted transport, preparing authentication and an owned identity-bound scope when required.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <param name="requestServices">The original request provider.</param>
+    /// <param name="allowedSeverity">The validation severity threshold.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The command result.</returns>
+    public async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        // The span starts before authorization is prepared, so a request turned away on the way in is traced and
+        // measured like one turned away inside the pipeline.
+        using var span = activitySource.Execute(TypeNameOf(command.GetType()));
+        OperationActivity.AddCommandType(span.Activity, command.GetType());
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await ExecuteHostedCore(command, requestServices, allowedSeverity, span.Activity, cancellationToken);
+            RecordCommand(span.Activity, requestServices, command.GetType(), result, started, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            RecordCommandFailure(span.Activity, requestServices, command.GetType(), ex, started, cancellationToken);
+            throw;
+        }
+    }
+
     /// <inheritdoc/>
     public Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
         Validate(command, serviceProvider, allowedSeverity, CancellationToken.None);
@@ -296,34 +324,6 @@ public class CommandPipeline(
     {
         OperationActivity.RecordException(activity, exception);
         OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.CommandOutcome, OperationOutcomes.ForException(cancellationToken), []);
-    }
-
-    /// <summary>
-    /// Prepares HTTP command authentication once and uses a fresh owned scope only when schemes change identity.
-    /// </summary>
-    /// <param name="command">The command.</param>
-    /// <param name="requestServices">The original request provider.</param>
-    /// <param name="allowedSeverity">The validation severity threshold.</param>
-    /// <param name="cancellationToken">The request cancellation token.</param>
-    /// <returns>The command result.</returns>
-    internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
-    {
-        // The span starts before authorization is prepared, so a request turned away on the way in is traced and
-        // measured like one turned away inside the pipeline.
-        using var span = activitySource.Execute(TypeNameOf(command.GetType()));
-        OperationActivity.AddCommandType(span.Activity, command.GetType());
-        var started = Stopwatch.GetTimestamp();
-        try
-        {
-            var result = await ExecuteHostedCore(command, requestServices, allowedSeverity, span.Activity, cancellationToken);
-            RecordCommand(span.Activity, requestServices, command.GetType(), result, started, cancellationToken);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            RecordCommandFailure(span.Activity, requestServices, command.GetType(), ex, started, cancellationToken);
-            throw;
-        }
     }
 
     /// <summary>

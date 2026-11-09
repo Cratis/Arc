@@ -9,6 +9,7 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Mcp/Arc.Mcp.csproj" />
+        <ProjectReference Include="../PersonalAccessTokens/PersonalAccessTokens.csproj" />
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Vectors/arc-mcp-authorization-v1.profiles-and-discovery.json" />

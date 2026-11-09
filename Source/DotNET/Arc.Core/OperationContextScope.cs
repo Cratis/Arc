@@ -6,7 +6,7 @@ namespace Cratis.Arc;
 /// <summary>
 /// Captures receipt at an Arc dispatch boundary, independently of the service scope used later for execution.
 /// </summary>
-internal static class OperationContextScope
+public static class OperationContextScope
 {
     static readonly AsyncLocal<DateTimeOffset?> _receivedAt = new();
     static readonly AsyncLocal<ForwardingState?> _forwardTransportReceipt = new();
@@ -18,7 +18,7 @@ internal static class OperationContextScope
     /// <summary>Starts a new operation with the configured clock and restores the previous one on disposal.</summary>
     /// <param name="services">The provider containing the operation's clock.</param>
     /// <returns>The operation lease.</returns>
-    internal static IDisposable Begin(IServiceProvider? services)
+    public static IDisposable Begin(IServiceProvider? services)
     {
         var previous = _receivedAt.Value;
         _receivedAt.Value = (services?.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System).GetUtcNow();
