@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Mcp</AssemblyName>
+        <RootNamespace>Cratis.Arc.Mcp</RootNamespace>
+        <Description>Model Context Protocol serving for Cratis Arc: explicitly declared commands and queries exposed as MCP tools on the capabilities endpoint group.</Description>
+        <PackageTags>cratis;arc;cqrs;mcp;model-context-protocol;aspnetcore</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.Mcp.Specs" />
+    </ItemGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc/Arc.csproj" />
+        <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    </ItemGroup>
+</Project>

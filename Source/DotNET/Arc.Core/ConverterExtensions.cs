@@ -97,6 +97,42 @@ public static class ConverterExtensions
     }
 
     /// <summary>
+    /// Determines whether a type is an enumerable whose element type is individually convertible via
+    /// <see cref="ConvertTo"/> - a primitive, a concept, or an enum.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <param name="elementType">The element type, when the method returns true.</param>
+    /// <returns>True if the type qualifies; otherwise false.</returns>
+    /// <remarks>
+    /// Mirrors <c>TypeExtensions.IsEnumerableOfPrimitiveOrConcept</c> in the proxy generator
+    /// (Source/DotNET/Tools/ProxyGenerator/TypeExtensions.cs) - the client and the server must agree on which
+    /// parameters the caller supplies versus which are injected dependencies, so a caller-supplied collection the
+    /// generator emits a proxy for must also be one this runtime accepts as a query argument rather than asking the
+    /// container to resolve it.
+    /// <para>
+    /// The two cannot share source: the generator classifies types loaded through a <c>MetadataLoadContext</c>
+    /// (metadata-only, with its own type-name-based concept detection), while this runs against real loaded types
+    /// using the framework's own <c>Cratis.Concepts</c> <c>IsConcept()</c>. Both must classify the same shapes as
+    /// query arguments - see <c>for_ModelBoundQueryPerformer/when_getting_parameters</c> in Arc.Core.Specs and
+    /// <c>for_TypeExtensions/when_checking_is_enumerable_of_primitive_or_concept</c> in ProxyGenerator.Specs for the
+    /// specs that pin the two predicates to the same shapes.
+    /// </para>
+    /// </remarks>
+    public static bool IsEnumerableOfQueryArgumentElement(this Type type, out Type elementType)
+    {
+        elementType = typeof(object);
+
+        if (!TryGetEnumerableElementType(type, out var candidateElementType))
+        {
+            return false;
+        }
+
+        elementType = candidateElementType;
+        var scalarType = Nullable.GetUnderlyingType(elementType) ?? elementType;
+        return scalarType.IsEnum || scalarType.IsConcept() || IsQueryArgumentScalar(scalarType);
+    }
+
+    /// <summary>
     /// Converts a supplied query argument without accepting a fabricated default for invalid scalar input.
     /// Other callers of <see cref="ConvertTo"/> retain their existing conversion behavior.
     /// </summary>
@@ -139,42 +175,6 @@ public static class ConverterExtensions
         }
 
         return converted;
-    }
-
-    /// <summary>
-    /// Determines whether a type is an enumerable whose element type is individually convertible via
-    /// <see cref="ConvertTo"/> - a primitive, a concept, or an enum.
-    /// </summary>
-    /// <param name="type">The type to check.</param>
-    /// <param name="elementType">The element type, when the method returns true.</param>
-    /// <returns>True if the type qualifies; otherwise false.</returns>
-    /// <remarks>
-    /// Mirrors <c>TypeExtensions.IsEnumerableOfPrimitiveOrConcept</c> in the proxy generator
-    /// (Source/DotNET/Tools/ProxyGenerator/TypeExtensions.cs) - the client and the server must agree on which
-    /// parameters the caller supplies versus which are injected dependencies, so a caller-supplied collection the
-    /// generator emits a proxy for must also be one this runtime accepts as a query argument rather than asking the
-    /// container to resolve it.
-    /// <para>
-    /// The two cannot share source: the generator classifies types loaded through a <c>MetadataLoadContext</c>
-    /// (metadata-only, with its own type-name-based concept detection), while this runs against real loaded types
-    /// using the framework's own <c>Cratis.Concepts</c> <c>IsConcept()</c>. Both must classify the same shapes as
-    /// query arguments - see <c>for_ModelBoundQueryPerformer/when_getting_parameters</c> in Arc.Core.Specs and
-    /// <c>for_TypeExtensions/when_checking_is_enumerable_of_primitive_or_concept</c> in ProxyGenerator.Specs for the
-    /// specs that pin the two predicates to the same shapes.
-    /// </para>
-    /// </remarks>
-    internal static bool IsEnumerableOfQueryArgumentElement(this Type type, out Type elementType)
-    {
-        elementType = typeof(object);
-
-        if (!TryGetEnumerableElementType(type, out var candidateElementType))
-        {
-            return false;
-        }
-
-        elementType = candidateElementType;
-        var scalarType = Nullable.GetUnderlyingType(elementType) ?? elementType;
-        return scalarType.IsEnum || scalarType.IsConcept() || IsQueryArgumentScalar(scalarType);
     }
 
     /// <summary>

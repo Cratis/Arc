@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Mcp.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Mcp</RootNamespace>
+        <IsTestProject>true</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Mcp/Arc.Mcp.csproj" />
+        <ProjectReference Include="../PersonalAccessTokens/PersonalAccessTokens.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Vectors/arc-mcp-authorization-v1.profiles-and-discovery.json" />
+        <Compile Include="../Specs.Shared/VerifiedCredentialSourceForSpecs.cs" Link="Identity/VerifiedCredentialSourceForSpecs.cs" />
+    </ItemGroup>
+</Project>

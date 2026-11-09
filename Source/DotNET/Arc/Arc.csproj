@@ -10,6 +10,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Mcp.Specs" />
     </ItemGroup>
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />

@@ -150,6 +150,7 @@
       "name": "specs-2",
       "projects": [
         "Source/DotNET/Arc.Core.Specs",
+        "Source/DotNET/Arc.Mcp.Specs",
         "Source/DotNET/Connections.Azure.Specs",
         "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs",
         "Source/DotNET/EntityFrameworkCore.Specs",

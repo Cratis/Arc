@@ -50,19 +50,19 @@ internal sealed class CapabilityGateMiddleware(
         {
             var refusal = resolution.Refusal!.Value;
             logger.CallerRefused(refusal);
-            await Refuse(context, refusal.HttpStatus());
+            await Refuse(context, new CapabilityRefusal(refusal.HttpStatus(), refusal));
             return;
         }
         if (!CallerAdmission.Allows(caller, _allowed))
         {
-            await Refuse(context, StatusCodes.Status403Forbidden);
+            await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
             return;
         }
 
         if (await ConflictsWithAnotherPrincipal(context, caller))
         {
             logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
-            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            await Refuse(context, new CapabilityRefusal(CallerRefusal.AmbiguousPrincipal.HttpStatus(), CallerRefusal.AmbiguousPrincipal));
             return;
         }
 
@@ -78,13 +78,13 @@ internal sealed class CapabilityGateMiddleware(
         {
             // A claims transformation or another component dropped the verified identity: the principal cannot be proved.
             logger.CallerRefused(CallerRefusal.AmbiguousPrincipal);
-            await Refuse(context, CallerRefusal.AmbiguousPrincipal.HttpStatus());
+            await Refuse(context, new CapabilityRefusal(CallerRefusal.AmbiguousPrincipal.HttpStatus(), CallerRefusal.AmbiguousPrincipal));
             return;
         }
 
         if (!MembershipAllows(context, caller, principal))
         {
-            await Refuse(context, StatusCodes.Status403Forbidden);
+            await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
             return;
         }
 
@@ -99,13 +99,17 @@ internal sealed class CapabilityGateMiddleware(
         if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
         {
             var presentation = context.RequestServices.GetRequiredService<CredentialPresentationGate>().Inspect(new AspNetCoreHttpRequestContext(context));
-            if (presentation.Refusal is not null || presentation.Shape != PresentedCredentialShape.PatBearer)
+            if (presentation.Refusal is not null || !AdmitsPresentation(context.GetEndpoint(), presentation.Shape))
             {
                 return Task.FromResult(new CallerResolution(null, CallerRefusal.SourceRefused));
             }
         }
         return context.RequestServices.GetRequiredService<IVerifiedCallerAccessor>().GetCurrent();
     }
+
+    static bool AdmitsPresentation(Endpoint? endpoint, PresentedCredentialShape? shape) =>
+        shape == PresentedCredentialShape.PatBearer ||
+        (shape == PresentedCredentialShape.OAuthBearer && endpoint?.Metadata.GetMetadata<AcceptsOAuthCapability>() is not null);
 
     static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
     {
@@ -145,6 +149,34 @@ internal sealed class CapabilityGateMiddleware(
             var otherSubject = (other.FindFirst("sub") ?? other.FindFirst(ClaimTypes.NameIdentifier))?.Value;
             return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
         });
+    }
+
+    static async Task Refuse(HttpContext context, CapabilityRefusal refusal)
+    {
+        if (context.GetEndpoint()?.Metadata.GetMetadata<ICapabilityRefusalWriter>() is not { } writer)
+        {
+            await Refuse(context, refusal.StatusCode);
+            return;
+        }
+
+        // The refusal status is in place before the writer runs, so a writer that only writes a body still refuses.
+        context.Response.StatusCode = refusal.StatusCode;
+
+        // A custom writer must never turn a refusal into a success, even when it set a 2xx and started writing:
+        // the status is forced at the moment the response starts.
+        context.Response.OnStarting(
+            static state =>
+            {
+                var (response, status) = ((HttpResponse, int))state;
+                if (response.StatusCode < StatusCodes.Status400BadRequest)
+                {
+                    response.StatusCode = status;
+                }
+
+                return Task.CompletedTask;
+            },
+            (context.Response, refusal.StatusCode));
+        await writer.Write(context, refusal);
     }
 
     static async Task Refuse(HttpContext context, int status)

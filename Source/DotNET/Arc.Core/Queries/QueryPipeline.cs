@@ -75,10 +75,10 @@ public class QueryPipeline(
     /// <param name="sorting">Sorting.</param>
     /// <param name="requestServices">The existing request provider.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
-    /// <returns>A result whose owned scope, if present, the caller must dispose after response or subscription completion.</returns>
+    /// <returns>A result whose scope the transport must release with <see cref="QueryResult.ReleaseScope"/> after response or subscription completion.</returns>
     /// <exception cref="InvalidAuthorizationConfiguration">A target cannot be safely authorized.</exception>
     // Also called by Cratis.Arc.Testing through InternalsVisibleTo; keep its hosted authorization and scope-ownership contract compatible.
-    internal async Task<QueryResult> PerformHosted(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
+    public async Task<QueryResult> PerformHosted(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
 

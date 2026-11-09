@@ -16,8 +16,9 @@
         <PackageVersion Update="Microsoft.Build.Utilities.Core" Version="17.14.28" />
         <!-- Cratis.Chronicle 14.12.4 has a bug where it requires System.Text.Json 10.0.0 for all TFMs.
              This causes NSubstitute/Castle.DynamicProxy failures in tests when 9.x version is used.
-             Only apply the 9.x override for non-test projects. -->
-        <PackageVersion Update="System.Text.Json" Version="9.0.22" Condition="'$(IsTestProject)' != 'true'" />
+             Only apply the 9.x override for non-test projects. ModelContextProtocol 2.3.0 is compiled against
+             System.Text.Json 10.x on every TFM, so Arc.Mcp keeps 10.x too. -->
+        <PackageVersion Update="System.Text.Json" Version="9.0.22" Condition="'$(IsTestProject)' != 'true' AND '$(MSBuildProjectName)' != 'Arc.Mcp'" />
         <PackageVersion Update="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.22" />
         <PackageVersion Update="Microsoft.Extensions.Telemetry" Version="9.10.0" />
         <PackageVersion Update="Microsoft.Extensions.Hosting" Version="9.0.22" />
