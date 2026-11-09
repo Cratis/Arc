@@ -214,12 +214,19 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The shard runs on one framework, so it needs only that runtime; the build job installs both SDKs.
-      - name: Setup .Net
+      # Both legs install both SDKs: global.json pins the 11.0 SDK for every dotnet command, and the net11.0-only
+      # samples (VerifiedCallerAcceptance.Specs) need the 11.0 runtime even on the net10.0 leg, which runs the
+      # libraries' specs on the 10.0 runtime.
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: ${{ matrix.framework == 'net11.0' && env.DOTNET11_VERSION || env.DOTNET10_VERSION }}
-          dotnet-quality: ${{ matrix.framework == 'net11.0' && 'preview' || '' }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -356,12 +363,18 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The shard runs on one framework, so it needs only that runtime; the build job installs both SDKs.
-      - name: Setup .Net
+      # Both legs install both SDKs: global.json pins the 11.0 SDK for every dotnet command, including the ones the
+      # proxy specs run to build their fixtures, and the specs themselves run on the leg's runtime.
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: ${{ matrix.framework == 'net11.0' && env.DOTNET11_VERSION || env.DOTNET10_VERSION }}
-          dotnet-quality: ${{ matrix.framework == 'net11.0' && 'preview' || '' }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+          dotnet-quality: preview
 
       # The template contract specs lint generated output with the real ESLint toolchain.
       - name: Setup node

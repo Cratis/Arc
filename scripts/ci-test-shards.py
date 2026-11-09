@@ -280,7 +280,9 @@ class SpecificationRunner:
         if len(assemblies) != 1 or not assemblies[0].text:
             raise ValueError(f"expected one AssemblyName in {project_file}")
         # A project that declares its own frameworks (OpenApi.Specs is net10.0 only) runs on those, not on the leg's framework.
-        declared = [framework.text.split(";") for framework in ET.parse(project_file).getroot().findall("./PropertyGroup/TargetFrameworks") if framework.text]
+        # The Samples (VerifiedCallerAcceptance.Specs) are net11.0 only by policy and declare a single TargetFramework.
+        root_element = ET.parse(project_file).getroot()
+        declared = [framework.text.split(";") for tag in ("TargetFrameworks", "TargetFramework") for framework in root_element.findall(f"./PropertyGroup/{tag}") if framework.text]
         frameworks = declared[0] if declared else [self.framework]
         framework = self.framework if self.framework in frameworks else frameworks[0]
         return (project_file.parent / "bin" / self.configuration / framework / assemblies[0].text).resolve()
@@ -478,6 +480,10 @@ def self_test_ordinary_runner(root: Path, valid: dict, expect, quietly) -> None:
     write(root / SPEC_ROOT / "One.Specs" / "One.Specs.csproj", "<Project><PropertyGroup><AssemblyName>Cratis.One.Specs</AssemblyName></PropertyGroup></Project>")
     runner_results = root / "runner-results"
     runner = SpecificationRunner(root, runner_results, "Release")
+    declared_single = root / SPEC_ROOT / "Single.Specs"
+    declared_single.mkdir(parents=True, exist_ok=True)
+    (declared_single / "Single.Specs.csproj").write_text("<Project><PropertyGroup><AssemblyName>Cratis.Single.Specs</AssemblyName><TargetFramework>net11.0</TargetFramework><TargetFrameworks></TargetFrameworks></PropertyGroup></Project>")
+    expect("a declared TargetFramework wins over the leg framework", SpecificationRunner(root, runner_results, "Release", "net10.0").assembly_path("Source/DotNET/Single.Specs").parent.name, "net11.0")
     expect("runner framework is selectable", SpecificationRunner(root, runner_results, "Release", "net10.0").assembly_path("Source/DotNET/One.Specs").parent.name, "net10.0")
 
     def run_fake_child(code: int, content: str | None) -> tuple[int, str]:

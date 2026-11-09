@@ -41,8 +41,11 @@
         <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     </PropertyGroup>
 
+    <!-- Debug builds a single framework. It is declared as TargetFrameworks (like Release above), never as
+         TargetFramework: a project that pins its own TargetFrameworks (net10.0-only OpenApi and build tasks)
+         overrides the default, whereas a preset TargetFramework would silently win over it. -->
     <PropertyGroup Condition="'$(Configuration)'=='Debug' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'==''">
-        <TargetFramework>net11.0</TargetFramework>
+        <TargetFrameworks>net11.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
