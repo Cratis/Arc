@@ -14,7 +14,7 @@ namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 internal sealed partial record ForwardedIdentityV2Envelope(string[] Parts, string KeyId, long Timestamp, byte[] Signature)
 {
     /// <summary>The envelope transport header.</summary>
-    internal const string Header = "x-cratis-forwarded-identity-signature";
+    internal const string Header = ForwardedIdentityV2Headers.SignatureHeader;
 
     /// <summary>Parses the strict envelope grammar without accepting alternate encodings.</summary>
     /// <param name="text">The raw envelope value.</param>

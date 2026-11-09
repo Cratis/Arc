@@ -119,6 +119,17 @@ Take one immutable snapshot of host-observed names and values. Require covered n
 
 Trim only outer HTTP OWS (SP and HTAB) on covered values. Preserve internal printable ASCII, commas, base64 padding, serialized whitespace, and percent-escape spelling in header values. Reject remaining controls, DEL, and non-ASCII values. Do not decode or reserialize values before signing. An absent header contributes no name/value pair; a present empty v1 header contributes `F(name) F("")`, so absence and empty differ. The new headers above reject empty values. The principal, principal-id, and principal-name tuple is always present and nonempty.
 
+### Refusing forwarded identity on other endpoints
+
+An application that accepts a different credential, such as a raw personal access token, on selected endpoints must refuse these headers there. `Cratis.Arc.Identity.ForwardedIdentityV2.ForwardedIdentityV2Headers` exposes the complete set so the names are not duplicated: `SignatureHeader`, the exact `CoveredHeaders`, the `PrincipalHeaderPrefix` and `OnBehalfOfHeaderPrefix` families, and `Includes(name, tenantHeader)`, which is true for the signature header and every covered header (case-insensitive, including the configured tenancy header). Arc's own canonicalization uses the same definitions.
+
+```csharp
+using Cratis.Arc.Identity.ForwardedIdentityV2;
+
+var carriesForwardedIdentity = request.Headers.Keys
+    .Any(name => ForwardedIdentityV2Headers.Includes(name, tenantHeader));
+```
+
 ## Verified caller construction and requiredness
 
 These headers map to the exact logical field names in the Arc verified-caller v1 contract; they do not define new OAuth claims or rename its record. Recognized envelope wire version `v2` selects a reviewed local verification profile; the caller record's `contractVersion` is `"1"`, not `"2"`. Unknown profiles are refused. `credentialKind` and non-secret `credentialId` come from the verified credential record. The product resolves `person` from the confirmed `accountKey` mapping; it never manufactures a product person from a display name. A service caller instead uses an allowlisted `servicePrincipal`, not a fabricated person or Actor.
