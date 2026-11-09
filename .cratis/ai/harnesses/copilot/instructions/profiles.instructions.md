@@ -147,11 +147,11 @@ JVM language conventions are `kotlin.md` and `java.md`.
 
 Arc for TypeScript (`@cratis/arc.core` with the Express, Fastify, Hono,
 MongoDB, Drizzle, testing and experimental Chronicle packages, plus
-`@cratis/arc.proxygenerator`, `@cratis/eslint-plugin-arc-core` and experimental
-`@cratis/cratis`) brings the same model-bound command/query shape to a Node.js
-server. Verified at GitHub pre-release **v0.57.2**: its packages are a source
-preview and are not published to npm. It is separate from `@cratis/arc`, the
-published client runtime that generated proxies import in a frontend.
+`@cratis/arc.proxygenerator`, `@cratis/eslint-plugin-arc-core` and the
+`@cratis/platform` meta package that brings Arc and Chronicle together) brings the same model-bound command/query shape to a Node.js
+server. The packages are published to npm at stable 1.0.0. They are separate
+from `@cratis/arc`, the published client runtime that generated proxies import
+in a frontend.
 `cratis/arc/server-typescript` carries the skills; `cratis/arc/typescript` adds
 the TypeScript language conventions, and `cratis/full/typescript` composes it.
 The server skills are opt-in: `cratis/arc`, `cratis/application` and
@@ -161,9 +161,13 @@ Node.js server and a C# or React-frontend project has no use for them. Select
 
 | Skill | Covers |
 | --- | --- |
-| `cratis-arc-command-typescript` | Project setup from the source preview, `ArcApplication.createBuilder()`, `@command()` with `handle()`/`provide()`, outcomes, authorization, returned Chronicle events, generated metadata and proxies, hosts, `CommandScenario` |
-| `cratis-arc-query-typescript` | `@readModel()` with static `@query()` methods, argument binding, GET and HTTP `QUERY`, paging, RxJS observable queries, MongoDB/Drizzle/Chronicle read models, `QueryScenario`/`ObservableQueryScenario` |
+| `cratis-arc-command-typescript` | Project setup, `ArcApplication.createBuilder()`, `@command()` with `handle()`/`provide()`, outcomes, authorization, identity, returned Chronicle events, generated metadata and proxies, configuration, command pipeline filters, hosts (Express, Fastify, Hono, Fetch) |
+| `cratis-arc-query-typescript` | `@readModel()` with static `@query()` methods, argument binding, GET and HTTP `QUERY`, paging, RxJS observable queries, query filters, renderers and read-model interceptors, MongoDB/Drizzle/Chronicle read models |
 | `cratis-arc-validation-typescript` | `CommandValidator`/`QueryValidator`/`ConceptValidator`/`ModelValidator`, `readModelForValidation`, `validation()` with `rejected`/`denied`, severity filtering |
+| `cratis-arc-tenancy-typescript` | Tenant sources, `membershipClaim`, `tenancy.resolve`, storage isolation per tenant, tenant-safe scoping |
+| `cratis-arc-storage-typescript` | `@cratis/arc.mongodb` and `@cratis/arc.drizzle`: collections, naming, codecs, paging, change-stream and PostgreSQL observation |
+| `cratis-arc-testing-typescript` | `@cratis/arc.testing`: `CommandScenario`, `QueryScenario`, `ObservableQueryScenario`, `ArcScenario`, `given`, `node:test` |
+| `cratis-arc-code-analysis-typescript` | `@cratis/eslint-plugin-arc-core` presets and rules (`missing-field`, `arc0004`, `arcchr0006`, ...) |
 
 Standalone Chronicle client usage (no Arc) in TypeScript is
 `cratis-chronicle-client-typescript`.

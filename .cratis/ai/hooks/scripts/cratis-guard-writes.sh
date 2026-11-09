@@ -194,30 +194,63 @@ control_patterns=('.claude/settings.json' '.claude/settings.local.json' '.mcp.js
 
 # Glob-language intersection, not expansion/eval. A star has an epsilon transition and
 # a character loop. The product automaton accepts iff the two patterns share a spelling.
-# Braces conservatively become a star; bracket classes retain their ordinary meaning.
+# In a reference, everything from the first '{' to the last '}' becomes one star: brace
+# expansion, however nested, quoted or escaped, only rewrites text inside that span. A
+# reference bracket is never parsed: it is either a literal '[' or one any-character step
+# to any later ']' in the same segment. Bash's reading is always one of those alternatives,
+# so the class contents can only widen the match. References that mix braces with brackets,
+# whose brace span holds '/', with anything but plain path characters outside the brace
+# span (quoting, substitution and expansion syntax), or with dense brackets are not modeled at all: they fail closed (exit 2) so the work stays
+# bounded.
 IFS= read -r -d '' glob_program <<'AWK' || true
-function tokens(s, side,    i, c, j, t, n) {
+function tokens(s, side,    i, c, j, k, t, copy, jumps, first, closing) {
     s = tolower(s)
+    if (side == 1) {
+        copy = s
+        if (index(s, "{") && index(s, "[")) exit 2
+        if (gsub(/\[/, "[", copy) > 64) exit 2
+        first = index(s, "{")
+        for (k = length(s); k > first; k--) if (substr(s, k, 1) == "}") { closing = k; break }
+        if (first && closing) {
+            if (index(substr(s, first, closing - first + 1), "/")) exit 2
+            if (substr(s, 1, first - 1) substr(s, closing + 1) ~ /[^a-z0-9._\/*?,+=:@%-]/) exit 2
+            s = substr(s, 1, first) substr(s, closing)
+        }
+    }
     for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1); t = c
-        if (c == "{") { j = index(substr(s, i), "}"); if (j) i += j - 1; t = "*" }
-        else if (c == "[") {
-            j = index(substr(s, i + 1), "]")
-            if (j) { t = substr(s, i, j + 1); i += j; sub(/^\[!/, "[^", t) }
+        c = substr(s, i, 1); t = c; j = i
+        if (c == "{") {
+            j = index(substr(s, i), "}"); j = j ? i + j - 1 : i; t = "*"
+            if (side == 1 && index(substr(s, i, j - i + 1), "/")) exit 2
         }
         N[side]++; A[side, N[side]] = t
+        for (k = i; k <= j; k++) TOKEN[side, k] = N[side]
+        if (c == "[" && side == 1) START[N[side]] = i
+        i = j
+    }
+    TOKEN[side, length(s) + 1] = N[side] + 1
+    for (t = 1; t <= N[side]; t++) {
+        if (side != 1 || !(t in START)) continue
+        for (k = START[t] + 2; k <= length(s); k++) {
+            c = substr(s, k, 1)
+            if (c == "/") break
+            if (c != "]") continue
+            # A ']' inside a brace star re-enters that star, which covers the rest of it.
+            j = TOKEN[1, k] == TOKEN[1, k + 1] ? TOKEN[1, k] : TOKEN[1, k + 1]
+            if (++jumps > 4096) exit 2
+            JUMP[t, ++JUMPS[t]] = j
+        }
     }
 }
 function push(i, j,    key) { key = i SUBSEP j; if (!(key in seen)) { seen[key] = 1; L[++last] = i; R[last] = j } }
 function accepts(t, c, side) {
-    if (side == 1 && c == "/" && (t == "*" || t == "?" || length(t) > 1)) return 0
-    return t == "*" || t == "?" || (length(t) > 1 && substr(t, 1, 1) == "[" ? c ~ ("^" t "$") : t == c)
+    if (side == 1 && c == "/" && (t == "*" || t == "?")) return 0
+    return t == "*" || t == "?" || t == c
 }
-function compatible(a, b,    k, c) {
-    if (length(a) == 1 && a != "*" && a != "?") return accepts(b, a, 2)
-    if (length(b) == 1 && b != "*" && b != "?") return accepts(a, b, 1)
-    for (k = 1; k < 256; k++) { c = sprintf("%c", k); if (accepts(a, c, 1) && accepts(b, c, 2)) return 1 }
-    return 0
+function compatible(a, b) {
+    if (a != "*" && a != "?") return accepts(b, a, 2)
+    if (b != "*" && b != "?") return accepts(a, b, 1)
+    return 1
 }
 BEGIN {
     tokens(ENVIRON["REF_LEFT"], 1); tokens(ENVIRON["REF_RIGHT"], 2); push(1, 1)
@@ -229,6 +262,7 @@ BEGIN {
         if (a == "*") push(i + 1, j)
         if (b == "*") push(i, j + 1)
         if (i <= N[1] && j <= N[2] && compatible(a, b)) push(i + (a != "*"), j + (b != "*"))
+        if (i <= N[1] && j <= N[2] && compatible("?", b)) for (k = 1; k <= JUMPS[i]; k++) push(JUMP[i, k], j + (b != "*"))
     }
     exit 1
 }

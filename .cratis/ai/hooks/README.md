@@ -190,7 +190,8 @@ Dependency manifests, including `package.json`, retain their origin/opt-in allow
 **every simple command must be on this read-only allowlist**:
 
 Only the following **exact options** are exempt, because they select/present reads rather
-than create files or invoke helpers. Any other option denies, including long-option
+than create files or name helpers. Repository configuration can still run helpers for
+allowed Git verbs. Any other option denies, including long-option
 abbreviations and unlisted `--option=value` forms. `--` ends option checking; remaining
 arguments are operands. A lone `-` is a stdin operand. Value-free short flags may combine
 (e.g. `grep -ni`); value-taking forms must use the explicitly listed spelling.
@@ -201,24 +202,33 @@ arguments are operands. A lone `-` is a stdin operand. Value-free short flags ma
 | `head`, `tail` | `-n N`, `-nN`, `-c N`, `-N` (numeric counts); no `-f` |
 | `wc` | `-l -w -c -m` |
 | `ls` | `-l -a -A -1 -h -d -R -t -r -F` |
+| `rg` | `-n` only; no long options |
 | `grep`, `egrep`, `fgrep` | `-n -i -r -R -l -L -c -v -w -x -F -E -H -h -o -q -s`; `-e PATTERN`, `-A N`, `-B N`, `-C N`; no long options |
 | `echo` | `-n -e -E` |
 | `printf`, `test`, `[`, `true`, `false`, `pwd` | None (in particular, no `printf -v`) |
 | `git status` | `-s -b --short --porcelain` |
-| `git diff` | `--stat --name-only --name-status --cached --staged --check -p -U<N> --no-color` |
+| `git diff` | `--stat --numstat --name-only --name-status --cached --staged --check -p -U<N> --no-color` |
 | `git log` | `--oneline --stat --name-only -n N -nN -<N> -p --no-color --format=<fmt> --pretty=<fmt> --follow` |
 | `git show` | `--stat --name-only -p --no-color --format=<fmt>` |
 | `git add` | `-A -u -p` |
 | `git commit` | `-m MSG`, `-mMSG`, `-a`, `-q`; `-F FILE` only for a literal non-protected file; no `--no-verify` |
 | `git blame`, `ls-files`, `rev-parse`, `check-ignore`, `grep` | None |
 
-No global git options are exempt (`-C`, `-c`, `--no-pager` etc. deny before the subcommand).
+The only global Git option exemption is a single separate `-C <dir>` with a literal,
+non-empty directory word not starting with `-`, followed by exactly one of these tails:
+`status --short`, `rev-parse HEAD`, `branch --show-current`, or `tag --list <pattern>`.
+The tag tail takes exactly one pattern not starting with `-` (for example, `'*7.321*'`).
+No extra words are accepted. Attached `-Cdir`/`-C=dir`, repeated `-C`, other verbs and
+all other global options (`-c`, `--git-dir`, `--work-tree`, `--no-pager`, `--exec-path`, etc.)
+remain denied. `-C` gives **no protection** from a hostile repository's configuration:
+fsmonitor, hooks, pager and diff/textconv helpers can still run. This is a syntax filter,
+not a repository sandbox.
 Git format values containing `%(` are not accepted. Index/commit operations are deliberate
 allowances, not general shell execution permission. Output-to-file options such as
 `git diff --output=...` are never exempt, even with a non-protected destination on a line
 that references a protected file.
 
-`gh` (all subcommands), `rg`, `ag`, `sort`, `uniq`, `cut`, `jq`, `yq`, `less`, `more`, `stat`,
+`gh` (all subcommands), `ag`, `sort`, `uniq`, `cut`, `jq`, `yq`, `less`, `more`, `stat`,
 `file`, `diff`, `cmp`, checksum tools, `realpath`, `dirname`, `basename`, `which` and `type`
 are not on this list: their option surfaces are deliberately not analysed here.
 
