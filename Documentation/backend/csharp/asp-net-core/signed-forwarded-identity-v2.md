@@ -1,6 +1,6 @@
 ---
 title: Signed forwarded identity v2
-description: ES256 wire contract for AuthProxy identity attestation, authenticated TLS, and replay-sensitive Arc requests.
+description: The v2 signed forwarded identity wire contract: ES256 envelope, covered headers, authenticated TLS, replay protection, key rotation, and shared test vectors.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved. -->
