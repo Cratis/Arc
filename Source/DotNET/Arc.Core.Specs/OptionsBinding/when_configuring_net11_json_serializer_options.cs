@@ -10,7 +10,7 @@ namespace Cratis.Arc.OptionsBinding;
 /// The JSON serializer options that exist from .NET 11 are bound from configuration, and the instance is not replaced.
 /// </summary>
 [Collection("MutatesTypeDiscovery")]
-public class when_binding_net11_json_serializer_options : Specification
+public class when_configuring_net11_json_serializer_options : Specification
 {
     ArcOptions _options;
     bool _defaultInfersClosedTypePolymorphism;
