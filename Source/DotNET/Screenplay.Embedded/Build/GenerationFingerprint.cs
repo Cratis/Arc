@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -31,6 +32,13 @@ public class GenerationFingerprint
 
         return this;
     }
+
+    /// <summary>
+    /// Adds the identity of the compiler that runs the generation pipeline.
+    /// </summary>
+    /// <param name="compiler">The selected compiler assembly identity.</param>
+    /// <returns>The <see cref="GenerationFingerprint"/> for continuation.</returns>
+    public GenerationFingerprint WithCompiler(AssemblyName compiler) => WithSetting("compiler", compiler.FullName);
 
     /// <summary>
     /// Adds a set of files the documents are generated from.

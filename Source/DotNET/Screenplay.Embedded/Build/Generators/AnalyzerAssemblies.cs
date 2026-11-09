@@ -136,12 +136,21 @@ public sealed class AnalyzerAssemblies : IAnalyzerAssemblyLoader
 
         try
         {
-            return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(simple));
+            return SharedContext().LoadFromAssemblyName(new AssemblyName(simple));
         }
         catch (Exception exception) when (exception is FileNotFoundException or FileLoadException or BadImageFormatException)
         {
             return null;
         }
+    }
+
+    static AssemblyLoadContext SharedContext()
+    {
+        var generationContext = AssemblyLoadContext.GetLoadContext(typeof(AnalyzerAssemblies).Assembly)!;
+
+        return generationContext.Name == "Cratis.Arc.Screenplay.Embedded.SdkCompiler"
+            ? generationContext
+            : AssemblyLoadContext.Default;
     }
 
     /// <summary>
