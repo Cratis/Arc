@@ -13,6 +13,7 @@ public static class CommandExtensions
 {
     /// <summary>
     /// Convert a command <see cref="TypeInfo"/> to a <see cref="CommandDescriptor"/>.
+    /// Public inputs are included from base command types, with the most-derived declaration taking precedence.
     /// </summary>
     /// <param name="commandType">Command type to convert.</param>
     /// <param name="targetPath">The target path the proxies are generated to.</param>
@@ -30,7 +31,7 @@ public static class CommandExtensions
         string apiPrefix,
         IEnumerable<TypeInfo> allCommandTypes)
     {
-        var properties = commandType.GetPropertyDescriptors();
+        var properties = GetInputPropertyDescriptors(commandType);
         var location = commandType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
@@ -69,6 +70,19 @@ public static class CommandExtensions
         {
             BlockOnValidationSeverity = severity
         };
+    }
+
+    static List<PropertyDescriptor> GetInputPropertyDescriptors(Type commandType)
+    {
+        var properties = new List<PropertyInfo>();
+        for (var current = commandType; current is not null; current = current.BaseType)
+        {
+            properties.AddRange(current.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly));
+        }
+
+        return properties.DistinctBy(property => property.Name)
+            .Select(property => property.ToPropertyDescriptor())
+            .ToList();
     }
 
     static CustomAttributeData? ResolveBlockingSeverity(TypeInfo commandType)
