@@ -76,7 +76,6 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptCommand\ReferencedConceptCommand.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptValidator\ReferencedConceptValidator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\TransitiveConceptValidator\TransitiveConceptValidator.csproj" />
-        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\SourceFileResolverFixture\SourceFileResolverFixture.csproj" />
     </Folder>
     <Folder Name="/Samples/">
         <Project Path="Samples\AspNetCore\AspNetCore.csproj" />
