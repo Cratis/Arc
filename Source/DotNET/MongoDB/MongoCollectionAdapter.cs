@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.MongoDB.Sinks;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
@@ -19,13 +20,24 @@ namespace Cratis.Arc.MongoDB;
 /// However, it is supported to do a service registration with open generics without a factory. So instead we put this in between and just forward the calls to the actual <see cref="IMongoCollection{T}"/>
 /// which we resolve from the <see cref="IMongoDatabase"/> coming as a dependency.
 /// </remarks>
-/// <remarks>
-/// Initializes a new instance of the <see cref="MongoCollectionAdapter{T}"/> class.
-/// </remarks>
 /// <param name="database"><see cref="IMongoDatabase"/> to use.</param>
 public class MongoCollectionAdapter<T>(IMongoDatabase database) : IMongoCollection<T>
 {
     readonly IMongoCollection<T> _collection = database.GetCollection<T>();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MongoCollectionAdapter{T}"/> class reading <typeparamref name="T"/> from the
+    /// database it is stored in, which is the database of its named sink when it declares one.
+    /// </summary>
+    /// <param name="database">The default <see cref="IMongoDatabase"/> of the scope.</param>
+    /// <param name="databases">The <see cref="IMongoDBReadModelDatabases"/> giving the database <typeparamref name="T"/> is stored in.</param>
+    public MongoCollectionAdapter(IMongoDatabase database, IMongoDBReadModelDatabases databases)
+        : this(databases.GetFor(typeof(T)))
+    {
+        // The default database is a parameter so the container prefers this constructor to the one-parameter one; the
+        // databases give it back for every type that is not stored in a named sink.
+        _ = database;
+    }
 
 #pragma warning disable CS0618, CS8625, SA1600, SA1127
     public CollectionNamespace CollectionNamespace => _collection.CollectionNamespace;

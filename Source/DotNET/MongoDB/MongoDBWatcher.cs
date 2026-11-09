@@ -3,6 +3,8 @@
 
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
+using Cratis.Arc.MongoDB.Sinks;
+using Cratis.Arc.Sinks;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -46,7 +48,32 @@ public class MongoDBWatcher(
     readonly CancellationTokenSource _cts = new();
     readonly object _lifetimeGate = new();
     readonly List<Task> _workers = [];
+    readonly IReadModelSinks? _readModelSinks;
+    readonly IMongoDBSinks? _sinks;
     bool _disposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MongoDBWatcher"/> class that observes a document type stored in a
+    /// named sink on that sink's server.
+    /// </summary>
+    /// <param name="clientFactory">The <see cref="IMongoDBClientFactory"/> for the application's configured client.</param>
+    /// <param name="databaseNameResolver">The <see cref="IMongoDatabaseNameResolver"/> for the application's database name.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="connections">The <see cref="IMongoDBConnections"/>, so watches follow configured connection resolution.</param>
+    /// <param name="readModelSinks">The <see cref="IReadModelSinks"/> telling which named sink a document type is stored in.</param>
+    /// <param name="sinks">The <see cref="IMongoDBSinks"/> giving the clients of the named sinks.</param>
+    public MongoDBWatcher(
+        IMongoDBClientFactory? clientFactory,
+        IMongoDatabaseNameResolver? databaseNameResolver,
+        ILogger<MongoDBWatcher> logger,
+        IMongoDBConnections? connections,
+        IReadModelSinks? readModelSinks,
+        IMongoDBSinks? sinks)
+        : this(clientFactory, databaseNameResolver, logger, connections)
+    {
+        _readModelSinks = readModelSinks;
+        _sinks = sinks;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MongoDBWatcher"/> class for a host that has not configured MongoDB,
@@ -110,7 +137,11 @@ public class MongoDBWatcher(
     {
         var connection = connections?.Resolve();
         var databaseName = connection?.DatabaseName ?? (databaseNameResolver ?? throw new MongoDBWatcherNotConfigured(nameof(IMongoDatabaseNameResolver))).Resolve();
-        var watch = GetWatch(databaseName, connection?.Client ?? DefaultClient());
+        var sinkName = _readModelSinks?.GetSinkNameFor(typeof(TDocument));
+        var client = sinkName is not null && _sinks is not null
+            ? _sinks.GetClientFor(sinkName)
+            : connection?.Client ?? DefaultClient();
+        var watch = GetWatch(databaseName, client);
         var collection = watch.Database.GetCollection<TDocument>();
         return new MongoDBObserveBuilder<TDocument>(collection, filter, watch, logger);
     }
