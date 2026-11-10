@@ -30,6 +30,7 @@ Startup validation runs in this order. Fix the first error you see.
 | `MCP tool '<name>' requires no scope. Configure McpOptions.ApplicationName, ReadScope and WriteScope.` | No application name and no explicit scope. | Set `ApplicationName`, or `ReadScope` and `WriteScope`. |
 | `... may change state, so every scope set it declares must require McpOptions.WriteScope or one of McpOptions.WriteScopes.` | A write tool, usually a curated source, requires only read scopes. | Require `WriteScope` or add the scope to `WriteScopes`. |
 | `MCP tool '<name>' is used both by a tool registered on the MCP server and by an exposed tool.` | Name clash with a server-registered tool. | Rename one. |
+| Warning 5103: `MCP requires scope '<scope>', which PatOptions.AllowedScopes does not allow. PATs cannot satisfy this tool scope. ...` | A tool needs a scope that `PatOptions.AllowedScopes` lacks, and no scope set of that tool (required or alternative) is fully allowed, so no PAT can call it. Startup still succeeds; the warning is logged once per missing scope. It is not raised when no PAT installation is present. | Add the scope to `PatOptions.AllowedScopes`, or adjust `McpOptions.ReadScope`/`WriteScope` and the tool's scope declarations. Scopes with an `admin` or `approve` segment can never be allowed for a PAT. |
 | Startup fails for a command you did not expose | Arc validates authorization for every discovered command and query. | Fix the missing or invalid authorization policy it names. |
 
 ## HTTP errors

@@ -3,8 +3,8 @@
 
 using Cratis.Arc.Capabilities;
 using Cratis.Arc.Identity.Callers;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
@@ -78,11 +78,16 @@ internal sealed class McpStartupValidation(
 
     void WarnAboutPatScopes(McpToolCeiling tools)
     {
-        var required = tools.Tools.SelectMany(tool => tool.RequiredScopes.Concat((tool.AlternativeScopes ?? []).SelectMany(_ => _)))
-            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
         foreach (var allowlist in allowlists.Where(_ => _.Kind == CallerCredentialKind.PersonalAccessToken))
         {
-            foreach (var scope in required.Where(scope => !allowlist.Scopes.Contains(scope)))
+            // A tool a PAT can satisfy needs no warning; only scopes of tools it can never satisfy are reported.
+            var missing = tools.Tools
+                .Where(tool => !tool.IsSatisfiedBy(allowlist.Scopes))
+                .SelectMany(tool => tool.RequiredScopes.Concat((tool.AlternativeScopes ?? []).SelectMany(_ => _)))
+                .Where(scope => !string.IsNullOrWhiteSpace(scope) && !allowlist.Scopes.Contains(scope))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal);
+            foreach (var scope in missing)
             {
                 logger.PatScopeMissing(scope);
             }

@@ -8,7 +8,7 @@ namespace Cratis.Arc.Mcp.for_McpStartupValidation;
 
 public class when_only_an_oauth_allowlist_is_installed : a_pat_scope_validation
 {
-    void Establish() => _allowlist.Kind.Returns(CallerCredentialKind.OAuthAccessToken);
+    void Establish() => _allowlist.Kind.Returns(CallerCredentialKind.OAuthGrant);
 
     void Because() => Validate();
 
