@@ -76,7 +76,10 @@ static class McpToolMapper
             ScopesOf(declaration.Name, options.WriteScope, carriers),
             McpToolAccess.Write,
             McpSchemaBuilder.ForCommand(commandType, serializerOptions),
-            McpToolAnnotations.ForWrite);
+            McpToolAnnotations.ForWrite)
+        {
+            OutputSchema = McpOperationResult.CommandSchema(serializerOptions)
+        };
     }
 
     static McpToolDescriptor MapQuery(McpExposureDeclaration declaration, McpOptions options, IReadOnlyCollection<IQueryPerformer> performers, JsonSerializerOptions serializerOptions)
@@ -100,7 +103,10 @@ static class McpToolMapper
             ScopesOf(declaration.Name, options.ReadScope, carriers),
             McpToolAccess.Read,
             McpSchemaBuilder.ForQuery(performer.Parameters, performer.SupportsPaging, serializerOptions, McpArgumentDescriptions.ForQuery(performer)),
-            McpToolAnnotations.ForRead);
+            McpToolAnnotations.ForRead)
+        {
+            OutputSchema = McpOperationResult.QuerySchema(serializerOptions)
+        };
     }
 
     /// <summary>
