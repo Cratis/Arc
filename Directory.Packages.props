@@ -20,7 +20,7 @@
     <PackageVersion Include="Cratis.Chronicle" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.144.0" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.33.1" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.33.1" />
     <PackageVersion Include="Cratis.Screenplay" Version="6.0.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.20.0" />
@@ -102,7 +102,7 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.235" />
     <!-- Specifications -->
-    <PackageVersion Include="Cratis.Specifications.XUnit.v3" Version="5.0.0" />
+    <PackageVersion Include="Cratis.Specifications.XUnit.v3" Version="5.3.0" />
     <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.2" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
     <!-- Required at runtime by the Roslyn testing XUnit verifiers; compile assets are excluded where referenced. -->
