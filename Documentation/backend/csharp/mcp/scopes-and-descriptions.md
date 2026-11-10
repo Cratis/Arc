@@ -20,8 +20,16 @@ The description is the only guidance the agent gets, and it is required. Say wha
 Describe arguments too. `[Description("...")]` (`System.ComponentModel`) on a command property or a query method parameter becomes the `description` of that argument in the tool's input schema:
 
 ```csharp
+using System.ComponentModel;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Mcp;
+
+[Command]
 [ExposeOverMcp("add_note", Description = "Adds a note and returns its id.")]
-public record AddNote([property: Description("The note text, plain text.")] string Text);
+public record AddNote([property: Description("The note text, plain text.")] string Text)
+{
+    public Guid Handle() => Guid.NewGuid();
+}
 ```
 
 Arc does not infer argument descriptions from names or XML comments; an argument without the attribute has none.

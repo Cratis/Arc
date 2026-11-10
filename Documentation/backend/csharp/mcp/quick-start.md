@@ -16,9 +16,11 @@ This page exposes one command and one query as MCP tools, authorizes a client wi
 Put `[ExposeOverMcp]` on the command class and on a read model query method. The name is explicit and must match `^[a-z][a-z0-9_]{0,63}$`. The description is required.
 
 ```csharp
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Mcp;
 using Cratis.Arc.Queries.ModelBound;
 
+[Command]
 [ExposeOverMcp("add_note", Description = "Adds a note.")]
 public record AddNote(string Text)
 {
