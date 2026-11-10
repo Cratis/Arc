@@ -27,6 +27,8 @@ internal sealed class CallerResolutionInputs
     internal static CallerResolutionInputs Capture(IHttpRequestContext request, IEnumerable<IVerifiedCredentialSource> sources, TenantId? tenant)
     {
         var framed = new StringBuilder();
+        var expected = ExpectedCredentialShape.Read(request);
+        framed.Append(ForwardedIdentityCanonicalization.Frame(expected is null ? "shape:none" : $"shape:{(int)expected.Shape}"));
         if (request is not ICanReadForwardedIdentityRequest raw)
         {
             framed.Append(ForwardedIdentityCanonicalization.Frame("unreadable"))

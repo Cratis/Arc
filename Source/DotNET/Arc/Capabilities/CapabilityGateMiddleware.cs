@@ -68,11 +68,7 @@ internal sealed class CapabilityGateMiddleware(
 
         // The verified principal is built here and never registered as an authentication scheme, so the host's own
         // default scheme selection is untouched. The product's claims transformation still applies.
-        var principal = VerifiedCallerPrincipal.Create(caller);
-        if (context.RequestServices.GetService<IClaimsTransformation>() is { } transformation)
-        {
-            principal = await transformation.TransformAsync(principal);
-        }
+        var principal = await CreatePrincipal(context, caller);
 
         if (!VerifiedCallerPrincipal.Carries(principal, caller))
         {
@@ -94,9 +90,22 @@ internal sealed class CapabilityGateMiddleware(
         await next(context);
     }
 
+    static async Task<ClaimsPrincipal> CreatePrincipal(HttpContext context, VerifiedCaller caller)
+    {
+        var principal = VerifiedCallerPrincipal.Create(caller);
+        if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return principal;
+        if (context.RequestServices.GetService<IClaimsTransformation>() is { } transformation) return await transformation.TransformAsync(principal);
+        return principal;
+    }
+
     static Task<CallerResolution> ResolveCapabilityCaller(HttpContext context)
     {
-        if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
+        if (context.RequestServices.GetService<WorkloadCallerInstallation>() is not null)
+        {
+            context.Items[ExpectedCredentialShape.Key] = new ExpectedCredentialShape(PresentedCredentialShape.ServiceAccount);
+            context.User = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+        else if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
         {
             var presentation = context.RequestServices.GetRequiredService<CredentialPresentationGate>().Inspect(new AspNetCoreHttpRequestContext(context));
             if (presentation.Refusal is not null || !AdmitsPresentation(context.GetEndpoint(), presentation.Shape))
@@ -113,6 +122,8 @@ internal sealed class CapabilityGateMiddleware(
 
     static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
     {
+        if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return true;
+
         // The product's membership check runs here, once, for the verified principal and the caller's checked tenant.
         try
         {
@@ -127,6 +138,7 @@ internal sealed class CapabilityGateMiddleware(
 
     static async Task<bool> ConflictsWithAnotherPrincipal(HttpContext context, VerifiedCaller caller)
     {
+        if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return false;
         var subject = VerifiedCallerIdentity.SubjectOf(caller);
         var others = new List<ClaimsPrincipal>();
         if (context.User.Identities.Any(identity => identity.IsAuthenticated))
