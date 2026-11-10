@@ -145,7 +145,8 @@ jobs:
       # Every spec job below runs net10.0 only, so the spec projects and their fixtures are compiled for net10.0 only
       # (Directory.Build.props). The libraries still build for net8.0, net9.0 and net10.0.
       - name: Build
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0
+        # Proxies are generated locally and committed; CI never generates them (proxy specs exercise the generator).
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0 -p:CratisProxiesOutputPath=
 
       # The specs run on net10.0 only, so the net8.0 and net9.0 branches of Arc's options binder are only exercised here:
       # the harness compares the binder with the real ConfigurationBinder of each target framework. It exits 1 on a mismatch
