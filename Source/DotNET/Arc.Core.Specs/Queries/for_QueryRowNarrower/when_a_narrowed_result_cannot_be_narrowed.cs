@@ -12,7 +12,6 @@ public class when_a_narrowed_result_cannot_be_narrowed : Specification
     {
         public ValueTask<LambdaExpression?> GetPredicate(Type readModelType, QueryContext context) =>
             ValueTask.FromResult<LambdaExpression?>((Expression<Func<string, bool>>)(_ => true));
-
     }
 
     Exception _exception;

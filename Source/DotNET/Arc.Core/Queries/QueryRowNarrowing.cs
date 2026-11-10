@@ -16,6 +16,8 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 public abstract class QueryRowNarrowing<TReadModel, TKey> : IQueryRowNarrowing
 {
+    static readonly System.Reflection.MethodInfo _containsMethod = ((Func<IEnumerable<TKey>, TKey, bool>)Enumerable.Contains).Method;
+
     /// <summary>
     /// Gets the expression that selects the key of a row.
     /// </summary>
@@ -32,9 +34,7 @@ public abstract class QueryRowNarrowing<TReadModel, TKey> : IQueryRowNarrowing
         var key = Key;
         var allowed = (await GetAllowedKeys(context)).ToList();
         var contains = Expression.Call(
-            typeof(Enumerable),
-            nameof(Enumerable.Contains),
-            [typeof(TKey)],
+            _containsMethod,
             Expression.Constant(allowed, typeof(IEnumerable<TKey>)),
             key.Body);
         return Expression.Lambda<Func<TReadModel, bool>>(contains, key.Parameters);
