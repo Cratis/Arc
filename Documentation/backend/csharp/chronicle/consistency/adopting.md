@@ -116,7 +116,7 @@ Under `On`, discoverable validators with constructor dependencies must be regist
 
 ### Upgrade note: missing protected models
 
-Under `On`, a missing required protected read-model parameter now returns the ordinary validation reason `rule` (`ValidationResultReason.Rule`) instead of `dependencyUnavailable`, with the message `{ReadModel} does not exist.`. The exception and validation messages do not include the supplied key. HTTP status remains `400`. Update clients or specs that distinguish these reasons. Invalid protected keys produce the same rejection before a read is acquired, including for nullable parameters; nullable parameters still receive `null` for a valid missing key. `Off`, `Measure` and advisory reads keep their previous behavior. See [Missing models and invalid keys](./reads.md#missing-models-and-invalid-keys).
+Under `On`, a missing required protected read-model parameter now returns the ordinary validation reason `rule` (`ValidationResultReason.Rule`) instead of `dependencyUnavailable`, with the message `{ReadModel} does not exist.`. The exception and validation messages do not include the supplied key, and incomplete-read refusals likewise no longer include it. HTTP status remains `400`. Update clients or specs that distinguish these reasons. Invalid protected keys produce the same rejection before a read is acquired, including for nullable parameters; nullable parameters still receive `null` for a valid missing key. `Off`, `Measure` and advisory reads keep their previous behavior. See [Missing models and invalid keys](./reads.md#missing-models-and-invalid-keys).
 
 ## Cap the mode at run time
 
