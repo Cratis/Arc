@@ -16,6 +16,7 @@ public class when_boundary_capture_times_out : given.a_measure_pipeline
     {
         _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["ReadProtection:RequireGeneratedMetadata"] = "false",
             ["ReadProtection:MeasureTailTimeout"] = "1",
             ["ReadProtection:MeasureSampleRate"] = "1"
         }).Build();
