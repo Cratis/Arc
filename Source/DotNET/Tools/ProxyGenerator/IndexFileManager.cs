@@ -40,6 +40,29 @@ public static partial class IndexFileManager
     internal static bool UpdateIndexFileWithFileHeader(string fileHeaderTemplate, string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath) =>
         UpdateDirectoryIndex(new IndexLocation(directory, generatedFiles), GroupByDirectory(generatedFiles, orphanedFiles), new IndexOutput(fileHeaderTemplate, message, outputPath));
 
+    /// <inheritdoc cref="UpdateAllIndexFiles"/>
+    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
+    {
+        // Combine explicitly tracked directories with any directory under outputPath
+        // that has an existing index.ts file, to catch stale exports from previous runs.
+        var allDirectories = new HashSet<string>(directories, StringComparer.Ordinal);
+
+        if (Directory.Exists(outputPath))
+        {
+            foreach (var dir in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories).Select(Path.GetDirectoryName).OfType<string>())
+            {
+                allDirectories.Add(dir);
+            }
+        }
+
+        // Grouping once keeps this linear in the number of files, rather than a scan of every file per directory.
+        var byDirectory = GroupByDirectory(generatedFiles, orphanedFiles);
+
+        var output = new IndexOutput(fileHeaderTemplate, message, outputPath);
+        var writtenCount = allDirectories.Count(_ => UpdateDirectoryIndex(new IndexLocation(_, generatedFiles), byDirectory, output));
+        return (writtenCount, allDirectories.Count - writtenCount);
+    }
+
     /// <summary>
     /// Updates the index.ts file of one directory from files already grouped by directory.
     /// </summary>
@@ -90,29 +113,6 @@ public static partial class IndexFileManager
         File.WriteAllText(indexPath, content);
         output.Message($"    Updated index: {GetRelativePath(output, indexPath)}");
         return true;
-    }
-
-    /// <inheritdoc cref="UpdateAllIndexFiles"/>
-    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
-    {
-        // Combine explicitly tracked directories with any directory under outputPath
-        // that has an existing index.ts file, to catch stale exports from previous runs.
-        var allDirectories = new HashSet<string>(directories, StringComparer.Ordinal);
-
-        if (Directory.Exists(outputPath))
-        {
-            foreach (var dir in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories).Select(Path.GetDirectoryName).OfType<string>())
-            {
-                allDirectories.Add(dir);
-            }
-        }
-
-        // Grouping once keeps this linear in the number of files, rather than a scan of every file per directory.
-        var byDirectory = GroupByDirectory(generatedFiles, orphanedFiles);
-
-        var output = new IndexOutput(fileHeaderTemplate, message, outputPath);
-        var writtenCount = allDirectories.Count(_ => UpdateDirectoryIndex(new IndexLocation(_, generatedFiles), byDirectory, output));
-        return (writtenCount, allDirectories.Count - writtenCount);
     }
 
     static void DeleteEmptyGeneratedIndex(IndexLocation location, IndexOutput output)
