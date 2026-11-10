@@ -26,11 +26,16 @@ public class and_the_observation_is_disposed : given.an_observable_query
 
     async Task Because()
     {
-        _observation.Dispose();
-        _observation.Dispose();
+        DisposeSynchronouslyTwice();
         _subsequentReadError = await Catch.Exception(() => _observation.Next());
         _asyncDisposalError = await Catch.Exception(async () => await _observation.DisposeAsync());
         _subjectNotificationError = Catch.Exception(() => _state.Subject.OnNext(new("Still usable")));
+    }
+
+    void DisposeSynchronouslyTwice()
+    {
+        _observation.Dispose();
+        _observation.Dispose();
     }
 
     [Fact] void should_keep_the_owned_scope_alive_until_disposal() => _scopeWasLive.ShouldBeTrue();
