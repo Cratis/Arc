@@ -107,16 +107,7 @@ public class ControllerQueryPerformer(
         try
         {
             var args = GetMethodArguments(AuthorizationMethod.GetParameters(), context.Arguments ?? QueryArguments.Empty, serviceProvider);
-            if ((context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
-                (context.AuthorizedExecution is { } verdict &&
-                 !verdict.IsCurrent(
-                     AuthorizationMethod,
-                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
-                     (serviceProvider.GetService<AuthorizationDeclarations>() ??
-                         throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(AuthorizationMethod))))
-            {
-                throw new AuthorizationIdentityChanged();
-            }
+            EnsureAuthorizationIsCurrent(context, serviceProvider);
 
             var invocationResult = AuthorizationMethod.Invoke(controller, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
@@ -129,19 +120,63 @@ public class ControllerQueryPerformer(
         }
         finally
         {
-            switch (controller)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
+            await DisposeController(controller);
         }
     }
 
 #pragma warning disable SA1204 // Static members should appear before non-static members
+    static async ValueTask DisposeController(object controller)
+    {
+        switch (controller)
+        {
+            case IAsyncDisposable asyncDisposable:
+                await asyncDisposable.DisposeAsync();
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
+    }
+
+    static bool IsCallerSuppliedType(Type type) =>
+        type.IsConcept() ||
+        type.IsEnumerableOfQueryArgumentElement(out _) ||
+        type.IsNestedQueryArgumentCollection();
+
+    static bool TryResolveConstructorArguments(ConstructorInfo constructor, IServiceProvider serviceProvider, out object?[] args)
+    {
+        var parameters = constructor.GetParameters();
+        args = new object?[parameters.Length];
+
+        for (var index = 0; index < parameters.Length; index++)
+        {
+            if (!TryResolveConstructorArgument(parameters[index], serviceProvider, out args[index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    static bool TryResolveConstructorArgument(ParameterInfo parameter, IServiceProvider serviceProvider, out object? argument)
+    {
+        if (parameter.ParameterType == typeof(IServiceProvider))
+        {
+            argument = serviceProvider;
+            return true;
+        }
+
+        argument = serviceProvider.GetService(parameter.ParameterType);
+        if (argument is not null)
+        {
+            return true;
+        }
+
+        argument = parameter.HasDefaultValue ? parameter.DefaultValue : null;
+        return parameter.HasDefaultValue;
+    }
+
     static bool ComputeSupportsPaging(MethodInfo performMethod)
     {
         var returnType = performMethod.ReturnType;
@@ -178,9 +213,7 @@ public class ControllerQueryPerformer(
 
         // Concepts and collections of query arguments are caller-supplied, even when the container reports
         // them as services (IEnumerable<T> is always resolvable by the default container).
-        if (parameter.ParameterType.IsConcept() ||
-            parameter.ParameterType.IsEnumerableOfQueryArgumentElement(out _) ||
-            parameter.ParameterType.IsNestedQueryArgumentCollection())
+        if (IsCallerSuppliedType(parameter.ParameterType))
         {
             return false;
         }
@@ -197,43 +230,34 @@ public class ControllerQueryPerformer(
 
         foreach (var constructor in constructors)
         {
-            var parameters = constructor.GetParameters();
-            var args = new object?[parameters.Length];
-            var allResolved = true;
-
-            for (var index = 0; index < parameters.Length; index++)
-            {
-                var parameter = parameters[index];
-
-                if (parameter.ParameterType == typeof(IServiceProvider))
-                {
-                    args[index] = serviceProvider;
-                    continue;
-                }
-
-                var resolved = serviceProvider.GetService(parameter.ParameterType);
-                if (resolved is null)
-                {
-                    if (parameter.HasDefaultValue)
-                    {
-                        args[index] = parameter.DefaultValue;
-                        continue;
-                    }
-
-                    allResolved = false;
-                    break;
-                }
-
-                args[index] = resolved;
-            }
-
-            if (allResolved)
+            if (TryResolveConstructorArguments(constructor, serviceProvider, out var args))
             {
                 return constructor.Invoke(args);
             }
         }
 
         throw new InvalidOperationException($"Unable to construct controller '{Type.FullName}' for query '{FullyQualifiedName}'.");
+    }
+
+    void EnsureAuthorizationIsCurrent(QueryContext context, IServiceProvider serviceProvider)
+    {
+        if (context.AuthorizedExecution is not { } verdict)
+        {
+            if (context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true)
+            {
+                throw new AuthorizationIdentityChanged();
+            }
+
+            return;
+        }
+
+        var principalAccessor = serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>();
+        var declaration = (serviceProvider.GetService<AuthorizationDeclarations>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(AuthorizationMethod);
+        if (!verdict.IsCurrent(AuthorizationMethod, principalAccessor, declaration))
+        {
+            throw new AuthorizationIdentityChanged();
+        }
     }
 
     object?[] GetMethodArguments(ParameterInfo[] parameters, QueryArguments queryArguments, IServiceProvider serviceProvider)
