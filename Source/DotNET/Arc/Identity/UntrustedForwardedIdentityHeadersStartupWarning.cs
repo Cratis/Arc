@@ -21,7 +21,9 @@ internal sealed class UntrustedForwardedIdentityHeadersStartupWarning(
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (!arcOptions.Value.TrustForwardedIdentityHeaders)
+        // Signed forwarded identity authenticates before the trust decision is reached, so it needs no header trust;
+        // the warning would be a false positive there. The unsigned header trust default is unchanged.
+        if (!arcOptions.Value.TrustForwardedIdentityHeaders && arcOptions.Value.ForwardedIdentity?.Enabled != true)
         {
             logger.ForwardedIdentityHeadersNotTrustedAtStartup();
         }
