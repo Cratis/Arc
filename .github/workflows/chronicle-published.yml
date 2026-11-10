@@ -2,7 +2,7 @@ name: Chronicle Published
 
 # One constant group: every run force-pushes the same long-lived `chronicle-updates` branch, so
 # two runs must never overlap. Queued, never cancelled - a cancelled run could stop after the
-# branch moved but before the verification comment and auto-merge state were brought in line.
+# branch moved but before the verification comment was brought in line.
 concurrency:
   group: chronicle-update
   cancel-in-progress: false
@@ -239,7 +239,7 @@ jobs:
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         id: build
         continue-on-error: true
-        run: dotnet build --no-restore --configuration Release -p:CratisSpecsTargetFramework=net10.0
+        run: dotnet build --no-restore --configuration Release -p:CratisSpecsTargetFramework=net10.0 -p:CratisProxiesOutputPath=
 
       - name: Run specs
         if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true' && steps.build.outcome == 'success'
@@ -389,7 +389,7 @@ jobs:
           elif [ "$BUMP" = "major" ]; then
             outcome="⚠️ Requires human review before merging — major bump."
           else
-            outcome="✅ All specs passed — auto-merge enabled."
+            outcome="✅ All specs passed — ready to merge once the pull request checks are green."
           fi
 
           cat > "$RUNNER_TEMP/verification-gate.md" <<EOF
@@ -408,31 +408,16 @@ jobs:
             --repo "$REPOSITORY" \
             --body-file "$RUNNER_TEMP/verification-gate.md"
 
-      - name: Enable auto-merge
-        if: >-
-          steps.debounce.outputs.proceed == 'true' &&
-          steps.bump.outputs.changed == 'true' &&
-          steps.pr.outputs.pull-request-number &&
-          steps.gate.outputs.verified == 'true' &&
-          steps.inputs.outputs.bump != 'major'
-        env:
-          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
-          NUMBER: ${{ steps.pr.outputs.pull-request-number }}
-          REPOSITORY: ${{ github.repository }}
-        # A true merge commit, never --squash: squashing collapses the branch's commits into a new
-        # one and deletes the branch, leaving the originals unreachable. The repository's history is
-        # append-only.
-        run: gh pr merge --auto --merge "$NUMBER" --repo "$REPOSITORY"
-
-      # The pull request is reused across runs and auto-merge survives a force-push, so an
-      # earlier green run's auto-merge would otherwise merge this run's failing or major update.
+      # This workflow never merges the update pull request: it has no required checks, so
+      # auto-merge would merge even when CI is red. A person or agent merges once it is green.
+      # The pull request is reused across runs and auto-merge may have been enabled by earlier
+      # runs, so it is switched off every run.
       - name: Disable auto-merge
         if: >-
           always() &&
           steps.debounce.outputs.proceed == 'true' &&
           steps.bump.outputs.changed == 'true' &&
-          steps.pr.outputs.pull-request-number &&
-          (steps.gate.outputs.verified != 'true' || steps.inputs.outputs.bump == 'major')
+          steps.pr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
           NUMBER: ${{ steps.pr.outputs.pull-request-number }}
