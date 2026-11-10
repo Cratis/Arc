@@ -1,6 +1,6 @@
 ---
 title: "Arc MCP capability manifest: one allowlist for MCP and REST"
-description: The versioned screenplay-capability-manifest/1 allowlist lists the operations agents may reach, with scopes and descriptions, and Cratis Arc fails closed on mismatch.
+description: The versioned screenplay-capability-manifest/1 allowlist names the operations agents may reach, with scopes and descriptions; Cratis Arc fails closed on mismatch.
 ---
 
 A capability manifest is a versioned JSON allowlist of what agents may reach in an application: which operations, whether each reads or writes, the scopes it requires, its description, and whether it requires approval. The format identifier is `screenplay-capability-manifest/1`.
