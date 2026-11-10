@@ -45,6 +45,8 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        // Capture tenant inputs before workload routing discards the incoming product principal.
+        var workloadTenantAllowed = AllowsWorkloadTenant(context);
         var resolution = await ResolveCapabilityCaller(context);
         if (resolution.Caller is not { } caller)
         {
@@ -53,7 +55,7 @@ internal sealed class CapabilityGateMiddleware(
             await Refuse(context, new CapabilityRefusal(refusal.HttpStatus(), refusal));
             return;
         }
-        if (!CallerAdmission.Allows(caller, _allowed))
+        if (!CallerAdmission.Allows(caller, _allowed) || !workloadTenantAllowed)
         {
             await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
             return;
@@ -67,7 +69,7 @@ internal sealed class CapabilityGateMiddleware(
         }
 
         // The verified principal is built here and never registered as an authentication scheme, so the host's own
-        // default scheme selection is untouched. The product's claims transformation still applies.
+        // default scheme selection is untouched. Person claims transformations do not apply to workloads.
         var principal = await CreatePrincipal(context, caller);
 
         if (!VerifiedCallerPrincipal.Carries(principal, caller))
@@ -84,10 +86,29 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        using var tenantScope = BeginWorkloadTenantScope(context, caller);
         context.User = principal;
         context.Items[VerifiedCallerPrincipal.ItemKey] = principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
+    }
+
+    static bool HasNoResolvedTenant(HttpContext context)
+    {
+        // Candidate avoids person membership checks and includes cached and explicitly selected tenants.
+        // An overridden accessor cannot be pinned by Arc and must not admit a workload request.
+        var accessor = context.RequestServices.GetRequiredService<ITenantIdAccessor>();
+        if (accessor is not TenantIdAccessor tenants || accessor.GetType() != typeof(TenantIdAccessor)) return false;
+        var resolved = context.RequestServices.GetRequiredService<ITenantIdResolver>().Resolve();
+        return tenants.Candidate == TenantId.NotSet && IsUnsetTenant(resolved);
+    }
+
+    static bool IsUnsetTenant(string? tenant) => string.IsNullOrEmpty(tenant) || tenant == TenantId.NotSet.Value;
+
+    static IDisposable? BeginWorkloadTenantScope(HttpContext context, VerifiedCaller caller)
+    {
+        if (caller.PrincipalKind != CallerPrincipalKind.ClusterWorkload) return null;
+        return context.RequestServices.GetRequiredService<TenantIdAccessor>().UseAuthorizedTenant(TenantId.NotSet);
     }
 
     static async Task<ClaimsPrincipal> CreatePrincipal(HttpContext context, VerifiedCaller caller)
@@ -213,6 +234,22 @@ internal sealed class CapabilityGateMiddleware(
         writer.WriteEndObject();
         await writer.FlushAsync(context.RequestAborted);
         await context.Response.BodyWriter.FlushAsync(context.RequestAborted);
+    }
+
+    bool AllowsWorkloadTenant(HttpContext context)
+    {
+        if (context.RequestServices.GetService<WorkloadCallerInstallation>() is null) return true;
+
+        if (HasPresentedTenant(context)) return false;
+        return HasNoResolvedTenant(context);
+    }
+
+    bool HasPresentedTenant(HttpContext context)
+    {
+        var tenancy = arc.Value.Tenancy;
+        return context.Request.Headers.ContainsKey(tenancy.HttpHeader) ||
+            context.Request.Query.ContainsKey(tenancy.QueryParameter) ||
+            context.User.HasClaim(claim => claim.Type == tenancy.ClaimType);
     }
 
     bool TryBypassGate(HttpContext context, string group)

@@ -21,8 +21,10 @@ namespace Cratis.Arc.Identity.Workload;
 [Collection("UsesCurrentDirectory")]
 public class when_hosting_workload_capabilities : Specification
 {
-    [Fact]
-    public async Task should_enforce_the_tenantless_workload_lane_without_changing_the_default_port()
+    [Theory]
+    [InlineData(TenantResolverType.Header)]
+    [InlineData(TenantResolverType.Fixed)]
+    public async Task should_enforce_the_tenantless_workload_lane_without_changing_the_default_port(TenantResolverType resolver)
     {
         using var certificates = new for_ForwardedIdentityHop.given.certificates();
         var port = FreePort();
@@ -42,6 +44,8 @@ public class when_hosting_workload_capabilities : Specification
             {
                 options.EndpointGroups.Assign("capabilities", port);
                 options.Tenancy.HttpHeader = "x-tenant";
+                options.Tenancy.ResolverType = resolver;
+                options.Tenancy.FixedTenantId = "configured-tenant";
             },
             configureBuilder: arc => Configure(arc, certificates.Bundle));
         builder.Services.Replace(ServiceDescriptor.Singleton<IWorkloadTokenReviewClient>(kubernetes));
@@ -58,7 +62,18 @@ public class when_hosting_workload_capabilities : Specification
         try
         {
             using var client = new HttpClient { BaseAddress = new($"http://127.0.0.1:{port}"), Timeout = TimeSpan.FromSeconds(10) };
-            await Exercise(client, kubernetes, membership, () => invoked);
+            if (resolver == TenantResolverType.Fixed)
+            {
+                using var request = Request(Token());
+                using var refusal = await client.SendAsync(request, global::Xunit.TestContext.Current.CancellationToken);
+                refusal.StatusCode.ShouldEqual(HttpStatusCode.Forbidden);
+                invoked.ShouldEqual(0);
+                membership.Calls.ShouldEqual(0);
+            }
+            else
+            {
+                await Exercise(client, kubernetes, membership, () => invoked);
+            }
             using var outside = await client.GetAsync($"http://127.0.0.1:{otherPort}/outside", global::Xunit.TestContext.Current.CancellationToken);
             outside.StatusCode.ShouldEqual(HttpStatusCode.OK);
             (await outside.Content.ReadAsStringAsync(global::Xunit.TestContext.Current.CancellationToken)).ShouldEqual("administrator");
@@ -84,6 +99,11 @@ public class when_hosting_workload_capabilities : Specification
         first.Caller.Permissions.ShouldContainOnly("jobs.run");
         context.User.FindFirst(ClaimTypes.Role).ShouldBeNull();
         context.User.FindFirst("email").ShouldBeNull();
+        context.RequestServices.GetRequiredService<ITenantIdAccessor>().Current.ShouldEqual(TenantId.NotSet);
+
+        // Even a later resolver input must not escape the gate's tenantless execution scope.
+        context.Request.Headers["x-tenant"] = "later-tenant";
+        context.RequestServices.GetRequiredService<ITenantIdAccessor>().Current.ShouldEqual(TenantId.NotSet);
         var raw = new AspNetCoreHttpRequestContext(context);
         raw.RawTarget.ShouldEqual("/probe");
         return Results.Ok();
@@ -91,8 +111,11 @@ public class when_hosting_workload_capabilities : Specification
 
     static async Task Exercise(HttpClient client, given.kubernetes_client kubernetes, given.workload_membership membership, Func<int> invoked)
     {
-        using var valid = Request(Token());
-        valid.Headers.Add("x-tenant", "unsigned-tenant");
+        var token = Token();
+        await RefusesTenants(client, token);
+        invoked().ShouldEqual(0);
+        membership.Calls.ShouldEqual(0);
+        using var valid = Request(token);
         valid.Headers.Add("x-forwarded-user", "unsigned-person");
         using var response = await client.SendAsync(valid, global::Xunit.TestContext.Current.CancellationToken);
         response.StatusCode.ShouldEqual(HttpStatusCode.OK);
@@ -107,6 +130,20 @@ public class when_hosting_workload_capabilities : Specification
         using var refusal = await client.SendAsync(refused, global::Xunit.TestContext.Current.CancellationToken);
         refusal.StatusCode.ShouldEqual(HttpStatusCode.Unauthorized);
         invoked().ShouldEqual(1);
+    }
+
+    static async Task RefusesTenants(HttpClient client, string token)
+    {
+        using var header = Request(token);
+        header.Headers.Add("x-tenant", "unsigned-tenant");
+        using var query = Request(token, path: "/probe?tenantId=unsigned-tenant");
+        using var claim = Request(token);
+        claim.Headers.Add("x-fixture-tenant-claim", "unsigned-tenant");
+        foreach (var request in new[] { header, query, claim })
+        {
+            using var response = await client.SendAsync(request, global::Xunit.TestContext.Current.CancellationToken);
+            response.StatusCode.ShouldEqual(HttpStatusCode.Forbidden);
+        }
     }
 
     static void Configure(IArcBuilder arc, string fixturePath) => arc.WithoutControllers().WithCapabilities(options =>

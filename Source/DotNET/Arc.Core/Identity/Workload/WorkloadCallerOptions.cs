@@ -15,7 +15,7 @@ public sealed record WorkloadCallerOptions
     /// <summary>Gets the PEM CA path used exclusively to authenticate the API server.</summary>
     public string CaPath { get; init; } = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt";
 
-    /// <summary>Gets the maximum positive-cache lifetime and deleted-Pod rejection latency.</summary>
+    /// <summary>Gets the maximum positive-cache lifetime and deleted-Pod rejection latency, greater than zero and at most 30 seconds.</summary>
     public TimeSpan DeletedPodRejectionLatency { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Gets the hard bound on positive cache entries.</summary>
@@ -36,6 +36,6 @@ public sealed record WorkloadCallerOptions
         string.IsNullOrEmpty(ApiServer.Fragment) && ApiServer.AbsolutePath == "/";
 
     bool ValidBounds => CacheCapacity is > 0 and <= 100_000 &&
-        DeletedPodRejectionLatency > TimeSpan.Zero && DeletedPodRejectionLatency <= TimeSpan.FromMinutes(5) &&
+        DeletedPodRejectionLatency > TimeSpan.Zero && DeletedPodRejectionLatency <= TimeSpan.FromSeconds(30) &&
         RequestTimeout > TimeSpan.Zero && RequestTimeout <= TimeSpan.FromSeconds(30);
 }
