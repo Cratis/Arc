@@ -55,11 +55,11 @@ mcp.Configure(options =>
 
 `WriteScopes` lists additional write scopes. `WriteScope` is always a write scope. A scope in `WriteScopes` must not be blank, repeated or equal to `ReadScope`; otherwise startup fails with `McpOptionsInvalid`.
 
-Add more required scopes with `[RequiresScope("notes:admin-read")]` from `Cratis.Arc.Authorization`. The attribute can be repeated, and the caller must hold every one. For a command it goes on the command type or its handler method; the attribute cannot be placed on a parameter. For a query it goes on the read model type, the performer type or the query method.
+Add more required scopes with `[RequiresScope("notes:restricted-read")]` from `Cratis.Arc.Authorization`. The attribute can be repeated, and the caller must hold every one. For a command it goes on the command type or its handler method; the attribute cannot be placed on a parameter. For a query it goes on the read model type, the performer type or the query method.
 
 ## Allow the scopes on tokens
 
-A personal access token can only hold scopes listed in `PatOptions.AllowedScopes`. The list is empty by default, which allows none. It is an explicit, case-sensitive list: no `*`, and no scope with an `admin` or `approve` segment.
+A personal access token can only hold scopes listed in `PatOptions.AllowedScopes`. The list is empty by default, which allows none. It is an explicit, case-sensitive list: no `*`, and no scope with an `admin` or `approve` segment (segments are split on `:`, `.`, `/` and `-`). A tool that requires such a scope cannot be called with a personal access token at all.
 
 ```csharp
 new PatOptions("notes") { AllowedScopes = ["notes:read", "notes:write"] }
