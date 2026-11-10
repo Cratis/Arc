@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Capabilities;
+using Cratis.Arc.Identity.Callers;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
@@ -14,12 +16,16 @@ namespace Cratis.Arc.Mcp;
 /// <param name="options">The MCP options.</param>
 /// <param name="ceiling">The ceiling factory.</param>
 /// <param name="services">The service provider, used to detect capability hosting.</param>
+/// <param name="allowlists">The configured credential scope ceilings.</param>
+/// <param name="logger">The startup diagnostics logger.</param>
 internal sealed class McpStartupValidation(
     IOptions<ArcOptions> arc,
     IOptions<CapabilitiesOptions> capabilities,
     IOptions<McpOptions> options,
     McpToolCeilingFactory ceiling,
-    IServiceProvider services) : IHostedLifecycleService
+    IServiceProvider services,
+    IEnumerable<ICredentialScopeAllowlist> allowlists,
+    ILogger<McpStartupValidation> logger) : IHostedLifecycleService
 {
     /// <inheritdoc/>
     /// <exception cref="McpRequiresCapabilities">Capability hosting is not enabled.</exception>
@@ -48,7 +54,7 @@ internal sealed class McpStartupValidation(
         ValidateOptions(options.Value);
 
         // Building the ceiling validates every declaration; a failure is cached and rethrown to every caller.
-        _ = ceiling.Ceiling;
+        WarnAboutPatScopes(ceiling.Ceiling);
 
         // Resolving the server options merges the ceiling with the server's own tools, so a name collision fails here.
         _ = (services.GetService(typeof(IOptions<McpServerOptions>)) as IOptions<McpServerOptions>)?.Value;
@@ -69,6 +75,19 @@ internal sealed class McpStartupValidation(
 
     /// <inheritdoc/>
     public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    void WarnAboutPatScopes(McpToolCeiling tools)
+    {
+        var required = tools.Tools.SelectMany(tool => tool.RequiredScopes.Concat((tool.AlternativeScopes ?? []).SelectMany(_ => _)))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        foreach (var allowlist in allowlists.Where(_ => _.Kind == CallerCredentialKind.PersonalAccessToken))
+        {
+            foreach (var scope in required.Where(scope => !allowlist.Scopes.Contains(scope)))
+            {
+                logger.PatScopeMissing(scope);
+            }
+        }
+    }
 
     static void ValidateOptions(McpOptions value)
     {
