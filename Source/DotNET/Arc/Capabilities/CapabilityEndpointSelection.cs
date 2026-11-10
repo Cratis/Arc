@@ -43,11 +43,13 @@ internal sealed class CapabilityEndpointSelection(IOptions<CapabilitiesOptions> 
     {
         Validate();
         var selector = options.Value.GatedEndpoints;
+        var endpoints = sources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Distinct().ToArray();
         if (selector is null)
         {
+            // The whole port is gated; only endpoints that carry the exemption metadata are outside.
+            Volatile.Write(ref _outside, endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<CapabilityGateExemption>() is not null).Cast<Endpoint>().ToFrozenSet<Endpoint>(ReferenceEqualityComparer.Instance));
             return;
         }
-        var endpoints = sources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Distinct().ToArray();
         if (selector.RoutePatterns.Exists(pattern => !endpoints.Any(endpoint => string.Equals(endpoint.RoutePattern.RawText, pattern, StringComparison.Ordinal))) ||
             selector.MetadataTypes.Exists(type => !endpoints.Any(endpoint => endpoint.Metadata.Any(type.IsInstanceOfType))))
         {

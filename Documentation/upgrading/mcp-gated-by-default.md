@@ -23,7 +23,7 @@ Arc 23 renames three MCP APIs and gates the MCP endpoint without requiring `Capa
 .WithCapabilities()
 ```
 
-When `GatedEndpoints` is unset, Arc gates every endpoint on the capabilities port after routing. `/mcp` is never served without a verified caller, but other routes on that port, such as health or readiness probes, now also require one. If probes or other routes must stay reachable, either move them off the capabilities port or set `GatedEndpoints` to a selector for the endpoints to gate; `WithMcp` adds `/mcp` to it.
+When `GatedEndpoints` is unset, Arc gates every endpoint on the capabilities port after routing. `/mcp` is never served without a verified caller. Only the OAuth protected resource metadata route stays anonymous, so OAuth clients can still discover how to authenticate. Other routes on that port, such as health or readiness probes, now also require one. If probes or other routes must stay reachable, either move them off the capabilities port or set `GatedEndpoints` to a selector for the endpoints to gate; `WithMcp` adds `/mcp` to it.
 
 An explicit `GatedEndpoints` selection behaves as before.
 

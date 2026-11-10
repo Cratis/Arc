@@ -19,7 +19,7 @@ The MCP endpoint must never answer an anonymous request. Arc enforces that with 
 
 ## Gated by default
 
-You do not set `CapabilitiesOptions.GatedEndpoints` for MCP. When it is unset, Arc gates every endpoint on the capabilities port after routing, so `/mcp` is never served without a verified caller. Other routes on that port, such as health probes, then need a verified caller too; see the [upgrade notes](../../../upgrading/mcp-gated-by-default.md).
+You do not set `CapabilitiesOptions.GatedEndpoints` for MCP. When it is unset, Arc gates every endpoint on the capabilities port after routing, so `/mcp` is never served without a verified caller. The OAuth protected resource metadata endpoint stays reachable without a caller so clients can discover how to authenticate; it is the only exempt route. Other routes on that port, such as health probes, then need a verified caller too; see the [upgrade notes](../../../upgrading/mcp-gated-by-default.md).
 
 An explicit `GatedEndpoints` selection is respected unchanged. `WithMcp` adds the MCP endpoint to it, so you do not list `/mcp` yourself, and the rest of the port stays outside the gate.
 

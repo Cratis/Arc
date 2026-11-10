@@ -41,7 +41,7 @@ public static class McpEndpointRouteBuilderExtensions
         Admit(otherMethods, group, refusals);
 
         endpoints.MapGet(McpChallenge.MetadataPath(options), McpProtectedResourceMetadata.Serve)
-            .WithMetadata(group);
+            .WithMetadata(group, CapabilityGateExemption.Instance);
 
         return mcp;
     }

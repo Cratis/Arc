@@ -56,6 +56,8 @@ public class an_mcp_host : Specification
     {
     }
 
+    protected virtual void MapMcpEndpoint(WebApplication app) => app.MapArcMcp();
+
     protected virtual void ConfigureCallers(IServiceCollection services)
     {
         services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
@@ -97,7 +99,7 @@ public class an_mcp_host : Specification
         ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
-        _app.MapArcMcp();
+        MapMcpEndpoint(_app);
         ConfigureEndpoints(_app);
         await _app.StartAsync(CancellationToken);
         _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
