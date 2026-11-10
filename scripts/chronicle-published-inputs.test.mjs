@@ -110,7 +110,7 @@ for (const eventName of ['workflow_dispatch', 'repository_dispatch']) {
 
 test('run blocks receive workflow values through the environment', () => {
     const blocks = runBlocks(workflow);
-    assert.equal(blocks.length, 15, 'all run blocks must be inspected');
+    assert.equal(blocks.length, 14, 'all run blocks must be inspected');
     for (const block of blocks) {
         assert.doesNotMatch(block, /\$\{\{\s*(?:github\.(?:event\.inputs|event\.client_payload|event_name|repository)|steps\.)/);
     }
