@@ -321,7 +321,7 @@ A policy that reads state is an ordinary class with a read-model dependency, so 
 | No plan is recorded | nothing | denied |
 | The store is unavailable | throws | denied |
 
-Use a command scenario when you also want the pipeline's own behavior (validation, the unauthorized result shape) in the same specification; seed the state the policy reads through the services the scenario registers. A seeded instance is a stand-in for what the store holds: it proves the policy's decision, not that your projection has produced that state.
+Use a command scenario when you also want the pipeline's own behavior (validation, the unauthorized result shape) in the same specification. Seed the state the policy reads with `scenario.Given.ForEventSource(id).ReadModel(instance)`; the instance is what `IReadModels.GetInstanceById` returns for that key, and a key you did not seed is an absent instance. A seeded instance is a stand-in for what the store holds: it proves the policy's decision, not that your projection has produced that state.
 
 Test HTTP access separately if you rely on ingress or ASP.NET middleware. Direct pipeline specs do not exercise those boundaries.
 
