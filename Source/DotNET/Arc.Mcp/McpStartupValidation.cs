@@ -46,11 +46,6 @@ internal sealed class McpStartupValidation(
             throw new CapabilityEndpointGroupHasNoPort(group);
         }
 
-        if (capabilities.Value.GatedEndpoints is null)
-        {
-            throw new McpRequiresGatedEndpoints();
-        }
-
         ValidateOptions(options.Value);
 
         // Building the catalog validates every declaration; a failure is cached and rethrown to every caller.

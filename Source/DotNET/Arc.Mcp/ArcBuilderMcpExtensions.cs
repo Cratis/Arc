@@ -23,8 +23,9 @@ public static class ArcBuilderMcpExtensions
     /// <param name="configure">An optional delegate declaring options and exposed operations.</param>
     /// <returns>The builder for continuation.</returns>
     /// <remarks>
-    /// Map the endpoint with <see cref="McpEndpointRouteBuilderExtensions.MapCratisArcMcp"/>. The endpoint is served
-    /// only on the capabilities endpoint group, behind selective capability gating, and is stateless: every request
+    /// Map the endpoint with <see cref="McpEndpointRouteBuilderExtensions.MapArcMcp"/>. The endpoint is served
+    /// only on the capabilities endpoint group, behind capability gating (the whole port, or the selection in
+    /// <see cref="CapabilitiesOptions.GatedEndpoints"/>), and is stateless: every request
     /// is one call that runs in the scope of its HTTP request, as the caller the capability gate verified.
     /// </remarks>
     public static IArcBuilder WithMcp(this IArcBuilder builder, Action<McpBuilder>? configure = null)

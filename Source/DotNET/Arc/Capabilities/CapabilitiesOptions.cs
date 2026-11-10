@@ -21,6 +21,13 @@ public class CapabilitiesOptions
     public CapabilityEndpointSelector? GatedEndpoints { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the gate runs after endpoint routing even when <see cref="GatedEndpoints"/> is unset.
+    /// Every request on the capability port is still gated; routing first lets the gate answer in the protocol of the endpoint it refuses,
+    /// such as an MCP refusal. A protocol package that serves through the gate sets this; an explicit <see cref="GatedEndpoints"/> selection implies it.
+    /// </summary>
+    public bool GateAfterRouting { get; set; }
+
+    /// <summary>
     /// Gets the allowed principal kinds, defaulting to people and delegated actors.
     /// </summary>
     public ISet<CapabilityPrincipalKind> AllowedPrincipalKinds { get; } = new HashSet<CapabilityPrincipalKind>
