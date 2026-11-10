@@ -12,8 +12,9 @@ public sealed class ProtectedReadModelKeyOptions
     /// Gets or sets a value indicating whether every exact composite key type requires generated or registered accessors.
     /// </summary>
     /// <remarks>
-    /// Reflection compatibility is available only when this is false and dynamic code is supported.
+    /// Strict coverage is the default. Reflection compatibility is available only when an application explicitly
+    /// sets this to false and dynamic code is supported.
     /// Restricted runtimes always require accessors, regardless of this setting.
     /// </remarks>
-    public bool Strict { get; set; }
+    public bool Strict { get; set; } = true;
 }

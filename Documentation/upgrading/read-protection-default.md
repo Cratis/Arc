@@ -47,3 +47,10 @@ read with `[Unprotected("why")]` on the parameter, the read-model type or the me
 
 Build with the analyzers enabled and run the specs of every command that injects a read model. A command that
 needed a lookup key or an opt-out fails the build or the spec instead of changing behavior silently in production.
+
+## Strict key coverage is the default
+
+Two related defaults change in the same release:
+
+- `ReadProtectionConfiguration` now requires generated command read-model key metadata unless `ReadProtection:RequireGeneratedMetadata` is set to `false`. Commands without generated metadata fail at startup with `CommandReadModelKeysMissing` instead of reflecting. Enable the Arc source generator, or opt out with `false` on runtimes with dynamic code support.
+- `ProtectedReadModelKeyOptions.Strict` defaults to `true`, so an uncovered composite key part throws `ProtectedReadModelKeyAccessorMissing`. Register the key accessors, or set `Strict` to `false` to keep the reflection fallback.

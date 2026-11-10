@@ -20,7 +20,7 @@ public class when_resolving_a_fallback_source_key
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
             var command = new Lookup(new(2026, 10, 18));
             var values = new EventSourceValuesProvider(NullLogger<EventSourceValuesProvider>.Instance).Provide(command);
-            var context = new CommandContext(CorrelationId.New(), typeof(Lookup), command, [], values);
+            var context = new CommandContext(CorrelationId.New(), typeof(Lookup), command, [], values).WithCompatibilityConfiguration();
             var parameter = typeof(Lookup).GetMethod(nameof(Lookup.Handle))!.GetParameters()[0];
 
             var key = CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On, ProtectedKeyTraversalForSpecs.Create(), out var keyText);

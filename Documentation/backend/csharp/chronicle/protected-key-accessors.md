@@ -33,18 +33,18 @@ Call `Register<EmptyKey>()` only for a type with no public readable non-indexed 
 
 ## Require coverage on JIT
 
-Set `ProtectedReadModelKeyOptions.Strict` to `true` when missing composite coverage should fail instead of falling back to reflection on a just-in-time (JIT) compiled runtime. The default is `false`. Configure the option through the host's service collection:
+`ProtectedReadModelKeyOptions.Strict` defaults to `true`, so missing composite coverage fails instead of falling back to reflection on a just-in-time (JIT) compiled runtime. Set it to `false` to opt out and keep the reflection fallback. Configure the option through the host's service collection:
 
 ```csharp
 using Cratis.Arc.Chronicle.ReadModels;
 using Microsoft.Extensions.DependencyInjection;
 
-builder.Services.Configure<ProtectedReadModelKeyOptions>(options => options.Strict = true);
+builder.Services.Configure<ProtectedReadModelKeyOptions>(options => options.Strict = false);
 ```
 
 When dynamic code is unsupported, strict coverage is mandatory regardless of this option. An uncovered custom composite throws `ProtectedReadModelKeyAccessorMissing`, naming the CLR type and registration action, never the key value. This is a configuration error, not a missing-model validation failure: command-result mapping reports an exception and an unsuccessful execution, corresponding to HTTP 500.
 
-On a dynamic-code-capable JIT runtime with strict mode disabled, traversal prefers generated or manual descriptors, then uses the shared reflection compatibility helper. It reads public getters only. The fallback logs a warning once per exact type per process, naming the type and pointing to `ProtectedReadModelKeyAccessors.Register<T>()` and `ProtectedReadModelKeyOptions.Strict`. It never logs key values. Generated and manually registered paths do not produce this warning.
+On a dynamic-code-capable JIT runtime with strict mode explicitly disabled, traversal prefers generated or manual descriptors, then uses the shared reflection compatibility helper. It reads public getters only. The fallback logs a warning once per exact type per process, naming the type and pointing to `ProtectedReadModelKeyAccessors.Register<T>()` and `ProtectedReadModelKeyOptions.Strict`. It never logs key values. Generated and manually registered paths do not produce this warning.
 
 ## Startup and runtime checks
 

@@ -8,4 +8,4 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// </summary>
 /// <param name="type">The command or read model type without metadata.</param>
 public sealed class CommandReadModelKeysMissing(Type type)
-    : Exception($"Type '{type}' has no generated command read-model key metadata. Enable the Arc source generator. ReadProtection:RequireGeneratedMetadata requires registration; runtimes without dynamic code support always require it.");
+    : Exception($"Type '{type}' has no generated command read-model key metadata. Enable the Arc source generator. Generated metadata is required by default; set ReadProtection:RequireGeneratedMetadata to false to opt out on runtimes with dynamic code support.");
