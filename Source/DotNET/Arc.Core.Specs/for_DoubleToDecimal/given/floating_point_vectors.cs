@@ -45,7 +45,7 @@ public static class floating_point_vectors
     {
         try
         {
-            return string.Join(',', decimal.GetBits(conversion()));
+            return string.Join(',', decimal.GetBits(conversion()).Select(_ => _.ToString(CultureInfo.InvariantCulture)));
         }
         catch (OverflowException)
         {
