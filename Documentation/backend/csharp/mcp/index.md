@@ -18,7 +18,7 @@ With Arc MCP there is no second code path. A tool call runs the same command or 
 ## What stays under your control
 
 - **Opt-in.** Nothing is exposed unless you declare it with `Expose`, `ExposeQuery` or `[ExposeOverMcp]`.
-- **Fixed ceiling.** Tool names, descriptions and scopes are checked at startup. A tool that is invalid, has no description, requires no scope, or writes without a write scope stops the application from starting.
+- **Fixed tool set (the ceiling).** Tool names, descriptions and scopes are checked at startup. A tool that is invalid, has no description, requires no scope, or writes without a write scope stops the application from starting.
 - **Scoped visibility.** A caller only sees, and can only call, the tools its scopes allow.
 - **No approval-required commands.** A command that requires approval is never exposed.
 - **Stateless.** Each request is one call. There are no MCP sessions.
@@ -29,15 +29,21 @@ With Arc MCP there is no second code path. A tool call runs the same command or 
 2. Callers authenticate with a personal access token (PAT) by default (the `PatOnly` profile). `OAuthOnly` and `Combined` profiles accept OAuth grants verified by your installation. Arc does not issue tokens.
 3. Browser-based clients and hosted connectors need extra setup; see [Connect clients](connect-clients.md).
 
+<!-- TODO(L110): Cratis/Arc#3775 picks one meaning of "ceiling" for the public API. Today the docs use it for the frozen, startup-validated tool set (McpToolCeiling); the caller's scope set and the PAT scope limit (PatOptions.AllowedScopes) are described as "scopes" and "allowed scopes". Align the wording with the final names. -->
+
 ## Where to go next
 
 | I want to | Page |
 |---|---|
 | See it work in ten minutes | [Quick start](quick-start.md) |
 | Decide what to expose | [Expose a command or query safely](expose-safely.md) |
+| Understand who may call what | [Authorization](authorization.md) |
+| Gate the endpoint | [Gate the endpoint](gating-the-endpoint.md) |
+| Declare the agent-visible allowlist in one file | [Capability manifest](capability-manifest.md) |
 | Name tools and choose scopes | [Scopes and descriptions](scopes-and-descriptions.md) |
 | Connect Claude, VS Code or another client | [Connect clients](connect-clients.md) |
 | Debug with a visual client | [Test with MCP Inspector](test-with-inspector.md) |
+| See which agent did what | [Audit log](audit-log.md) |
 | Fix an error | [Troubleshooting](troubleshooting.md) |
 | Look up an option | [Options reference](reference.md) |
 

@@ -14,6 +14,8 @@ There are two ways to expose an operation, and both give the tool an explicit na
 | Attribute | Command class, or read model query method | `[ExposeOverMcp("add_note", Description = "Adds a note.")]` |
 | Builder | `WithMcp(mcp => ...)` | `.Expose<AddNote>("add_note", "Adds a note.")` and `.ExposeQuery("Notes.NoteReadModel.All", "list_notes", "Lists notes.")` |
 
+<!-- TODO(L110): Cratis/Arc#3775 replaces the string overload ExposeQuery(fullyQualifiedName, name, description) with a typed one. Not decided or implemented in the branch, so the string form is documented. Update the table above, quick-start.md, advanced.md and troubleshooting.md when it lands; [ExposeOverMcp] stays the recommended path. -->
+
 The attribute is not inherited and can be applied once. Only commands that have a handler and read model query methods are discovered. Names are never derived from the CLR name, so renaming a class does not rename the tool.
 
 ## What the ceiling enforces

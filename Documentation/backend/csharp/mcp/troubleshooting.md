@@ -48,6 +48,21 @@ Startup validation runs in this order. Fix the first error you see.
 | 400 `invalid_request` | Invalid JSON, duplicate members, or a JSON-RPC batch array. | Send one JSON-RPC message per request. |
 | Not found or refused on the default port | MCP is served only on the capabilities port. | Use the capabilities port in the URL, and bind a listener on it. |
 
+## A call is refused
+
+Work down the list; the status tells you which layer refused. Each row names what to check, in the order Arc checks them.
+
+| You see | Layer | Check |
+|---|---|---|
+| 403 `origin_not_allowed` | Origin | Browser-based client: add its origin to `AllowedOrigins`. Enable Debug logging for `McpAdmission` to see the refused origin. |
+| 401 with a PAT you expect to work | Caller | The token is expired or revoked, the endpoint is not on the capabilities port, or the profile does not accept the credential kind. A browser session is never accepted. |
+| 403 `insufficient_scope` | Scopes | Read `scope=` in `WWW-Authenticate`. The token lacks one. A PAT can only hold scopes on `PatOptions.AllowedScopes`; add the scope and issue a new token. |
+| Warning 5103 at startup | Scopes | A tool needs a scope no PAT can hold. |
+| 403 `forbidden` | Authorizer | A registered `IMcpToolAuthorizer` denied the call. |
+| Tool error `isAuthorized: false` | Operation | The command's or query's own authorization refused. |
+
+To see which caller and tool a refusal belongs to, use the [audit log](audit-log.md): scope and authorizer refusals are recorded with their outcome. A 401 has no identity and is not recorded.
+
 ## Tool errors
 
 A tool failure returns a result with `isError` set, not an HTTP error. The result also carries `structuredContent` with the same `outcome`. Each call is recorded in the audit log (`Cratis.Arc.Mcp.McpCallAudit`, Information) with its outcome; see the [reference](reference.md#logging).

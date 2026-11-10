@@ -4,12 +4,20 @@
   href: quick-start.md
 - name: Expose a command or query safely
   href: expose-safely.md
+- name: Authorization
+  href: authorization.md
+- name: Gate the endpoint
+  href: gating-the-endpoint.md
+- name: Capability manifest
+  href: capability-manifest.md
 - name: Scopes and descriptions
   href: scopes-and-descriptions.md
 - name: Connect clients
   href: connect-clients.md
 - name: Test with MCP Inspector
   href: test-with-inspector.md
+- name: Audit log
+  href: audit-log.md
 - name: Troubleshooting
   href: troubleshooting.md
 - name: Options reference
