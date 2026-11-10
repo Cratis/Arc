@@ -55,7 +55,31 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCatalogF
             return;
         }
 
-        await AdmitBody(context, next, settings, caller);
+        var body = await ReadBounded(context, settings.MaxRequestBodySize);
+        if (body is null)
+        {
+            await McpChallenge.Write(context, StatusCodes.Status413PayloadTooLarge, "request_too_large");
+            return;
+        }
+
+        var (refusal, tool) = Inspect(body, caller);
+        if (refusal is not null)
+        {
+            RecordScopeRefusal(tool, caller);
+            await refusal(context, settings);
+            return;
+        }
+
+        if (!await AllowsTool(tool, caller, context))
+        {
+            audit?.Record(tool!, caller, "not_allowed");
+            await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "forbidden");
+            return;
+        }
+
+        context.Request.Body = new MemoryStream(body, writable: false);
+        context.Request.ContentLength = body.Length;
+        await next(context);
     }
 
     static ValueTask<bool> AllowsTool(McpToolDescriptor? tool, McpCaller caller, HttpContext context) =>
@@ -122,35 +146,6 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCatalogF
         root.TryGetProperty("method", out var method) &&
         method.ValueKind == JsonValueKind.String &&
         method.GetString() == ToolsCall;
-
-    async Task AdmitBody(HttpContext context, RequestDelegate next, McpOptions settings, McpCaller caller)
-    {
-        var body = await ReadBounded(context, settings.MaxRequestBodySize);
-        if (body is null)
-        {
-            await McpChallenge.Write(context, StatusCodes.Status413PayloadTooLarge, "request_too_large");
-            return;
-        }
-
-        var (refusal, tool) = Inspect(body, caller);
-        if (refusal is not null)
-        {
-            RecordScopeRefusal(tool, caller);
-            await refusal(context, settings);
-            return;
-        }
-
-        if (!await AllowsTool(tool, caller, context))
-        {
-            audit?.Record(tool!, caller, "not_allowed");
-            await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "forbidden");
-            return;
-        }
-
-        context.Request.Body = new MemoryStream(body, writable: false);
-        context.Request.ContentLength = body.Length;
-        await next(context);
-    }
 
     void RecordScopeRefusal(McpToolDescriptor? tool, McpCaller caller)
     {
