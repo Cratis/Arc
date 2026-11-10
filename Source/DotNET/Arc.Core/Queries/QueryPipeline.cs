@@ -469,6 +469,7 @@ public class QueryPipeline(
             {
                 return result;
             }
+            data = await QueryRowNarrower.Narrow(queryName, queryPerformer.ReadModelType, data, context, serviceProvider);
             var rendererResult = queryRenderers.Render(queryName, data, serviceProvider);
             if (rendererResult is null)
             {
