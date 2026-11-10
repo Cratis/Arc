@@ -83,23 +83,34 @@ public sealed class McpToolCatalog
 
         foreach (var declaration in exposure.Declarations.Concat(Discover(handlerTypes, performers)))
         {
-            if (!IsValidName(declaration.Name))
-            {
-                throw new McpToolNameInvalid(declaration.Name);
-            }
-            if (tools.ContainsKey(declaration.Name))
-            {
-                throw new McpToolNameDuplicated(declaration.Name);
-            }
-            if (string.IsNullOrWhiteSpace(declaration.Description))
-            {
-                throw new McpToolDescriptionMissing(declaration.Name);
-            }
-
+            ValidateDeclaration(declaration, tools);
             tools.Add(declaration.Name, McpToolMapper.Map(declaration, options, handlers, performers, serializerOptions));
         }
 
-        foreach (var source in sources ?? [])
+        AddCurated(tools, sources ?? [], writeScopes);
+
+        return new McpToolCatalog(tools.Values);
+    }
+
+    static void ValidateDeclaration(McpExposureDeclaration declaration, Dictionary<string, McpToolDescriptor> tools)
+    {
+        if (!IsValidName(declaration.Name))
+        {
+            throw new McpToolNameInvalid(declaration.Name);
+        }
+        if (tools.ContainsKey(declaration.Name))
+        {
+            throw new McpToolNameDuplicated(declaration.Name);
+        }
+        if (string.IsNullOrWhiteSpace(declaration.Description))
+        {
+            throw new McpToolDescriptionMissing(declaration.Name);
+        }
+    }
+
+    static void AddCurated(Dictionary<string, McpToolDescriptor> tools, IEnumerable<IMcpToolSource> sources, FrozenSet<string> writeScopes)
+    {
+        foreach (var source in sources)
         {
             foreach (var described in source.Describe())
             {
@@ -110,8 +121,6 @@ public sealed class McpToolCatalog
                 }
             }
         }
-
-        return new McpToolCatalog(tools.Values);
     }
 
     static IEnumerable<McpExposureDeclaration> Discover(HashSet<Type> handlerTypes, IQueryPerformer[] performers)
@@ -163,6 +172,25 @@ public sealed class McpToolCatalog
         {
             throw new McpToolDescriptionMissing(described.Name);
         }
+
+        var (scopes, alternatives) = ValidatedScopes(described, writeScopes);
+        if (described.OutputSchema is not null && !DescribesAnObject(described.OutputSchema))
+        {
+            throw new McpToolOutputSchemaInvalid(described.Name);
+        }
+
+        return described with
+        {
+            Kind = McpToolKind.Custom,
+            Operation = source,
+            RequiredScopes = [.. scopes],
+            AlternativeScopes = [.. alternatives.Select(_ => (IReadOnlyList<string>)[.. _])],
+            InputSchema = described.InputSchema ?? """{"type":"object"}"""
+        };
+    }
+
+    static (IReadOnlyList<string> Scopes, IReadOnlyList<IReadOnlyList<string>> Alternatives) ValidatedScopes(McpToolDescriptor described, FrozenSet<string> writeScopes)
+    {
         if (described.RequiredScopes is not { Count: > 0 } scopes)
         {
             throw new McpToolHasNoScope(described.Name);
@@ -171,6 +199,7 @@ public sealed class McpToolCatalog
         {
             throw new McpToolScopeBlank(described.Name);
         }
+
         var alternatives = described.AlternativeScopes ?? [];
         if (alternatives.Any(_ => _ is not { Count: > 0 }))
         {
@@ -185,19 +214,8 @@ public sealed class McpToolCatalog
         {
             throw new McpWriteToolLacksWriteScope(described.Name);
         }
-        if (described.OutputSchema is not null && !DescribesAnObject(described.OutputSchema))
-        {
-            throw new McpToolOutputSchemaInvalid(described.Name);
-        }
 
-        return described with
-        {
-            Kind = McpToolKind.Custom,
-            Operation = source,
-            RequiredScopes = [.. scopes],
-            AlternativeScopes = [.. alternatives.Select(_ => (IReadOnlyList<string>)[.. _])],
-            InputSchema = described.InputSchema ?? """{"type":"object"}"""
-        };
+        return (scopes, alternatives);
     }
 
     static bool DescribesAnObject(string schema)
