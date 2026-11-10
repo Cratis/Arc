@@ -11,13 +11,26 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 internal static class ReadProtectionConfiguration
 {
+    const string RootSection = "ReadProtection";
+
+    /// <summary>
+    /// Reads a read-protection setting. The namespaced key (<c>Cratis:Arc:ReadProtection:{name}</c>) wins when present;
+    /// the original root key (<c>ReadProtection:{name}</c>) keeps working when it is absent.
+    /// </summary>
+    /// <param name="configuration">The host configuration, when available.</param>
+    /// <param name="name">The setting name within the read-protection section.</param>
+    /// <returns>The configured value, or null when neither key is set.</returns>
+    internal static string? Value(IConfiguration? configuration, string name) =>
+        configuration?[ConfigurationPath.Combine([.. HostBuilderExtensions.DefaultSectionPaths, RootSection, name])]
+        ?? configuration?[ConfigurationPath.Combine(RootSection, name)];
+
     /// <summary>
     /// Gets the configured ceiling. Missing or invalid values leave declarations unchanged.
     /// </summary>
     /// <param name="configuration">The host configuration, when available.</param>
     /// <returns>The maximum allowed rollout mode.</returns>
     internal static ReadProtectionMode MaximumMode(IConfiguration? configuration) =>
-        Enum.TryParse<ReadProtectionMode>(configuration?["ReadProtection:MaximumMode"], true, out var maximum) && Enum.IsDefined(maximum)
+        Enum.TryParse<ReadProtectionMode>(Value(configuration, "MaximumMode"), true, out var maximum) && Enum.IsDefined(maximum)
             ? maximum
             : ReadProtectionMode.On;
 
@@ -28,5 +41,5 @@ internal static class ReadProtectionConfiguration
     /// <returns>True when explicitly required or dynamic code is unsupported.</returns>
     internal static bool RequireGeneratedMetadata(IConfiguration? configuration) =>
         !RuntimeFeature.IsDynamicCodeSupported ||
-        (bool.TryParse(configuration?["ReadProtection:RequireGeneratedMetadata"], out var required) && required);
+        (bool.TryParse(Value(configuration, "RequireGeneratedMetadata"), out var required) && required);
 }

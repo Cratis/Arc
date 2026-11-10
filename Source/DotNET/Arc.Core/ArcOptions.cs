@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Calendar;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Connections;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Execution;
@@ -22,6 +23,7 @@ namespace Cratis.Arc;
 public class ArcOptions
 {
     bool _trustForwardedIdentityHeaders;
+    bool? _exposeExceptionDetails;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ArcOptions"/> class.
@@ -152,10 +154,30 @@ public class ArcOptions
     /// </summary>
     /// <remarks>
     /// Defaults to <see langword="true"/> only in the Development environment and <see langword="false"/> otherwise.
+    /// The environment is the host's <c>IHostEnvironment</c> when there is one; otherwise <c>ASPNETCORE_ENVIRONMENT</c> or <c>DOTNET_ENVIRONMENT</c>.
+    /// An explicit value, from configuration or code, always wins over that default.
     /// When <see langword="false"/>, exception messages and stack traces are redacted from responses (the full detail
     /// is still logged server-side and the correlation identifier is retained) to avoid leaking internal information.
     /// </remarks>
-    public bool ExposeExceptionDetails { get; set; } = RuntimeEnvironment.IsDevelopment;
+    public bool ExposeExceptionDetails
+    {
+        get => _exposeExceptionDetails ?? HostDevelopmentDefault;
+        set => _exposeExceptionDetails = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the read-protection settings, mirrored from configuration.
+    /// </summary>
+    /// <remarks>
+    /// The effective values are resolved from <c>IConfiguration</c> by the read-protection runtime (under <c>Cratis:Arc:ReadProtection</c>,
+    /// or the original root <c>ReadProtection</c> section), so set them in configuration. Assigning them in code in <c>AddCratis(options =&gt; ...)</c> is not consulted.
+    /// </remarks>
+    public ReadProtectionOptions ReadProtection { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the default for <see cref="ExposeExceptionDetails"/> when it has not been set explicitly; the host's development state.
+    /// </summary>
+    internal bool HostDevelopmentDefault { get; set; } = RuntimeEnvironment.IsDevelopment;
 
     /// <summary>
     /// Add a type info resolver, typically the application's source-generated <see cref="JsonSerializerContext"/>, to the
