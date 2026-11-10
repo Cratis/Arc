@@ -162,6 +162,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         ThrowIfCommandFailed(methodName);
 
+        // Get the result from JavaScript (evaluated before the patch, as before; JSON.stringify may run toJSON/getters)
+        _ = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)");
+
         // PATCH: Manually fix TimeSpan deserialization from HTTP response
         // The JsonSerializer in the test environment doesn't properly deserialize TimeSpans
         // from the HTTP response. We need to re-parse them from the original HTTP response.
