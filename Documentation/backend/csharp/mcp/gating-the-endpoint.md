@@ -5,26 +5,23 @@ description: Serve the Cratis Arc MCP endpoint only to verified callers: the cap
 
 The MCP endpoint must never answer an anonymous request. Arc enforces that with the [capability gate](../capability-hosting.md): endpoints selected for gating are served only on the capabilities port and only after a verified caller is admitted.
 
-## What is required today
+## What is required
 
 `WithMcp` needs all of these, in any registration order. The check runs when the host starts:
 
 - `WithCapabilities(...)` for capability hosting.
 - A port for the capabilities endpoint group: `options.EndpointGroups.Assign("capabilities", port)`.
-- `CapabilitiesOptions.GatedEndpoints` set to a `CapabilityEndpointSelector`.
 - A verified caller installation: `WithPersonalAccessTokens(...)` or `WithVerifiedCallers(...)`.
 
 ```csharp
-.WithCapabilities(o => o.GatedEndpoints = new CapabilityEndpointSelector())
+.WithCapabilities()
 ```
 
-`WithMcp` adds the MCP endpoint to whatever selection you set, so you do not list `/mcp` yourself. If you already gate other endpoints, keep your selection: MCP is added to it unchanged. Without `GatedEndpoints`, the host refuses to start with the `McpRequiresGatedEndpoints` message, which names every requirement.
+## Gated by default
 
-## Arc 23: gated by default
+You do not set `CapabilitiesOptions.GatedEndpoints` for MCP. When it is unset, Arc gates every endpoint on the capabilities port after routing, so `/mcp` is never served without a verified caller. Other routes on that port, such as health probes, then need a verified caller too; see the [upgrade notes](../../../upgrading/mcp-gated-by-default.md).
 
-<!-- TODO(L110): Arc 23 (Cratis/Arc#3777) is not implemented in the branch: McpStartupValidation still throws McpRequiresGatedEndpoints when GatedEndpoints is null. When it lands, state here that WithMcp() with capability hosting and a verified caller installation but no GatedEndpoints starts and serves /mcp gated by a verified caller, that an explicit GatedEndpoints selection is respected unchanged, and link the upgrade notes. Then drop the GatedEndpoints line from the quick start sample and the "Must be set" row in reference.md. -->
-
-For Arc 23 the intent is that the endpoint is gated without any `GatedEndpoints` setting. An explicit `GatedEndpoints` selection keeps full control, and the endpoint is never served without a verified caller. Until your Arc version includes that change, set `GatedEndpoints` as shown above.
+An explicit `GatedEndpoints` selection is respected unchanged. `WithMcp` adds the MCP endpoint to it, so you do not list `/mcp` yourself, and the rest of the port stays outside the gate.
 
 ## What the gate does to a request
 
@@ -42,10 +39,10 @@ Assigning the port does not bind a listener. Bind both the default listener and 
 ```csharp
 var app = builder.Build();
 app.UseCratisArc();
-app.MapCratisArcMcp();
+app.MapArcMcp();
 ```
 
-<!-- TODO(L110): Arc 23 (Cratis/Arc#3775) renames MapCratisArcMcp to a name not yet decided (for example MapArcMcp), possibly with an obsolete forwarder for one major. Update this page and every sample (quick-start, advanced, reference, connect-clients) with the final name and add the rename to the upgrade notes. -->
+`MapCratisArcMcp` still works as an obsolete forwarder to `MapArcMcp` and is removed in Arc 24.
 
 ## Related
 

@@ -4,3 +4,5 @@
   href: secure-defaults.mdx
 - name: Migrate generated identifiers
   href: generated-values.mdx
+- name: Migrate Arc MCP
+  href: mcp-gated-by-default.md

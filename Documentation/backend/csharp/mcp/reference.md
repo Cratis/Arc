@@ -10,7 +10,7 @@ Assembly: `Cratis.Arc.Mcp` (depends on `ModelContextProtocol.AspNetCore`).
 | Method | Purpose |
 |---|---|
 | `IArcBuilder.WithMcp(Action<McpBuilder>? configure)` | Installs MCP serving with the stateless HTTP transport. Requires capability hosting. |
-| `IEndpointRouteBuilder.MapCratisArcMcp()` | Maps the MCP endpoint and the protected resource metadata endpoint. |
+| `IEndpointRouteBuilder.MapArcMcp()` | Maps the MCP endpoint and the protected resource metadata endpoint. |
 
 ## McpBuilder
 
@@ -18,7 +18,7 @@ Assembly: `Cratis.Arc.Mcp` (depends on `ModelContextProtocol.AspNetCore`).
 |---|---|
 | `Configure(Action<McpOptions>)` | Sets options. |
 | `Expose<TCommand>(name, description)` | Exposes a command as a tool. |
-| `ExposeQuery(fullyQualifiedQueryName, name, description)` | Exposes a query. The name is `<read model full type name>.<method name>`. |
+| `ExposeQuery<TReadModel>(nameof(TReadModel.Method), name, description)` | Exposes a query by read model type and method name. The string overload `ExposeQuery(fullyQualifiedQueryName, name, description)` is obsolete and removed in Arc 24. |
 | `AddToolSource<T>()` | Registers an `IMcpToolSource` for curated tools. |
 | `AddToolAuthorizer<T>()` | Registers a scoped `IMcpToolAuthorizer`. |
 
@@ -42,7 +42,7 @@ Assembly: `Cratis.Arc.Mcp` (depends on `ModelContextProtocol.AspNetCore`).
 | `AuthorizationServers` | empty | For `OAuthOnly` and `Combined`, at least one. |
 | `AllowedOrigins` | empty | Extra allowed `Origin` values. |
 | `MaxRequestBodySize` | `1048576` | Bytes. Must be greater than 0. |
-| `ExclusiveTools` | `true` | `false` serves server-registered tools without the Arc ceiling and logs a startup warning. |
+| `ExclusiveTools` | `true` | `false` serves server-registered tools without the Arc tool catalog and logs a startup warning. |
 
 A valid origin uses `https`, or `http` for loopback only, with no path, query, fragment or user info. Each `AuthorizationServers` entry follows the same rule and also allows no query or fragment.
 
@@ -65,7 +65,7 @@ Any other credential kind is treated like no caller (401).
 | `PatOptions.ResourceKey` | `direct`, `studio` or `stage-<app>` (`<app>`: 1–48 lowercase letters, digits or `-`, not starting or ending with `-`). Any other key throws at startup. |
 | `PatOptions.AllowedScopes` | Scopes a PAT may hold. Must include every MCP scope. |
 | `PatOptions.MaximumLifetime` | Default and maximum 90 days. |
-| `CapabilitiesOptions.GatedEndpoints` | Must be set. `WithMcp` adds the MCP endpoint to it. |
+| `CapabilitiesOptions.GatedEndpoints` | Optional. Unset: the whole capability port is gated after routing. Set: your selection is respected and `WithMcp` adds the MCP endpoint to it. |
 | `ArcOptions.EndpointGroups.Assign("capabilities", port)` | Port MCP is served on. |
 
 ## Tool annotations

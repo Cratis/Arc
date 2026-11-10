@@ -1,6 +1,6 @@
 ---
 title: "Arc MCP tool sources, authorizers and session authority"
-description: Advanced Cratis Arc MCP serving: curated tool sources, tool authorizers, the tool ceiling, session authority, protected resource metadata and the Origin check.
+description: Advanced Cratis Arc MCP serving: curated tool sources, tool authorizers, the tool catalog, session authority, protected resource metadata and the Origin check.
 ---
 
 The `Cratis.Arc.Mcp` package serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint from your Arc application. MCP clients call the commands and queries you choose, as the verified caller the [capability gate](../capability-hosting.md) admitted. Nothing is exposed unless you declare it.
@@ -15,7 +15,7 @@ The tools a caller sees depend on that caller's scopes. A caller without the wri
 
 Capability hosting with a verified caller installation is required. Bind both the default public listener and a separate listener on the assigned capabilities port, even when the host serves only `/mcp`. Assigning the port does not bind the listener; configure both through Kestrel or `UseUrls`, as shown in [capability hosting](../capability-hosting.md). For a guided first setup, see the [quick start](quick-start.md).
 
-Before either listener starts, Arc validates authorization declarations for every discovered command and query, not just the MCP ceiling. Missing or invalid authorization policies can therefore fail startup even for commands you have not exposed as tools.
+Before either listener starts, Arc validates authorization declarations for every discovered command and query, not just the MCP tool catalog. Missing or invalid authorization policies can therefore fail startup even for commands you have not exposed as tools.
 
 Then add `WithMcp` and map the endpoint:
 
@@ -23,7 +23,7 @@ Then add `WithMcp` and map the endpoint:
 builder.AddCratisArc(
     options => options.EndpointGroups.Assign("capabilities", capabilityPort),
     configureBuilder: arc => arc
-        .WithCapabilities(o => o.GatedEndpoints = new CapabilityEndpointSelector())
+        .WithCapabilities()
         .WithVerifiedCallers(callers => /* your installation */)
         .WithMcp(mcp => mcp
             .Configure(options =>
@@ -32,11 +32,11 @@ builder.AddCratisArc(
                 options.PublicOrigin = "https://notes.example.test";
             })
             .Expose<AddNote>("add_note", "Adds a note.")
-            .ExposeQuery("Notes.NoteReadModel.All", "list_notes", "Lists notes.")));
+            .ExposeQuery<NoteReadModel>(nameof(NoteReadModel.All), "list_notes", "Lists notes.")));
 
 var app = builder.Build();
 app.UseCratisArc();
-app.MapCratisArcMcp();
+app.MapArcMcp();
 ```
 
 You can also declare a tool next to the code with `[ExposeOverMcp("add_note", Description = "Adds a note.")]` on a command class or a read model query method. Tool names are explicit and stable; they are never derived from the CLR name. A tool without a description fails startup.
@@ -77,7 +77,7 @@ public class NoteTools : IMcpToolSource
 }
 ```
 
-The ceiling checks every described tool at startup:
+The catalog checks every described tool at startup:
 
 - The name and description must be valid, and names must be unique.
 - The tool must require at least one non-blank scope.
@@ -136,9 +136,9 @@ The PAT verifier performs authoritative credential, recovery-epoch, and policy r
 
 A client delivers its credential to the intended MCP resource to authenticate that request. This is separate from token passthrough: a tool must not forward the client's credential to another resource. The transport supplies the admitted caller, not a reusable bearer token, to tool handlers.
 
-## The ceiling
+## The tool catalog
 
-The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen ceiling, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the ceiling through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
+The set of tools is fixed at startup. Exposure, scopes, names, and input schemas are computed once into a frozen tool catalog, and every part of the server reads it. A command that requires approval cannot be exposed. Callers cannot widen the catalog through arguments, headers, or differently cased JSON-RPC members; members are matched strictly, and arguments naming a tenant or principal are refused.
 
 ## Tool authorizers
 
@@ -158,29 +158,29 @@ Authorizers only narrow access:
 
 - They run only for a caller whose scopes already satisfy the tool.
 - Every registered authorizer must allow the tool. One that denies or throws for `List` hides the tool from `tools/list`; hiding is visibility only, not execution authorization. One that denies or throws for `Call` refuses the call. A client that calls a tool the authorizer denies for `Call` gets HTTP `403` with the body `{"error":"forbidden"}` and no `WWW-Authenticate` challenge, before the MCP server reads the request; it is not a tool error, and no reason is returned. The dispatcher checks again before it runs the tool.
-- They apply to the tools of the ceiling only, not to tools registered directly on the MCP server.
-- They run for every ceiling tool on every `tools/list`, and again for each call, in admission and in the dispatcher. Keep them cheap, and cache any lookup they need.
+- They apply to the tools of the catalog only, not to tools registered directly on the MCP server.
+- They run for every catalog tool on every `tools/list`, and again for each call, in admission and in the dispatcher. Keep them cheap, and cache any lookup they need.
 
 ## Tools registered on the MCP server
 
-By default only the ceiling is served. Tools you register directly on the MCP server, for example with `AddMcpServer().WithTools(...)`, are removed, together with any custom tool list or call handlers. To serve them next to the ceiling, turn `ExclusiveTools` off:
+By default only the tool catalog is served. Tools you register directly on the MCP server, for example with `AddMcpServer().WithTools(...)`, are removed, together with any custom tool list or call handlers. To serve them next to the catalog, turn `ExclusiveTools` off:
 
 ```csharp
 mcp.Configure(options => options.ExclusiveTools = false);
 ```
 
-Those tools are not part of the ceiling and Arc does not govern them, so Arc logs a warning at startup:
+Those tools are not part of the catalog and Arc does not govern them, so Arc logs a warning at startup:
 
 - They are listed to every admitted caller and their calls reach the server without a scope check. Arc still admits the request first, so the caller is verified, the credential profile and the `Origin` check apply, and the body is bounded.
 - Check scopes and any other authorization inside these tools yourself.
-- A server tool whose name matches a ceiling tool, ignoring case, fails startup with `McpToolNameTakenByServerTool`, so it can never stand in for a ceiling tool.
-- The name check covers the server's tool collection only. Tools served by a custom `ListToolsHandler` or `CallToolHandler` are outside it; make sure their names never match a ceiling tool.
+- A server tool whose name matches a catalog tool, ignoring case, fails startup with `McpToolNameTakenByServerTool`, so it can never stand in for a catalog tool.
+- The name check covers the server's tool collection only. Tools served by a custom `ListToolsHandler` or `CallToolHandler` are outside it; make sure their names never match a catalog tool.
 
 ## What Arc owns of the MCP server
 
-`WithMcp` calls `AddMcpServer` and configures the HTTP transport, and `MapCratisArcMcp` maps the endpoint. Adding your own `AddMcpServer()` call is fine: it returns a builder for the same server, so tools, prompts and resources you add through it are kept. Arc owns these parts; do not change them in your own configuration:
+`WithMcp` calls `AddMcpServer` and configures the HTTP transport, and `MapArcMcp` maps the endpoint. Adding your own `AddMcpServer()` call is fine: it returns a builder for the same server, so tools, prompts and resources you add through it are kept. Arc owns these parts; do not change them in your own configuration:
 
-- the tool collection, which Arc sets after your configuration to your server tools plus the ceiling when `ExclusiveTools` is off, and only the ceiling otherwise;
+- the tool collection, which Arc sets after your configuration to your server tools plus the catalog when `ExclusiveTools` is off, and only the catalog otherwise;
 - the `tools/list` filter and the stateless HTTP transport.
 
 Arc governs tools only. Prompts and resources you add to the server are not filtered by scope or tool authorizers; every admitted caller can list and read them. Check access inside their handlers, or do not register them on a server that serves callers with different rights.
@@ -217,7 +217,7 @@ The MCP endpoint explicitly admits both PAT and verified OAuth bearer presentati
 
 A caller verified with any other credential kind, such as a browser session, is refused with the same `401` and `WWW-Authenticate` challenge as a request without a caller, and the tool does not run. The refusal says nothing about why. The default is `PatOnly`.
 
-The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. `MapCratisArcMcp` maps the metadata route under every profile, so a client probing a personal-access-token-only endpoint gets a JSON `404` rather than a fallback page. Startup validates them:
+The OAuth and combined profiles serve [protected resource metadata](https://www.rfc-editor.org/rfc/rfc9728) so clients can discover the authorization server. Configure `Resource`, `PublicOrigin`, and at least one entry in `AuthorizationServers`. These values are never derived from the request host. `MapArcMcp` maps the metadata route under every profile, so a client probing a personal-access-token-only endpoint gets a JSON `404` rather than a fallback page. Startup validates them:
 
 - `PublicOrigin` must be an origin (no path, query, or fragment) and use `https`. Plain `http` is accepted only for loopback. This applies under every profile whenever `PublicOrigin` is set, including the personal access token profile.
 - `Resource` must be `PublicOrigin` plus `Path`, with no fragment, query, or user info.

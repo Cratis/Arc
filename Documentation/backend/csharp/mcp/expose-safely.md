@@ -1,6 +1,6 @@
 ---
 title: "Expose an Arc command or query over MCP safely"
-description: Choose which Cratis Arc commands and queries become MCP tools, and use opt-in exposure, scopes and the startup ceiling to keep agents inside safe limits.
+description: Choose which Cratis Arc commands and queries become MCP tools, and use opt-in exposure, scopes and the startup tool catalog to keep agents inside safe limits.
 ---
 
 Arc MCP exposes only what you declare. This page covers the choices that keep an exposed tool safe.
@@ -12,13 +12,11 @@ There are two ways to expose an operation, and both give the tool an explicit na
 | Way | Where | Example |
 |---|---|---|
 | Attribute | Command class, or read model query method | `[ExposeOverMcp("add_note", Description = "Adds a note.")]` |
-| Builder | `WithMcp(mcp => ...)` | `.Expose<AddNote>("add_note", "Adds a note.")` and `.ExposeQuery("Notes.NoteReadModel.All", "list_notes", "Lists notes.")` |
-
-<!-- TODO(L110): Cratis/Arc#3775 replaces the string overload ExposeQuery(fullyQualifiedName, name, description) with a typed one. Not decided or implemented in the branch, so the string form is documented. Update the table above, quick-start.md, advanced.md and troubleshooting.md when it lands; [ExposeOverMcp] stays the recommended path. -->
+| Builder | `WithMcp(mcp => ...)` | `.Expose<AddNote>("add_note", "Adds a note.")` and `.ExposeQuery<NoteReadModel>(nameof(NoteReadModel.All), "list_notes", "Lists notes.")` |
 
 The attribute is not inherited and can be applied once. Only commands that have a handler and read model query methods are discovered. Names are never derived from the CLR name, so renaming a class does not rename the tool.
 
-## What the ceiling enforces
+## What the catalog enforces
 
 Arc checks every tool when the application starts. Each failure below throws an `InvalidMcpConfiguration` exception, so an unsafe tool never reaches a client.
 
@@ -46,7 +44,7 @@ The read and write scopes are the minimum. Add `[RequiresScope("...")]` on a com
 
 ## Keep the endpoint narrow
 
-- Leave `ExclusiveTools` at its default of `true`. Setting it to `false` serves tools registered directly on the MCP server without the Arc ceiling, and Arc logs a startup warning.
+- Leave `ExclusiveTools` at its default of `true`. Setting it to `false` serves tools registered directly on the MCP server without the Arc tool catalog, and Arc logs a startup warning.
 - Leave `Profile` at `PatOnly` unless you run your own OAuth issuer; see [Connect clients](connect-clients.md).
 - Keep `AllowedOrigins` empty unless a browser client needs it. See [Test with MCP Inspector](test-with-inspector.md).
 - Keep `MaxRequestBodySize` at the 1 MiB default unless tools take large input.

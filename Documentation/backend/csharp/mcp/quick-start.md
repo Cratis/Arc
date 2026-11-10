@@ -37,7 +37,7 @@ public record NoteReadModel(string Text)
 
 Put `[Description("...")]` (`System.ComponentModel`) on a command property or a query parameter to give the agent a description of that argument. It appears as `description` in the tool's input schema; undescribed arguments get none.
 
-The command must have a handler. You can declare the same tools in code instead: `Expose<AddNote>("add_note", "Adds a note.")` and `ExposeQuery("Notes.NoteReadModel.All", "list_notes", "Lists notes.")`, where the query name is the read model's full type name, a dot, and the method name.
+The command must have a handler. You can declare the same tools in code instead: `Expose<AddNote>("add_note", "Adds a note.")` and `ExposeQuery<NoteReadModel>(nameof(NoteReadModel.All), "list_notes", "Lists notes.")`, where `nameof` names the static query method on the read model.
 
 ## 2. Turn MCP on
 
@@ -45,7 +45,7 @@ The command must have a handler. You can declare the same tools in code instead:
 builder.AddCratisArc(
     options => options.EndpointGroups.Assign("capabilities", capabilityPort),
     configureBuilder: arc => arc
-        .WithCapabilities(o => o.GatedEndpoints = new CapabilityEndpointSelector())
+        .WithCapabilities()
         .WithPersonalAccessTokens(
             new PatOptions("stage-notes") { AllowedScopes = ["notes:read", "notes:write"] },
             callers => callers
@@ -61,7 +61,7 @@ builder.AddCratisArc(
 
 var app = builder.Build();
 app.UseCratisArc();
-app.MapCratisArcMcp();
+app.MapArcMcp();
 ```
 
 What this sets:

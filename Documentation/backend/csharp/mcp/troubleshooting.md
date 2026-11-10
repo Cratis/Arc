@@ -11,21 +11,19 @@ MCP serving needs all of these. Registration order does not matter; the check ru
 
 - Capability hosting: `WithCapabilities(...)`.
 - A port for the capabilities endpoint group.
-- `CapabilitiesOptions.GatedEndpoints` set. MCP is added to that selection.
 - A verified caller installation: `WithPersonalAccessTokens(...)` or `WithVerifiedCallers(...)`. Startup does not check that one is present; without it no caller is admitted.
 
 Startup validation runs in this order. Fix the first error you see.
 
 | Message or exception | Cause | Fix |
 |---|---|---|
-| `MCP serving requires WithCapabilities() (registration order does not matter), a port assigned to its endpoint group, and CapabilitiesOptions.GatedEndpoints selecting the gated endpoints. Install verified callers with WithPersonalAccessTokens() or WithVerifiedCallers(). See ...` | `WithMcp` without capability hosting. | Add `WithCapabilities(...)`, in any order relative to `WithMcp(...)`. |
+| `MCP serving requires WithCapabilities() (registration order does not matter), and a port assigned to its endpoint group. Install verified callers with WithPersonalAccessTokens() or WithVerifiedCallers(). See ...` | `WithMcp` without capability hosting. | Add `WithCapabilities(...)`, in any order relative to `WithMcp(...)`. |
 | `Capability endpoint group '<group>' has no port. Assign one with ArcOptions.EndpointGroups.Assign("<group>", <port>).` | The capabilities endpoint group has no port. | `options.EndpointGroups.Assign("capabilities", port)` in the `AddCratisArc` options. |
-| `MCP serving requires selected gated endpoints. Set CapabilitiesOptions.GatedEndpoints when calling WithCapabilities() (registration order does not matter); MCP is added to that selection. Assign a port to the capability endpoint group and install verified callers with WithPersonalAccessTokens() or WithVerifiedCallers(). See ...` | `GatedEndpoints` is null. It is a capability hosting option, not an MCP option. | `WithCapabilities(o => o.GatedEndpoints = new CapabilityEndpointSelector())`. `WithMcp` adds the MCP endpoint to the selection. |
 | `McpOptions.<option> is missing or invalid for the <profile> profile.` | An option is invalid. `<option>` names it. | See the rules in the [options reference](reference.md). For `OAuthOnly` and `Combined`, set `PublicOrigin`, `Resource` (= `PublicOrigin` + `Path`) and `AuthorizationServers`. |
 | `MCP tool '<name>' is invalid. Names must match ^[a-z][a-z0-9_]{0,63}$.` | Bad tool name. | Use lowercase letters, digits and underscores, starting with a letter. |
 | `MCP tool '<name>' is declared more than once.` | Duplicate name. | Rename one. |
 | `MCP tool '<name>' has no description.` | Missing description. | Add `Description` or the builder argument. |
-| `MCP tool '<name>' exposes '<op>', which is not a command or query known to Arc.` | A wrong query name or an operation without a handler. | For `ExposeQuery`, use `<ReadModel full type name>.<Method>`. Make sure the command has a handler. |
+| `MCP tool '<name>' exposes '<op>', which is not a command or query known to Arc.` | A wrong query name or an operation without a handler. | For `ExposeQuery`, use `ExposeQuery<TReadModel>(nameof(TReadModel.Method), ...)`. Make sure the command has a handler. |
 | `... which requires approval. Approval-required commands are never exposed over MCP.` | The command has `[RequiresApproval]`. | Do not expose it. |
 | `MCP tool '<name>' requires no scope. Configure McpOptions.ApplicationName, ReadScope and WriteScope.` | No application name and no explicit scope. | Set `ApplicationName`, or `ReadScope` and `WriteScope`. |
 | `... may change state, so every scope set it declares must require McpOptions.WriteScope or one of McpOptions.WriteScopes.` | A write tool, usually a curated source, requires only read scopes. | Require `WriteScope` or add the scope to `WriteScopes`. |
