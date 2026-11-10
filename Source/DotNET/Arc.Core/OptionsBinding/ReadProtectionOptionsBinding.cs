@@ -19,6 +19,10 @@ internal static class ReadProtectionOptionsBinding
     [
         Member.Of<ReadProtectionOptions, string?>("MaximumMode", Leaves.String, static _ => _.MaximumMode, static (o, v) => o.MaximumMode = v),
         Member.Of<ReadProtectionOptions, string?>("RequireGeneratedMetadata", Leaves.String, static _ => _.RequireGeneratedMetadata, static (o, v) => o.RequireGeneratedMetadata = v),
-        Member.Of<ReadProtectionOptions, string?>("StartupAdmissionCheck", Leaves.String, static _ => _.StartupAdmissionCheck, static (o, v) => o.StartupAdmissionCheck = v)
+        Member.Of<ReadProtectionOptions, string?>("StartupAdmissionCheck", Leaves.String, static _ => _.StartupAdmissionCheck, static (o, v) => o.StartupAdmissionCheck = v),
+        Member.Of<ReadProtectionOptions, string?>("MeasureTailTimeout", Leaves.String, static _ => _.MeasureTailTimeout, static (o, v) => o.MeasureTailTimeout = v),
+        Member.Of<ReadProtectionOptions, string?>("MeasureScanTimeout", Leaves.String, static _ => _.MeasureScanTimeout, static (o, v) => o.MeasureScanTimeout = v),
+        Member.Of<ReadProtectionOptions, string?>("MeasureScanLimit", Leaves.String, static _ => _.MeasureScanLimit, static (o, v) => o.MeasureScanLimit = v),
+        Member.Of<ReadProtectionOptions, string?>("MeasureSampleRate", Leaves.String, static _ => _.MeasureSampleRate, static (o, v) => o.MeasureSampleRate = v)
     ];
 }
