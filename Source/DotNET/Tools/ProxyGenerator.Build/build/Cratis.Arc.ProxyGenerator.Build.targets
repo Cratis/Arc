@@ -28,6 +28,11 @@
         </ItemGroup>
     </Target>
 
+    <Target Name="CratisProxyGeneratorOutputPathNotSet" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' == '' and '$(CratisProxiesSuppressOutputPathMessage)' != 'true'">
+        <!-- A message, not a warning, so consumers building with TreatWarningsAsErrors are not broken. -->
+        <Message Importance="high" Text="Cratis Arc proxy generation is off: CratisProxiesOutputPath is not set, so no TypeScript proxies are generated. Set it in the project, for example &lt;CratisProxiesOutputPath&gt;$(MSBuildThisFileDirectory)src&lt;/CratisProxiesOutputPath&gt;. Backend-only projects can silence this message with &lt;CratisProxiesSuppressOutputPathMessage&gt;true&lt;/CratisProxiesSuppressOutputPathMessage&gt;." />
+    </Target>
+
     <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != ''"> 
         <PropertyGroup>
             <CratisProxiesOutputPath>$([System.String]::Copy('$(CratisProxiesOutputPath)').TrimEnd('\'))</CratisProxiesOutputPath>
