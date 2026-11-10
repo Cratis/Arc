@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
@@ -74,6 +75,23 @@ internal sealed class McpOperations(
         }
     }
 
+    static bool DeclaresStreamingResult(IQueryPerformer performer) =>
+        performer is IAuthorizationQueryTarget target && IsStreamingType(target.AuthorizationMethod.ReturnType);
+
+    static bool IsStreamingType(Type type)
+    {
+        if (HasGenericDefinition(type, typeof(Task<>)) || HasGenericDefinition(type, typeof(ValueTask<>)))
+        {
+            return IsStreamingType(type.GetGenericArguments()[0]);
+        }
+
+        // Match ObservableQueryHandler's stream shapes, including an interface declared as the return type.
+        return type.GetInterfaces().Append(type).Any(candidate =>
+            HasGenericDefinition(candidate, typeof(ISubject<>)) || HasGenericDefinition(candidate, typeof(IAsyncEnumerable<>)));
+    }
+
+    static bool HasGenericDefinition(Type type, Type definition) => type.IsGenericType && type.GetGenericTypeDefinition() == definition;
+
     async ValueTask<McpToolResult> RunCommand(McpOperationCall call)
     {
         var commandType = (Type)call.Tool.Operation!;
@@ -98,7 +116,7 @@ internal sealed class McpOperations(
 
         RejectUndeclared(call);
         var (arguments, paging) = McpQueryArguments.From(call, performer, arcOptions.Value.JsonSerializerOptions);
-        if (queries is not QueryPipeline hosted)
+        if (DeclaresStreamingResult(performer) || queries is not QueryPipeline hosted)
         {
             return McpToolResult.Error(Unsupported);
         }
