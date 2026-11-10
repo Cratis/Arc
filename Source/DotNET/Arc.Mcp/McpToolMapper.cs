@@ -99,7 +99,7 @@ static class McpToolMapper
             performer.FullyQualifiedName,
             ScopesOf(declaration.Name, options.ReadScope, carriers),
             McpToolAccess.Read,
-            McpSchemaBuilder.ForQuery(performer.Parameters, performer.SupportsPaging, serializerOptions),
+            McpSchemaBuilder.ForQuery(performer.Parameters, performer.SupportsPaging, serializerOptions, McpArgumentDescriptions.ForQuery(performer)),
             McpToolAnnotations.ForRead);
     }
 
