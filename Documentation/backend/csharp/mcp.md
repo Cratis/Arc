@@ -1,6 +1,6 @@
 ---
 title: "Serving MCP tools from Cratis Arc"
-description: Expose commands and queries to MCP clients on the Cratis Arc capabilities port, with scoped access, a fixed tool ceiling, an Origin check, and protected resource metadata.
+description: Serve MCP tools from Cratis Arc: expose chosen commands and queries to MCP clients with scopes, a fixed tool ceiling, an Origin check, and resource metadata.
 ---
 
 The `Cratis.Arc.Mcp` package serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint from your Arc application. MCP clients call the commands and queries you choose, as the verified caller the [capability gate](capability-hosting.md) admitted. Nothing is exposed unless you declare it.

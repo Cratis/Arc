@@ -153,7 +153,8 @@ jobs:
       # Each leg's spec jobs run on one framework, so the spec projects and their fixtures are compiled for that
       # framework only (Directory.Build.props). The libraries still build for net10.0 and net11.0.
       - name: Build
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }}
+        # Proxies are generated locally and committed; CI never generates them (proxy specs exercise the generator).
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath=
 
       # The harness compares Arc's options binder with the real ConfigurationBinder of each target framework. It exits 1
       # on a mismatch and 2 when it could not run, so any non-zero exit fails the step.
