@@ -43,10 +43,8 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         IOptionsMonitor<ArcOptions> arcOptions,
         ILoggerFactory loggerFactory,
         UrlEncoder encoder)
-        : base(options, loggerFactory, encoder)
+        : this(loggerFactory, options, encoder, arcOptions)
     {
-        _arcOptions = arcOptions;
-        _logger = loggerFactory.CreateLogger<MicrosoftIDentityPlatformAuthHandler>();
     }
 
     /// <summary>
@@ -61,8 +59,18 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory loggerFactory,
         UrlEncoder encoder)
+        : this(loggerFactory, options, encoder, null)
+    {
+    }
+
+    MicrosoftIDentityPlatformAuthHandler(
+        ILoggerFactory loggerFactory,
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        UrlEncoder encoder,
+        IOptionsMonitor<ArcOptions>? arcOptions)
         : base(options, loggerFactory, encoder)
     {
+        _arcOptions = arcOptions;
         _logger = loggerFactory.CreateLogger<MicrosoftIDentityPlatformAuthHandler>();
     }
 
@@ -76,10 +84,8 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
     {
         var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
         var requestContext = new Cratis.Arc.AspNetCore.Http.AspNetCoreHttpRequestContext(Context);
-        var hop = arcOptions is null ? ForwardedIdentityHopAdmission.NotRequired : ForwardedIdentityHop.Admit(requestContext, arcOptions.CurrentValue);
-        if (hop is not (ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated))
+        if (IsRefusedByHop(arcOptions, requestContext))
         {
-            if (ForwardedIdentityHeaders.ArePresent(requestContext)) ForwardedIdentityHopLogging.Shared.Report(_logger, hop, requestContext);
             return Task.FromResult(AuthenticateResult.NoResult());
         }
         if (arcOptions?.CurrentValue.ForwardedIdentity?.Enabled == true)
@@ -94,33 +100,60 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
 
         if (arcOptions?.CurrentValue.TrustForwardedIdentityHeaders != true)
         {
-            if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
-            {
-                UntrustedForwardedIdentityHeaders.Report(_logger);
-            }
-
+            ReportUntrustedHeaders();
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        return AuthenticateTrusted(arcOptions.CurrentValue, onBehalfOf);
+    }
+
+    bool IsRefusedByHop(IOptionsMonitor<ArcOptions>? arcOptions, Cratis.Arc.AspNetCore.Http.AspNetCoreHttpRequestContext requestContext)
+    {
+        var hop = arcOptions is null ? ForwardedIdentityHopAdmission.NotRequired : ForwardedIdentityHop.Admit(requestContext, arcOptions.CurrentValue);
+        if (hop is ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated)
+        {
+            return false;
+        }
+
+        if (ForwardedIdentityHeaders.ArePresent(requestContext)) ForwardedIdentityHopLogging.Shared.Report(_logger, hop, requestContext);
+        return true;
+    }
+
+    void ReportUntrustedHeaders()
+    {
+        if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
+        {
+            UntrustedForwardedIdentityHeaders.Report(_logger);
+        }
+    }
+
+    ClientPrincipal? TryGetClientPrincipal()
+    {
+        try
+        {
+            return Request.GetClientPrincipal();
+        }
+        catch (Exception ex)
+        {
+            _logger.FailedResolvingClientPrincipal(ex);
+            return null;
+        }
+    }
+
+    Task<AuthenticateResult> Failure(bool onBehalfOf, string reason) =>
+        onBehalfOf ? Reject(reason) : Task.FromResult(AuthenticateResult.Fail(reason));
+
+    Task<AuthenticateResult> AuthenticateTrusted(ArcOptions options, bool onBehalfOf)
+    {
         if (!Request.IsValidIdentityRequest())
         {
             return onBehalfOf ? Reject(OnBehalfOfFailures.MissingRepresentedUser) : Task.FromResult(AuthenticateResult.Fail("Not authenticated - headers missing"));
         }
 
-        ClientPrincipal? clientPrincipal = null;
-        try
-        {
-            clientPrincipal = Request.GetClientPrincipal();
-        }
-        catch (Exception ex)
-        {
-            _logger.FailedResolvingClientPrincipal(ex);
-        }
-
+        var clientPrincipal = TryGetClientPrincipal();
         if (clientPrincipal == null)
         {
-            const string invalidPrincipal = "Not authenticated - invalid representation of ClientPrincipal";
-            return onBehalfOf ? Reject(invalidPrincipal) : Task.FromResult(AuthenticateResult.Fail(invalidPrincipal));
+            return Failure(onBehalfOf, "Not authenticated - invalid representation of ClientPrincipal");
         }
 
         var claims = ForwardedIdentityClaims.From(clientPrincipal, Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].ToString());
@@ -128,11 +161,11 @@ public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<Authen
         if (onBehalfOf)
         {
             var failure = ForwardedActor.Attach(
-                ForwardFrom(arcOptions.CurrentValue),
+                ForwardFrom(options),
                 clientPrincipal,
                 identity,
                 Scheme.Name,
-                arcOptions.CurrentValue,
+                options,
                 TimeProvider.System,
                 OnBehalfOfReplayCache.Shared);
             if (failure is not null)
