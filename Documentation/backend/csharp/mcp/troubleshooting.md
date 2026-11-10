@@ -62,4 +62,4 @@ A tool failure returns a result with `isError` set, not an HTTP error. The resul
 
 ## The tool list is empty or missing a tool
 
-`tools/list` shows only tools the caller's scopes and the authorizers allow. An empty list means the token holds no MCP scopes; a request without an accepted caller gets 401 instead. A missing write tool means the token lacks the write scope.
+`tools/list` shows only tools the caller's scopes and the authorizers allow. An empty list has three likely causes: the token holds none of the tools' scopes, the registered authorizers hide every tool, or no tools are exposed. A missing write tool means the token lacks the write scope or an authorizer denies it. A request without an accepted caller gets 401, not an empty list.
