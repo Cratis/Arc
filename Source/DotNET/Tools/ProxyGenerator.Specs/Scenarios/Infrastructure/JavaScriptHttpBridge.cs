@@ -416,9 +416,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
         }
     }
 
-    // Get all current updates - already deserialized by TypeScript JsonSerializer
     List<TResult> ReadObservableUpdates<TResult>(string subscriptionId)
     {
+        // Get all current updates - already deserialized by TypeScript JsonSerializer
         var updates = new List<TResult>();
         var updateCount = Runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{subscriptionId}'].updates.length");
 
