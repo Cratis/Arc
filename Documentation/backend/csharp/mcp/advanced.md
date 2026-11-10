@@ -98,7 +98,7 @@ An exception thrown by a tool is reported to the caller as a generic tool error.
 
 ### Rich results
 
-A curated tool can return more than text. Set `Title` and `OutputSchema` on the descriptor, and `StructuredContent` and `ResourceLinks` on the result:
+Command and query tools already return structured content with an output schema; see the [reference](reference.md#tool-call-result). A curated tool can return more than text. Set `Title` and `OutputSchema` on the descriptor, and `StructuredContent` and `ResourceLinks` on the result:
 
 ```csharp
 McpToolDescriptor.Custom("count_notes", "Counts notes.", ["notes:read"], McpToolAccess.Read) with
@@ -235,7 +235,7 @@ mcp.Configure(options =>
 });
 ```
 
-This applies under every profile, including `PatOnly`. If browser-based clients call your endpoint, list their origins, otherwise every call from them is refused with `403 origin_not_allowed`. Each entry must be an `https` origin (loopback may use `http`). Comparison ignores case. More than one `Origin` value, or an `Origin` that is not an origin (such as `null` or a URL with a path), is refused.
+A refused origin is logged at Debug level by `McpAdmission` with the reason, which helps when a browser-based client is refused. This applies under every profile, including `PatOnly`. If browser-based clients call your endpoint, list their origins, otherwise every call from them is refused with `403 origin_not_allowed`. Each entry must be an `https` origin (loopback may use `http`). Comparison ignores case. More than one `Origin` value, or an `Origin` that is not an origin (such as `null` or a URL with a path), is refused.
 
 ## Related
 

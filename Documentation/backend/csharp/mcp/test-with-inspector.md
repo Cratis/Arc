@@ -36,7 +36,7 @@ Rules for the allowlist:
 - Comparison ignores case. `PublicOrigin` is always allowed.
 - A request with several `Origin` headers, or the origin `null`, is always refused.
 
-Check the origin the Inspector actually sends (for example in the browser developer tools) rather than relying on the port above, and remove the entry when you finish. Keep production `AllowedOrigins` empty unless a real browser client needs it.
+Set the `Cratis.Arc.Mcp` log category to Debug: `McpAdmission` then logs each refused origin and the reason, so you can copy the exact origin. You can also check it in the browser developer tools. Do not rely on the port above, and remove the entry when you finish. Keep production `AllowedOrigins` empty unless a real browser client needs it.
 
 If the Inspector connects through its own proxy process, the proxy makes the request and may send no `Origin` header; in that case no allowlist entry is needed.
 

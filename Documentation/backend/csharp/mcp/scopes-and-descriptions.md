@@ -17,6 +17,15 @@ The description is the only guidance the agent gets, and it is required. Say wha
 - Name inputs the agent must get right.
 - Do not include secrets, internal names or instructions to the agent about unrelated tools.
 
+Describe arguments too. `[Description("...")]` (`System.ComponentModel`) on a command property or a query method parameter becomes the `description` of that argument in the tool's input schema:
+
+```csharp
+[ExposeOverMcp("add_note", Description = "Adds a note and returns its id.")]
+public record AddNote([property: Description("The note text, plain text.")] string Text);
+```
+
+Arc does not infer argument descriptions from names or XML comments; an argument without the attribute has none.
+
 For query tools, the parameter schema is generated from the query parameters. If the query supports paging, the tool also accepts `page` (0 or more) and `page_size` (1 or more); paging applies only when `page_size` is given.
 
 ## Read and write scopes

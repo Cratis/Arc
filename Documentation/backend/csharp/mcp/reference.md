@@ -96,6 +96,25 @@ Any other credential kind is treated like no caller (401).
 
 ## Tool call result
 
-The result text is JSON: `{ "outcome": { "isSuccess", "isAuthorized", "isValid", "validationResults": [{ "severity", "message", "members" }] }, "response": ... }` for commands, and `data` plus `paging` for queries. `isError` is set when `isSuccess` is false.
+The result carries one JSON object twice: as text content, and as `structuredContent` with identical content. The object is `{ "outcome": { "isSuccess", "isAuthorized", "isValid", "validationResults": [{ "severity", "message", "members" }] }, "response": ... }` for commands, and `data` plus `paging` for queries. Property names follow Arc's JSON naming policy. `isError` is set when `isSuccess` is false.
+
+Command and query tools declare an `outputSchema`: an object that requires `outcome` (an object) and lists `response` (commands) or `data` and `paging` (queries) without constraining their shape. Curated tools from an `IMcpToolSource` keep the schema they declare.
+
+## Argument descriptions
+
+`[Description]` (`System.ComponentModel`) on a command property, or on a query method parameter, becomes `description` on that argument in the tool's input schema. Blank descriptions are ignored.
+
+## Logging
+
+| Category and event | Level | Content |
+|---|---|---|
+| `Cratis.Arc.Mcp.McpCallAudit`, event 5102 | Information | One entry per `tools/call`: tool name and kind, person, tenant, credential id and kind, outcome and correlation id. Never the token, arguments or results. |
+| `McpAdmission`, event 5101 | Debug | An origin refusal: the origin (control characters removed, at most 200 characters) and the reason. |
+
+Audit outcomes are `succeeded`, `failed`, `insufficient_scope`, `not_allowed`, `invalid_arguments`, `malformed` and `error`. Scope and authorizer refusals are audited, including those made at HTTP admission (`insufficient_scope`, `not_allowed`). A request with no accepted caller has no identity and is not audited. Person and tenant are personal data: you control log retention.
+
+## Development PAT adapters
+
+`UseDevelopmentPersonalAccessTokenAdapters()` (`Cratis.Arc.PersonalAccessTokens.Development`) registers process-local `IPatAuthority`, `IPatPolicy` and `IPatRecoveryEpoch` for the Development environment only. It follows `WithPersonalAccessTokens`, in any order, and uses its limits. See the [quick start](quick-start.md#local-development-adapters).
 
 For setup problems see [Troubleshooting](troubleshooting.md). For curated tool sources and authorizers see [Tool sources and authorizers](advanced.md).
