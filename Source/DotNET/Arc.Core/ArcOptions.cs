@@ -23,7 +23,6 @@ namespace Cratis.Arc;
 public class ArcOptions
 {
     bool _trustForwardedIdentityHeaders;
-    bool? _exposeExceptionDetails;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ArcOptions"/> class.
@@ -161,8 +160,8 @@ public class ArcOptions
     /// </remarks>
     public bool ExposeExceptionDetails
     {
-        get => _exposeExceptionDetails ?? HostDevelopmentDefault;
-        set => _exposeExceptionDetails = value;
+        get => ExplicitExposeExceptionDetails ?? HostDevelopmentDefault;
+        set => ExplicitExposeExceptionDetails = value;
     }
 
     /// <summary>
@@ -178,6 +177,11 @@ public class ArcOptions
     /// Gets or sets the default for <see cref="ExposeExceptionDetails"/> when it has not been set explicitly; the host's development state.
     /// </summary>
     internal bool HostDevelopmentDefault { get; set; } = RuntimeEnvironment.IsDevelopment;
+
+    /// <summary>
+    /// Gets or sets the explicitly set <see cref="ExposeExceptionDetails"/> value, or null when only the host default applies.
+    /// </summary>
+    internal bool? ExplicitExposeExceptionDetails { get; set; }
 
     /// <summary>
     /// Add a type info resolver, typically the application's source-generated <see cref="JsonSerializerContext"/>, to the
