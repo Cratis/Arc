@@ -19,7 +19,7 @@ When two requests read the same state, both decide it is fine, and both write, a
 | The caller supplies the revision it saw | An explicit scope |
 | A rare violation to be acceptable | The default append, and a reactor that repairs |
 
-Under **Off**, which is the default, nothing changes: an injected read model is a plain read, it returns a snapshot, and it guards nothing. The next major version of Arc makes `On` the default. See [The default changes in the next major version](#the-default-changes-in-the-next-major-version).
+Under **Off**, nothing changes: an injected read model is a plain read, it returns a snapshot, and it guards nothing. **On** is the default from Arc 23. See [The default changed in Arc 23](#the-default-changed-in-arc-23).
 
 ## Three concepts
 
@@ -134,7 +134,7 @@ Choose something else when:
 
 ### Why protection is opt-in
 
-Read protection is chosen per project or per command, and `Off` is the default today.
+Read protection is chosen per project or per command, and `On` is the default from Arc 23.
 
 - A protected command fails closed. It refuses a read it cannot guard, an immediate append, and a read outside a parameter. Making that the default would turn commands that work today into errors.
 - Existing code reads plain models in validators and handlers in many places. Moving them is a change to the rule, not a flag.
@@ -142,15 +142,15 @@ Read protection is chosen per project or per command, and `Off` is the default t
 
 [Adopting read protection](./adopting.md) is the path that keeps existing commands working while you move.
 
-### The default changes in the next major version
+### The default changed in Arc 23
 
-The next major version of Arc turns read protection `On` by default. You can still turn it off where a command or a read must stay plain:
+Arc 23 turns read protection `On` for every command that neither the command nor the project declares a mode for. You can still turn it off where a command or a read must stay plain:
 
 - for one command, with `[ReadProtection(ReadProtectionMode.Off)]` or `[Unprotected("why")]` on the command;
 - for one read, with `[Unprotected("why")]` on the parameter, the read-model type, or, for reads in its body, the `Handle()` or `Provide()` method;
 - for a project, with `<CratisReadProtection>Off</CratisReadProtection>`.
 
-To keep today's behaviour through the upgrade, set `<CratisReadProtection>` explicitly in each project now. To prepare for `On`, run `Measure` and fix what it reports. The change is tracked in [Cratis/Arc#3255](https://github.com/Cratis/Arc/issues/3255).
+To keep the Arc 22 behavior through the upgrade, set `<CratisReadProtection>Off</CratisReadProtection>` in each project. To adopt `On` gradually, set `Measure` first and fix what it reports. See the [upgrade guide](/arc/upgrading/read-protection-default/). The change is tracked in [Cratis/Arc#3255](https://github.com/Cratis/Arc/issues/3255).
 
 ## Costs
 

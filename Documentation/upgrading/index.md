@@ -16,6 +16,7 @@ do not apply a .NET registration or diagnostic to another host.
 | --- | --- |
 | Forwarded identity headers or anonymous access to discovery endpoints outside Development | [Secure defaults](secure-defaults.mdx): review the ingress trust boundary and choose authenticated or disabled discovery before considering anonymous access. |
 | Identifiers created inside `Handle()`, `IIdentitySource` or queued identities in command scenarios | [Generated identifiers](generated-values.mdx): move generation to server-owned parameters, replace queues with named pins and check concept rules. |
+| Commands that inject read models and never set `<CratisReadProtection>` | [Read protection is on by default](read-protection-default.md): keep `Off` with one property or adopt `On` through `Measure`. |
 
 Start with the behavior you use; you do not need to change an unrelated part of your application. For a
 deployed host, check authentication and discovery using its actual environment and ingress. For generated
