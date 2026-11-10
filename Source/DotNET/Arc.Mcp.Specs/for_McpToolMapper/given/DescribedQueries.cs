@@ -6,7 +6,7 @@ using Cratis.Arc.Mcp.for_McpSchemaBuilder.given;
 
 namespace Cratis.Arc.Mcp.for_McpToolMapper.given;
 
-public class DescribedQueries
+public static class DescribedQueries
 {
     public static IEnumerable<string> Search(
         [Description("The customer to find.")] CustomerId customerId,

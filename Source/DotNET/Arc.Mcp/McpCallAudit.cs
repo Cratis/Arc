@@ -13,6 +13,10 @@ namespace Cratis.Arc.Mcp;
 /// <param name="correlationIds">The current request correlation identifier.</param>
 internal sealed class McpCallAudit(ILogger<McpCallAudit> logger, ICorrelationIdAccessor correlationIds)
 {
+    /// <summary>Records one tool call.</summary>
+    /// <param name="tool">The tool called.</param>
+    /// <param name="caller">The verified caller.</param>
+    /// <param name="outcome">The outcome of the call.</param>
     internal void Record(McpToolDescriptor tool, McpCaller caller, string outcome) => logger.ToolCalled(
         tool.Name,
         tool.Kind,

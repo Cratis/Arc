@@ -51,7 +51,7 @@ public class when_tools_are_called : an_mcp_host
 
     [Fact] void should_record_each_call_once_and_not_the_listing() => _logs.Entries.Count.ShouldEqual(9);
     [Fact] void should_use_information_level() => _logs.Entries.Select(_ => _.Level).Distinct().ShouldContainOnly(LogLevel.Information);
-    [Fact] void should_record_outcomes_in_call_order() => _logs.Entries.Select(_ => _.Values[6]).ShouldEqual(new object?[] { "succeeded", "succeeded", "succeeded", "failed", "invalid_arguments", "error", "malformed", "not_allowed", "insufficient_scope" });
+    [Fact] void should_record_outcomes_in_call_order() => _logs.Entries.Select(_ => _.Values[6]).ShouldEqual(["succeeded", "succeeded", "succeeded", "failed", "invalid_arguments", "error", "malformed", "not_allowed", "insufficient_scope"]);
     [Fact] void should_record_the_command_kind() => _logs.Entries[0].Values[1].ShouldEqual(McpToolKind.Command);
     [Fact] void should_record_the_query_kind() => _logs.Entries[1].Values[1].ShouldEqual(McpToolKind.Query);
     [Fact] void should_record_the_custom_kind() => _logs.Entries[2].Values[1].ShouldEqual(McpToolKind.Custom);
@@ -60,7 +60,7 @@ public class when_tools_are_called : an_mcp_host
     [Fact] void should_record_the_tenant() => _logs.Entries[0].Values[3].ShouldEqual("tenant-a");
     [Fact] void should_record_the_non_secret_credential_id() => _logs.Entries[0].Values[4].ShouldEqual("credential");
     [Fact] void should_record_the_credential_kind() => _logs.Entries[0].Values[5].ShouldEqual(CallerCredentialKind.PersonalAccessToken);
-    [Fact] void should_record_a_correlation_id() => _logs.Entries.All(_ => !string.IsNullOrWhiteSpace(_.Values[7]?.ToString())).ShouldBeTrue();
+    [Fact] void should_record_a_correlation_id() => _logs.Entries.TrueForAll(_ => !string.IsNullOrWhiteSpace(_.Values[7]?.ToString())).ShouldBeTrue();
     [Fact] void should_not_log_argument_values() => LoggedValues().Any(_ => _.Contains(SecretArgument, StringComparison.Ordinal)).ShouldBeFalse();
     [Fact] void should_not_log_a_bearer_token() => LoggedValues().Any(_ => _.Contains("Bearer ", StringComparison.Ordinal)).ShouldBeFalse();
     [Fact] void should_allow_a_caller_without_a_person() => _withoutPerson[2].ShouldEqual(string.Empty);
@@ -71,6 +71,7 @@ public class when_tools_are_called : an_mcp_host
     {
         var logger = new LogRecorder<McpCallAudit>();
         var accessor = Substitute.For<ICorrelationIdAccessor>();
+        accessor.Current.Returns(CorrelationId.New());
         var caller = VerifiedCallerFor(CallerCredentialKind.PersonalAccessToken, "tenant-a", ReadScope) with { Person = null };
         new McpCallAudit(logger, accessor).Record(McpToolDescriptor.Custom("service_tool", "Service.", [ReadScope], McpToolAccess.Read), new(null!, caller), "succeeded");
         _withoutPerson = logger.Entries.Single().Values;

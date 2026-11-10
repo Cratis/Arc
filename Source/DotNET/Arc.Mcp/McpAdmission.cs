@@ -82,14 +82,6 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         await next(context);
     }
 
-    void RecordScopeRefusal(McpToolDescriptor? tool, McpCaller caller)
-    {
-        if (tool is not null)
-        {
-            audit?.Record(tool, caller, "insufficient_scope");
-        }
-    }
-
     static ValueTask<bool> AllowsTool(McpToolDescriptor? tool, McpCaller caller, HttpContext context) =>
         tool is null ? ValueTask.FromResult(true) : McpToolAuthorizers.Allow(tool, caller, context.RequestServices, context.RequestAborted);
 
@@ -149,6 +141,20 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         }
     }
 
+    static bool IsToolCall(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object &&
+        root.TryGetProperty("method", out var method) &&
+        method.ValueKind == JsonValueKind.String &&
+        method.GetString() == ToolsCall;
+
+    void RecordScopeRefusal(McpToolDescriptor? tool, McpCaller caller)
+    {
+        if (tool is not null)
+        {
+            audit?.Record(tool, caller, "insufficient_scope");
+        }
+    }
+
     (Func<HttpContext, McpOptions, Task>? Refusal, McpToolDescriptor? Tool) Inspect(byte[] body, McpCaller caller)
     {
         JsonDocument document;
@@ -194,12 +200,6 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
                 McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), tool);
         }
     }
-
-    static bool IsToolCall(JsonElement root) =>
-        root.ValueKind == JsonValueKind.Object &&
-        root.TryGetProperty("method", out var method) &&
-        method.ValueKind == JsonValueKind.String &&
-        method.GetString() == ToolsCall;
 
     bool TryFindTool(JsonElement root, out McpToolDescriptor? tool)
     {

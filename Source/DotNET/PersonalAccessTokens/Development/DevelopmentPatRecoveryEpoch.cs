@@ -14,6 +14,10 @@ public sealed class DevelopmentPatRecoveryEpoch : IPatRecoveryEpoch
 {
     readonly IHostEnvironment _environment;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DevelopmentPatRecoveryEpoch"/> class.
+    /// </summary>
+    /// <param name="environment">The host environment.</param>
     internal DevelopmentPatRecoveryEpoch(IHostEnvironment environment) => _environment = environment;
 
     /// <inheritdoc/>

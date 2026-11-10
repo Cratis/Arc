@@ -76,24 +76,6 @@ internal sealed class McpStartupValidation(
     /// <inheritdoc/>
     public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    void WarnAboutPatScopes(McpToolCeiling tools)
-    {
-        foreach (var allowlist in allowlists.Where(_ => _.Kind == CallerCredentialKind.PersonalAccessToken))
-        {
-            // A tool a PAT can satisfy needs no warning; only scopes of tools it can never satisfy are reported.
-            var missing = tools.Tools
-                .Where(tool => !tool.IsSatisfiedBy(allowlist.Scopes))
-                .SelectMany(tool => tool.RequiredScopes.Concat((tool.AlternativeScopes ?? []).SelectMany(_ => _)))
-                .Where(scope => !string.IsNullOrWhiteSpace(scope) && !allowlist.Scopes.Contains(scope))
-                .Distinct(StringComparer.Ordinal)
-                .Order(StringComparer.Ordinal);
-            foreach (var scope in missing)
-            {
-                logger.PatScopeMissing(scope);
-            }
-        }
-    }
-
     static void ValidateOptions(McpOptions value)
     {
         if (string.IsNullOrWhiteSpace(value.Path) || !value.Path.StartsWith('/'))
@@ -138,4 +120,22 @@ internal sealed class McpStartupValidation(
     static bool IsAuthorizationServer(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
         string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment) &&
         (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback));
+
+    void WarnAboutPatScopes(McpToolCeiling tools)
+    {
+        foreach (var allowlist in allowlists.Where(_ => _.Kind == CallerCredentialKind.PersonalAccessToken))
+        {
+            // A tool a PAT can satisfy needs no warning; only scopes of tools it can never satisfy are reported.
+            var missing = tools.Tools
+                .Where(tool => !tool.IsSatisfiedBy(allowlist.Scopes))
+                .SelectMany(tool => tool.RequiredScopes.Concat((tool.AlternativeScopes ?? []).SelectMany(_ => _)))
+                .Where(scope => !string.IsNullOrWhiteSpace(scope) && !allowlist.Scopes.Contains(scope))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal);
+            foreach (var scope in missing)
+            {
+                logger.PatScopeMissing(scope);
+            }
+        }
+    }
 }

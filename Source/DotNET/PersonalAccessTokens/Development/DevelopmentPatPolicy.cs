@@ -16,6 +16,12 @@ public sealed class DevelopmentPatPolicy : IPatPolicy
     readonly PatSettings _settings;
     readonly TimeProvider _clock;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DevelopmentPatPolicy"/> class.
+    /// </summary>
+    /// <param name="environment">The host environment.</param>
+    /// <param name="settings">The installed PAT settings.</param>
+    /// <param name="clock">The clock.</param>
     internal DevelopmentPatPolicy(IHostEnvironment environment, PatSettings settings, TimeProvider clock)
     {
         _environment = environment;

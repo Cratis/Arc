@@ -89,9 +89,38 @@ internal sealed class McpToolDispatcher(
         return await Run(call, caller);
     }
 
+    static bool IsWellFormed(McpToolDescriptor tool, McpToolResult outcome)
+    {
+        if (outcome.StructuredContent is { ValueKind: not JsonValueKind.Object })
+        {
+            return false;
+        }
+        if (tool.OutputSchema is not null && !outcome.IsError && outcome.StructuredContent is null)
+        {
+            return false;
+        }
+
+        return (outcome.ResourceLinks ?? []).All(link =>
+            link is not null &&
+            !string.IsNullOrWhiteSpace(link.Name) &&
+            Uri.TryCreate(link.Uri, UriKind.Absolute, out _));
+    }
+
+    static ResourceLinkBlock ToBlock(McpResourceLink link) => new()
+    {
+        Uri = link.Uri,
+        Name = link.Name,
+        Title = link.Title,
+        Description = link.Description,
+        MimeType = link.MimeType
+    };
+
+    static CallToolResult Error(string message) => new() { Content = [new TextContentBlock { Text = message }], IsError = true };
+
     async ValueTask<CallToolResult> Run(McpOperationCall call, McpCaller caller)
     {
         var tool = call.Tool;
+
         // The correlation id is already set for this request by Arc's startup middleware, which runs for every request, the
         // same as REST. Receipt is captured here the way the REST endpoints do before they enter a pipeline.
         using var receipt = OperationContextScope.Begin(call.Services);
@@ -132,32 +161,4 @@ internal sealed class McpToolDispatcher(
         audit.Record(tool, caller, outcome);
         return result;
     }
-
-    static bool IsWellFormed(McpToolDescriptor tool, McpToolResult outcome)
-    {
-        if (outcome.StructuredContent is { ValueKind: not JsonValueKind.Object })
-        {
-            return false;
-        }
-        if (tool.OutputSchema is not null && !outcome.IsError && outcome.StructuredContent is null)
-        {
-            return false;
-        }
-
-        return (outcome.ResourceLinks ?? []).All(link =>
-            link is not null &&
-            !string.IsNullOrWhiteSpace(link.Name) &&
-            Uri.TryCreate(link.Uri, UriKind.Absolute, out _));
-    }
-
-    static ResourceLinkBlock ToBlock(McpResourceLink link) => new()
-    {
-        Uri = link.Uri,
-        Name = link.Name,
-        Title = link.Title,
-        Description = link.Description,
-        MimeType = link.MimeType
-    };
-
-    static CallToolResult Error(string message) => new() { Content = [new TextContentBlock { Text = message }], IsError = true };
 }

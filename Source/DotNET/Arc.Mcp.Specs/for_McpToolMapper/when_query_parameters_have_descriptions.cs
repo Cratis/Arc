@@ -26,7 +26,7 @@ public class when_query_parameters_have_descriptions : Specification
         var method = typeof(DescribedQueries).GetMethod(nameof(DescribedQueries.Search))!;
         var serviceTypes = Substitute.For<IServiceProviderIsService>();
         var evaluator = Substitute.For<IAuthorizationEvaluator>();
-        var model = new ModelBoundQueryPerformer(typeof(DescribedQueries), method, serviceTypes, evaluator);
+        var model = new ModelBoundQueryPerformer(typeof(DescribedQueries), nameof(DescribedQueries), method, serviceTypes, evaluator);
         var action = new ControllerActionDescriptor { ControllerTypeInfo = typeof(DescribedQueries).GetTypeInfo(), MethodInfo = method };
         var controller = new ControllerQueryPerformer(action, serviceTypes, evaluator);
         _model = Schema(model);
@@ -52,6 +52,6 @@ public class when_query_parameters_have_descriptions : Specification
         var serializerOptions = new JsonSerializerOptions().ConfigureArcDefaults();
         serializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
         var declaration = new McpExposureDeclaration(McpToolKind.Query, performer.FullyQualifiedName.Value, "search", "Searches.");
-        return JsonNode.Parse(McpToolMapper.Map(declaration, new McpOptions(), [], [performer], serializerOptions).InputSchema!)!["properties"]!;
+        return JsonNode.Parse(McpToolMapper.Map(declaration, new McpOptions { ApplicationName = "app" }, [], [performer], serializerOptions).InputSchema!)!["properties"]!;
     }
 }

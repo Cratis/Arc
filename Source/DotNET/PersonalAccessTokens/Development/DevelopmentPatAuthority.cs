@@ -20,6 +20,11 @@ public sealed class DevelopmentPatAuthority : IPatAuthority
     readonly Dictionary<CredentialId, (PatRecord Record, PatIssuedIntent Intent)> _records = [];
     readonly Dictionary<(string Resource, string Verifier), CredentialId> _verifiers = [];
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DevelopmentPatAuthority"/> class.
+    /// </summary>
+    /// <param name="environment">The host environment.</param>
+    /// <param name="clock">The clock.</param>
     internal DevelopmentPatAuthority(IHostEnvironment environment, TimeProvider clock)
     {
         _environment = environment;
@@ -46,6 +51,10 @@ public sealed class DevelopmentPatAuthority : IPatAuthority
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(_environment.IsDevelopment() ? Revoke(owner, credentialId) : PatRevokeResult.Unavailable);
     }
+
+    static bool OwnedBy(PatRecord record, PatOwner owner) =>
+        record.Resource == owner.Resource && record.Environment == owner.Environment &&
+        record.Person == owner.Person && record.AccountKey == owner.AccountKey && record.Tenant == owner.Tenant;
 
     bool Create(PatRecord record, PatIssuedIntent intent)
     {
@@ -84,8 +93,4 @@ public sealed class DevelopmentPatAuthority : IPatAuthority
             return PatRevokeResult.Revoked;
         }
     }
-
-    static bool OwnedBy(PatRecord record, PatOwner owner) =>
-        record.Resource == owner.Resource && record.Environment == owner.Environment &&
-        record.Person == owner.Person && record.AccountKey == owner.AccountKey && record.Tenant == owner.Tenant;
 }

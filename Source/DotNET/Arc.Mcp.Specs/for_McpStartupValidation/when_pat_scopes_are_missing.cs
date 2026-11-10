@@ -13,8 +13,8 @@ public class when_pat_scopes_are_missing : a_pat_scope_validation
     void Because() => Validate();
 
     [Fact] void should_only_warn_not_refuse_startup() => _error.ShouldBeNull();
-    [Fact] void should_warn_for_each_scope_of_an_unsatisfiable_tool() => _logs.Entries.Select(_ => _.Values[0]).ShouldEqual(new object?[] { "app:read", "audit:export" });
-    [Fact] void should_name_the_issuance_setting() => _logs.Entries.All(_ => _.Message.Contains("PatOptions.AllowedScopes", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_name_the_mcp_scope_settings() => _logs.Entries.All(_ => _.Message.Contains("ReadScope/WriteScope", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_warn_for_each_scope_of_an_unsatisfiable_tool() => _logs.Entries.Select(_ => _.Values[0]).ShouldEqual(["app:read", "audit:export"]);
+    [Fact] void should_name_the_issuance_setting() => _logs.Entries.TrueForAll(_ => _.Message.Contains("PatOptions.AllowedScopes", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_name_the_mcp_scope_settings() => _logs.Entries.TrueForAll(_ => _.Message.Contains("ReadScope/WriteScope", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_use_warning_level() => _logs.Entries.Select(_ => _.Level).Distinct().ShouldContainOnly(LogLevel.Warning);
 }
