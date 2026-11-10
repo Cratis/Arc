@@ -39,7 +39,7 @@ Startup validation runs in this order. Fix the first error you see.
 | 403 `origin_not_allowed` | The request has an `Origin` header that is not `PublicOrigin` or in `AllowedOrigins`. Typical for a browser-based client. | Add the exact origin to `AllowedOrigins`; see [Test with MCP Inspector](test-with-inspector.md). At Debug level, `McpAdmission` logs the refused origin and why (not allowed, malformed, or several `Origin` values). |
 | 401 `unauthorized` | No caller, or a caller of a kind the profile does not accept. | Send `Authorization: Bearer <PAT>`. A PAT-only endpoint rejects OAuth grants. Check the token has not expired or been revoked. |
 | 401 for a PAT that looks right | The token holds a scope that is not in `PatOptions.AllowedScopes`. | Add every MCP scope to `AllowedScopes`, then issue a new token. |
-| 403 `insufficient_scope` | The tool needs a scope the caller does not hold. The `WWW-Authenticate` header lists the scopes. | Issue a token with those scopes. |
+| 403 `insufficient_scope` | The tool needs a scope the caller does not hold. The `WWW-Authenticate` header lists every scope the tool requires. | Issue a token with those scopes. |
 | 403 `forbidden` | A registered `IMcpToolAuthorizer` denied the call. | Check the authorizer's rule. |
 | 404 `not_found` on `/.well-known/oauth-protected-resource/mcp` | The profile is `PatOnly`, which serves no metadata. | Use `OAuthOnly` or `Combined` if a client needs it. |
 | 405 `method_not_allowed` (`Allow: POST`) | A GET or DELETE on the MCP path. | Clients must POST. |
@@ -62,4 +62,4 @@ A tool failure returns a result with `isError` set, not an HTTP error. The resul
 
 ## The tool list is empty or missing a tool
 
-`tools/list` shows only tools the caller's scopes and the authorizers allow. An empty list means no caller was identified or the token holds no MCP scopes. A missing write tool means the token lacks the write scope.
+`tools/list` shows only tools the caller's scopes and the authorizers allow. An empty list means the token holds no MCP scopes; a request without an accepted caller gets 401 instead. A missing write tool means the token lacks the write scope.

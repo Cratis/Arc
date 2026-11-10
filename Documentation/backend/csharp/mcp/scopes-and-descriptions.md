@@ -55,7 +55,7 @@ mcp.Configure(options =>
 
 `WriteScopes` lists additional write scopes. `WriteScope` is always a write scope. A scope in `WriteScopes` must not be blank, repeated or equal to `ReadScope`; otherwise startup fails with `McpOptionsInvalid`.
 
-Add more required scopes with `[RequiresScope("notes:admin-read")]` from `Cratis.Arc.Authorization`. The attribute can be repeated, and the caller must hold every one. For a command it goes on the command type, a `Handle` method or a handler parameter. For a query it goes on the read model type, the performer type or the query method.
+Add more required scopes with `[RequiresScope("notes:admin-read")]` from `Cratis.Arc.Authorization`. The attribute can be repeated, and the caller must hold every one. For a command it goes on the command type or its handler method; the attribute cannot be placed on a parameter. For a query it goes on the read model type, the performer type or the query method.
 
 ## Allow the scopes on tokens
 
@@ -69,6 +69,6 @@ Every scope an MCP tool requires, including `[RequiresScope]` extras, must be on
 
 ## What the caller sees
 
-- `tools/list` returns only tools whose scope set the caller holds and that the registered authorizers allow. A caller with no verified identity gets an empty list.
-- A call to a tool outside the caller's scopes returns HTTP 403 `insufficient_scope`, with a `WWW-Authenticate` header that names the missing scopes.
+- `tools/list` returns only tools whose scope set the caller holds and that the registered authorizers allow. A request with no verified caller is refused with HTTP 401 before any MCP method runs.
+- A call to a tool outside the caller's scopes returns HTTP 403 `insufficient_scope`, with a `WWW-Authenticate` header that names every scope the tool requires.
 - Protected resource metadata lists `ScopesSupported`, or the read and write scopes when you leave it empty.
