@@ -82,11 +82,16 @@ static class McpToolMapper
         };
     }
 
+    static IQueryPerformer? FindPerformer(object operation, IReadOnlyCollection<IQueryPerformer> performers) => operation switch
+    {
+        string query => performers.FirstOrDefault(_ => string.Equals(_.FullyQualifiedName.Value, query, StringComparison.Ordinal)),
+        McpQueryReference reference => performers.FirstOrDefault(reference.Matches),
+        _ => null
+    };
+
     static McpToolDescriptor MapQuery(McpExposureDeclaration declaration, McpOptions options, IReadOnlyCollection<IQueryPerformer> performers, JsonSerializerOptions serializerOptions)
     {
-        var performer = (declaration.Operation is string query
-            ? performers.FirstOrDefault(_ => string.Equals(_.FullyQualifiedName.Value, query, StringComparison.Ordinal))
-            : null) ?? throw new McpExposedOperationUnknown(declaration.Name, declaration.Operation);
+        var performer = FindPerformer(declaration.Operation, performers) ?? throw new McpExposedOperationUnknown(declaration.Name, declaration.Operation);
 
         var carriers = new List<MemberInfo>();
         foreach (var type in new[] { performer.ReadModelType, performer.Type }.Where(_ => _ is not null).Distinct())

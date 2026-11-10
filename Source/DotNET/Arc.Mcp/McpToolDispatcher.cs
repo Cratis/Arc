@@ -12,20 +12,20 @@ using ModelContextProtocol.Server;
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
-/// Runs a tool from the ceiling as the verified caller of the current request.
+/// Runs a tool from the catalog as the verified caller of the current request.
 /// </summary>
 /// <remarks>
 /// The caller comes only from the request the capability gate admitted. Without one nothing is resolved and the call is a
 /// protocol error. Identity and tenant are never read from the arguments: they only become command or query input.
 /// </remarks>
 /// <param name="requests">The accessor for the current request.</param>
-/// <param name="ceiling">The factory of the tool ceiling.</param>
+/// <param name="catalog">The factory of the tool catalog.</param>
 /// <param name="operations">Runs commands, queries and curated tools.</param>
 /// <param name="logger">The logger.</param>
 /// <param name="audit">The identifier-only call audit.</param>
 internal sealed class McpToolDispatcher(
     IHttpContextAccessor requests,
-    McpToolCeilingFactory ceiling,
+    McpToolCatalogFactory catalog,
     McpOperations operations,
     ILogger<McpToolDispatcher> logger,
     McpCallAudit audit)
@@ -58,7 +58,7 @@ internal sealed class McpToolDispatcher(
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="request">The MCP protocol request the call arrived in, if any; handed to curated tools.</param>
     /// <returns>The tool result.</returns>
-    /// <exception cref="McpProtocolException">The request carries no verified caller, or the tool is not in the ceiling.</exception>
+    /// <exception cref="McpProtocolException">The request carries no verified caller, or the tool is not in the catalog.</exception>
     internal async ValueTask<CallToolResult> Dispatch(McpToolDescriptor tool, IDictionary<string, JsonElement>? arguments, CancellationToken cancellationToken, RequestContext<CallToolRequestParams>? request = null)
     {
         var context = requests.HttpContext;
@@ -67,7 +67,7 @@ internal sealed class McpToolDispatcher(
             throw new McpProtocolException("The request carries no verified caller.", McpErrorCode.InvalidRequest);
         }
 
-        if (!ceiling.Ceiling.TryGet(tool.Name, out var known) || !ReferenceEquals(known, tool))
+        if (!catalog.Catalog.TryGet(tool.Name, out var known) || !ReferenceEquals(known, tool))
         {
             throw new McpProtocolException($"Unknown tool: '{tool.Name}'", McpErrorCode.InvalidParams);
         }

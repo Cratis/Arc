@@ -96,7 +96,7 @@ public class an_mcp_host : Specification
         ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
-        _app.MapCratisArcMcp();
+        _app.MapArcMcp();
         ConfigureEndpoints(_app);
         await _app.StartAsync(CancellationToken);
         _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };

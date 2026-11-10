@@ -20,7 +20,7 @@ public class when_arc_results_are_structured : an_mcp_host
 
     protected override void ConfigureMcp(McpBuilder mcp) => mcp
         .Expose<ReplyToNote>("reply_note", "Replies.")
-        .ExposeQuery($"{typeof(StructuredReadModel).FullName}.{nameof(StructuredReadModel.All)}", "structured_notes", "Lists notes.");
+        .ExposeQuery<StructuredReadModel>(nameof(StructuredReadModel.All), "structured_notes", "Lists notes.");
 
     protected override void ConfigureServices(IServiceCollection services)
     {

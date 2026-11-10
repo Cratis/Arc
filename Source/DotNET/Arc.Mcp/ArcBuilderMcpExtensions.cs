@@ -34,9 +34,9 @@ public static class ArcBuilderMcpExtensions
         services.AddHttpContextAccessor();
 
         // Replace, not TryAdd: Arc's convention and self bindings may already have registered these with another
-        // lifetime, and the ceiling must be built exactly once so every part of MCP sees the same frozen tools.
-        services.Replace(ServiceDescriptor.Singleton<McpToolCeilingFactory, McpToolCeilingFactory>());
-        services.Replace(ServiceDescriptor.Singleton(provider => provider.GetRequiredService<McpToolCeilingFactory>().Ceiling));
+        // lifetime, and the catalog must be built exactly once so every part of MCP sees the same frozen tools.
+        services.Replace(ServiceDescriptor.Singleton<McpToolCatalogFactory, McpToolCatalogFactory>());
+        services.Replace(ServiceDescriptor.Singleton(provider => provider.GetRequiredService<McpToolCatalogFactory>().Catalog));
         services.Replace(ServiceDescriptor.Singleton<McpCallAudit, McpCallAudit>());
         services.Replace(ServiceDescriptor.Singleton<McpAdmission, McpAdmission>());
         services.Replace(ServiceDescriptor.Singleton<McpRefusalWriter, McpRefusalWriter>());

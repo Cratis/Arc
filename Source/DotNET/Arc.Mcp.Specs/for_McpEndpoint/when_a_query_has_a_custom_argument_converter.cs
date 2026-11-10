@@ -21,7 +21,7 @@ public class when_a_query_has_a_custom_argument_converter : an_mcp_host
     }
 
     protected override void ConfigureMcp(McpBuilder mcp) =>
-        mcp.ExposeQuery($"{typeof(NoteReadModel).FullName}.{nameof(NoteReadModel.ByPriority)}", "priority_note", "Gets a note by priority.");
+        mcp.ExposeQuery<NoteReadModel>(nameof(NoteReadModel.ByPriority), "priority_note", "Gets a note by priority.");
 
     async Task Because()
     {

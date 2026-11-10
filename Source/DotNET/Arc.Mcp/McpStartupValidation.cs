@@ -14,15 +14,15 @@ namespace Cratis.Arc.Mcp;
 /// <param name="arc">The endpoint-group assignments.</param>
 /// <param name="capabilities">The capability options.</param>
 /// <param name="options">The MCP options.</param>
-/// <param name="ceiling">The ceiling factory.</param>
+/// <param name="catalog">The catalog factory.</param>
 /// <param name="services">The service provider, used to detect capability hosting.</param>
-/// <param name="allowlists">The configured credential scope ceilings.</param>
+/// <param name="allowlists">The configured credential scope allow lists.</param>
 /// <param name="logger">The startup diagnostics logger.</param>
 internal sealed class McpStartupValidation(
     IOptions<ArcOptions> arc,
     IOptions<CapabilitiesOptions> capabilities,
     IOptions<McpOptions> options,
-    McpToolCeilingFactory ceiling,
+    McpToolCatalogFactory catalog,
     IServiceProvider services,
     IEnumerable<ICredentialScopeAllowlist> allowlists,
     ILogger<McpStartupValidation> logger) : IHostedLifecycleService
@@ -32,7 +32,7 @@ internal sealed class McpStartupValidation(
     /// <exception cref="CapabilityEndpointGroupHasNoPort">The capability group has no port.</exception>
     /// <exception cref="McpOptionsInvalid">Options are missing or invalid for the profile.</exception>
     /// <exception cref="InvalidMcpConfiguration">The exposure would not fail closed.</exception>
-    /// <exception cref="McpToolNameTakenByServerTool">A tool registered on the MCP server has the name of a ceiling tool.</exception>
+    /// <exception cref="McpToolNameTakenByServerTool">A tool registered on the MCP server has the name of a catalog tool.</exception>
     public Task StartingAsync(CancellationToken cancellationToken)
     {
         if (!services.HasCapabilities())
@@ -53,10 +53,10 @@ internal sealed class McpStartupValidation(
 
         ValidateOptions(options.Value);
 
-        // Building the ceiling validates every declaration; a failure is cached and rethrown to every caller.
-        WarnAboutPatScopes(ceiling.Ceiling);
+        // Building the catalog validates every declaration; a failure is cached and rethrown to every caller.
+        WarnAboutPatScopes(catalog.Catalog);
 
-        // Resolving the server options merges the ceiling with the server's own tools, so a name collision fails here.
+        // Resolving the server options merges the catalog with the server's own tools, so a name collision fails here.
         _ = (services.GetService(typeof(IOptions<McpServerOptions>)) as IOptions<McpServerOptions>)?.Value;
         return Task.CompletedTask;
     }
@@ -121,7 +121,7 @@ internal sealed class McpStartupValidation(
         string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment) &&
         (uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback));
 
-    void WarnAboutPatScopes(McpToolCeiling tools)
+    void WarnAboutPatScopes(McpToolCatalog tools)
     {
         foreach (var allowlist in allowlists.Where(_ => _.Kind == CallerCredentialKind.PersonalAccessToken))
         {

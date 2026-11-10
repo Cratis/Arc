@@ -12,14 +12,14 @@ namespace Cratis.Arc.Mcp;
 
 /// <summary>
 /// Admits a request to the MCP transport after the capability gate: the caller must be verified, the body bounded, and
-/// a <c>tools/call</c> of a ceiling tool must be covered by the caller's scopes and allowed by every
+/// a <c>tools/call</c> of a catalog tool must be covered by the caller's scopes and allowed by every
 /// <see cref="IMcpToolAuthorizer"/> before the MCP server reads it.
 /// </summary>
 /// <param name="options">The MCP options.</param>
-/// <param name="ceiling">The factory of the tool ceiling.</param>
+/// <param name="catalog">The factory of the tool catalog.</param>
 /// <param name="logger">The admission diagnostics logger.</param>
 /// <param name="audit">The identifier-only call audit, when installed.</param>
-internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingFactory ceiling, ILogger<McpAdmission> logger, McpCallAudit? audit = null)
+internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCatalogFactory catalog, ILogger<McpAdmission> logger, McpCallAudit? audit = null)
 {
     const string ToolsCall = "tools/call";
 
@@ -208,6 +208,6 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
             parameters.ValueKind == JsonValueKind.Object &&
             parameters.TryGetProperty("name", out var name) &&
             name.ValueKind == JsonValueKind.String &&
-            ceiling.Ceiling.TryGet(name.GetString(), out tool);
+            catalog.Catalog.TryGet(name.GetString(), out tool);
     }
 }

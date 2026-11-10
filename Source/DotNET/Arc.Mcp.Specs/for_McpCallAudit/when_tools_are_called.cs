@@ -24,8 +24,8 @@ public class when_tools_are_called : an_mcp_host
     }
 
     protected override void ConfigureMcp(McpBuilder mcp) => mcp
-        .ExposeQuery($"{typeof(NoteReadModel).FullName}.{nameof(NoteReadModel.All)}", "list_notes", "Lists notes.")
-        .ExposeQuery($"{typeof(NoteReadModel).FullName}.{nameof(NoteReadModel.Stream)}", "stream_notes", "Streams notes.")
+        .ExposeQuery<NoteReadModel>(nameof(NoteReadModel.All), "list_notes", "Lists notes.")
+        .ExposeQuery<NoteReadModel>(nameof(NoteReadModel.Stream), "stream_notes", "Streams notes.")
         .AddToolSource<RichTool>()
         .AddToolSource<ThrowingTool>()
         .AddToolAuthorizer<DenyingAuthorizer>();

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Mcp.for_McpToolCeiling.given;
+using Cratis.Arc.Mcp.for_McpToolCatalog.given;
 using Cratis.Arc.Mcp.for_McpToolMapper.given;
 
 namespace Cratis.Arc.Mcp.for_McpToolMapper;
