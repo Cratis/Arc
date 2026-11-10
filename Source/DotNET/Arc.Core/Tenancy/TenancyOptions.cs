@@ -72,6 +72,7 @@ public class TenancyOptions
     /// configuration and code may use either. When a configuration source supplies both keys, the last one the
     /// binder visits wins; supply only one.
     /// </remarks>
+    [Obsolete("Use FixedTenantId (Cratis:Arc:Tenancy:FixedTenantId). This is the same value under its original name and will be removed in a future major version.")]
     public string DevelopmentTenantId
     {
         get => FixedTenantId;

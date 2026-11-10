@@ -15,6 +15,8 @@ internal static class TenancyOptionsBinding
     /// </summary>
     internal static readonly ObjectType Bound = new(typeof(TenancyOptions), static () => new TenancyOptions(), Members);
 
+    // The obsolete DevelopmentTenantId key keeps binding until it is removed in a major version.
+#pragma warning disable CS0618
     static Member[] Members() =>
     [
         Member.Of<TenancyOptions, TenantResolverType>("ResolverType", Leaves.TenantResolverType, static _ => _.ResolverType, static (o, v) => o.ResolverType = v),
@@ -27,4 +29,5 @@ internal static class TenancyOptionsBinding
         Member.Of<TenancyOptions, string>("FixedTenantId", Leaves.String, static _ => _.FixedTenantId, static (o, v) => o.FixedTenantId = v),
         Member.Of<TenancyOptions, string>("DevelopmentTenantId", Leaves.String, static _ => _.DevelopmentTenantId, static (o, v) => o.DevelopmentTenantId = v)
     ];
+#pragma warning restore CS0618
 }
