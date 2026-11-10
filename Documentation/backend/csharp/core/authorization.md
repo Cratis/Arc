@@ -283,6 +283,25 @@ A key with no recorded state is not in the allowed set, so the row is dropped. O
 
 A narrowing applies to a result that is an `IQueryable` or a materialized collection. A result Arc cannot narrow, such as an observable query, throws `UnsupportedQueryRowNarrowing` naming the query, so rows are never returned unnarrowed.
 
+## Ending live subscriptions when recorded state changes
+
+A policy decides once, when a subscription opens. When the state it decided from changes (a plan is downgraded), the guard closes the gap. Derive from `StateAwareEmissionGuard<TState>`, the emission-guard counterpart of `StateAwareAuthorizationPolicy<TState>`; it re-reads the state on each guarded emission and ends the subscription when the caller is no longer entitled.
+
+```csharp
+public class VesselPlanGuard(IReadModels readModels) : StateAwareEmissionGuard<VesselPlan>
+{
+    protected override object? GetKey(ObservableQueryEmissionContext context) =>
+        context.Arguments.TryGetValue("vesselId", out var id) ? id : null;
+
+    protected override async ValueTask<VesselPlan?> Read(object key, CancellationToken cancellationToken) =>
+        await readModels.GetInstanceById<VesselPlan>((string)key);
+
+    protected override bool Decide(ClaimsPrincipal? principal, VesselPlan state) => state.Enabled;
+}
+```
+
+It fails closed: a missing key, a missing instance, a failing read or a failing decision ends the subscription, and `OnDenied` reports which with the same `StateDenialReason` the policy uses. The guard runs once per guarded emission, not once per row. It reacts at the next emission; to react sooner, raise an emission when the state changes.
+
 ## Authorization results
 
 An Arc pipeline authorization rejection sets `IsAuthorized = false`; mapped HTTP results use **403 Forbidden**. Lightweight authentication middleware may reject earlier with **401 Unauthorized**. ASP.NET Core authentication/authorization middleware has its own challenge/forbid behavior. Do not infer which layer ran solely from an HTTP status.
