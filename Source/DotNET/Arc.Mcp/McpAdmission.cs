@@ -5,6 +5,7 @@ using System.Text.Json;
 using Cratis.Arc.Capabilities;
 using Cratis.Arc.Identity.Callers;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Mcp;
@@ -16,7 +17,8 @@ namespace Cratis.Arc.Mcp;
 /// </summary>
 /// <param name="options">The MCP options.</param>
 /// <param name="ceiling">The factory of the tool ceiling.</param>
-internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingFactory ceiling)
+/// <param name="logger">The admission diagnostics logger.</param>
+internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingFactory ceiling, ILogger<McpAdmission> logger)
 {
     const string ToolsCall = "tools/call";
 
@@ -31,6 +33,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         var settings = options.Value;
         if (!McpOrigins.Allows(context.Request.Headers.Origin.ToArray(), settings))
         {
+            logger.OriginRefused(context.Request.Headers.Origin.ToArray());
             await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "origin_not_allowed");
             return;
         }
@@ -65,7 +68,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
             return;
         }
 
-        if (tool is not null && !await McpToolAuthorizers.Allow(tool, caller, context.RequestServices, context.RequestAborted))
+        if (!await AllowsTool(tool, caller, context))
         {
             await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "forbidden");
             return;
@@ -75,6 +78,9 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         context.Request.ContentLength = body.Length;
         await next(context);
     }
+
+    static ValueTask<bool> AllowsTool(McpToolDescriptor? tool, McpCaller caller, HttpContext context) =>
+        tool is null ? ValueTask.FromResult(true) : McpToolAuthorizers.Allow(tool, caller, context.RequestServices, context.RequestAborted);
 
     static bool AcceptsCredential(McpProfile profile, CallerCredentialKind kind) => profile switch
     {
@@ -159,15 +165,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
                 return (InvalidRequest, null);
             }
 
-            if (root.ValueKind != JsonValueKind.Object ||
-                !root.TryGetProperty("method", out var method) ||
-                method.ValueKind != JsonValueKind.String ||
-                method.GetString() != ToolsCall ||
-                !root.TryGetProperty("params", out var parameters) ||
-                parameters.ValueKind != JsonValueKind.Object ||
-                !parameters.TryGetProperty("name", out var name) ||
-                name.ValueKind != JsonValueKind.String ||
-                !ceiling.Ceiling.TryGet(name.GetString(), out var tool))
+            if (!IsToolCall(root) || !TryFindTool(root, out var tool))
             {
                 return (null, null);
             }
@@ -184,5 +182,21 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
                 "insufficient_scope",
                 McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), null);
         }
+    }
+
+    static bool IsToolCall(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object &&
+        root.TryGetProperty("method", out var method) &&
+        method.ValueKind == JsonValueKind.String &&
+        method.GetString() == ToolsCall;
+
+    bool TryFindTool(JsonElement root, out McpToolDescriptor? tool)
+    {
+        tool = null;
+        return root.TryGetProperty("params", out var parameters) &&
+            parameters.ValueKind == JsonValueKind.Object &&
+            parameters.TryGetProperty("name", out var name) &&
+            name.ValueKind == JsonValueKind.String &&
+            ceiling.Ceiling.TryGet(name.GetString(), out tool);
     }
 }
