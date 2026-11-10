@@ -65,7 +65,7 @@ These defaults are open until you change them:
 | Read protection | `Off` when `<CratisReadProtection>` is unset | Injected read models are plain reads and guard nothing. See [read protection](./chronicle/consistency/index.md). |
 | `Cratis:Arc:Query:AllowedWebSocketOrigins` | Not set | Observable query WebSocket routes accept any browser origin. |
 | `Cratis:Arc:TrustForwardedIdentityHeaders` | `false` | `AddCratis()` authenticates nobody. This one is closed. |
-| Discovery endpoints | Anonymous in Development, authenticated elsewhere | Closed outside Development. |
+| Discovery endpoints (`Cratis:Arc:Introspection`) | Enabled; anonymous in Development, authentication required elsewhere; `Roles` not set | Outside Development, any signed-in user can read the discovery catalogs. Set `Cratis:Arc:Introspection:Roles` to limit them to named roles, or turn discovery off. |
 
 ## Production checklist
 
