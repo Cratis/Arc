@@ -19,7 +19,7 @@ Applications that use Arc with Chronicle and inject read models into commands, v
 What you may see after upgrading:
 
 - Appends that raced with a concurrent change are refused where they previously succeeded.
-- Read-model parameters that cannot be guarded are refused at startup or at first use. Mark a deliberately advisory
+- Read-model parameters that cannot be guarded, and missing generated key metadata or key accessors, are refused at startup or at first use. Mark a deliberately advisory
   read with `[Unprotected("why")]`, or select the instance with `[LookUpBy(nameof(Property))]`.
 - Each guarded read is a fresh fold of the key's events instead of the materialized state, so reads cost more
   for keys with long histories.

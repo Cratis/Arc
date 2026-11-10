@@ -61,7 +61,9 @@ internal static class CommandReadModelLookup
 
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
         var configuration = context.ServiceProvider?.GetService<IConfiguration>();
-        var properties = CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
+        var properties = lookup is null && mode != ReadProtectionMode.On
+            ? []
+            : CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
         if (lookup is not null)
         {
             var property = properties.FirstOrDefault(_ => _.Name == lookup.Property)
