@@ -50,14 +50,14 @@ public class when_a_guest_calls_the_core_host
         {
             using var client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(10) };
             using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { }, global::Xunit.TestContext.Current.CancellationToken);
-            command.StatusCode.ShouldEqual(expected);
+            await ShouldHaveStatus(command, expected, "command");
             using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { }, global::Xunit.TestContext.Current.CancellationToken);
-            validation.StatusCode.ShouldEqual(expected);
+            await ShouldHaveStatus(validation, expected, "validation");
             using var query = await client.GetAsync($"/guest-query/{path}", global::Xunit.TestContext.Current.CancellationToken);
-            query.StatusCode.ShouldEqual(expected);
+            await ShouldHaveStatus(query, expected, "query");
             using var queryRequest = new HttpRequestMessage(new HttpMethod("QUERY"), $"/guest-query/{path}") { Content = JsonContent.Create(new { }) };
             using var bodyQuery = await client.SendAsync(queryRequest, global::Xunit.TestContext.Current.CancellationToken);
-            bodyQuery.StatusCode.ShouldEqual(expected);
+            await ShouldHaveStatus(bodyQuery, expected, "body query");
             probe.Commands.ShouldEqual(expected == HttpStatusCode.OK ? 1 : 0);
             probe.Queries.ShouldEqual(expected == HttpStatusCode.OK ? 2 : 0);
             probe.GuestPolicyCalls.ShouldEqual(expected is HttpStatusCode.OK or HttpStatusCode.Forbidden ? 4 : 0);
@@ -69,6 +69,17 @@ public class when_a_guest_calls_the_core_host
             await app.StopAsync();
 #pragma warning restore xUnit1051
         }
+    }
+
+    static async Task ShouldHaveStatus(HttpResponseMessage response, HttpStatusCode expected, string request)
+    {
+        if (response.StatusCode == expected)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(global::Xunit.TestContext.Current.CancellationToken);
+        throw new InvalidOperationException($"The {request} request returned {response.StatusCode} instead of {expected}: {body}");
     }
 
     static void RegisterArtifacts(IServiceCollection services)
