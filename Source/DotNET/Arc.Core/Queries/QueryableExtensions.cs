@@ -52,6 +52,14 @@ public static class QueryableExtensions
     public static IQueryable Take(this IQueryable queryable, int count) => OperationsFor(queryable.ElementType).Take(queryable, count);
 
     /// <summary>
+    /// Filters a non-generic <see cref="IQueryable"/> with a predicate of the shape <c>Func&lt;TElement, bool&gt;</c>.
+    /// </summary>
+    /// <param name="queryable">The <see cref="IQueryable"/> to filter.</param>
+    /// <param name="predicate">The predicate over the element type.</param>
+    /// <returns>An <see cref="IQueryable"/> for continuation.</returns>
+    public static IQueryable Where(this IQueryable queryable, LambdaExpression predicate) => OperationsFor(queryable.ElementType).Where(queryable, predicate);
+
+    /// <summary>
     /// Sorts the elements of a sequence in ascending or descending order according to a key.
     /// </summary>
     /// <param name="queryable">The <see cref="IQueryable"/> to adorn.</param>

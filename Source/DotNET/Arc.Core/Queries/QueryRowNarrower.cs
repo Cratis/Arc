@@ -39,7 +39,7 @@ static class QueryRowNarrower
 
         if (data is IQueryable queryable)
         {
-            return predicates.Aggregate(queryable, WhereInStore);
+            return predicates.Aggregate(queryable, (current, predicate) => current.Where(predicate));
         }
 
         if (data is IEnumerable<object> rows and not IAsyncEnumerable<object>)
@@ -49,11 +49,5 @@ static class QueryRowNarrower
         }
 
         throw new UnsupportedQueryRowNarrowing(queryName, data.GetType());
-    }
-
-    static IQueryable WhereInStore(IQueryable queryable, LambdaExpression predicate)
-    {
-        var call = Expression.Call(typeof(Queryable), nameof(Queryable.Where), [queryable.ElementType], queryable.Expression, Expression.Quote(predicate));
-        return queryable.Provider.CreateQuery(call);
     }
 }
