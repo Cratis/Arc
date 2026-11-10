@@ -10,7 +10,7 @@ namespace Cratis.Arc.PersonalAccessTokens.Development;
 /// No records survive restart, and this is not a durable recovery fence or a production restore strategy.
 /// Register with <see cref="DevelopmentPatArcBuilderExtensions.UseDevelopmentPersonalAccessTokenAdapters"/>.
 /// </summary>
-public sealed class DevelopmentPatRecoveryEpoch : IPatRecoveryEpoch
+internal sealed class DevelopmentPatRecoveryEpoch : IPatRecoveryEpoch
 {
     readonly IHostEnvironment _environment;
 

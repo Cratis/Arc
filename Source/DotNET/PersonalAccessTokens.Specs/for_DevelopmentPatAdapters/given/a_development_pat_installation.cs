@@ -10,9 +10,9 @@ namespace Cratis.Arc.PersonalAccessTokens.for_DevelopmentPatAdapters.given;
 public class a_development_pat_installation : Specification
 {
     protected IHostEnvironment _environment;
-    protected DevelopmentPatAuthority _authority;
-    protected DevelopmentPatRecoveryEpoch _epochs;
-    protected DevelopmentPatPolicy _policy;
+    private protected DevelopmentPatAuthority _authority;
+    private protected DevelopmentPatRecoveryEpoch _epochs;
+    private protected DevelopmentPatPolicy _policy;
     private protected PatContractFixture _facts;
     protected DevelopmentClock _clock;
 

@@ -12,7 +12,7 @@ namespace Cratis.Arc.PersonalAccessTokens.Development;
 /// This is not durable persistence, a production adapter, or a recovery/restore implementation.
 /// Register with <see cref="DevelopmentPatArcBuilderExtensions.UseDevelopmentPersonalAccessTokenAdapters"/>.
 /// </summary>
-public sealed class DevelopmentPatAuthority : IPatAuthority
+internal sealed class DevelopmentPatAuthority : IPatAuthority
 {
     readonly IHostEnvironment _environment;
     readonly TimeProvider _clock;

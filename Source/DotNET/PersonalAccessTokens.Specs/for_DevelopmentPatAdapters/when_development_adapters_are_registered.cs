@@ -48,7 +48,7 @@ public class when_development_adapters_are_registered : Specification
         var builder = Substitute.For<IArcBuilder>();
         builder.Services.Returns(services);
         if (adaptersFirst) builder.UseDevelopmentPersonalAccessTokenAdapters();
-        builder.WithPersonalAccessTokens(new("local") { AllowedScopes = ["read"] }, callers => callers
+        builder.WithPersonalAccessTokens(new("direct") { AllowedScopes = ["read"] }, callers => callers
             .ForResource("resource", "audience", "Development")
             .UsePersonDirectory<for_PersonalAccessTokens.given.a_pat_module.PersonDirectory>());
         if (!adaptersFirst) builder.UseDevelopmentPersonalAccessTokenAdapters();

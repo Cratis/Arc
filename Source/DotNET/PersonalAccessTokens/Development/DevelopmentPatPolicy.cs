@@ -10,7 +10,7 @@ namespace Cratis.Arc.PersonalAccessTokens.Development;
 /// It does not model real membership, SSO freshness or organization policy; never use it in production.
 /// Register with <see cref="DevelopmentPatArcBuilderExtensions.UseDevelopmentPersonalAccessTokenAdapters"/>.
 /// </summary>
-public sealed class DevelopmentPatPolicy : IPatPolicy
+internal sealed class DevelopmentPatPolicy : IPatPolicy
 {
     readonly IHostEnvironment _environment;
     readonly PatSettings _settings;

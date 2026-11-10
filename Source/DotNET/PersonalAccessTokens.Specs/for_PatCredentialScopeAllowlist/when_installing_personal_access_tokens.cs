@@ -17,7 +17,7 @@ public class when_installing_personal_access_tokens : Specification
         var services = new ServiceCollection();
         var builder = Substitute.For<IArcBuilder>();
         builder.Services.Returns(services);
-        builder.WithPersonalAccessTokens(new("local") { AllowedScopes = scopes }, callers => callers.ForResource("resource", "audience", "Development").UsePersonDirectory<for_PersonalAccessTokens.given.a_pat_module.PersonDirectory>());
+        builder.WithPersonalAccessTokens(new("direct") { AllowedScopes = scopes }, callers => callers.ForResource("resource", "audience", "Development").UsePersonDirectory<for_PersonalAccessTokens.given.a_pat_module.PersonDirectory>());
         scopes.Add("app:write");
         _provider = services.BuildServiceProvider();
     }
