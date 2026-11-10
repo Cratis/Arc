@@ -154,7 +154,7 @@ internal sealed class CapabilityGateMiddleware(
         return principals;
     }
 
-    static bool HasConflictingSubject(ClaimsPrincipal principal, string subject)
+    static bool HasConflictingSubject(ClaimsPrincipal principal, string? subject)
     {
         var otherSubject = (principal.FindFirst("sub") ?? principal.FindFirst(ClaimTypes.NameIdentifier))?.Value;
         return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
