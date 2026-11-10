@@ -103,8 +103,7 @@ jobs:
           python3 scripts/ci-test-shards.py check
           python3 scripts/ci-test-shards.py matrix >> "$GITHUB_OUTPUT"
 
-      # The 11.0 SDK is a release candidate until GA: dotnet-quality preview selects it and is dropped at GA. The 10.0
-      # SDK is installed alongside so the libraries build for net10.0 as well.
+      # The 10.0 SDK is installed alongside the 11.0 SDK so the libraries build for net10.0 as well.
       - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -114,7 +113,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # This workflow only restores the shared caches, also when it runs on main: warm-caches.yml is the one place
       # that saves them, so pull request code never writes a cache.
@@ -226,7 +224,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -289,7 +286,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # This job restores only the samples, so it never saves the shared cache, even when run by hand on main.
       - name: Restore NuGet packages
@@ -374,7 +370,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # The template contract specs lint generated output with the real ESLint toolchain.
       - name: Setup node

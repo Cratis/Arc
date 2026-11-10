@@ -70,7 +70,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # PR runs restore the shared caches but never save them.
       - name: Restore NuGet packages

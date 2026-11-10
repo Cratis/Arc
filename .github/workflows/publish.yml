@@ -103,12 +103,10 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET10_VERSION }}
 
-      # A release candidate SDK until GA (dotnet-quality preview, dropped at GA). Packages are published from the GA SDK.
       - name: Setup .Net 11
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # Publish only restores: warm-caches.yml saves the shared caches on main, so the release job never writes one.
       - name: NuGet cache
