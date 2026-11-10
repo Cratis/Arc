@@ -24,8 +24,6 @@
   href: capability-hosting.md
 - name: MCP
   href: mcp/toc.yml
-- name: Serving MCP tools
-  href: mcp.md
 - name: Identity
   href: identity/toc.yml
 - name: Tenancy

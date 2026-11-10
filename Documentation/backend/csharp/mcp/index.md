@@ -41,4 +41,4 @@ With Arc MCP there is no second code path. A tool call runs the same command or 
 | Fix an error | [Troubleshooting](troubleshooting.md) |
 | Look up an option | [Options reference](reference.md) |
 
-The existing [Serving MCP tools](../mcp.md) page covers curated tool sources, authorizers, exclusive tools, session authority and the Origin check in depth.
+[Tool sources and authorizers](advanced.md) covers curated tool sources, authorizers, exclusive tools, session authority and the Origin check in depth.

@@ -98,4 +98,4 @@ Any other credential kind is treated like no caller (401).
 
 The result text is JSON: `{ "outcome": { "isSuccess", "isAuthorized", "isValid", "validationResults": [{ "severity", "message", "members" }] }, "response": ... }` for commands, and `data` plus `paging` for queries. `isError` is set when `isSuccess` is false.
 
-For setup problems see [Troubleshooting](troubleshooting.md). For curated tool sources and authorizers see [Serving MCP tools](../mcp.md).
+For setup problems see [Troubleshooting](troubleshooting.md). For curated tool sources and authorizers see [Tool sources and authorizers](advanced.md).

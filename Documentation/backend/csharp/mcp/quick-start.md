@@ -60,7 +60,7 @@ What this sets:
 
 - `ApplicationName = "notes"` makes the read scope `notes:read` and the write scope `notes:write`.
 - `PatOptions.AllowedScopes` must list both scopes. A PAT can only hold scopes on that list, so without them no token can call the tools.
-- The endpoint is `/mcp` on the capabilities port. Bind both the default listener and a listener on that port; see [Serving MCP tools](../mcp.md#turn-it-on).
+- The endpoint is `/mcp` on the capabilities port. Bind both the default listener and a listener on that port; see [Turn it on](advanced.md#turn-it-on).
 
 If startup fails, check [Troubleshooting](troubleshooting.md).
 

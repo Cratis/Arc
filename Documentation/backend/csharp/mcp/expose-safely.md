@@ -40,7 +40,7 @@ Arc checks every tool when the application starts. Each failure below throws an 
 
 ## Layer extra requirements
 
-The read and write scopes are the minimum. Add `[RequiresScope("...")]` on a command type, handler, read model or query method to require more; the caller must hold all of them. For rules a scope cannot express, register an `IMcpToolAuthorizer` with `AddToolAuthorizer<T>()`; see [Serving MCP tools](../mcp.md). Authorizers also filter `tools/list`, so an agent never sees a tool it cannot call.
+The read and write scopes are the minimum. Add `[RequiresScope("...")]` on a command type, handler, read model or query method to require more; the caller must hold all of them. For rules a scope cannot express, register an `IMcpToolAuthorizer` with `AddToolAuthorizer<T>()`; see [tool sources and authorizers](advanced.md#tool-authorizers). Authorizers also filter `tools/list`, so an agent never sees a tool it cannot call.
 
 ## Keep the endpoint narrow
 

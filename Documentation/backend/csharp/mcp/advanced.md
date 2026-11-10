@@ -1,19 +1,19 @@
 ---
-title: "Serving MCP tools from Cratis Arc"
-description: Serve MCP tools from Cratis Arc: expose chosen commands and queries to MCP clients with scopes, a fixed tool ceiling, an Origin check, and resource metadata.
+title: "Arc MCP tool sources, authorizers and session authority"
+description: Advanced Cratis Arc MCP serving: curated tool sources, tool authorizers, the tool ceiling, session authority, protected resource metadata and the Origin check.
 ---
 
-The `Cratis.Arc.Mcp` package serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint from your Arc application. MCP clients call the commands and queries you choose, as the verified caller the [capability gate](capability-hosting.md) admitted. Nothing is exposed unless you declare it.
+The `Cratis.Arc.Mcp` package serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint from your Arc application. MCP clients call the commands and queries you choose, as the verified caller the [capability gate](../capability-hosting.md) admitted. Nothing is exposed unless you declare it.
 
 ## What it does
 
-The endpoint is stateless: every request is one call that runs in the scope of its HTTP request. It is served only on the capabilities [endpoint group](endpoint-groups.md) port, behind the capability gate. A request on the default port is not served. Gate refusals use the MCP error shape, with `WWW-Authenticate` for authentication failures.
+The endpoint is stateless: every request is one call that runs in the scope of its HTTP request. It is served only on the capabilities [endpoint group](../endpoint-groups.md) port, behind the capability gate. A request on the default port is not served. Gate refusals use the MCP error shape, with `WWW-Authenticate` for authentication failures.
 
 The tools a caller sees depend on that caller's scopes. A caller without the write scope never sees a write tool, and a call to a tool outside the caller's scopes is refused before it reaches the server.
 
 ## Turn it on
 
-Capability hosting with a verified caller installation is required. Bind both the default public listener and a separate listener on the assigned capabilities port, even when the host serves only `/mcp`. Assigning the port does not bind the listener; configure both through Kestrel or `UseUrls`, as shown in [capability hosting](capability-hosting.md).
+Capability hosting with a verified caller installation is required. Bind both the default public listener and a separate listener on the assigned capabilities port, even when the host serves only `/mcp`. Assigning the port does not bind the listener; configure both through Kestrel or `UseUrls`, as shown in [capability hosting](../capability-hosting.md). For a guided first setup, see the [quick start](quick-start.md).
 
 Before either listener starts, Arc validates authorization declarations for every discovered command and query, not just the MCP ceiling. Missing or invalid authorization policies can therefore fail startup even for commands you have not exposed as tools.
 
@@ -239,6 +239,8 @@ This applies under every profile, including `PatOnly`. If browser-based clients 
 
 ## Related
 
-- [Capability hosting](capability-hosting.md)
-- [Endpoint groups](endpoint-groups.md)
-- [Verified callers](asp-net-core/verified-callers.md)
+- [What Arc MCP is](index.md)
+- [Options reference](reference.md)
+- [Capability hosting](../capability-hosting.md)
+- [Endpoint groups](../endpoint-groups.md)
+- [Verified callers](../asp-net-core/verified-callers.md)

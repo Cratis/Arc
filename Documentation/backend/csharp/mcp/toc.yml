@@ -14,3 +14,5 @@
   href: troubleshooting.md
 - name: Options reference
   href: reference.md
+- name: Tool sources and authorizers
+  href: advanced.md
