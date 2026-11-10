@@ -40,8 +40,9 @@ public static class McpEndpointRouteBuilderExtensions
         var otherMethods = endpoints.MapMethods(options.Path, [HttpMethods.Get, HttpMethods.Delete], _ => Task.CompletedTask);
         Admit(otherMethods, group, refusals);
 
-        endpoints.MapGet(McpChallenge.MetadataPath(options), McpProtectedResourceMetadata.Serve)
-            .WithMetadata(group, CapabilityGateExemption.Instance);
+        var metadataPath = McpChallenge.MetadataPath(options);
+        endpoints.MapGet(metadataPath, McpProtectedResourceMetadata.Serve)
+            .WithMetadata(group, new CapabilityGateExemption(metadataPath));
 
         return mcp;
     }
