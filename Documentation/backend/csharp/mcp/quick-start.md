@@ -92,6 +92,8 @@ These adapters are for local development only:
 
 From your own issuance endpoint, call `IPersonalAccessTokens.Issue(lifetime, scopes, cancellationToken)` for a signed-in person, with the scopes `notes:read` and `notes:write`. The result's `Token.Reveal()` returns the token once; store it only in the client. The maximum lifetime is 90 days.
 
+A signed-in browser caller reaches Arc as a [signed forwarded identity v2](../asp-net-core/signed-forwarded-identity-v2.md) request from AuthProxy, and AuthProxy does not sign v2 yet. Until it does, the only way to produce such a caller locally is the **test pattern** in the [verified caller acceptance specs](https://github.com/Cratis/Arc/tree/main/Samples/VerifiedCallerAcceptance.Specs): a spec fixture signs a browser-session caller with a synthetic test key. Use it in specs only. Never deploy the test signer or its key, and do not add a development-only signer or issuance bypass to your host.
+
 ## 4. Call the tools
 
 Clients send the PAT as `Authorization: Bearer <token>`. To check the endpoint from a shell, list the tools:
