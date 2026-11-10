@@ -263,6 +263,26 @@ The policy fails closed. A missing key, no recorded state, a failed read (for ex
 
 The read is an admission check only. It does not enrol in decision reads, and access granted at admission is not revoked when the state later changes. A read model can lag the events that produced it, so a rule that must hold under concurrent writers belongs in the handler as a protected decision read, not only in a policy. To specify such a policy, call `IsAuthorized` with an `AuthorizationPolicyContext` and seed the state your `Read` override returns.
 
+## Narrowing the rows of a list
+
+A policy admits or refuses a whole call. To show a caller only the rows recorded state allows, register a row narrowing. It supplies a predicate over the read model, and Arc applies it before sorting, paging and counting, so a store-backed `IQueryable` filters in the store and a page and its total describe only the allowed rows.
+
+```csharp
+public class VesselsOnThePlan(IReadModels readModels) : QueryRowNarrowing<Vessel, string>
+{
+    protected override Expression<Func<Vessel, string>> Key => vessel => vessel.Id;
+
+    protected override async ValueTask<IEnumerable<string>> GetAllowedKeys(QueryContext context) =>
+        (await readModels.GetInstances<VesselPlan>()).Where(plan => plan.Enabled).Select(plan => plan.Id);
+}
+
+services.AddSingleton<IQueryRowNarrowing, VesselsOnThePlan>();
+```
+
+A key with no recorded state is not in the allowed set, so the row is dropped. Override `AppliesTo` to narrow only some queries, or implement `IQueryRowNarrowing` for a predicate of another shape.
+
+A narrowing applies to a result that is an `IQueryable` or a materialized collection. A result Arc cannot narrow, such as an observable query, throws `UnsupportedQueryRowNarrowing` naming the query, so rows are never returned unnarrowed.
+
 ## Authorization results
 
 An Arc pipeline authorization rejection sets `IsAuthorized = false`; mapped HTTP results use **403 Forbidden**. Lightweight authentication middleware may reject earlier with **401 Unauthorized**. ASP.NET Core authentication/authorization middleware has its own challenge/forbid behavior. Do not infer which layer ran solely from an HTTP status.
