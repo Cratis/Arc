@@ -6,10 +6,17 @@
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
         <TargetFrameworks>net10.0</TargetFrameworks>
+        <CratisReadProtection>On</CratisReadProtection>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Mcp/Arc.Mcp.csproj" />
         <ProjectReference Include="../PersonalAccessTokens/PersonalAccessTokens.csproj" />
+        <ProjectReference Include="../Chronicle/Chronicle.csproj" />
+        <ProjectReference Include="../Chronicle.Testing/Chronicle.Testing.csproj" />
+        <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Vectors/arc-mcp-authorization-v1.profiles-and-discovery.json" />

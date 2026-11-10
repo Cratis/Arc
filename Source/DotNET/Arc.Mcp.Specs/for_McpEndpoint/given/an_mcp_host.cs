@@ -8,6 +8,7 @@ using System.Text.Json;
 using Cratis.Arc.Capabilities;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Commands.ResponseValueHandlers;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
@@ -58,6 +59,8 @@ public class an_mcp_host : Specification
 
     protected virtual void MapMcpEndpoint(WebApplication app) => app.MapArcMcp();
 
+    protected virtual Task StartHost() => _app.StartAsync(CancellationToken);
+
     protected virtual void ConfigureCallers(IServiceCollection services)
     {
         services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
@@ -94,14 +97,22 @@ public class an_mcp_host : Specification
                     ConfigureMcp(mcp);
                 }));
         ConfigureCallers(builder.Services);
+
+        // Chronicle's discovered administration queries validate this policy even when not exposed as tools.
+        builder.Services.AddAuthorizationBuilder().AddPolicy("Chronicle.Administrator", policy => policy.RequireAuthenticatedUser());
         builder.Services.AddSingleton(_probe);
         RegisterCommands(builder.Services);
+
+        // Plain Arc hosts do not install Chronicle; adapter specs explicitly register their real execution scope.
+        builder.Services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(new KnownInstancesOf<ICommandExecutionScope>());
+        builder.Services.AddSingleton<IInstancesOf<ICommandResponseValueHandler>>(new KnownInstancesOf<ICommandResponseValueHandler>(
+            new AuthorizationResultResponseValueHandler(), new ValidationResultResponseValueHandler()));
         ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
         MapMcpEndpoint(_app);
         ConfigureEndpoints(_app);
-        await _app.StartAsync(CancellationToken);
+        await StartHost();
         _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
     }
 
