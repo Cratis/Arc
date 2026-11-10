@@ -20,6 +20,6 @@ public class when_an_awaited_protected_stream_model_is_missing : given.a_monthly
 
     [Fact] void should_preserve_the_missing_model_type() => _failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
     [Fact] void should_preserve_the_rule_failure() => ((IValidationFailure)_failure).ValidationResult.Reason.ShouldEqual(ValidationResultReason.Rule);
-    [Fact] void should_preserve_the_missing_model_key() => ((IValidationFailure)_failure).ValidationResult.Message.ShouldEqual("MonthlyWithdrawals 'account' does not exist.");
+    [Fact] void should_not_include_the_missing_model_key() => ((IValidationFailure)_failure).ValidationResult.Message.ShouldEqual("MonthlyWithdrawals does not exist.");
     [Fact] void should_keep_the_absence_guard_enrolled() => _unit.HasEnrolledDecisionReads.ShouldBeTrue();
 }

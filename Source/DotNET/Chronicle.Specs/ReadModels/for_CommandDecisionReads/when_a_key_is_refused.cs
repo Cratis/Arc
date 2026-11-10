@@ -76,7 +76,8 @@ public class when_a_key_is_refused : when_reading_a_stream.given.a_stream_reader
         failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
         var result = ((IValidationFailure)failure).ValidationResult;
         result.Reason.ShouldEqual(ValidationResultReason.Rule);
-        result.Message.ShouldEqual($"Model '{key}' does not exist.");
+        result.Message.ShouldEqual("Model does not exist.");
+        failure.Message.ShouldNotContain($"'{key}'");
     }
 
     [ReadProtection(ReadProtectionMode.On)]

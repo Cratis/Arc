@@ -48,9 +48,9 @@ If a read is refused, find its message and fix in [Refusals](./refusals.md). For
 
 ## Missing models and invalid keys
 
-Under `On`, a missing required (non-nullable) protected read-model parameter rejects the command with HTTP `400` and the message `{ReadModel} '{key}' does not exist.`. `ReadModel` is the model's simple CLR type name, matching its Screenplay view name. The validation result uses `ValidationResultReason.Rule` (`rule`), Arc's ordinary validation reason. A nullable parameter still receives `null` for a valid key with no instance.
+Under `On`, a missing required (non-nullable) protected read-model parameter rejects the command with HTTP `400` and the message `{ReadModel} does not exist.`. `ReadModel` is the model's simple CLR type name, matching its Screenplay view name. The validation result uses `ValidationResultReason.Rule` (`rule`), Arc's ordinary validation reason. A nullable parameter still receives `null` for a valid key with no instance.
 
-A protected key is treated as missing if it is empty, whitespace-only, exactly `*`, contains `#`, or has leading or trailing whitespace. Arc checks the raw key and each composite key part before acquiring a read, even if an instance exists at that key. This rejection also applies to nullable protected parameters. Text keys appear unchanged in the message, including whitespace. For a composite record or tuple key, the diagnostic key text is empty (`Model '' does not exist.`), matching the Screenplay reference evaluator; concepts are unwrapped before checking their values.
+A protected key is treated as missing if it is empty, whitespace-only, exactly `*`, contains `#`, or has leading or trailing whitespace. Arc checks the raw key and each composite key part before acquiring a read, even if an instance exists at that key. This rejection also applies to nullable protected parameters. The exception and validation messages never include the supplied key, whether it is scalar or composite. Concepts are unwrapped before checking their values.
 
 These rules apply to protected reads, not advisory reads. `Off` and `Measure` retain their existing lookup, nullability, messages and validation reasons. Other read-protection refusals retain their existing outcomes.
 

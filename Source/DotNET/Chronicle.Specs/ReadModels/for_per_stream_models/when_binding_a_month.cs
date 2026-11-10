@@ -123,7 +123,7 @@ public class when_binding_a_month : given.a_monthly_account
         _context.Values[WellKnownCommandContextKeys.EventSourceId] = EventSourceId.Unspecified;
         var failure = Catch.Exception(() => Resolve());
         failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
-        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual("MonthlyWithdrawals '' does not exist.");
+        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual("MonthlyWithdrawals does not exist.");
         ((IValidationFailure)failure).ValidationResult.Reason.ShouldEqual(ValidationResultReason.Rule);
     }
 

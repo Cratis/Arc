@@ -21,7 +21,7 @@ public class when_a_protected_stream_model_is_missing : given.a_monthly_account
         failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
         var result = ((IValidationFailure)failure).ValidationResult;
         result.Reason.ShouldEqual(ValidationResultReason.Rule);
-        result.Message.ShouldEqual("MonthlyWithdrawals 'account' does not exist.");
+        result.Message.ShouldEqual("MonthlyWithdrawals does not exist.");
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class when_a_protected_stream_model_is_missing : given.a_monthly_account
         var failure = Catch.Exception(() => Resolve());
 
         failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
-        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual($"MonthlyWithdrawals '{source}' does not exist.");
+        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual("MonthlyWithdrawals does not exist.");
         _unit.HasEnrolledDecisionReads.ShouldBeFalse();
     }
 }

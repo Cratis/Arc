@@ -61,7 +61,7 @@ public class when_explicit_lookup_keys_have_different_clr_types
         var failure = Catch.Exception(() => CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On, ProtectedKeyTraversalForSpecs.Create(), out _));
         failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
         ((IValidationFailure)failure).ValidationResult.Reason.ShouldEqual(ValidationResultReason.Rule);
-        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual($"{typeof(Model<string>).Name} '' does not exist.");
+        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual($"{typeof(Model<string>).Name} does not exist.");
         foreach (var mode in new[] { ReadProtectionMode.Off, ReadProtectionMode.Measure })
         {
             Catch.Exception(() => CommandReadModelLookup.Resolve(context, parameter, mode)).ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();

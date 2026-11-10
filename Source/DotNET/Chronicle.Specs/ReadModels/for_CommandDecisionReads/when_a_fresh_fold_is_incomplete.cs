@@ -26,7 +26,8 @@ public class when_a_fresh_fold_is_incomplete : when_reading_a_stream.given.a_str
         var result = ((IValidationFailure)exception).ValidationResult;
         result.Reason.ShouldEqual(ValidationResultReason.ConcurrencyViolation);
         result.ReasonDetail.ShouldEqual("ReadIncomplete");
-        result.Message.ShouldEqual("Model 'owner' could not be read completely. Nothing was written; submit it again.");
+        result.Message.ShouldEqual("Model could not be read completely. Nothing was written; submit it again.");
+        exception.Message.ShouldNotContain("owner");
         EndpointRouteHelper.GetStatusCode(false, true, false).ShouldEqual(System.Net.HttpStatusCode.BadRequest);
         _unit.HasEnrolledDecisionReads.ShouldBeFalse();
     }
