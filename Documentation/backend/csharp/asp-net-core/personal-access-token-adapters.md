@@ -77,7 +77,7 @@ arc.WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointS
         .AllowPersonalAccessTokenCallers());
 ```
 
-Keep the forwarding-hop client-certificate configuration from that guide, and register the three authoritative adapters described above. Process-local nonce storage is only a single-process development choice. The selected route pattern must match an actual registered endpoint; Arc does not implement an MCP server or an issuance HTTP endpoint here.
+Keep the forwarding-hop client-certificate configuration from that guide, and register the three authoritative adapters described above. Process-local nonce storage is only a single-process development choice. The selected route pattern must match an actual registered endpoint; Arc does not provide an issuance HTTP endpoint here. To serve MCP tools on that route, use the `Cratis.Arc.Mcp` package; see [MCP](../mcp/index.md). `WithMcp` adds the MCP endpoint to the selected gated endpoints, so `GatedEndpoints` must be set.
 
 On an unselected browser route, call `IPersonalAccessTokens.Issue` after authenticating the signed browser session. Issuance uses the verified persisted person, exact account key, tenant, receiving resource, environment, and upstream assurance; request fields or a claims principal cannot replace those facts. This composition supports **browser-session issuance only**. It installs no OAuth verifier, and a PAT cannot issue another PAT.
 

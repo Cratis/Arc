@@ -1,0 +1,16 @@
+- name: What Arc MCP is
+  href: index.md
+- name: Quick start
+  href: quick-start.md
+- name: Expose a command or query safely
+  href: expose-safely.md
+- name: Scopes and descriptions
+  href: scopes-and-descriptions.md
+- name: Connect clients
+  href: connect-clients.md
+- name: Test with MCP Inspector
+  href: test-with-inspector.md
+- name: Troubleshooting
+  href: troubleshooting.md
+- name: Options reference
+  href: reference.md

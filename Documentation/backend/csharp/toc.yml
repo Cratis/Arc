@@ -22,6 +22,8 @@
   href: endpoint-groups.md
 - name: Capability hosting
   href: capability-hosting.md
+- name: MCP
+  href: mcp/toc.yml
 - name: Serving MCP tools
   href: mcp.md
 - name: Identity
