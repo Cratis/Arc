@@ -3,12 +3,11 @@
     <!-- net11.0 uses the 11.x line of the runtime-aligned Microsoft packages; the base file is the net10.0 pin.
          Microsoft.Extensions.Telemetry, Resilience and TimeProvider.Testing have no 11.x release, so they stay on 10.x. -->
     <ItemGroup Condition=" '$(TargetFramework)' != 'net10.0' AND '$(TargetFramework)' != 'netstandard2.0' ">
-        <PackageVersion Update="Microsoft.EntityFrameworkCore" Version="11.0.0" />
-        <PackageVersion Update="Microsoft.EntityFrameworkCore.Relational" Version="11.0.0" />
-        <PackageVersion Update="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0" />
-        <PackageVersion Update="Microsoft.EntityFrameworkCore.SqlServer" Version="11.0.0" />
-        <!-- TODO: move to 11.0.0 when Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0 is published; a stable Arc must not ship an RC dependency. -->
-        <PackageVersion Update="Npgsql.EntityFrameworkCore.PostgreSQL" Version="11.0.0-rc.3" />
+        <!-- The EF Core stack (Microsoft.EntityFrameworkCore.*, the SQLite and SQL Server providers and Npgsql.EntityFrameworkCore.PostgreSQL)
+             stays on the 10.0.x pins of the base file for net11.0: EF Core 10 runs on the .NET 11 runtime, and EF Core 11 must not be mixed
+             with the Npgsql 10 provider. A stable Arc must not depend on the Npgsql 11 release candidate.
+             TODO: move the whole EF stack to 11.0.0 together once Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0 is published
+             (and restore the NET11_0_OR_GREATER constructor in MigrationsSqlGeneratorForPostgreSQL). -->
         <PackageVersion Update="Microsoft.Extensions.Configuration.FileExtensions" Version="11.0.0" />
         <PackageVersion Update="Microsoft.Extensions.Hosting" Version="11.0.0" />
         <PackageVersion Update="Microsoft.Extensions.Logging" Version="11.0.0" />
