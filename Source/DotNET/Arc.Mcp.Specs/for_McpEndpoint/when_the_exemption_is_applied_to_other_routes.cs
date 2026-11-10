@@ -17,6 +17,7 @@ public class when_the_exemption_is_applied_to_other_routes : an_mcp_host
     McpResponse _otherRoute;
     McpResponse _groupedRoute;
     McpResponse _postRoute;
+    bool _postHandlerReached;
 
     protected override McpProfile Profile => McpProfile.OAuthOnly;
     protected override bool SelectGatedEndpoints => false;
@@ -28,7 +29,11 @@ public class when_the_exemption_is_applied_to_other_routes : an_mcp_host
         app.MapGroup("/grouped").WithMetadata(new CapabilityGateExemption(MetadataRoute)).MapGet("/inner", () => "reached");
 
         // The right path but not GET-only.
-        app.MapPost("/posted", () => "reached").WithMetadata(new CapabilityGateExemption("/posted"));
+        app.MapPost("/posted", () =>
+        {
+            _postHandlerReached = true;
+            return "reached";
+        }).WithMetadata(new CapabilityGateExemption("/posted"));
     }
 
     async Task Because()
@@ -37,11 +42,12 @@ public class when_the_exemption_is_applied_to_other_routes : an_mcp_host
         _metadata = await Get(MetadataRoute);
         _otherRoute = await Get("/other");
         _groupedRoute = await Get("/grouped/inner");
-        _postRoute = await Get("/posted");
+        _postRoute = await Post("{}", customize: request => request.RequestUri = new Uri(request.RequestUri!, "/posted"));
     }
 
     [Fact] void should_still_serve_the_metadata_route() => _metadata.Status.ShouldEqual(HttpStatusCode.OK);
     [Fact] void should_gate_another_route_carrying_the_exemption() => _otherRoute.Status.ShouldEqual(HttpStatusCode.Unauthorized);
     [Fact] void should_gate_a_route_group_carrying_the_exemption() => _groupedRoute.Status.ShouldEqual(HttpStatusCode.Unauthorized);
     [Fact] void should_gate_a_route_that_is_not_get_only() => _postRoute.Status.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] void should_not_reach_the_handler_of_the_route_that_is_not_get_only() => _postHandlerReached.ShouldBeFalse();
 }
