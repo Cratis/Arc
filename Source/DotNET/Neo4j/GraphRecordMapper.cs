@@ -119,8 +119,12 @@ public static class GraphRecordMapper
             return Build(new Dictionary<string, object?>(map, StringComparer.OrdinalIgnoreCase), target);
         }
 
-        return System.Convert.ChangeType(value, target, System.Globalization.CultureInfo.InvariantCulture);
+        return ChangeType(value, target);
     }
+
+    static object ChangeType(object value, Type target) => value is double doubleValue && target == typeof(decimal)
+        ? DoubleToDecimal.Convert(doubleValue)
+        : System.Convert.ChangeType(value, target, System.Globalization.CultureInfo.InvariantCulture);
 
     static bool IsValueType(Type type)
     {

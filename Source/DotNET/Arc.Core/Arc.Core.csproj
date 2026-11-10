@@ -26,6 +26,7 @@
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.SqlServer.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.PostgreSql.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Neo4j" />
         <InternalsVisibleTo Include="Cratis.Arc.OpenApi" />
         <InternalsVisibleTo Include="Cratis.Arc.Testing" />
         <InternalsVisibleTo Include="Cratis.Arc.Testing.Specs" />
@@ -76,5 +77,6 @@
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/AttributePrecedencePolicy.cs" Link="Commands/AttributePrecedencePolicy.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/SliceNamespace.cs" Link="Slices/SliceNamespace.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/DoubleToDecimal.cs" Link="DoubleToDecimal.cs" />
     </ItemGroup>
 </Project>
