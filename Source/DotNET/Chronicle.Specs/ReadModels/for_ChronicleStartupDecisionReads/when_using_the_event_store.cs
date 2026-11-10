@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleStartupDecisionReads;
 
+[PerFactSpecificationLifecycle]
 public class when_using_the_event_store : Specification
 {
     IChronicleClient _client;

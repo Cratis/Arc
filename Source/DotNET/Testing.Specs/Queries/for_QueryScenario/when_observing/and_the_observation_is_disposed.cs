@@ -12,6 +12,9 @@ public class and_the_observation_is_disposed : given.an_observable_query
 {
     QueryObservation _observation = default!;
     bool _scopeWasLive;
+    Exception? _subsequentReadError;
+    Exception? _asyncDisposalError;
+    Exception? _subjectNotificationError;
 
     async Task Establish()
     {
@@ -21,17 +24,20 @@ public class and_the_observation_is_disposed : given.an_observable_query
         _scopeWasLive = !_state.Scope.Disposed;
     }
 
-    void Because()
+    async Task Because()
     {
         _observation.Dispose();
         _observation.Dispose();
+        _subsequentReadError = await Catch.Exception(() => _observation.Next());
+        _asyncDisposalError = await Catch.Exception(async () => await _observation.DisposeAsync());
+        _subjectNotificationError = Catch.Exception(() => _state.Subject.OnNext(new("Still usable")));
     }
 
     [Fact] void should_keep_the_owned_scope_alive_until_disposal() => _scopeWasLive.ShouldBeTrue();
     [Fact] void should_unsubscribe() => ((BehaviorSubject<ObservableScenarioReadModel>)_state.Subject).HasObservers.ShouldBeFalse();
     [Fact] void should_dispose_the_owned_scope() => _state.Scope.Disposed.ShouldBeTrue();
     [Fact] void should_unsubscribe_before_disposing_the_scope() => _state.Scope.HadObserversAtDisposal.ShouldBeFalse();
-    [Fact] async Task should_reject_subsequent_reads() => (await Catch.Exception(() => _observation.Next())).ShouldBeOfExactType<ObjectDisposedException>();
-    [Fact] async Task should_allow_repeated_async_disposal() => await _observation.DisposeAsync();
-    [Fact] void should_not_dispose_the_subject() => _state.Subject.OnNext(new("Still usable"));
+    [Fact] void should_reject_subsequent_reads() => _subsequentReadError.ShouldBeOfExactType<ObjectDisposedException>();
+    [Fact] void should_allow_repeated_async_disposal() => _asyncDisposalError.ShouldBeNull();
+    [Fact] void should_not_dispose_the_subject() => _subjectNotificationError.ShouldBeNull();
 }
