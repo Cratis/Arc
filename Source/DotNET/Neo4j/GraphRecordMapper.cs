@@ -122,9 +122,12 @@ public static class GraphRecordMapper
         return ChangeType(value, target);
     }
 
-    static object ChangeType(object value, Type target) => value is double doubleValue && target == typeof(decimal)
-        ? DoubleToDecimal.Convert(doubleValue)
-        : System.Convert.ChangeType(value, target, System.Globalization.CultureInfo.InvariantCulture);
+    static object ChangeType(object value, Type target) => value switch
+    {
+        double doubleValue when target == typeof(decimal) => DoubleToDecimal.Convert(doubleValue),
+        float singleValue when target == typeof(decimal) => SingleToDecimal.Convert(singleValue),
+        _ => System.Convert.ChangeType(value, target, System.Globalization.CultureInfo.InvariantCulture)
+    };
 
     static bool IsValueType(Type type)
     {

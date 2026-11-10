@@ -77,6 +77,8 @@
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/AttributePrecedencePolicy.cs" Link="Commands/AttributePrecedencePolicy.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/SliceNamespace.cs" Link="Slices/SliceNamespace.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/DecimalFromFloatingPoint.cs" Link="DecimalFromFloatingPoint.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/DoubleToDecimal.cs" Link="DoubleToDecimal.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/SingleToDecimal.cs" Link="SingleToDecimal.cs" />
     </ItemGroup>
 </Project>
