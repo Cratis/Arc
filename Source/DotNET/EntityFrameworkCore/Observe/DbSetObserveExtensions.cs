@@ -53,9 +53,7 @@ public static class DbSetObserveExtensions
     {
         filter ??= _ => true;
         return dbSet.ObserveCore(
-            filter,
-            configure,
-            ignoreQueryContext,
+            new ObservationRequest<TEntity>(filter, configure, ignoreQueryContext),
             entities => new BehaviorSubject<IEnumerable<TEntity>>(entities),
             (entities, observable) => observable.OnNext([.. entities]));
     }
@@ -217,22 +215,19 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         return dbSet.ObserveCore(
-            filter,
-            configure,
-            ignoreQueryContext,
+            new ObservationRequest<TEntity>(filter, configure, ignoreQueryContext),
             entities => new BehaviorSubject<TEntity>(entities.FirstOrDefault()!),
             (entities, observable) => observable.OnNext(entities.FirstOrDefault()!));
     }
 
     static ISubject<TResult> ObserveCore<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity, TResult>(
         this DbSet<TEntity> dbSet,
-        Expression<Func<TEntity, bool>> filter,
-        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
-        bool ignoreQueryContext,
+        ObservationRequest<TEntity> request,
         Func<IEnumerable<TEntity>, ISubject<TResult>> createSubject,
         Action<IEnumerable<TEntity>, ISubject<TResult>> onNext)
         where TEntity : class
     {
+        var ignoreQueryContext = request.IgnoreQueryContext;
         var completedCleanup = false;
         var logger = Internals.ServiceProvider.GetRequiredService<ILogger<DbSetObserver>>();
         var changeTracker = Internals.ServiceProvider.GetRequiredService<IEntityChangeTracker>();
@@ -270,21 +265,17 @@ public static class DbSetObserveExtensions
 
         // Perform initial query synchronously to determine if we have data
         // This ensures we create the correct type of subject (Behavior vs regular)
-        List<TEntity> initialEntities;
-        using (var scope = serviceScopeFactory.CreateScope())
+        var freshQuery = new FreshQuery<TEntity>
         {
-            var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-            var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
-            var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-            if (!ignoreQueryContext)
-            {
-                queryContext.TotalItems = initialBaseQuery.Count();
-            }
-            var query = BuildQuery(initialBaseQuery, observationContext, entityType);
-            initialEntities = query.ToList();
-        }
+            ScopeFactory = serviceScopeFactory,
+            DbContextType = dbContextType,
+            EntityType = entityType,
+            Request = request,
+            QueryContext = queryContext,
+            ObservationContext = observationContext
+        };
 
-        entities.InitializeWithEntities(initialEntities);
+        entities.InitializeWithEntities(freshQuery.Execute());
         var subject = createSubject(entities);
         onNext(entities, subject);
 
@@ -298,10 +289,12 @@ public static class DbSetObserveExtensions
         IDatabaseChangeNotifier? databaseNotifier = null;
         var faulted = 0;
 
+        bool IsStopped() => cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1;
+
         // Common callback for both in-process and database-level changes
         void OnChangeDetected()
         {
-            if (cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1)
+            if (IsStopped())
             {
                 return;
             }
@@ -313,12 +306,22 @@ public static class DbSetObserveExtensions
                 return;
             }
 
-            Exception? failure = null;
+            var failure = RequeryHoldingSemaphore();
+
+            // Fault outside the semaphore: ending the observation runs Cleanup, which waits for it.
+            if (failure is not null)
+            {
+                FaultSubject<TEntity, TResult>(subject, cancellationTokenSource, logger, failure);
+            }
+        }
+
+        Exception? RequeryHoldingSemaphore()
+        {
             try
             {
-                if (cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1)
+                if (IsStopped())
                 {
-                    return;
+                    return null;
                 }
 
                 logger.ChangeDetectedRequerying(typeof(TEntity).Name);
@@ -327,71 +330,29 @@ public static class DbSetObserveExtensions
                 // before resolving the fresh DbContext.
                 using (observer.Begin())
                 {
-                    // Create a new scope to get a fresh DbContext
-                    using var scope = serviceScopeFactory.CreateScope();
-                    var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-                    var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
-
-                    // Build the query using the fresh DbSet
-                    var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-                    if (!ignoreQueryContext)
-                    {
-                        queryContext.TotalItems = baseQuery.Count();
-                    }
-                    var newQuery = BuildQuery(baseQuery, observationContext, entityType);
-                    var newEntities = newQuery.ToList();
-                    entities.ReinitializeWithEntities(newEntities);
+                    entities.ReinitializeWithEntities(freshQuery.Execute());
                 }
 
                 onNext(entities, subject);
+                return null;
             }
             catch (Exception ex)
             {
                 logger.UnexpectedError(typeof(TEntity).Name, ex);
 
                 // A failure during teardown is expected and stays quiet; anything else must fault the observable.
-                if (!cancellationToken.IsCancellationRequested && ex is not (OperationCanceledException or ObjectDisposedException))
+                if (cancellationToken.IsCancellationRequested || ex is OperationCanceledException or ObjectDisposedException)
                 {
-                    failure = ex;
-
-                    // Terminal while still holding the semaphore, so no later change can emit after the error.
-                    Volatile.Write(ref faulted, 1);
+                    return null;
                 }
+
+                // Terminal while still holding the semaphore, so no later change can emit after the error.
+                Volatile.Write(ref faulted, 1);
+                return ex;
             }
             finally
             {
                 queryExecutionSemaphore.Release();
-            }
-
-            // Fault outside the semaphore: ending the observation runs Cleanup, which waits for it.
-            if (failure is not null)
-            {
-                Fault(failure);
-            }
-        }
-
-        void Fault(Exception exception)
-        {
-            try
-            {
-                subject.OnError(exception);
-            }
-            catch (Exception ex)
-            {
-                // A throwing observer must never reach the SaveChanges caller.
-                logger.UnexpectedError(typeof(TEntity).Name, ex);
-            }
-            finally
-            {
-                try
-                {
-                    // Cancelling ends Watch, which runs Cleanup; later change notifications are ignored.
-                    cancellationTokenSource.Cancel();
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Cleanup already ran.
-                }
             }
         }
 
@@ -417,37 +378,11 @@ public static class DbSetObserveExtensions
         _ = subject.Subscribe(_ => { }, _ => { }, Cleanup);
 
         // Start background task to keep the observation alive
-        _ = Task.Run(Watch);
+        _ = Task.Run(() => WatchUntilCancelled<TEntity>(logger, Cleanup, cancellationToken));
 
         logger.ObservationWatchingForChanges(typeof(TEntity).Name);
 
         return subject;
-
-        async Task Watch()
-        {
-            try
-            {
-                // Keep the task alive until cancelled
-                await Task.Delay(Timeout.Infinite, cancellationToken);
-            }
-            catch (ObjectDisposedException)
-            {
-                logger.ObjectDisposed();
-            }
-            catch (OperationCanceledException)
-            {
-                logger.OperationCancelled();
-            }
-            catch (Exception ex)
-            {
-                logger.UnexpectedError(typeof(TEntity).Name, ex);
-            }
-            finally
-            {
-                logger.WatchTaskEnding(typeof(TEntity).Name);
-                Cleanup();
-            }
-        }
 
         void Cleanup()
         {
@@ -490,6 +425,57 @@ public static class DbSetObserveExtensions
                 queryExecutionSemaphore.Release();
                 queryExecutionSemaphore.Dispose();
             }
+        }
+    }
+
+    static void FaultSubject<TEntity, TResult>(ISubject<TResult> subject, CancellationTokenSource cancellationTokenSource, ILogger<DbSetObserver> logger, Exception exception)
+    {
+        try
+        {
+            subject.OnError(exception);
+        }
+        catch (Exception ex)
+        {
+            // A throwing observer must never reach the SaveChanges caller.
+            logger.UnexpectedError(typeof(TEntity).Name, ex);
+        }
+        finally
+        {
+            try
+            {
+                // Cancelling ends Watch, which runs Cleanup; later change notifications are ignored.
+                cancellationTokenSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Cleanup already ran.
+            }
+        }
+    }
+
+    static async Task WatchUntilCancelled<TEntity>(ILogger<DbSetObserver> logger, Action cleanup, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Keep the task alive until cancelled
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        }
+        catch (ObjectDisposedException)
+        {
+            logger.ObjectDisposed();
+        }
+        catch (OperationCanceledException)
+        {
+            logger.OperationCancelled();
+        }
+        catch (Exception ex)
+        {
+            logger.UnexpectedError(typeof(TEntity).Name, ex);
+        }
+        finally
+        {
+            logger.WatchTaskEnding(typeof(TEntity).Name);
+            cleanup();
         }
     }
 
@@ -603,6 +589,61 @@ public static class DbSetObserveExtensions
     static IQueryable<TEntity> ApplyConfigure<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(DbSet<TEntity> dbSet, Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
         where TEntity : class =>
         configure is not null ? configure(dbSet) : dbSet;
+
+    /// <summary>
+    /// The caller's filter, query configuration and query-context option for one observation.
+    /// </summary>
+    /// <typeparam name="TEntity">Type of entity observed.</typeparam>
+    /// <param name="Filter">The filter expression.</param>
+    /// <param name="Configure">Optional function to configure the query.</param>
+    /// <param name="IgnoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    internal sealed record ObservationRequest<TEntity>(
+        Expression<Func<TEntity, bool>> Filter,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? Configure,
+        bool IgnoreQueryContext)
+        where TEntity : class;
+
+    /// <summary>
+    /// Runs the observation's query against a fresh DbContext scope.
+    /// </summary>
+    /// <typeparam name="TEntity">Type of entity observed.</typeparam>
+    internal sealed class FreshQuery<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>
+        where TEntity : class
+    {
+        /// <summary>Gets the factory for the fresh scope.</summary>
+        public required IServiceScopeFactory ScopeFactory { get; init; }
+
+        /// <summary>Gets the type of the DbContext to resolve.</summary>
+        public required Type DbContextType { get; init; }
+
+        /// <summary>Gets the observed entity type.</summary>
+        public required IEntityType EntityType { get; init; }
+
+        /// <summary>Gets the observation request.</summary>
+        public required ObservationRequest<TEntity> Request { get; init; }
+
+        /// <summary>Gets the client query context that receives the total count.</summary>
+        public required QueryContext QueryContext { get; init; }
+
+        /// <summary>Gets the query context applied for sorting and paging.</summary>
+        public required QueryContext ObservationContext { get; init; }
+
+        /// <summary>Executes the query in a fresh scope.</summary>
+        /// <returns>The matching entities.</returns>
+        public List<TEntity> Execute()
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(DbContextType);
+            var freshDbSet = EntityType.HasSharedClrType ? freshDbContext.Set<TEntity>(EntityType.Name) : freshDbContext.Set<TEntity>();
+            var baseQuery = ApplyConfigure(freshDbSet, Request.Configure).Where(Request.Filter);
+            if (!Request.IgnoreQueryContext)
+            {
+                QueryContext.TotalItems = baseQuery.Count();
+            }
+
+            return BuildQuery(baseQuery, ObservationContext, EntityType).ToList();
+        }
+    }
 
     /// <summary>
     /// Internal class used as an identifying type for logging purpose.
