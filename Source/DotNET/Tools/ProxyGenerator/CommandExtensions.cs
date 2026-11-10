@@ -87,36 +87,15 @@ public static class CommandExtensions
             property.CollectTypesInvolved(additionalTypesInvolved);
         }
 
-        // Collect types involved from response model properties
-        if (responseModel.Type?.IsKnownType() == false)
-        {
-            foreach (var responseProperty in responseModel.Type.GetPropertyDescriptors())
-            {
-                responseProperty.CollectTypesInvolved(additionalTypesInvolved);
-            }
-        }
+        CollectResponseTypesInvolved(responseModel, additionalTypesInvolved);
 
         imports = [.. imports.DistinctBy(_ => _.Type)];
 
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
-        // Fall back to extracting from the method's command parameter only when no rules were supplied at all. A
-        // caller that supplied an empty set - a model-bound command whose validator holds no client-projectable rule
-        // - means exactly that; treating empty as "not supplied" here would re-extract from GetCommandType, which for
-        // a model-bound Handle(target) resolves to the provided-value type rather than the command.
-        var rules = validationRules;
-        if (rules is null)
-        {
-            var commandType = method.GetCommandType();
-            rules = commandType is not null
-                ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
-                : [];
-        }
-
-        // Check for TreatWarningsAsErrors attribute
-        var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
-                                     (method.DeclaringType?.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ?? false);
+        var rules = validationRules ?? ExtractCommandValidationRules(method);
+        var treatWarningsAsErrors = HasTreatWarningsAsErrors(method);
 
         // Extract roles from authorization attributes on the method and its declaring type
         var roles = method.GetRoles().ToArray();
@@ -140,4 +119,45 @@ public static class CommandExtensions
             SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
         };
     }
+
+    /// <summary>
+    /// Collect types involved from response model properties.
+    /// </summary>
+    /// <param name="responseModel">The response model.</param>
+    /// <param name="additionalTypesInvolved">The collection to add the types to.</param>
+    static void CollectResponseTypesInvolved(ModelDescriptor responseModel, List<Type> additionalTypesInvolved)
+    {
+        if (responseModel.Type?.IsKnownType() != false)
+        {
+            return;
+        }
+
+        foreach (var responseProperty in responseModel.Type.GetPropertyDescriptors())
+        {
+            responseProperty.CollectTypesInvolved(additionalTypesInvolved);
+        }
+    }
+
+    /// <summary>
+    /// Fall back to extracting from the method's command parameter only when no rules were supplied at all. A
+    /// caller that supplied an empty set - a model-bound command whose validator holds no client-projectable rule
+    /// - means exactly that; treating empty as "not supplied" would re-extract from GetCommandType, which for
+    /// a model-bound Handle(target) resolves to the provided-value type rather than the command.
+    /// </summary>
+    /// <param name="method">The command method.</param>
+    /// <returns>The extracted validation rules.</returns>
+    static IEnumerable<PropertyValidationDescriptor> ExtractCommandValidationRules(MethodInfo method)
+    {
+        var commandType = method.GetCommandType();
+        return commandType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
+            : [];
+    }
+
+    static bool HasTreatWarningsAsErrors(MethodInfo method) =>
+        HasTreatWarningsAsErrorsAttribute(method.GetCustomAttributesData()) ||
+        (method.DeclaringType is not null && HasTreatWarningsAsErrorsAttribute(method.DeclaringType.GetCustomAttributesData()));
+
+    static bool HasTreatWarningsAsErrorsAttribute(IEnumerable<CustomAttributeData> attributes) =>
+        attributes.Any(_ => _.AttributeType.Name == "TreatWarningsAsErrorsAttribute");
 }
