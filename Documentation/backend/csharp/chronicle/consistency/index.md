@@ -19,7 +19,7 @@ When two requests read the same state, both decide it is fine, and both write, a
 | The caller supplies the revision it saw | An explicit scope |
 | A rare violation to be acceptable | The default append, and a reactor that repairs |
 
-Under **Off**, which is the default, nothing changes: an injected read model is a plain read, it returns a snapshot, and it guards nothing. The next major version of Arc makes `On` the default. See [The default changes in the next major version](#the-default-changes-in-the-next-major-version).
+A project that does not set `<CratisReadProtection>` is `Off`, and so is a command that declares no mode. Nothing guards a read until you choose a mode. Under **Off**, which is the default, nothing changes: an injected read model is a plain read, it returns a snapshot, and it guards nothing. The next major version of Arc makes `On` the default. See [The default changes in the next major version](#the-default-changes-in-the-next-major-version).
 
 ## Three concepts
 
