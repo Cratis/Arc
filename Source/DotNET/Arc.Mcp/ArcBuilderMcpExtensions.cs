@@ -37,6 +37,7 @@ public static class ArcBuilderMcpExtensions
         // lifetime, and the ceiling must be built exactly once so every part of MCP sees the same frozen tools.
         services.Replace(ServiceDescriptor.Singleton<McpToolCeilingFactory, McpToolCeilingFactory>());
         services.Replace(ServiceDescriptor.Singleton(provider => provider.GetRequiredService<McpToolCeilingFactory>().Ceiling));
+        services.Replace(ServiceDescriptor.Singleton<McpCallAudit, McpCallAudit>());
         services.Replace(ServiceDescriptor.Singleton<McpAdmission, McpAdmission>());
         services.Replace(ServiceDescriptor.Singleton<McpRefusalWriter, McpRefusalWriter>());
         services.Replace(ServiceDescriptor.Singleton<McpToolDispatcher, McpToolDispatcher>());

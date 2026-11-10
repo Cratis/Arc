@@ -18,7 +18,8 @@ namespace Cratis.Arc.Mcp;
 /// <param name="options">The MCP options.</param>
 /// <param name="ceiling">The factory of the tool ceiling.</param>
 /// <param name="logger">The admission diagnostics logger.</param>
-internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingFactory ceiling, ILogger<McpAdmission> logger)
+/// <param name="audit">The identifier-only call audit, when installed.</param>
+internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingFactory ceiling, ILogger<McpAdmission> logger, McpCallAudit? audit = null)
 {
     const string ToolsCall = "tools/call";
 
@@ -64,12 +65,14 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         var (refusal, tool) = Inspect(body, caller);
         if (refusal is not null)
         {
+            RecordScopeRefusal(tool, caller);
             await refusal(context, settings);
             return;
         }
 
         if (!await AllowsTool(tool, caller, context))
         {
+            audit?.Record(tool!, caller, "not_allowed");
             await McpChallenge.Write(context, StatusCodes.Status403Forbidden, "forbidden");
             return;
         }
@@ -77,6 +80,14 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
         context.Request.Body = new MemoryStream(body, writable: false);
         context.Request.ContentLength = body.Length;
         await next(context);
+    }
+
+    void RecordScopeRefusal(McpToolDescriptor? tool, McpCaller caller)
+    {
+        if (tool is not null)
+        {
+            audit?.Record(tool, caller, "insufficient_scope");
+        }
     }
 
     static ValueTask<bool> AllowsTool(McpToolDescriptor? tool, McpCaller caller, HttpContext context) =>
@@ -180,7 +191,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCeilingF
                 context,
                 StatusCodes.Status403Forbidden,
                 "insufficient_scope",
-                McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), null);
+                McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), tool);
         }
     }
 

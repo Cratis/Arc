@@ -63,7 +63,8 @@ public class when_a_server_tool_takes_a_ceiling_name : a_ceiling_context
         var options = Options.Create(mcp);
         var factory = new McpToolCeilingFactory(new McpExposure().Expose<DeclaredCommand>("declared_command", "One."), options, _commands, _queries, []);
         var operations = new McpOperations(Substitute.For<ICommandPipeline>(), Substitute.For<IQueryPipeline>(), _queries, Options.Create(new ArcOptions()));
-        var dispatcher = new McpToolDispatcher(Substitute.For<IHttpContextAccessor>(), factory, operations, NullLogger<McpToolDispatcher>.Instance);
+        var audit = new McpCallAudit(NullLogger<McpCallAudit>.Instance, Substitute.For<Cratis.Execution.ICorrelationIdAccessor>());
+        var dispatcher = new McpToolDispatcher(Substitute.For<IHttpContextAccessor>(), factory, operations, NullLogger<McpToolDispatcher>.Instance, audit);
         var server = new McpServerOptions
         {
             ToolCollection = missingCollection ? null : serverToolName is null ? [] :

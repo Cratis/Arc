@@ -22,11 +22,13 @@ namespace Cratis.Arc.Mcp;
 /// <param name="ceiling">The factory of the tool ceiling.</param>
 /// <param name="operations">Runs commands, queries and curated tools.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="audit">The identifier-only call audit.</param>
 internal sealed class McpToolDispatcher(
     IHttpContextAccessor requests,
     McpToolCeilingFactory ceiling,
     McpOperations operations,
-    ILogger<McpToolDispatcher> logger)
+    ILogger<McpToolDispatcher> logger,
+    McpCallAudit audit)
 {
     /// <summary>
     /// The message for arguments that do not fit the tool.
@@ -72,47 +74,63 @@ internal sealed class McpToolDispatcher(
 
         if (!caller.HoldsScopesFor(tool))
         {
-            return Error(InsufficientScope);
+            return Complete(tool, caller, "insufficient_scope", Error(InsufficientScope));
         }
 
         if (!await McpToolAuthorizers.Allow(tool, caller, context!.RequestServices, cancellationToken))
         {
-            return Error(NotAllowed);
+            return Complete(tool, caller, "not_allowed", Error(NotAllowed));
         }
 
         var call = new McpOperationCall(tool, caller.Capability, arguments?.AsReadOnly() ?? new Dictionary<string, JsonElement>().AsReadOnly(), context!.RequestServices, cancellationToken)
         {
             Request = request
         };
+        return await Run(call, caller);
+    }
 
+    async ValueTask<CallToolResult> Run(McpOperationCall call, McpCaller caller)
+    {
+        var tool = call.Tool;
         // The correlation id is already set for this request by Arc's startup middleware, which runs for every request, the
         // same as REST. Receipt is captured here the way the REST endpoints do before they enter a pipeline.
-        using var receipt = OperationContextScope.Begin(context!.RequestServices);
+        using var receipt = OperationContextScope.Begin(call.Services);
         try
         {
             var outcome = await operations.Run(call);
             if (!IsWellFormed(tool, outcome))
             {
                 logger.ToolResultMalformed(tool.Name);
-                return Error(Failed);
+                return Complete(tool, caller, "malformed", Error(Failed));
             }
 
-            return new CallToolResult
+            return Complete(tool, caller, outcome.IsError ? "failed" : "succeeded", new CallToolResult
             {
                 Content = [new TextContentBlock { Text = outcome.Text }, .. (outcome.ResourceLinks ?? []).Select(ToBlock)],
                 StructuredContent = outcome.StructuredContent?.Clone(),
                 IsError = outcome.IsError
-            };
+            });
         }
         catch (McpArgumentsInvalid)
         {
-            return Error(InvalidArguments);
+            return Complete(tool, caller, "invalid_arguments", Error(InvalidArguments));
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            audit.Record(tool, caller, "error");
+            throw;
+        }
+        catch (Exception ex)
         {
             logger.ToolFailed(tool.Name, ex);
-            return Error(Failed);
+            return Complete(tool, caller, "error", Error(Failed));
         }
+    }
+
+    CallToolResult Complete(McpToolDescriptor tool, McpCaller caller, string outcome, CallToolResult result)
+    {
+        audit.Record(tool, caller, outcome);
+        return result;
     }
 
     static bool IsWellFormed(McpToolDescriptor tool, McpToolResult outcome)
