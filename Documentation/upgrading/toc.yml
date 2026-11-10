@@ -6,3 +6,5 @@
   href: generated-values.mdx
 - name: Read protection default
   href: read-protection-default.md
+- name: Migrate Arc MCP
+  href: mcp-gated-by-default.md

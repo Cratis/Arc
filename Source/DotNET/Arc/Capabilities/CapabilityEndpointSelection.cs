@@ -43,11 +43,13 @@ internal sealed class CapabilityEndpointSelection(IOptions<CapabilitiesOptions> 
     {
         Validate();
         var selector = options.Value.GatedEndpoints;
+        var endpoints = sources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Distinct().ToArray();
         if (selector is null)
         {
+            // The whole port is gated; only the exact routes exempted by trusted hosting code are outside.
+            Freeze(endpoints.Where(CapabilityGateExemption.Exempts));
             return;
         }
-        var endpoints = sources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().Distinct().ToArray();
         if (selector.RoutePatterns.Exists(pattern => !endpoints.Any(endpoint => string.Equals(endpoint.RoutePattern.RawText, pattern, StringComparison.Ordinal))) ||
             selector.MetadataTypes.Exists(type => !endpoints.Any(endpoint => endpoint.Metadata.Any(type.IsInstanceOfType))))
         {
@@ -56,7 +58,7 @@ internal sealed class CapabilityEndpointSelection(IOptions<CapabilitiesOptions> 
         var selected = endpoints.Where(endpoint =>
             selector.RoutePatterns.Contains(endpoint.RoutePattern.RawText, StringComparer.Ordinal) ||
             selector.MetadataTypes.Exists(type => endpoint.Metadata.Any(type.IsInstanceOfType))).ToHashSet();
-        Volatile.Write(ref _outside, endpoints.Where(endpoint => !selected.Contains(endpoint)).Cast<Endpoint>().ToFrozenSet<Endpoint>(ReferenceEqualityComparer.Instance));
+        Freeze(endpoints.Where(endpoint => !selected.Contains(endpoint)));
     }
 
     /// <summary>Tests positive startup knowledge; unknown endpoints always remain gated.</summary>
@@ -78,4 +80,7 @@ internal sealed class CapabilityEndpointSelection(IOptions<CapabilitiesOptions> 
         }
         return false;
     }
+
+    void Freeze(IEnumerable<RouteEndpoint> outside) =>
+        Volatile.Write(ref _outside, outside.Cast<Endpoint>().ToFrozenSet<Endpoint>(ReferenceEqualityComparer.Instance));
 }

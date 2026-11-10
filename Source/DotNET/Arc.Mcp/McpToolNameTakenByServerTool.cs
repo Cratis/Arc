@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
-/// The exception thrown when a tool registered directly on the MCP server has the name of a tool in the ceiling.
+/// The exception thrown when a tool registered directly on the MCP server has the name of a tool in the catalog.
 /// </summary>
 /// <param name="name">The name both tools share.</param>
 public class McpToolNameTakenByServerTool(string name)

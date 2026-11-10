@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Mcp.for_McpToolCeiling.given;
+using Cratis.Arc.Mcp.for_McpToolCatalog.given;
 using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.Mcp.for_McpToolMapper.given;
 
-public class a_mapper_context : a_ceiling_context
+public class a_mapper_context : a_catalog_context
 {
     protected McpToolDescriptor Map(McpExposureDeclaration declaration) =>
         McpToolMapper.Map(declaration, _options, _handlers.Values.ToArray(), _performers);
