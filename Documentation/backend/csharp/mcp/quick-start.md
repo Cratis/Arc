@@ -47,7 +47,7 @@ builder.AddCratisArc(
     configureBuilder: arc => arc
         .WithCapabilities(o => o.GatedEndpoints = new CapabilityEndpointSelector())
         .WithPersonalAccessTokens(
-            new PatOptions("notes") { AllowedScopes = ["notes:read", "notes:write"] },
+            new PatOptions("stage-notes") { AllowedScopes = ["notes:read", "notes:write"] },
             callers => callers
                 .ForResource("https://notes.example.test", "notes", "production")
                 .UsePersonDirectory<PersonDirectory>()
@@ -67,6 +67,7 @@ app.MapCratisArcMcp();
 What this sets:
 
 - `ApplicationName = "notes"` makes the read scope `notes:read` and the write scope `notes:write`.
+- The `PatOptions` resource key must be `direct`, `studio` or `stage-<app>` (lowercase letters, digits and `-`); any other key fails at startup.
 - `PatOptions.AllowedScopes` must list both scopes. A PAT can only hold scopes on that list, so without them no token can call the tools.
 - The endpoint is `/mcp` on the capabilities port. Bind both the default listener and a listener on that port; see [Turn it on](advanced.md#turn-it-on).
 

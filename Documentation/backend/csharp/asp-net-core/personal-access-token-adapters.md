@@ -66,7 +66,7 @@ using Cratis.Arc.PersonalAccessTokens;
 
 arc.WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector()
         .ForRoutePattern("/mcp"))
-    .WithPersonalAccessTokens(new PatOptions("example-api") { AllowedScopes = ["content:write"] }, callers => callers
+    .WithPersonalAccessTokens(new PatOptions("stage-example-api") { AllowedScopes = ["content:write"] }, callers => callers
         .ForResource("https://api.example.test", "example-api", "sample")
         .UsePersonDirectory<PersonDirectory>()
         .UseSignedForwardedIdentityV2(v2 => v2

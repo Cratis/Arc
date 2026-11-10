@@ -62,6 +62,7 @@ Any other credential kind is treated like no caller (401).
 |---|---|
 | `[RequiresScope("...")]` (`Cratis.Arc.Authorization`) | Extra required scope. Repeatable; all must be held. |
 | `[RequiresApproval]` | Makes a command ineligible for MCP. |
+| `PatOptions.ResourceKey` | `direct`, `studio` or `stage-<app>` (`<app>`: 1–48 lowercase letters, digits or `-`, not starting or ending with `-`). Any other key throws at startup. |
 | `PatOptions.AllowedScopes` | Scopes a PAT may hold. Must include every MCP scope. |
 | `PatOptions.MaximumLifetime` | Default and maximum 90 days. |
 | `CapabilitiesOptions.GatedEndpoints` | Must be set. `WithMcp` adds the MCP endpoint to it. |

@@ -62,7 +62,7 @@ Add more required scopes with `[RequiresScope("notes:restricted-read")]` from `C
 A personal access token can only hold scopes listed in `PatOptions.AllowedScopes`. The list is empty by default, which allows none. It is an explicit, case-sensitive list: no `*`, and no scope with an `admin` or `approve` segment (segments are split on `:`, `.`, `/` and `-`). A tool that requires such a scope cannot be called with a personal access token at all.
 
 ```csharp
-new PatOptions("notes") { AllowedScopes = ["notes:read", "notes:write"] }
+new PatOptions("stage-notes") { AllowedScopes = ["notes:read", "notes:write"] }
 ```
 
 Every scope an MCP tool requires, including `[RequiresScope]` extras, must be on this list for a PAT to be able to call the tool. This is the most common setup mistake; see [Troubleshooting](troubleshooting.md).
