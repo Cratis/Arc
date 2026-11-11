@@ -16,6 +16,7 @@ public class when_the_event_store_is_not_resolved : Specification
     void Establish()
     {
         _client = Substitute.For<IChronicleClient>();
+        _client.Options.Returns(new ChronicleOptions());
         _services = new ServiceCollection()
             .AddOptions()
             .AddSingleton(_client)

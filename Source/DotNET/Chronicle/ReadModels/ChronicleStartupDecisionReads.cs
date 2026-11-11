@@ -29,15 +29,21 @@ internal sealed class ChronicleStartupDecisionReads(IServiceProvider services, F
     public async Task<IDecisionReads?> Get(CancellationToken cancellationToken)
     {
         var options = clientOptions(services);
-        if (options?.AutoDiscoverAndRegister != true || string.IsNullOrWhiteSpace(options.EventStore))
+        var client = services.GetService<IChronicleClient>();
+        if (options?.AutoDiscoverAndRegister != true || client is null)
         {
-            // Without a resolved event store name, asking the client would register an unnamed event store.
             return null;
         }
 
-        var client = services.GetService<IChronicleClient>();
-        if (client is null)
+        if (string.IsNullOrWhiteSpace(options.EventStore) && client.Options is ChronicleClientOptions effective)
         {
+            // Hosts that configure Chronicle through derived options (such as ASP.NET Core) hand them to the client.
+            options = effective;
+        }
+
+        if (string.IsNullOrWhiteSpace(options.EventStore))
+        {
+            // Without a resolved event store name, asking the client would register an unnamed event store.
             return null;
         }
 
