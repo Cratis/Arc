@@ -3,6 +3,7 @@ name: Package Graph Verification
 # Pull requests run this only when they change what gets packed: project files, build and package props, the
 # generators, analyzers and code fixes the packed consumers exercise, the meta-packages and the embedded viewer.
 # Every merge to main runs it in full, so a package-graph break from any other change shows up right after it lands.
+# Called from pull-requests.yml; the PR triggers and path filters live there.
 on:
   push:
     branches: [main]
@@ -14,34 +15,14 @@ on:
       - "stylecop.json"
       - "Arc.slnx"
       - ".github/workflows/package-graph-verification.yml"
-  pull_request:
-    # Draft PRs wait until they are marked ready for review.
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
-    paths:
-      - "Source/DotNET/**/*.csproj"
-      - "Source/DotNET/**/*.props"
-      - "Source/DotNET/**/*.targets"
-      - "Source/DotNET/*Generators*/**"
-      - "Source/DotNET/*CodeAnalysis*/**"
-      # Compiled into the generators and analyzers through linked <Compile> items.
-      - "Source/DotNET/Shared/**"
-      - "Source/DotNET/Cratis/**"
-      - "Source/DotNET/Cratis.Testing/**"
-      - "Source/DotNET/Screenplay.Embedded/**"
-      - "Directory.Build.props"
-      - "Directory.Packages*.props"
-      - "global.json"
-      - "stylecop.json"
-      - "Arc.slnx"
-      - ".github/workflows/package-graph-verification.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: package-graph-verification-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

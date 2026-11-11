@@ -2,21 +2,12 @@
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
 name: Workflow Lint
 
+# Called from pull-requests.yml; the PR triggers and path filters live there.
 on:
-  pull_request:
-    paths:
-      - .github/workflows/**
-      - .github/actions/**
-      - .github/actionlint.yaml
-      - .github/actionlint.yml
-      - scripts/chronicle-published-inputs.test.mjs
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   lint:
