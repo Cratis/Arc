@@ -52,6 +52,35 @@ permissions:
   contents: read
 
 jobs:
+  # The viewer is embedded during compilation, so each build leg still builds it below.
+  # Its typecheck, tests and bundle validation can run once alongside the .NET builds.
+  embedded-viewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+
+      - name: Build and test embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run typecheck
+          npm test
+          npm run build
+          node --test ../../../scripts/viewer-bundle.test.mjs
+
   # Two legs: the spec projects compile for, and the specs run on, net11.0 and net10.0 (the two frameworks the libraries
   # ship for). Both legs build the libraries for both frameworks, so the shipped packages are checked on every leg.
   dotnet-build:
@@ -123,14 +152,12 @@ jobs:
       - name: Yarn install
         run: yarn install --immutable
 
-      - name: Build and test embedded event-model viewer
+      # Screenplay.Embedded embeds wwwroot at compile time; keep the viewer build before .NET compilation.
+      - name: Build embedded event-model viewer
         working-directory: Source/DotNET/Screenplay.Embedded
         run: |
           npm ci --workspaces=false
-          npm run typecheck
-          npm test
           npm run build
-          node --test ../../../scripts/viewer-bundle.test.mjs
 
       # Each leg's spec jobs run on one framework, so the spec projects and their fixtures are compiled for that
       # framework only (Directory.Build.props). The libraries still build for net10.0 and net11.0.
@@ -408,7 +435,7 @@ jobs:
   # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
-    needs: [dotnet-build, specs, screenplay-end-to-end, proxy-specs]
+    needs: [embedded-viewer, dotnet-build, specs, screenplay-end-to-end, proxy-specs]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
