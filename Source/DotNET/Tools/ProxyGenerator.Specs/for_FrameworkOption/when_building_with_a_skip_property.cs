@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Xml.Linq;
 using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
-namespace Cratis.Arc.ProxyGenerator.for_SkipProperty;
+namespace Cratis.Arc.ProxyGenerator.for_FrameworkOption;
 
 public class when_building_with_a_skip_property : Specification
 {
