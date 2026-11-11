@@ -9,6 +9,10 @@ description: Cratis Arc terms define commands, queries, validation, identity, te
 
 Cratis Arc is an opinionated CQRS application framework with commands, queries, validation, authorization and generated TypeScript proxies. Backend implementations exist for C#, Kotlin and Java, TypeScript, and Go, with different capability and generation coverage.
 
+
+
+
+
 Arc is implemented for more than one backend language, and the same idea
 sometimes carries a different spelling in each. This page defines the idea. Where
 the spellings differ it names them, so a term you meet in one implementation is
