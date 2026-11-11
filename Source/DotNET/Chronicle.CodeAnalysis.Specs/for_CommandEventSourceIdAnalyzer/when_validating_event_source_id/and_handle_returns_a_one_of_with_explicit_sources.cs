@@ -24,6 +24,8 @@ public class and_handle_returns_a_one_of_with_explicit_sources
     [InlineData("OneOf<Fact, ValidationResult>")]
     [InlineData("OneOf<ValidationResult, ValidationResult>")]
     [InlineData("Task<OneOf<EventForEventSourceId, Fact>>")]
+    [InlineData("OneOf<EventForEventSourceId, ValidationResult, Fact>")]
+    [InlineData("OneOf<Result<Fact, ValidationResult>, EventForEventSourceId>")]
     public Task should_still_report_when_an_arm_is_not_an_event_source(string responseType) => AnalyzerVerifier<CommandEventSourceIdAnalyzer>.VerifyAnalyzerAsync(
         Source(responseType), new ExpectedDiagnostic("ARCCHR0002", DiagnosticSeverity.Warning, "First", "Second"));
 
