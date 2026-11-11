@@ -5,7 +5,7 @@
         <!-- Set as the plural so that the multi targeting the repository defaults to in Release is really replaced
              rather than only overridden for the inner build, which would have restore resolve this application for
              frameworks the testing packages it now references do not support. -->
-        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks>net11.0</TargetFrameworks>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -14,7 +14,7 @@
         <NoWarn>$(NoWarn);SA0001;SA1600;SA1649;SA1402;MA0048</NoWarn>
         <IsPackable>false</IsPackable>
         <CratisEmbeddedScreenplayEnabled Condition="'$(Configuration)' != 'Debug'">false</CratisEmbeddedScreenplayEnabled>
-        <CratisEmbeddedScreenplayTaskAssembly>$(MSBuildThisFileDirectory)../../Source/DotNET/Tools/Screenplay.Embedded.Build/bin/$(Configuration)/$(TargetFramework)/Cratis.Arc.Screenplay.Embedded.Build.dll</CratisEmbeddedScreenplayTaskAssembly>
+        <CratisEmbeddedScreenplayTaskAssembly>$(MSBuildThisFileDirectory)../../Source/DotNET/Tools/Screenplay.Embedded.Build/bin/$(Configuration)/net10.0/Cratis.Arc.Screenplay.Embedded.Build.dll</CratisEmbeddedScreenplayTaskAssembly>
         <!-- These scenarios are source-analysis fixtures, not runnable tests. -->
         <IsTestProject>false</IsTestProject>
     </PropertyGroup>

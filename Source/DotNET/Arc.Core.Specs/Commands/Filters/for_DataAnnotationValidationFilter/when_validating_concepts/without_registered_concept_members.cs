@@ -13,7 +13,9 @@ public class without_registered_concept_members : given.annotated_concepts
 
     async Task Because()
     {
+#pragma warning disable CA1849, MA0042 // TryValidateObjectAsync exists on net11.0 only.
         Validator.TryValidateObject(_context.Command, new ValidationContext(_context.Command), _expected, true);
+#pragma warning restore CA1849, MA0042
         _result = await _filter.OnExecution(_context);
     }
 

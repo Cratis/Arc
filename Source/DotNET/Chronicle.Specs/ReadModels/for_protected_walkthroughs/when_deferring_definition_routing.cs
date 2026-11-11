@@ -43,10 +43,10 @@ public class when_deferring_definition_routing : given.a_protected_read
             {
                 var conditions = _unit.GetAppendConditions();
                 conditions.Count.ShouldEqual(2);
-                var read = conditions.Single(condition => condition.EventTypes.Any());
+                var read = conditions.Single(condition => condition.EventTypes.Count > 0);
                 read.Label.ShouldEqual("book");
                 read.EventSourceId!.Value.ShouldEqual(_book.Value);
-                var definitionStream = conditions.Single(condition => !condition.EventTypes.Any());
+                var definitionStream = conditions.Single(condition => condition.EventTypes.Count == 0);
                 definitionStream.Label.ShouldEqual("book");
                 definitionStream.EventSourceId!.Value.ShouldEqual(_book.Value);
                 definitionStream.EventStreamType!.Value.ShouldEqual("loans");

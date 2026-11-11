@@ -14,12 +14,14 @@ public class with_invalid_collection_element : given.a_body_query_request_reader
     [InlineData("[1,null]")]
     async Task should_reject_invalid_elements_with_the_named_scalar_error_shape(string json)
     {
+        using var document = JsonDocument.Parse(json);
+        var element = document.RootElement.Clone();
         _performer.Parameters.Returns(new QueryParameters([new QueryParameter("ids", typeof(int[]))]));
         _performer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Numbers.ByIds"));
         _context.ReadBodyAsJson(typeof(QueryRequestEnvelope), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<object?>(new QueryRequestEnvelope
             {
-                Arguments = new Dictionary<string, JsonElement> { ["ids"] = JsonDocument.Parse(json).RootElement }
+                Arguments = new Dictionary<string, JsonElement> { ["ids"] = element }
             }));
 
         var error = await Catch.Exception(() => _reader.Read(_context, _performer));

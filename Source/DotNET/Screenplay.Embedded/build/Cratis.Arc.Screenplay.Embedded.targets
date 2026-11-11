@@ -22,9 +22,8 @@
              A build that needs to point at a task built elsewhere - a specification, a fixture consuming the
              package from the repository it is built in - overrides CratisEmbeddedScreenplayTaskAssembly. -->
         <CratisEmbeddedScreenplayToolsPath Condition="'$(CratisEmbeddedScreenplayToolsPath)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', 'tools'))</CratisEmbeddedScreenplayToolsPath>
-        <CratisEmbeddedScreenplayTaskFramework>net8.0</CratisEmbeddedScreenplayTaskFramework>
-        <CratisEmbeddedScreenplayTaskFramework Condition="$([System.Environment]::Version.Major) &gt;= 9 and Exists('$(CratisEmbeddedScreenplayToolsPath)net9.0/Cratis.Arc.Screenplay.Embedded.Build.dll')">net9.0</CratisEmbeddedScreenplayTaskFramework>
-        <CratisEmbeddedScreenplayTaskFramework Condition="$([System.Environment]::Version.Major) &gt;= 10 and Exists('$(CratisEmbeddedScreenplayToolsPath)net10.0/Cratis.Arc.Screenplay.Embedded.Build.dll')">net10.0</CratisEmbeddedScreenplayTaskFramework>
+        <!-- One net10.0 task serves every supported MSBuild runtime (10 and 11). -->
+        <CratisEmbeddedScreenplayTaskFramework>net10.0</CratisEmbeddedScreenplayTaskFramework>
         <CratisEmbeddedScreenplayTaskAssembly Condition="'$(CratisEmbeddedScreenplayTaskAssembly)' == ''">$([MSBuild]::NormalizePath('$(CratisEmbeddedScreenplayToolsPath)', '$(CratisEmbeddedScreenplayTaskFramework)', 'Cratis.Arc.Screenplay.Embedded.Build.dll'))</CratisEmbeddedScreenplayTaskAssembly>
 
     </PropertyGroup>

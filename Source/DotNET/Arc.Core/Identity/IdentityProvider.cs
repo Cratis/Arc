@@ -191,5 +191,9 @@ public class IdentityProvider(
     /// </summary>
     /// <typeparam name="T">The type to get the contract for.</typeparam>
     /// <returns>The <see cref="JsonTypeInfo{T}"/>.</returns>
+#if NET11_0_OR_GREATER
+    JsonTypeInfo<T> TypeInfoFor<T>() => _serializerOptions.GetTypeInfo<T>();
+#else
     JsonTypeInfo<T> TypeInfoFor<T>() => (JsonTypeInfo<T>)_serializerOptions.GetTypeInfo(typeof(T));
+#endif
 }

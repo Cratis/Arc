@@ -7,7 +7,7 @@
         <!-- Set as the plural so that the multi targeting the repository defaults to in Release is really replaced
              rather than only overridden for the inner build, which would restore this for frameworks the workspace
              packages do not support. This runs on one framework because it is a check rather than something shipped. -->
-        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks>net11.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 

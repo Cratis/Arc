@@ -20,7 +20,7 @@
     <PackageVersion Include="Cratis.Chronicle" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.144.0" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.33.1" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.33.1" />
     <PackageVersion Include="Cratis.Screenplay" Version="6.0.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.20.0" />
@@ -123,7 +123,8 @@
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.5.1" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.win-arm64" Version="7.5.1" />
   </ItemGroup>
-  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET8-9.props" Condition=" '$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0' " />
-  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET8.props" Condition=" '$(TargetFramework)' == 'net8.0' " />
-  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET9.props" Condition=" '$(TargetFramework)' == 'net9.0' " />
+  <!-- The net11.0 pins apply to everything except net10.0 and netstandard2.0 (the condition sits on the item group inside the file, because an Import
+       condition is evaluated before a single-framework project has set its TargetFramework). The netstandard2.0 analyzers and generators load into
+       the consumer's compiler host, so they must not reference System.Collections.Immutable or System.Reflection.Metadata 11, or net10 SDK consumers break. -->
+  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET11.props" />
 </Project>

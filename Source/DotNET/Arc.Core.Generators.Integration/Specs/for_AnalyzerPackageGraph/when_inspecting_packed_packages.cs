@@ -12,7 +12,7 @@ namespace Cratis.Arc.Core.Generators.Integration.Specs.for_AnalyzerPackageGraph;
 [Collection(PackageGraphCollection.Name)]
 public class when_inspecting_packed_packages(PackageGraphFixture fixture) : Specification
 {
-    static readonly string[] _runtimeFrameworks = ["net8.0", "net9.0", "net10.0"];
+    static readonly string[] _runtimeFrameworks = ["net10.0", "net11.0"];
     static readonly string[] _codeAnalysisFrameworks = [".NETStandard2.0"];
 
     readonly PackageGraphFixture _fixture = fixture;

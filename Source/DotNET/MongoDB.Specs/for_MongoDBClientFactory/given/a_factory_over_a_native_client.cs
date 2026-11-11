@@ -25,8 +25,7 @@ public class a_factory_over_a_native_client : Specification
 
     protected static async Task CompleteWithinDeadline(Task task)
     {
-        var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10)));
-        completed.ShouldBeSame(task);
+        (await SpecTasks.CompletesWithin(task, TimeSpan.FromSeconds(10))).ShouldBeTrue();
         await task;
     }
 

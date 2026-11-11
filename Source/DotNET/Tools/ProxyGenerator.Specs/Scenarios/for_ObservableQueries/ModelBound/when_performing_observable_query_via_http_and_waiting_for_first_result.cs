@@ -45,5 +45,9 @@ public class when_performing_observable_query_via_http_and_waiting_for_first_res
     [Fact] void should_have_data() => _executionResult.RawJson.ShouldContain("\"data\"");
     [Fact] void should_have_waited_for_the_first_result() => GetDataName().ShouldEqual("Delayed Observable Item");
 
-    string GetDataName() => JsonDocument.Parse(_executionResult.RawJson).RootElement.GetProperty("data").GetProperty("name").GetString()!;
+    string GetDataName()
+    {
+        using var document = JsonDocument.Parse(_executionResult.RawJson);
+        return document.RootElement.GetProperty("data").GetProperty("name").GetString()!;
+    }
 }

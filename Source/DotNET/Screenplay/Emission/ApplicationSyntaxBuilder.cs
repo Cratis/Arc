@@ -182,7 +182,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             var built = sliceBuilder.Build(slice);
             if (SliceContent.IsEmpty(built))
             {
-                if (slice.OmittedReadModels.Any() || !slice.ReadModels.All(declaredReadModels.Contains) || omittedReferenceSlices.Contains((slice.Namespace, slice.Name)))
+                if (slice.OmittedReadModels.Count > 0 || !slice.ReadModels.All(declaredReadModels.Contains) || omittedReferenceSlices.Contains((slice.Namespace, slice.Name)))
                 {
                     diagnostics.Information(
                         ScreenplayDiagnosticCodes.EmptySlice,

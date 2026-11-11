@@ -2,13 +2,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <!--
         Runs the options binding parity matrix against the real ConfigurationBinder of every target framework Arc.Core ships.
-        The specs run on net10.0 only, so the net8.0 and net9.0 branches of the binder would otherwise never execute in CI.
+        The specs run on one framework per CI leg, so this harness is the one place both frameworks are compared in a single run.
         The scenarios are linked from Arc.Core.Specs; the stubs in Stubs.cs stand in for the specification framework.
         The assembly name is on the InternalsVisibleTo list of Arc.Core.
     -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <AssemblyName>Cratis.Arc.Core.Specs</AssemblyName>
         <RootNamespace>Cratis.Arc.OptionsBinding</RootNamespace>
         <IsPackable>false</IsPackable>

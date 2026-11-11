@@ -19,7 +19,6 @@ public class from_a_bytes_generation_strategy : a_generation_strategy
         AssertStrategy(line);
     }
 
-#if NET9_0_OR_GREATER
     [Theory]
     [InlineData("System.Security.Cryptography.RandomNumberGenerator.GetHexString(64, lowercase: true)", "generate bytes 32 hex")]
     [InlineData("System.Security.Cryptography.RandomNumberGenerator.GetHexString(32, lowercase: false)", "generate bytes 16 hex case upper")]
@@ -29,5 +28,4 @@ public class from_a_bytes_generation_strategy : a_generation_strategy
         Generate((Analyzed.SlicePath, Source(call)));
         AssertStrategy(line);
     }
-#endif
 }
