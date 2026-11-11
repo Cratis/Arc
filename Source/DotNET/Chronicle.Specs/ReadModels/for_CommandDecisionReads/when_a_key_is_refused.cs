@@ -8,6 +8,7 @@ using Cratis.Chronicle.ReadModels;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 
+[PerFactSpecificationLifecycle]
 public class when_a_key_is_refused : when_reading_a_stream.given.a_stream_reader
 {
     [Theory]

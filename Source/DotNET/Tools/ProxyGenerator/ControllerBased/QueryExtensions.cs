@@ -23,17 +23,7 @@ public static class QueryExtensions
     {
         var typesInvolved = new List<Type>();
         var arguments = method.GetParameterDescriptors();
-        var responseModel = ModelDescriptor.Empty;
-
-        if (method.ReturnType.IsAssignableTo<Task>() && method.ReturnType.IsGenericType)
-        {
-            var responseType = method.ReturnType.GetGenericArguments()[0];
-            responseModel = responseType.ToModelDescriptor();
-        }
-        else if (method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType)
-        {
-            responseModel = method.ReturnType.ToModelDescriptor();
-        }
+        var responseModel = ResolveResponseModel(method);
 
         if (!responseModel.Type.IsKnownType())
         {
@@ -68,71 +58,9 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
-        // Look for a type in the assembly whose properties match the method parameters
-        // Prefer types with "Query" in the name to avoid false matches
         var methodParams = method.GetParameters();
-        var matchingTypes = method.DeclaringType!.Assembly.GetTypes()
-            .Where(t =>
-            {
-                var properties = t.GetProperties();
-                if (properties.Length == 0 || properties.Length != methodParams.Length)
-                {
-                    return false;
-                }
-
-                // Check if all properties on the type correspond to method parameters
-                return properties.All(prop =>
-                    methodParams.Any(param =>
-                        param.Name.Equals(prop.Name, StringComparison.OrdinalIgnoreCase) &&
-                        param.ParameterType == prop.PropertyType));
-            })
-            .OrderByDescending(t => t.Name.Contains("Query", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        var matchingType = matchingTypes.FirstOrDefault();
-
-        // Matching CLR types need not agree on nullable-reference annotations. Only extract explicit rules
-        // from the DTO; the actual parameter's optionality governs inferred concept rules.
-        var explicitRules = matchingType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType.Assembly, matchingType, includeConceptRules: false, includeDataAnnotations: false).ToList()
-            : [];
-        var dataAnnotationsRules = matchingType is not null
-            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(matchingType).ToList()
-            : [];
-        var conceptRules = new List<PropertyValidationDescriptor>();
-
-        // Controller queries only infer concept rules when a matching argument DTO exists.
-        if (matchingType is not null)
-        {
-            foreach (var param in methodParams)
-            {
-                var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
-                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType.Assembly, param.ParameterType, isOptional);
-                if (rulesFromConcept.Count > 0)
-                {
-                    conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));
-                }
-            }
-        }
-
-        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
-
-        // Direct parameter annotations are a whole-DTO fallback, not a per-parameter addition.
-        if (validationRules.Count == 0)
-        {
-            foreach (var param in methodParams)
-            {
-                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
-                if (rules.Count > 0)
-                {
-                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
-                }
-            }
-        }
-
-        // Check for TreatWarningsAsErrors attribute
-        var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
-                                     (method.DeclaringType?.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ?? false);
+        var validationRules = ExtractValidationRules(method, methodParams, FindMatchingArgumentType(method, methodParams));
+        var treatWarningsAsErrors = HasTreatWarningsAsErrors(method);
 
         // Extract roles from authorization attributes on the method and its declaring type
         var roles = method.GetRoles().ToArray();
@@ -160,4 +88,104 @@ public static class QueryExtensions
             SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
         };
     }
+
+    static ModelDescriptor ResolveResponseModel(MethodInfo method)
+    {
+        if (method.ReturnType.IsAssignableTo<Task>() && method.ReturnType.IsGenericType)
+        {
+            return method.ReturnType.GetGenericArguments()[0].ToModelDescriptor();
+        }
+
+        return method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType
+            ? method.ReturnType.ToModelDescriptor()
+            : ModelDescriptor.Empty;
+    }
+
+    /// <summary>
+    /// Look for a type in the assembly whose properties match the method parameters.
+    /// Prefer types with "Query" in the name to avoid false matches.
+    /// </summary>
+    /// <param name="method">The query method.</param>
+    /// <param name="methodParams">The parameters of the method.</param>
+    /// <returns>The matching type, or <see langword="null"/> when there is none.</returns>
+    static Type? FindMatchingArgumentType(MethodInfo method, ParameterInfo[] methodParams) =>
+        method.DeclaringType!.Assembly.GetTypes()
+            .Where(_ => MatchesParameters(_, methodParams))
+            .OrderByDescending(_ => _.Name.Contains("Query", StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+
+    static bool MatchesParameters(Type type, ParameterInfo[] methodParams)
+    {
+        var properties = type.GetProperties();
+        if (properties.Length == 0 || properties.Length != methodParams.Length)
+        {
+            return false;
+        }
+
+        // Check if all properties on the type correspond to method parameters
+        return properties.All(prop =>
+            methodParams.Any(param =>
+                param.Name.Equals(prop.Name, StringComparison.OrdinalIgnoreCase) &&
+                param.ParameterType == prop.PropertyType));
+    }
+
+    static List<PropertyValidationDescriptor> ExtractValidationRules(MethodInfo method, ParameterInfo[] methodParams, Type? matchingType)
+    {
+        // Matching CLR types need not agree on nullable-reference annotations. Only extract explicit rules
+        // from the DTO; the actual parameter's optionality governs inferred concept rules.
+        var explicitRules = matchingType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, matchingType, includeConceptRules: false, includeDataAnnotations: false).ToList()
+            : [];
+        var dataAnnotationsRules = matchingType is not null
+            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(matchingType).ToList()
+            : [];
+
+        // Controller queries only infer concept rules when a matching argument DTO exists.
+        var conceptRules = matchingType is not null
+            ? ExtractConceptRules(method, methodParams)
+            : [];
+
+        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
+
+        // Direct parameter annotations are a whole-DTO fallback, not a per-parameter addition.
+        return validationRules.Count == 0 ? ExtractParameterAnnotationRules(methodParams) : validationRules;
+    }
+
+    static List<PropertyValidationDescriptor> ExtractConceptRules(MethodInfo method, ParameterInfo[] methodParams)
+    {
+        var conceptRules = new List<PropertyValidationDescriptor>();
+        foreach (var param in methodParams)
+        {
+            var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType!.Assembly, param.ParameterType, isOptional);
+            if (rulesFromConcept.Count > 0)
+            {
+                conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));
+            }
+        }
+
+        return conceptRules;
+    }
+
+    static List<PropertyValidationDescriptor> ExtractParameterAnnotationRules(ParameterInfo[] methodParams)
+    {
+        var validationRules = new List<PropertyValidationDescriptor>();
+        foreach (var param in methodParams)
+        {
+            var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+            if (rules.Count > 0)
+            {
+                validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+            }
+        }
+
+        return validationRules;
+    }
+
+    static bool HasTreatWarningsAsErrors(MethodInfo method) =>
+        HasTreatWarningsAsErrorsAttribute(method.GetCustomAttributesData()) ||
+        (method.DeclaringType is not null && HasTreatWarningsAsErrorsAttribute(method.DeclaringType.GetCustomAttributesData()));
+
+    static bool HasTreatWarningsAsErrorsAttribute(IEnumerable<CustomAttributeData> attributes) =>
+        attributes.Any(_ => _.AttributeType.Name == "TreatWarningsAsErrorsAttribute");
 }

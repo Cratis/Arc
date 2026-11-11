@@ -142,30 +142,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
     async Task<CommandExecutionResult<TResult>> InvokeCommandMethodViaProxyAsync<TResult>(object command, string commandClassName, string methodName)
     {
-        var commandAsDocument = JsonSerializer.SerializeToDocument(command, _jsonOptions);
-        var properties = new Dictionary<string, object>();
-        foreach (var prop in commandAsDocument.RootElement.EnumerateObject())
-        {
-            // Convert JsonElement to actual value
-            properties[prop.Name] = prop.Value.ValueKind switch
-            {
-                JsonValueKind.String => prop.Value.GetString()!,
-                JsonValueKind.Number => prop.Value.GetDouble(),
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.Null => null!,
-                JsonValueKind.Object => prop.Value.Deserialize<Dictionary<string, object>>(_jsonOptions)!,
-                JsonValueKind.Array => prop.Value.Deserialize<List<object>>(_jsonOptions)!,
-                _ => prop.Value.ToString()
-            };
-        }
-
-        // Set up properties on the command
-        var propAssignments = string.Concat(properties.Select(p =>
-        {
-            var jsonValue = JsonSerializer.Serialize(p.Value, _jsonOptions);
-            return $"__cmd.{p.Key} = {jsonValue};";
-        }));
+        var propAssignments = BuildCommandPropertyAssignments(command);
 
         // Create command instance and set properties, then invoke the specified method
         Runtime.Execute(Scripts.InvokeCommand(commandClassName, propAssignments, methodName));
@@ -183,31 +160,69 @@ public sealed class JavaScriptHttpBridge : IDisposable
         // Wait for promise resolution - kept high to account for slower CI/build server environments
         SpinWait.SpinUntil(() => (bool)Runtime.Evaluate("__cmdDone")!, TimeSpan.FromSeconds(30));
 
-        var hasError = Runtime.Evaluate<bool>("__cmdError !== null");
-        if (hasError)
-        {
-            var errorMsg = Runtime.Evaluate<string>("__cmdError?.message || String(__cmdError)");
-            throw new JavaScriptProxyExecutionFailed($"Command {methodName} failed: {errorMsg}");
-        }
+        ThrowIfCommandFailed(methodName);
 
-        // Get the result from JavaScript
-        var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
+        // Get the result from JavaScript (evaluated before the patch, as before; JSON.stringify may run toJSON/getters)
+        _ = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)");
 
         // PATCH: Manually fix TimeSpan deserialization from HTTP response
         // The JsonSerializer in the test environment doesn't properly deserialize TimeSpans
         // from the HTTP response. We need to re-parse them from the original HTTP response.
         if (result?.ResponseJson is not null)
         {
-            var escapedResponse = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
-            Runtime.Execute(Scripts.PatchCommandTimeSpan(escapedResponse));
+            Runtime.Execute(Scripts.PatchCommandTimeSpan(EscapeForJavaScriptString(result.ResponseJson)));
         }
 
         // Get the patched result
-        resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
+        var resultJson = Runtime.Evaluate<string>("JSON.stringify(__cmdResult)") ?? "{}";
 
         var commandResult = JsonSerializer.Deserialize<Commands.CommandResult<TResult>>(resultJson, _jsonOptions);
 
         return new CommandExecutionResult<TResult>(commandResult, result?.ResponseJson);
+    }
+
+    static string EscapeForJavaScriptString(string value) => value
+        .Replace("\\", "\\\\")
+        .Replace("'", "\\'")
+        .Replace("\n", "\\n")
+        .Replace("\r", "\\r");
+
+    object ConvertJsonElement(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => element.GetString()!,
+        JsonValueKind.Number => element.GetDouble(),
+        JsonValueKind.True or JsonValueKind.False => element.GetBoolean(),
+        JsonValueKind.Null => null!,
+        JsonValueKind.Object or JsonValueKind.Array => DeserializeContainer(element),
+        _ => element.ToString()
+    };
+
+    object DeserializeContainer(JsonElement element) => element.ValueKind == JsonValueKind.Object
+        ? element.Deserialize<Dictionary<string, object>>(_jsonOptions)!
+        : element.Deserialize<List<object>>(_jsonOptions)!;
+
+    string BuildCommandPropertyAssignments(object command)
+    {
+        var commandAsDocument = JsonSerializer.SerializeToDocument(command, _jsonOptions);
+        var properties = new Dictionary<string, object>();
+        foreach (var prop in commandAsDocument.RootElement.EnumerateObject())
+        {
+            properties[prop.Name] = ConvertJsonElement(prop.Value);
+        }
+
+        return string.Concat(properties.Select(p => $"__cmd.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"));
+    }
+
+    void ThrowIfCommandFailed(string methodName)
+    {
+        var hasError = Runtime.Evaluate<bool>("__cmdError !== null");
+        if (!hasError)
+        {
+            return;
+        }
+
+        var errorMsg = Runtime.Evaluate<string>("__cmdError?.message || String(__cmdError)");
+        throw new JavaScriptProxyExecutionFailed($"Command {methodName} failed: {errorMsg}");
     }
 
     /// <summary>
@@ -300,7 +315,7 @@ public sealed class JavaScriptHttpBridge : IDisposable
         if (result?.ResponseJson is not null)
         {
             // Escape the response JSON for embedding in JavaScript string
-            var escapedJson = result.ResponseJson.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r");
+            var escapedJson = EscapeForJavaScriptString(result.ResponseJson);
             Runtime.Execute(Scripts.DeserializeQueryResult(escapedJson));
         }
 
@@ -327,19 +342,9 @@ public sealed class JavaScriptHttpBridge : IDisposable
         Action<TResult>? updateReceiver = null)
     {
         var subscriptionId = Guid.NewGuid().ToString();
-        var paramDict = parameters is not null
-            ? JsonSerializer.Deserialize<Dictionary<string, object>>(
-                JsonSerializer.Serialize(parameters, _jsonOptions),
-                _jsonOptions)
-            : null;
-
-        // Set up parameters on the query
-        var paramAssignments = paramDict is not null
-            ? string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"))
-            : string.Empty;
 
         // Create query instance, set parameters, and subscribe
-        Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, paramAssignments, subscriptionId));
+        Runtime.Execute(Scripts.SubscribeObservableQuery(queryClassName, BuildObservableParameterAssignments(parameters), subscriptionId));
 
         // Wait for the initial WebSocket message - kept high to account for slower CI/build server environments
         var timeout = TimeSpan.FromSeconds(30);
@@ -347,13 +352,8 @@ public sealed class JavaScriptHttpBridge : IDisposable
 
         while (DateTime.UtcNow - start < timeout)
         {
-            var hasUpdates = Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
-            var error = Runtime.Evaluate<string>("__obsError ? JSON.stringify(__obsError) : null");
-
-            if (error is not null)
-            {
-                throw new JavaScriptProxyExecutionFailed($"Observable query failed: {error}");
-            }
+            var hasUpdates = HasObservableUpdates(subscriptionId);
+            ThrowIfObservableQueryFailed();
 
             if (hasUpdates)
             {
@@ -362,28 +362,12 @@ public sealed class JavaScriptHttpBridge : IDisposable
             await Task.Delay(10);
         }
 
-        var hasAnyUpdates = Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
-        if (!hasAnyUpdates)
+        if (!HasObservableUpdates(subscriptionId))
         {
             throw new JavaScriptProxyExecutionFailed($"Observable query did not receive initial update within {timeout.TotalSeconds} seconds");
         }
 
-        // Get all current updates - already deserialized by TypeScript JsonSerializer
-        var updates = new List<TResult>();
-        var updateCount = Runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{subscriptionId}'].updates.length");
-
-        // Extract already-deserialized data from TypeScript (stringify the deserialized objects)
-        for (var i = 0; i < updateCount; i++)
-        {
-            // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
-            // so updates[i].data contains properly typed objects. We just need to extract them to C#.
-            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[{i}].data)") ?? "{}";
-            var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
-            if (update is not null)
-            {
-                updates.Add(update);
-            }
-        }
+        var updates = ReadObservableUpdates<TResult>(subscriptionId);
 
         var firstResultJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[0])") ?? "{}";
         var firstResult = JsonSerializer.Deserialize<Queries.QueryResult>(firstResultJson, _jsonOptions);
@@ -402,6 +386,55 @@ public sealed class JavaScriptHttpBridge : IDisposable
         }
 
         return context;
+    }
+
+    string BuildObservableParameterAssignments(object? parameters)
+    {
+        if (parameters is null)
+        {
+            return string.Empty;
+        }
+
+        var paramDict = JsonSerializer.Deserialize<Dictionary<string, object>>(
+            JsonSerializer.Serialize(parameters, _jsonOptions),
+            _jsonOptions);
+
+        return paramDict is null
+            ? string.Empty
+            : string.Concat(paramDict.Select(p => $"__obsQuery.{p.Key} = {JsonSerializer.Serialize(p.Value, _jsonOptions)};"));
+    }
+
+    bool HasObservableUpdates(string subscriptionId) =>
+        Runtime.Evaluate<bool>($"globalThis.__obsSubscriptions?.['{subscriptionId}']?.updates.length > 0");
+
+    void ThrowIfObservableQueryFailed()
+    {
+        var error = Runtime.Evaluate<string>("__obsError ? JSON.stringify(__obsError) : null");
+        if (error is not null)
+        {
+            throw new JavaScriptProxyExecutionFailed($"Observable query failed: {error}");
+        }
+    }
+
+    List<TResult> ReadObservableUpdates<TResult>(string subscriptionId)
+    {
+        // Get all current updates - already deserialized by TypeScript JsonSerializer
+        var updates = new List<TResult>();
+        var updateCount = Runtime.Evaluate<int>($"globalThis.__obsSubscriptions['{subscriptionId}'].updates.length");
+
+        for (var i = 0; i < updateCount; i++)
+        {
+            // TypeScript has already called JsonSerializer.deserializeArrayFromInstance/deserializeFromInstance
+            // so updates[i].data contains properly typed objects. We just need to extract them to C#.
+            var updateJson = Runtime.Evaluate<string>($"JSON.stringify(globalThis.__obsSubscriptions['{subscriptionId}'].updates[{i}].data)") ?? "{}";
+            var update = JsonSerializer.Deserialize<TResult>(updateJson, _jsonOptions);
+            if (update is not null)
+            {
+                updates.Add(update);
+            }
+        }
+
+        return updates;
     }
 
     /// <summary>

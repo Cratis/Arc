@@ -29,9 +29,10 @@ public static class AuthoringDeclarations
                 projections.Count(projection => projection.ReadModel == group.Key) == 1)
             .ToDictionary(group => group.Key, group => projections.Single(projection => projection.ReadModel == group.Key).Namespace, StringComparer.Ordinal);
 
+        var resolution = new AuthoringResolution(systems, conflictingSources, readOwners, model, diagnostics, authoringOnlyConstructs);
         var resolved = model with
         {
-            Slices = model.Slices.Select(slice => ResolveSlice(slice, systems, conflictingSources, readOwners, model, diagnostics, authoringOnlyConstructs)).ToList()
+            Slices = model.Slices.Select(slice => ResolveSlice(slice, resolution)).ToList()
         };
 
         return RemoveOrphans(model, CommandProductionPruning.Complete(model, resolved, diagnostics));
@@ -115,7 +116,7 @@ public static class AuthoringDeclarations
 
         return command with
         {
-            Produces = PruneReadProductions(command, application, unavailable, diagnostics, location),
+            Produces = PruneReadProductions(command, unavailable, new(application, diagnostics, location)),
             Authoring = authoring with
             {
                 Reads = authoring.Reads.Where(read => !unavailable.Contains(read.Alias)).ToList(),
@@ -159,20 +160,20 @@ public static class AuthoringDeclarations
         .Concat(model.Slices.SelectMany(slice => slice.Screens).SelectMany(screen => screen.Data).Select(data => data.Type.Name))
         .Concat(model.Slices.SelectMany(slice => slice.ReadModels).SelectMany(readModel => readModel.Properties).Select(property => property.Type.Name));
 
-    static List<ProducesModel> PruneReadProductions(CommandModel command, ApplicationModel application, IReadOnlySet<string> unavailable, ScreenplayDiagnostics diagnostics, string location) => command.Produces.Select(production =>
+    static List<ProducesModel> PruneReadProductions(CommandModel command, IReadOnlySet<string> unavailable, ReadPruningScope scope) => command.Produces.Select(production =>
     {
         if (production.When is { } condition && ReferencesRead(condition, unavailable))
         {
-            diagnostics.Information(
+            scope.Diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableCommandProduction,
                 $"Production '{production.EventName}' was left out because its condition depends on an unavailable read",
-                $"{location}.{command.Name}");
+                $"{scope.Location}.{command.Name}");
 
             return null;
         }
         var omitted = production.Mappings.Where(mapping => mapping.Source is PropertyPathSource path && ReferencesRead(path.Path, unavailable)).ToList();
 
-        return CommandProductionPruning.WithoutMappings(production, omitted, application, diagnostics, $"{location}.{command.Name}");
+        return CommandProductionPruning.WithoutMappings(production, omitted, scope.Application, scope.Diagnostics, $"{scope.Location}.{command.Name}");
     }).OfType<ProducesModel>().ToList();
 
     static bool ReferencesRead(string path, IReadOnlySet<string> aliases) => aliases.Contains(path.Split('.')[0]);
@@ -184,97 +185,124 @@ public static class AuthoringDeclarations
         _ => false
     };
 
-    static SliceModel ResolveSlice(SliceModel slice, HashSet<string> systems, HashSet<string> sources, Dictionary<string, string> readOwners, ApplicationModel application, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs)
+    static SliceModel ResolveSlice(SliceModel slice, AuthoringResolution resolution)
     {
         var declared = slice.Events.Select(e => e.Name).Concat(slice.Commands.Select(command => command.Name)).ToHashSet(StringComparer.Ordinal);
         var duplicateOperations = slice.Commands.SelectMany(command => command.Authoring?.Operations ?? []).GroupBy(operation => operation.Name, StringComparer.Ordinal)
             .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
-        var commands = slice.Commands.Select(command =>
-        {
-            if (command.Authoring is not { } authoring)
-            {
-                return command;
-            }
-
-            var unavailableReads = authoring.Reads.Where(read => !readOwners.ContainsKey(read.Name)).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal);
-            var operations = authoring.Operations.Where(operation =>
-            {
-                if (systems.Contains(operation.System) || declared.Contains(operation.Name) || duplicateOperations.Contains(operation.Name))
-                {
-                    diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandOperation, $"Command '{command.Name}': operation '{operation.Name}' or system '{operation.System}' has ambiguous ownership and was left out", slice.Namespace);
-                    return false;
-                }
-
-                if (operation.Mappings.Any(mapping => mapping.Source is PropertyPathSource path && ReferencesRead(path.Path, unavailableReads)))
-                {
-                    diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandOperation, $"Command '{command.Name}': operation '{operation.Name}' depends on an unavailable read and was left out", slice.Namespace);
-                    return false;
-                }
-
-                return true;
-            }).ToList();
-            var productions = command.Produces.Select(production =>
-            {
-                if (production.Route is not { } overrideRoute || !sources.Contains(overrideRoute.Source))
-                {
-                    return production;
-                }
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': production '{production.EventName}' has colliding source or stream declarations; its destination and entire route were withheld", slice.Namespace);
-
-                return production with { Route = null, Destination = null, UsesCommandContext = false, CanInline = false };
-            }).ToList();
-            command = command with { Produces = productions };
-            var route = authoring.Route;
-            if (route?.Source == "Default")
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': source 'Default' has a reserved stored name (PLAY0273); its entire route was left out", slice.Namespace);
-                route = null;
-            }
-            else if (route is not null && sources.Contains(route.Source))
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': source '{route.Source}' has colliding declarations with incompatible identity or stream-id types (PLAY0273) and its routes were left out", slice.Namespace);
-                route = null;
-            }
-            else if (route is not null && command.Produces.Any(production => !production.UsesCommandContext && production.Destination is null))
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': an explicitly routed or unproven production's source and stream routing is not proven to be the command's, so its entire route was left out", slice.Namespace);
-                route = null;
-            }
-
-            if (route is { Stream: null })
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': the source declaration is readable, but command routing without a selected stream has no grammar counterpart", slice.Namespace);
-                if (!authoringOnlyConstructs)
-                {
-                    route = null;
-                }
-            }
-
-            if (route is not null && CommandRouteAdmission.Failure(route, command, application, authoringOnlyConstructs) is { } failure)
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': {failure}; its entire route was left out", slice.Namespace);
-                route = null;
-            }
-
-            if (unavailableReads.Count > 0)
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandProvisioning, $"Command '{command.Name}': a read model has no unique readable shape and projection in this document; its dependency, requirements and mappings were left in code", slice.Namespace);
-            }
-
-            var keptReads = authoring.Reads.Where(read => readOwners.ContainsKey(read.Name)).Select(read => read with { Namespace = readOwners[read.Name] }).ToList();
-            return command with
-            {
-                Produces = PruneReadProductions(command, application, unavailableReads, diagnostics, slice.Namespace),
-                Authoring = authoring with
-                {
-                    Operations = operations,
-                    Route = route,
-                    Reads = keptReads,
-                    Requirements = authoring.Requirements.Where(requirement => !ReferencesRead(requirement.Condition, unavailableReads)).ToList()
-                }
-            };
-        }).ToList();
+        var owner = new AuthoringSlice(slice.Namespace, declared, duplicateOperations);
+        var commands = slice.Commands.Select(command => ResolveCommand(command, owner, resolution)).ToList();
 
         return slice with { Commands = commands };
+    }
+
+    static CommandModel ResolveCommand(CommandModel command, AuthoringSlice slice, AuthoringResolution resolution)
+    {
+        if (command.Authoring is not { } authoring)
+        {
+            return command;
+        }
+
+        var readOwners = resolution.ReadOwners;
+        var unavailableReads = authoring.Reads.Where(read => !readOwners.ContainsKey(read.Name)).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal);
+        var resolving = new AuthoringCommand(command, authoring, unavailableReads);
+        var operations = ResolveOperations(resolving, slice, resolution);
+        command = command with { Produces = ResolveProductions(command, slice, resolution) };
+        var route = ResolveRoute(resolving with { Command = command }, slice, resolution);
+
+        if (unavailableReads.Count > 0)
+        {
+            resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandProvisioning, $"Command '{command.Name}': a read model has no unique readable shape and projection in this document; its dependency, requirements and mappings were left in code", slice.Namespace);
+        }
+
+        var keptReads = authoring.Reads.Where(read => readOwners.ContainsKey(read.Name)).Select(read => read with { Namespace = readOwners[read.Name] }).ToList();
+        return command with
+        {
+            Produces = PruneReadProductions(command, unavailableReads, new(resolution.Application, resolution.Diagnostics, slice.Namespace)),
+            Authoring = authoring with
+            {
+                Operations = operations,
+                Route = route,
+                Reads = keptReads,
+                Requirements = authoring.Requirements.Where(requirement => !ReferencesRead(requirement.Condition, unavailableReads)).ToList()
+            }
+        };
+    }
+
+    static List<OperationModel> ResolveOperations(AuthoringCommand resolving, AuthoringSlice slice, AuthoringResolution resolution) =>
+        resolving.Authoring.Operations.Where(operation => KeepsOperation(operation, resolving, slice, resolution)).ToList();
+
+    static bool IsAmbiguous(OperationModel operation, AuthoringSlice slice, AuthoringResolution resolution) =>
+        resolution.Systems.Contains(operation.System) || slice.Declared.Contains(operation.Name) || slice.DuplicateOperations.Contains(operation.Name);
+
+    static bool KeepsOperation(OperationModel operation, AuthoringCommand resolving, AuthoringSlice slice, AuthoringResolution resolution)
+    {
+        var command = resolving.Command;
+        if (IsAmbiguous(operation, slice, resolution))
+        {
+            resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandOperation, $"Command '{command.Name}': operation '{operation.Name}' or system '{operation.System}' has ambiguous ownership and was left out", slice.Namespace);
+            return false;
+        }
+
+        if (operation.Mappings.Any(mapping => mapping.Source is PropertyPathSource path && ReferencesRead(path.Path, resolving.UnavailableReads)))
+        {
+            resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandOperation, $"Command '{command.Name}': operation '{operation.Name}' depends on an unavailable read and was left out", slice.Namespace);
+            return false;
+        }
+
+        return true;
+    }
+
+    static List<ProducesModel> ResolveProductions(CommandModel command, AuthoringSlice slice, AuthoringResolution resolution) =>
+        command.Produces.Select(production =>
+        {
+            if (production.Route is not { } overrideRoute || !resolution.Sources.Contains(overrideRoute.Source))
+            {
+                return production;
+            }
+            resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': production '{production.EventName}' has colliding source or stream declarations; its destination and entire route were withheld", slice.Namespace);
+
+            return production with { Route = null, Destination = null, UsesCommandContext = false, CanInline = false };
+        }).ToList();
+
+    static CommandRouteModel? ResolveRoute(AuthoringCommand resolving, AuthoringSlice slice, AuthoringResolution resolution)
+    {
+        var route = ResolveRouteSource(resolving, slice, resolution);
+        if (route is { Stream: null })
+        {
+            resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{resolving.Command.Name}': the source declaration is readable, but command routing without a selected stream has no grammar counterpart", slice.Namespace);
+            if (!resolution.AuthoringOnlyConstructs)
+            {
+                route = null;
+            }
+        }
+
+        if (route is not null && CommandRouteAdmission.Failure(route, resolving.Command, resolution.Application, resolution.AuthoringOnlyConstructs) is { } failure)
+        {
+            resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{resolving.Command.Name}': {failure}; its entire route was left out", slice.Namespace);
+            route = null;
+        }
+
+        return route;
+    }
+
+    static CommandRouteModel? ResolveRouteSource(AuthoringCommand resolving, AuthoringSlice slice, AuthoringResolution resolution)
+    {
+        var command = resolving.Command;
+        var route = resolving.Authoring.Route;
+        var reason = route?.Source == "Default"
+            ? "source 'Default' has a reserved stored name (PLAY0273); its entire route was left out"
+            : route is not null && resolution.Sources.Contains(route.Source)
+                ? $"source '{route.Source}' has colliding declarations with incompatible identity or stream-id types (PLAY0273) and its routes were left out"
+                : route is not null && command.Produces.Any(production => !production.UsesCommandContext && production.Destination is null)
+                    ? "an explicitly routed or unproven production's source and stream routing is not proven to be the command's, so its entire route was left out"
+                    : null;
+        if (reason is null)
+        {
+            return route;
+        }
+
+        resolution.Diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': {reason}", slice.Namespace);
+        return null;
     }
 }

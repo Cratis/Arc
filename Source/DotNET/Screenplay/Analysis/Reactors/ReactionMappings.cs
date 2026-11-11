@@ -272,7 +272,7 @@ public static class ReactionMappings
             string or bool or int => new(value),
             long number when number is >= -ExactDoubleLimit and <= ExactDoubleLimit => new(value),
             double number when double.IsFinite(number) => new(value),
-            decimal number when number is > -ExactDecimalLimit and < ExactDecimalLimit && (decimal)(double)number == number => new(value),
+            decimal number when number is > -ExactDecimalLimit and < ExactDecimalLimit && DoubleToDecimal.Convert((double)number) == number => new(value),
             _ => null
         };
     }

@@ -2,16 +2,16 @@
     {
         "name": "AspNetCore TestApp",
         "path": "${workspaceFolder}/Samples/AspNetCore",
-        "outputPath": "${workspaceFolder}/Samples/AspNetCore/bin/Debug/net10.0/AspNetCore.dll"
+        "outputPath": "${workspaceFolder}/Samples/AspNetCore/bin/Debug/net11.0/AspNetCore.dll"
     },
     {
         "name": "Arc Core TestApp",
         "path": "${workspaceFolder}/Samples/ArcCore",
-        "outputPath": "${workspaceFolder}/Samples/ArcCore/bin/Debug/net10.0/ArcCore.dll"
+        "outputPath": "${workspaceFolder}/Samples/ArcCore/bin/Debug/net11.0/ArcCore.dll"
     },
     {
         "name": "ProxyGenerator",
         "path": "${workspaceFolder}/Source/DotNET/Tools/ProxyGenerator",
-        "outputPath": "${workspaceFolder}/Source/DotNET/Tools/ProxyGenerator/bin/Debug/net9.0/Cratis.Arc.ProxyGenerator.dll"
+        "outputPath": "${workspaceFolder}/Source/DotNET/Tools/ProxyGenerator/bin/Debug/net11.0/Cratis.Arc.ProxyGenerator.dll"
     }
 ]

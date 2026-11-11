@@ -13,8 +13,8 @@ public class and_no_membership_is_registered : given.a_membership_verification_w
 
     void Because()
     {
-        _root = new ServiceCollection().BuildServiceProvider();
-        _requests.Current = Subscription(NewScope().ServiceProvider, "alice");
+        var services = new given.NonAllocatingServiceProvider(Substitute.For<IServiceScopeFactory>(), []);
+        _requests.Current = Subscription(services, "alice");
         var verification = new TenantMembershipVerification(_requests, new given.FixedPrincipalAccessor(Principal("alice")), NullLogger<TenantMembershipVerification>.Instance);
         var tenant = new TenantId("t");
         for (var index = 0; index < 1_000; index++)

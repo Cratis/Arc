@@ -74,10 +74,12 @@ public class for_a_project : Specification, IDisposable
     [Fact] void should_write_into_the_directory_the_build_asked_for() =>
         _task.Documents.All(_ => _.ItemSpec.StartsWith(_output, StringComparison.Ordinal)).ShouldBeTrue();
 
-    [Fact] void should_write_a_catalog_naming_the_assembly_document() =>
-        JsonDocument.Parse(File.ReadAllText(Catalog.ItemSpec))
-            .RootElement.GetProperty("documents")[0].GetProperty("id").GetString()
+    [Fact] void should_write_a_catalog_naming_the_assembly_document()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Catalog.ItemSpec));
+        document.RootElement.GetProperty("documents")[0].GetProperty("id").GetString()
             .ShouldEqual(AssemblyName);
+    }
 
     [Fact] void should_write_a_document_the_screenplay_compiler_accepts() =>
         new Cratis.Screenplay.ScreenplayCompiler()

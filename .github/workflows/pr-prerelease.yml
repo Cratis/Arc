@@ -1,0 +1,164 @@
+name: PR Prerelase
+
+# Called from pull-requests.yml; the PR triggers and path filters live there.
+# Concurrency is handled by the caller's group, which cancels older runs of the same pull request. A group keyed on
+# github.workflow here would resolve to the caller's name and collide with it.
+
+env:
+  NUGET_OUTPUT: ./Artifacts/NuGet
+  NUGET_SOURCE: https://nuget.pkg.github.com/cratis/index.json
+  DOTNET10_VERSION: "10.0.x"
+  DOTNET11_VERSION: "11.0.x"
+
+# Default to read-only permissions; only the NuGet publishing and commenting job declares write permissions.
+# Jobs that check out PR code run only for pull requests from this repository, never forks.
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  release:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      publish: ${{ steps.release.outputs.should-publish }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Release
+        id: release
+        uses: cratis/release-action@v1
+
+  publish-nuget-packages:
+    if: needs.release.outputs.publish == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [release]
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup .Net 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+
+      # PR runs restore the shared caches but never save them.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
+
+      - name: Yarn install
+        run: yarn install --immutable
+
+      # Screenplay.Embedded packs this generated viewer and deliberately refuses to pack without it.
+      - name: Build embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run build
+
+      - name: Remove any existing artifacts
+        run: rm -rf ${{ env.NUGET_OUTPUT }}
+      - name: Build
+        run: dotnet build --configuration Debug -p:CratisProxiesOutputPath=
+
+      - name: Add GitHub Package Registry to NuGet
+        run: dotnet nuget add source --name github --username cratis --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text ${{ env.NUGET_SOURCE }}
+
+      - name: Create NuGet packages
+        run: dotnet pack --no-build --configuration Debug -o ${{ env.NUGET_OUTPUT }} -p:PackageVersion=${{ needs.release.outputs.version }}
+
+      - name: Push NuGet packages
+        run: dotnet nuget push '${{ env.NUGET_OUTPUT }}/*.nupkg' --skip-duplicate --timeout 900 --api-key ${{ secrets.GITHUB_TOKEN }} --source "github"
+
+      - name: Add comment for NuGet packages
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          message-id: nuget-${{ needs.release.outputs.version }}
+          message: |
+            NuGet packages for this PR, e.g. Cratis.Arc:
+            https://github.com/cratis/arc/packages/1655206?version=${{ needs.release.outputs.version }}
+          allow-repeats: false
+
+  publish-npm-packages:
+    if: needs.release.outputs.publish == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [release]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup node v16
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 16.x
+          registry-url: "https://registry.npmjs.org"
+
+
+      # - uses: actions/cache@v3
+      #   id: yarn-cache
+      #   with:
+      #     path: |
+      #       .yarn/cache
+      #       **/node_modules
+      #       **/.eslintcache
+      #       **/yarn.lock
+      #     key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
+  
+      # - name: Yarn install
+      #   run: yarn
+
+      # - name: Publish NPM packages
+      #   env:
+      #     NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      #   run: |
+      #     yarn publish-version ${{ needs.release.outputs.version }}
+
+      - name: Git reset (package.json files changed)
+        run: |
+          git reset --hard

@@ -167,7 +167,7 @@ export class WebSocketHubConnection {
         this._subscriptions.set(queryId, subscription);
         this.ensureConnected();
 
-        if (this._socket?.readyState === WebSocket.OPEN && this._subscriptionsReleased) {
+        if (this.isOpenAndReleased()) {
             this.sendSubscribeMessage(queryId, subscription);
         }
         // Until the server has said what it supports, subscriptions are held back and sent once, by releaseSubscriptions.
@@ -181,7 +181,7 @@ export class WebSocketHubConnection {
         const subscription = this._subscriptions.get(queryId);
         this._subscriptions.delete(queryId);
 
-        if (this._socket?.readyState === WebSocket.OPEN && this._subscriptionsReleased && subscription) {
+        if (this.isOpenAndReleased() && subscription) {
             const message: HubMessage = {
                 type: HubMessageType.Unsubscribe,
                 queryId,
@@ -212,11 +212,7 @@ export class WebSocketHubConnection {
             this._disconnected = false;
         }
 
-        if (
-            this._socket &&
-            (this._socket.readyState === WebSocket.OPEN ||
-                this._socket.readyState === WebSocket.CONNECTING)
-        ) {
+        if (this.isSocketLive(this._socket)) {
             this.cancelPendingReconnect();
             return;
         }
@@ -243,11 +239,7 @@ export class WebSocketHubConnection {
 
     private openSocket(): void {
         const currentSocket = this._socket;
-        if (
-            currentSocket &&
-            (currentSocket.readyState === WebSocket.OPEN ||
-                currentSocket.readyState === WebSocket.CONNECTING)
-        ) {
+        if (this.isSocketLive(currentSocket)) {
             return;
         }
 
@@ -259,65 +251,92 @@ export class WebSocketHubConnection {
         this._supportsSubscriptionRevisions = false;
         this.resetSubscriptionRelease();
 
-        let url = this._url;
-        if (this._microservice?.length > 0) {
-            const param = `${Globals.microserviceWSQueryArgument}=${encodeURIComponent(this._microservice)}`;
-            url += (url.includes('?') ? '&' : '?') + param;
-        }
-
+        const url = this.buildSocketUrl();
         const socket = new WebSocket(url);
         this._socket = socket;
 
         socket.onopen = () => {
-            if (this._socket !== socket || this._disconnected) return;
-            console.log('Hub connection established', url);
-            this.cancelPendingReconnect();
-            this._policy.reset();
-            this._keepAlive.start();
-
-            // A capable server announces itself with a Connected message straight after accepting the socket. Sending
-            // the subscriptions before that would mean sending them twice (once without a revision, once with), and the
-            // server would run every query twice and cancel the first run. Wait for it, and only fall back to the
-            // revision-less form for a server that never says anything.
-            this._releaseTimer = setTimeout(() => {
-                this._releaseTimer = undefined;
-                if (this._socket === socket && !this._disconnected) {
-                    this.releaseSubscriptions();
-                }
-            }, WebSocketHubConnection.ConnectedGraceMs);
+            if (!this.isActiveSocket(socket)) return;
+            this.handleSocketOpened(socket, url);
         };
 
         socket.onclose = () => {
-            if (this._socket !== socket || this._disconnected) return;
-            console.log('Hub connection closed', url);
-            this._socket = undefined;
-            this._supportsSubscriptionRevisions = false;
-            this.resetSubscriptionRelease();
-            this._keepAlive.stop();
-            if (this._subscriptions.size === 0) return;
-            this._reconnectPending = true;
-            const scheduled = this._policy.schedule(() => {
-                this._reconnectPending = false;
-                if (!this._disconnected && this._subscriptions.size > 0) {
-                    this.ensureConnected();
-                }
-            }, this._url);
-            if (!scheduled) {
-                this._reconnectPending = false;
-            }
+            if (!this.isActiveSocket(socket)) return;
+            this.handleSocketClosed(url);
         };
 
         socket.onerror = (error) => {
-            if (this._socket !== socket || this._disconnected) return;
+            if (!this.isActiveSocket(socket)) return;
             console.error('Hub connection error', url, error);
             this._keepAlive.stop();
             // onclose will fire after onerror, triggering reconnect
         };
 
         socket.onmessage = (ev) => {
-            if (this._socket !== socket || this._disconnected) return;
+            if (!this.isActiveSocket(socket)) return;
             this.handleMessage(ev.data as string);
         };
+    }
+
+    private buildSocketUrl(): string {
+        let url = this._url;
+        if (this._microservice?.length > 0) {
+            const param = `${Globals.microserviceWSQueryArgument}=${encodeURIComponent(this._microservice)}`;
+            url += (url.includes('?') ? '&' : '?') + param;
+        }
+        return url;
+    }
+
+    private isSocketLive(socket: WebSocket | undefined): boolean {
+        return (
+            socket !== undefined &&
+            (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)
+        );
+    }
+
+    private isActiveSocket(socket: WebSocket): boolean {
+        return this._socket === socket && !this._disconnected;
+    }
+
+    private isOpenAndReleased(): boolean {
+        return this._socket?.readyState === WebSocket.OPEN && this._subscriptionsReleased;
+    }
+
+    private handleSocketOpened(socket: WebSocket, url: string): void {
+        console.log('Hub connection established', url);
+        this.cancelPendingReconnect();
+        this._policy.reset();
+        this._keepAlive.start();
+
+        // A capable server announces itself with a Connected message straight after accepting the socket. Sending
+        // the subscriptions before that would mean sending them twice (once without a revision, once with), and the
+        // server would run every query twice and cancel the first run. Wait for it, and only fall back to the
+        // revision-less form for a server that never says anything.
+        this._releaseTimer = setTimeout(() => {
+            this._releaseTimer = undefined;
+            if (this.isActiveSocket(socket)) {
+                this.releaseSubscriptions();
+            }
+        }, WebSocketHubConnection.ConnectedGraceMs);
+    }
+
+    private handleSocketClosed(url: string): void {
+        console.log('Hub connection closed', url);
+        this._socket = undefined;
+        this._supportsSubscriptionRevisions = false;
+        this.resetSubscriptionRelease();
+        this._keepAlive.stop();
+        if (this._subscriptions.size === 0) return;
+        this._reconnectPending = true;
+        const scheduled = this._policy.schedule(() => {
+            this._reconnectPending = false;
+            if (!this._disconnected && this._subscriptions.size > 0) {
+                this.ensureConnected();
+            }
+        }, this._url);
+        if (!scheduled) {
+            this._reconnectPending = false;
+        }
     }
 
     private cancelPendingReconnect(): void {

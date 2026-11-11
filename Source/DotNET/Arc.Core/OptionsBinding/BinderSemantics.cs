@@ -7,7 +7,7 @@ namespace Cratis.Arc.OptionsBinding;
 
 /// <summary>
 /// The control flow of <c>ConfigurationBinder.BindInstance</c>, written once for every bound type. The branches follow the 10.x
-/// binder on net10.0 and the 9.x binder, which has no explicit null handling, on net8.0 and net9.0.
+/// binder.
 /// </summary>
 internal static class BinderSemantics
 {
@@ -50,20 +50,19 @@ internal static class BinderSemantics
     internal static bool IgnoresElementFailure(Exception exception) => exception is not null;
 
     /// <summary>
-    /// Reads the value of a section. From Microsoft.Extensions.Configuration.Binder 10 an explicit null, a key a provider holds
-    /// without a value, counts as present. Earlier versions ignore a null value.
+    /// Reads the value of a section. An explicit null, a key a provider holds
+    /// without a value, counts as present.
     /// </summary>
     /// <param name="config">The section.</param>
     /// <param name="value">The value.</param>
     /// <returns>Whether the binder treats the key as present.</returns>
     static bool TryReadValue(IConfiguration config, out string? value)
     {
-#if NET10_0_OR_GREATER
         if (config is ConfigurationSection section)
         {
             return section.TryGetValue(null, out value);
         }
-#endif
+
         value = (config as IConfigurationSection)?.Value;
         return value is not null;
     }
@@ -79,11 +78,9 @@ internal static class BinderSemantics
         {
             point.TrySetValue(type.CreateInstance());
         }
-#if NET10_0_OR_GREATER
         else if (exists)
         {
             point.TrySetValue(point.Value);
         }
-#endif
     }
 }

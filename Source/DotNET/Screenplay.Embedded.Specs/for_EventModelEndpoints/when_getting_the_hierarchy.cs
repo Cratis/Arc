@@ -15,7 +15,8 @@ public class when_getting_the_hierarchy : a_host
     async Task Because()
     {
         _response = await _client.GetAsync(Url("/hierarchy"));
-        _projects = JsonDocument.Parse(await _response.Content.ReadAsStringAsync()).RootElement;
+        using var document = JsonDocument.Parse(await _response.Content.ReadAsStringAsync());
+        _projects = document.RootElement.Clone();
     }
 
     [Fact] void should_answer_with_the_hierarchy() => _response.StatusCode.ShouldEqual(HttpStatusCode.OK);

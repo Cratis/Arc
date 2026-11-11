@@ -52,15 +52,14 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
         }
 
         var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
-        draft.AssertsResponse = bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
-            SpecificationReturnValues.ReadsResponse(member, item.Model!)));
+        draft.AssertsResponse = bodies.Exists(item => AssertsResponse(item.Body, item.Model!));
         draft.Returns = draft.AssertsResponse && !rejected && ActionOf(draft) is { } action
             ? new SpecificationReturnValues(new MappingSourceReader(diagnostics), models).Read(bodies.Select(item => (item.Body, item.Model!)), type, action)
             : null;
 
         foreach (var (body, semanticModel) in bodies)
         {
-            ReadBody(body, semanticModel!, draft, name, location, rejected);
+            ReadBody(body, new(semanticModel!, draft, name, location), rejected);
         }
     }
 
@@ -95,6 +94,15 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
         draft.Given.Any(_ => _.Kind == SpecificationStateKind.Event && string.Equals(_.Name, appended.Name, StringComparison.Ordinal));
 
     /// <summary>
+    /// Determines whether a body asserts what the command's response holds.
+    /// </summary>
+    /// <param name="body">The body of the assertion.</param>
+    /// <param name="semanticModel">The semantic model of the tree the body lives in.</param>
+    /// <returns>True when the body reads the response.</returns>
+    static bool AssertsResponse(SyntaxNode body, SemanticModel semanticModel) =>
+        body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member => SpecificationReturnValues.ReadsResponse(member, semanticModel));
+
+    /// <summary>
     /// Determines whether a body asserts that the command was rejected.
     /// </summary>
     /// <param name="body">The body of the assertion.</param>
@@ -108,34 +116,84 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
                 SpecificationAssertions.IsRejection(invocation, method, semanticModel));
 
     /// <summary>
+    /// Decides whether an assertion is read, passed over, or makes the scenario unreadable.
+    /// </summary>
+    /// <param name="assertion">The assertion.</param>
+    /// <param name="body">The body of the assertion.</param>
+    /// <param name="draft">The scenario collected so far.</param>
+    /// <param name="rejected">Whether an assertion of the specification says the command was rejected.</param>
+    /// <returns>What reading the assertion decided.</returns>
+    static StepAdmission Admit(OutcomeAssertion assertion, SyntaxNode body, SpecificationDraft draft, bool rejected)
+    {
+        var (invocation, method, appended, rejection) = assertion;
+        if (SpecificationAssertions.IsUnsupportedFailure(invocation, method))
+        {
+            return UnsupportedFailure(method, draft, rejected);
+        }
+
+        if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
+        {
+            draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");
+            return StepAdmission.Stop;
+        }
+
+        if (appended is null && !rejection)
+        {
+            return StepAdmission.Skip;
+        }
+
+        if (StepsTaken.Always(invocation, body))
+        {
+            return StepAdmission.Read;
+        }
+
+        draft.CannotRead("what it expects to follow is only expected under a condition, and a scenario says what followed");
+        return StepAdmission.Stop;
+    }
+
+    static string? EventFailure(ITypeSymbol appended, SpecificationDraft draft)
+    {
+        if (!EventReader.IsEvent(appended))
+        {
+            return $"it expects '{appended.Name}' to follow, which is not declared as an event";
+        }
+
+        return draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal))
+            ? $"it expects '{appended.Name}' more than once, and repeated event expectations are ambiguous"
+            : null;
+    }
+
+    static StepAdmission UnsupportedFailure(IMethodSymbol method, SpecificationDraft draft, bool rejected)
+    {
+        // A separate validation assertion proves the category; the generic failure adds no reason.
+        if (rejected && !string.Equals(method.Name, "ShouldHaveExceptions", StringComparison.Ordinal))
+        {
+            return StepAdmission.Skip;
+        }
+
+        draft.CannotRead($"'{method.Name}' does not assert a validation or constraint rejection, and its failure outcome cannot be stated faithfully");
+        return StepAdmission.Stop;
+    }
+
+    /// <summary>
     /// Adds an event a specification says followed, or records that it cannot be read.
     /// </summary>
     /// <param name="appended">The type the assertion names.</param>
     /// <param name="invocation">The appended-event assertion.</param>
     /// <param name="method">The exactly bound assertion method.</param>
-    /// <param name="semanticModel">The semantic model owning the assertion.</param>
-    /// <param name="draft">The scenario collected so far.</param>
-    void AddEvent(
-        ITypeSymbol appended,
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        SpecificationDraft draft)
+    /// <param name="scope">What the assertion is read against.</param>
+    void AddEvent(ITypeSymbol appended, InvocationExpressionSyntax invocation, IMethodSymbol method, SpecificationStepScope scope)
     {
+        var semanticModel = scope.SemanticModel;
+        var draft = scope.Draft;
         if (draft.RenderedCommand?.IsRedundant(invocation) == true)
         {
             return;
         }
 
-        if (!EventReader.IsEvent(appended))
+        if (EventFailure(appended, draft) is { } failure)
         {
-            draft.CannotRead($"it expects '{appended.Name}' to follow, which is not declared as an event");
-            return;
-        }
-
-        if (draft.Then.Any(_ => string.Equals(_.Name, appended.Name, StringComparison.Ordinal)))
-        {
-            draft.CannotRead($"it expects '{appended.Name}' more than once, and repeated event expectations are ambiguous");
+            draft.CannotRead(failure);
             return;
         }
 
@@ -171,63 +229,43 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// Reads what one assertion says followed.
     /// </summary>
     /// <param name="body">The body of the assertion.</param>
-    /// <param name="semanticModel">The semantic model of the tree the body lives in.</param>
-    /// <param name="draft">The scenario collected so far.</param>
-    /// <param name="name">The name of the specification.</param>
-    /// <param name="location">Where the specification lives.</param>
+    /// <param name="scope">What the assertion is read against.</param>
     /// <param name="rejected">Whether an assertion of the specification says the command was rejected.</param>
-    void ReadBody(SyntaxNode body, SemanticModel semanticModel, SpecificationDraft draft, string name, string location, bool rejected)
+    void ReadBody(SyntaxNode body, SpecificationStepScope scope, bool rejected)
     {
         foreach (var invocation in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
-            if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+            if (scope.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
             {
                 continue;
             }
 
             var appended = SpecificationAssertions.AppendedEventOf(method);
-            var rejection = SpecificationAssertions.IsRejection(invocation, method, semanticModel);
-            if (SpecificationAssertions.IsUnsupportedFailure(invocation, method))
+            var rejection = SpecificationAssertions.IsRejection(invocation, method, scope.SemanticModel);
+            var assertion = new OutcomeAssertion(invocation, method, appended, rejection);
+            var admission = Admit(assertion, body, scope.Draft, rejected);
+            if (admission == StepAdmission.Stop)
             {
-                if (!rejected || string.Equals(method.Name, "ShouldHaveExceptions", StringComparison.Ordinal))
-                {
-                    draft.CannotRead($"'{method.Name}' does not assert a validation or constraint rejection, and its failure outcome cannot be stated faithfully");
-                    return;
-                }
-
-                // A separate validation assertion proves the category; the generic failure adds no reason.
-                continue;
-            }
-
-            if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
-            {
-                draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");
                 return;
             }
 
-            if (appended is null && !rejection)
+            if (admission == StepAdmission.Read)
             {
-                continue;
+                Record(assertion, scope, rejected);
             }
+        }
+    }
 
-            if (!StepsTaken.Always(invocation, body))
-            {
-                draft.CannotRead("what it expects to follow is only expected under a condition, and a scenario says what followed");
-                return;
-            }
-
-            if (appended is not null)
-            {
-                if (rejected && StartedWith(appended, draft))
-                {
-                    continue;
-                }
-
-                AddEvent(appended, invocation, method, semanticModel, draft);
-                continue;
-            }
-
-            AddError(invocation, method, semanticModel, draft, name, location);
+    void Record(OutcomeAssertion assertion, SpecificationStepScope scope, bool rejected)
+    {
+        var (invocation, method, appended, _) = assertion;
+        if (appended is null)
+        {
+            AddError(invocation, method, scope);
+        }
+        else if (!rejected || !StartedWith(appended, scope.Draft))
+        {
+            AddEvent(appended, invocation, method, scope);
         }
     }
 
@@ -236,20 +274,12 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// </summary>
     /// <param name="invocation">The assertion to read.</param>
     /// <param name="method">The method being called.</param>
-    /// <param name="semanticModel">The semantic model of the tree the assertion lives in.</param>
-    /// <param name="draft">The scenario collected so far.</param>
-    /// <param name="name">The name of the specification.</param>
-    /// <param name="location">Where the specification lives.</param>
-    void AddError(
-        InvocationExpressionSyntax invocation,
-        IMethodSymbol method,
-        SemanticModel semanticModel,
-        SpecificationDraft draft,
-        string name,
-        string location)
+    /// <param name="scope">What the assertion is read against.</param>
+    void AddError(InvocationExpressionSyntax invocation, IMethodSymbol method, SpecificationStepScope scope)
     {
+        var draft = scope.Draft;
         var reason = SpecificationAssertions.IsNamedRejection(method)
-            ? ReasonOf(invocation, semanticModel, name, location)
+            ? ReasonOf(invocation, scope)
             : string.Empty;
 
         if (!draft.Errors.Contains(reason, StringComparer.Ordinal))
@@ -262,22 +292,20 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// Gets the reason an assertion names for a rejection.
     /// </summary>
     /// <param name="invocation">The assertion to read.</param>
-    /// <param name="semanticModel">The semantic model of the tree the assertion lives in.</param>
-    /// <param name="name">The name of the specification.</param>
-    /// <param name="location">Where the specification lives.</param>
+    /// <param name="scope">What the assertion is read against.</param>
     /// <returns>The reason, empty when the source names one this cannot read.</returns>
-    string ReasonOf(InvocationExpressionSyntax invocation, SemanticModel semanticModel, string name, string location)
+    string ReasonOf(InvocationExpressionSyntax invocation, SpecificationStepScope scope)
     {
         var named = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
-        if (named is not null && semanticModel.GetConstantValue(named) is { HasValue: true, Value: { } value })
+        if (named is not null && scope.SemanticModel.GetConstantValue(named) is { HasValue: true, Value: { } value })
         {
             return value.ToString() ?? string.Empty;
         }
 
         diagnostics.Information(
             ScreenplayDiagnosticCodes.UnreadableSpecificationValue,
-            $"The reason '{name}' gives for a rejection is code rather than a constant, so the rejection is stated without one",
-            location);
+            $"The reason '{scope.Name}' gives for a rejection is code rather than a constant, so the rejection is stated without one",
+            scope.Location);
 
         return string.Empty;
     }

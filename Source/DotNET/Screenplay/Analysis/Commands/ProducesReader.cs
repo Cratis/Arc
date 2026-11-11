@@ -57,54 +57,16 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <returns>The productions, in the order the source declares them.</returns>
     public IEnumerable<ProducesModel> Read(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, string location, AuthoringSources? sources = null, bool generatedIdentity = false)
     {
-        var produces = new List<ProducesModel>();
+        var request = new ProducesReadRequest(command, location, [], sources, generatedIdentity);
         var withholding = new UnrepresentableProductions(diagnostics);
         var identifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, location);
 
         foreach (var handler in handlers)
         {
-            var firstProduction = produces.Count;
-            var unsafeReturnedTupleWrapper = false;
-            var refusedReturnedTuple = false;
-            foreach (var body in HandlerBodies.Of(handler))
-            {
-                if (models.For(body.SyntaxTree) is not { } semanticModel)
-                {
-                    continue;
-                }
-
-                var usesCommandContext = generatedIdentity || !HandlerBodies.YieldsEventSourceId(handler.ReturnType) ||
-                    EventResponseTuples.UsesCommandContext(handler.ReturnType);
-                var refusals = ReturnedTupleRefusals.For(handler, body, semanticModel, Types is not null);
-                refusedReturnedTuple |= refusals.Any;
-                unsafeReturnedTupleWrapper |= ReadBody(command, body, semanticModel, location, produces, null, usesCommandContext, sources, generatedIdentity, refusals);
-
-                foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, semanticModel))
-                {
-                    aggregates.Reached(behavior.AggregateRoot);
-                    var first = produces.Count;
-                    var aggregateUsesCommandContext = usesCommandContext &&
-                        ProductionDestinations.AggregateUsesCommandContext(behavior, body, semanticModel, command, identifier);
-                    ReadBehavior(command, behavior, location, produces, aggregateUsesCommandContext, sources);
-                    if (!InlineProductionShape.IsUnconditional(body))
-                    {
-                        for (var index = first; index < produces.Count; index++)
-                        {
-                            produces[index] = produces[index] with { CanInline = false };
-                        }
-                    }
-                }
-            }
-            if (!generatedIdentity && !EventResponseTuples.UsesCommandContext(handler.ReturnType) &&
-                (produces.Count == firstProduction || produces.Skip(firstProduction).Any(production => !production.UsesCommandContext && production.Destination is null)))
-            {
-                ReportEventSourceIdResult(command, handler, location);
-            }
-            withholding.Apply(handler, produces, (firstProduction, unsafeReturnedTupleWrapper), location);
-            withholding.Refuse(refusedReturnedTuple, produces.Count > firstProduction, location);
+            ReadHandler(handler, request, identifier, withholding);
         }
 
-        return produces.Count > 0 ? Deduplicate(produces) : withholding.ReadSignature(handlers, location);
+        return request.Produces.Count > 0 ? Deduplicate(request.Produces) : withholding.ReadSignature(handlers, location);
     }
 
     /// <summary>Reads an action with only its classified request-body parameter admitted as command input.</summary>
@@ -157,74 +119,170 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <returns>True when they are the same.</returns>
     static bool IsSame(ProducesModel left, ProducesModel right) =>
         string.Equals(left.EventName, right.EventName, StringComparison.Ordinal) &&
+        left.EventTypeIdentity == right.EventTypeIdentity &&
+        HaveSameConditionsAndDestinations(left, right) &&
+        left.DestinationDependencies.SequenceEqual(right.DestinationDependencies) &&
+        left.Mappings.SequenceEqual(right.Mappings);
+
+    /// <summary>
+    /// Determines whether two productions share their conditions and destinations.
+    /// </summary>
+    /// <param name="left">The first production.</param>
+    /// <param name="right">The second production.</param>
+    /// <returns>True when they share them.</returns>
+    static bool HaveSameConditionsAndDestinations(ProducesModel left, ProducesModel right) =>
         Equals(left.When, right.When) &&
         Equals(left.Destination, right.Destination) &&
         Equals(left.Route, right.Route) &&
-        left.DestinationDependencies.SequenceEqual(right.DestinationDependencies) &&
-        left.Mappings.SequenceEqual(right.Mappings) &&
-        left.EventTypeIdentity == right.EventTypeIdentity &&
         Equals(left.UnavailableCondition, right.UnavailableCondition) &&
         Equals(left.UnavailableDestination, right.UnavailableDestination);
 
     /// <summary>
+    /// Determines whether a handler's yielded event source identifier needs reporting.
+    /// </summary>
+    /// <param name="handler">The handler to check.</param>
+    /// <param name="request">What the read is collecting into.</param>
+    /// <param name="firstProduction">The index of the first production the handler contributed.</param>
+    /// <returns>True when it should be reported.</returns>
+    static bool ShouldReportEventSourceIdResult(IMethodSymbol handler, ProducesReadRequest request, int firstProduction) =>
+        !request.GeneratedIdentity &&
+        !EventResponseTuples.UsesCommandContext(handler.ReturnType) &&
+        (request.Produces.Count == firstProduction || request.Produces.Skip(firstProduction).Any(production => !production.UsesCommandContext && production.Destination is null));
+
+    /// <summary>
+    /// Describes a body that is about to be read.
+    /// </summary>
+    /// <param name="request">What the read is collecting into.</param>
+    /// <param name="syntax">The body.</param>
+    /// <param name="semanticModel">The model the body is read through.</param>
+    /// <param name="behavior">The behavior the body belongs to, when reached through an aggregate root.</param>
+    /// <returns>The <see cref="ProducesBodyRead"/> describing the body.</returns>
+    static ProducesBodyRead BodyOf(ProducesReadRequest request, SyntaxNode syntax, SemanticModel semanticModel, AggregateRootInvocation? behavior)
+    {
+        var scope = new ProducesScope(semanticModel, request.Command, behavior?.Bindings, behavior?.AggregateRoot) { ConsumedGuards = request.Sources?.ConsumedGuards };
+        return new ProducesBodyRead(syntax, semanticModel, scope, behavior, false, null);
+    }
+
+    /// <summary>
+    /// Gets the event type a construction creates, unless it is not an event or its effects must not be stated.
+    /// </summary>
+    /// <param name="body">The body the construction is in.</param>
+    /// <param name="creation">The construction to inspect.</param>
+    /// <returns>The event type, or null when the construction is not read.</returns>
+    static INamedTypeSymbol? EventTypeOf(ProducesBodyRead body, BaseObjectCreationExpressionSyntax creation)
+    {
+        if (body.Model.GetTypeInfo(creation).Type is not INamedTypeSymbol type || !EventReader.IsEvent(type))
+        {
+            return null;
+        }
+
+        return body.Refusals?.Covers(creation) == true ? null : type;
+    }
+
+    /// <summary>
+    /// Marks productions from an index onwards as not inlinable.
+    /// </summary>
+    /// <param name="produces">The productions collected so far.</param>
+    /// <param name="first">The index of the first production to mark.</param>
+    static void PreventInlining(List<ProducesModel> produces, int first)
+    {
+        for (var index = first; index < produces.Count; index++)
+        {
+            produces[index] = produces[index] with { CanInline = false };
+        }
+    }
+
+    /// <summary>
+    /// Reads everything one handler produces, from each of its bodies and the aggregate root behaviors they reach.
+    /// </summary>
+    /// <param name="handler">The handler to read.</param>
+    /// <param name="request">What the read is collecting into.</param>
+    /// <param name="identifier">The name of the command's identifier, when it has one.</param>
+    /// <param name="withholding">The productions that cannot be represented.</param>
+    void ReadHandler(IMethodSymbol handler, ProducesReadRequest request, string? identifier, UnrepresentableProductions withholding)
+    {
+        var firstProduction = request.Produces.Count;
+        var (unsafeReturnedTupleWrapper, refusedReturnedTuple) = ReadHandlerBodies(handler, request, identifier);
+        if (ShouldReportEventSourceIdResult(handler, request, firstProduction))
+        {
+            ReportEventSourceIdResult(request.Command, handler, request.Location);
+        }
+
+        withholding.Apply(handler, request.Produces, (firstProduction, unsafeReturnedTupleWrapper), request.Location);
+        withholding.Refuse(refusedReturnedTuple, request.Produces.Count > firstProduction, request.Location);
+    }
+
+    /// <summary>
+    /// Reads every body of a handler.
+    /// </summary>
+    /// <param name="handler">The handler to read.</param>
+    /// <param name="request">What the read is collecting into.</param>
+    /// <param name="identifier">The name of the command's identifier, when it has one.</param>
+    /// <returns>Whether an unrepresentable returned tuple wrapper was met, and whether a returned tuple was refused.</returns>
+    (bool UnsafeReturnedTupleWrapper, bool RefusedReturnedTuple) ReadHandlerBodies(IMethodSymbol handler, ProducesReadRequest request, string? identifier)
+    {
+        var unsafeReturnedTupleWrapper = false;
+        var refusedReturnedTuple = false;
+        foreach (var syntax in HandlerBodies.Of(handler))
+        {
+            if (models.For(syntax.SyntaxTree) is not { } semanticModel)
+            {
+                continue;
+            }
+
+            var usesCommandContext = request.GeneratedIdentity || !HandlerBodies.YieldsEventSourceId(handler.ReturnType) ||
+                EventResponseTuples.UsesCommandContext(handler.ReturnType);
+            var refusals = ReturnedTupleRefusals.For(handler, syntax, semanticModel, Types is not null);
+            refusedReturnedTuple |= refusals.Any;
+            var body = BodyOf(request, syntax, semanticModel, null) with { UsesCommandContext = usesCommandContext, Refusals = refusals };
+            unsafeReturnedTupleWrapper |= ReadBody(request, body);
+            ReadReachedBehaviors(request, body, identifier);
+        }
+
+        return (unsafeReturnedTupleWrapper, refusedReturnedTuple);
+    }
+
+    /// <summary>
+    /// Reads the aggregate root behaviors a body reaches.
+    /// </summary>
+    /// <param name="request">What the read is collecting into.</param>
+    /// <param name="body">The body that reaches them.</param>
+    /// <param name="identifier">The name of the command's identifier, when it has one.</param>
+    void ReadReachedBehaviors(ProducesReadRequest request, ProducesBodyRead body, string? identifier)
+    {
+        foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body.Syntax, body.Model))
+        {
+            aggregates.Reached(behavior.AggregateRoot);
+            var first = request.Produces.Count;
+            var aggregateUsesCommandContext = body.UsesCommandContext &&
+                ProductionDestinations.AggregateUsesCommandContext(behavior, body.Syntax, body.Model, request.Command, identifier);
+            ReadBehavior(request, behavior, aggregateUsesCommandContext);
+            if (!InlineProductionShape.IsUnconditional(body.Syntax))
+            {
+                PreventInlining(request.Produces, first);
+            }
+        }
+    }
+
+    /// <summary>
     /// Reads every event constructed within one handler body.
     /// </summary>
-    /// <param name="command">The type declaring the command.</param>
+    /// <param name="request">What the read is collecting into.</param>
     /// <param name="body">The body to read.</param>
-    /// <param name="semanticModel">The model the body is read through.</param>
-    /// <param name="location">Where the command lives, for use in diagnostics.</param>
-    /// <param name="produces">The productions collected so far.</param>
-    /// <param name="behavior">The behavior the body belongs to, when the handler reached it through an aggregate root.</param>
-    /// <param name="usesCommandContext">Whether the handler or aggregate uses the command's event source context.</param>
-    /// <param name="sources">The proven authoring mapping sources.</param>
-    /// <param name="generatedIdentity">Whether the returned tuple supplies a proven generated identity.</param>
-    /// <param name="refusals">The effects of an unsupported returned tuple that must not be stated.</param>
     /// <returns>Whether a supported returned tuple has an explicitly unrepresentable wrapper.</returns>
-    bool ReadBody(
-        INamedTypeSymbol command,
-        SyntaxNode body,
-        SemanticModel semanticModel,
-        string location,
-        List<ProducesModel> produces,
-        AggregateRootInvocation? behavior,
-        bool usesCommandContext,
-        AuthoringSources? sources = null,
-        bool generatedIdentity = false,
-        ReturnedTupleRefusals? refusals = null)
+    bool ReadBody(ProducesReadRequest request, ProducesBodyRead body)
     {
-        var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot) { ConsumedGuards = sources?.ConsumedGuards };
         var unsafeReturnedTupleWrapper = false;
 
-        foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
+        foreach (var creation in body.Syntax.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
         {
-            if (semanticModel.GetTypeInfo(creation).Type is not INamedTypeSymbol type || !EventReader.IsEvent(type))
-            {
-                continue;
-            }
-            if (refusals?.Covers(creation) == true)
+            if (EventTypeOf(body, creation) is not { } type)
             {
                 continue;
             }
 
-            var before = diagnostics.All.Count;
-            var unavailableCondition = UnavailableProductionDependencies.Condition(creation, body, sources, semanticModel, scope.Bindings);
-            var unavailableDestination = UnavailableProductionDependencies.Destination(creation, body, sources, semanticModel);
-            var when = unavailableCondition is null ? _conditions.Resolve(creation, body, scope, type, location) : null;
-            var mappings = _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings, sources).ToList();
-            var production = new ProducesModel(type.Name, when, mappings)
-            {
-                EventTypeIdentity = EventProducers.IdentityOf(type),
-                CodeMappedProperties = _mappings.CodeMappedProperties.ToArray(),
-                UnavailableCondition = unavailableCondition,
-                UnavailableDestination = unavailableDestination,
-                UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
-                CanInline = diagnostics.All.Count == before && when is null &&
-                    InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
-            };
-            var routed = behavior is null && Types is not null
-                ? new ReturnedProductionRoutes(models, Types) { Definitions = Definitions }.Apply(production, creation, body, semanticModel, command, sources, generatedIdentity)
-                : (Production: production, UnsafeReturnedTupleWrapper: false);
-            produces.Add(routed.Production);
+            var routed = ReadCreation(request, body, creation, type);
+            request.Produces.Add(routed.Production);
             unsafeReturnedTupleWrapper |= routed.UnsafeReturnedTupleWrapper;
         }
 
@@ -232,30 +290,54 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     }
 
     /// <summary>
+    /// Reads the production one event construction states.
+    /// </summary>
+    /// <param name="request">What the read is collecting into.</param>
+    /// <param name="body">The body the construction is in.</param>
+    /// <param name="creation">The construction of the event.</param>
+    /// <param name="type">The event type constructed.</param>
+    /// <returns>The production, and whether it has an unrepresentable returned tuple wrapper.</returns>
+    (ProducesModel Production, bool UnsafeReturnedTupleWrapper) ReadCreation(ProducesReadRequest request, ProducesBodyRead body, BaseObjectCreationExpressionSyntax creation, INamedTypeSymbol type)
+    {
+        var sources = request.Sources;
+        var before = diagnostics.All.Count;
+        var unavailableCondition = UnavailableProductionDependencies.Condition(creation, body.Syntax, sources, body.Model, body.Scope.Bindings);
+        var unavailableDestination = UnavailableProductionDependencies.Destination(creation, body.Syntax, sources, body.Model);
+        var when = unavailableCondition is null ? _conditions.Resolve(creation, body.Syntax, body.Scope, type, request.Location) : null;
+        var mappings = _mappings.Read(creation, body.Model, request.Command, type, request.Location, body.Scope.Bindings, sources).ToList();
+        var generatedIdentity = body.Behavior is null && request.GeneratedIdentity;
+        var production = new ProducesModel(type.Name, when, mappings)
+        {
+            EventTypeIdentity = EventProducers.IdentityOf(type),
+            CodeMappedProperties = _mappings.CodeMappedProperties.ToArray(),
+            UnavailableCondition = unavailableCondition,
+            UnavailableDestination = unavailableDestination,
+            UsesCommandContext = body.UsesCommandContext && new ReturnedEventDestinations(body.Model, body.Syntax, sources).Read(creation, body.Behavior is not null, generatedIdentity),
+            CanInline = diagnostics.All.Count == before && when is null &&
+                InlineProductionShape.IsUnconditional(body.Syntax) && InlineProductionShape.IsSupported(creation, body.Model)
+        };
+
+        return body.Behavior is null && Types is not null
+            ? new ReturnedProductionRoutes(models, Types) { Definitions = Definitions }.Apply(production, creation, body.Syntax, body.Model, request.Command, sources, generatedIdentity)
+            : (Production: production, UnsafeReturnedTupleWrapper: false);
+    }
+
+    /// <summary>
     /// Reads what a behavior of an aggregate root the handler reached produces.
     /// </summary>
-    /// <param name="command">The type declaring the command.</param>
+    /// <param name="request">What the read is collecting into.</param>
     /// <param name="behavior">The behavior the handler reached.</param>
-    /// <param name="location">Where the command lives, for use in diagnostics.</param>
-    /// <param name="produces">The productions collected so far.</param>
     /// <param name="usesCommandContext">Whether the reached aggregate belongs to the command context.</param>
-    /// <param name="sources">The generated input identities from the calling handler.</param>
     /// <remarks>
     /// The behavior is written wherever the aggregate root is, and a project that was not handed over is one whose
     /// source cannot be read at all. Saying so is the difference between a command stated as producing nothing and a
     /// reader who knows a project is missing from what the document was generated from.
     /// </remarks>
-    void ReadBehavior(
-        INamedTypeSymbol command,
-        AggregateRootInvocation behavior,
-        string location,
-        List<ProducesModel> produces,
-        bool usesCommandContext,
-        AuthoringSources? sources)
+    void ReadBehavior(ProducesReadRequest request, AggregateRootInvocation behavior, bool usesCommandContext)
     {
         if (models.For(behavior.Body.SyntaxTree) is { } semanticModel)
         {
-            ReadBody(command, behavior.Body, semanticModel, location, produces, behavior, usesCommandContext, sources);
+            ReadBody(request, BodyOf(request, behavior.Body, semanticModel, behavior) with { UsesCommandContext = usesCommandContext });
 
             return;
         }
@@ -263,7 +345,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.UnmappableCommandProduction,
             $"The command hands its work to '{behavior.AggregateRoot.Name}', which is written in a project the document was not generated from, so what it applies is not stated",
-            location);
+            request.Location);
     }
 
     /// <summary>

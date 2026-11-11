@@ -9,11 +9,11 @@
             when this project is reached through a ProjectReference from a multi-targeted parent (as
             it is from ProxyGenerator.Specs.csproj), evaluates a referenced project's target
             framework(s) without guaranteeing Configuration=Release for that evaluation, so the
-            Debug branch (a single net10.0) can apply even during a Release build of the parent -
-            which a net8.0/net9.0 leg of that parent cannot reference. Setting the value here, before
+            Debug branch (a single net11.0) can apply even during a Release build of the parent -
+            which a net10.0 leg of that parent cannot reference. Setting the value here, before
             Sdk.props runs at all, removes that dependency entirely.
         -->
-        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     </PropertyGroup>
 
     <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
