@@ -165,31 +165,8 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         var dependencies = context.Dependencies?.ToArray() ?? [];
         var queryStringParameters = context.Arguments ?? QueryArguments.Empty;
         var args = GetMethodArguments(dependencies, queryStringParameters, context.CancellationToken);
-        if ((context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
-            (context.AuthorizedExecution is { } verdict &&
-             !verdict.IsCurrent(
-                 AuthorizationMethod,
-                 context.ServiceProvider!.GetRequiredService<ICurrentPrincipalAccessor>(),
-                 (context.ServiceProvider.GetService<AuthorizationDeclarations>() ??
-                     throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(AuthorizationMethod))))
-        {
-            throw new AuthorizationIdentityChanged();
-        }
-
-        try
-        {
-            var invocationResult = AuthorizationMethod.Invoke(null, args);
-            var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-            return result;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            // Rethrow the inner exception preserving its original stack trace.
-            // The trailing 'throw' is unreachable but required because the C# compiler
-            // does not propagate [DoesNotReturn] through async state machines.
-            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
-            throw;
-        }
+        EnsureAuthorizedIdentityIsCurrent(context);
+        return await InvokeQueryMethod(args);
     }
 
     static object? ResolveDependency(object[] dependencies, ref int dependencyIndex)
@@ -301,6 +278,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
+    static bool IsMissingAsynchronousVerdict(QueryContext context) =>
+        context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null;
+
     object?[] GetMethodArguments(object[] dependencies, QueryArguments queryStringParameters, CancellationToken cancellationToken)
     {
         var dependencyIndex = 0;
@@ -325,6 +305,48 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
 
         ValidateArguments(_parameters, args);
         return args;
+    }
+
+    void EnsureAuthorizedIdentityIsCurrent(QueryContext context)
+    {
+        if (IsMissingAsynchronousVerdict(context) || IsVerdictStale(context))
+        {
+            throw new AuthorizationIdentityChanged();
+        }
+    }
+
+    bool IsVerdictStale(QueryContext context)
+    {
+        if (context.AuthorizedExecution is not { } verdict)
+        {
+            return false;
+        }
+
+        var services = context.ServiceProvider!;
+        var declarations = services.GetService<AuthorizationDeclarations>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+        return !verdict.IsCurrent(
+            AuthorizationMethod,
+            services.GetRequiredService<ICurrentPrincipalAccessor>(),
+            declarations.For(AuthorizationMethod));
+    }
+
+    async ValueTask<object?> InvokeQueryMethod(object?[] args)
+    {
+        try
+        {
+            var invocationResult = AuthorizationMethod.Invoke(null, args);
+            var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
+            return result;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            // Rethrow the inner exception preserving its original stack trace.
+            // The trailing 'throw' is unreachable but required because the C# compiler
+            // does not propagate [DoesNotReturn] through async state machines.
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            throw;
+        }
     }
 
     void ValidateArguments(ImmutableArray<ParameterInfo> parameters, object?[] args)

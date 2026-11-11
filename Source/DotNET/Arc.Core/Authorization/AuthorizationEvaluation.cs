@@ -52,22 +52,8 @@ public class AuthorizationEvaluation(
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
-        if (resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } &&
-            selectedPrincipal?.Identity?.IsAuthenticated != true)
-        {
-            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-        }
-
-        if (services.GetService<IHttpRequestContextAccessor>()?.Current is { } request &&
-            VerifiedCallerPrincipal.From(request) is { } verified &&
-            verified.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault() is { } verifiedIdentity &&
-            (!VerifiedCallerPrincipal.Carries(selectedPrincipal, verifiedIdentity.Caller) ||
-             VerifiedCallerPrincipal.CarriesAnotherSubject(selectedPrincipal, verifiedIdentity.Caller)))
-        {
-            // A scheme selected a principal other than the verified caller, or merged another subject into it:
-            // refuse by making it anonymous, never merge.
-            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-        }
+        selectedPrincipal = GuestWhenAnonymousEvaluated(resolution, selectedPrincipal);
+        selectedPrincipal = AnonymousUnlessVerifiedCaller(services, selectedPrincipal);
 
         cancellationToken.ThrowIfCancellationRequested();
         return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution);
@@ -105,21 +91,9 @@ public class AuthorizationEvaluation(
     /// <exception cref="InvalidAuthorizationConfiguration">The prepared target or requirements changed.</exception>
     internal async Task<bool> IsAuthorizedPrepared(PreparedAuthorizationRequest request, CancellationToken cancellationToken)
     {
-        var (target, resource, services, legacyVerdict, prepared) = request;
-        if (!prepared.Target.Equals(target))
-        {
-            throw new InvalidAuthorizationConfiguration("The prepared authorization target does not match the executing command.");
-        }
-
-        var currentDeclaration = DeclarationFor(target);
-        var declaration = prepared.Declaration;
-        if (!AuthorizationEvaluator.SameDeclaration(declaration, currentDeclaration))
-        {
-            throw new InvalidAuthorizationConfiguration("Authorization requirements changed during execution.");
-        }
-
+        var (target, _, services, _, prepared) = request;
+        EnsurePlanIsCurrent(target, prepared);
         var selectedPrincipal = prepared.SelectedPrincipal;
-        var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
         if (!MeetsTypeRequirements(prepared))
         {
@@ -132,73 +106,7 @@ public class AuthorizationEvaluation(
             ? services.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal!, services)
             : null;
 
-        PrincipalSnapshot? policyIdentity = null;
-        PrincipalSnapshot? executionIdentity = null;
-        var guest = false;
-        if (declaration.RequiresAsynchronousEvaluation)
-        {
-            if (selectedPrincipal is null)
-            {
-                return false;
-            }
-
-            guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
-            var executionPrincipal = needsSelectedScope ? selectedPrincipal : principalAccessor.Current;
-
-            // A verdict certifies exactly the policy-input and execution identities captured immediately before
-            // evaluation (after pre-verdict hooks). Without a selected scope, authenticated policy input must
-            // match the execution identity by content at that instant. Both are revalidated after every callback
-            // that runs application code and before the verdict is published. A synthetic guest is distinct from
-            // the ambient unauthenticated caller, but cannot certify an authenticated execution identity.
-            policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
-            executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
-            if (PolicyInputDiffers(needsSelectedScope || guest, policyIdentity, executionPrincipal) || GuestConflicts(guest, selectedPrincipal, executionPrincipal))
-            {
-                return false;
-            }
-
-            if (!await resolution.IsAuthorized(
-                new AuthorizationPolicyContext(selectedPrincipal, target, resource!)
-                {
-                    PrincipalAccessor = principalAccessor,
-                    ReceivedAt = ReceivedAtFor(resource, services)
-                },
-                services,
-                cancellationToken))
-            {
-                return false;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IdentityUnchanged(policyIdentity, executionIdentity, selectedPrincipal, guest) || !DeclarationUnchanged(target, declaration))
-            {
-                return false;
-            }
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // The legacy marker carries only the certified execution snapshot and guest flag; CheckMember rechecks both.
-        using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, executionIdentity!, declaration, guest)
-            : null;
-
-        // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
-        if (!legacyVerdict())
-        {
-            return false;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        if (declaration.RequiresAsynchronousEvaluation &&
-            (!IdentityUnchanged(policyIdentity!, executionIdentity!, selectedPrincipal!, guest) || !DeclarationUnchanged(target, declaration)))
-        {
-            return false;
-        }
-
-        PublishAuthorizedExecution(resource, principalChanged ? selectedPrincipal : null, declaration.RequiresAsynchronousEvaluation ? new AuthorizedExecution(target, executionIdentity!, declaration, guest) : null);
-
-        return true;
+        return await AuthorizeWithinScope(request, needsSelectedScope, cancellationToken);
     }
 
     /// <summary>
@@ -224,6 +132,39 @@ public class AuthorizationEvaluation(
         cancellationToken.ThrowIfCancellationRequested();
         return prepared.Declaration.RequiresAsynchronousEvaluation || LegacyVerdict(check.Target, check.LegacyEvaluator);
     }
+
+    static void PublishVerdict(PreparedAuthorizationRequest request, PolicyCertification? certification)
+    {
+        var (target, resource, _, _, prepared) = request;
+        var authorizedExecution = certification is null ? null : new AuthorizedExecution(target, certification.Execution, prepared.Declaration, certification.Guest);
+        PublishAuthorizedExecution(resource, prepared.PrincipalChanged ? prepared.SelectedPrincipal : null, authorizedExecution);
+    }
+
+    static IDisposable? AlreadyEvaluatedFor(PolicyCertification? certification, MemberInfo target, AuthorizationDeclaration declaration) =>
+        certification is null ? null : AuthorizationEvaluator.AlreadyEvaluated(target, certification.Execution, declaration, certification.Guest);
+
+    static ClaimsPrincipal? GuestWhenAnonymousEvaluated(IAuthorizationPolicyResolution resolution, ClaimsPrincipal? selectedPrincipal) =>
+        resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } && selectedPrincipal?.Identity?.IsAuthenticated != true
+            ? new ClaimsPrincipal(new ClaimsIdentity())
+            : selectedPrincipal;
+
+    /// <summary>
+    /// Refuses a principal a scheme selected other than the verified caller, or merged with another subject, by making it anonymous; never merges.
+    /// </summary>
+    /// <param name="services">The executing scope.</param>
+    /// <param name="selectedPrincipal">The scheme-selected principal.</param>
+    /// <returns>The selected principal, or an anonymous principal when it is not the verified caller.</returns>
+    static ClaimsPrincipal? AnonymousUnlessVerifiedCaller(IServiceProvider services, ClaimsPrincipal? selectedPrincipal) =>
+        services.GetService<IHttpRequestContextAccessor>()?.Current is { } request &&
+        VerifiedCallerPrincipal.From(request) is { } verified &&
+        verified.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault() is { } verifiedIdentity &&
+        !CarriesOnlyVerifiedCaller(selectedPrincipal, verifiedIdentity)
+            ? new ClaimsPrincipal(new ClaimsIdentity())
+            : selectedPrincipal;
+
+    static bool CarriesOnlyVerifiedCaller(ClaimsPrincipal? selectedPrincipal, VerifiedCallerIdentity verifiedIdentity) =>
+        VerifiedCallerPrincipal.Carries(selectedPrincipal, verifiedIdentity.Caller) &&
+        !VerifiedCallerPrincipal.CarriesAnotherSubject(selectedPrincipal, verifiedIdentity.Caller);
 
     static bool PolicyInputDiffers(bool exempt, PrincipalSnapshot policyIdentity, ClaimsPrincipal executionPrincipal) =>
         !exempt && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal);
@@ -281,8 +222,109 @@ public class AuthorizationEvaluation(
     bool DeclarationUnchanged(MemberInfo target, AuthorizationDeclaration declaration) =>
         AuthorizationEvaluator.SameDeclaration(declaration, DeclarationFor(target));
 
+    async Task<bool> AuthorizeWithinScope(PreparedAuthorizationRequest request, bool needsSelectedScope, CancellationToken cancellationToken)
+    {
+        var (target, _, _, legacyVerdict, prepared) = request;
+        var declaration = prepared.Declaration;
+        var certification = declaration.RequiresAsynchronousEvaluation
+            ? await EvaluatePolicy(request, needsSelectedScope, cancellationToken)
+            : null;
+        if (declaration.RequiresAsynchronousEvaluation && certification is null)
+        {
+            return false;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // The legacy marker carries only the certified execution snapshot and guest flag; CheckMember rechecks both.
+        using var alreadyEvaluated = AlreadyEvaluatedFor(certification, target, declaration);
+
+        // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
+        if (!legacyVerdict())
+        {
+            return false;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (certification is not null && !StillCertified(certification, target, declaration, prepared.SelectedPrincipal!))
+        {
+            return false;
+        }
+
+        PublishVerdict(request, certification);
+        return true;
+    }
+
+    void EnsurePlanIsCurrent(MemberInfo target, PreparedAuthorization prepared)
+    {
+        if (!prepared.Target.Equals(target))
+        {
+            throw new InvalidAuthorizationConfiguration("The prepared authorization target does not match the executing command.");
+        }
+
+        if (!AuthorizationEvaluator.SameDeclaration(prepared.Declaration, DeclarationFor(target)))
+        {
+            throw new InvalidAuthorizationConfiguration("Authorization requirements changed during execution.");
+        }
+    }
+
+    /// <summary>
+    /// Evaluates the policy. A verdict certifies exactly the policy-input and execution identities captured immediately before
+    /// evaluation (after pre-verdict hooks). Without a selected scope, authenticated policy input must
+    /// match the execution identity by content at that instant. Both are revalidated after every callback
+    /// that runs application code and before the verdict is published. A synthetic guest is distinct from
+    /// the ambient unauthenticated caller, but cannot certify an authenticated execution identity.
+    /// </summary>
+    /// <param name="request">The prepared request.</param>
+    /// <param name="needsSelectedScope">Whether the selected principal runs in its own scope.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The certified identities, or null when access is denied.</returns>
+    async Task<PolicyCertification?> EvaluatePolicy(PreparedAuthorizationRequest request, bool needsSelectedScope, CancellationToken cancellationToken)
+    {
+        var (target, resource, services, _, prepared) = request;
+        var selectedPrincipal = prepared.SelectedPrincipal;
+        if (selectedPrincipal is null)
+        {
+            return null;
+        }
+
+        var certification = CaptureIdentities(prepared, selectedPrincipal, needsSelectedScope);
+        if (certification is null)
+        {
+            return null;
+        }
+
+        var context = new AuthorizationPolicyContext(selectedPrincipal, target, resource!)
+        {
+            PrincipalAccessor = principalAccessor,
+            ReceivedAt = ReceivedAtFor(resource, services)
+        };
+        if (!await prepared.Resolution.IsAuthorized(context, services, cancellationToken))
+        {
+            return null;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return StillCertified(certification, target, prepared.Declaration, selectedPrincipal) ? certification : null;
+    }
+
+    PolicyCertification? CaptureIdentities(PreparedAuthorization prepared, ClaimsPrincipal selectedPrincipal, bool needsSelectedScope)
+    {
+        var guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
+        var executionPrincipal = needsSelectedScope ? selectedPrincipal : principalAccessor.Current;
+        var policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
+        var executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
+        var conflicts = PolicyInputDiffers(needsSelectedScope || guest, policyIdentity, executionPrincipal) || GuestConflicts(guest, selectedPrincipal, executionPrincipal);
+        return conflicts ? null : new PolicyCertification(policyIdentity, executionIdentity, guest);
+    }
+
+    bool StillCertified(PolicyCertification certification, MemberInfo target, AuthorizationDeclaration declaration, ClaimsPrincipal selectedPrincipal) =>
+        IdentityUnchanged(certification.Policy, certification.Execution, selectedPrincipal, certification.Guest) && DeclarationUnchanged(target, declaration);
+
     bool IdentityUnchanged(PrincipalSnapshot policyIdentity, PrincipalSnapshot executionIdentity, ClaimsPrincipal selectedPrincipal, bool guest) =>
         AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) &&
         AuthorizationPrincipalIdentity.Same(executionIdentity, principalAccessor.Current) &&
         (!guest || !AuthorizationEvaluator.HasAuthenticatedIdentity(principalAccessor.Current));
+
+    sealed record PolicyCertification(PrincipalSnapshot Policy, PrincipalSnapshot Execution, bool Guest);
 }

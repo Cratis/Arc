@@ -96,16 +96,10 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
 
-        let actualRoute = this.route;
-
-        if (this.requestParameters && this.requestParameters.length > 0) {
-            const payload = this.buildPayload();
-            const { route } = UrlHelpers.replaceRouteParameters(this.route, payload);
-            actualRoute = route;
-        }
+        const actualRoute = this.resolveRoute();
 
         const submittedValues = this.captureCurrentValues();
-        const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call', allowedSeverity, ignoreWarnings);
+        const result = await this.performRequest(actualRoute, 'Command not found at route', 'Error during server call', { allowedSeverity, ignoreWarnings });
         if (result.isSuccess) {
             this._initialValues = submittedValues;
             this.updateHasChanges();
@@ -127,15 +121,7 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
 
-        let actualRoute = this.route;
-
-        if (this.requestParameters && this.requestParameters.length > 0) {
-            const payload = this.buildPayload();
-            const { route } = UrlHelpers.replaceRouteParameters(this.route, payload);
-            actualRoute = route;
-        }
-
-        actualRoute = `${actualRoute}/validate`;
+        const actualRoute = `${this.resolveRoute()}/validate`;
         const result = await this.performRequest(actualRoute, 'Command validation endpoint not found at route', 'Error during validation call');
         if (result.isSuccess && clientValidationErrors.length > 0) {
             return Object.assign(result, { validationResults: [...result.validationResults, ...clientValidationErrors] });
@@ -168,6 +154,14 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
             validationResults: advisoryResults,
             response: null
         }, Object, false) as CommandResult<TCommandResponse>;
+    }
+
+    private resolveRoute(): string {
+        if (this.requestParameters && this.requestParameters.length > 0) {
+            const payload = this.buildPayload();
+            return UrlHelpers.replaceRouteParameters(this.route, payload).route;
+        }
+        return this.route;
     }
 
     private buildPayload(): object {
@@ -240,11 +234,10 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         route: string,
         notFoundMessage: string,
         errorMessage: string,
-        allowedSeverity?: ValidationResultSeverity,
-        ignoreWarnings?: boolean
+        options: { allowedSeverity?: ValidationResultSeverity; ignoreWarnings?: boolean } = {}
     ): Promise<CommandResult<TCommandResponse>> {
         const payload = this.buildPayload();
-        const headers = this.buildHeaders(allowedSeverity, ignoreWarnings);
+        const headers = this.buildHeaders(options.allowedSeverity, options.ignoreWarnings);
         const actualRoute = joinPaths(this._apiBasePath, route);
         const url = UrlHelpers.createUrlFrom(this._origin, this._apiBasePath, actualRoute);
 

@@ -119,15 +119,7 @@ public class ClientObservable<T>(
             await receiverWatch;
         }
 
-        if (terminationFailure is not null && receiverFailure is not null)
-        {
-            throw new ObservableQueryTeardownFailed([terminationFailure, receiverFailure]);
-        }
-
-        if (terminationFailure is not null || receiverFailure is not null)
-        {
-            ExceptionDispatchInfo.Capture(terminationFailure ?? receiverFailure).Throw();
-        }
+        ThrowTeardownFailures(terminationFailure, receiverFailure);
 
         return;
 
@@ -145,70 +137,11 @@ public class ClientObservable<T>(
             {
                 await emissionGate.WaitAsync(cts.Token);
                 gateHeld = true;
-                if (cts.IsCancellationRequested || isTerminated)
-                {
-                    return;
-                }
-
-                using var emissionIdentity = context is ObservableQuerySubscriptionHttpRequestContext selectedSubscription
-                    ? selectedSubscription.BeginEmission()
-                    : ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
-                if (data is null)
-                {
-                    // A single-document observable emits default/null to report "no such document" (removed,
-                    // updated out of the filter, or never found) rather than completing the observable — the
-                    // emission is forwarded below like any other, not dropped.
-                    logger.ObservableForwardingNullItem();
-                }
-
-                queryResult.Paging = ObservableQueryPaging.PagingFor(data, queryContext);
-
-                // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
-                // context set up for this connection does not flow. Restoring it here — and resolving through
-                // the connection's own request-scoped provider rather than the root — ensures the interceptor
-                // releases compliance/PII data under this subscription's tenant, not whichever tenant happened
-                // to resolve first.
-                queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
-
-                if (emissionGuards.HasGuards && !await IsEmissionAllowed())
-                {
-                    return;
-                }
-
-                // A guard evaluating a concurrent emission may have terminated the connection while this one was
-                // being intercepted and evaluated. The terminal unauthorized frame has already gone out, so nothing
-                // may be written behind it.
-                if (isTerminated)
-                {
-                    return;
-                }
-
-                using var push = telemetry.BeginPush();
-                var result = await WebSocketSends.Send(webSocketConnectionHandler, webSocket, queryResult, writeLock, cts.Token);
-                if (result.Error is not null)
-                {
-                    if (!cts.IsCancellationRequested)
-                    {
-                        Subject.OnError(result.Error);
-                    }
-
-                    return;
-                }
-
-                if (result.Status == WebSocketSendStatus.Sent)
-                {
-                    push.Delivered();
-
-                    // A completed transport write is not an acknowledgment from the client.
-                    hasDeliveredEmission = true;
-                }
+                await EmitWithinGate(data);
             }
             catch (Exception ex)
             {
-                if (!cts.IsCancellationRequested)
-                {
-                    Subject.OnError(ex);
-                }
+                ReportFailure(ex);
             }
             finally
             {
@@ -218,6 +151,76 @@ public class ClientObservable<T>(
                 }
 
                 drain.Exit();
+            }
+        }
+
+        async Task EmitWithinGate(T data)
+        {
+            if (cts.IsCancellationRequested || isTerminated)
+            {
+                return;
+            }
+
+            using var emissionIdentity = BeginEmissionIdentity();
+            if (data is null)
+            {
+                // A single-document observable emits default/null to report "no such document" (removed,
+                // updated out of the filter, or never found) rather than completing the observable — the
+                // emission is forwarded below like any other, not dropped.
+                logger.ObservableForwardingNullItem();
+            }
+
+            queryResult.Paging = ObservableQueryPaging.PagingFor(data, queryContext);
+
+            // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
+            // context set up for this connection does not flow. Restoring it here — and resolving through
+            // the connection's own request-scoped provider rather than the root — ensures the interceptor
+            // releases compliance/PII data under this subscription's tenant, not whichever tenant happened
+            // to resolve first.
+            queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
+
+            if (await IsBlockedBeforePush())
+            {
+                return;
+            }
+
+            await PushEmission();
+        }
+
+        // A guard evaluating a concurrent emission may have terminated the connection while this one was
+        // being intercepted and evaluated. The terminal unauthorized frame has already gone out, so nothing
+        // may be written behind it.
+        async Task<bool> IsBlockedBeforePush() =>
+            (emissionGuards.HasGuards && !await IsEmissionAllowed()) || isTerminated;
+
+        IDisposable BeginEmissionIdentity() => context is ObservableQuerySubscriptionHttpRequestContext selectedSubscription
+            ? selectedSubscription.BeginEmission()
+            : ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
+
+        void ReportFailure(Exception emissionError)
+        {
+            if (!cts.IsCancellationRequested)
+            {
+                Subject.OnError(emissionError);
+            }
+        }
+
+        async Task PushEmission()
+        {
+            using var push = telemetry.BeginPush();
+            var result = await WebSocketSends.Send(webSocketConnectionHandler, webSocket, queryResult, writeLock, cts.Token);
+            if (result.Error is not null)
+            {
+                ReportFailure(result.Error);
+                return;
+            }
+
+            if (result.Status == WebSocketSendStatus.Sent)
+            {
+                push.Delivered();
+
+                // A completed transport write is not an acknowledgment from the client.
+                hasDeliveredEmission = true;
             }
         }
 
@@ -307,6 +310,19 @@ public class ClientObservable<T>(
                 logger.ObservableCompleted();
             }
             tcs.TrySetResult();
+        }
+    }
+
+    static void ThrowTeardownFailures(Exception? terminationFailure, Exception? receiverFailure)
+    {
+        if (terminationFailure is not null && receiverFailure is not null)
+        {
+            throw new ObservableQueryTeardownFailed([terminationFailure, receiverFailure]);
+        }
+
+        if (terminationFailure is not null || receiverFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(terminationFailure ?? receiverFailure!).Throw();
         }
     }
 }

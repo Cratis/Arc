@@ -77,40 +77,33 @@ public static class ExpectedBindingDiagnostics
     static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs, FrozenSet<string> activeErrorCodes) =>
         activeErrorCodes.Contains(diagnostic.Code) && HasKnownMessageShape(diagnostic, authoringOnlyConstructs);
 
-    static bool HasKnownMessageShape(Diagnostic diagnostic, bool authoringOnlyConstructs)
+    static bool HasKnownMessageShape(Diagnostic diagnostic, bool authoringOnlyConstructs) => diagnostic.Code switch
     {
-        var message = diagnostic.Message;
-        if (diagnostic.Code == LegacyConsistencyCode)
-        {
-            var command = Reason(message, "Command");
+        LegacyConsistencyCode => IsLegacyConsistencyMessage(diagnostic.Message, authoringOnlyConstructs),
+        AttachmentRefusalCode => Reason(diagnostic.Message, "Command") == " handler requires a constrained implementation attachment.",
+        AdmissionLimitCode => IsAdmissionLimitMessage(diagnostic.Message, authoringOnlyConstructs),
+        _ => false
+    };
 
-            return command == " concurrency metadata keeps its legacy meaning and cannot bind to ESM v1." ||
-                (authoringOnlyConstructs && command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
-        }
+    static bool IsLegacyConsistencyMessage(string message, bool authoringOnlyConstructs)
+    {
+        var command = Reason(message, "Command");
 
-        if (diagnostic.Code == AttachmentRefusalCode)
-        {
-            return Reason(message, "Command") == " handler requires a constrained implementation attachment.";
-        }
-
-        if (diagnostic.Code != AdmissionLimitCode)
-        {
-            return false;
-        }
-
-        if (authoringOnlyConstructs &&
-            (message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
-            Reason(Reason(message, "Stream id mapping") ?? string.Empty, " on command") == " reads a property path; only direct command inputs are admitted by event routes."))
-        {
-            return true;
-        }
-
-        var query = Reason(message, "Query");
-
-        return Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
-            Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
-            IsKnownQueryReason(query);
+        return command == " concurrency metadata keeps its legacy meaning and cannot bind to ESM v1." ||
+            (authoringOnlyConstructs && command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
     }
+
+    static bool IsAdmissionLimitMessage(string message, bool authoringOnlyConstructs) =>
+        (authoringOnlyConstructs && IsAuthoringOnlyAdmissionLimit(message)) || IsAlwaysExpectedAdmissionLimit(message);
+
+    static bool IsAuthoringOnlyAdmissionLimit(string message) =>
+        message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
+        Reason(Reason(message, "Stream id mapping") ?? string.Empty, " on command") == " reads a property path; only direct command inputs are admitted by event routes.";
+
+    static bool IsAlwaysExpectedAdmissionLimit(string message) =>
+        Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
+        Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
+        IsKnownQueryReason(Reason(message, "Query"));
 
     static bool IsKnownQueryReason(string? query) =>
         query == " uses filtering, scope, or implementation behavior outside the admitted ESM query shapes." ||

@@ -5,6 +5,7 @@ using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Queries.for_QueryPipeline.when_performing;
 
+[PerFactSpecificationLifecycle]
 public class with_scalar_coercion : given.a_query_pipeline
 {
     enum Status

@@ -65,9 +65,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 
         // A validator's reads are injected through its constructor; other validator methods are not resolved from DI.
         var inValidator = !SymbolEqualityComparer.Default.Equals(command, method.ContainingType);
-        if ((inValidator && method.MethodKind != MethodKind.Constructor) ||
-            ReadProtectionSymbols.Mode(command) != 0 || HasUnprotected(command) || HasUnprotected(method) || HasUnprotected(parameter) || HasUnprotected(parameter.Type) ||
-            IsDecision(parameter.Type) || !IsChronicleBacked(parameter.Type, backedTypes))
+        if (IsNotAdvisedParameter(command, method, parameter, inValidator) || !IsChronicleBacked(parameter.Type, backedTypes))
         {
             return;
         }
@@ -79,6 +77,12 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             parameter.Type.Name,
             inValidator ? ValidatorAdvice : HandlerAdvice));
     }
+
+    static bool IsNotAdvisedParameter(INamedTypeSymbol command, IMethodSymbol method, IParameterSymbol parameter, bool inValidator) =>
+        (inValidator && method.MethodKind != MethodKind.Constructor) ||
+        ReadProtectionSymbols.Mode(command) != 0 ||
+        HasUnprotected(command) || HasUnprotected(method) || HasUnprotected(parameter) || HasUnprotected(parameter.Type) ||
+        IsDecision(parameter.Type);
 
     static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
@@ -95,6 +99,16 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             return;
         }
 
+        ReportUnprotectedRead(context, syntax, called, enclosing, command);
+
+        if (immediateAppend)
+        {
+            ReportImmediateAppend(context, syntax, enclosing, command);
+        }
+    }
+
+    static void ReportUnprotectedRead(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax syntax, IMethodSymbol called, IMethodSymbol enclosing, INamedTypeSymbol command)
+    {
         if (ReadProtectionSymbols.Mode(command) == 0 && called.Name == "GetInstanceById" && Implements(ReceiverOf(called), ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
         {
             context.ReportDiagnostic(Diagnostic.Create(
@@ -104,11 +118,10 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
                 called.TypeArguments.FirstOrDefault()?.Name ?? "read model",
                 SymbolEqualityComparer.Default.Equals(command, enclosing.ContainingType) ? HandlerAdvice : ValidatorAdvice));
         }
+    }
 
-        if (!immediateAppend)
-        {
-            return;
-        }
+    static void ReportImmediateAppend(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax syntax, IMethodSymbol enclosing, INamedTypeSymbol command)
+    {
         var methods = command.GetMembers().OfType<IMethodSymbol>().Where(_ => _.Name == "Handle" || _.Name == "Provide");
         var usesDecision = methods.Any(_ => _.Parameters.Any(p => IsDecision(p.Type))) ||
             enclosing.ContainingType.GetMembers().OfType<IMethodSymbol>().Any(_ => _.Parameters.Any(p => IsDecision(p.Type))) ||
