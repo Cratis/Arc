@@ -72,7 +72,7 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
     static async Task CloseResponse(HttpListenerContext context, Stream? body)
     {
         // A request rejected before its body was read must not leave unread bytes on a reused connection.
-        var drained = await TryDrainRequestBody(context.Request, body);
+        var drained = await TryDrainRequestBody(body);
         if (drained)
         {
             context.Response.Close();
@@ -82,18 +82,13 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
         context.Response.Abort();
     }
 
-    static async Task<bool> TryDrainRequestBody(HttpListenerRequest request, Stream? body)
+    static async Task<bool> TryDrainRequestBody(Stream? body)
     {
         try
         {
             if (body is null)
             {
                 return true;
-            }
-
-            if (request.ContentLength64 > MaxDrainBytes)
-            {
-                return false;
             }
 
             using var cancellation = new CancellationTokenSource(_maxDrainTime);
