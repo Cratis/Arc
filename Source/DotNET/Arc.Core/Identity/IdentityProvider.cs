@@ -139,21 +139,7 @@ public class IdentityProvider(
 
         var claimsPrincipal = context.User;
         var identityId = claimsPrincipal.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ?? "unknown";
-        var identityName = claimsPrincipal.Identity?.Name;
-        if (string.IsNullOrEmpty(identityName) && options.Value.TrustForwardedIdentityHeaders && options.Value.ForwardedIdentity?.Enabled != true)
-        {
-            var hop = ForwardedIdentityHop.Admit(context, options.Value);
-            if (hop is ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated)
-            {
-                context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out identityName);
-            }
-            else if (ForwardedIdentityHeaders.ArePresent(context))
-            {
-                var logger = context.RequestServices?.GetService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<IdentityProvider>.Instance;
-                ForwardedIdentityHopLogging.Shared.Report(logger, hop, context);
-            }
-        }
-        identityName = string.IsNullOrEmpty(identityName) ? "unknown" : identityName;
+        var identityName = ResolveIdentityName(context, claimsPrincipal);
         var claims = claimsPrincipal.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value));
         var roles = claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
 
@@ -167,6 +153,38 @@ public class IdentityProvider(
         }
 
         return IdentityProviderResult.Unauthorized;
+    }
+
+    string ResolveIdentityName(IHttpRequestContext context, ClaimsPrincipal claimsPrincipal)
+    {
+        var identityName = claimsPrincipal.Identity?.Name;
+        if (string.IsNullOrEmpty(identityName) && UsesLegacyForwardedHeaders())
+        {
+            identityName = ForwardedIdentityName(context);
+        }
+
+        return string.IsNullOrEmpty(identityName) ? "unknown" : identityName;
+    }
+
+    bool UsesLegacyForwardedHeaders() =>
+        options.Value.TrustForwardedIdentityHeaders && options.Value.ForwardedIdentity?.Enabled != true;
+
+    string? ForwardedIdentityName(IHttpRequestContext context)
+    {
+        var hop = ForwardedIdentityHop.Admit(context, options.Value);
+        if (hop is ForwardedIdentityHopAdmission.NotRequired or ForwardedIdentityHopAdmission.Authenticated)
+        {
+            context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out var identityName);
+            return identityName;
+        }
+
+        if (ForwardedIdentityHeaders.ArePresent(context))
+        {
+            var logger = context.RequestServices?.GetService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<IdentityProvider>.Instance;
+            ForwardedIdentityHopLogging.Shared.Report(logger, hop, context);
+        }
+
+        return null;
     }
 
     TDetails ConvertDetails<TDetails>(object details)
