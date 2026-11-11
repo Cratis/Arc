@@ -26,7 +26,7 @@
         </ItemGroup>
     </Target>
 
-    <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != ''"> 
+    <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != '' and '$(CratisProxiesSkip)' != 'true' and '$(DisableProxyGenerator)' != 'true'"> 
         <PropertyGroup>
             <CratisProxiesOutputPath>$([System.String]::Copy('$(CratisProxiesOutputPath)').TrimEnd('\'))</CratisProxiesOutputPath>
             <!-- In-repo projects import these targets without the package .props. -->
