@@ -4,6 +4,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text;
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
@@ -27,24 +28,8 @@ public class when_a_guest_calls_the_core_host
     [InlineData("unannotated", HttpStatusCode.Unauthorized)]
     public async Task should_only_admit_guest_policy_endpoints(string path, HttpStatusCode expected)
     {
-        using var portProbe = new TcpListener(IPAddress.Loopback, 0);
-        portProbe.Start();
-        var port = ((IPEndPoint)portProbe.LocalEndpoint).Port;
-        portProbe.Stop();
-        var address = $"http://127.0.0.1:{port}/";
-        var builder = ArcApplication.CreateBuilder();
-        builder.AddCratisArc(options => options.Hosting.ApplicationUrl = address);
-        builder.Services.AddArcAuthorizationPolicy<AllowGuest>("Guest", evaluatesAnonymous: true);
-        builder.Services.AddArcAuthorizationPolicy<DenyGuest>("Denied", evaluatesAnonymous: true);
-        builder.Services.AddArcAuthorizationPolicy<AllowGuest>("Ordinary");
-        var authenticationHandlers = Substitute.For<IInstancesOf<IAuthenticationHandler>>();
-        authenticationHandlers.GetEnumerator().Returns(_ => new IAuthenticationHandler[] { new MissingCredentials() }.AsEnumerable().GetEnumerator());
-        builder.Services.AddSingleton(authenticationHandlers);
-        var probe = new Probe();
-        builder.Services.AddSingleton(probe);
-        RegisterArtifacts(builder.Services);
-        await using var app = builder.Build();
-        app.UseCratisArc();
+        var (app, address, probe) = BuildHost();
+        await using var host = app;
         await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
         try
         {
@@ -69,6 +54,60 @@ public class when_a_guest_calls_the_core_host
             await app.StopAsync();
 #pragma warning restore xUnit1051
         }
+    }
+
+    [Fact]
+    public async Task should_refuse_a_request_whose_body_arrives_late_without_corrupting_the_connection()
+    {
+        var (app, address, _) = BuildHost();
+        await using var host = app;
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
+        try
+        {
+            var uri = new Uri(address);
+            using var tcp = new TcpClient();
+            await tcp.ConnectAsync(uri.Host, uri.Port, global::Xunit.TestContext.Current.CancellationToken);
+            var stream = tcp.GetStream();
+            var request = $"POST /guest-spec/ordinary/validate HTTP/1.1\r\nHost: {uri.Authority}\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n";
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(request), global::Xunit.TestContext.Current.CancellationToken);
+            await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
+            await stream.WriteAsync(Encoding.ASCII.GetBytes("{}"), global::Xunit.TestContext.Current.CancellationToken);
+            await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
+            var followUp = $"GET /guest-query/ordinary HTTP/1.1\r\nHost: {uri.Authority}\r\nConnection: close\r\n\r\n";
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(followUp), global::Xunit.TestContext.Current.CancellationToken);
+            using var reader = new StreamReader(stream, Encoding.ASCII);
+            var responses = await reader.ReadToEndAsync(global::Xunit.TestContext.Current.CancellationToken);
+            responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        }
+        finally
+        {
+#pragma warning disable xUnit1051
+            await app.StopAsync();
+#pragma warning restore xUnit1051
+        }
+    }
+
+    static (ArcApplication App, string Address, Probe Probe) BuildHost()
+    {
+        using var portProbe = new TcpListener(IPAddress.Loopback, 0);
+        portProbe.Start();
+        var port = ((IPEndPoint)portProbe.LocalEndpoint).Port;
+        portProbe.Stop();
+        var address = $"http://127.0.0.1:{port}/";
+        var builder = ArcApplication.CreateBuilder();
+        builder.AddCratisArc(options => options.Hosting.ApplicationUrl = address);
+        builder.Services.AddArcAuthorizationPolicy<AllowGuest>("Guest", evaluatesAnonymous: true);
+        builder.Services.AddArcAuthorizationPolicy<DenyGuest>("Denied", evaluatesAnonymous: true);
+        builder.Services.AddArcAuthorizationPolicy<AllowGuest>("Ordinary");
+        var authenticationHandlers = Substitute.For<IInstancesOf<IAuthenticationHandler>>();
+        authenticationHandlers.GetEnumerator().Returns(_ => new IAuthenticationHandler[] { new MissingCredentials() }.AsEnumerable().GetEnumerator());
+        builder.Services.AddSingleton(authenticationHandlers);
+        var probe = new Probe();
+        builder.Services.AddSingleton(probe);
+        RegisterArtifacts(builder.Services);
+        var app = builder.Build();
+        app.UseCratisArc();
+        return (app, address, probe);
     }
 
     static async Task ShouldHaveStatus(HttpResponseMessage response, HttpStatusCode expected, string request)
