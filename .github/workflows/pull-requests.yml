@@ -32,6 +32,16 @@ jobs:
       prerelease: ${{ steps.filter.outputs.prerelease }}
       lint: ${{ steps.filter.outputs.lint }}
     steps:
+      # The pull request files API lists at most 3,000 files, so a larger pull request could hide
+      # changed paths from the filter and skip checks. Fail closed instead of filtering a partial list.
+      - name: Refuse pull requests the filter cannot see in full
+        env:
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+        run: |
+          if [ "${CHANGED_FILES:-0}" -ge 3000 ]; then
+            echo "::error title=changes::This pull request changes $CHANGED_FILES files; split it so path filtering sees every file."
+            exit 1
+          fi
       - id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
