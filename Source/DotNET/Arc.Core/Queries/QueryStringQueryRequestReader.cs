@@ -19,6 +19,16 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
     const string PageQueryStringKey = "page";
     const string PageSizeQueryStringKey = "pageSize";
 
+    static readonly HashSet<string> _excludedKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        SortByQueryStringKey,
+        SortDirectionQueryStringKey,
+        PageQueryStringKey,
+        PageSizeQueryStringKey,
+        ObservableQueryHttp.WaitForFirstResultQueryStringKey,
+        ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
+    };
+
     /// <inheritdoc/>
     public string HttpMethod => "GET";
 
@@ -99,19 +109,9 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
     {
         var arguments = new QueryArguments();
 
-        var excludedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            SortByQueryStringKey,
-            SortDirectionQueryStringKey,
-            PageQueryStringKey,
-            PageSizeQueryStringKey,
-            ObservableQueryHttp.WaitForFirstResultQueryStringKey,
-            ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
-        };
-
         foreach (var kvp in context.Query)
         {
-            if (!excludedKeys.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
+            if (!_excludedKeys.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
             {
                 var parameter = performer.Parameters.FirstOrDefault(p =>
                     string.Equals(p.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
