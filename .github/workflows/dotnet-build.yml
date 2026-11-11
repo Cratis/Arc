@@ -71,6 +71,19 @@ jobs:
         with:
           package-manager-cache: false
           node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      # The viewer's typecheck resolves @types/node from the root workspace install.
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
+
+      - name: Yarn install
+        run: yarn install --immutable
 
       - name: Build and test embedded event-model viewer
         working-directory: Source/DotNET/Screenplay.Embedded
