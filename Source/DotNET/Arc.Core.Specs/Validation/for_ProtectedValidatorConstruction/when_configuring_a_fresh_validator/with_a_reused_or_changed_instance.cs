@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation.for_ProtectedValidatorConstruction.when_configuring_a_fresh_validator;
 
+[PerFactSpecificationLifecycle]
 public class with_a_reused_or_changed_instance : for_DiscoverableValidators.when_using_a_certified_provider.given.a_certified_validator
 {
     [Theory]
