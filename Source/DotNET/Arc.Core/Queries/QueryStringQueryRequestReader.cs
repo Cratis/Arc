@@ -111,33 +111,49 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
         foreach (var kvp in context.Query)
         {
-            if (!_excludedKeys.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
+            if (IsCandidateArgument(kvp))
             {
-                var parameter = performer.Parameters.FirstOrDefault(p =>
-                    string.Equals(p.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
-
-                if (parameter is not null)
-                {
-                    if (parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType) &&
-                        (elementType == typeof(JsonObject) || elementType == typeof(JsonArray)))
-                    {
-                        throw new InvalidQueryArgument(parameter.Name, parameter.Type, performer.FullyQualifiedName);
-                    }
-
-                    var convertedValue = kvp.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
-
-                    if (convertedValue is not null)
-                    {
-                        arguments[kvp.Key] = convertedValue;
-                    }
-                }
-                else
-                {
-                    arguments[kvp.Key] = kvp.Value;
-                }
+                AddQueryArgument(arguments, kvp, performer);
             }
         }
 
         return arguments;
+    }
+
+    static bool IsCandidateArgument(KeyValuePair<string, string> argument) =>
+        !_excludedKeys.Contains(argument.Key) && !string.IsNullOrEmpty(argument.Value);
+
+    static void AddQueryArgument(QueryArguments arguments, KeyValuePair<string, string> argument, IQueryPerformer performer)
+    {
+        var parameter = performer.Parameters.FirstOrDefault(p =>
+            string.Equals(p.Name, argument.Key, StringComparison.OrdinalIgnoreCase));
+
+        if (parameter is null)
+        {
+            arguments[argument.Key] = argument.Value;
+            return;
+        }
+
+        if (IsJsonCollection(parameter.Type))
+        {
+            throw new InvalidQueryArgument(parameter.Name, parameter.Type, performer.FullyQualifiedName);
+        }
+
+        var convertedValue = argument.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
+
+        if (convertedValue is not null)
+        {
+            arguments[argument.Key] = convertedValue;
+        }
+    }
+
+    static bool IsJsonCollection(Type type)
+    {
+        if (!type.IsEnumerableOfQueryArgumentElement(out var elementType))
+        {
+            return false;
+        }
+
+        return elementType == typeof(JsonObject) || elementType == typeof(JsonArray);
     }
 }
