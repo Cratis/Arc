@@ -21,7 +21,7 @@ public class with_successful_collection_calls : given.a_client_with_resilience_e
     }
 
     [Fact] void should_keep_the_root_proxy() => ((IProxyTargetAccessor)_client).DynProxyGetTarget().ShouldBeSame(_native);
-    [Fact] void should_keep_the_database_proxy() => ((IProxyTargetAccessor)_client.GetDatabase("db")).DynProxyGetTarget().ShouldBeSame(_nativeDatabase);
+    [Fact] void should_decorate_the_database() => _client.GetDatabase("db").ShouldBeOfExactType<ResilientMongoDatabase>();
     [Fact] void should_decorate_the_collection() => _collection.ShouldBeOfExactType<ResilientMongoCollection<given.Document>>();
     [Fact] void should_forward_the_void_task_call() => _nativeCollection.Received(1).InsertOneAsync(_document, Arg.Any<InsertOneOptions>(), Arg.Any<CancellationToken>());
     [Fact] void should_forward_the_generic_task_call() => _nativeCollection.Received(1).CountDocumentsAsync(Arg.Any<FilterDefinition<given.Document>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>());
