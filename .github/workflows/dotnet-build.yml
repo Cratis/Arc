@@ -306,9 +306,11 @@ jobs:
       # file that restore writes to obj.
       - name: Restore the applications to generate from
         run: |
-          dotnet restore Samples/AspNetCore/AspNetCore.csproj
-          dotnet restore Samples/Chronicle/Chronicle.csproj
-          dotnet restore Samples/Layered/Layered.csproj
+          # Release restores the net10.0 build task against both frameworks of the libraries it references; a Debug restore
+          # resolves those libraries for net11.0 only, which the net10.0 task cannot reference.
+          dotnet restore Samples/AspNetCore/AspNetCore.csproj -p:Configuration=Release
+          dotnet restore Samples/Chronicle/Chronicle.csproj -p:Configuration=Release
+          dotnet restore Samples/Layered/Layered.csproj -p:Configuration=Release
 
       - name: Generate and check both documents of a real application
         run: |

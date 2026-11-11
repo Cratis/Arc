@@ -58,7 +58,7 @@ jobs:
         id: nuget
         uses: Cratis/Workflows/.github/actions/dotnet-cache@main
 
-      # Release, as the build: it targets net10.0 and net11.0 where Debug targets net11.0 only.
+      # Release, as the build.
       - name: Restore every project
         if: steps.nuget.outputs.cache-hit != 'true'
         run: dotnet restore --property:Configuration=Release
