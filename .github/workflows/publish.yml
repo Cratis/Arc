@@ -103,12 +103,10 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET10_VERSION }}
 
-      # A release candidate SDK until GA (dotnet-quality preview, dropped at GA). Packages are published from the GA SDK.
       - name: Setup .Net 11
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # Publish only restores: warm-caches.yml saves the shared caches on main, so the release job never writes one.
       - name: NuGet cache
@@ -147,7 +145,7 @@ jobs:
       # Spec projects compile for net11.0 only, exactly as in the pull request build (dotnet-build.yml), so a change
       # that passed there cannot fail here. Libraries still build for net10.0 and net11.0 (Directory.Build.props).
       - name: Build
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net11.0
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net11.0 -p:CratisProxiesOutputPath=
 
       - name: Create NuGet packages
         run: dotnet pack --no-build --configuration Release -p:CratisSpecsTargetFramework=net11.0 -o ${{ env.NUGET_OUTPUT }} -p:PackageVersion=${{ needs.release.outputs.version }}

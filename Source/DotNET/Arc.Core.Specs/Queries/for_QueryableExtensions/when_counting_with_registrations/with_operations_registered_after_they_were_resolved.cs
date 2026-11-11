@@ -28,5 +28,7 @@ public class with_operations_registered_after_they_were_resolved : Specification
         public override IQueryable Skip(IQueryable queryable, int count) => queryable;
 
         public override IQueryable Take(IQueryable queryable, int count) => queryable;
+
+        public override IQueryable Where(IQueryable queryable, System.Linq.Expressions.LambdaExpression predicate) => queryable;
     }
 }

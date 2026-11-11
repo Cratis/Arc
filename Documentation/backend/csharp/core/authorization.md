@@ -263,6 +263,45 @@ The policy fails closed. A missing key, no recorded state, a failed read (for ex
 
 The read is an admission check only. It does not enrol in decision reads, and access granted at admission is not revoked when the state later changes. A read model can lag the events that produced it, so a rule that must hold under concurrent writers belongs in the handler as a protected decision read, not only in a policy. To specify such a policy, call `IsAuthorized` with an `AuthorizationPolicyContext` and seed the state your `Read` override returns.
 
+## Narrowing the rows of a list
+
+A policy admits or refuses a whole call. To show a caller only the rows recorded state allows, register a row narrowing. It supplies a predicate over the read model, and Arc applies it before sorting, paging and counting, so a store-backed `IQueryable` filters in the store and a page and its total describe only the allowed rows.
+
+```csharp
+public class VesselsOnThePlan(IReadModels readModels) : QueryRowNarrowing<Vessel, string>
+{
+    protected override Expression<Func<Vessel, string>> Key => vessel => vessel.Id;
+
+    protected override async ValueTask<IEnumerable<string>> GetAllowedKeys(QueryContext context) =>
+        (await readModels.GetInstances<VesselPlan>()).Where(plan => plan.Enabled).Select(plan => plan.Id);
+}
+
+services.AddSingleton<IQueryRowNarrowing, VesselsOnThePlan>();
+```
+
+A key with no recorded state is not in the allowed set, so the row is dropped. Override `AppliesTo` to narrow only some queries, or implement `IQueryRowNarrowing` for a predicate of another shape.
+
+A narrowing applies to a result that is an `IQueryable` or a materialized collection. A result Arc cannot narrow, such as an observable query, throws `UnsupportedQueryRowNarrowing` naming the query, so rows are never returned unnarrowed.
+
+## Ending live subscriptions when recorded state changes
+
+A policy decides once, when a subscription opens. When the state it decided from changes (a plan is downgraded), the guard closes the gap. Derive from `StateAwareEmissionGuard<TState>`, the emission-guard counterpart of `StateAwareAuthorizationPolicy<TState>`; it re-reads the state on each guarded emission and ends the subscription when the caller is no longer entitled.
+
+```csharp
+public class VesselPlanGuard(IReadModels readModels) : StateAwareEmissionGuard<VesselPlan>
+{
+    protected override object? GetKey(ObservableQueryEmissionContext context) =>
+        context.Arguments.TryGetValue("vesselId", out var id) ? id : null;
+
+    protected override async ValueTask<VesselPlan?> Read(object key, CancellationToken cancellationToken) =>
+        await readModels.GetInstanceById<VesselPlan>((string)key);
+
+    protected override bool Decide(ClaimsPrincipal? principal, VesselPlan state) => state.Enabled;
+}
+```
+
+It fails closed: a missing key, a missing instance, a failing read or a failing decision ends the subscription, and `OnDenied` reports which with the same `StateDenialReason` the policy uses. The guard runs once per guarded emission, not once per row. It reacts at the next emission; to react sooner, raise an emission when the state changes.
+
 ## Authorization results
 
 An Arc pipeline authorization rejection sets `IsAuthorized = false`; mapped HTTP results use **403 Forbidden**. Lightweight authentication middleware may reject earlier with **401 Unauthorized**. ASP.NET Core authentication/authorization middleware has its own challenge/forbid behavior. Do not infer which layer ran solely from an HTTP status.
@@ -270,6 +309,19 @@ An Arc pipeline authorization rejection sets `IsAuthorized = false`; mapped HTTP
 ## Testing authorization
 
 Exercise the pipeline with [command scenarios](../testing/command-scenario.md) and assert `ShouldNotBeAuthorized()` or `ShouldBeAuthorized()`. Include anonymous callers, authenticated callers without the required role, and callers with an allowed role. For custom rules, include resource access and tenant membership cases.
+
+### Specifying a policy that decides from recorded state
+
+A policy that reads state is an ordinary class with a read-model dependency, so specify it directly: construct it with a substitute for the store and call `IsAuthorized`. Cover the four outcomes that matter, because they are the ones a deployment will hit.
+
+| Specification | Store returns | Expected |
+| --- | --- | --- |
+| The plan includes the feature | the recorded plan | allowed |
+| The plan excludes the feature | the recorded plan | denied |
+| No plan is recorded | nothing | denied |
+| The store is unavailable | throws | denied |
+
+Use a command scenario when you also want the pipeline's own behavior (validation, the unauthorized result shape) in the same specification. Seed the state the policy reads with `scenario.Given.ForEventSource(id).ReadModel(instance)`; the instance is what `IReadModels.GetInstanceById` returns for that key, and a key you did not seed is an absent instance. A seeded instance is a stand-in for what the store holds: it proves the policy's decision, not that your projection has produced that state.
 
 Test HTTP access separately if you rely on ingress or ASP.NET middleware. Direct pipeline specs do not exercise those boundaries.
 

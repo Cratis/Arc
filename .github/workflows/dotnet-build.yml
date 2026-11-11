@@ -103,8 +103,7 @@ jobs:
           python3 scripts/ci-test-shards.py check
           python3 scripts/ci-test-shards.py matrix >> "$GITHUB_OUTPUT"
 
-      # The 11.0 SDK is a release candidate until GA: dotnet-quality preview selects it and is dropped at GA. The 10.0
-      # SDK is installed alongside so the libraries build for net10.0 as well.
+      # The 10.0 SDK is installed alongside the 11.0 SDK so the libraries build for net10.0 as well.
       - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -114,7 +113,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # This workflow only restores the shared caches, also when it runs on main: warm-caches.yml is the one place
       # that saves them, so pull request code never writes a cache.
@@ -155,7 +153,8 @@ jobs:
       # Each leg's spec jobs run on one framework, so the spec projects and their fixtures are compiled for that
       # framework only (Directory.Build.props). The libraries still build for net10.0 and net11.0.
       - name: Build
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }}
+        # Proxies are generated locally and committed; CI never generates them (proxy specs exercise the generator).
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath=
 
       # The harness compares Arc's options binder with the real ConfigurationBinder of each target framework. It exits 1
       # on a mismatch and 2 when it could not run, so any non-zero exit fails the step.
@@ -226,7 +225,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -289,7 +287,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # This job restores only the samples, so it never saves the shared cache, even when run by hand on main.
       - name: Restore NuGet packages
@@ -309,9 +306,11 @@ jobs:
       # file that restore writes to obj.
       - name: Restore the applications to generate from
         run: |
-          dotnet restore Samples/AspNetCore/AspNetCore.csproj
-          dotnet restore Samples/Chronicle/Chronicle.csproj
-          dotnet restore Samples/Layered/Layered.csproj
+          # Release restores the net10.0 build task against both frameworks of the libraries it references; a Debug restore
+          # resolves those libraries for net11.0 only, which the net10.0 task cannot reference.
+          dotnet restore Samples/AspNetCore/AspNetCore.csproj -p:Configuration=Release
+          dotnet restore Samples/Chronicle/Chronicle.csproj -p:Configuration=Release
+          dotnet restore Samples/Layered/Layered.csproj -p:Configuration=Release
 
       - name: Generate and check both documents of a real application
         run: |
@@ -374,7 +373,6 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       # The template contract specs lint generated output with the real ESLint toolchain.
       - name: Setup node

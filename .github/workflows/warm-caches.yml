@@ -53,13 +53,12 @@ jobs:
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET11_VERSION }}
-          dotnet-quality: preview
 
       - name: NuGet cache
         id: nuget
         uses: Cratis/Workflows/.github/actions/dotnet-cache@main
 
-      # Release, as the build: it targets net10.0 and net11.0 where Debug targets net11.0 only.
+      # Release, as the build.
       - name: Restore every project
         if: steps.nuget.outputs.cache-hit != 'true'
         run: dotnet restore --property:Configuration=Release

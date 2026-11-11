@@ -187,6 +187,12 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
         };
     }
 
+    static decimal ReadDecimal(ref IBsonReader bsonReader) => ReadNumeric(ref bsonReader) switch
+    {
+        double doubleValue => DoubleToDecimal.Convert(doubleValue),
+        var numeric => Convert.ToDecimal(numeric)
+    };
+
     object GetDeserializedValue(BsonDeserializationContext context, BsonDeserializationArgs args, Type valueType, ref IBsonReader bsonReader)
     {
         var bsonType = bsonReader.CurrentBsonType;
@@ -248,7 +254,7 @@ public class ConceptSerializer<T> : IBsonSerializer<T>
 
         if (valueType == typeof(decimal))
         {
-            return Convert.ToDecimal(ReadNumeric(ref bsonReader));
+            return ReadDecimal(ref bsonReader);
         }
 
         if (valueType == typeof(DateTime))

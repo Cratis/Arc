@@ -1,6 +1,6 @@
 ---
 title: Signed forwarded identity v2
-description: ES256 wire contract for AuthProxy identity attestation, authenticated TLS, and replay-sensitive Arc requests.
+description: The v2 signed forwarded identity wire contract: ES256 envelope, covered headers, authenticated TLS, replay protection, key rotation, and shared test vectors.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved. -->
@@ -261,7 +261,7 @@ Producer conformance, using the shared vectors:
 - Sign with the case key and verify with its public key. ECDSA is randomized, so never compare signature bytes.
 - For every rejected case, confirm that your producer refuses the input or that its output is not accepted.
 
-[`generate.cs`](forwarded-identity-v2/generate-vectors/generate.cs) is a BCL-only reference signer you can read or copy. Keep real private keys out of source control and never log envelopes or principal payloads.
+[`generate.cs`](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/asp-net-core/forwarded-identity-v2/generate-vectors/generate.cs) is a BCL-only reference signer you can read or copy. Keep real private keys out of source control and never log envelopes or principal payloads.
 
 ## Testing with the shared vectors
 
