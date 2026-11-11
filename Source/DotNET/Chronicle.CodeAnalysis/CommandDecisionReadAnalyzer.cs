@@ -51,9 +51,12 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         var syntax = (ParameterSyntax)context.Node;
 
         // Lambda and local function parameters (for example the x in RuleFor(x => ...)) inject nothing.
-        if (syntax.Parent?.Parent is not BaseMethodDeclarationSyntax and not TypeDeclarationSyntax ||
-            context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol parameter ||
-            parameter.ContainingSymbol is not IMethodSymbol method)
+        if (syntax.Parent?.Parent is not BaseMethodDeclarationSyntax and not TypeDeclarationSyntax)
+        {
+            return;
+        }
+
+        if (context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol { ContainingSymbol: IMethodSymbol method } parameter)
         {
             return;
         }
@@ -99,7 +102,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        ReportUnprotectedRead(context, syntax, called, enclosing, command);
+        ReportUnprotectedRead(context, called, enclosing, command);
 
         if (immediateAppend)
         {
@@ -107,28 +110,30 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    static void ReportUnprotectedRead(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax syntax, IMethodSymbol called, IMethodSymbol enclosing, INamedTypeSymbol command)
+    static void ReportUnprotectedRead(SyntaxNodeAnalysisContext context, IMethodSymbol called, IMethodSymbol enclosing, INamedTypeSymbol command)
     {
-        if (ReadProtectionSymbols.Mode(command) == 0 && called.Name == "GetInstanceById" && Implements(ReceiverOf(called), ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
+        if (ReadProtectionSymbols.Mode(command) != 0 || !IsReadModelsLookup(called))
+        {
+            return;
+        }
+
+        if (!HasUnprotected(enclosing) && IsCommand(command))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
-                syntax.GetLocation(),
+                context.Node.GetLocation(),
                 command.Name,
                 called.TypeArguments.FirstOrDefault()?.Name ?? "read model",
                 SymbolEqualityComparer.Default.Equals(command, enclosing.ContainingType) ? HandlerAdvice : ValidatorAdvice));
         }
     }
 
+    static bool IsReadModelsLookup(IMethodSymbol called) =>
+        called.Name == "GetInstanceById" && Implements(ReceiverOf(called), ChronicleReadModels);
+
     static void ReportImmediateAppend(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax syntax, IMethodSymbol enclosing, INamedTypeSymbol command)
     {
-        var methods = command.GetMembers().OfType<IMethodSymbol>().Where(_ => _.Name == "Handle" || _.Name == "Provide");
-        var usesDecision = methods.Any(_ => _.Parameters.Any(p => IsDecision(p.Type))) ||
-            enclosing.ContainingType.GetMembers().OfType<IMethodSymbol>().Any(_ => _.Parameters.Any(p => IsDecision(p.Type))) ||
-            (enclosing.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) is { } enclosingSyntax &&
-             enclosingSyntax.DescendantNodes().OfType<InvocationExpressionSyntax>().Any(_ =>
-                 context.SemanticModel.GetSymbolInfo(_, context.CancellationToken).Symbol is IMethodSymbol invoked &&
-                 Implements(invoked.ContainingType, DecisionReads)));
+        var usesDecision = UsesDecision(context, enclosing, command);
         var mode = ReadProtectionSymbols.Mode(command);
         if (mode == 2 || usesDecision || CommandAttributeSymbols.ResolveCommand(command).Mode == 1)
         {
@@ -141,6 +146,24 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
                 command.Name));
         }
     }
+
+    static bool UsesDecision(SyntaxNodeAnalysisContext context, IMethodSymbol enclosing, INamedTypeSymbol command) =>
+        HasDecisionParameter(command.GetMembers().OfType<IMethodSymbol>().Where(IsHandlerOrProvider)) ||
+        HasDecisionParameter(enclosing.ContainingType.GetMembers().OfType<IMethodSymbol>()) ||
+        InvokesDecisionReads(context, enclosing);
+
+    static bool HasDecisionParameter(IEnumerable<IMethodSymbol> methods) =>
+        methods.Any(_ => _.Parameters.Any(parameter => IsDecision(parameter.Type)));
+
+    static bool InvokesDecisionReads(SyntaxNodeAnalysisContext context, IMethodSymbol enclosing)
+    {
+        var syntax = enclosing.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken);
+        return syntax?.DescendantNodes().OfType<InvocationExpressionSyntax>().Any(_ => IsDecisionReadInvocation(context, _)) == true;
+    }
+
+    static bool IsDecisionReadInvocation(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax syntax) =>
+        context.SemanticModel.GetSymbolInfo(syntax, context.CancellationToken).Symbol is IMethodSymbol invoked &&
+        Implements(invoked.ContainingType, DecisionReads);
 
     static ITypeSymbol ReceiverOf(IMethodSymbol method)
     {
@@ -156,16 +179,14 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     static bool InDecision(IMethodSymbol method, out INamedTypeSymbol command, bool allowImmediateAppend = false)
     {
         command = method.ContainingType;
-        if (IsCommand(command) || (allowImmediateAppend && HasCommandAttribute(command)))
+        if (IsCommandScope(command, allowImmediateAppend))
         {
-            return method.Name == "Handle" || method.Name == "Provide";
+            return IsHandlerOrProvider(method);
         }
 
         for (var current = command.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.Name == "CommandValidator" &&
-                current.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands" &&
-                current.TypeArguments[0] is INamedTypeSymbol candidate && IsCommand(candidate))
+            if (ValidatedCommand(current) is { } candidate)
             {
                 command = candidate;
                 return true;
@@ -174,10 +195,35 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
+    static bool IsCommandScope(INamedTypeSymbol command, bool allowImmediateAppend) =>
+        IsCommand(command) || IsImmediateAppendScope(command, allowImmediateAppend);
+
+    static bool IsImmediateAppendScope(INamedTypeSymbol command, bool allowImmediateAppend) =>
+        allowImmediateAppend && HasCommandAttribute(command);
+
+    static bool IsHandlerOrProvider(IMethodSymbol method) => method.Name == "Handle" || method.Name == "Provide";
+
+    static INamedTypeSymbol? ValidatedCommand(INamedTypeSymbol type)
+    {
+        if (!IsCommandValidator(type))
+        {
+            return null;
+        }
+
+        return type.TypeArguments[0] is INamedTypeSymbol candidate && IsCommand(candidate) ? candidate : null;
+    }
+
+    static bool IsCommandValidator(INamedTypeSymbol type) =>
+        type.IsGenericType && type.Name == "CommandValidator" &&
+        type.ContainingNamespace.ToDisplayString() == "Cratis.Arc.Commands";
+
     static bool HasCommandAttribute(INamedTypeSymbol type) => type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == CommandAttribute);
 
     static bool IsCommand(INamedTypeSymbol type) => HasCommandAttribute(type) &&
-        type.GetMembers("Handle").OfType<IMethodSymbol>().Any(_ => ProducesEvents(_.ReturnType) || _.Parameters.Any(p => IsAggregate(p.Type)));
+        type.GetMembers("Handle").OfType<IMethodSymbol>().Any(IsEventHandler);
+
+    static bool IsEventHandler(IMethodSymbol method) =>
+        ProducesEvents(method.ReturnType) || method.Parameters.Any(_ => IsAggregate(_.Type));
 
     static bool HasUnprotected(ISymbol symbol) => CommandAttributeSymbols.HasUnprotected(symbol);
 
@@ -202,13 +248,12 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         // that nesting: Task<Result<EventsWithConcurrencyScopes, ValidationResult>> still produces events.
         if (type is INamedTypeSymbol { IsGenericType: true } named)
         {
-            if (named.Name == "Task" || named.Name == "ValueTask" || named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+            if (IsAwaitableOrNullable(named))
             {
                 return ProducesEvents(named.TypeArguments[0]);
             }
 
-            if (named.Name == "Result" || named.Name == "OneOf" ||
-                named.AllInterfaces.Any(_ => _.Name == "IOneOf" && _.ContainingNamespace.ToDisplayString() == "OneOf"))
+            if (IsEventUnion(named))
             {
                 return named.TypeArguments.Any(ProducesEvents);
             }
@@ -220,27 +265,42 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         return IsEventValue(type);
     }
 
+    static bool IsAwaitableOrNullable(INamedTypeSymbol type) =>
+        type.Name == "Task" || type.Name == "ValueTask" || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
+
+    static bool IsEventUnion(INamedTypeSymbol type) =>
+        type.Name == "Result" || type.Name == "OneOf" || type.AllInterfaces.Any(IsOneOfInterface);
+
+    static bool IsOneOfInterface(INamedTypeSymbol type) =>
+        type.Name == "IOneOf" && type.ContainingNamespace.ToDisplayString() == "OneOf";
+
     static bool IsEventValue(ITypeSymbol type)
     {
         if (type is IArrayTypeSymbol array)
         {
             // An object[] is an IEnumerable<object>, which the pipeline accepts as a set of events.
-            return array.ElementType.SpecialType == SpecialType.System_Object || IsEventValue(array.ElementType);
+            return IsObjectOrEventValue(array.ElementType);
         }
 
-        if (type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" ||
-            type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventForEventSourceId" ||
-            type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "Cratis.Chronicle.Events.EventTypeAttribute"))
+        if (IsDeclaredEventValue(type))
         {
             return true;
         }
-        if (type is INamedTypeSymbol { IsGenericType: true } named &&
-            named.AllInterfaces.Concat([named]).Any(_ => _.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>"))
+        if (type is INamedTypeSymbol { IsGenericType: true } named && IsEnumerableShape(named))
         {
-            return named.TypeArguments.Any(_ => _.SpecialType == SpecialType.System_Object || IsEventValue(_));
+            return named.TypeArguments.Any(IsObjectOrEventValue);
         }
         return false;
     }
+
+    static bool IsObjectOrEventValue(ITypeSymbol type) => type.SpecialType == SpecialType.System_Object || IsEventValue(type);
+
+    static bool IsDeclaredEventValue(ITypeSymbol type) =>
+        type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" || type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventForEventSourceId" ||
+        type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "Cratis.Chronicle.Events.EventTypeAttribute");
+
+    static bool IsEnumerableShape(INamedTypeSymbol type) =>
+        type.AllInterfaces.Concat([type]).Any(_ => _.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>");
 
     static bool IsChronicleBacked(ITypeSymbol type, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
     {
@@ -248,13 +308,19 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         {
             return false;
         }
-        if (named.GetAttributes().Any(_ => _.AttributeClass?.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Projections.ModelBound" &&
-            (_.AttributeClass.Name.StartsWith("From", StringComparison.Ordinal) || _.AttributeClass.Name.StartsWith("RemovedWith", StringComparison.Ordinal))))
+        if (named.GetAttributes().Any(IsModelBoundProjection))
         {
             return true;
         }
         return HasModelBoundMember(named) || backedTypes.Value.Contains(named);
     }
+
+    static bool IsModelBoundProjection(AttributeData attribute) =>
+        attribute.AttributeClass?.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Projections.ModelBound" &&
+        IsProjectionName(attribute.AttributeClass.Name);
+
+    static bool IsProjectionName(string name) =>
+        name.StartsWith("From", StringComparison.Ordinal) || name.StartsWith("RemovedWith", StringComparison.Ordinal);
 
     static bool HasModelBoundMember(INamedTypeSymbol type)
     {

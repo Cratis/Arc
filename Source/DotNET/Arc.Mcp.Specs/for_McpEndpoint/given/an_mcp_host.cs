@@ -11,6 +11,7 @@ using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,6 +25,7 @@ public class an_mcp_host : Specification
     protected const string ReadScope = "app:read";
     protected const string WriteScope = "app:write";
     protected const string PublicOrigin = "https://public.example.test";
+    const int MaxStartAttempts = 5;
 
     protected int _capabilityPort;
     protected int _defaultPort;
@@ -69,8 +71,32 @@ public class an_mcp_host : Specification
 
     async Task Establish()
     {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await StartHost();
+                break;
+            }
+            catch (IOException ex) when (ex.InnerException is AddressInUseException && attempt < MaxStartAttempts)
+            {
+                // A reserved port was taken between release and bind; dispose the failed host and retry with fresh ports.
+                await _app.DisposeAsync();
+            }
+        }
+
+        _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+    }
+
+    async Task StartHost()
+    {
         _capabilityPort = FreePort();
-        _defaultPort = FreePort();
+        do
+        {
+            _defaultPort = FreePort();
+        }
+        while (_defaultPort == _capabilityPort);
+
         _probe = new McpProbe();
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls($"http://127.0.0.1:{_capabilityPort}", $"http://127.0.0.1:{_defaultPort}");
@@ -99,7 +125,6 @@ public class an_mcp_host : Specification
         _app.MapCratisArcMcp();
         ConfigureEndpoints(_app);
         await _app.StartAsync(CancellationToken);
-        _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
     }
 
     async Task Destroy()
