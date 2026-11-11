@@ -1,171 +1,205 @@
-name: PR Prerelase
+name: Pull Requests
 
-# Run under pull_request and group by pull request so newer runs cancel only that PR's older prerelease.
+# One caller for every pull-request check so a single always-running `gate` job can require them all.
+# A path-filtered workflow that never starts never reports; here each callee is skipped by `changes`
+# instead, and a skipped job counts as passed in `gate`. Label and edit events re-run everything on
+# purpose (the policy check needs them); heavy jobs must not be skipped on those events, because a
+# cancelled code run would let a later run pass `gate` without having built anything.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  NUGET_OUTPUT: ./Artifacts/NuGet
-  NUGET_SOURCE: https://nuget.pkg.github.com/cratis/index.json
-  DOTNET10_VERSION: "10.0.x"
-  DOTNET11_VERSION: "11.0.x"
-
-# Default to read-only permissions; only the NuGet publishing and commenting job declares write permissions.
-# Jobs that check out PR code run only for pull requests from this repository, never forks.
 permissions:
   contents: read
 
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - "**"
-    paths:
-      - "Source/**"
-      - ".github/workflows/**"
-
 jobs:
-  release:
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  changes:
+    runs-on: ${{ vars.RUNNER_GATE || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      version: ${{ steps.release.outputs.version }}
-      publish: ${{ steps.release.outputs.should-publish }}
-      prerelease: ${{ steps.release.outputs.prerelease }}
-
+      aot: ${{ steps.filter.outputs.aot }}
+      dotnet: ${{ steps.filter.outputs.dotnet }}
+      javascript: ${{ steps.filter.outputs.javascript }}
+      markdown: ${{ steps.filter.outputs.markdown }}
+      package-graph: ${{ steps.filter.outputs.package-graph }}
+      prerelease: ${{ steps.filter.outputs.prerelease }}
+      lint: ${{ steps.filter.outputs.lint }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          filters: |
+            aot:
+              - "Source/DotNET/**"
+              - "Samples/ArcCore/**"
+              - "Samples/Shared/**"
+              - "Samples/ArcCore.Specs/**"
+              - "Directory.Build.props"
+              - "Directory.Build.targets"
+              - "Directory.Packages*.props"
+              - ".editorconfig"
+              - "**/.editorconfig"
+              - ".globalconfig"
+              - "global.json"
+              - "scripts/aot-ratchet.py"
+              - "scripts/published-arccore-outcomes*.mjs"
+              - ".github/workflows/aot-ratchet.yml"
+              - ".github/workflows/pull-requests.yml"
+            dotnet:
+              - "Source/DotNET/**"
+              - "Specifications/**"
+              - "Samples/**"
+              - "Directory.Build.props"
+              - "Directory.Packages*.props"
+              - "global.json"
+              - "stylecop.json"
+              - "Arc.slnx"
+              - ".github/workflows/dotnet-build.yml"
+              - ".github/workflows/pull-requests.yml"
+              - ".github/test-shards.json"
+              - "scripts/ci-test-shards.py"
+              - "scripts/viewer-bundle.test.mjs"
+            javascript:
+              - "Source/JavaScript/**"
+              - "run-task-on-workspaces.js"
+              - "scripts/workspace-publish-order.cjs"
+              - "scripts/workspace-version-is-published.cjs"
+              - "scripts/workspace-publish-retry.test.cjs"
+              - "scripts/wait-for-npm-visibility.cjs"
+              - "scripts/wait-for-npm-visibility.test.cjs"
+              - "scripts/run-task-on-workspaces.test.cjs"
+              - "scripts/rollup-node-externals.test.mjs"
+              - "scripts/fixtures/workspace-runner.cjs"
+              - "scripts/check-declaration-imports.cjs"
+              - "scripts/check-declaration-consumers.cjs"
+              - "scripts/fixtures/declaration-consumer/**"
+              - ".github/workflows/javascript-build.yml"
+              - ".github/workflows/pull-requests.yml"
+              - "tsconfig.json"
+              - "tsconfig.specs.json"
+              - "rollup.config.mjs"
+              - "vite.base.mts"
+              - "scripts/vite-config.test.mjs"
+              - "package.json"
+            markdown:
+              - "Documentation/**"
+              - "Source/DotNET/**"
+              - ".github/workflows/markdown-verification.yml"
+              - ".github/workflows/pull-requests.yml"
+            package-graph:
+              - "Source/DotNET/**/*.csproj"
+              - "Source/DotNET/**/*.props"
+              - "Source/DotNET/**/*.targets"
+              - "Source/DotNET/*Generators*/**"
+              - "Source/DotNET/*CodeAnalysis*/**"
+              - "Source/DotNET/Shared/**"
+              - "Source/DotNET/Cratis/**"
+              - "Source/DotNET/Cratis.Testing/**"
+              - "Source/DotNET/Screenplay.Embedded/**"
+              - "Directory.Build.props"
+              - "Directory.Packages*.props"
+              - "global.json"
+              - "stylecop.json"
+              - "Arc.slnx"
+              - ".github/workflows/package-graph-verification.yml"
+              - ".github/workflows/pull-requests.yml"
+            prerelease:
+              - "Source/**"
+              - ".github/workflows/**"
+            lint:
+              - ".github/workflows/**"
+              - ".github/actions/**"
+              - ".github/actionlint.yaml"
+              - ".github/actionlint.yml"
+              - "scripts/chronicle-published-inputs.test.mjs"
 
-      - name: Release
-        id: release
-        uses: cratis/release-action@v1
+  aot-ratchet:
+    needs: changes
+    if: ${{ needs.changes.outputs.aot == 'true' && github.event.pull_request.base.ref == 'main' }}
+    uses: ./.github/workflows/aot-ratchet.yml
+    permissions:
+      contents: read
 
-  publish-nuget-packages:
-    if: needs.release.outputs.publish == 'true' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [release]
+  dotnet-build:
+    needs: changes
+    if: ${{ needs.changes.outputs.dotnet == 'true' }}
+    uses: ./.github/workflows/dotnet-build.yml
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+
+  javascript-build:
+    needs: changes
+    if: ${{ needs.changes.outputs.javascript == 'true' }}
+    uses: ./.github/workflows/javascript-build.yml
+    permissions:
+      contents: read
+
+  markdown-verification:
+    needs: changes
+    if: ${{ needs.changes.outputs.markdown == 'true' }}
+    uses: ./.github/workflows/markdown-verification.yml
+    permissions:
+      contents: read
+
+  package-graph:
+    needs: changes
+    if: ${{ needs.changes.outputs.package-graph == 'true' && github.event.pull_request.base.ref == 'main' }}
+    uses: ./.github/workflows/package-graph-verification.yml
+    permissions:
+      contents: read
+
+  prerelease:
+    needs: changes
+    if: ${{ needs.changes.outputs.prerelease == 'true' }}
+    uses: ./.github/workflows/pr-prerelease.yml
     permissions:
       contents: read
       packages: write
       pull-requests: write
 
+  workflow-lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.lint == 'true' }}
+    uses: ./.github/workflows/workflow-lint.yml
+    permissions:
+      contents: read
+
+  # No filter: the policy check must always run (its old trigger had no paths).
+  policy:
+    uses: ./.github/workflows/verify-pull-request-policy.yml
+    permissions:
+      contents: read
+      pull-requests: write
+
+  # Every other job in this file MUST be listed in `needs`: a job left out is invisible to the gate.
+  gate:
+    name: gate
+    if: ${{ always() }}
+    needs: [changes, aot-ratchet, dotnet-build, javascript-build, markdown-verification, package-graph, prerelease, policy, workflow-lint]
+    runs-on: ${{ vars.RUNNER_GATE || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup .Net 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: ${{ env.DOTNET10_VERSION }}
-
-      - name: Setup .Net 11
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: ${{ env.DOTNET11_VERSION }}
-
-      # PR runs restore the shared caches but never save them.
-      - name: Restore NuGet packages
-        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
-        with:
-          mode: restore
-
-      - name: Setup node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          package-manager-cache: false
-          node-version: 23.x
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Restore Yarn cache
-        uses: Cratis/Workflows/.github/actions/yarn-cache@main
-        with:
-          mode: restore
-
-      - name: Yarn install
-        run: yarn install --immutable
-
-      # Screenplay.Embedded packs this generated viewer and deliberately refuses to pack without it.
-      - name: Build embedded event-model viewer
-        working-directory: Source/DotNET/Screenplay.Embedded
+      - name: Every needed job passed or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          npm ci --workspaces=false
-          npm run build
-
-      - name: Remove any existing artifacts
-        run: rm -rf ${{ env.NUGET_OUTPUT }}
-      - name: Build
-        run: dotnet build --configuration Debug -p:CratisProxiesOutputPath=
-
-      - name: Add GitHub Package Registry to NuGet
-        run: dotnet nuget add source --name github --username cratis --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text ${{ env.NUGET_SOURCE }}
-
-      - name: Create NuGet packages
-        run: dotnet pack --no-build --configuration Debug -o ${{ env.NUGET_OUTPUT }} -p:PackageVersion=${{ needs.release.outputs.version }}
-
-      - name: Push NuGet packages
-        run: dotnet nuget push '${{ env.NUGET_OUTPUT }}/*.nupkg' --skip-duplicate --timeout 900 --api-key ${{ secrets.GITHUB_TOKEN }} --source "github"
-
-      - name: Add comment for NuGet packages
-        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          message-id: nuget-${{ needs.release.outputs.version }}
-          message: |
-            NuGet packages for this PR, e.g. Cratis.Arc:
-            https://github.com/cratis/arc/packages/1655206?version=${{ needs.release.outputs.version }}
-          allow-repeats: false
-
-  publish-npm-packages:
-    if: needs.release.outputs.publish == 'true' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [release]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup node v16
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          package-manager-cache: false
-          node-version: 16.x
-          registry-url: "https://registry.npmjs.org"
-
-
-      # - uses: actions/cache@v3
-      #   id: yarn-cache
-      #   with:
-      #     path: |
-      #       .yarn/cache
-      #       **/node_modules
-      #       **/.eslintcache
-      #       **/yarn.lock
-      #     key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
-  
-      # - name: Yarn install
-      #   run: yarn
-
-      # - name: Publish NPM packages
-      #   env:
-      #     NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      #   run: |
-      #     yarn publish-version ${{ needs.release.outputs.version }}
-
-      - name: Git reset (package.json files changed)
-        run: |
-          git reset --hard
+          set -euo pipefail
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key)\t\(.value.result)"'
+          # Fail closed: anything other than success or skipped (failure, cancelled, or a result we do not know) fails.
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result | IN("success","skipped") | not) | .key')
+          # `changes` is the only job that decides what is skipped, so it must have succeeded, never been skipped.
+          [ "$(echo "$NEEDS" | jq -r '.changes.result')" = "success" ] || bad="$bad changes"
+          if [ -n "${bad// /}" ]; then
+            echo "::error title=gate::Failed, cancelled or unknown: $bad"
+            exit 1
+          fi

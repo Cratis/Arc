@@ -1,7 +1,8 @@
 name: JavaScript Build
 
+# Called from pull-requests.yml; the PR triggers and path filters live there.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: javascript-build-${{ github.ref }}
   cancel-in-progress: true
 
 on:
@@ -16,32 +17,7 @@ on:
         - info
         - warning
         - debug
-  pull_request:
-    # Draft PRs wait until they are marked ready for review.
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches:
-      - "**"
-    paths:
-      - "Source/JavaScript/**"
-      - "run-task-on-workspaces.js"
-      - "scripts/workspace-publish-order.cjs"
-      - "scripts/workspace-version-is-published.cjs"
-      - "scripts/workspace-publish-retry.test.cjs"
-      - "scripts/wait-for-npm-visibility.cjs"
-      - "scripts/wait-for-npm-visibility.test.cjs"
-      - "scripts/run-task-on-workspaces.test.cjs"
-      - "scripts/rollup-node-externals.test.mjs"
-      - "scripts/fixtures/workspace-runner.cjs"
-      - "scripts/check-declaration-imports.cjs"
-      - "scripts/check-declaration-consumers.cjs"
-      - "scripts/fixtures/declaration-consumer/**"
-      - ".github/workflows/javascript-build.yml"
-      - "tsconfig.json"
-      - "tsconfig.specs.json"
-      - "rollup.config.mjs"
-      - "vite.base.mts"
-      - "scripts/vite-config.test.mjs"
-      - "package.json"
+  workflow_call:
 
 jobs:
   build:
