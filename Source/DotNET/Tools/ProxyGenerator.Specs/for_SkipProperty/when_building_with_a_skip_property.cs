@@ -57,11 +57,11 @@ public class when_building_with_a_skip_property : Specification
         var errors = process.StandardError.ReadToEndAsync();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         await process.WaitForExitAsync(deadline.Token);
-        return await output + await errors;
+        return await output + await errors + $"\nexit={process.ExitCode}";
     }
 
     [Fact] void should_generate_by_default() => _default.ShouldContain("ProxiesOutputPath :");
-    [Fact] void should_skip_generation_when_the_skip_property_is_true() => _skip.ShouldNotContain("ProxiesOutputPath :");
-    [Fact] void should_skip_generation_for_the_alias() => _alias.ShouldNotContain("ProxiesOutputPath :");
+    [Fact] void should_skip_generation_when_the_skip_property_is_true() => (_skip.EndsWith("exit=0", StringComparison.Ordinal) && !_skip.Contains("ProxiesOutputPath :", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_skip_generation_for_the_alias() => (_alias.EndsWith("exit=0", StringComparison.Ordinal) && !_alias.Contains("ProxiesOutputPath :", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_generate_when_the_skip_property_is_false() => _falseValue.ShouldContain("ProxiesOutputPath :");
 }
