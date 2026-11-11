@@ -13,7 +13,7 @@ internal sealed class ForwardedIdentityReplayCache(int capacity = 100000)
     /// The process-wide production cache.
     /// </summary>
     internal static readonly ForwardedIdentityReplayCache Shared = new();
-    readonly object _gate = new();
+    readonly System.Threading.Lock _gate = new();
     readonly HashSet<(string Audience, string KeyId, string Nonce)> _entries = [];
     readonly Dictionary<long, List<(string Audience, string KeyId, string Nonce)>> _expirations = [];
     readonly PriorityQueue<long, long> _expiryOrder = new();
