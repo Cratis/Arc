@@ -25,6 +25,8 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
     /// <inheritdoc/>
     public async Task ProcessAsync(HttpListenerContext context)
     {
+        // The request stream must exist before any response is submitted, otherwise it cannot be drained afterwards.
+        var body = context.Request.IsWebSocketRequest || !context.Request.HasEntityBody ? null : context.Request.InputStream;
         try
         {
             var handled = await BuildPipeline(0)(context);
@@ -62,15 +64,15 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
             // Ensure response is closed unless it's a WebSocket request
             if (!context.Request.IsWebSocketRequest)
             {
-                await CloseResponse(context);
+                await CloseResponse(context, body);
             }
         }
     }
 
-    static async Task CloseResponse(HttpListenerContext context)
+    static async Task CloseResponse(HttpListenerContext context, Stream? body)
     {
         // A request rejected before its body was read must not leave unread bytes on a reused connection.
-        var drained = await TryDrainRequestBody(context.Request);
+        var drained = await TryDrainRequestBody(context.Request, body);
         if (drained)
         {
             context.Response.Close();
@@ -80,28 +82,26 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
         context.Response.Abort();
     }
 
-    static async Task<bool> TryDrainRequestBody(HttpListenerRequest request)
+    static async Task<bool> TryDrainRequestBody(HttpListenerRequest request, Stream? body)
     {
         try
         {
-            if (!request.HasEntityBody)
+            if (body is null)
             {
                 return true;
             }
 
+            if (request.ContentLength64 > MaxDrainBytes)
+            {
+                return false;
+            }
+
             using var cancellation = new CancellationTokenSource(_maxDrainTime);
-            var deadline = Task.Delay(_maxDrainTime, cancellation.Token);
             var buffer = new byte[4096];
             var total = 0;
             while (total <= MaxDrainBytes)
             {
-                var readTask = request.InputStream.ReadAsync(buffer, cancellation.Token).AsTask();
-                if (await Task.WhenAny(readTask, deadline) != readTask)
-                {
-                    return false;
-                }
-
-                var read = await readTask;
+                var read = await body.ReadAsync(buffer, cancellation.Token).AsTask().WaitAsync(cancellation.Token);
                 if (read == 0)
                 {
                     return true;

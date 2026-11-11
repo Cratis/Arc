@@ -59,27 +59,29 @@ public class when_a_guest_calls_the_core_host
     [Fact]
     public async Task should_refuse_a_request_whose_body_arrives_late_without_corrupting_the_connection()
     {
-        var responses = await SendEarlyRejectedRequest("Content-Length: 2\r\n", "{}");
+        var responses = await SendEarlyRejectedRequest("Content-Length: 2\r\n", "{}", false);
         responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        responses.Split("HTTP/1.1 401").Length.ShouldEqual(3);
     }
 
     [Fact]
     public async Task should_refuse_a_request_whose_chunked_body_arrives_late_without_corrupting_the_connection()
     {
-        var responses = await SendEarlyRejectedRequest("Transfer-Encoding: chunked\r\n", "2\r\n{}\r\n0\r\n\r\n");
+        var responses = await SendEarlyRejectedRequest("Transfer-Encoding: chunked\r\n", "2\r\n{}\r\n0\r\n\r\n", false);
         responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        responses.Split("HTTP/1.1 401").Length.ShouldEqual(3);
     }
 
     [Fact]
     public async Task should_close_the_connection_when_an_early_rejected_body_is_oversized()
     {
         var body = new string('a', 256 * 1024);
-        var responses = await SendEarlyRejectedRequest($"Content-Length: {body.Length}\r\n", body);
+        var responses = await SendEarlyRejectedRequest($"Content-Length: {body.Length}\r\n", body, true);
         responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
         (responses.Split("HTTP/1.1 ").Length <= 2).ShouldBeTrue();
     }
 
-    static async Task<string> SendEarlyRejectedRequest(string framingHeader, string body)
+    static async Task<string> SendEarlyRejectedRequest(string framingHeader, string body, bool tolerateReset)
     {
         var (app, address, _) = BuildHost();
         await using var host = app;
@@ -102,7 +104,7 @@ public class when_a_guest_calls_the_core_host
                 using var reader = new StreamReader(stream, Encoding.ASCII);
                 return await reader.ReadToEndAsync(global::Xunit.TestContext.Current.CancellationToken);
             }
-            catch (IOException)
+            catch (IOException) when (tolerateReset)
             {
                 // The server may close the connection while the body is still being sent.
                 return string.Empty;
