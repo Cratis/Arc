@@ -1,11 +1,12 @@
 name: .NET Build
 
-# PR builds run under pull_request and build the PR head. Group by pull request when there is one,
+# Called from pull-requests.yml; the PR triggers and path filters live there.
+# PR builds build the PR head. Group by pull request when there is one,
 # otherwise by ref, so a newer PR run cancels only the older run for the same pull request.
 # Runs on main (push and manual) are never cancelled: a burst of merges queues, GitHub keeps only the newest
 # pending run, and that run verifies the latest main. Cancelling would leave main unverified while merges keep coming.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: dotnet-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -43,26 +44,7 @@ on:
       - ".github/test-shards.json"
       - "scripts/ci-test-shards.py"
       - "scripts/viewer-bundle.test.mjs"
-  pull_request:
-    branches:
-      - "**"
-    paths:
-      - "Source/DotNET/**"
-      - "Specifications/**"
-      - "Samples/**"
-      # What the build compiles against, not only what it compiles. A package
-      # version bump touches none of the paths above, so it used to reach main
-      # without ever having been built - which is how a Chronicle release that
-      # added members to an interface Arc implements got merged unbuilt.
-      - "Directory.Build.props"
-      - "Directory.Packages*.props"
-      - "global.json"
-      - "stylecop.json"
-      - "Arc.slnx"
-      - ".github/workflows/dotnet-build.yml"
-      - ".github/test-shards.json"
-      - "scripts/ci-test-shards.py"
-      - "scripts/viewer-bundle.test.mjs"
+  workflow_call:
 
 # PR builds run with a read-only token, and checkouts do not keep credentials.
 # PR runs restore caches but never save them. Only the main-only reporting job declares write permissions.

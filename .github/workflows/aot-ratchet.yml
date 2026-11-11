@@ -8,35 +8,18 @@ name: Trim/AOT Ratchet
 
 # Pull requests gate the baseline. main only takes pull requests, so a run on every push repeated a check that had
 # just passed; the nightly run still shows drift from the base (an SDK or package change) within a day.
+# Called from pull-requests.yml; the PR triggers and path filters live there.
 on:
   schedule:
     - cron: "46 3 * * *"
-  pull_request:
-    # Draft PRs wait until they are marked ready for review.
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
-    paths:
-      - "Source/DotNET/**"
-      - "Samples/ArcCore/**"
-      - "Samples/Shared/**"
-      - "Samples/ArcCore.Specs/**"
-      - "Directory.Build.props"
-      - "Directory.Build.targets"
-      - "Directory.Packages*.props"
-      - ".editorconfig"
-      - "**/.editorconfig"
-      - ".globalconfig"
-      - "global.json"
-      - "scripts/aot-ratchet.py"
-      - "scripts/published-arccore-outcomes*.mjs"
-      - ".github/workflows/aot-ratchet.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: aot-ratchet-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
