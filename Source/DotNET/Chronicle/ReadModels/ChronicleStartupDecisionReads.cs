@@ -29,8 +29,9 @@ internal sealed class ChronicleStartupDecisionReads(IServiceProvider services, F
     public async Task<IDecisionReads?> Get(CancellationToken cancellationToken)
     {
         var options = clientOptions(services);
-        if (options?.AutoDiscoverAndRegister != true)
+        if (options?.AutoDiscoverAndRegister != true || string.IsNullOrWhiteSpace(options.EventStore))
         {
+            // Without a resolved event store name, asking the client would register an unnamed event store.
             return null;
         }
 
