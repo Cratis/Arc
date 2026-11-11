@@ -59,6 +59,28 @@ public class when_a_guest_calls_the_core_host
     [Fact]
     public async Task should_refuse_a_request_whose_body_arrives_late_without_corrupting_the_connection()
     {
+        var responses = await SendEarlyRejectedRequest("Content-Length: 2\r\n", "{}");
+        responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task should_refuse_a_request_whose_chunked_body_arrives_late_without_corrupting_the_connection()
+    {
+        var responses = await SendEarlyRejectedRequest("Transfer-Encoding: chunked\r\n", "2\r\n{}\r\n0\r\n\r\n");
+        responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task should_close_the_connection_when_an_early_rejected_body_is_oversized()
+    {
+        var body = new string('a', 256 * 1024);
+        var responses = await SendEarlyRejectedRequest($"Content-Length: {body.Length}\r\n", body);
+        responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        (responses.Split("HTTP/1.1 ").Length <= 2).ShouldBeTrue();
+    }
+
+    static async Task<string> SendEarlyRejectedRequest(string framingHeader, string body)
+    {
         var (app, address, _) = BuildHost();
         await using var host = app;
         await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
@@ -68,16 +90,23 @@ public class when_a_guest_calls_the_core_host
             using var tcp = new TcpClient();
             await tcp.ConnectAsync(uri.Host, uri.Port, global::Xunit.TestContext.Current.CancellationToken);
             var stream = tcp.GetStream();
-            var request = $"POST /guest-spec/ordinary/validate HTTP/1.1\r\nHost: {uri.Authority}\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n";
+            var request = $"POST /guest-spec/ordinary/validate HTTP/1.1\r\nHost: {uri.Authority}\r\nContent-Type: application/json\r\n{framingHeader}\r\n";
             await stream.WriteAsync(Encoding.ASCII.GetBytes(request), global::Xunit.TestContext.Current.CancellationToken);
             await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
-            await stream.WriteAsync(Encoding.ASCII.GetBytes("{}"), global::Xunit.TestContext.Current.CancellationToken);
-            await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
-            var followUp = $"GET /guest-query/ordinary HTTP/1.1\r\nHost: {uri.Authority}\r\nConnection: close\r\n\r\n";
-            await stream.WriteAsync(Encoding.ASCII.GetBytes(followUp), global::Xunit.TestContext.Current.CancellationToken);
-            using var reader = new StreamReader(stream, Encoding.ASCII);
-            var responses = await reader.ReadToEndAsync(global::Xunit.TestContext.Current.CancellationToken);
-            responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+            try
+            {
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(body), global::Xunit.TestContext.Current.CancellationToken);
+                await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
+                var followUp = $"GET /guest-query/ordinary HTTP/1.1\r\nHost: {uri.Authority}\r\nConnection: close\r\n\r\n";
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(followUp), global::Xunit.TestContext.Current.CancellationToken);
+                using var reader = new StreamReader(stream, Encoding.ASCII);
+                return await reader.ReadToEndAsync(global::Xunit.TestContext.Current.CancellationToken);
+            }
+            catch (IOException)
+            {
+                // The server may close the connection while the body is still being sent.
+                return string.Empty;
+            }
         }
         finally
         {

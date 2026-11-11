@@ -17,6 +17,9 @@ namespace Cratis.Arc.Http;
 /// <param name="logger">The logger for the pipeline.</param>
 public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares, ILogger<HttpRequestPipeline> logger) : IHttpRequestPipeline
 {
+    const int MaxDrainBytes = 64 * 1024;
+    static readonly TimeSpan _maxDrainTime = TimeSpan.FromSeconds(5);
+
     readonly List<IHttpRequestMiddleware> _middlewares = middlewares.ToList();
 
     /// <inheritdoc/>
@@ -59,8 +62,59 @@ public class HttpRequestPipeline(IEnumerable<IHttpRequestMiddleware> middlewares
             // Ensure response is closed unless it's a WebSocket request
             if (!context.Request.IsWebSocketRequest)
             {
-                context.Response.Close();
+                await CloseResponse(context);
             }
+        }
+    }
+
+    static async Task CloseResponse(HttpListenerContext context)
+    {
+        // A request rejected before its body was read must not leave unread bytes on a reused connection.
+        var drained = await TryDrainRequestBody(context.Request);
+        if (drained)
+        {
+            context.Response.Close();
+            return;
+        }
+
+        context.Response.Abort();
+    }
+
+    static async Task<bool> TryDrainRequestBody(HttpListenerRequest request)
+    {
+        try
+        {
+            if (!request.HasEntityBody)
+            {
+                return true;
+            }
+
+            using var cancellation = new CancellationTokenSource(_maxDrainTime);
+            var deadline = Task.Delay(_maxDrainTime, cancellation.Token);
+            var buffer = new byte[4096];
+            var total = 0;
+            while (total <= MaxDrainBytes)
+            {
+                var readTask = request.InputStream.ReadAsync(buffer, cancellation.Token).AsTask();
+                if (await Task.WhenAny(readTask, deadline) != readTask)
+                {
+                    return false;
+                }
+
+                var read = await readTask;
+                if (read == 0)
+                {
+                    return true;
+                }
+
+                total += read;
+            }
+
+            return false;
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException or HttpListenerException or InvalidOperationException)
+        {
+            return false;
         }
     }
 
