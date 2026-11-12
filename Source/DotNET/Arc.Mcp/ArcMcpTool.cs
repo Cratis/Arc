@@ -8,14 +8,14 @@ using ModelContextProtocol.Server;
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
-/// Represents a tool from the <see cref="McpToolCeiling"/> registered with the MCP server.
+/// Represents a tool from the <see cref="McpToolCatalog"/> registered with the MCP server.
 /// </summary>
-/// <param name="descriptor">The tool from the ceiling.</param>
+/// <param name="descriptor">The tool from the catalog.</param>
 /// <param name="dispatcher">The dispatcher that runs the tool as the verified caller.</param>
 internal sealed class ArcMcpTool(McpToolDescriptor descriptor, McpToolDispatcher dispatcher) : McpServerTool
 {
     /// <summary>
-    /// Gets the tool from the ceiling.
+    /// Gets the tool from the catalog.
     /// </summary>
     public McpToolDescriptor Descriptor => descriptor;
 

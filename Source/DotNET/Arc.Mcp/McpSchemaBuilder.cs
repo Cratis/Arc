@@ -77,7 +77,18 @@ public static class McpSchemaBuilder
     /// <param name="supportsPaging">Whether the query supports paging.</param>
     /// <param name="options">The effective Arc serializer options.</param>
     /// <returns>The JSON schema as a string.</returns>
-    public static string ForQuery(IEnumerable<QueryParameter> parameters, bool supportsPaging, JsonSerializerOptions options)
+    public static string ForQuery(IEnumerable<QueryParameter> parameters, bool supportsPaging, JsonSerializerOptions options) =>
+        ForQuery(parameters, supportsPaging, options, new Dictionary<string, string>());
+
+    /// <summary>
+    /// Builds the input schema using the query binding serializer options and explicit argument descriptions.
+    /// </summary>
+    /// <param name="parameters">The query parameters.</param>
+    /// <param name="supportsPaging">Whether the query supports paging.</param>
+    /// <param name="options">The effective Arc serializer options.</param>
+    /// <param name="descriptions">The explicit argument descriptions, keyed by parameter name.</param>
+    /// <returns>The JSON schema as a string.</returns>
+    internal static string ForQuery(IEnumerable<QueryParameter> parameters, bool supportsPaging, JsonSerializerOptions options, IReadOnlyDictionary<string, string> descriptions)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         options = new JsonSerializerOptions(options);
@@ -85,7 +96,8 @@ public static class McpSchemaBuilder
         var required = new JsonArray();
         foreach (var parameter in parameters)
         {
-            properties[ToWireName(parameter.Name, options)] = Export(parameter.Type, options);
+            descriptions.TryGetValue(parameter.Name, out var description);
+            properties[ToWireName(parameter.Name, options)] = McpArgumentDescriptions.Apply(Export(parameter.Type, options), description);
             if (parameter.IsRequired)
             {
                 required.Add(ToWireName(parameter.Name, options));
@@ -116,7 +128,10 @@ public static class McpSchemaBuilder
         TransformSchemaNode = (context, schema) => Transform(context, schema, options)
     });
 
-    static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema, JsonSerializerOptions options)
+    static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema, JsonSerializerOptions options) =>
+        McpArgumentDescriptions.Apply(TransformType(context, schema, options), McpArgumentDescriptions.DescriptionOf(context.PropertyInfo?.AttributeProvider));
+
+    static JsonNode TransformType(JsonSchemaExporterContext context, JsonNode schema, JsonSerializerOptions options)
     {
         var type = Nullable.GetUnderlyingType(context.TypeInfo.Type) ?? context.TypeInfo.Type;
         var isNullable = type != context.TypeInfo.Type || context.PropertyInfo?.IsGetNullable == true;

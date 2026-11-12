@@ -1,0 +1,8 @@
+<Project>
+    <!-- Read protection is On unless the project says otherwise. This file is evaluated before the project body, so a
+         <CratisReadProtection> the project sets (including Off or Measure) always wins. Cratis.Arc.Core.targets turns
+         the value into the assembly declaration. -->
+    <PropertyGroup>
+        <CratisReadProtection Condition="'$(CratisReadProtection)' == ''">On</CratisReadProtection>
+    </PropertyGroup>
+</Project>

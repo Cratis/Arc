@@ -69,7 +69,7 @@ Selective hosting runs routing immediately before the gate. Configure server-own
 
 A `WithPersonalAccessTokens` installation restricts selected capability endpoints to a single raw PAT bearer before resolving a caller. This also applies when signed browser-session verification is composed through `AllowPersonalAccessTokenCallers()`. A valid signed browser session, cookie, identity header, or existing authenticated principal cannot admit a capability caller on those endpoints. Preflight refusals return `401` without invoking the endpoint or publishing a caller. Unselected routes and other listeners are unchanged.
 
-The [PAT adapter guide](asp-net-core/personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers) shows one installation for browser-only issuance and PAT verification. It requires live authoritative storage, recovery, and policy adapters. A PAT cannot issue another PAT. Selected capability endpoints refuse forwarded envelopes; outside those endpoints, a forwarded PAT remains authority-verified and cannot issue another PAT. OAuth issuance and MCP serving are not installed by this composition. Signed-only capability installations retain their existing browser-session behavior.
+The [PAT adapter guide](asp-net-core/personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers) shows one installation for browser-only issuance and PAT verification. It requires live authoritative storage, recovery, and policy adapters. A PAT cannot issue another PAT. Selected capability endpoints refuse forwarded envelopes; outside those endpoints, a forwarded PAT remains authority-verified and cannot issue another PAT. OAuth issuance is not installed by this composition. MCP serving is a separate package; see [MCP](mcp/index.md). Signed-only capability installations retain their existing browser-session behavior.
 
 ## Read the caller
 
@@ -88,7 +88,7 @@ The required revocation bounds depend on credential validation:
 | Live browser-session, PAT, or grant status | An acknowledged revocation or invalidating rotation takes effect on next use, including on another replica; no session grace period |
 | Offline access-token validation | Previously issued authority is bounded by token lifetime plus accepted clock skew, at most 630 seconds; an online fence check may shorten this bound |
 
-The 630-second bound applies only to authority established by offline token validation. Mandatory online credential and grant fences remain next-use checks; the offline bound is not a grace period for them. Offline token validity does not waive live membership or other required authoritative checks. These are contract requirements, not a claim that every adapter or credential profile is implemented. The released MCP behavior is described in [Session authority](mcp.md#session-authority-arc-mcp-authorization-v1): its stateless transport issues no server session ID.
+The 630-second bound applies only to authority established by offline token validation. Mandatory online credential and grant fences remain next-use checks; the offline bound is not a grace period for them. Offline token validity does not waive live membership or other required authoritative checks. These are contract requirements, not a claim that every adapter or credential profile is implemented. The released MCP behavior is described in [Session authority](mcp/advanced.md#session-authority-arc-mcp-authorization-v1): its stateless transport issues no server session ID.
 
 Conforming stateful integrations MUST test open → revoke → call and open → invalidating rotation → call, both on the opening replica and on another replica, and refuse within the applicable bound. They MUST also test membership removal and required-authority outage after opening. Arc's stateless MCP checks do not establish conformance for a valid server-issued session ID.
 
@@ -120,4 +120,4 @@ Absent values are omitted, including an unset tenant. Tokens, secrets, scopes, a
 - A signed tenant is a candidate, not proof of membership. A conflicting authenticated subject is refused, not merged.
 - Keep the group port private. Never expose it publicly or forward public traffic to it.
 - By default, default-group endpoints reachable on the capability port also require a caller. Anonymous routes on that port require an explicit gated-endpoint selection as described above.
-- MCP serving and protected-resource metadata follow separately; this API hosts REST capabilities only.
+- This API hosts REST capabilities only. MCP serving and protected-resource metadata come from the `Cratis.Arc.Mcp` package; see [MCP](mcp/index.md).

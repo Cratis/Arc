@@ -36,6 +36,7 @@ public class an_mcp_host : Specification
 
     protected virtual McpProfile Profile => McpProfile.PatOnly;
     protected virtual long MaxRequestBodySize => 1024 * 1024;
+    protected virtual bool SelectGatedEndpoints => true;
 
     protected virtual void ConfigureMcp(McpBuilder mcp)
     {
@@ -56,6 +57,8 @@ public class an_mcp_host : Specification
     protected virtual void ConfigureEndpoints(WebApplication app)
     {
     }
+
+    protected virtual void MapMcpEndpoint(WebApplication app) => app.MapArcMcp();
 
     protected virtual void ConfigureCallers(IServiceCollection services)
     {
@@ -108,7 +111,7 @@ public class an_mcp_host : Specification
             },
             configureBuilder: arc => arc
                 .WithoutControllers()
-                .WithCapabilities(options => options.GatedEndpoints = new CapabilityEndpointSelector())
+                .WithCapabilities(options => options.GatedEndpoints = SelectGatedEndpoints ? new CapabilityEndpointSelector() : null)
                 .WithMcp(mcp =>
                 {
                     mcp.Configure(Configure)
@@ -122,7 +125,7 @@ public class an_mcp_host : Specification
         ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
-        _app.MapCratisArcMcp();
+        MapMcpEndpoint(_app);
         ConfigureEndpoints(_app);
         await _app.StartAsync(CancellationToken);
     }

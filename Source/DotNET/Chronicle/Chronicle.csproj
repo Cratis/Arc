@@ -19,6 +19,12 @@
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
     <ItemGroup>
+        <!-- Turns read protection On for the projects that reference this package and declare no mode. -->
+        <None Include="build/Cratis.Arc.Chronicle.props"
+              Pack="true"
+              PackagePath="build;buildTransitive" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="System.Collections.Immutable" />
         <PackageReference Include="Cratis.Chronicle" />
     </ItemGroup>

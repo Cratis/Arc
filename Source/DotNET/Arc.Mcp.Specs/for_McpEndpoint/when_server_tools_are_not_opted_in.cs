@@ -23,6 +23,6 @@ public class when_server_tools_are_not_opted_in : an_mcp_host
         _called = await CallTool("app_echo", """{"text":"hi"}""");
     }
 
-    [Fact] void should_list_only_the_ceiling_tools() => _listed.ToolNames.ShouldContainOnly("who_am_i");
+    [Fact] void should_list_only_the_catalog_tools() => _listed.ToolNames.ShouldContainOnly("who_am_i");
     [Fact] void should_not_call_the_server_tool() => _called.IsProtocolError.ShouldBeTrue();
 }

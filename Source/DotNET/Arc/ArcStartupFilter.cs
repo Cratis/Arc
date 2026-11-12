@@ -26,9 +26,10 @@ public class ArcStartupFilter : IStartupFilter
             app.UseMiddleware<CorrelationIdMiddleware>();
 
             var hasCapabilities = app.ApplicationServices.HasCapabilities();
-            var selectiveCapabilities = hasCapabilities && app.ApplicationServices.GetRequiredService<IOptions<CapabilitiesOptions>>().Value.GatedEndpoints is not null;
+            var capabilityOptions = hasCapabilities ? app.ApplicationServices.GetRequiredService<IOptions<CapabilitiesOptions>>().Value : null;
+            var selectiveCapabilities = capabilityOptions is { GatedEndpoints: not null } or { GateAfterRouting: true };
 
-            // Only selective hosting needs routing before admission; the default gate stays pre-routing.
+            // Selective hosting and gating after routing need routing before admission; the plain default gate stays pre-routing.
             IEndpointRouteBuilder? capabilityRoutes = null;
             if (selectiveCapabilities)
             {

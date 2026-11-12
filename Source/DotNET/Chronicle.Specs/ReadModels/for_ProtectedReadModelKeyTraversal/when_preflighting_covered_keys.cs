@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
-using Microsoft.Extensions.Configuration;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ProtectedReadModelKeyTraversal;
 
@@ -20,7 +19,7 @@ public class when_preflighting_covered_keys : given.a_traversal
         handler.CommandType.Returns(typeof(ProtectedCommand));
         var handlers = Substitute.For<ICommandHandlerProviders>();
         handlers.Handlers.Returns([handler]);
-        _startup = new(handlers, new ConfigurationBuilder().Build(), _traversal);
+        _startup = new(handlers, ProtectedKeyTraversalForSpecs.CompatibilityConfiguration(), _traversal);
     }
 
     async Task Because() => _error = await Catch.Exception(() => _startup.StartAsync(CancellationToken.None));
