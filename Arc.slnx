@@ -4,6 +4,8 @@
     <Folder Name="/Source/DotNET/">
         <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Availability\Arc.Availability.csproj" />
+        <Project Path="Source\DotNET\Arc.Availability.Specs\Arc.Availability.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.BindingParity\Arc.Core.BindingParity.csproj" />
         <Project Path="Source\DotNET\Arc.Core.TypeDiscovery.Specs\Arc.Core.TypeDiscovery.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.TypeDiscovery.Specs.Plugin\Arc.Core.TypeDiscovery.Specs.Plugin.csproj" />

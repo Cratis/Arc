@@ -17,6 +17,7 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Cratis -->
+    <PackageVersion Include="Cratis.Choreography" Version="2.7.0" />
     <PackageVersion Include="Cratis.Chronicle" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.144.0" />
@@ -65,7 +66,7 @@
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
          NuGet still orders it above 0.50.4, depending on it forces every consumer that also pulls a
          package targeting the listed line into an NU1605 downgrade error. -->
-    <PackageVersion Include="SharpCompress" Version="0.50.7" />
+    <PackageVersion Include="SharpCompress" Version="0.50.8" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="handlebars.net" Version="2.4.3" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
