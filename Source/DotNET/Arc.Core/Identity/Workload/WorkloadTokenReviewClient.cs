@@ -2,6 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net.Http.Headers;
+#if !NET11_0_OR_GREATER // System.Net.Http.Json is implicitly imported on net11.0.
+using System.Net.Http.Json;
+#endif
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
