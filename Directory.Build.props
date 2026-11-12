@@ -31,7 +31,7 @@
          two shards together analyze the same set as a build without the property. Keep the list to the largest projects
          so the shards stay close in size. -->
     <PropertyGroup>
-        <CratisAnalyzerShard2Projects>;Arc.Core.Specs;Screenplay;Screenplay.Specs;Chronicle.Specs;</CratisAnalyzerShard2Projects>
+        <CratisAnalyzerShard2Projects>;Arc.Core.Specs;Arc.Specs;Screenplay;Screenplay.Specs;Chronicle.Specs;</CratisAnalyzerShard2Projects>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(CratisAnalyzerShard)'!=''">
