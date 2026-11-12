@@ -239,6 +239,26 @@ Missing rules, a non-array `roles` value, a thrown predicate and absent details 
 > it with server-side authorization, such as `[Authorize]` / `[Roles]`, where the decision uses the
 > authenticated request rather than browser state.
 
+## Hiding what is not available
+
+Roles decide what a user may do. Whether a screen exists at all for the user's tenant, such as a commercial package, is [availability](availability.md). Combine the two by nesting `RequireAvailable` around `RequireRole`:
+
+```tsx
+import { RequireRole } from '@cratis/arc.react/identity';
+import { RequireAvailable } from '@cratis/arc.react/availability';
+import { QualityScores } from './QualityScores';
+
+export const DataQuality = () => (
+    <RequireAvailable part={QualityScores} whileLoading={<Spinner />}>
+        <RequireRole roles={['Administrator']} forbidden={<AccessDenied />}>
+            <QualityScoresTable />
+        </RequireRole>
+    </RequireAvailable>
+);
+```
+
+The part is hidden and shown again as the server reports changes, without a reload.
+
 ## Type-safe identity with complex types
 
 If details contain a type such as Fundamentals' `Guid`, configure `<Arc detailsType={...}>` to deserialize the payload into class instances. A TypeScript type argument alone describes the shape; it does not turn JSON into objects with methods.

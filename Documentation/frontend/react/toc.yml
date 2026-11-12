@@ -6,6 +6,8 @@
   href: arc.md
 - name: Identity
   href: identity.md
+- name: Availability
+  href: availability.md
 - name: Dialogs
   href: dialogs.md
 - name: Messaging
