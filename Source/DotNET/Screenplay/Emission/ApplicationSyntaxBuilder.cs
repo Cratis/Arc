@@ -81,7 +81,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         {
             CommandReadMode = Analysis.ProtectedReads.Mode(model),
             ReactionProductionMode = AtLeast(options, SemanticVersion.V22) && AtomicReactionBatches.Required(modules) ? ReactionProductionMode.Atomic : null,
-            Systems = options.AuthoringOnlyConstructs ? SystemsOf(model) : [],
+            Systems = options.AuthoringOnlyConstructs ? SystemsOf(model, _types, naming) : [],
             EventSources = admitted.EventRoutes ? new EventSourceSyntaxBuilder(naming).Build(model, routedOccurrences, AtLeast(options, SemanticVersion.V10)) : []
         };
         application = new EmittedIdentityCompliance(application).Apply(diagnostics);
@@ -103,10 +103,25 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             .Where(pair => pair.First.Queries.Count() != pair.Second.Queries.Count() || pair.First.Projections.Count() != pair.Second.Projections.Count() || pair.First.Specifications.Count() != pair.Second.Specifications.Count())
             .Select(pair => (pair.Second.Namespace, pair.Second.Name)).ToHashSet();
 
-    static List<SystemSyntax> SystemsOf(ApplicationModel model) =>
-        model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
-            .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-            .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList();
+    static List<SystemSyntax> SystemsOf(ApplicationModel model, TypeReferenceConverter types, IScreenplayNaming naming)
+    {
+        var operations = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? []).ToList();
+        var invocations = operations.SelectMany(operation => operation.ExecuteInvocations.Concat(operation.CompensateInvocations)).ToList();
+        return operations.Select(operation => operation.System).Concat(invocations.Select(invocation => invocation.System))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
+            .Select(system => new SystemSyntax(system, null, SourceLocation.Start)
+            {
+                Abilities = invocations.Where(invocation => invocation.System == system).GroupBy(invocation => invocation.Ability, StringComparer.Ordinal)
+                    .OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new AbilitySyntax(
+                        group.Key,
+                        null,
+                        group.First().Parameters.Select(input => new PropertySyntax(naming.ToPropertyName(input.Name), types.Convert(input.Type), SourceLocation.Start)).ToList(),
+                        [],
+                        [],
+                        SourceLocation.Start)).ToList()
+            }).ToList();
+    }
 
     static ApplicationModel WithGeneratedUses(ApplicationModel model, HashSet<string> generatedConcepts) => model with
     {
