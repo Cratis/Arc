@@ -158,7 +158,7 @@ public static class CommandEndpointMapper
 
         ExceptionDetailRedactor.Redact(commandResult, arcOptions.ExposeExceptionDetails, logger);
 
-        var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
+        var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid, isRetryable: commandResult.IsRetryable);
         context.SetStatusCode(statusCode);
         await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
     }
