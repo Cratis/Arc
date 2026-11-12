@@ -174,9 +174,13 @@ jobs:
 
       # Each leg's spec jobs run on one framework, so the spec projects and their fixtures are compiled for that
       # framework only (Directory.Build.props). The libraries still build for net10.0 and net11.0.
+      #
+      # Analyzers are about 70 percent of the compile time and nothing downstream reads their output, so this build
+      # (the front of the critical path) skips them. The analyzers job below runs the same build with them on, in
+      # parallel, and is part of this workflow's result.
       - name: Build
         # Proxies are generated locally and committed; CI never generates them (proxy specs exercise the generator).
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath=
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath= -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -p:EnforceCodeStyleInBuild=false
 
       # The harness compares Arc's options binder with the real ConfigurationBinder of each target framework. It exits 1
       # on a mismatch and 2 when it could not run, so any non-zero exit fails the step.
@@ -216,6 +220,63 @@ jobs:
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
+
+  # The full analyzer build, in parallel with dotnet-build and off the critical path: warnings are errors here, so
+  # any analyzer or code style violation fails the workflow. One leg is enough; the libraries build for both
+  # frameworks and the spec projects share their sources across legs.
+  analyzers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup .Net 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
+
+      - name: Yarn install
+        run: yarn install --immutable
+
+      # Screenplay.Embedded embeds wwwroot at compile time; keep the viewer build before .NET compilation.
+      - name: Build embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run build
+
+      - name: Build with analyzers
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net11.0 -p:CratisProxiesOutputPath=
 
   specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
@@ -448,7 +509,7 @@ jobs:
   # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
-    needs: [embedded-viewer, dotnet-build, specs, screenplay-end-to-end, proxy-specs]
+    needs: [embedded-viewer, dotnet-build, analyzers, specs, screenplay-end-to-end, proxy-specs]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
