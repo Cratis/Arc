@@ -222,11 +222,15 @@ jobs:
           if-no-files-found: error
 
   # The full analyzer build, in parallel with dotnet-build and off the critical path: warnings are errors here, so
-  # any analyzer or code style violation fails the workflow. One leg is enough; the libraries build for both
-  # frameworks and the spec projects share their sources across legs.
+  # any analyzer or code style violation fails the workflow. It has the same two legs as dotnet-build because the
+  # spec projects compile for one framework per leg and some spec sources are framework specific.
   analyzers:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        spec-framework: [net11.0, net10.0]
 
     steps:
       - name: Checkout code
@@ -276,7 +280,7 @@ jobs:
           npm run build
 
       - name: Build with analyzers
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net11.0 -p:CratisProxiesOutputPath=
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath=
 
   specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
