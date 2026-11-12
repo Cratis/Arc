@@ -16,6 +16,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 public class CommandOperationReader(TypeRegistry types, SourcePaths paths, ScreenplayDiagnostics diagnostics)
 {
     static readonly string[] _frameworkNamespaces = ["System", "Microsoft", "Cratis"];
+    readonly OperationAbilityReader _abilities = new(types);
 
     /// <summary>Determines whether a type implements the command operation contract.</summary>
     /// <param name="type">The type to check.</param>
@@ -72,19 +73,39 @@ public class CommandOperationReader(TypeRegistry types, SourcePaths paths, Scree
             yield break;
         }
 
-        var systems = method.Parameters.Select(parameter => parameter.Type).Where(IsSystem).Distinct<ITypeSymbol>(SymbolEqualityComparer.Default).ToArray();
-        if (systems is not [var system])
-        {
-            Report($"Operation '{type.Name}' uses {systems.Length} external systems; the current grammar requires exactly one", location);
-            yield break;
-        }
-
         var compensate = type.GetMembers("Compensate").OfType<IMethodSymbol>().Where(candidate => !candidate.IsStatic && candidate.DeclaredAccessibility == Accessibility.Public).ToArray();
-        if (compensate.Length > 1 || compensate.SelectMany(candidate => candidate.Parameters).Select(parameter => parameter.Type)
-            .Any(dependency => IsSystem(dependency) && !SymbolEqualityComparer.Default.Equals(dependency, system)))
+        var systems = method.Parameters.Select(parameter => parameter.Type).Where(IsSystem).Distinct<ITypeSymbol>(SymbolEqualityComparer.Default).ToArray();
+        var abilityBacked = systems.Concat(compensate.SelectMany(candidate => candidate.Parameters).Select(parameter => parameter.Type).Where(IsSystem))
+            .Any(OperationAbilityReader.IsCollaborator);
+        ITypeSymbol system;
+        if (abilityBacked)
         {
-            Report($"Operation '{type.Name}' has ambiguous compensation or compensation uses another system", location);
-            yield break;
+            // Operations backed by abilities may call several systems; each call becomes an invocation, so the system a
+            // phase uses is read from its calls rather than required to be one.
+            var all = systems.Concat(compensate.SelectMany(candidate => candidate.Parameters).Select(parameter => parameter.Type).Where(IsSystem)).ToArray();
+            if (compensate.Length > 1 || all.Any(candidate => !OperationAbilityReader.IsCollaborator(candidate)))
+            {
+                Report($"Operation '{type.Name}' mixes ability collaborators with other systems or has ambiguous compensation", location);
+                yield break;
+            }
+
+            system = all[0];
+        }
+        else
+        {
+            if (systems is not [var only])
+            {
+                Report($"Operation '{type.Name}' uses {systems.Length} external systems; the current grammar requires exactly one", location);
+                yield break;
+            }
+
+            system = only;
+            if (compensate.Length > 1 || compensate.SelectMany(candidate => candidate.Parameters).Select(parameter => parameter.Type)
+                .Any(dependency => IsSystem(dependency) && !SymbolEqualityComparer.Default.Equals(dependency, system)))
+            {
+                Report($"Operation '{type.Name}' has ambiguous compensation or compensation uses another system", location);
+                yield break;
+            }
         }
 
         var inputs = new List<PropertyModel>();
@@ -122,7 +143,25 @@ public class CommandOperationReader(TypeRegistry types, SourcePaths paths, Scree
             path = null;
         }
 
-        var name = system.Name.Length > 1 && system.Name[0] == 'I' && char.IsUpper(system.Name[1]) ? system.Name[1..] : system.Name;
+        IReadOnlyList<AbilityInvocationModel> executeInvocations = [];
+        IReadOnlyList<AbilityInvocationModel> compensateInvocations = [];
+        if (abilityBacked)
+        {
+            var names = inputs.Select(input => input.Name).ToArray();
+            var executed = _abilities.Read(method, type, names, model.Compilation, out var executeReason);
+            var compensateReason = string.Empty;
+            var compensated = compensate.Length == 1 ? _abilities.Read(compensate[0], type, names, model.Compilation, out compensateReason) : [];
+            if (executed is null || compensated is null)
+            {
+                Report($"Operation '{type.Name}' was left in code: {(executed is null ? executeReason : compensateReason)}", location);
+                yield break;
+            }
+
+            executeInvocations = executed;
+            compensateInvocations = compensated;
+        }
+
+        var name = OperationAbilityReader.SystemName(system);
         if (!ScreenplayIdentifier.IsBareIdentifier(name) || !ScreenplayIdentifier.IsBareIdentifier(type.Name))
         {
             Report($"Operation '{type.Name}' or system '{name}' has a name the grammar cannot hold", location);
@@ -131,7 +170,9 @@ public class CommandOperationReader(TypeRegistry types, SourcePaths paths, Scree
 
         yield return new(type.Name, name, Documentation.SummaryOf(type), inputs, mappings, path, compensate.Length == 1)
         {
-            SystemTypeIdentity = system.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            SystemTypeIdentity = system.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            ExecuteInvocations = executeInvocations,
+            CompensateInvocations = compensateInvocations
         };
     }
 

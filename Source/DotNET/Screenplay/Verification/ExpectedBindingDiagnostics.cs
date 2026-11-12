@@ -98,6 +98,8 @@ public static class ExpectedBindingDiagnostics
 
     static bool IsAuthoringOnlyAdmissionLimit(string message) =>
         message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
+        message == "Operations are not admitted by any supported executable model (ESM) version yet (#301); a system executes only when the model declares an ability on it (#1250)." ||
+        message == "Ability invocations from operations, approvals that answer through an ability (via) and $trigger values are not admitted by any supported executable model (ESM) version yet (#1252)." ||
         Reason(Reason(message, "Stream id mapping") ?? string.Empty, " on command") == " reads a property path; only direct command inputs are admitted by event routes.";
 
     static bool IsAlwaysExpectedAdmissionLimit(string message) =>

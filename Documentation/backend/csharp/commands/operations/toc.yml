@@ -2,6 +2,8 @@
   href: index.md
 - name: Implement an operation
   href: implementing.md
+- name: Invoke Screenplay abilities
+  href: abilities.md
 - name: Migrate a service-backed command
   href: migrating.md
 - name: Execution and recovery reference
