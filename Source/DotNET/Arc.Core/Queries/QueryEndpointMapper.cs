@@ -282,7 +282,7 @@ public static class QueryEndpointMapper
             return;
         }
 
-        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady);
+        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady, queryResult.IsRetryable);
         context.SetStatusCode(statusCode);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }

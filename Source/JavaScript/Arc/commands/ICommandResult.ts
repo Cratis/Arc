@@ -49,6 +49,12 @@ import { ValidationResult } from '../validation/ValidationResult.js';
      readonly authorizationFailureReason: string;
 
      /**
+      * Gets whether the failure is temporary and the same command can succeed when retried. It is never a denial.
+      * Servers that do not report it are read as false.
+      */
+     readonly isRetryable?: boolean;
+
+     /**
       * Gets the stack trace if there was an exception.
       */
      readonly exceptionStackTrace: string;

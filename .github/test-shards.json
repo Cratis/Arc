@@ -151,6 +151,7 @@
     {
       "name": "specs-2",
       "projects": [
+        "Source/DotNET/Arc.Availability.Specs",
         "Source/DotNET/Arc.Core.Specs",
         "Source/DotNET/Arc.Mcp.Specs",
         "Source/DotNET/Connections.Azure.Specs",

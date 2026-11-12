@@ -55,7 +55,7 @@ public class QueryFilters(IInstancesOf<IQueryFilter> filters, IActivitySource<Qu
         // Without this the short-circuit below could return on a validation failure before the authorization filter
         // runs — turning what should be a 403 for a forbidden caller into a 400 depending on undefined discovery order.
         // OrderBy is a stable sort, so filters within the same group keep their discovery order.
-        foreach (var filter in selectedFilters.OrderBy(filter => filter is IAuthorizationQueryFilter ? 0 : 1))
+        foreach (var filter in selectedFilters.OrderBy(filter => filter is IAvailabilityQueryFilter ? 0 : filter is IAuthorizationQueryFilter ? 1 : 2))
         {
             try
             {

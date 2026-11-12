@@ -25,6 +25,10 @@ public static class CommandHttpResponseExtensions
         {
             response.StatusCode = (int)HttpStatusCode.BadRequest;           // Bad request: https://www.rfc-editor.org/rfc/rfc9110.html#name-400-bad-request
         }
+        else if (commandResult.IsRetryable)
+        {
+            response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;    // Service Unavailable: https://www.rfc-editor.org/rfc/rfc9110.html#name-503-service-unavailable
+        }
         else if (commandResult.HasExceptions)
         {
             response.StatusCode = (int)HttpStatusCode.InternalServerError;  // Internal Server error: https://www.rfc-editor.org/rfc/rfc9110.html#name-500-internal-server-error
