@@ -3,6 +3,7 @@
 
 namespace Cratis.Arc.Queries.for_QueryStringQueryRequestReader.when_reading;
 
+[PerFactSpecificationLifecycle]
 public class with_differently_cased_reserved_keys : given.a_query_string_query_request_reader
 {
     async Task<QueryRequest> Read(IDictionary<string, string> query)

@@ -15,7 +15,7 @@ public class a_traversal : Specification
     void Establish()
     {
         _logger = new();
-        _options = new();
+        _options = new() { Strict = false };
         _traversal = new(Options.Create(_options), _logger);
     }
 

@@ -46,6 +46,7 @@ public class a_monthly_account : Specification
         accessor.Current.Returns(_ => _context);
         _services = new ServiceCollection()
             .AddLogging()
+            .AddCompatibilityConfiguration()
             .AddSingleton(accessor)
             .AddTransient(_ => _context)
             .AddSingleton(_store.EventLog)

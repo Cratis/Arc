@@ -21,11 +21,11 @@ import { CommandResult, type ICommandResult } from '@cratis/arc/commands';
 import type { Command } from '@cratis/arc/commands';
 import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validation';
 import type { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
-import { deepEqual } from '@cratis/arc';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
-import type { CommandFormFieldRegistrationDescriptor } from './CommandFormFieldRegistrationDescriptor.js';
+import { useSilentValidation } from './useSilentValidation.js';
+import { useInitialValueSync } from './useInitialValueSync.js';
+import { useCommandFormFieldRegistry } from './useCommandFormFieldRegistry.js';
 import { memberMatchesField } from './memberMatchesField.js';
-import { runCommandValidation } from './runCommandValidation.js';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants.js';
 import { CommandFormFieldRegistrationContext } from './CommandFormFieldRegistrationContext.js';
 import { CommandFormNativeResultContext } from './CommandFormNativeResultContext.js';
@@ -205,30 +205,6 @@ const getOrderedCommandFormChildren = (
         return [{ type: 'other' as const, content: child, index, key }];
     });
 
-const getChangedValues = (
-    current: Record<string, unknown>,
-    previous: Record<string, unknown>,
-): Record<string, unknown> =>
-    Object.fromEntries(
-        Object.entries(current).filter(
-            ([propertyName, value]) =>
-                !Object.hasOwn(previous, propertyName) ||
-                !deepEqual(previous[propertyName], value),
-        ),
-    );
-
-const getInitialValuesFromFields = <TCommand,>(
-    registrations: CommandFormFieldRegistrationDescriptor[],
-): Partial<TCommand> => {
-    const values: Record<string, unknown> = {};
-    registrations.forEach((registration) => {
-        if (registration.currentValue !== undefined && registration.propertyName) {
-            values[registration.propertyName] = registration.currentValue;
-        }
-    });
-    return values as Partial<TCommand>;
-};
-
 const hasCustomFieldErrors = (errors: Record<string, string>) =>
     Object.values(errors).some(Boolean);
 
@@ -262,57 +238,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     );
     const populatedSource = queryPopulatedSource ?? observableQueryPopulatedSource;
 
-    const registeredFieldsById = React.useRef(
-        new Map<symbol, CommandFormFieldRegistrationDescriptor>(),
-    );
-    const transformedPopulationById = React.useRef(
-        new Map<
-            symbol,
-            {
-                source: object;
-                populationRevision: number;
-                value: unknown;
-            }
-        >(),
-    );
-    const [registeredFieldsVersion, setRegisteredFieldsVersion] = useState(0);
-    const registerField = useCallback(
-        (id: symbol, descriptor: CommandFormFieldRegistrationDescriptor) => {
-            if (registeredFieldsById.current.get(id) === descriptor) {
-                return;
-            }
-            registeredFieldsById.current.set(id, descriptor);
-            setRegisteredFieldsVersion((version) => version + 1);
-        },
-        [],
-    );
-    const notifyFieldChanged = useCallback((id: symbol) => {
-        if (registeredFieldsById.current.has(id)) {
-            setRegisteredFieldsVersion((version) => version + 1);
-        }
-    }, []);
-    const unregisterField = useCallback((id: symbol) => {
-        transformedPopulationById.current.delete(id);
-        if (registeredFieldsById.current.delete(id)) {
-            setRegisteredFieldsVersion((version) => version + 1);
-        }
-    }, []);
-    const fieldRegistration = useMemo(
-        () => ({
-            register: registerField,
-            notifyChanged: notifyFieldChanged,
-            unregister: unregisterField,
-        }),
-        [registerField, notifyFieldChanged, unregisterField],
-    );
-    const registeredFields = useMemo(
-        () => Array.from(registeredFieldsById.current.values()),
-        [registeredFieldsVersion],
-    );
-    const initialValuesFromFields = useMemo(
-        () => getInitialValuesFromFields<TCommand>(registeredFields),
-        [registeredFields],
-    );
+    const { fieldRegistration, initialValuesFromFields, populatedValues } =
+        useCommandFormFieldRegistry<TCommand>(populatedSource);
 
     // Extract matching properties from currentValues
     const valuesFromCurrentValues = useMemo(() => {
@@ -335,61 +262,6 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
 
         return extracted;
     }, [props.currentValues, props.command]);
-
-    // Match registered metadata onto the resolved source after commit. Field layout effects publish
-    // their latest callbacks first, so a source and callback that change in the same commit are
-    // evaluated together. This also keeps abandoned concurrent renders from affecting population.
-    // Transformed values are cached per field, so registering another field does not re-evaluate
-    // existing initialValue callbacks.
-    const [populatedValues, setPopulatedValues] = useState<Partial<TCommand>>({});
-    React.useLayoutEffect(() => {
-        if (populatedSource === undefined) {
-            setPopulatedValues((previous) =>
-                Object.keys(previous).length === 0 ? previous : {},
-            );
-            return;
-        }
-
-        const values: Record<string, unknown> = {};
-        registeredFieldsById.current.forEach((registration, id) => {
-            if (registration.noInitialValue || !registration.propertyName) {
-                return;
-            }
-
-            const initialValue = registration.initialValueRef.current;
-            if (initialValue) {
-                const cached = transformedPopulationById.current.get(id);
-                if (
-                    cached !== undefined &&
-                    deepEqual(cached.source, populatedSource) &&
-                    cached.populationRevision === registration.populationRevision
-                ) {
-                    values[registration.propertyName] = cached.value;
-                    return;
-                }
-
-                const value = initialValue(populatedSource);
-                transformedPopulationById.current.set(id, {
-                    source: populatedSource,
-                    populationRevision: registration.populationRevision,
-                    value,
-                });
-                values[registration.propertyName] = value;
-                return;
-            }
-
-            if (Object.hasOwn(populatedSource, registration.propertyName)) {
-                values[registration.propertyName] = (
-                    populatedSource as Record<string, unknown>
-                )[registration.propertyName];
-            }
-        });
-        // SAFETY: Registration property names come from accessors over TCommand fields.
-        const nextValues = values as Partial<TCommand>;
-        setPopulatedValues((previous) =>
-            deepEqual(previous, nextValues) ? previous : nextValues,
-        );
-    }, [registeredFieldsVersion, populatedSource]);
 
     // Merge initialValues prop with values extracted from field currentValue props, currentValues and
     // a populate query's result. The seed layers skip undefined, the reactive ones do not - see
@@ -448,9 +320,6 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         setNativeCommandResult(result);
         setCustomValidationResult(undefined);
     }, []);
-    const [silentValidationResult, setSilentValidationResult] = useState<
-        ICommandResult<unknown> | undefined
-    >(undefined);
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>(
         {},
     );
@@ -473,141 +342,26 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const executionCountRef = React.useRef(0);
     const [executionCount, setExecutionCount] = useState(0);
     const isExecuting = executionCount > 0;
-    const initializedRef = React.useRef(false);
     const lastServerValidateVersion = React.useRef<number>(-1);
     const serverValidateThrottleTimer = React.useRef<NodeJS.Timeout | null>(null);
-    const silentValidationIssue = React.useRef(0);
-    const lastAppliedSilentValidationIssue = React.useRef(-1);
 
-    // Validation is asynchronous and several runs are legitimately in flight at once: the init effect
-    // below, the per-keystroke run in CommandFormFields, and the throttled server round trip. Writing
-    // whichever one resolves last makes the winner arrival order rather than issue order, so a slower
-    // run describing values the form no longer holds lands after a faster run describing the current
-    // ones and overwrites it. isValid is derived from this single slot and nothing recomputes it, so a
-    // stale rejection greys out submit permanently - with every field valid and no message shown -
-    // until some unrelated interaction happens to schedule another validation.
-    //
-    // Each run claims a token before it starts and hands it back with its result; a result is applied
-    // only when no later one has been applied already. Ordering is restored without cancelling
-    // anything, so a run that is still the newest always lands even when it is the slow one.
-    const beginSilentValidation = useCallback(() => silentValidationIssue.current++, []);
+    const {
+        silentValidationResult,
+        beginSilentValidation,
+        applySilentValidationResult,
+        validateSilently,
+    } = useSilentValidation(commandInstance, props.autoServerValidate, setCommandResult);
 
-    const applySilentValidationResult = useCallback(
-        (validationResult: ICommandResult<unknown>, issue?: number) => {
-            if (issue === undefined) {
-                // An unguarded write - a custom field going through the context - is taken as current, so
-                // anything issued before it is stale from here on.
-                lastAppliedSilentValidationIssue.current = silentValidationIssue.current;
-            } else {
-                if (issue < lastAppliedSilentValidationIssue.current) return false;
-                lastAppliedSilentValidationIssue.current = issue;
-            }
-            setSilentValidationResult(validationResult);
-            return true;
-        },
-        [],
-    );
-
-    const validateSilently = useCallback(
-        async (showErrors: boolean) => {
-            const issue = beginSilentValidation();
-            const validationResult = await runCommandValidation(
-                commandInstance,
-                props.autoServerValidate ?? false,
-            );
-            if (!validationResult) return;
-            if (!applySilentValidationResult(validationResult, issue)) return;
-            if (showErrors) {
-                setCommandResult(validationResult);
-            }
-        },
-        [
-            commandInstance,
-            props.autoServerValidate,
-            beginSilentValidation,
-            applySilentValidationResult,
-            setCommandResult,
-        ],
-    );
-
-    // Track values becoming available, not merely source arrival. Runtime fields register after the
-    // first render and may mount after a query result is already cached. Applying only changed keys
-    // preserves edits in unrelated fields while each seed/populated value becomes a true baseline.
-    const previousFieldInitialValuesRef = React.useRef<Partial<TCommand>>({});
-    const previousPopulatedValuesRef = React.useRef<Partial<TCommand>>({});
-    const previousCurrentValuesRef = React.useRef<Partial<TCommand>>(
-        valuesFromCurrentValues,
-    );
-    React.useEffect(() => {
-        const changedFieldInitialValues = getChangedValues(
-            initialValuesFromFields as Record<string, unknown>,
-            previousFieldInitialValuesRef.current as Record<string, unknown>,
-        );
-        const changedPopulatedValues = getChangedValues(
-            populatedValues as Record<string, unknown>,
-            previousPopulatedValuesRef.current as Record<string, unknown>,
-        );
-        const changedCurrentValues = getChangedValues(
-            valuesFromCurrentValues as Record<string, unknown>,
-            previousCurrentValuesRef.current as Record<string, unknown>,
-        );
-        previousFieldInitialValuesRef.current = initialValuesFromFields;
-        previousPopulatedValuesRef.current = populatedValues;
-        previousCurrentValuesRef.current = valuesFromCurrentValues;
-
-        const baselineProperties = new Set([
-            ...Object.keys(changedFieldInitialValues),
-            ...Object.keys(changedPopulatedValues),
-        ]);
-        const reactiveProperties = Object.keys(changedCurrentValues).filter(
-            (propertyName) => !baselineProperties.has(propertyName),
-        );
-        const mergedValues = mergedInitialValues as Record<string, unknown>;
-        const reactiveValues: Record<string, unknown> = {};
-        reactiveProperties.forEach((propertyName) => {
-            if (Object.hasOwn(mergedValues, propertyName)) {
-                reactiveValues[propertyName] = mergedValues[propertyName];
-            }
-        });
-        const baselineValues: Record<string, unknown> = {};
-        baselineProperties.forEach((propertyName) => {
-            if (Object.hasOwn(mergedValues, propertyName)) {
-                baselineValues[propertyName] = mergedValues[propertyName];
-            }
-        });
-
-        if (Object.keys(reactiveValues).length > 0) {
-            setCommandValues(reactiveValues as TCommand);
-        }
-        if (Object.keys(baselineValues).length > 0) {
-            setCommandInitialValues(baselineValues as Partial<TCommand>);
-        }
-
-        const fieldInitialValuesChanged = baselineProperties.size > 0;
-        const currentValuesChanged = Object.keys(changedCurrentValues).length > 0;
-
-        // Always run silent client validation on init and after currentValues/populated source
-        // changes to determine if the form is valid. This ensures isValid reflects the real validity
-        // state from the first render, even when no error messages are shown yet. A populate query
-        // only re-triggers validation when its resolved data actually changed, not on every
-        // unrelated re-render. Error messages are only rendered (via commandResult) when
-        // validateOnInit is true.
-        if (!initializedRef.current) {
-            initializedRef.current = true;
-            void validateSilently(props.validateOnInit ?? false);
-        } else if (currentValuesChanged || fieldInitialValuesChanged) {
-            void validateSilently(props.validateOnInit ?? false);
-        }
-    }, [
+    useInitialValueSync<TCommand>({
         mergedInitialValues,
         populatedValues,
         initialValuesFromFields,
         valuesFromCurrentValues,
-        props.validateOnInit,
+        validateOnInit: props.validateOnInit,
         setCommandValues,
         setCommandInitialValues,
         validateSilently,
-    ]);
+    });
 
     // Custom errors independently veto validity; an in-flight native validation cannot clear them.
     // Default to false until the first silent validation completes.

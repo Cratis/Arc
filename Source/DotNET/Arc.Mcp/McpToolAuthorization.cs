@@ -8,7 +8,7 @@ namespace Cratis.Arc.Mcp;
 /// <summary>
 /// Represents the question an <see cref="IMcpToolAuthorizer"/> answers: may this caller use this tool.
 /// </summary>
-/// <param name="Tool">The tool from the ceiling.</param>
+/// <param name="Tool">The tool from the catalog.</param>
 /// <param name="Caller">The verified caller, taken from the request and never from the arguments.</param>
 /// <param name="Services">The services of the request.</param>
 /// <param name="CancellationToken">The cancellation token of the request.</param>

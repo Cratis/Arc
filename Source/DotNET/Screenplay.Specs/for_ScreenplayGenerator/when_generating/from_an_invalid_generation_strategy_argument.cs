@@ -19,10 +19,8 @@ public class from_an_invalid_generation_strategy_argument : a_generation_strateg
     [InlineData("GenerateValue.TypeId(\"user_\")")]
     [InlineData("GenerateValue.TypeId(\"User\")")]
     [InlineData("GenerateValue.NanoId(16 + 16)")]
-#if NET9_0_OR_GREATER
     [InlineData("System.Security.Cryptography.RandomNumberGenerator.GetHexString(63, lowercase: true)")]
     [InlineData("System.Security.Cryptography.RandomNumberGenerator.GetHexString(1026)")]
-#endif
     public void should_withhold_the_entire_generation_claim(string call)
     {
         Generate((Analyzed.SlicePath, Source(call).Replace("AuthorId Receipt", "AuthorId? Receipt", StringComparison.Ordinal)));

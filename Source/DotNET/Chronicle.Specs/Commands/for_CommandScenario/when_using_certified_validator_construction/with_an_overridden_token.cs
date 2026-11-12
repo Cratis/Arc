@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario.when_using_certified_validator_construction;
 
+[PerFactSpecificationLifecycle]
 public class with_an_overridden_token : given.a_certified_command
 {
     [Fact]

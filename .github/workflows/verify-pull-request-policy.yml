@@ -1,13 +1,13 @@
 name: Verify Pull Request Policy
 
+# Called from pull-requests.yml; the PR triggers and path filters live there.
 on:
-  pull_request:
-    types: [opened, edited, reopened, synchronize, labeled, unlabeled, ready_for_review]
+  workflow_call:
   push:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: verify-pull-request-policy-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:

@@ -30,7 +30,7 @@ public class and_the_shared_cursor_is_not_open : a_database_watch
         using var subscription = _subject.Subscribe(value => emitted.TrySetResult(value));
 
         // Keep the cursor deliberately unopened during this assertion window.
-        await Task.WhenAny(queried.Task, Task.Delay(200));
+        await SpecTasks.CompletesWithin(queried.Task, TimeSpan.FromMilliseconds(200));
         _queriedBeforeOpen = queried.Task.IsCompleted;
         _worker = _watch.Run("testdb");
         await emitted.Task.WaitAsync(TimeSpan.FromSeconds(5));

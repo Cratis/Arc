@@ -23,8 +23,9 @@ public static class ArcBuilderMcpExtensions
     /// <param name="configure">An optional delegate declaring options and exposed operations.</param>
     /// <returns>The builder for continuation.</returns>
     /// <remarks>
-    /// Map the endpoint with <see cref="McpEndpointRouteBuilderExtensions.MapCratisArcMcp"/>. The endpoint is served
-    /// only on the capabilities endpoint group, behind selective capability gating, and is stateless: every request
+    /// Map the endpoint with <see cref="McpEndpointRouteBuilderExtensions.MapArcMcp"/>. The endpoint is served
+    /// only on the capabilities endpoint group, behind capability gating (the whole port, or the selection in
+    /// <see cref="CapabilitiesOptions.GatedEndpoints"/>), and is stateless: every request
     /// is one call that runs in the scope of its HTTP request, as the caller the capability gate verified.
     /// </remarks>
     public static IArcBuilder WithMcp(this IArcBuilder builder, Action<McpBuilder>? configure = null)
@@ -34,9 +35,10 @@ public static class ArcBuilderMcpExtensions
         services.AddHttpContextAccessor();
 
         // Replace, not TryAdd: Arc's convention and self bindings may already have registered these with another
-        // lifetime, and the ceiling must be built exactly once so every part of MCP sees the same frozen tools.
-        services.Replace(ServiceDescriptor.Singleton<McpToolCeilingFactory, McpToolCeilingFactory>());
-        services.Replace(ServiceDescriptor.Singleton(provider => provider.GetRequiredService<McpToolCeilingFactory>().Ceiling));
+        // lifetime, and the catalog must be built exactly once so every part of MCP sees the same frozen tools.
+        services.Replace(ServiceDescriptor.Singleton<McpToolCatalogFactory, McpToolCatalogFactory>());
+        services.Replace(ServiceDescriptor.Singleton(provider => provider.GetRequiredService<McpToolCatalogFactory>().Catalog));
+        services.Replace(ServiceDescriptor.Singleton<McpCallAudit, McpCallAudit>());
         services.Replace(ServiceDescriptor.Singleton<McpAdmission, McpAdmission>());
         services.Replace(ServiceDescriptor.Singleton<McpRefusalWriter, McpRefusalWriter>());
         services.Replace(ServiceDescriptor.Singleton<McpToolDispatcher, McpToolDispatcher>());

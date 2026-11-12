@@ -32,7 +32,7 @@ public class protected_plain_models : Specification
         _inner = Substitute.For<for_CommandDecisionReads.when_reading_a_stream.given.DecisionReaderForSpecs>();
         _stored = Substitute.For<IReadModels>();
         _tokens = [];
-        _keyOptions = new();
+        _keyOptions = new() { Strict = false };
         _from = new(new("from"));
         _to = new(new("to"));
         var type = new Cratis.Chronicle.Events.EventType((Cratis.Chronicle.Events.EventTypeId)Guid.NewGuid().ToString(), Cratis.Chronicle.Events.EventTypeGeneration.First);
@@ -69,6 +69,7 @@ public class protected_plain_models : Specification
             .AddProtectedKeyTraversal(_keyOptions)
             .AddSingleton<IDecisionReads>(new CommandDecisionReads(_inner, store, _stored))
             .BuildServiceProvider();
+        _context = _context with { ServiceProvider = _services };
     }
 
     protected object? Resolve(ParameterInfo parameter)

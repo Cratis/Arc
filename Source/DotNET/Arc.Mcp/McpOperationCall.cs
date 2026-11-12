@@ -9,7 +9,7 @@ using ModelContextProtocol.Server;
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
-/// Represents an admitted call of a tool from the ceiling.
+/// Represents an admitted call of a tool from the catalog.
 /// </summary>
 /// <param name="Tool">The tool.</param>
 /// <param name="Caller">The verified caller.</param>

@@ -130,9 +130,9 @@ The specs use only public Arc APIs, a real HTTPS capability listener, synthetic 
 
 For the separate, tenantless service-account profile, configure [Kubernetes workload callers](workload-callers.md) with `UseWorkloadCallers` and capability hosting. The workload profile does not compose with browser or PAT installation in this release.
 
-The signed-only installer does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters. Those flows cannot be enabled by changing a header or credential kind. MCP serving, `--as` clients, protected-resource metadata, and OAuth registration are separate work.
+The signed-only installer does not install PAT, OAuth-grant, service-account, bearer-verifier, or on-behalf adapters. Those flows cannot be enabled by changing a header or credential kind. `--as` clients and OAuth registration are separate work. MCP serving and protected-resource metadata come from the `Cratis.Arc.Mcp` package; see [MCP](../mcp/index.md).
 
-Client-declared names, scope strings, grant references, or body arguments cannot supply missing verified facts or upgrade actor authority. The accessor does not implement PAT authentication, OAuth introspection, DPoP verification, workload verification, or an MCP server.
+Client-declared names, scope strings, grant references, or body arguments cannot supply missing verified facts or upgrade actor authority. The accessor does not implement PAT authentication, OAuth introspection, DPoP verification, workload verification, or an MCP server; MCP serving is in `Cratis.Arc.Mcp`.
 
 The public, released `IVerifiedCallerAccessor` can be injected into a command, query, or tool through scoped DI. Call `GetCurrent()` for the current request; a refusal conveys no authority. Verification is not operation authorization.
 

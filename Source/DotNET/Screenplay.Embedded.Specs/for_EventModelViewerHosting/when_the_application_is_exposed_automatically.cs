@@ -17,7 +17,8 @@ public class when_the_application_is_exposed_automatically : an_automatically_ho
     {
         _hierarchy = await _client.GetAsync(Url("/hierarchy"));
         _index = await _client.GetAsync(Url("/"));
-        _projects = JsonDocument.Parse(await _hierarchy.Content.ReadAsStringAsync()).RootElement;
+        using var document = JsonDocument.Parse(await _hierarchy.Content.ReadAsStringAsync());
+        _projects = document.RootElement.Clone();
     }
 
     [Fact] void should_serve_the_hierarchy() => _hierarchy.StatusCode.ShouldEqual(HttpStatusCode.OK);

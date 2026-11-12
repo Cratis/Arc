@@ -1,17 +1,17 @@
 name: .NET Build
 
-# PR builds run under pull_request and build the PR head. Group by pull request when there is one,
+# Called from pull-requests.yml; the PR triggers and path filters live there.
+# PR builds build the PR head. Group by pull request when there is one,
 # otherwise by ref, so a newer PR run cancels only the older run for the same pull request.
 # Runs on main (push and manual) are never cancelled: a burst of merges queues, GitHub keeps only the newest
 # pending run, and that run verifies the latest main. Cancelling would leave main unverified while merges keep coming.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: dotnet-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  DOTNET8_VERSION: "8.0.407"
-  DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
+  DOTNET11_VERSION: "11.0.x"
 
 on:
   workflow_dispatch:
@@ -44,26 +44,7 @@ on:
       - ".github/test-shards.json"
       - "scripts/ci-test-shards.py"
       - "scripts/viewer-bundle.test.mjs"
-  pull_request:
-    branches:
-      - "**"
-    paths:
-      - "Source/DotNET/**"
-      - "Specifications/**"
-      - "Samples/**"
-      # What the build compiles against, not only what it compiles. A package
-      # version bump touches none of the paths above, so it used to reach main
-      # without ever having been built - which is how a Chronicle release that
-      # added members to an interface Arc implements got merged unbuilt.
-      - "Directory.Build.props"
-      - "Directory.Packages*.props"
-      - "global.json"
-      - "stylecop.json"
-      - "Arc.slnx"
-      - ".github/workflows/dotnet-build.yml"
-      - ".github/test-shards.json"
-      - "scripts/ci-test-shards.py"
-      - "scripts/viewer-bundle.test.mjs"
+  workflow_call:
 
 # PR builds run with a read-only token, and checkouts do not keep credentials.
 # PR runs restore caches but never save them. Only the main-only reporting job declares write permissions.
@@ -71,9 +52,57 @@ permissions:
   contents: read
 
 jobs:
+  # The viewer is embedded during compilation, so each build leg still builds it below.
+  # Its typecheck, tests and bundle validation can run once alongside the .NET builds.
+  embedded-viewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      # The viewer's typecheck resolves @types/node from the root workspace install.
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
+
+      - name: Yarn install
+        run: yarn install --immutable
+
+      - name: Build and test embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run typecheck
+          npm test
+          npm run build
+          node --test ../../../scripts/viewer-bundle.test.mjs
+
+  # Two legs: the spec projects compile for, and the specs run on, net11.0 and net10.0 (the two frameworks the libraries
+  # ship for). Both legs build the libraries for both frameworks, so the shipped packages are checked on every leg.
   dotnet-build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        spec-framework: [net11.0, net10.0]
     outputs:
       proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
       spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
@@ -98,13 +127,16 @@ jobs:
           python3 scripts/ci-test-shards.py check
           python3 scripts/ci-test-shards.py matrix >> "$GITHUB_OUTPUT"
 
-      - name: Setup .Net
+      # The 10.0 SDK is installed alongside the 11.0 SDK so the libraries build for net10.0 as well.
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
 
       # This workflow only restores the shared caches, also when it runs on main: warm-caches.yml is the one place
       # that saves them, so pull request code never writes a cache.
@@ -133,28 +165,30 @@ jobs:
       - name: Yarn install
         run: yarn install --immutable
 
-      - name: Build and test embedded event-model viewer
+      # Screenplay.Embedded embeds wwwroot at compile time; keep the viewer build before .NET compilation.
+      - name: Build embedded event-model viewer
         working-directory: Source/DotNET/Screenplay.Embedded
         run: |
           npm ci --workspaces=false
-          npm run typecheck
-          npm test
           npm run build
-          node --test ../../../scripts/viewer-bundle.test.mjs
 
-      # Every spec job below runs net10.0 only, so the spec projects and their fixtures are compiled for net10.0 only
-      # (Directory.Build.props). The libraries still build for net8.0, net9.0 and net10.0.
+      # Each leg's spec jobs run on one framework, so the spec projects and their fixtures are compiled for that
+      # framework only (Directory.Build.props). The libraries still build for net10.0 and net11.0.
+      #
+      # Analyzers are about 70 percent of the compile time and nothing downstream reads their output, so this build
+      # (the front of the critical path) skips them. The analyzers job below runs the same build with them on, in
+      # parallel, and is part of this workflow's result.
       - name: Build
         # Proxies are generated locally and committed; CI never generates them (proxy specs exercise the generator).
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0 -p:CratisProxiesOutputPath=
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath= -p:RunAnalyzers=false -p:RunAnalyzersDuringBuild=false -p:EnforceCodeStyleInBuild=false
 
-      # The specs run on net10.0 only, so the net8.0 and net9.0 branches of Arc's options binder are only exercised here:
-      # the harness compares the binder with the real ConfigurationBinder of each target framework. It exits 1 on a mismatch
-      # and 2 when it could not run, so any non-zero exit fails the step.
-      - name: Options binding parity (net8.0, net9.0, net10.0)
+      # The harness compares Arc's options binder with the real ConfigurationBinder of each target framework. It exits 1
+      # on a mismatch and 2 when it could not run, so any non-zero exit fails the step.
+      - name: Options binding parity (net10.0, net11.0)
+        if: ${{ matrix.spec-framework == 'net11.0' }}
         run: |
           set -euo pipefail
-          for framework in net8.0 net9.0 net10.0; do
+          for framework in net10.0 net11.0; do
             dotnet Source/DotNET/Arc.Core.BindingParity/bin/Release/$framework/Cratis.Arc.Core.Specs.dll --report "$RUNNER_TEMP/binding-parity-$framework.txt"
           done
 
@@ -181,21 +215,26 @@ jobs:
       - name: Upload build output
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: build-output
+          name: build-output-${{ matrix.spec-framework }}
           path: build-output.tar.zst
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
 
-  specs:
-    name: ${{ matrix.shard }}
-    needs: [dotnet-build]
+  # The full analyzer build, in parallel with dotnet-build and off the critical path: warnings are errors here, so
+  # any analyzer or code style violation fails the workflow. It has the same two legs as dotnet-build because the
+  # spec projects compile for one framework per leg and some spec sources are framework specific. Each framework is
+  # split into two shards: every shard compiles all projects but runs analyzers and code style on its own half only
+  # (CratisAnalyzerShard in Directory.Build.props), so each project is analyzed exactly once per framework.
+  analyzers:
+    name: analyzers (${{ matrix.spec-framework }}, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJson(needs.dotnet-build.outputs.spec-shards) }}
+        spec-framework: [net11.0, net10.0]
+        shard: [1, 2]
 
     steps:
       - name: Checkout code
@@ -204,16 +243,87 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
-      - name: Setup .Net
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET10_VERSION }}
 
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
+
+      - name: Yarn install
+        run: yarn install --immutable
+
+      # Screenplay.Embedded embeds wwwroot at compile time; keep the viewer build before .NET compilation.
+      - name: Build embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run build
+
+      - name: Verify the analyzer shards
+        run: node scripts/verify-analyzer-shards.mjs
+
+      - name: Build with analyzers
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath= -p:CratisAnalyzerShard=${{ matrix.shard }}
+
+  specs:
+    name: ${{ matrix.shard }} (${{ matrix.framework }})
+    needs: [dotnet-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.dotnet-build.outputs.spec-shards) }}
+        framework: [net11.0, net10.0]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      # Both legs install both SDKs: global.json pins the 11.0 SDK for every dotnet command, and the net11.0-only
+      # samples (VerifiedCallerAcceptance.Specs) need the 11.0 runtime even on the net10.0 leg, which runs the
+      # libraries' specs on the 10.0 runtime.
+      - name: Setup .Net 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: build-output
+          name: build-output-${{ matrix.framework }}
 
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
@@ -223,7 +333,7 @@ jobs:
       - name: Test (${{ matrix.shard }})
         env:
           SHARD: ${{ matrix.shard }}
-        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --results "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --framework ${{ matrix.framework }} --results "$RUNNER_TEMP/test-results"
 
       # Retain per-project population reporting in addition to the executable runner's strict TRX validation.
       - name: Verify every project ran tests
@@ -236,7 +346,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-results-${{ matrix.shard }}
+          name: test-results-${{ matrix.shard }}-${{ matrix.framework }}
           path: ${{ runner.temp }}/test-results/*.trx
           retention-days: 7
           if-no-files-found: warn
@@ -262,13 +372,15 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - name: Setup .Net
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: |
-            ${{ env.DOTNET8_VERSION }}
-            ${{ env.DOTNET9_VERSION }}
-            ${{ env.DOTNET10_VERSION }}
+          dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
 
       # This job restores only the samples, so it never saves the shared cache, even when run by hand on main.
       - name: Restore NuGet packages
@@ -279,7 +391,7 @@ jobs:
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: build-output
+          name: build-output-net11.0
 
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
@@ -288,27 +400,19 @@ jobs:
       # file that restore writes to obj.
       - name: Restore the applications to generate from
         run: |
-          dotnet restore Samples/AspNetCore/AspNetCore.csproj
-          dotnet restore Samples/Chronicle/Chronicle.csproj
-          dotnet restore Samples/Layered/Layered.csproj
+          # Release restores the net10.0 build task against both frameworks of the libraries it references; a Debug restore
+          # resolves those libraries for net11.0 only, which the net10.0 task cannot reference.
+          dotnet restore Samples/AspNetCore/AspNetCore.csproj -p:Configuration=Release
+          dotnet restore Samples/Chronicle/Chronicle.csproj -p:Configuration=Release
+          dotnet restore Samples/Layered/Layered.csproj -p:Configuration=Release
 
-      - name: Generate and check both documents of a real application
-        run: |
-          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
-            Samples/AspNetCore/AspNetCore.csproj \
-            "${RUNNER_TEMP}/AspNetCore.play" \
-            --authoring-output "${RUNNER_TEMP}/AspNetCore-authoring.play"
-
-      # Everything an event sourced application declares - events, the constants a projection sets and the scenarios
-      # a slice is specified by - lives in the Chronicle application, which is a second application rather than more
-      # of the first one, so its document is generated and read back on its own.
-      - name: Generate and check both documents of a real event sourced application
-        run: |
-          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
-            Samples/Chronicle/Chronicle.csproj \
-            "${RUNNER_TEMP}/Chronicle.play" \
-            --authoring-output "${RUNNER_TEMP}/Chronicle-authoring.play"
-
+      # The three applications are independent, so they are generated and read back concurrently; each writes its own
+      # log and the step fails when any one of them does. Opening a project writes the intermediate folders of what it
+      # references, so the tool opens one at a time under a machine wide lock and generates in parallel after that.
+      #  - AspNetCore: a real application, both documents.
+      #  - Chronicle: everything an event sourced application declares - events, the constants a projection sets and
+      #    the scenarios a slice is specified by - is a second application rather than more of the first one.
+      #  - Layered: an application written as several projects.
       # The two applications above are each one project, and a whole class of defect only exists between projects: a
       # referenced project arrives as the compilation the workspace built rather than as an assembly on disk, so its
       # declarations have real source belonging to a compilation that is not the one reading them. Two defects
@@ -316,16 +420,34 @@ jobs:
       # what its document says as well as to reading back clean, because a generator that quietly declines to read
       # something writes a smaller document that compiles just as well.
       # Layered expectations describe default emission, so they apply to the default document only.
-      - name: Generate and check both documents of a real application written as several projects
+      - name: Generate and check both documents of the real applications
         run: |
-          dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
-            Samples/Layered/Layered.csproj \
-            "${RUNNER_TEMP}/Layered.play" \
-            Samples/Layered/Layered.expected \
-            --authoring-output "${RUNNER_TEMP}/Layered-authoring.play"
+          tool=Source/DotNET/Screenplay.EndToEnd/bin/Release/net11.0/Cratis.Arc.Screenplay.EndToEnd.dll
+          dotnet "$tool" Samples/AspNetCore/AspNetCore.csproj "${RUNNER_TEMP}/AspNetCore.play" \
+            --authoring-output "${RUNNER_TEMP}/AspNetCore-authoring.play" > "${RUNNER_TEMP}/AspNetCore.log" 2>&1 &
+          pid_aspnetcore=$!
+          dotnet "$tool" Samples/Chronicle/Chronicle.csproj "${RUNNER_TEMP}/Chronicle.play" \
+            --authoring-output "${RUNNER_TEMP}/Chronicle-authoring.play" > "${RUNNER_TEMP}/Chronicle.log" 2>&1 &
+          pid_chronicle=$!
+          dotnet "$tool" Samples/Layered/Layered.csproj "${RUNNER_TEMP}/Layered.play" Samples/Layered/Layered.expected \
+            --authoring-output "${RUNNER_TEMP}/Layered-authoring.play" > "${RUNNER_TEMP}/Layered.log" 2>&1 &
+          pid_layered=$!
+          failed=0
+          wait "$pid_aspnetcore" || failed=1
+          wait "$pid_chronicle" || failed=1
+          wait "$pid_layered" || failed=1
+          for name in AspNetCore Chronicle Layered; do
+            echo "::group::$name"
+            cat "${RUNNER_TEMP}/$name.log"
+            echo "::endgroup::"
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::Generating at least one application failed"
+          fi
+          exit "$failed"
 
   proxy-specs:
-    name: ${{ matrix.shard }}
+    name: ${{ matrix.shard }} (${{ matrix.framework }})
     needs: [dotnet-build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -333,6 +455,7 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJson(needs.dotnet-build.outputs.proxy-shards) }}
+        framework: [net11.0, net10.0]
 
     steps:
       - name: Checkout code
@@ -341,11 +464,17 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The specs run on net10.0 only, so the shard needs only that runtime; the build job keeps 8, 9 and 10.
-      - name: Setup .Net
+      # Both legs install both SDKs: global.json pins the 11.0 SDK for every dotnet command, including the ones the
+      # proxy specs run to build their fixtures, and the specs themselves run on the leg's runtime.
+      - name: Setup .Net 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: ${{ env.DOTNET10_VERSION }}
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
 
       # The template contract specs lint generated output with the real ESLint toolchain.
       - name: Setup node
@@ -368,7 +497,7 @@ jobs:
       - name: Download build output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: build-output
+          name: build-output-${{ matrix.framework }}
 
       - name: Extract build output
         run: tar -I zstd -xf build-output.tar.zst
@@ -377,7 +506,7 @@ jobs:
       - name: Test (${{ matrix.shard }})
         env:
           SHARD: ${{ matrix.shard }}
-        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --results "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --framework ${{ matrix.framework }} --results "$RUNNER_TEMP/test-results"
 
       # A filter that matches nothing can pass the runner; this fails the shard when any of its namespaces ran no
       # tests and prints each namespace's count.
@@ -391,7 +520,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-results-${{ matrix.shard }}
+          name: test-results-${{ matrix.shard }}-${{ matrix.framework }}
           path: ${{ runner.temp }}/test-results/*.trx
           retention-days: 7
           if-no-files-found: warn
@@ -399,7 +528,7 @@ jobs:
   # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
-    needs: [dotnet-build, specs, screenplay-end-to-end, proxy-specs]
+    needs: [embedded-viewer, dotnet-build, analyzers, specs, screenplay-end-to-end, proxy-specs]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

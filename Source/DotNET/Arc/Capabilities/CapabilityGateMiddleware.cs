@@ -161,11 +161,7 @@ internal sealed class CapabilityGateMiddleware(
     {
         if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return false;
         var subject = VerifiedCallerIdentity.SubjectOf(caller);
-        var others = new List<ClaimsPrincipal>();
-        if (context.User.Identities.Any(identity => identity.IsAuthenticated))
-        {
-            others.Add(context.User);
-        }
+        var others = AuthenticatedRequestPrincipals(context);
 
         var defaultScheme = await context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>().GetDefaultAuthenticateSchemeAsync();
         if (defaultScheme is not null)
@@ -177,11 +173,24 @@ internal sealed class CapabilityGateMiddleware(
             }
         }
 
-        return others.Exists(other =>
+        return others.Exists(other => HasConflictingSubject(other, subject));
+    }
+
+    static List<ClaimsPrincipal> AuthenticatedRequestPrincipals(HttpContext context)
+    {
+        var principals = new List<ClaimsPrincipal>();
+        if (context.User.Identities.Any(identity => identity.IsAuthenticated))
         {
-            var otherSubject = (other.FindFirst("sub") ?? other.FindFirst(ClaimTypes.NameIdentifier))?.Value;
-            return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
-        });
+            principals.Add(context.User);
+        }
+
+        return principals;
+    }
+
+    static bool HasConflictingSubject(ClaimsPrincipal principal, string? subject)
+    {
+        var otherSubject = (principal.FindFirst("sub") ?? principal.FindFirst(ClaimTypes.NameIdentifier))?.Value;
+        return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
     }
 
     static async Task Refuse(HttpContext context, CapabilityRefusal refusal)
@@ -201,11 +210,7 @@ internal sealed class CapabilityGateMiddleware(
             static state =>
             {
                 var (response, status) = ((HttpResponse, int))state;
-                if (response.StatusCode < StatusCodes.Status400BadRequest)
-                {
-                    response.StatusCode = status;
-                }
-
+                PreserveRefusalStatus(response, status);
                 return Task.CompletedTask;
             },
             (context.Response, refusal.StatusCode));
@@ -223,18 +228,27 @@ internal sealed class CapabilityGateMiddleware(
         await using var writer = new Utf8JsonWriter(context.Response.BodyWriter);
         writer.WriteStartObject();
         writer.WriteString("type", "about:blank");
-        var title = status switch
-        {
-            StatusCodes.Status400BadRequest => "Bad Request",
-            StatusCodes.Status403Forbidden => "Forbidden",
-            _ => "Unauthorized"
-        };
-        writer.WriteString("title", title);
+        writer.WriteString("title", RefusalTitle(status));
         writer.WriteNumber("status", status);
         writer.WriteEndObject();
         await writer.FlushAsync(context.RequestAborted);
         await context.Response.BodyWriter.FlushAsync(context.RequestAborted);
     }
+
+    static void PreserveRefusalStatus(HttpResponse response, int status)
+    {
+        if (response.StatusCode < StatusCodes.Status400BadRequest)
+        {
+            response.StatusCode = status;
+        }
+    }
+
+    static string RefusalTitle(int status) => status switch
+    {
+        StatusCodes.Status400BadRequest => "Bad Request",
+        StatusCodes.Status403Forbidden => "Forbidden",
+        _ => "Unauthorized"
+    };
 
     bool AllowsWorkloadTenant(HttpContext context)
     {

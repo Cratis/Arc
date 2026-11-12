@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
@@ -39,13 +41,39 @@ public sealed class McpExposure
     }
 
     /// <summary>
+    /// Exposes a query of a read model as a read tool.
+    /// </summary>
+    /// <typeparam name="TReadModel">The read model type that declares the query method.</typeparam>
+    /// <param name="method">The query method name; use <c>nameof(ReadModel.Method)</c>.</param>
+    /// <param name="name">The snake_case tool name.</param>
+    /// <param name="description">The tool description.</param>
+    /// <returns>The exposure for continuation.</returns>
+    /// <exception cref="ArgumentException">The read model declares no method with that name.</exception>
+    public McpExposure ExposeQuery<TReadModel>(string method, string name, string description)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(method);
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+        if (typeof(TReadModel).GetMethods(flags).All(_ => _.Name != method))
+        {
+            throw new ArgumentException($"The read model {typeof(TReadModel).FullName} declares no method named {method}.", nameof(method));
+        }
+
+        _declarations.Add(new McpExposureDeclaration(McpToolKind.Query, new McpQueryReference(typeof(TReadModel), method), name, description));
+        return this;
+    }
+
+    /// <summary>
     /// Exposes a query as a read tool.
     /// </summary>
     /// <param name="fullyQualifiedQueryName">The fully qualified query name, as in "Namespace.ReadModel.Method".</param>
     /// <param name="name">The snake_case tool name.</param>
     /// <param name="description">The tool description.</param>
     /// <returns>The exposure for continuation.</returns>
-    public McpExposure ExposeQuery(string fullyQualifiedQueryName, string name, string description)
+    [Obsolete("Use ExposeQuery<TReadModel>(nameof(...)) or [ExposeOverMcp]. Will be removed in Arc 24.")]
+    public McpExposure ExposeQuery(string fullyQualifiedQueryName, string name, string description) =>
+        ExposeQueryNamed(fullyQualifiedQueryName, name, description);
+
+    McpExposure ExposeQueryNamed(string fullyQualifiedQueryName, string name, string description)
     {
         ArgumentNullException.ThrowIfNull(fullyQualifiedQueryName);
         _declarations.Add(new McpExposureDeclaration(McpToolKind.Query, fullyQualifiedQueryName, name, description));

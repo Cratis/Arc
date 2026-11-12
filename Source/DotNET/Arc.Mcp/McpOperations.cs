@@ -85,8 +85,7 @@ internal sealed class McpOperations(
 
         var result = await hosted.ExecuteHosted(command, call.Services, null, call.CancellationToken);
         var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
-        var text = JsonSerializer.Serialize(new { outcome, response = result.IsSuccess ? result.ResponsePayload : null }, arcOptions.Value.JsonSerializerOptions);
-        return new McpToolResult(text, !result.IsSuccess);
+        return McpOperationResult.From(new { outcome, response = result.IsSuccess ? result.ResponsePayload : null }, !result.IsSuccess, arcOptions.Value.JsonSerializerOptions);
     }
 
     async ValueTask<McpToolResult> RunQuery(McpOperationCall call)
@@ -114,10 +113,10 @@ internal sealed class McpOperations(
             }
 
             var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
-            var text = JsonSerializer.Serialize(
+            return McpOperationResult.From(
                 new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },
+                !result.IsSuccess,
                 arcOptions.Value.JsonSerializerOptions);
-            return new McpToolResult(text, !result.IsSuccess);
         }
         finally
         {

@@ -56,9 +56,9 @@ These rules apply to protected reads, not advisory reads. `Off` and `Measure` re
 
 ## Require generated key metadata
 
-Arc uses generated command property getters and read-model key types for command key lookup. Applications without that metadata retain reflection compatibility by default. Arc logs one warning per missing type, without key values, explaining how to enable the source generator.
+Arc uses generated command property getters and read-model key types for command key lookup. Missing metadata is rejected by default with `CommandReadModelKeysMissing` instead of reflecting, so enable the source generator. Discovered commands running under `On` are checked at startup; command and model metadata used by lookup is also checked at resolution. Missing and invalid settings fail closed.
 
-Set `ReadProtection:RequireGeneratedMetadata` to `true` to reject missing metadata with `CommandReadModelKeysMissing` instead of reflecting. Discovered commands running under `On` are checked at startup; command and model metadata used by lookup is also checked at resolution. Missing, invalid or `false` settings retain compatibility. Runtimes where `RuntimeFeature.IsDynamicCodeSupported` is `false` always require generated metadata; this does not make all of Arc NativeAOT-compatible.
+Set `ReadProtection:RequireGeneratedMetadata` to `false` to opt out and keep reflection compatibility on runtimes with dynamic code support. Arc then logs one warning per missing type, without key values, explaining how to enable the source generator. Runtimes where `RuntimeFeature.IsDynamicCodeSupported` is `false` always require generated metadata; this does not make all of Arc NativeAOT-compatible.
 
 This setting is separate from `ProtectedReadModelKeyOptions.Strict`, which requires accessor coverage for composite key parts. Neither setting changes which property or key a lookup selects.
 
