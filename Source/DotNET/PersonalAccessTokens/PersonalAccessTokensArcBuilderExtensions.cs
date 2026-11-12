@@ -36,6 +36,7 @@ public static class PersonalAccessTokensArcBuilderExtensions
             .Validate(options => PatAdapterRegistrationCheck.Validate(options.Services) is null, "Ambiguous adapter registration.")
             .ValidateOnStart();
         builder.Services.AddSingleton(validated with { Target = target });
+        builder.Services.AddSingleton<ICredentialScopeAllowlist, PatCredentialScopeAllowlist>();
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddScoped<IPatAuthority, UnavailablePatAuthority>();
         builder.Services.TryAddScoped<IPatRecoveryEpoch, UnavailablePatRecoveryEpoch>();

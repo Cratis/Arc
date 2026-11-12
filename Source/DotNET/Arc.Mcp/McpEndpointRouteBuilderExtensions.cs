@@ -27,7 +27,7 @@ public static class McpEndpointRouteBuilderExtensions
     /// gate, which refuses in the MCP shape, and is admitted only for a verified caller: the body is size-bounded,
     /// parsed strictly, and a call to a tool the caller's scopes do not cover is refused before it reaches the server.
     /// </remarks>
-    public static IEndpointConventionBuilder MapCratisArcMcp(this IEndpointRouteBuilder endpoints)
+    public static IEndpointConventionBuilder MapArcMcp(this IEndpointRouteBuilder endpoints)
     {
         var services = endpoints.ServiceProvider;
         var options = services.GetRequiredService<IOptions<McpOptions>>().Value;
@@ -40,11 +40,20 @@ public static class McpEndpointRouteBuilderExtensions
         var otherMethods = endpoints.MapMethods(options.Path, [HttpMethods.Get, HttpMethods.Delete], _ => Task.CompletedTask);
         Admit(otherMethods, group, refusals);
 
-        endpoints.MapGet(McpChallenge.MetadataPath(options), McpProtectedResourceMetadata.Serve)
-            .WithMetadata(group);
+        var metadataPath = McpChallenge.MetadataPath(options);
+        endpoints.MapGet(metadataPath, McpProtectedResourceMetadata.Serve)
+            .WithMetadata(group, new CapabilityGateExemption(metadataPath));
 
         return mcp;
     }
+
+    /// <summary>
+    /// Maps the MCP endpoint. Obsolete name of <see cref="MapArcMcp"/>.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder.</param>
+    /// <returns>The builder for the MCP endpoint, for further conventions.</returns>
+    [Obsolete("Use MapArcMcp. Will be removed in Arc 24.")]
+    public static IEndpointConventionBuilder MapCratisArcMcp(this IEndpointRouteBuilder endpoints) => endpoints.MapArcMcp();
 
     static void Admit(IEndpointConventionBuilder builder, EndpointGroupMetadata group, McpRefusalWriter refusals)
     {

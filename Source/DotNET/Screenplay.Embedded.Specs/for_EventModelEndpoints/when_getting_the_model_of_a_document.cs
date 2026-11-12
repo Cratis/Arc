@@ -19,7 +19,8 @@ public class when_getting_the_model_of_a_document : a_host
     async Task Because()
     {
         _response = await _client.GetAsync(Url($"/documents/{an_embedded_application.ProjectId}/{an_embedded_application.ApplicationDocumentId}/model"));
-        _view = JsonDocument.Parse(await _response.Content.ReadAsStringAsync()).RootElement;
+        using var document = JsonDocument.Parse(await _response.Content.ReadAsStringAsync());
+        _view = document.RootElement.Clone();
         _eventModel = _view.GetProperty("eventModel");
         _module = _eventModel.GetProperty("collections")[0].GetProperty("modules")[0];
         _feature = _module.GetProperty("features")[0];

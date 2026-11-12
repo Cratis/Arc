@@ -21,6 +21,7 @@ public class when_scanning_after_own_append : given.a_measure_pipeline
         _services.GetService(typeof(ReadProtectionMeasureQueue)).Returns(_queue);
         _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["ReadProtection:RequireGeneratedMetadata"] = "false",
             ["ReadProtection:MeasureSampleRate"] = "1",
             ["ReadProtection:MeasureTailTimeout"] = "5000"
         }).Build();

@@ -3,9 +3,7 @@
 
 using System.Linq.Expressions;
 using Cratis.Concepts;
-#if NET10_0_OR_GREATER
 using Microsoft.EntityFrameworkCore.Query;
-#endif
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 
@@ -109,17 +107,7 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
 
         if (visitedOperand != node.Operand)
         {
-            var method = node.Method;
-            if (method is not null)
-            {
-                var parameters = method.GetParameters();
-                if (parameters.Length > 0 && parameters[0].ParameterType != visitedOperand.Type)
-                {
-                    method = null;
-                }
-            }
-
-            return Expression.MakeUnary(node.NodeType, visitedOperand, node.Type, method);
+            return Expression.MakeUnary(node.NodeType, visitedOperand, node.Type, MethodAcceptingOperand(node.Method, visitedOperand));
         }
 
         return base.VisitUnary(node);
@@ -133,98 +121,101 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
         var right = Visit(node.Right);
 
         // Handle comparisons where one or both sides are ConceptAs types
-        if (IsComparisonOperator(node.NodeType))
+        // If both sides are concepts, transform both to .Value
+        // If one side is concept and other is primitive, transform the concept to .Value
+        if (IsConceptComparison(node.NodeType, left, right))
         {
-            var leftIsConcept = left.Type.IsConcept();
-            var rightIsConcept = right.Type.IsConcept();
-
-            // If both sides are concepts, transform both to .Value
-            // If one side is concept and other is primitive, transform the concept to .Value
-            if (leftIsConcept || rightIsConcept)
-            {
-                // Check if either side is a QueryParameterExpression (EF Core internal type)
-                // If so, don't transform anything - keep both sides as ConceptAs
-                // The value converter handles entity properties, DbCommandInterceptor handles parameters
-                var leftIsQueryParam = IsQueryParameterExpression(left);
-                var rightIsQueryParam = IsQueryParameterExpression(right);
-
-                if (leftIsQueryParam || rightIsQueryParam)
-                {
-                    // Keep expression unchanged - rely on value converters and DbCommandInterceptor
-                    if (left != node.Left || right != node.Right)
-                    {
-                        return Expression.MakeBinary(node.NodeType, left, right);
-                    }
-
-                    return node;
-                }
-
-                // Check if either side is an entity property access
-                // If so, we need to handle type mismatches carefully
-                var leftIsEntityProperty = IsEntityPropertyAccess(left);
-                var rightIsEntityProperty = IsEntityPropertyAccess(right);
-
-                if (leftIsEntityProperty || rightIsEntityProperty)
-                {
-                    // If both sides are the same concept type, the value converter handles it
-                    if (leftIsConcept && rightIsConcept && left.Type == right.Type)
-                    {
-                        if (left != node.Left || right != node.Right)
-                        {
-                            return Expression.MakeBinary(node.NodeType, left, right);
-                        }
-
-                        return node;
-                    }
-
-                    // If there's a type mismatch (one concept, one primitive), transform the concept to .Value
-                    // This ensures the comparison is done at the primitive level
-                    var transformedLeft = leftIsConcept && !leftIsEntityProperty ? GetValueAccess(left) : left;
-                    var transformedRight = rightIsConcept && !rightIsEntityProperty ? GetValueAccess(right) : right;
-
-                    return Expression.MakeBinary(node.NodeType, transformedLeft, transformedRight);
-                }
-
-                // No QueryParameters and no entity properties - transform both to .Value for comparison
-                var newLeft = leftIsConcept ? GetValueAccess(left) : left;
-                var newRight = rightIsConcept ? GetValueAccess(right) : right;
-
-                // After getting .Value, the types should match
-                return Expression.MakeBinary(node.NodeType, newLeft, newRight);
-            }
+            return RewriteConceptComparison(node, left, right);
         }
 
-        // If either child changed (e.g., a ConceptAs cast was stripped), we need to rebuild
-        // the binary expression WITHOUT the original method, because the original op_Equality
-        // method expects the original types (with casts) but after stripping casts the types changed.
-        if (left != node.Left || right != node.Right)
-        {
-            // Check if we have a type mismatch after visiting children
-            // This can happen when one side got transformed (e.g., cast stripped) and the other didn't
-            var leftIsConcept = left.Type.IsConcept();
-            var rightIsConcept = right.Type.IsConcept();
-
-            // For comparison operators, ensure types match by extracting .Value from concepts
-            if (IsComparisonOperator(node.NodeType))
-            {
-                // If one side is a concept and the other is a primitive, or if types don't match, normalize
-                if (leftIsConcept || rightIsConcept)
-                {
-                    // Transform any concept to .Value to ensure type compatibility
-                    var newLeft = leftIsConcept ? GetValueAccess(left) : left;
-                    var newRight = rightIsConcept ? GetValueAccess(right) : right;
-                    return Expression.MakeBinary(node.NodeType, newLeft, newRight);
-                }
-            }
-
-            // Rebuild binary expression without the original method - let the system figure it out
-            // This is necessary because stripping (MissionId)x changes the operand type from MissionId to Guid,
-            // but the original expression had op_Equality(MissionId, MissionId)
-            return Expression.MakeBinary(node.NodeType, left, right);
-        }
-
-        return node;
+        return RebuildIfChanged(node, left, right);
     }
+
+    /// <summary>
+    /// Keeps the unary method only when it still accepts the visited operand.
+    /// </summary>
+    /// <param name="method">The original unary method, if any.</param>
+    /// <param name="operand">The visited operand.</param>
+    /// <returns>The method, or null when its first parameter no longer matches the operand type.</returns>
+    static System.Reflection.MethodInfo? MethodAcceptingOperand(System.Reflection.MethodInfo? method, Expression operand)
+    {
+        var parameters = method?.GetParameters();
+        return parameters is { Length: > 0 } && parameters[0].ParameterType != operand.Type ? null : method;
+    }
+
+    static bool IsConceptComparison(ExpressionType nodeType, Expression left, Expression right) =>
+        IsComparisonOperator(nodeType) && (left.Type.IsConcept() || right.Type.IsConcept());
+
+    /// <summary>
+    /// Rewrites a comparison where at least one side is a ConceptAs type.
+    /// </summary>
+    /// <param name="node">The original expression.</param>
+    /// <param name="left">The visited left operand.</param>
+    /// <param name="right">The visited right operand.</param>
+    /// <returns>The rewritten comparison.</returns>
+    static BinaryExpression RewriteConceptComparison(BinaryExpression node, Expression left, Expression right)
+    {
+        // Check if either side is a QueryParameterExpression (EF Core internal type)
+        // If so, don't transform anything - keep both sides as ConceptAs
+        // The value converter handles entity properties, DbCommandInterceptor handles parameters
+        if (IsQueryParameterExpression(left) || IsQueryParameterExpression(right))
+        {
+            // Keep expression unchanged - rely on value converters and DbCommandInterceptor
+            return RebuildIfChanged(node, left, right);
+        }
+
+        // Check if either side is an entity property access
+        // If so, we need to handle type mismatches carefully
+        if (IsEntityPropertyAccess(left) || IsEntityPropertyAccess(right))
+        {
+            return RewriteEntityPropertyComparison(node, left, right);
+        }
+
+        // No QueryParameters and no entity properties - transform both to .Value for comparison
+        // After getting .Value, the types should match
+        return Expression.MakeBinary(node.NodeType, ValueOfConcept(left), ValueOfConcept(right));
+    }
+
+    /// <summary>
+    /// Rewrites a concept comparison where at least one side is an entity property.
+    /// </summary>
+    /// <param name="node">The original expression.</param>
+    /// <param name="left">The visited left operand.</param>
+    /// <param name="right">The visited right operand.</param>
+    /// <returns>The rewritten comparison.</returns>
+    static BinaryExpression RewriteEntityPropertyComparison(BinaryExpression node, Expression left, Expression right)
+    {
+        // If both sides are the same concept type, the value converter handles it
+        if (left.Type.IsConcept() && right.Type.IsConcept() && left.Type == right.Type)
+        {
+            return RebuildIfChanged(node, left, right);
+        }
+
+        // If there's a type mismatch (one concept, one primitive), transform the concept to .Value
+        // This ensures the comparison is done at the primitive level
+        return Expression.MakeBinary(
+            node.NodeType,
+            IsEntityPropertyAccess(left) ? left : ValueOfConcept(left),
+            IsEntityPropertyAccess(right) ? right : ValueOfConcept(right));
+    }
+
+    static Expression ValueOfConcept(Expression expression) =>
+        expression.Type.IsConcept() ? GetValueAccess(expression) : expression;
+
+    /// <summary>
+    /// If either child changed (e.g., a ConceptAs cast was stripped), rebuild the binary expression WITHOUT the
+    /// original method, because the original op_Equality method expects the original types (with casts) but after
+    /// stripping casts the types changed. Stripping (MissionId)x changes the operand type from MissionId to Guid,
+    /// but the original expression had op_Equality(MissionId, MissionId).
+    /// </summary>
+    /// <param name="node">The original expression.</param>
+    /// <param name="left">The visited left operand.</param>
+    /// <param name="right">The visited right operand.</param>
+    /// <returns>The original expression when nothing changed; otherwise the rebuilt one.</returns>
+    static BinaryExpression RebuildIfChanged(BinaryExpression node, Expression left, Expression right) =>
+        left != node.Left || right != node.Right
+            ? Expression.MakeBinary(node.NodeType, left, right)
+            : node;
 
     static bool IsComparisonOperator(ExpressionType nodeType) =>
         nodeType is ExpressionType.Equal or ExpressionType.NotEqual or
@@ -293,15 +284,9 @@ public class ConceptAsExpressionRewriter : ExpressionVisitor
 
     /// <summary>
     /// Check if the expression is a QueryParameterExpression (EF Core internal type).
-    /// Uses the actual type on .NET 10+, falls back to reflection-based type name check for earlier versions.
     /// </summary>
     /// <param name="expression">The expression to check.</param>
     /// <returns>True if this is a QueryParameterExpression, false otherwise.</returns>
-#if NET10_0_OR_GREATER
     static bool IsQueryParameterExpression(Expression expression) =>
         expression is QueryParameterExpression;
-#else
-    static bool IsQueryParameterExpression(Expression expression) =>
-        expression.GetType().Name == "QueryParameterExpression";
-#endif
 }

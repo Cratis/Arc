@@ -6,6 +6,7 @@ using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Approvals;
+using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -48,28 +49,25 @@ public static class CommandEndpointMapper
             var excludeFromApiDescription = endpointGroup is not null || handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true);
             var allowAnonymous = handler.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForCommand(handler.CommandType, serviceProvider);
 
-            MapCommandEndpoint(
-                mapper,
-                url,
-                $"Execute{handler.CommandType.FullName}",
-                $"Execute {handler.CommandType.Name} command in {handler.CommandType.Namespace}",
-                handler.CommandType,
-                location,
-                allowAnonymous,
-                endpointGroup,
-                excludeFromApiDescription: excludeFromApiDescription);
+            var shape = new CommandEndpointShape(handler.CommandType, location, allowAnonymous, endpointGroup, excludeFromApiDescription);
 
             MapCommandEndpoint(
                 mapper,
-                $"{url}/validate",
-                $"Validate{handler.CommandType.FullName}",
-                $"Validate {handler.CommandType.Name} command without executing it",
-                handler.CommandType,
-                location,
-                allowAnonymous,
-                endpointGroup,
-                validateOnly: true,
-                excludeFromApiDescription: excludeFromApiDescription);
+                shape,
+                new CommandEndpointRoute(
+                    url,
+                    $"Execute{handler.CommandType.FullName}",
+                    $"Execute {handler.CommandType.Name} command in {handler.CommandType.Namespace}",
+                    ValidateOnly: false));
+
+            MapCommandEndpoint(
+                mapper,
+                shape,
+                new CommandEndpointRoute(
+                    $"{url}/validate",
+                    $"Validate{handler.CommandType.FullName}",
+                    $"Validate {handler.CommandType.Name} command without executing it",
+                    ValidateOnly: true));
         }
     }
 
@@ -115,94 +113,110 @@ public static class CommandEndpointMapper
         }
     }
 
-    static void MapCommandEndpoint(
-        IEndpointMapper mapper,
-        string url,
-        string endpointName,
-        string summary,
-        Type commandType,
-        IEnumerable<string> location,
-        bool allowAnonymous,
-        string? endpointGroup,
-        bool validateOnly = false,
-        bool excludeFromApiDescription = false)
+    static void MapCommandEndpoint(IEndpointMapper mapper, CommandEndpointShape shape, CommandEndpointRoute route)
     {
-        if (mapper.EndpointExists(endpointName))
+        if (mapper.EndpointExists(route.Name))
         {
             return;
         }
 
         var metadata = new EndpointMetadata(
-            endpointName,
-            summary,
-            [string.Join('.', location)],
-            allowAnonymous,
-            RequestBodyType: commandType,
+            route.Name,
+            route.Summary,
+            [string.Join('.', shape.Location)],
+            shape.AllowAnonymous,
+            RequestBodyType: shape.CommandType,
             ResponseType: typeof(CommandResult),
-            ExcludeFromApiDescription: excludeFromApiDescription)
+            ExcludeFromApiDescription: shape.ExcludeFromApiDescription)
         {
-            EndpointGroup = endpointGroup
+            EndpointGroup = shape.EndpointGroup
         };
 
-        mapper.MapPost(
-            url,
-            async context =>
+        mapper.MapPost(route.Url, context => HandleCommandRequest(context, shape.CommandType, route.ValidateOnly), metadata);
+    }
+
+    static async Task HandleCommandRequest(IHttpRequestContext context, Type commandType, bool validateOnly)
+    {
+        using var receipt = OperationContextScope.Begin(context.RequestServices);
+        var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
+        var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
+        var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CommandEndpointMapper).FullName!);
+
+        context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+
+        var request = new CommandRequest(
+            context,
+            commandType,
+            validateOnly,
+            commandPipeline,
+            correlationIdAccessor,
+            CallerValidationSeverity.Cap(commandType, CallerValidationSeverity.FromHeaders(context.Headers), arcOptions.Command),
+            logger);
+
+        var commandResult = await ProcessRequest(request);
+
+        ExceptionDetailRedactor.Redact(commandResult, arcOptions.ExposeExceptionDetails, logger);
+
+        var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
+        context.SetStatusCode(statusCode);
+        await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
+    }
+
+    static async Task<CommandResult> ProcessRequest(CommandRequest request)
+    {
+        try
+        {
+            var (command, bodyFailure) = await ReadCommandBody(request.Context, request.CommandType, request.CorrelationIds.Current, request.Logger);
+            if (bodyFailure is not null)
             {
-                using var receipt = OperationContextScope.Begin(context.RequestServices);
-                var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
-                var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
-                var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CommandEndpointMapper).FullName!);
+                var refusal = new UnboundCommandRefusalRequest(request.CommandType, bodyFailure, request.Context.RequestServices, request.ValidateOnly);
+                return await RefuseUnboundBody(request.Pipeline, refusal, request.Logger, request.Context.RequestAborted);
+            }
 
-                context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+            return request.Pipeline is CommandPipeline builtInPipeline
+                ? await DispatchToBuiltInPipeline(builtInPipeline, request, command!)
+                : await DispatchToCustomPipeline(request, command!);
+        }
+        catch (Exception ex)
+        {
+            return CommandResult.Error(request.CorrelationIds.Current, ex);
+        }
+    }
 
-                var allowedSeverity = CallerValidationSeverity.Cap(commandType, CallerValidationSeverity.FromHeaders(context.Headers), arcOptions.Command);
+    static Task<CommandResult> DispatchToBuiltInPipeline(CommandPipeline pipeline, CommandRequest request, object command)
+    {
+        var services = request.Context.RequestServices;
+        return request.ValidateOnly
+            ? pipeline.ValidateHosted(command, services, request.AllowedSeverity, request.Context.RequestAborted)
+            : pipeline.ExecuteHosted(command, services, request.AllowedSeverity, request.Context.RequestAborted);
+    }
 
-                CommandResult commandResult;
-                try
-                {
-                    var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
-                    if (bodyFailure is not null)
-                    {
-                        var refusal = new UnboundCommandRefusalRequest(commandType, bodyFailure, context.RequestServices, validateOnly);
-                        commandResult = await RefuseUnboundBody(commandPipeline, refusal, logger, context.RequestAborted);
-                    }
-                    else if (commandPipeline is CommandPipeline builtInPipeline)
-                    {
-                        commandResult = validateOnly
-                            ? await builtInPipeline.ValidateHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
-                            : await builtInPipeline.ExecuteHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
-                    }
-                    else if (!CanExecuteWithCustomPipeline(context.RequestServices, commandType, logger))
-                    {
-                        commandResult = CommandResult.Unauthorized(correlationIdAccessor.Current);
-                    }
-                    else if (ApprovalGate.RequiresApproval(commandType))
-                    {
-                        commandResult = context.RequestServices.GetService<IAuthorizationEvaluator>()?.IsAuthorized(commandType) == true
-                            ? ApprovalGate.Refusal(correlationIdAccessor.Current)
-                            : CommandResult.Unauthorized(correlationIdAccessor.Current);
-                    }
-                    else
-                    {
-                        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
-                        commandResult = validateOnly
-                            ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
-                            : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    commandResult = CommandResult.Error(correlationIdAccessor.Current, ex);
-                }
+    static Task<CommandResult> DispatchToCustomPipeline(CommandRequest request, object command)
+    {
+        var services = request.Context.RequestServices;
+        if (!CanExecuteWithCustomPipeline(services, request.CommandType, request.Logger))
+        {
+            return Task.FromResult(CommandResult.Unauthorized(request.CorrelationIds.Current));
+        }
 
-                ExceptionDetailRedactor.Redact(commandResult, arcOptions.ExposeExceptionDetails, logger);
+        if (ApprovalGate.RequiresApproval(request.CommandType))
+        {
+            return Task.FromResult(services.GetService<IAuthorizationEvaluator>()?.IsAuthorized(request.CommandType) == true
+                ? ApprovalGate.Refusal(request.CorrelationIds.Current)
+                : CommandResult.Unauthorized(request.CorrelationIds.Current));
+        }
 
-                var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid);
-                context.SetStatusCode(statusCode);
-                await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
-            },
-            metadata);
+        return RunCustomPipeline(request, command);
+    }
+
+    static async Task<CommandResult> RunCustomPipeline(CommandRequest request, object command)
+    {
+        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
+        var services = request.Context.RequestServices;
+        return request.ValidateOnly
+            ? await request.Pipeline.Validate(command, services, request.AllowedSeverity, request.Context.RequestAborted)
+            : await request.Pipeline.Execute(command, services, request.AllowedSeverity, request.Context.RequestAborted);
     }
 
     static Task<CommandResult> RefuseUnboundBody(ICommandPipeline pipeline, UnboundCommandRefusalRequest request, ILogger logger, CancellationToken cancellationToken)
@@ -237,4 +251,17 @@ public static class CommandEndpointMapper
             return false;
         }
     }
+
+    sealed record CommandEndpointShape(Type CommandType, IEnumerable<string> Location, bool AllowAnonymous, string? EndpointGroup, bool ExcludeFromApiDescription);
+
+    sealed record CommandEndpointRoute(string Url, string Name, string Summary, bool ValidateOnly);
+
+    sealed record CommandRequest(
+        IHttpRequestContext Context,
+        Type CommandType,
+        bool ValidateOnly,
+        ICommandPipeline Pipeline,
+        ICorrelationIdAccessor CorrelationIds,
+        ValidationResultSeverity? AllowedSeverity,
+        ILogger Logger);
 }

@@ -19,6 +19,7 @@ public class when_inspecting_the_exported_types : Specification
         "Cratis.Arc.PersonalAccessTokens.Contract.PatAdapterInstance",
         "Cratis.Arc.PersonalAccessTokens.Contract.PatContractReport",
         "Cratis.Arc.PersonalAccessTokens.Contract.PatContractResult",
+        "Cratis.Arc.PersonalAccessTokens.Development.DevelopmentPatArcBuilderExtensions",
         "Cratis.Arc.PersonalAccessTokens.IPatAuthority",
         "Cratis.Arc.PersonalAccessTokens.IPatPolicy",
         "Cratis.Arc.PersonalAccessTokens.IPatRecoveryEpoch",

@@ -19,6 +19,16 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
     const string PageQueryStringKey = "page";
     const string PageSizeQueryStringKey = "pageSize";
 
+    static readonly HashSet<string> _excludedKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        SortByQueryStringKey,
+        SortDirectionQueryStringKey,
+        PageQueryStringKey,
+        PageSizeQueryStringKey,
+        ObservableQueryHttp.WaitForFirstResultQueryStringKey,
+        ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
+    };
+
     /// <inheritdoc/>
     public string HttpMethod => "GET";
 
@@ -99,45 +109,51 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
     {
         var arguments = new QueryArguments();
 
-        var excludedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            SortByQueryStringKey,
-            SortDirectionQueryStringKey,
-            PageQueryStringKey,
-            PageSizeQueryStringKey,
-            ObservableQueryHttp.WaitForFirstResultQueryStringKey,
-            ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey
-        };
-
         foreach (var kvp in context.Query)
         {
-            if (!excludedKeys.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
+            if (IsCandidateArgument(kvp))
             {
-                var parameter = performer.Parameters.FirstOrDefault(p =>
-                    string.Equals(p.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
-
-                if (parameter is not null)
-                {
-                    if (parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType) &&
-                        (elementType == typeof(JsonObject) || elementType == typeof(JsonArray)))
-                    {
-                        throw new InvalidQueryArgument(parameter.Name, parameter.Type, performer.FullyQualifiedName);
-                    }
-
-                    var convertedValue = kvp.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
-
-                    if (convertedValue is not null)
-                    {
-                        arguments[kvp.Key] = convertedValue;
-                    }
-                }
-                else
-                {
-                    arguments[kvp.Key] = kvp.Value;
-                }
+                AddQueryArgument(arguments, kvp, performer);
             }
         }
 
         return arguments;
+    }
+
+    static bool IsCandidateArgument(KeyValuePair<string, string> argument) =>
+        !_excludedKeys.Contains(argument.Key) && !string.IsNullOrEmpty(argument.Value);
+
+    static void AddQueryArgument(QueryArguments arguments, KeyValuePair<string, string> argument, IQueryPerformer performer)
+    {
+        var parameter = performer.Parameters.FirstOrDefault(p =>
+            string.Equals(p.Name, argument.Key, StringComparison.OrdinalIgnoreCase));
+
+        if (parameter is null)
+        {
+            arguments[argument.Key] = argument.Value;
+            return;
+        }
+
+        if (IsJsonCollection(parameter.Type))
+        {
+            throw new InvalidQueryArgument(parameter.Name, parameter.Type, performer.FullyQualifiedName);
+        }
+
+        var convertedValue = argument.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
+
+        if (convertedValue is not null)
+        {
+            arguments[argument.Key] = convertedValue;
+        }
+    }
+
+    static bool IsJsonCollection(Type type)
+    {
+        if (!type.IsEnumerableOfQueryArgumentElement(out var elementType))
+        {
+            return false;
+        }
+
+        return elementType == typeof(JsonObject) || elementType == typeof(JsonArray);
     }
 }

@@ -17,9 +17,7 @@ internal sealed class PipelineMetrics
     /// </summary>
     internal const int DefaultCardinalityLimit = 1000;
 
-#if NET9_0_OR_GREATER
     static readonly double[] _durationBuckets = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10];
-#endif
 
     readonly Histogram<double> _commandDuration;
     readonly Counter<long> _commandOutcomes;
@@ -147,9 +145,5 @@ internal sealed class PipelineMetrics
     };
 
     static Histogram<double> CreateDurationHistogram(Meter meter, string name, string description) =>
-#if NET9_0_OR_GREATER
         meter.CreateHistogram(name, "s", description, tags: null, advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = _durationBuckets });
-#else
-        meter.CreateHistogram<double>(name, "s", description);
-#endif
 }

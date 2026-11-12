@@ -11,16 +11,26 @@ namespace Cratis.Arc.MongoDB.Resilience;
 /// Represents a <see cref="IChangeStreamCursor{TDocument}"/> that retries creating the actual cursor until the collection exists.
 /// </summary>
 /// <typeparam name="TDocument">Type of document.</typeparam>
-/// <param name="invocation">The original invocation to retry.</param>
+/// <param name="createCursor">Opens the change stream, which is retried until the collection exists.</param>
 /// <param name="retryInterval">The interval between retry attempts.</param>
 /// <remarks>
 /// Used to handle Azure Cosmos DB's "Collection not found" errors by periodically retrying the watch operation
 /// until the collection is created, maintaining the observation alive.
 /// </remarks>
-public class RetryingChangeStreamCursor<TDocument>(IInvocation invocation, TimeSpan retryInterval) : IChangeStreamCursor<TDocument>
+public class RetryingChangeStreamCursor<TDocument>(Func<Task<IChangeStreamCursor<TDocument>>> createCursor, TimeSpan retryInterval) : IChangeStreamCursor<TDocument>
 {
     IChangeStreamCursor<TDocument>? _actualCursor;
     bool _disposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RetryingChangeStreamCursor{TDocument}"/> class.
+    /// </summary>
+    /// <param name="invocation">The original invocation to retry.</param>
+    /// <param name="retryInterval">The interval between retry attempts.</param>
+    public RetryingChangeStreamCursor(IInvocation invocation, TimeSpan retryInterval)
+        : this(() => (Task<IChangeStreamCursor<TDocument>>)invocation.Method.Invoke(invocation.InvocationTarget, invocation.Arguments)!, retryInterval)
+    {
+    }
 
     /// <inheritdoc/>
     public IEnumerable<TDocument> Current => _actualCursor?.Current ?? [];
@@ -82,8 +92,7 @@ public class RetryingChangeStreamCursor<TDocument>(IInvocation invocation, TimeS
     {
         try
         {
-            var result = (Task<IChangeStreamCursor<TDocument>>)invocation.Method.Invoke(invocation.InvocationTarget, invocation.Arguments)!;
-            _actualCursor = await result.ConfigureAwait(false);
+            _actualCursor = await createCursor().ConfigureAwait(false);
             return true;
         }
         catch (MongoCommandException ex) when (ex.Message.Contains(WellKnownErrorMessages.CollectionNotFound, StringComparison.OrdinalIgnoreCase))

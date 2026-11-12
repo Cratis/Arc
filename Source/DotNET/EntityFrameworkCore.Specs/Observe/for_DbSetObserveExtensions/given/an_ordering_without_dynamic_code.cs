@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#if NET9_0_OR_GREATER
 using System.Linq.Expressions;
 using System.Reflection;
 using Cratis.Arc.Queries;
@@ -32,4 +31,3 @@ public abstract class an_ordering_without_dynamic_code : Specification
         return Microsoft.EntityFrameworkCore.DbSetObserveExtensions.OrderByWithoutDynamicCode(source ?? _items.AsQueryable(), access, parameter, direction);
     }
 }
-#endif

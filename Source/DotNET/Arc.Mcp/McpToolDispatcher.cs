@@ -12,21 +12,23 @@ using ModelContextProtocol.Server;
 namespace Cratis.Arc.Mcp;
 
 /// <summary>
-/// Runs a tool from the ceiling as the verified caller of the current request.
+/// Runs a tool from the catalog as the verified caller of the current request.
 /// </summary>
 /// <remarks>
 /// The caller comes only from the request the capability gate admitted. Without one nothing is resolved and the call is a
 /// protocol error. Identity and tenant are never read from the arguments: they only become command or query input.
 /// </remarks>
 /// <param name="requests">The accessor for the current request.</param>
-/// <param name="ceiling">The factory of the tool ceiling.</param>
+/// <param name="catalog">The factory of the tool catalog.</param>
 /// <param name="operations">Runs commands, queries and curated tools.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="audit">The identifier-only call audit.</param>
 internal sealed class McpToolDispatcher(
     IHttpContextAccessor requests,
-    McpToolCeilingFactory ceiling,
+    McpToolCatalogFactory catalog,
     McpOperations operations,
-    ILogger<McpToolDispatcher> logger)
+    ILogger<McpToolDispatcher> logger,
+    McpCallAudit audit)
 {
     /// <summary>
     /// The message for arguments that do not fit the tool.
@@ -56,7 +58,7 @@ internal sealed class McpToolDispatcher(
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="request">The MCP protocol request the call arrived in, if any; handed to curated tools.</param>
     /// <returns>The tool result.</returns>
-    /// <exception cref="McpProtocolException">The request carries no verified caller, or the tool is not in the ceiling.</exception>
+    /// <exception cref="McpProtocolException">The request carries no verified caller, or the tool is not in the catalog.</exception>
     internal async ValueTask<CallToolResult> Dispatch(McpToolDescriptor tool, IDictionary<string, JsonElement>? arguments, CancellationToken cancellationToken, RequestContext<CallToolRequestParams>? request = null)
     {
         var context = requests.HttpContext;
@@ -65,54 +67,26 @@ internal sealed class McpToolDispatcher(
             throw new McpProtocolException("The request carries no verified caller.", McpErrorCode.InvalidRequest);
         }
 
-        if (!ceiling.Ceiling.TryGet(tool.Name, out var known) || !ReferenceEquals(known, tool))
+        if (!catalog.Catalog.TryGet(tool.Name, out var known) || !ReferenceEquals(known, tool))
         {
             throw new McpProtocolException($"Unknown tool: '{tool.Name}'", McpErrorCode.InvalidParams);
         }
 
         if (!caller.HoldsScopesFor(tool))
         {
-            return Error(InsufficientScope);
+            return Complete(tool, caller, "insufficient_scope", Error(InsufficientScope));
         }
 
         if (!await McpToolAuthorizers.Allow(tool, caller, context!.RequestServices, cancellationToken))
         {
-            return Error(NotAllowed);
+            return Complete(tool, caller, "not_allowed", Error(NotAllowed));
         }
 
         var call = new McpOperationCall(tool, caller.Capability, arguments?.AsReadOnly() ?? new Dictionary<string, JsonElement>().AsReadOnly(), context!.RequestServices, cancellationToken)
         {
             Request = request
         };
-
-        // The correlation id is already set for this request by Arc's startup middleware, which runs for every request, the
-        // same as REST. Receipt is captured here the way the REST endpoints do before they enter a pipeline.
-        using var receipt = OperationContextScope.Begin(context!.RequestServices);
-        try
-        {
-            var outcome = await operations.Run(call);
-            if (!IsWellFormed(tool, outcome))
-            {
-                logger.ToolResultMalformed(tool.Name);
-                return Error(Failed);
-            }
-
-            return new CallToolResult
-            {
-                Content = [new TextContentBlock { Text = outcome.Text }, .. (outcome.ResourceLinks ?? []).Select(ToBlock)],
-                StructuredContent = outcome.StructuredContent?.Clone(),
-                IsError = outcome.IsError
-            };
-        }
-        catch (McpArgumentsInvalid)
-        {
-            return Error(InvalidArguments);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.ToolFailed(tool.Name, ex);
-            return Error(Failed);
-        }
+        return await Run(call, caller);
     }
 
     static bool IsWellFormed(McpToolDescriptor tool, McpToolResult outcome)
@@ -142,4 +116,49 @@ internal sealed class McpToolDispatcher(
     };
 
     static CallToolResult Error(string message) => new() { Content = [new TextContentBlock { Text = message }], IsError = true };
+
+    async ValueTask<CallToolResult> Run(McpOperationCall call, McpCaller caller)
+    {
+        var tool = call.Tool;
+
+        // The correlation id is already set for this request by Arc's startup middleware, which runs for every request, the
+        // same as REST. Receipt is captured here the way the REST endpoints do before they enter a pipeline.
+        using var receipt = OperationContextScope.Begin(call.Services);
+        try
+        {
+            var outcome = await operations.Run(call);
+            if (!IsWellFormed(tool, outcome))
+            {
+                logger.ToolResultMalformed(tool.Name);
+                return Complete(tool, caller, "malformed", Error(Failed));
+            }
+
+            return Complete(tool, caller, outcome.IsError ? "failed" : "succeeded", new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = outcome.Text }, .. (outcome.ResourceLinks ?? []).Select(ToBlock)],
+                StructuredContent = outcome.StructuredContent?.Clone(),
+                IsError = outcome.IsError
+            });
+        }
+        catch (McpArgumentsInvalid)
+        {
+            return Complete(tool, caller, "invalid_arguments", Error(InvalidArguments));
+        }
+        catch (OperationCanceledException)
+        {
+            audit.Record(tool, caller, "error");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.ToolFailed(tool.Name, ex);
+            return Complete(tool, caller, "error", Error(Failed));
+        }
+    }
+
+    CallToolResult Complete(McpToolDescriptor tool, McpCaller caller, string outcome, CallToolResult result)
+    {
+        audit.Record(tool, caller, outcome);
+        return result;
+    }
 }

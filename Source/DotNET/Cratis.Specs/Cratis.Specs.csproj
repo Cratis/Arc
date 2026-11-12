@@ -5,7 +5,6 @@
         <RootNamespace>Cratis</RootNamespace>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
-        <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Cratis/Cratis.csproj" />

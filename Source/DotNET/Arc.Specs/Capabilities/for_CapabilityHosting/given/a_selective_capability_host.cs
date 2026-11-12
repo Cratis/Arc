@@ -20,7 +20,8 @@ public class a_selective_capability_host : Specification
     private protected IVerifiedCallerAccessor _verified;
     protected WebApplication _app;
 
-    protected virtual CapabilityEndpointSelector Selector => new CapabilityEndpointSelector().ForRoutePattern("/mcp-spec");
+    protected virtual bool GateAfterRouting => false;
+    protected virtual CapabilityEndpointSelector? Selector => new CapabilityEndpointSelector().ForRoutePattern("/mcp-spec");
     protected virtual bool ServerPathBase => false;
     protected virtual bool LatePathBase => false;
     protected virtual bool ExplicitRouting => false;
@@ -33,7 +34,11 @@ public class a_selective_capability_host : Specification
         _defaultPort = FreePort();
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls($"http://127.0.0.1:{_capabilityPort}", $"http://127.0.0.1:{_defaultPort}");
-        builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", _capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities(options => options.GatedEndpoints = Selector));
+        builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", _capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities(options =>
+        {
+            options.GatedEndpoints = Selector;
+            options.GateAfterRouting = GateAfterRouting;
+        }));
         builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
         builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
         builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());

@@ -24,25 +24,49 @@
         <NoWarn>NU1507;NU1608;NU1510;NU1603;NU1605;CS1705;IDE0031;IDE0032;IDE0340;CA1873;IDE0330;MA0158;MA0190;ASPDEPR002;CS8602;CS8604;CS8670;RCS1238;SA1414;CA1034</NoWarn>
     </PropertyGroup>
 
+    <!-- The analyzer build in dotnet-build.yml is split into two legs per framework so each analyzes about half of the code.
+         Every leg compiles every project, and passing CratisAnalyzerShard=1 or 2 only decides which projects also run
+         analyzers and code style: the projects listed below belong to shard 2 and every other project, including one
+         added later, belongs to shard 1. A project is therefore analyzed in exactly one shard by construction, and the
+         two shards together analyze the same set as a build without the property. Keep the list to the largest projects
+         so the shards stay close in size. -->
+    <PropertyGroup>
+        <CratisAnalyzerShard2Projects>;Arc.Core.Specs;Screenplay;Screenplay.Specs;Chronicle.Specs;</CratisAnalyzerShard2Projects>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(CratisAnalyzerShard)'!=''">
+        <_CratisInAnalyzerShard2>$(CratisAnalyzerShard2Projects.Contains(';$(MSBuildProjectName);'))</_CratisInAnalyzerShard2>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="('$(CratisAnalyzerShard)'=='1' AND '$(_CratisInAnalyzerShard2)'=='True') OR ('$(CratisAnalyzerShard)'=='2' AND '$(_CratisInAnalyzerShard2)'!='True')">
+        <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+        <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+        <RunAnalyzers>false</RunAnalyzers>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)'==''">
         <Configuration>Debug</Configuration>
     </PropertyGroup>
 
     <!-- Every spec runs on one framework, so the pull request build (dotnet-build.yml) and the release build
          (publish.yml) pass CratisSpecsTargetFramework to compile the spec projects and their fixtures for that
-         framework only. Passing it in both keeps a pull request from merging spec code that only the release build
-         would have compiled. Shipped libraries still build for every framework below, and a build without the
-         property is unchanged. -->
+         framework only (net11.0 by default, with a net10.0 leg in dotnet-build.yml). Passing it in both keeps a
+         pull request from merging spec code that only the release build would have compiled. Shipped libraries
+         still build for every framework below, and a build without the property is unchanged. -->
     <PropertyGroup Condition="'$(Configuration)'=='Release' AND '$(CratisSpecsTargetFramework)'!='' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'=='' AND $(MSBuildProjectDirectory.Substring($(MSBuildThisFileDirectory.Length)).Contains('.Specs'))">
         <TargetFrameworks>$(CratisSpecsTargetFramework)</TargetFrameworks>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)'=='Release' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'==''">
-        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     </PropertyGroup>
 
+    <!-- Debug builds the same frameworks as Release. A single framework cannot work: the net10.0-only projects (OpenApi,
+         the binding parity harness and the build tasks) reference libraries that would then offer net11.0 only. It is
+         declared as TargetFrameworks, never as TargetFramework: a project that pins its own TargetFrameworks overrides
+         the default, whereas a preset TargetFramework would silently win over it. -->
     <PropertyGroup Condition="'$(Configuration)'=='Debug' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'==''">
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>

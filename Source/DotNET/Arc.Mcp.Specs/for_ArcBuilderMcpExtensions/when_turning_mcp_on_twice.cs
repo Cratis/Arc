@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Mcp.for_McpToolCeiling.given;
+using Cratis.Arc.Mcp.for_McpToolCatalog.given;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -31,5 +31,5 @@ public class when_turning_mcp_on_twice : Specification
     [Fact] void should_derive_scopes_from_the_application_name() => (_defaults.ReadScope, _defaults.WriteScope).ShouldEqual(("app:read", "app:write"));
     [Fact] void should_share_one_exposure_between_calls() => _exposure.Declarations.Count.ShouldEqual(1);
     [Fact] void should_register_one_validation() => _services.Count(_ => _.ServiceType == typeof(IHostedService) && _.ImplementationType == typeof(McpStartupValidation)).ShouldEqual(1);
-    [Fact] void should_register_one_ceiling_factory() => _services.Count(_ => _.ServiceType == typeof(McpToolCeilingFactory)).ShouldEqual(1);
+    [Fact] void should_register_one_catalog_factory() => _services.Count(_ => _.ServiceType == typeof(McpToolCatalogFactory)).ShouldEqual(1);
 }

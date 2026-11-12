@@ -7,7 +7,7 @@ namespace Cratis.Arc.Mcp;
 /// Defines a source of curated MCP tools that are not a single command or query.
 /// </summary>
 /// <remarks>
-/// The tools a source describes join the frozen <see cref="McpToolCeiling"/> at startup and follow the same rules as
+/// The tools a source describes join the frozen <see cref="McpToolCatalog"/> at startup and follow the same rules as
 /// exposed operations: a stable snake_case name, a description and at least one required scope. A tool is only invoked
 /// for a verified caller that holds every required scope. The caller is passed in the invocation; never read identity
 /// or tenant from the arguments.
@@ -15,7 +15,7 @@ namespace Cratis.Arc.Mcp;
 public interface IMcpToolSource
 {
     /// <summary>
-    /// Describes the tools this source provides. Called once, when the ceiling is built.
+    /// Describes the tools this source provides. Called once, when the catalog is built.
     /// </summary>
     /// <returns>The tool descriptors.</returns>
     IEnumerable<McpToolDescriptor> Describe();
