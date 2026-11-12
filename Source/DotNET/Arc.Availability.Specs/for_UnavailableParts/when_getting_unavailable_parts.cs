@@ -8,13 +8,13 @@ namespace Cratis.Arc.Availability.for_UnavailableParts;
 
 public class when_getting_unavailable_parts : given.an_availability_host
 {
-    IReadOnlyList<string> _unavailable;
+    IReadOnlyList<UnavailablePart> _unavailable;
 
     async Task Establish() => await _audiences.Grant(AudienceLevel.Tenant, "acme", "Preview");
 
     async Task Because() => _unavailable = await _scope.ServiceProvider.GetRequiredService<IUnavailableParts>().Get();
 
-    [Fact] void should_list_the_parts_that_are_not_available() => _unavailable.ShouldContainOnly(
+    [Fact] void should_list_the_parts_that_are_not_available() => _unavailable.Select(part => part.Name).ShouldContainOnly(
         typeof(given.an_availability_host.PlusCommand).FullName,
         typeof(given.Fleet.Quality.ScoresReadModel).FullName);
 }

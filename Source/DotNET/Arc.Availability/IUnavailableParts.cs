@@ -9,12 +9,12 @@ namespace Cratis.Arc.Availability;
 public interface IUnavailableParts
 {
     /// <summary>
-    /// Gets the names of the parts that are not available to the current context. An unknown decision is unavailable.
+    /// Gets the parts that are not available to the current context. An unknown decision is unavailable.
     /// </summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
-    /// <returns>The names of the unavailable parts, ordered.</returns>
+    /// <returns>The unavailable parts, ordered by name.</returns>
     /// <exception cref="AvailabilityNotDecidedException">The decision could not be made.</exception>
-    Task<IReadOnlyList<string>> Get(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<UnavailablePart>> Get(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Subscribes to changes in what the decisions are made from.

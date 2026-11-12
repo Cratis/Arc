@@ -13,9 +13,9 @@ namespace Cratis.Arc.Availability;
 public class UnavailableParts(IAvailabilityGate gate, IServiceProvider services) : IUnavailableParts
 {
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<string>> Get(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<UnavailablePart>> Get(CancellationToken cancellationToken = default)
     {
-        var unavailable = new List<string>();
+        var unavailable = new List<UnavailablePart>();
         try
         {
             foreach (var part in gate.GatedParts)
@@ -23,7 +23,7 @@ public class UnavailableParts(IAvailabilityGate gate, IServiceProvider services)
                 var decision = await gate.Decide(part, services, cancellationToken);
                 if (!decision.IsAvailable)
                 {
-                    unavailable.Add(PartName.Of(part));
+                    unavailable.Add(UnavailablePart.For(part));
                 }
             }
         }
@@ -32,7 +32,7 @@ public class UnavailableParts(IAvailabilityGate gate, IServiceProvider services)
             throw new AvailabilityNotDecidedException(ex);
         }
 
-        unavailable.Sort(StringComparer.Ordinal);
+        unavailable.Sort((left, right) => string.CompareOrdinal(left.Name, right.Name));
         return unavailable;
     }
 

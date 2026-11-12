@@ -16,7 +16,7 @@ public class when_an_audience_is_granted_while_observing : given.an_availability
     {
         var subject = AvailableParts.ObserveUnavailable(_scope.ServiceProvider.GetRequiredService<IUnavailableParts>());
         _subject = (IDisposable)subject;
-        _subscription = subject.Subscribe(parts => _emissions.Add([.. parts.Unavailable]));
+        _subscription = subject.Subscribe(parts => _emissions.Add([.. parts.Unavailable.Select(part => part.Name)]));
         await WaitFor(1);
         await _audiences.Grant(AudienceLevel.Tenant, "acme", "Plus");
         await WaitFor(2);

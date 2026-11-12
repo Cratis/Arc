@@ -14,10 +14,10 @@ namespace Cratis.Arc.Availability;
 /// it changes, so open sessions update without a reload. A decision that could not be made is a retryable error, never a
 /// list: clients keep what they last knew.
 /// </remarks>
-/// <param name="Unavailable">The names of the commands and read models that are not available, as <see cref="PartName"/> gives them.</param>
+/// <param name="Unavailable">The commands and read models that are not available, with the slice each belongs to.</param>
 [ReadModel]
 [Path("/.cratis/availability")]
-public sealed record AvailableParts(IEnumerable<string> Unavailable)
+public sealed record AvailableParts(IEnumerable<UnavailablePart> Unavailable)
 {
     /// <summary>
     /// Observes the parts that are not available to the current context.

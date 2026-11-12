@@ -16,7 +16,7 @@ sealed class AvailablePartsSubject : ISubject<AvailableParts>, IDisposable
     readonly CancellationTokenSource _disposed = new();
     readonly IDisposable _subscription;
     readonly SemaphoreSlim _gate = new(1, 1);
-    string[]? _last;
+    UnavailablePart[]? _last;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AvailablePartsSubject"/> class.
