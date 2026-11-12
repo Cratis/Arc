@@ -400,7 +400,8 @@ jobs:
           dotnet restore Samples/Layered/Layered.csproj -p:Configuration=Release
 
       # The three applications are independent, so they are generated and read back concurrently; each writes its own
-      # log and the step fails when any one of them does.
+      # log and the step fails when any one of them does. Opening a project writes the intermediate folders of what it
+      # references, so the tool opens one at a time under a machine wide lock and generates in parallel after that.
       #  - AspNetCore: a real application, both documents.
       #  - Chronicle: everything an event sourced application declares - events, the constants a projection sets and
       #    the scenarios a slice is specified by - is a second application rather than more of the first one.
