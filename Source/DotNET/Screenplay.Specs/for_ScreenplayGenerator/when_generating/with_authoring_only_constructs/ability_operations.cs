@@ -54,6 +54,7 @@ public class ability_operations : an_authoring_document
         }
         """);
 
+    [Fact] void should_compile_and_refuse_only_executable_admission() => AssertAuthoringDocument();
     [Fact] void should_declare_the_operation() => Result.Source.ShouldContain("produces operation ReserveOrderRevenue");
     [Fact] void should_use_the_first_system() => Result.Source.ShouldContain("uses Ledger");
     [Fact] void should_invoke_the_first_ability() => Result.Source.ShouldContain("invokes Ledger.ReserveRevenue");
