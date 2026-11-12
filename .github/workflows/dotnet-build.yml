@@ -223,14 +223,18 @@ jobs:
 
   # The full analyzer build, in parallel with dotnet-build and off the critical path: warnings are errors here, so
   # any analyzer or code style violation fails the workflow. It has the same two legs as dotnet-build because the
-  # spec projects compile for one framework per leg and some spec sources are framework specific.
+  # spec projects compile for one framework per leg and some spec sources are framework specific. Each framework is
+  # split into two shards: every shard compiles all projects but runs analyzers and code style on its own half only
+  # (CratisAnalyzerShard in Directory.Build.props), so each project is analyzed exactly once per framework.
   analyzers:
+    name: analyzers (${{ matrix.spec-framework }}, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         spec-framework: [net11.0, net10.0]
+        shard: [1, 2]
 
     steps:
       - name: Checkout code
@@ -279,8 +283,11 @@ jobs:
           npm ci --workspaces=false
           npm run build
 
+      - name: Verify the analyzer shards
+        run: node scripts/verify-analyzer-shards.mjs
+
       - name: Build with analyzers
-        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath=
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath= -p:CratisAnalyzerShard=${{ matrix.shard }}
 
   specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
