@@ -84,6 +84,8 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
         readonly isPerforming: boolean,
         readonly changeSet?: ChangeSet<unknown>,
         readonly isReady: boolean = true,
+        readonly authorizationFailureReason: string = '',
+        readonly isRetryable: boolean = false,
     ) {}
 
     /** @inheritdoc */
@@ -117,6 +119,8 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
             isPerforming,
             queryResult.changeSet,
             queryResult.isReady ?? true,
+            queryResult.authorizationFailureReason ?? '',
+            queryResult.isRetryable ?? false,
         );
     }
 }

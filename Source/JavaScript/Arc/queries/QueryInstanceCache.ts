@@ -250,6 +250,8 @@ export class QueryInstanceCache {
             next.isPerforming,
             next.changeSet,
             next.isReady,
+            next.authorizationFailureReason,
+            next.isRetryable,
         );
     }
 
@@ -258,6 +260,8 @@ export class QueryInstanceCache {
             && result.isSuccess === previous.isSuccess
             && result.isReady === previous.isReady
             && result.isAuthorized === previous.isAuthorized
+            && result.authorizationFailureReason === previous.authorizationFailureReason
+            && result.isRetryable === previous.isRetryable
             && result.isValid === previous.isValid
             && result.hasExceptions === previous.hasExceptions
             && result.exceptionStackTrace === previous.exceptionStackTrace

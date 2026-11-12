@@ -4,6 +4,7 @@
 import { Guid } from '@cratis/fundamentals';
 import { ICommandResult } from './ICommandResult.js';
 import { ValidationResult } from '../validation/ValidationResult.js';
+import { isNotAvailable } from '../availability/isNotAvailable.js';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 
 /**
@@ -27,6 +28,11 @@ type OnException = (messages: string[], stackTrace: string) => void;
 type OnUnauthorized = () => void;
 
 /**
+ * Delegate type for the onNotAvailable callback.
+ */
+type OnNotAvailable = () => void;
+
+/**
  * Delegate type for the onValidationFailure callback.
  */
 type OnValidationFailure = (validationResults: ValidationResult[]) => void;
@@ -48,6 +54,7 @@ type ServerCommandResult = {
     exceptionMessages: string[];
     exceptionStackTrace: string;
     authorizationFailureReason: string;
+    isRetryable?: boolean;
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
     response: any;
@@ -137,6 +144,9 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
     readonly authorizationFailureReason: string;
 
     /** @inheritdoc */
+    readonly isRetryable: boolean;
+
+    /** @inheritdoc */
     readonly response?: TResponse;
 
     /**
@@ -155,6 +165,8 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
         this.exceptionMessages = result.exceptionMessages;
         this.exceptionStackTrace = result.exceptionStackTrace;
         this.authorizationFailureReason = result.authorizationFailureReason;
+        // Older servers do not report retryable failures; none of their results are.
+        this.isRetryable = result.isRetryable ?? false;
 
         if (result.response !== undefined && result.response !== null) {
             const isPrimitive = responseInstanceType === String || responseInstanceType === Number || responseInstanceType === Boolean;
@@ -215,6 +227,26 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
      */
     onUnauthorized(callback: OnUnauthorized): CommandResult<TResponse> {
         if (!this.isAuthorized) {
+            callback();
+        }
+        return this;
+    }
+
+    /**
+     * Gets whether the command was refused because its part of the application is not available to the caller.
+     * This is not the same as being forbidden: the caller is not told whether it would have been allowed.
+     */
+    get isNotAvailable(): boolean {
+        return isNotAvailable(this);
+    }
+
+    /**
+     * Set up a callback for when the command was refused because its part of the application is not available.
+     * @param {OnNotAvailable} callback The callback to call when the command was not available.
+     * @returns {CommandResult} The instance of the command result.
+     */
+    onNotAvailable(callback: OnNotAvailable): CommandResult<TResponse> {
+        if (this.isNotAvailable) {
             callback();
         }
         return this;
