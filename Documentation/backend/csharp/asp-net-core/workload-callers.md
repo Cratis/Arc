@@ -97,6 +97,6 @@ The workload principal is rebuilt from verified service-account facts. Unrelated
 
 ## Boundary coverage, not full conformance
 
-This profile implements the Kubernetes workload boundary described in the [locked Arc verified-caller specification](https://github.com/Cratis/Identity/blob/bc7402b9e9a53e8b7114117f0f6022b3690419b8/Documentation/specs/arc-verified-caller-v1.md). Local specs exercise TokenReview/Pod parsing, mapping, cache bounds and a real capability host, but are not a full Identity conformance runner or a live Kubernetes integration test.
+This profile implements the Kubernetes workload boundary described in the locked Arc verified-caller specification (`arc-verified-caller-v1`). Local specs exercise TokenReview/Pod parsing, mapping, cache bounds and a real capability host, but are not a full Identity conformance runner or a live Kubernetes integration test.
 
 The [verified-caller construction checks](verified-callers.md) include row 18's missing verified grant. Row 26 (a request asking for grant-b while the credential maps to grant-a) remains deferred to the future grant-lookup verifier; this workload profile never reads a request grant or produces person delegation. There is no claimed OAuth grant, DPoP, approval or runner adapter here.

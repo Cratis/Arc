@@ -65,7 +65,7 @@ internal sealed class WorkloadTokenReviewClient : IWorkloadTokenReviewClient, ID
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "apis/authentication.k8s.io/v1/tokenreviews")
         {
-            Content = JsonContent.Create(new { apiVersion = "authentication.k8s.io/v1", kind = "TokenReview", spec = new { token, audiences = new[] { audience } } })
+            Content = JsonContent.Create(TokenReviewRequest.For(token, audience), WorkloadKubernetesJsonContext.Default.TokenReviewRequest)
         };
         using var json = await Send(request, cancellationToken);
         return json is null ? null : WorkloadKubernetesJson.Review(json.RootElement, audience);
