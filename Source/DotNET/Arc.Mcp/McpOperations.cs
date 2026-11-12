@@ -44,10 +44,12 @@ internal sealed class McpOperations(
         _ => ((IMcpToolSource)call.Tool.Operation!).Invoke(new McpToolInvocation(call.Tool, call.Caller, call.Arguments, call.Services, call.CancellationToken) { Request = call.Request })
     };
 
-    static object Outcome(bool isSuccess, bool isAuthorized, bool isValid, IEnumerable<ValidationResult> validationResults) => new
+    static object Outcome(bool isSuccess, bool isAuthorized, bool isValid, IEnumerable<ValidationResult> validationResults, string? reason = null, bool isRetryable = false) => new
     {
         isSuccess,
         isAuthorized,
+        reason = string.IsNullOrEmpty(reason) ? null : reason,
+        isRetryable,
         isValid,
         validationResults = validationResults.Select(_ => new { severity = _.Severity.ToString(), message = _.Message, members = _.Members })
     };
@@ -84,7 +86,7 @@ internal sealed class McpOperations(
         }
 
         var result = await hosted.ExecuteHosted(command, call.Services, null, call.CancellationToken);
-        var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
+        var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults, result.AuthorizationFailureReason, result.IsRetryable);
         return McpOperationResult.From(new { outcome, response = result.IsSuccess ? result.ResponsePayload : null }, !result.IsSuccess, arcOptions.Value.JsonSerializerOptions);
     }
 
@@ -112,7 +114,7 @@ internal sealed class McpOperations(
                 return McpToolResult.Error(Unsupported);
             }
 
-            var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults);
+            var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults, result.AuthorizationFailureReason, result.IsRetryable);
             return McpOperationResult.From(
                 new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },
                 !result.IsSuccess,
