@@ -1,4 +1,11 @@
 <Project>
+    <!-- A shard other than 1 or 2 would analyze every project in neither or both halves; refuse it rather than pass quietly. -->
+    <Target Name="VerifyAnalyzerShard"
+            BeforeTargets="CoreCompile"
+            Condition="'$(CratisAnalyzerShard)' != '' AND '$(CratisAnalyzerShard)' != '1' AND '$(CratisAnalyzerShard)' != '2'">
+        <Error Text="CratisAnalyzerShard must be 1 or 2, not '$(CratisAnalyzerShard)'." />
+    </Target>
+
     <!-- The package updater builds the solution before pushing, but does not execute these specs.
          Catch the known test-double incompatibility during compilation rather than hanging CI later. -->
     <Target Name="VerifyMongoDBTestDoubleCompatibility"
