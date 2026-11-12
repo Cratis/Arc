@@ -226,15 +226,51 @@ jobs:
   # spec projects compile for one framework per leg and some spec sources are framework specific. Each framework is
   # split into two shards: every shard compiles all projects but runs analyzers and code style on its own half only
   # (CratisAnalyzerShard in Directory.Build.props), so each project is analyzed exactly once per framework.
+  #
+  # A pull request analyzes only what its diff reaches (analyzer-scope below); main, scheduled and manual runs analyze
+  # every project, so a violation a pull request did not look at fails main and is reported by report-main.
+  analyzer-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.scope.outputs.mode }}
+      shards: ${{ steps.scope.outputs.shards }}
+      projects: ${{ steps.scope.outputs.projects }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Test the analyzer scope
+        run: node --test scripts/analyzer-scope.test.mjs
+
+      # The diff against the pull request's base commit over-selects when the branch is behind main, never under-selects.
+      # Anything that goes wrong here analyzes every project.
+      - name: Select the projects to analyze
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ] && git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+            node scripts/analyzer-scope.mjs --base "$BASE_SHA" --head HEAD --github-output "$GITHUB_OUTPUT"
+          else
+            node scripts/analyzer-scope.mjs --github-output "$GITHUB_OUTPUT"
+          fi
+
   analyzers:
     name: analyzers (${{ matrix.spec-framework }}, shard ${{ matrix.shard }})
+    needs: [analyzer-scope]
+    if: ${{ needs.analyzer-scope.outputs.shards != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         spec-framework: [net11.0, net10.0]
-        shard: [1, 2]
+        shard: ${{ fromJson(needs.analyzer-scope.outputs.shards) }}
 
     steps:
       - name: Checkout code
@@ -287,6 +323,8 @@ jobs:
         run: node scripts/verify-analyzer-shards.mjs
 
       - name: Build with analyzers
+        env:
+          CratisAnalyzerProjects: ${{ needs.analyzer-scope.outputs.projects }}
         run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=${{ matrix.spec-framework }} -p:CratisProxiesOutputPath= -p:CratisAnalyzerShard=${{ matrix.shard }}
 
   specs:

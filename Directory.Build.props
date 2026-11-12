@@ -44,6 +44,16 @@
         <RunAnalyzers>false</RunAnalyzers>
     </PropertyGroup>
 
+    <!-- A pull request analyzes only the projects its diff reaches and everything that references them (scripts/analyzer-scope.mjs
+         decides, and dotnet-build.yml passes the list in the CratisAnalyzerProjects environment variable as ';Name;Name;').
+         The other projects still compile, only their analyzers and code style are left to the full run on main. Unset, which is
+         every other build, analyzes every project. -->
+    <PropertyGroup Condition="'$(CratisAnalyzerProjects)'!='' AND !$(CratisAnalyzerProjects.Contains(';$(MSBuildProjectName);'))">
+        <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+        <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+        <RunAnalyzers>false</RunAnalyzers>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)'==''">
         <Configuration>Debug</Configuration>
     </PropertyGroup>

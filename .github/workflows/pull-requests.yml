@@ -71,6 +71,7 @@ jobs:
               - "global.json"
               - "stylecop.json"
               - "Arc.slnx"
+              - "scripts/analyzer-scope*.mjs"
               - ".github/workflows/dotnet-build.yml"
               - ".github/workflows/pull-requests.yml"
               - ".github/test-shards.json"
