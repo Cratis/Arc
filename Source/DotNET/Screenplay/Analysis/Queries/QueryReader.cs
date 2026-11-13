@@ -132,6 +132,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         {
             ReturnTypeFullName = FullNameOfWhatItReturns(method),
             Description = Documentation.SummaryOf(method),
+            Availability = AvailabilityReader.Read(declaring),
             PerformerFile = new QueryImplementationReader(Paths, diagnostics).Read(method, location)
         };
     }

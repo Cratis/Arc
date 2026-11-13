@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Availability;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Emission.Types;
@@ -32,6 +33,11 @@ public class CommandSyntaxBuilder(
 {
     /// <summary>Gets whether authoring-only constructs should be emitted.</summary>
     public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
+    /// Gets the builder of the <c>available</c> gates, when gates are stated.
+    /// </summary>
+    public AvailabilitySyntaxBuilder? Availability { get; init; }
 
     /// <summary>
     /// Builds the command declaration.
@@ -86,7 +92,9 @@ public class CommandSyntaxBuilder(
             !AuthoringOnlyConstructs && authoring?.Route is { Stream: not null } ? null : concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));
 
-        return new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
+        var authored = new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
+
+        return Availability is null ? authored : authored with { Available = [.. authored.Available, .. Availability.Build(command.Availability, $"{location}.{command.Name}")] };
     }
 
     /// <summary>

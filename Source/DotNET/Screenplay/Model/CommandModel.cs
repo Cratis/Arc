@@ -36,6 +36,11 @@ public record CommandModel(
     public string? Identifier { get; init; }
 
     /// <summary>
+    /// Gets the availability gates the command carries.
+    /// </summary>
+    public AvailabilityModel? Availability { get; init; }
+
+    /// <summary>
     /// Gets the optional authoring-only description of generated values, responses, operations and reads.
     /// </summary>
     public CommandAuthoringModel? Authoring { get; init; }
