@@ -297,6 +297,8 @@ public class AuthorizationEvaluation(
         var context = new AuthorizationPolicyContext(selectedPrincipal, target, resource!)
         {
             PrincipalAccessor = principalAccessor,
+            Services = services,
+            RequestCancellation = cancellationToken,
             ReceivedAt = ReceivedAtFor(resource, services)
         };
         if (!await prepared.Resolution.IsAuthorized(context, services, cancellationToken))

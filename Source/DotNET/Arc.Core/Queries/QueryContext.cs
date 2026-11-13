@@ -3,9 +3,11 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
 
@@ -35,6 +37,19 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
+    /// Gets the values the model adds to <c>$context</c> with <c>provide</c>, resolved lazily, once, for the request.
+    /// </summary>
+    /// <remarks>
+    /// Read them by name, such as <c>context.Values.Vessel</c>. An absent value is <see langword="null"/>, which is unknown.
+    /// </remarks>
+    public dynamic Values => ProvidedValues;
+
+    /// <summary>
+    /// Gets the provided values with the asynchronous and typed reads of <see cref="ContextValues"/>.
+    /// </summary>
+    public ContextValues ProvidedValues => ContextValues.For(ServiceProvider, FindPart, CancellationToken);
 
     /// <summary>
     /// Gets the <see cref="Slices.SliceLocation"/> of the query, resolved from the same namespace mapping as its generated proxy.
@@ -96,7 +111,18 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <summary>Gets or sets the still-live direct request's native scope factory.</summary>
     internal Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? NativeEmissionRequest { get; set; }
 
+    /// <summary>
+    /// Gets the provided values as a statically typed payload without dynamic dispatch.
+    /// </summary>
+    /// <typeparam name="T">A type whose public properties, or constructor parameters, are named after the provided values.</typeparam>
+    /// <returns>The provided values as <typeparamref name="T"/>.</returns>
+    /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
+    public T ValuesAs<T>() => ProvidedValues.ValuesAs<T>();
+
     /// <summary>Gets an independent copy of the admitted subscription scope for an emission.</summary>
     /// <returns>A fresh scope copy, or null when none was supplied.</returns>
     internal object? CreateSubscriptionScope() => SubscriptionScopeSnapshot?.CreateScope();
+
+    Type? FindPart() =>
+        ServiceProvider?.GetService<IQueryPerformerProviders>() is { } providers && providers.TryGetPerformersFor(Name, out var performer) ? performer.Type : null;
 }
