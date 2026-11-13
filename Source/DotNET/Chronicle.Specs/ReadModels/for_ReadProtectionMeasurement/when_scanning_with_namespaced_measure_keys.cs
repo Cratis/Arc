@@ -12,6 +12,7 @@ public class when_scanning_with_namespaced_measure_keys : when_scanning_after_ow
 {
     void Establish() => _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
     {
+        ["Cratis:Arc:ReadProtection:RequireGeneratedMetadata"] = "false",
         ["ReadProtection:MeasureSampleRate"] = "0",
         ["Cratis:Arc:ReadProtection:MeasureSampleRate"] = "1",
         ["Cratis:Arc:ReadProtection:MeasureTailTimeout"] = "5000"
