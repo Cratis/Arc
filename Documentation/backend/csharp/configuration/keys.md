@@ -188,10 +188,8 @@ The runtime, measurement, and startup-admission keys below accept both `Cratis:A
 
 | Key (relative to either section) | Default | Purpose |
 | --- | --- | --- |
-| `DefaultMode` | `On` | Mode when a command has no explicit declaration; `MaximumMode` can cap it. |
 | `MaximumMode` | `On` (no cap) | A ceiling that can only lower the mode. See [Cap the mode at run time](../chronicle/consistency/adopting.md#cap-the-mode-at-run-time). |
 | `RequireGeneratedMetadata` | `true` (always required where dynamic code is unavailable) | Fail instead of falling back to reflection for read-model key lookup. Set `false` only to opt out explicitly. |
-| `EffectivenessWarnings` | `false` | Warn when enabling protection without an Arc command pipeline. A registered warning sink implies `true` unless configured explicitly. |
 
 Chronicle's measurement and startup-admission settings also accept both sections. The table uses the original root spelling:
 
@@ -203,17 +201,17 @@ Chronicle's measurement and startup-admission settings also accept both sections
 | `ReadProtection:MeasureScanTimeout` | `5000` | Milliseconds, 1 to 5000. |
 | `ReadProtection:MeasureScanLimit` | `500` | Events per scan, 1 to 500. |
 
-`<CratisReadProtection>` is the build-time mode declaration. Arc 23 defaults to `On`; runtime configuration supplies an undeclared default or caps a declared mode, but cannot raise a declared mode. See [read protection](../chronicle/consistency/index.md).
+`<CratisReadProtection>` is the build-time mode declaration. Arc 23 defaults to `On`; runtime configuration can only cap the mode through `MaximumMode`; it cannot raise it. See [read protection](../chronicle/consistency/index.md).
 
 ## Environment variables Arc reads
 
 | Variable | Effect |
 | --- | --- |
-| `DOTNET_ENVIRONMENT`, `ASPNETCORE_ENVIRONMENT` | Development fallback when no host environment is available; `DOTNET_ENVIRONMENT` takes precedence. See [Environment detection](#how-arc-detects-development). |
+| `ASPNETCORE_ENVIRONMENT`, `DOTNET_ENVIRONMENT` | Development fallback when no host environment is available; `ASPNETCORE_ENVIRONMENT` takes precedence. See [Environment detection](#how-arc-detects-development). |
 
 ## How Arc detects Development
 
-`ArcOptions.ExposeExceptionDetails` uses the host's `IHostEnvironment.IsDevelopment()` when registered. Without a host it falls back to `DOTNET_ENVIRONMENT`, then `ASPNETCORE_ENVIRONMENT`. A Development host therefore gets exception details even when its environment was set in code. An explicit configuration or options value always wins:
+`ArcOptions.ExposeExceptionDetails` uses the host's `IHostEnvironment.IsDevelopment()` when registered. Without a host it falls back to `ASPNETCORE_ENVIRONMENT`, then `DOTNET_ENVIRONMENT`. A Development host therefore gets exception details even when its environment was set in code. An explicit configuration or options value always wins:
 
 ```json
 { "Cratis": { "Arc": { "ExposeExceptionDetails": true } } }
