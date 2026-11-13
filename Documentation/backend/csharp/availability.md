@@ -89,5 +89,5 @@ An MCP tool whose command or query is not available to the caller is omitted fro
 - Availability applies to model-bound commands and queries, including observable queries, on the Arc pipeline and MCP. Controller actions use ASP.NET Core authorization and are not gated.
 - Events, projections, observers and reactors are not touched. A reaction can produce into a part that is not available, and projections keep running, so switching a part on again needs no replay.
 - Clients decide per slice. A part gated alone inside a slice with other parts hides the whole slice from slice-based client checks, which is the safe direction; the server still enforces each part exactly.
-- A request lives in one context. The audiences and context values of a request are resolved once and shared by every gate in it.
+- A request lives in one context. The audiences and context values of a request are resolved once and shared by every gate in it, and by [the values your handlers read](context-values.md).
 - Availability is separate from Box Office module entitlements, which are unchanged.
