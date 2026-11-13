@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Contexts;
@@ -140,5 +141,5 @@ public record CommandContext(
     /// <typeparam name="T">A type whose public properties, or constructor parameters, are named after the provided values.</typeparam>
     /// <returns>The provided values as <typeparamref name="T"/>.</returns>
     /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
-    public T ValuesAs<T>() => ProvidedValues.ValuesAs<T>();
+    public T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>() => ProvidedValues.ValuesAs<T>();
 }

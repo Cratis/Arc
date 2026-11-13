@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Dynamic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,7 +20,7 @@ namespace Cratis.Arc.Contexts;
 /// Reading by name, such as <c>context.Values.Vessel</c>, is synchronous. Prefer <see cref="GetAsync(string)"/> where the caller is asynchronous.
 /// </para>
 /// </remarks>
-public sealed class ContextValues : DynamicObject
+public sealed class ContextValues
 {
     readonly IContextValueSource? _source;
     readonly Func<Type?> _part;
@@ -104,7 +104,7 @@ public sealed class ContextValues : DynamicObject
     /// <typeparam name="T">A type whose public properties, or constructor parameters, are named after the provided values.</typeparam>
     /// <returns>The values as <typeparamref name="T"/>.</returns>
     /// <exception cref="ContextValuesTypeMismatch">The values do not fit <typeparamref name="T"/>.</exception>
-    public T ValuesAs<T>()
+    public T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>()
     {
         if (this is T self)
         {
@@ -126,11 +126,23 @@ public sealed class ContextValues : DynamicObject
         return (T)instance;
     }
 
-    /// <inheritdoc/>
-    public override bool TryGetMember(GetMemberBinder binder, out object? result)
+    /// <summary>
+    /// Gets the values as a dynamic object, so a value reads by name such as <c>values.Vessel</c>.
+    /// </summary>
+    /// <returns>The dynamic view of the values.</returns>
+    [RequiresDynamicCode("Reading a value by name uses dynamic dispatch. Use Get, GetAsync or ValuesAs where dynamic code is unavailable.")]
+    public dynamic AsDynamic() => new DynamicContextValues(this);
+
+    /// <summary>
+    /// Gets a value by name, trying the name with its first letter in lower case first.
+    /// </summary>
+    /// <param name="name">The name of the value.</param>
+    /// <returns>The value, or <see langword="null"/> when it is absent.</returns>
+    internal object? Lookup(string name)
     {
-        result = Lookup(binder.Name);
-        return true;
+        var camel = Camel(name);
+        var value = Get(camel);
+        return value is null && camel != name ? Get(name) : value;
     }
 
     static string Camel(string name) => name.Length == 0 ? name : char.ToLowerInvariant(name[0]) + name[1..];
@@ -139,18 +151,13 @@ public sealed class ContextValues : DynamicObject
     {
         if (value is null)
         {
-            return type.IsValueType && Nullable.GetUnderlyingType(type) is null ? Activator.CreateInstance(type) : null;
+            return type.IsValueType && Nullable.GetUnderlyingType(type) is null
+                ? throw new ContextValuesTypeMismatch(type, $"the value '{name}' is absent and '{type}' cannot hold that. Make it nullable.")
+                : null;
         }
 
         return type.IsInstanceOfType(value)
             ? value
             : throw new ContextValuesTypeMismatch(type, $"the value '{name}' is a '{value.GetType()}'.");
-    }
-
-    object? Lookup(string name)
-    {
-        var camel = Camel(name);
-        var value = Get(camel);
-        return value is null && camel != name ? Get(name) : value;
     }
 }

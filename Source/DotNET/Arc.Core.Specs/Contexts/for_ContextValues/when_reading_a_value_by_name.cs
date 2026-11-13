@@ -12,9 +12,9 @@ public class when_reading_a_value_by_name : given.a_provided_vessel
     void Because()
     {
         var values = ContextValues.For(_services, () => typeof(string));
-        _dynamicValue = ((dynamic)values).Vessel;
+        _dynamicValue = values.AsDynamic().Vessel;
         _typed = values.Get<string>("vessel");
-        _absent = ((dynamic)values).Nothing;
+        _absent = values.AsDynamic().Nothing;
     }
 
     [Fact] void should_read_the_value_with_a_pascal_cased_name() => _dynamicValue.ShouldEqual("Aurora");

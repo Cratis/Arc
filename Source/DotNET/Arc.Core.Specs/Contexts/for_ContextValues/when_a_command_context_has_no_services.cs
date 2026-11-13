@@ -14,7 +14,7 @@ public class when_a_command_context_has_no_services : Specification
     void Because()
     {
         _context = new CommandContext(CorrelationId.New(), typeof(string), "command", [], new());
-        _value = ((dynamic)_context.ProvidedValues).Vessel;
+        _value = _context.ProvidedValues.AsDynamic().Vessel;
     }
 
     [Fact] void should_read_the_value_as_absent() => _value.ShouldBeNull();

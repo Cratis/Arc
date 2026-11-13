@@ -14,7 +14,7 @@ public class when_reading_from_a_command_context : given.a_provided_vessel
     void Because()
     {
         var context = new CommandContext(CorrelationId.New(), typeof(string), "command", [], new()) { ServiceProvider = _services };
-        _value = ((dynamic)context.ProvidedValues).Vessel;
+        _value = context.ProvidedValues.AsDynamic().Vessel;
         _typed = context.ValuesAs<VesselValues>();
     }
 

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Contexts;
 using FluentValidation;
 
@@ -33,7 +34,8 @@ public static class ValidationContextValuesExtensions
     /// </summary>
     /// <param name="context">The <see cref="IValidationContext"/> to read from.</param>
     /// <returns>The values. An absent value is <see langword="null"/>, which is unknown.</returns>
-    public static dynamic Values(this IValidationContext context) => context.ProvidedValues();
+    [RequiresDynamicCode("Reading a value by name uses dynamic dispatch. Use ProvidedValues or ValuesAs where dynamic code is unavailable.")]
+    public static dynamic Values(this IValidationContext context) => context.ProvidedValues().AsDynamic();
 
     /// <summary>
     /// Gets the provided values as a statically typed payload without dynamic dispatch.
@@ -42,5 +44,5 @@ public static class ValidationContextValuesExtensions
     /// <param name="context">The <see cref="IValidationContext"/> to read from.</param>
     /// <returns>The provided values as <typeparamref name="T"/>.</returns>
     /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
-    public static T ValuesAs<T>(this IValidationContext context) => context.ProvidedValues().ValuesAs<T>();
+    public static T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IValidationContext context) => context.ProvidedValues().ValuesAs<T>();
 }

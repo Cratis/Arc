@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Contexts;
@@ -44,7 +45,11 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <remarks>
     /// Read them by name, such as <c>context.Values.Vessel</c>. An absent value is <see langword="null"/>, which is unknown.
     /// </remarks>
-    public dynamic Values => ProvidedValues;
+    public dynamic Values
+    {
+        [RequiresDynamicCode("Reading a value by name uses dynamic dispatch. Use ProvidedValues or ValuesAs where dynamic code is unavailable.")]
+        get => ProvidedValues.AsDynamic();
+    }
 
     /// <summary>
     /// Gets the provided values with the asynchronous and typed reads of <see cref="ContextValues"/>.
@@ -117,7 +122,7 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <typeparam name="T">A type whose public properties, or constructor parameters, are named after the provided values.</typeparam>
     /// <returns>The provided values as <typeparamref name="T"/>.</returns>
     /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
-    public T ValuesAs<T>() => ProvidedValues.ValuesAs<T>();
+    public T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>() => ProvidedValues.ValuesAs<T>();
 
     /// <summary>Gets an independent copy of the admitted subscription scope for an emission.</summary>
     /// <returns>A fresh scope copy, or null when none was supplied.</returns>

@@ -14,7 +14,7 @@ public class when_the_host_provides_no_source : Specification
     {
         using var services = new ServiceCollection().BuildServiceProvider();
         _values = ContextValues.For(services, () => null);
-        _value = ((dynamic)_values).Vessel;
+        _value = _values.AsDynamic().Vessel;
     }
 
     [Fact] void should_not_be_provided() => _values.IsProvided.ShouldBeFalse();

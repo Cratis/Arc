@@ -12,7 +12,7 @@ public class when_an_optional_value_is_absent : given.a_value_host
     {
         var values = ValuesFor(null);
         _read = await values.ReadAsync("owner");
-        _dynamicValue = ((dynamic)values).Owner;
+        _dynamicValue = values.AsDynamic().Owner;
     }
 
     [Fact] void should_not_be_present() => _read.IsPresent.ShouldBeFalse();
