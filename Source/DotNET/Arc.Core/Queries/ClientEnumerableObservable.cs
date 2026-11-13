@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Observability;
 using Microsoft.Extensions.Logging;
 
@@ -35,7 +37,7 @@ public class ClientEnumerableObservable<T>(
         var tsc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var telemetry = new ObservableQueryTelemetry(context.RequestServices, queryContext.Name.Value, WellKnownTelemetryNames.WebSocketTransport);
         telemetry.Start();
-        var connection = new Connection(context, webSocket, cts, writeLock, telemetry);
+        var connection = new Connection(context, webSocket, cts, writeLock, telemetry, ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(context, queryContext.AuthorizedPrincipal));
 
         _ = Task.Run(async () =>
         {
@@ -65,16 +67,20 @@ public class ClientEnumerableObservable<T>(
         await tsc.Task;
     }
 
-    IDisposable? BeginEmissionIdentity(IHttpRequestContext context) =>
-        context is ObservableQuerySubscriptionHttpRequestContext subscription
+    IDisposable? BeginEmissionIdentity(Connection connection) =>
+        connection.Context is ObservableQuerySubscriptionHttpRequestContext subscription
             ? subscription.BeginEmission()
-            : queryContext.EmissionTenant is not null || queryContext.NativeEmissionRequest is not null
-                ? ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, queryContext.EmissionTenant, queryContext.NativeEmissionRequest)
+            : HasEmissionIdentity(connection)
+                ? ObservableEmissionIdentity.Begin(connection.Context, connection.Context.RequestServices, connection.Principal, queryContext.EmissionTenant, queryContext.NativeEmissionRequest)
                 : null;
+
+    bool HasEmissionIdentity(Connection connection) =>
+        queryContext.EmissionTenant is not null || queryContext.NativeEmissionRequest is not null || queryContext.AuthorizedPrincipal is not null ||
+        connection.HasAdmittedPrincipal;
 
     async Task Stream(Connection connection)
     {
-        using var emissionIdentity = BeginEmissionIdentity(connection.Context);
+        using var emissionIdentity = BeginEmissionIdentity(connection);
         await foreach (var item in enumerable.WithCancellation(connection.Cancellation.Token))
         {
             if (!await Deliver(connection, item))
@@ -124,7 +130,7 @@ public class ClientEnumerableObservable<T>(
         emissionGuards.Guard(new ObservableQueryEmissionContext(
             queryContext.Name,
             queryContext.Arguments ?? QueryArguments.Empty,
-            connection.Context.User,
+            connection.Principal,
             queryContext.CorrelationId,
             connection.Context.RequestServices,
             !connection.HasDeliveredEmission,
@@ -158,9 +164,13 @@ public class ClientEnumerableObservable<T>(
         return true;
     }
 
-    sealed class Connection(IHttpRequestContext context, IWebSocket webSocket, CancellationTokenSource cancellation, SemaphoreSlim writeLock, ObservableQueryTelemetry telemetry)
+    sealed class Connection(IHttpRequestContext context, IWebSocket webSocket, CancellationTokenSource cancellation, SemaphoreSlim writeLock, ObservableQueryTelemetry telemetry, ClaimsPrincipal principal)
     {
         public IHttpRequestContext Context { get; } = context;
+
+        public ClaimsPrincipal Principal { get; } = principal;
+
+        public bool HasAdmittedPrincipal { get; } = VerifiedCallerPrincipal.From(context) is not null || principal?.Identities.OfType<VerifiedCallerIdentity>().Any() == true;
 
         public IWebSocket WebSocket { get; } = webSocket;
 

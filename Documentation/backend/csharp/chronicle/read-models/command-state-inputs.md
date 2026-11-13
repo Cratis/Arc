@@ -60,7 +60,7 @@ The specification checks the event values as well as the read count. Related spe
 
 ## Protection is explicit
 
-Choosing a key does not enable concurrency protection. `ReadProtectionMode.Off`, the default, returns a snapshot and guards no later append. `Measure` observes that path without enforcing protection. With `On`, Arc enrolls admitted model reads at the boundary that produced their folded state. A conflicting append rejects the command instead of appending its events.
+Choosing a key does not enable concurrency protection. `ReadProtectionMode.Off` returns a snapshot and guards no later append. `Measure` observes that path without enforcing protection. With `On`, the default from Arc 23, Arc enrolls admitted model reads at the boundary that produced their folded state. A conflicting append rejects the command instead of appending its events.
 
 Do not replace a protected `DecisionRead<T>` with a plain model and assume identical protection: enable the appropriate read-protection policy and preserve its scope. ARCCHR0011 and ARCCHR0012 still apply. Combining whole-source and per-stream reads can widen the guard; see ARCCHR0038.
 

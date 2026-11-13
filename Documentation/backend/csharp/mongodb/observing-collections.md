@@ -13,6 +13,8 @@ Observations of the same database on the same deployment, using the same credent
 - Use a MongoDB replica set or sharded cluster supporting change streams, with read/change-stream permissions. A standalone server cannot supply the watch.
 - Map a document ID to a public CLR property; observation uses it to maintain membership.
 
+MongoDB observable queries require change streams: use a MongoDB replica set or a compatible service that supports change streams. Standalone MongoDB servers and services without `$changeStream` support cannot serve observable queries. Arc detects this when the database's shared watch first opens and reports `MongoDBChangeStreamsNotSupported` rather than retrying indefinitely; the failure is cached per database for the watcher lifetime.
+
 ## Choose an observation
 
 Use `Observe()` for a list, `ObserveSingle()` for one matching document, or `ObserveById()` when you know its ID. These method fragments assume a scoped service with an injected `IMongoCollection<Author>` named `collection`. Import `MongoDB.Driver`.

@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.Queries;
@@ -29,7 +30,7 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     CancellationToken requestAborted) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext
 {
     readonly IHttpRequestContext _transportContext = transportContext;
-    ClaimsPrincipal _user = ClonePrincipal(requestContext.User);
+    ClaimsPrincipal _user = ClonePrincipal(VerifiedCallerPrincipal.PrincipalFor(requestContext));
     IServiceProvider _requestServices = requestServices;
     TenantId? _emissionTenant;
     Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? _nativeRequest;
@@ -135,6 +136,34 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
         BeginSelectedPrincipal(principal, services);
 
     /// <summary>
+    /// Captures the selected authorization principal, falling back to the admitted request principal.
+    /// </summary>
+    /// <param name="context">The subscribing request.</param>
+    /// <param name="selectedPrincipal">The principal selected by authorization, if any.</param>
+    /// <returns>The principal used for emission authorization.</returns>
+    internal static ClaimsPrincipal CaptureEmissionPrincipal(IHttpRequestContext context, ClaimsPrincipal? selectedPrincipal) =>
+        selectedPrincipal is null
+            ? CaptureEmissionPrincipal(context)
+            : CarriesVerifiedIdentity(selectedPrincipal) ? ClonePrincipal(selectedPrincipal) : selectedPrincipal;
+
+    /// <summary>
+    /// Captures the admitted principal for a direct stream without changing legacy principal handling.
+    /// </summary>
+    /// <param name="context">The subscribing request.</param>
+    /// <returns>An isolated verified principal, or the legacy request principal.</returns>
+    internal static ClaimsPrincipal CaptureEmissionPrincipal(IHttpRequestContext context)
+    {
+        if (context is ObservableQuerySubscriptionHttpRequestContext subscription)
+        {
+            return subscription.GetPrincipal();
+        }
+
+        var principal = VerifiedCallerPrincipal.PrincipalFor(context);
+        var admitted = VerifiedCallerPrincipal.From(context) is not null || CarriesVerifiedIdentity(principal);
+        return admitted ? ClonePrincipal(principal) : principal;
+    }
+
+    /// <summary>
     /// Gets the frozen principal snapshot used by the explicit emission context.
     /// </summary>
     /// <returns>An isolated clone of the principal snapshot.</returns>
@@ -184,6 +213,8 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
 
     static ReadOnlyDictionary<string, string> Snapshot(IReadOnlyDictionary<string, string>? values) =>
         new(new Dictionary<string, string>(values ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase));
+
+    static bool CarriesVerifiedIdentity(ClaimsPrincipal? principal) => principal?.Identities.OfType<VerifiedCallerIdentity>().Any() == true;
 
     static ClaimsPrincipal ClonePrincipal(ClaimsPrincipal? principal) =>
         principal is null

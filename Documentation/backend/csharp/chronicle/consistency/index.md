@@ -35,7 +35,7 @@ Read protection has two layers, and the names are close. **Read protection in Ch
 
 | Mode | Plain `T` parameter | Other reads (`IReadModels`, raw event log) | Immediate appends | Use it when |
 | --- | --- | --- | --- | --- |
-| `Off` | Plain read | Allowed | Allowed | The default. Nothing changes |
+| `Off` | Plain read | Allowed | Allowed | Explicitly retain the Arc 22 behavior |
 | `Measure` | Plain read. Arc records what `On` would do | Allowed | Allowed | You adopt it on an existing application |
 | `On` | Read fresh and guarded | Refused unless `[Unprotected]` | Refused | New code, and migrated code |
 
