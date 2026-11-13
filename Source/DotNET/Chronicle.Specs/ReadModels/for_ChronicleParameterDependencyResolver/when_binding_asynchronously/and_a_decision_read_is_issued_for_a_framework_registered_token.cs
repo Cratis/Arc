@@ -29,6 +29,7 @@ public class and_a_decision_read_is_issued_for_a_framework_registered_token : gi
 
     async Task Because()
     {
+        var completionObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var run = _scheduler.Run(async () =>
         {
             using var policy = for_CommandDecisionReads.DecisionPolicyForSpecs.Begin(typeof(Transfer));
@@ -39,6 +40,7 @@ public class and_a_decision_read_is_issued_for_a_framework_registered_token : gi
             {
                 _pending = _resolver.Resolve(_services, _parameter);
                 _completedBeforeRelease = _pending.IsCompleted;
+                completionObserved.TrySetResult();
                 return (await _pending).Dependency;
             }
             finally
@@ -48,7 +50,12 @@ public class and_a_decision_read_is_issued_for_a_framework_registered_token : gi
         });
         _failure = await Catch.Exception(async () =>
         {
-            await ReleaseAfterEntry();
+            // The gate must stay closed until _completedBeforeRelease is captured: releasing it as soon as
+            // the read is entered (the shared ReleaseAfterEntry) races the asynchronous continuation that
+            // opens the gate against this check, which occasionally let the read complete before IsCompleted
+            // was read.
+            await completionObserved.Task.WaitAsync(_bound, TestContext.Current.CancellationToken);
+            _gate.SetResult();
             _token = await run.WaitAsync(_bound, TestContext.Current.CancellationToken);
         });
     }
