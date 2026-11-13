@@ -23,7 +23,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
  * Properties for the Arc context component.
  */
 export interface ArcProps {
-    children?: React.JSX.Element | React.JSX.Element[];
+    children?: React.ReactNode;
     microservice?: string;
     development?: boolean;
     origin?: string;
