@@ -51,6 +51,7 @@ public class ClientObservableSSE<T>(
         using var cts = new CancellationTokenSource();
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted, cts.Token);
         var drain = new DirectObservableEmissionDrain(cts);
+        var emissionPrincipal = ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(context, queryContext.AuthorizedPrincipal);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
             .CaptureLiveRequest(context.RequestServices);
@@ -101,7 +102,7 @@ public class ClientObservableSSE<T>(
 
                 using var emissionIdentity = context is ObservableQuerySubscriptionHttpRequestContext selectedSubscription
                     ? selectedSubscription.BeginEmission()
-                    : ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
+                    : ObservableEmissionIdentity.Begin(context, context.RequestServices, emissionPrincipal, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
                 if (data is null)
                 {
                     // A single-document observable emits default/null to report "no such document" (removed,
@@ -175,7 +176,7 @@ public class ClientObservableSSE<T>(
             var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
                 queryContext.Name,
                 queryContext.Arguments ?? QueryArguments.Empty,
-                context.User,
+                emissionPrincipal,
                 queryContext.CorrelationId,
                 context.RequestServices,
                 !hasDeliveredEmission,

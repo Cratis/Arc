@@ -54,6 +54,7 @@ public class ClientObservable<T>(
         var isTerminated = false;
         using var cts = new CancellationTokenSource();
         var drain = new DirectObservableEmissionDrain(cts);
+        var emissionPrincipal = ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(context, queryContext.AuthorizedPrincipal);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
             .CaptureLiveRequest(context.RequestServices);
@@ -195,7 +196,7 @@ public class ClientObservable<T>(
 
         IDisposable BeginEmissionIdentity() => context is ObservableQuerySubscriptionHttpRequestContext selectedSubscription
             ? selectedSubscription.BeginEmission()
-            : ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
+            : ObservableEmissionIdentity.Begin(context, context.RequestServices, emissionPrincipal, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
 
         void ReportFailure(Exception emissionError)
         {
@@ -231,7 +232,7 @@ public class ClientObservable<T>(
             var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
                 queryContext.Name,
                 queryContext.Arguments ?? QueryArguments.Empty,
-                context.User,
+                emissionPrincipal,
                 queryContext.CorrelationId,
                 context.RequestServices,
                 !hasDeliveredEmission,
