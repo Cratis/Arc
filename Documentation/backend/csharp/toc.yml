@@ -20,6 +20,8 @@
   href: authorizing-commands-and-queries.md
 - name: Availability
   href: availability.md
+- name: Request-scoped context values
+  href: context-values.md
 - name: Endpoint groups
   href: endpoint-groups.md
 - name: Capability hosting

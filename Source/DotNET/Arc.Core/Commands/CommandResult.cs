@@ -4,6 +4,7 @@
 using System.Text.Json.Serialization;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Availability;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -163,7 +164,7 @@ public class CommandResult
     public static CommandResult Error(CorrelationId correlationId, Exception exception) =>
         UnauthorizedCause.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception)
             ? Unauthorized(correlationId)
-            : exception is AvailabilityNotDecidedException
+            : exception is AvailabilityNotDecidedException or ContextValueUnavailableException
                 ? Retryable(correlationId, exception.Message)
                 : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 

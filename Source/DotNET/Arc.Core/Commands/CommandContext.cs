@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
@@ -67,6 +69,16 @@ public record CommandContext(
     public DateTimeOffset ReceivedAt { get; init; }
 
     /// <summary>
+    /// Gets the values the model adds to <c>$context</c> with <c>provide</c>, resolved lazily, once, for the request.
+    /// </summary>
+    /// <remarks>
+    /// This is what <c>context.Values</c> is on the other contexts. <see cref="Values"/> already carries the values of the command
+    /// pipeline, so the provided values are named differently here to keep that contract unchanged. Cast to <see langword="dynamic"/> to read
+    /// them by name, such as <c>context.ProvidedValues.Vessel</c>, or use <see cref="ValuesAs{T}"/>.
+    /// </remarks>
+    public ContextValues ProvidedValues => ContextValues.For(ServiceProvider, () => Type, CancellationToken);
+
+    /// <summary>
     /// Gets the <see cref="Slices.SliceLocation"/> of the command, resolved from the same namespace mapping as its generated proxy.
     /// </summary>
     /// <remarks>
@@ -122,4 +134,12 @@ public record CommandContext(
     /// Gets whether this command is a controller action, so commands it runs through the command pipeline own their own transaction.
     /// </summary>
     internal bool IsControllerAction { get; init; }
+
+    /// <summary>
+    /// Gets the provided values as a statically typed payload without dynamic dispatch.
+    /// </summary>
+    /// <typeparam name="T">A type whose public properties, or constructor parameters, are named after the provided values.</typeparam>
+    /// <returns>The provided values as <typeparamref name="T"/>.</returns>
+    /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
+    public T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>() => ProvidedValues.ValuesAs<T>();
 }
