@@ -121,7 +121,7 @@ Under `On`, validators with read-model parameters run as in production, includin
 
 The selected in-process log is shared by seeded events, protected reads and command commits. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in this setup, not seeded events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see all stored events.
 
-Use `Given.ForEventSource(...).Events(...)` to seed the shared history. `scenario.EventScenario` throws in decision mode because there is no separate event scenario over that store. Selection happens during construction, before any seeds exist. Ordinary scenarios retain their separate `EventScenario` and cumulative append capture.
+Use `Given.ForEventSource(...).Events(...)` to seed the shared history. `scenario.EventScenario` throws in decision mode because there is no separate event scenario over that store. Selection happens during construction, before any seeds exist. For an untyped `CommandScenario<object>` that will execute protected commands, call `EnableDecisionReads()` before seeding or the first `Execute` or `Validate`; the shared log then supports every command executed by that scenario. Ordinary scenarios retain their separate `EventScenario` and cumulative append capture.
 
 Do not invent sequence numbers or decision tokens in the spec. Chronicle obtains those tokens from the real read to check the decision at commit.
 
