@@ -3,11 +3,10 @@
   "measurement": {
     "workflow": "dotnet-build.yml",
     "runs": [
-      40202452840,
-      40195544634
+      43358933523
     ],
     "statistic": "Spec-project seconds are the mean of the two runs' per-project durations inside the Test step, measured from the ::group:: to ::endgroup:: timestamps, rounded up to whole seconds with a minimum of 1.",
-    "collected": "2026-10-25",
+    "collected": "2026-11-13",
     "setupSeconds": {
       "proxyShard": 48,
       "specShard": 29
@@ -60,23 +59,28 @@
       "Cratis.Arc.ProxyGenerator.for_XmlDocumentation": 1
     },
     "specProjects": {
-      "Source/DotNET/Arc.Core.CodeAnalysis.Specs": 15,
-      "Source/DotNET/Arc.Core.Generators.Specs": 8,
-      "Source/DotNET/Arc.Core.Specs": 10,
+      "Samples/VerifiedCallerAcceptance.Specs": 5,
+      "Source/DotNET/Arc.Availability.Specs": 5,
+      "Source/DotNET/Arc.Core.CodeAnalysis.Specs": 19,
+      "Source/DotNET/Arc.Core.Generators.Specs": 9,
+      "Source/DotNET/Arc.Core.Specs": 16,
       "Source/DotNET/Arc.Core.TypeDiscovery.Specs": 1,
-      "Source/DotNET/Arc.Specs": 4,
-      "Source/DotNET/Chronicle.CodeAnalysis.Specs": 25,
-      "Source/DotNET/Chronicle.Specs": 25,
+      "Source/DotNET/Arc.Mcp.Specs": 7,
+      "Source/DotNET/Arc.Specs": 11,
+      "Source/DotNET/Chronicle.CodeAnalysis.Specs": 29,
+      "Source/DotNET/Chronicle.Specs": 21,
       "Source/DotNET/Connections.Azure.Specs": 1,
       "Source/DotNET/Cratis.Specs": 2,
       "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs": 16,
-      "Source/DotNET/EntityFrameworkCore.Specs": 5,
-      "Source/DotNET/EntityFrameworkCore.SqlServer.Specs": 56,
-      "Source/DotNET/MongoDB.Specs": 11,
-      "Source/DotNET/Neo4j.Specs": 2,
+      "Source/DotNET/EntityFrameworkCore.Specs": 8,
+      "Source/DotNET/EntityFrameworkCore.SqlServer.Specs": 53,
+      "Source/DotNET/MongoDB.Specs": 14,
+      "Source/DotNET/Neo4j.Specs": 1,
       "Source/DotNET/OpenApi.Specs": 2,
-      "Source/DotNET/Screenplay.Embedded.Specs": 19,
-      "Source/DotNET/Screenplay.Specs": 68,
+      "Source/DotNET/PersonalAccessTokens.Chronicle.Specs": 3,
+      "Source/DotNET/PersonalAccessTokens.Specs": 1,
+      "Source/DotNET/Screenplay.Embedded.Specs": 21,
+      "Source/DotNET/Screenplay.Specs": 95,
       "Source/DotNET/Swagger.Specs": 1,
       "Source/DotNET/Testing.Specs": 2
     }
@@ -140,39 +144,39 @@
     {
       "name": "specs-1",
       "projects": [
-        "Source/DotNET/Arc.Core.CodeAnalysis.Specs",
         "Source/DotNET/Arc.Core.TypeDiscovery.Specs",
         "Source/DotNET/Arc.Specs",
         "Source/DotNET/Cratis.Specs",
-        "Source/DotNET/Screenplay.Specs",
-        "Source/DotNET/Swagger.Specs"
+        "Source/DotNET/PersonalAccessTokens.Chronicle.Specs",
+        "Source/DotNET/Screenplay.Specs"
       ]
     },
     {
       "name": "specs-2",
       "projects": [
-        "Source/DotNET/Arc.Availability.Specs",
+        "Source/DotNET/Arc.Core.CodeAnalysis.Specs",
         "Source/DotNET/Arc.Core.Specs",
-        "Source/DotNET/Arc.Mcp.Specs",
         "Source/DotNET/Connections.Azure.Specs",
         "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs",
         "Source/DotNET/EntityFrameworkCore.Specs",
         "Source/DotNET/EntityFrameworkCore.SqlServer.Specs",
-        "Source/DotNET/OpenApi.Specs",
-        "Source/DotNET/PersonalAccessTokens.Specs",
-        "Source/DotNET/PersonalAccessTokens.Chronicle.Specs"
+        "Source/DotNET/PersonalAccessTokens.Specs"
       ]
     },
     {
       "name": "specs-3",
       "projects": [
         "Samples/VerifiedCallerAcceptance.Specs",
+        "Source/DotNET/Arc.Availability.Specs",
         "Source/DotNET/Arc.Core.Generators.Specs",
+        "Source/DotNET/Arc.Mcp.Specs",
         "Source/DotNET/Chronicle.CodeAnalysis.Specs",
         "Source/DotNET/Chronicle.Specs",
         "Source/DotNET/MongoDB.Specs",
         "Source/DotNET/Neo4j.Specs",
+        "Source/DotNET/OpenApi.Specs",
         "Source/DotNET/Screenplay.Embedded.Specs",
+        "Source/DotNET/Swagger.Specs",
         "Source/DotNET/Testing.Specs"
       ]
     }
