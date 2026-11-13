@@ -20,6 +20,16 @@ public class TenancyOptions
     public bool IngressValidatesTenant { get; set; }
 
     /// <summary>
+    /// Gets or sets whether header-based tenancy requires a host that preserves duplicate HTTP header values.
+    /// </summary>
+    /// <remarks>
+    /// Off by default. When enabled, the HttpListener host refuses to start with the built-in header or subdomain
+    /// resolver, whose fallback reads a header. Use ASP.NET Core when duplicate-header preservation is required.
+    /// This does not restrict tenant IDs resolved from other sources.
+    /// </remarks>
+    public bool RequireDuplicateHeaderPreservation { get; set; }
+
+    /// <summary>
     /// Gets or sets whether a <see cref="TenantMembershipDenied"/> thrown by any validator rejects the operation as
     /// unauthorized instead of becoming a validation error.
     /// </summary>
