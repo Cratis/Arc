@@ -38,6 +38,13 @@ internal static class VerifiedCallerPrincipal
         items.TryGetValue(ItemKey, out var value) ? value as ClaimsPrincipal : null;
 
     /// <summary>
+    /// Gets the principal admitted for an HTTP request.
+    /// </summary>
+    /// <param name="request">The request carrying the admitted principal.</param>
+    /// <returns>The verified principal, or the request user for legacy hosts.</returns>
+    internal static ClaimsPrincipal PrincipalFor(IHttpRequestContext request) => PrincipalFor(request.Items, request.User)!;
+
+    /// <summary>
     /// The single source of the principal Arc authorizes against: the gate's verified principal when the request has one,
     /// otherwise the supplied fallback. Hosts replace the request user after the gate runs, so the user alone is never trusted
     /// once a verified principal exists.
