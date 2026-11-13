@@ -646,4 +646,23 @@ public static class ScreenplayDiagnosticCodes
     /// not stated as protected. A refusal the generator itself caused is not this diagnostic but an error.
     /// </remarks>
     public const string UnprotectableCommandRead = "SP0079";
+
+    /// <summary>
+    /// An availability gate or provided value cannot be stated in the model.
+    /// </summary>
+    /// <remarks>
+    /// A warning. The gate or value is left out, so the generated model is weaker than the code at that part: an audience
+    /// or availability name that is not an identifier, a gate registered in code (<c>Gate</c>, <c>GateNamespace</c>) or
+    /// a context value whose provider, type or scope the model cannot state.
+    /// </remarks>
+    public const string AvailabilityNotRepresentable = "SP0080";
+
+    /// <summary>
+    /// A named availability is declared without its rules.
+    /// </summary>
+    /// <remarks>
+    /// A warning. An <c>[AvailableWith]</c> gate refers to an availability defined in the host's <c>AvailabilityCatalog</c>,
+    /// which is composed at run time, so the model declares the name and says where the rules are.
+    /// </remarks>
+    public const string AvailabilityDefinitionNotRecovered = "SP0081";
 }

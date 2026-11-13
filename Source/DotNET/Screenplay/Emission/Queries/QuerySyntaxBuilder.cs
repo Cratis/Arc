@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Availability;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Emission.Types;
@@ -28,6 +29,11 @@ public class QuerySyntaxBuilder(
     public bool AuthoringOnlyConstructs { get; init; }
 
     /// <summary>
+    /// Gets the builder of the <c>available</c> gates, when gates are stated.
+    /// </summary>
+    public AvailabilitySyntaxBuilder? Availability { get; init; }
+
+    /// <summary>
     /// Gets where withheld metadata is reported.
     /// </summary>
     public ScreenplayDiagnostics? Diagnostics { get; init; }
@@ -43,7 +49,7 @@ public class QuerySyntaxBuilder(
     /// <param name="query">The query to build for.</param>
     /// <returns>The <see cref="QuerySyntax"/>.</returns>
     public QuerySyntax Build(QueryModel query) =>
-        new(
+        WithGates(query, new(
             naming.ToDeclarationName(query.Name),
             types.Convert(query.ReturnType),
             query.By is null ? null : ToParameter(query.By),
@@ -52,7 +58,10 @@ public class QuerySyntaxBuilder(
             SourceLocation.Start,
             Description: naming.ToStringLiteral(query.Description),
             Performer: PerformerOf(query),
-            IsObservable: query.IsObservable);
+            IsObservable: query.IsObservable));
+
+    QuerySyntax WithGates(QueryModel query, QuerySyntax syntax) =>
+        Availability is null ? syntax : syntax with { Available = [.. syntax.Available, .. Availability.Build(query.Availability, query.Name)] };
 
     IEnumerable<QueryParameterSyntax> FiltersOf(QueryModel query)
     {

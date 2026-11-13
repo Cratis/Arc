@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Availability;
 using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Emission.Constraints;
@@ -35,6 +36,7 @@ namespace Cratis.Arc.Screenplay.Emission;
 public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
 {
     readonly AuthorizeSyntaxBuilder _authorize = new();
+    readonly AvailabilitySyntaxBuilder _availability = new(diagnostics);
     readonly ValidationSyntaxBuilder _validations = new(naming, diagnostics);
     readonly TypeReferenceConverter _types = new(naming);
     readonly NameAvailability _names = new(naming, diagnostics);
@@ -68,6 +70,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         model = EmittedModel = ExecutableGenerationFixtures.Apply(ReadModelReferences.Apply(model, declaredReadModels, diagnostics), concepts);
         var routedOccurrences = new List<SpecificationStateModel>();
         var modules = BuildModules(new(model, options, domain, declaredReadModels, OmittedReferenceSlices(originalModel, model), routedOccurrences)).ToList();
+        var provided = new ContextValueSyntaxBuilder(naming, _types, diagnostics).Place(model with { ContextValues = originalModel.ContextValues }, modules);
+        modules = [.. provided.Modules];
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         var application = new ApplicationSyntax(
@@ -81,6 +85,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         {
             CommandReadMode = Analysis.ProtectedReads.Mode(model),
             ReactionProductionMode = AtLeast(options, SemanticVersion.V22) && AtomicReactionBatches.Required(modules) ? ReactionProductionMode.Atomic : null,
+            Provides = provided.Application,
+            Audiences = [.. _availability.Audiences()],
+            Availabilities = [.. _availability.Availabilities()],
             Systems = options.AuthoringOnlyConstructs ? SystemsOf(model, _types, naming) : [],
             EventSources = admitted.EventRoutes ? new EventSourceSyntaxBuilder(naming).Build(model, routedOccurrences, AtLeast(options, SemanticVersion.V10)) : []
         };
@@ -262,7 +269,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             _types,
             CreateCommandBuilder(inlineEvents, context.Options),
             new EventSyntaxBuilder(naming, _types, _names),
-            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = context.Options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = context.Options.MaximumExecutableModelVersion },
+            new QuerySyntaxBuilder(naming, _types, _authorize) { Availability = _availability, AuthoringOnlyConstructs = context.Options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = context.Options.MaximumExecutableModelVersion },
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = context.Model, MetadataEnabled = AtLeast(context.Options, SemanticVersion.V10), RefusalsEnabled = AtLeast(context.Options, SemanticVersion.V19), AtomicBatchesEnabled = AtLeast(context.Options, SemanticVersion.V22) },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
@@ -288,6 +295,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ConcurrencySyntaxBuilder(naming, diagnostics) { ExecutableRoutes = AtLeast(options, SemanticVersion.V8) },
             _names)
         {
+            Availability = _availability,
             AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
         };
 

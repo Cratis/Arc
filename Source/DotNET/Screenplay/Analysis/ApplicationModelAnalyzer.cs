@@ -115,6 +115,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             whole.Types.Types)
         {
             Imports = imports,
+            ContextValues = ContextValueRegistrations.In(ordered, diagnostics),
             EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
         };
 
