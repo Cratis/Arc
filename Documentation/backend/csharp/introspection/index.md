@@ -21,7 +21,7 @@ Both Arc.Core and ASP.NET Core hosts map the command and query catalogs through 
 
 ## Production access
 
-By default, discovery allows anonymous access in Development so local tooling can read it without signing in. Everywhere else, it requires an authenticated caller. Development follows the host's `IHostEnvironment.IsDevelopment()`, including environment names selected through configuration, command-line arguments or host options. Only without a registered host environment does discovery fall back to `ASPNETCORE_ENVIRONMENT`.
+By default, discovery allows anonymous access in Development so local tooling can read it without signing in. Everywhere else, it requires an authenticated caller. Development follows the host's `IHostEnvironment.IsDevelopment()`, including environment names selected through configuration, command-line arguments or host options. Only without a registered host environment does discovery fall back to `DOTNET_ENVIRONMENT`, then `ASPNETCORE_ENVIRONMENT`.
 
 Outside Development, if the host cannot enforce authentication, Arc leaves discovery unmapped and logs a warning. For example, an ASP.NET Core host needs a default authentication scheme and authorization services. Explicitly requiring authentication or setting roles instead makes startup fail when enforcement is unavailable. `/.cratis/me` is separate from discovery and is unaffected by these settings.
 

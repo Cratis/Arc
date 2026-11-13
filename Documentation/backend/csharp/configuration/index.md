@@ -5,6 +5,8 @@ description: Configure Arc through ArcOptions from appsettings, environment vari
 
 Arc reads all of its settings from a single `ArcOptions` object. Wherever Arc runs — an ASP.NET Core web app, an Arc.Core console or worker, or the full Cratis stack — you configure it the same way: bind `ArcOptions` from configuration, then optionally override it in code. This page covers the hosting models, the three configuration mechanisms, and commonly used `ArcOptions` settings.
 
+For a complete starting point, choose [minimal Arc without an event store](minimal-arc.md) or [minimal Arc with Chronicle](minimal-arc-chronicle.md). The [configuration keys reference](keys.md) lists defaults and configuration paths.
+
 ## The three hosting models
 
 | Host | Bootstrap | Activate | Use it for |
