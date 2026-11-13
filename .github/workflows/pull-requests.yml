@@ -1,16 +1,19 @@
 name: Pull Requests
 
+run-name: ${{ github.event.pull_request.title }} ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && '[meta]' || '[code]' }}
+
 # One caller for every pull-request check so a single always-running `gate` job can require them all.
 # A path-filtered workflow that never starts never reports; here each callee is skipped by `changes`
-# instead, and a skipped job counts as passed in `gate`. Label and edit events re-run everything on
-# purpose (the policy check needs them); heavy jobs must not be skipped on those events, because a
-# cancelled code run would let a later run pass `gate` without having built anything.
+# instead, and a skipped job counts as passed in `gate`. Label and edit events (`[meta]` runs) skip
+# the heavy jobs and run only `changes` and `policy`; their `gate` waits for the head commit's latest
+# `[code]` run and passes only if that run succeeded, so a cancelled code run still cannot let a
+# later run pass without having built anything.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && '-meta' || '' }}
   cancel-in-progress: true
 
 permissions:
@@ -137,14 +140,14 @@ jobs:
 
   aot-ratchet:
     needs: changes
-    if: ${{ needs.changes.outputs.aot == 'true' && github.event.pull_request.base.ref == 'main' }}
+    if: ${{ needs.changes.outputs.aot == 'true' && github.event.pull_request.base.ref == 'main' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/aot-ratchet.yml
     permissions:
       contents: read
 
   dotnet-build:
     needs: changes
-    if: ${{ needs.changes.outputs.dotnet == 'true' }}
+    if: ${{ needs.changes.outputs.dotnet == 'true' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/dotnet-build.yml
     permissions:
       actions: read
@@ -153,28 +156,28 @@ jobs:
 
   javascript-build:
     needs: changes
-    if: ${{ needs.changes.outputs.javascript == 'true' }}
+    if: ${{ needs.changes.outputs.javascript == 'true' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/javascript-build.yml
     permissions:
       contents: read
 
   markdown-verification:
     needs: changes
-    if: ${{ needs.changes.outputs.markdown == 'true' }}
+    if: ${{ needs.changes.outputs.markdown == 'true' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/markdown-verification.yml
     permissions:
       contents: read
 
   package-graph:
     needs: changes
-    if: ${{ needs.changes.outputs.package-graph == 'true' && github.event.pull_request.base.ref == 'main' }}
+    if: ${{ needs.changes.outputs.package-graph == 'true' && github.event.pull_request.base.ref == 'main' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/package-graph-verification.yml
     permissions:
       contents: read
 
   prerelease:
     needs: changes
-    if: ${{ needs.changes.outputs.prerelease == 'true' }}
+    if: ${{ needs.changes.outputs.prerelease == 'true' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/pr-prerelease.yml
     permissions:
       contents: read
@@ -183,7 +186,7 @@ jobs:
 
   workflow-lint:
     needs: changes
-    if: ${{ needs.changes.outputs.lint == 'true' }}
+    if: ${{ needs.changes.outputs.lint == 'true' && !contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
     uses: ./.github/workflows/workflow-lint.yml
     permissions:
       contents: read
@@ -201,8 +204,9 @@ jobs:
     if: ${{ always() }}
     needs: [changes, aot-ratchet, dotnet-build, javascript-build, markdown-verification, package-graph, prerelease, policy, workflow-lint]
     runs-on: ${{ vars.RUNNER_GATE || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    permissions: {}
+    timeout-minutes: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && 95 || 5 }}
+    permissions:
+      actions: read
     steps:
       - name: Every needed job passed or was skipped
         env:
@@ -218,3 +222,9 @@ jobs:
             echo "::error title=gate::Failed, cancelled or unknown: $bad"
             exit 1
           fi
+      # Label and edit runs build nothing, so they pass only when the head commit's latest code run did.
+      - name: Head commit's code run passed
+        if: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
+        uses: Cratis/Workflows/.github/actions/pr-code-run-gate@main
+        with:
+          head-sha: ${{ github.event.pull_request.head.sha }}
