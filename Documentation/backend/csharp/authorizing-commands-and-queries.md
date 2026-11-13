@@ -57,6 +57,32 @@ Selecting a tenant ID is not permission to access that tenant's data. A multi-te
 
 Generated TypeScript proxies call the same protected endpoints as other clients. Access checks happen on the server, not in the proxy.
 
+## Security defaults today
+
+These defaults are open until you change them:
+
+| Area | Default | Effect |
+| --- | --- | --- |
+| Commands and queries without an authorization attribute | No pipeline authentication or role requirement | Any caller that can reach the endpoint can run them, unless the host's default authorization or a fallback evaluator says otherwise. |
+| Read protection | `Off` when `<CratisReadProtection>` is unset | Injected read models are plain reads and guard nothing. See [read protection](./chronicle/consistency/index.md). |
+| `Cratis:Arc:Query:AllowedWebSocketOrigins` | Not set | Observable query WebSocket routes accept any browser origin. |
+| `Cratis:Arc:TrustForwardedIdentityHeaders` | `false` | `AddCratis()` authenticates nobody. This one is closed. |
+| Discovery endpoints (`Cratis:Arc:Introspection`) | Enabled; anonymous in Development, authentication required elsewhere; `Roles` not set | Outside Development, any signed-in user can read the discovery catalogs. Set `Cratis:Arc:Introspection:Roles` to limit them to named roles, or turn discovery off. |
+
+## Production checklist
+
+Before you deploy, go through this list:
+
+1. Put `[Authorize]`, `[Roles(...)]` or a policy on every command and query that is not public, or add `[AllowAnonymous]` where you mean it. Do not rely on the absence of an attribute.
+2. Register a real authentication scheme, or set `Cratis:Arc:TrustForwardedIdentityHeaders` to `true` only behind an ingress that authenticates callers and strips identity headers. See [Microsoft Identity](./asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
+3. Set `Cratis:Arc:Query:AllowedWebSocketOrigins` to your front-end origins. See [Restricting WebSocket origins](./queries/observable-query-demultiplexer.md#restricting-websocket-origins).
+4. Choose a read-protection mode with `<CratisReadProtection>` per project. Use `Measure` first, then `On`. See [Adopting read protection](./chronicle/consistency/adopting.md).
+5. Leave `ExposeExceptionDetails` `false`. Check that the host runs with `ASPNETCORE_ENVIRONMENT` set to the value you expect; see [Environment detection](./configuration/keys.md#how-arc-detects-development).
+6. Turn off discovery you do not need: set `Cratis:Arc:Introspection:Enabled` and `IdentityDiscovery` to `false`. See [Introspection production access](./introspection/index.md#production-access).
+7. Set `Cratis:Arc:Tenancy:StrictValidatorMembership` to `true` if the application is multi-tenant.
+8. Keep MongoDB `LogCommandBodies` off and keep secrets in secret configuration.
+9. Check every key in [Configuration keys](./configuration/keys.md) that your application uses.
+
 ## See also
 
 - [Identity](./identity/) — authentication, identity details, and local-dev principals.

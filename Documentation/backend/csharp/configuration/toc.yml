@@ -1,2 +1,4 @@
 - name: Overview
   href: index.md
+- name: Configuration keys
+  href: keys.md

@@ -39,18 +39,22 @@ For `MyApp.Orders.Registration` with one skipped segment and command-name skippi
 
 This is a conventional namespace conflict fallback, not a global collision detector for custom paths or controller routes.
 
-## Match the server
+## Settings that must match the proxy generator
 
-Build properties do not change the running application's endpoint configuration. Align them with `ArcOptions.GeneratedApis`:
+Build properties do not change the running application's endpoint configuration. Each route setting exists twice: as an MSBuild property that the generator uses to write the client's URLs, and as an `ArcOptions.GeneratedApis` property that the host uses to map endpoints. **The two must match.** Arc does not compare them. If they differ, the generated client calls a URL the host did not map and gets a 404, with no build error, startup warning or log entry that points at the mismatch.
 
-| Generator setting                     | Runtime property                          | Runtime default |
-| ------------------------------------- | ----------------------------------------- | --------------- |
-| `CratisProxiesApiPrefix`              | `RoutePrefix`                             | `"api"`         |
-| `CratisProxiesSegmentsToSkip`         | `SegmentsToSkipForRoute`                  | `0`             |
-| `CratisProxiesSkipCommandNameInRoute` | `IncludeCommandNameInRoute` (**inverse**) | `true`          |
-| `CratisProxiesSkipQueryNameInRoute`   | `IncludeQueryNameInRoute` (**inverse**)   | `true`          |
+| MSBuild property (generator)          | `ArcOptions.GeneratedApis` property (host), config key `Cratis:Arc:GeneratedApis:...` | Build default | Host default |
+| ------------------------------------- | ------------------------------------------------------------------------------------- | ------------- | ------------ |
+| `CratisProxiesApiPrefix`              | `RoutePrefix`                                                                         | `api`         | `"api"`      |
+| `CratisProxiesSegmentsToSkip`         | `SegmentsToSkipForRoute`                                                              | empty (none)  | `0`          |
+| `CratisProxiesSkipCommandNameInRoute` | `IncludeCommandNameInRoute` (**inverse**)                                             | `false`       | `true`       |
+| `CratisProxiesSkipQueryNameInRoute`   | `IncludeQueryNameInRoute` (**inverse**)                                               | `false`       | `true`       |
 
-Inspect a generated client's `route` and compare it to the hosted endpoint after configuration changes. See [model-bound commands](../../commands/model-bound/index.md) and [model-bound queries](../../queries/model-bound/index.md).
+The skip properties and the include properties have opposite senses. Setting `CratisProxiesSkipCommandNameInRoute` to `true` matches `IncludeCommandNameInRoute = false`.
+
+When you change one side, change the other in the same commit. Then inspect a generated client's `route` and compare it to the hosted endpoint.
+
+See [model-bound commands](../../commands/model-bound/index.md) and [model-bound queries](../../queries/model-bound/index.md).
 
 ## CLI
 
