@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 concurrency:
-  group: verify-pull-request-policy-${{ github.event.pull_request.number || github.ref }}
+  # Per caller run: a label-only run must not cancel the policy check of the code run on the same pull request.
+  group: verify-pull-request-policy-${{ github.event.pull_request.number && format('{0}-{1}', github.event.pull_request.number, github.run_id) || github.ref }}
   cancel-in-progress: true
 
 permissions:
