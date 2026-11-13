@@ -42,7 +42,7 @@ public record VesselContext(Vessel Vessel, Project? Project);
 var vessel = context.ValuesAs<VesselContext>().Vessel;
 ```
 
-`Values` reads synchronously. Where you are already asynchronous, use `ProvidedValues.GetAsync("vessel")`, or `ReadAsync("vessel")` to tell an absent value from a present one.
+`Values` reads synchronously and uses dynamic dispatch, so it is not available in a Native AOT application; `ProvidedValues` and `ValuesAs<T>()` are. A type for `ValuesAs<T>()` declares a nullable member for any value that can be absent. Where you are already asynchronous, use `ProvidedValues.GetAsync("vessel")`, or `ReadAsync("vessel")` to tell an absent value from a present one.
 
 ## Absent, required and failing values
 
