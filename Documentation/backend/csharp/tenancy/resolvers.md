@@ -24,6 +24,26 @@ builder.AddCratisArc(options =>
 
 Default header name: `x-cratis-tenant-id`
 
+Header values are comma separated. Arc trims each part, ignores empty parts, and resolves a tenant only when all remaining values agree using ordinal, case-sensitive comparison. For example, `acme,acme` and ` acme, acme ` resolve to `acme`; `acme,evil`, `acme,ACME`, and entirely empty values resolve to no tenant. A literal comma in a header-supplied tenant ID is interpreted as a separator, not as part of that ID. Tenant IDs from other sources are unchanged.
+
+#### Duplicate header lines and hosting
+
+ASP.NET Core preserves repeated header values for Arc to check. The self-hosted **HttpListener host cannot guarantee rejection of conflicting repeated header lines**: on non-Windows platforms, managed HttpListener keeps only the last line before Arc sees the request. Windows HTTP.sys combines lines, but Arc conservatively treats the HttpListener host as unable to guarantee preservation. Comma-joined conflicts that reach Arc are rejected on either host; this does not mean all repeated lines are detected.
+
+By default, header tenancy on HttpListener still starts, with a warning about this limitation. To refuse that host instead, opt in before building the application:
+
+```csharp
+builder.AddCratisArc(options =>
+{
+    options.UseHeaderTenancy();
+    options.Tenancy.RequireDuplicateHeaderPreservation = true;
+});
+```
+
+The configuration key is `Cratis:Arc:Tenancy:RequireDuplicateHeaderPreservation`. It defaults to `false`. Setting it to `true` refuses HttpListener startup with the built-in header resolver or the subdomain resolver, because the latter can fall back to the header. ASP.NET Core hosting remains available, and resolvers that do not read tenant headers are unaffected. `IngressValidatesTenant` does not suppress this preservation warning or bypass strict startup validation.
+
+A trusted ingress must **strip ALL incoming occurrences of the configured tenant header and inject exactly one authoritative value**. Appending a value, or replacing only one occurrence, is not enough. Prevent direct backend access so clients cannot bypass that ingress. Tenant selection still does not prove caller membership; enforce membership separately as described above.
+
 ### Query Parameter Resolver
 
 Resolves the tenant ID from a query string parameter.
@@ -83,6 +103,8 @@ Hosts are normalized before matching, so a trailing dot, a port, mixed casing an
 Use the base domain to decide what your application's own host is. If the application is served from `www.myapp.com`, configure that as the base domain and `www.myapp.com` falls back to the header while `acme.www.myapp.com` resolves `acme`. With `myapp.com` as the base domain, `www` is an ordinary tenant label like any other — no host name is treated as special.
 
 Default fallback header: `x-cratis-tenant-id`
+
+The fallback uses the same comma-separated consensus rule and has the same [duplicate-header hosting limitation](#duplicate-header-lines-and-hosting) as the header resolver, including its startup warning and opt-in strict check.
 
 #### The base domain is required
 
