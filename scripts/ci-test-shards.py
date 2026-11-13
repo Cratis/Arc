@@ -45,6 +45,8 @@ PROXY_SPECS = Path("Source/DotNET/Tools/ProxyGenerator.Specs")
 PROXY_SPECS_PROJECT_FILE = "ProxyGenerator.Specs.csproj"
 SPEC_ROOT = Path("Source/DotNET")
 VERIFIED_CALLER_SAMPLE = Path("Samples/VerifiedCallerAcceptance.Specs/VerifiedCallerAcceptance.Specs.csproj")
+OAUTH_PAT_CALLER_SAMPLE = Path("Samples/OAuthPatCallerAcceptance.Specs/OAuthPatCallerAcceptance.Specs.csproj")
+ACCEPTANCE_SAMPLES = (VERIFIED_CALLER_SAMPLE, OAUTH_PAT_CALLER_SAMPLE)
 SHARDS_FILE = Path(".github/test-shards.json")
 SKIPPED_DIRECTORIES = {"bin", "obj", "node_modules", ".git"}
 TRX_NAMESPACE = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
@@ -98,8 +100,9 @@ def discover_spec_projects(root: Path) -> list[str]:
     for path in walk_files(folder):
         if path.name.endswith(".Specs.csproj") and path.name != PROXY_SPECS_PROJECT_FILE:
             projects.add(path.parent.relative_to(root).as_posix())
-    if (root / VERIFIED_CALLER_SAMPLE).is_file():
-        projects.add(VERIFIED_CALLER_SAMPLE.parent.as_posix())
+    for sample in ACCEPTANCE_SAMPLES:
+        if (root / sample).is_file():
+            projects.add(sample.parent.as_posix())
     return sorted(projects)
 
 
@@ -280,7 +283,7 @@ class SpecificationRunner:
         if len(assemblies) != 1 or not assemblies[0].text:
             raise ValueError(f"expected one AssemblyName in {project_file}")
         # A project that declares its own frameworks (OpenApi.Specs is net10.0 only) runs on those, not on the leg's framework.
-        # The Samples (VerifiedCallerAcceptance.Specs) are net11.0 only by policy and declare a single TargetFramework.
+        # The acceptance Samples (ACCEPTANCE_SAMPLES) are net11.0 only by policy and declare a single TargetFramework.
         root_element = ET.parse(project_file).getroot()
         declared = [framework.text.split(";") for tag in ("TargetFrameworks", "TargetFramework") for framework in root_element.findall(f"./PropertyGroup/{tag}") if framework.text]
         frameworks = declared[0] if declared else [self.framework]
@@ -650,6 +653,10 @@ def self_test() -> int:
         assigned_sample = mutated(lambda document: document["specShards"][0]["projects"].append(VERIFIED_CALLER_SAMPLE.parent.as_posix()))
         expect_status("assigned acceptance sample passes", run_check(assigned_sample), 0)
         (root / VERIFIED_CALLER_SAMPLE).unlink()
+        write(root / OAUTH_PAT_CALLER_SAMPLE, "<Project />")
+        expect("second acceptance sample is discovered outside Source/DotNET", OAUTH_PAT_CALLER_SAMPLE.parent.as_posix() in discover_spec_projects(root), True)
+        expect_status("second acceptance sample fails until assigned", run_check(valid), 1)
+        (root / OAUTH_PAT_CALLER_SAMPLE).unlink()
         write(proxy / "for_New" / "when_n.cs", "namespace Cratis.P.for_New;\n")
         expect_status("new namespace fails until assigned", run_check(valid), 1)
         shutil.rmtree(proxy / "for_New")

@@ -102,5 +102,5 @@ internal sealed class PatContractFixture : IPatIssuanceContext
     /// <summary>Creates the framework issuance module.</summary>
     /// <param name="authority">An optional observing authority.</param>
     /// <returns>The module bound to synthetic checked facts.</returns>
-    internal PersonalAccessTokens Module(IPatAuthority? authority = null) => new(Settings, authority ?? Adapter.Authority, Adapter.RecoveryEpoch, Adapter.Policy, this, TimeProvider.System);
+    internal PersonalAccessTokens Module(IPatAuthority? authority = null) => new(Settings, authority ?? Adapter.Authority, Adapter.RecoveryEpoch, Adapter.Policy, this, TimeProvider.System, []);
 }

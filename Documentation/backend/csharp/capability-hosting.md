@@ -5,6 +5,8 @@ description: Require verified callers on a dedicated Cratis Arc endpoint-group p
 
 Cratis Arc capability hosting requires a verified caller for every request on an assigned endpoint-group port by default. Place the commands and queries you want to expose in that group, then enable the caller gate.
 
+For direct OAuth person grants alongside PATs, use the opt-in [OAuth/PAT composition](asp-net-core/oauth-and-pat-callers.md). Its capability path admits only direct, unbound person PAT/OAuth credentials, including when the caller was resolved earlier; it does not admit browser sessions, machines, workloads, or delegated actors.
+
 ## What it does
 
 Requests without a verified caller receive `401` with `WWW-Authenticate: Bearer`. Malformed authorization, multiple credentials, and credentials in a URI receive `400`. A verified principal kind outside the configured allowlist receives `403`. These refusals use `application/problem+json`, not HTML, and do not run the handler. Requests on other ports do not resolve a capability caller.

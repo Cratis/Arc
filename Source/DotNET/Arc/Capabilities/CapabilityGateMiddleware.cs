@@ -55,6 +55,12 @@ internal sealed class CapabilityGateMiddleware(
             await Refuse(context, new CapabilityRefusal(refusal.HttpStatus(), refusal));
             return;
         }
+        if (!OAuthPatCapabilityAdmission.Allows(context, caller))
+        {
+            logger.CallerRefused(CallerRefusal.SourceRefused);
+            await Refuse(context, new CapabilityRefusal(CallerRefusal.SourceRefused.HttpStatus(), CallerRefusal.SourceRefused));
+            return;
+        }
         if (!CallerAdmission.Allows(caller, _allowed) || !workloadTenantAllowed)
         {
             await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
@@ -129,17 +135,20 @@ internal sealed class CapabilityGateMiddleware(
         else if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
         {
             var presentation = context.RequestServices.GetRequiredService<CredentialPresentationGate>().Inspect(new AspNetCoreHttpRequestContext(context));
-            if (presentation.Refusal is not null || !AdmitsPresentation(context.GetEndpoint(), presentation.Shape))
+            if (presentation.Refusal is not null || !AdmitsPresentation(context, presentation))
             {
                 return Task.FromResult(new CallerResolution(null, CallerRefusal.SourceRefused));
             }
+            OAuthPatCapabilityAdmission.Prepare(context, presentation);
         }
         return context.RequestServices.GetRequiredService<IVerifiedCallerAccessor>().GetCurrent();
     }
 
-    static bool AdmitsPresentation(Endpoint? endpoint, PresentedCredentialShape? shape) =>
-        shape == PresentedCredentialShape.PatBearer ||
-        (shape == PresentedCredentialShape.OAuthBearer && endpoint?.Metadata.GetMetadata<AcceptsOAuthCapability>() is not null);
+    static bool AdmitsPresentation(HttpContext context, CredentialPresentation presentation) =>
+        presentation.Shape == PresentedCredentialShape.PatBearer ||
+        (OAuthPatCapabilityAdmission.IsInstalled(context)
+            ? presentation.CarriesBearer
+            : presentation.Shape == PresentedCredentialShape.OAuthBearer && context.GetEndpoint()?.Metadata.GetMetadata<AcceptsOAuthCapability>() is not null);
 
     static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
     {

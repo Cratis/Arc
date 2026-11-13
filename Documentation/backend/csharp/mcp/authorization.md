@@ -26,10 +26,10 @@ The verified caller carries the person, the tenant, the scopes of the credential
 | Kind | How it arrives | Accepted by profile |
 |---|---|---|
 | Personal access token (PAT) | `Authorization: Bearer <token>`, verified against your `IPatAuthority`. | `PatOnly` (default), `Combined` |
-| OAuth grant | `Authorization: Bearer <token>` from your authorization server, verified by your installation. | `OAuthOnly`, `Combined` |
+| OAuth grant | A signed v2 envelope and its covered `Authorization: Bearer <token>`, independently verified by your installation. | `OAuthOnly`, `Combined` |
 | Browser session (signed forwarded identity v2) | A signed envelope forwarded by a trusted proxy. | None. MCP refuses it with 401. |
 
-A signed forwarded identity is how a signed-in person reaches the application through the proxy. Under the [PAT installation](../asp-net-core/personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers) that session is what lets the person issue a PAT; the agent then calls MCP with the PAT, not with the session. Selected capability endpoints, MCP among them, refuse forwarded envelopes. A PAT that was forwarded through the proxy is still verified against your PAT authority.
+A signed forwarded identity is how a signed-in person reaches the application through the proxy. Under the [PAT installation](../asp-net-core/personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers) that session is what lets the person issue a PAT; the agent then calls MCP with the PAT, not with the session. Selected capability endpoints, MCP among them, refuse browser-session envelopes. To admit covered OAuth grants alongside PATs, install the opt-in [OAuth/PAT caller composition](../asp-net-core/oauth-and-pat-callers.md); a profile alone does not install an OAuth verifier. Raw OAuth bearers remain refused. A PAT that was forwarded through the proxy is still verified against your PAT authority.
 
 Arc does not issue PATs through an endpoint of its own and does not issue OAuth tokens. See [Connect clients](connect-clients.md) for the profiles.
 

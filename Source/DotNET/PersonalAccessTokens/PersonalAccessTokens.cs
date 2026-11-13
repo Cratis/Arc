@@ -13,13 +13,15 @@ namespace Cratis.Arc.PersonalAccessTokens;
 /// <param name="policy">Current policy.</param>
 /// <param name="context">Verified request context.</param>
 /// <param name="clock">Time source.</param>
+/// <param name="oauthInstallations">Explicit OAuth/PAT compositions, which do not permit OAuth-to-PAT exchange.</param>
 internal sealed class PersonalAccessTokens(
     PatSettings settings,
     IPatAuthority authority,
     IPatRecoveryEpoch epochs,
     IPatPolicy policy,
     IPatIssuanceContext context,
-    TimeProvider clock) : IPersonalAccessTokens
+    TimeProvider clock,
+    IEnumerable<OAuthCapableCallerInstallation> oauthInstallations) : IPersonalAccessTokens
 {
     /// <inheritdoc/>
     public async Task<PatIssueResult> Issue(TimeSpan lifetime, IEnumerable<string> scopes, CancellationToken cancellationToken = default)
@@ -29,6 +31,7 @@ internal sealed class PersonalAccessTokens(
         {
             var now = clock.GetUtcNow();
             var caller = await context.GetCurrent(cancellationToken);
+            if (caller?.CredentialKind == CallerCredentialKind.OAuthGrant && oauthInstallations.Any()) return Refused("pat_issuance_refused");
             var requested = scopes.ToFrozenSet(StringComparer.Ordinal);
             if (!CanIssue(caller, lifetime, requested, now)) return Refused("pat_issuance_refused");
             var epoch = await epochs.Read(cancellationToken);

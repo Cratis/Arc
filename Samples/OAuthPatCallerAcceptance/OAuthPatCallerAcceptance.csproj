@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <PropertyGroup>
+        <TargetFramework Condition="'$(CratisSpecsTargetFramework)' == ''">net11.0</TargetFramework>
+        <TargetFramework Condition="'$(CratisSpecsTargetFramework)' != ''">$(CratisSpecsTargetFramework)</TargetFramework>
+        <TargetFrameworks></TargetFrameworks>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
+        <ProjectReference Include="../../Source/DotNET/Arc.Mcp/Arc.Mcp.csproj" />
+        <ProjectReference Include="../../Source/DotNET/PersonalAccessTokens/PersonalAccessTokens.csproj" />
+    </ItemGroup>
+</Project>

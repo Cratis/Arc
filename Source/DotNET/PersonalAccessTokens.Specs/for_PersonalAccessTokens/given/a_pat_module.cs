@@ -72,7 +72,7 @@ public class a_pat_module : Specification
             },
             new("resource-a", "test"),
             _tenant).Caller!;
-        _tokens = new(_settings, _authority, _epochs, _policy, _context, _clock);
+        _tokens = new(_settings, _authority, _epochs, _policy, _context, _clock, []);
     }
 
     public class PersonDirectory : ICallerPersonDirectory

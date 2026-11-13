@@ -9,7 +9,8 @@ internal interface IForwardedBearerVerifier
     /// <summary>Verifies through exactly the selected credential source.</summary>
     /// <param name="kind">The selected verifier.</param>
     /// <param name="authorizationValue">The exact authorization value; never log it.</param>
+    /// <param name="context">The already verified signed credential context.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Verified credential facts or refusal.</returns>
-    Task<ForwardedBearerVerification> Verify(ForwardedBearerVerifierKind kind, string authorizationValue, CancellationToken cancellationToken);
+    Task<ForwardedBearerVerification> Verify(ForwardedBearerVerifierKind kind, string authorizationValue, ForwardedIdentityV2Context context, CancellationToken cancellationToken);
 }

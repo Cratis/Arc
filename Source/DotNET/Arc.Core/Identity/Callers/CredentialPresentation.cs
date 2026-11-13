@@ -38,6 +38,9 @@ internal sealed class CredentialPresentation(
     /// <summary>Gets the presentation dispatch shape, not authenticated identity.</summary>
     internal PresentedCredentialShape? Shape { get; } = shape;
 
+    /// <summary>Gets whether an envelope carries exactly one bearer candidate for covered verification.</summary>
+    internal bool CarriesBearer => Shape == PresentedCredentialShape.Envelope && Authorization.Count == 1;
+
     /// <inheritdoc/>
     public override string ToString() => nameof(CredentialPresentation);
 }

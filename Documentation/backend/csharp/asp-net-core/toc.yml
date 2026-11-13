@@ -16,6 +16,8 @@
   href: workload-callers.md
 - name: Personal access token adapters
   href: personal-access-token-adapters.md
+- name: OAuth and PAT capability callers
+  href: oauth-and-pat-callers.md
 - name: Acting on behalf of a user
   href: acting-on-behalf-of.md
 - name: FromRequest Attribute

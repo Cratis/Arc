@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,10 +12,14 @@ namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 internal sealed class ForwardedBearerVerifierAdapter(IServiceProvider services) : IForwardedBearerVerifier
 {
     /// <inheritdoc/>
-    async Task<ForwardedBearerVerification> IForwardedBearerVerifier.Verify(ForwardedBearerVerifierKind kind, string authorizationValue, CancellationToken cancellationToken)
+    async Task<ForwardedBearerVerification> IForwardedBearerVerifier.Verify(ForwardedBearerVerifierKind kind, string authorizationValue, ForwardedIdentityV2Context context, CancellationToken cancellationToken)
     {
         try
         {
+            var items = services.GetService<IHttpRequestContextAccessor>()?.Current?.Items;
+            if (OAuthPatCapabilityPolicy.IsRequired(items) && !OAuthPatCapabilityPolicy.AllowsContext(context)) return ForwardedBearerVerification.Refused();
+            if (kind == ForwardedBearerVerifierKind.OAuth) return await OAuthBearerForwardedVerifier.Verify(services, authorizationValue, context, cancellationToken);
+
             // Resolve lazily in the request scope: the envelope source itself depends on this adapter.
             var shape = kind == ForwardedBearerVerifierKind.Pat ? PresentedCredentialShape.PatBearer : PresentedCredentialShape.OAuthBearer;
             var sources = services.GetServices<IVerifiedCredentialSource>().Where(source => source.Shape == shape).ToArray();

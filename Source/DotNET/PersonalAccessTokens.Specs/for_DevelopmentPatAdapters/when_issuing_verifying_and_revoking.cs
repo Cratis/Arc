@@ -25,7 +25,7 @@ public class when_issuing_verifying_and_revoking : a_development_pat_installatio
         var caller = new VerifiedCallerBuilder(new(new Dictionary<string, string> { [_facts.Record.Resource] = _facts.Record.Audience }))
             .Build(_before.Facts!, new(_facts.Record.Resource, _facts.Record.Environment), _facts.Record.Tenant).Caller!;
         var context = new for_PersonalAccessTokens.given.FakeIssuanceContext(() => caller);
-        var module = new PersonalAccessTokens(_facts.Settings, _authority, _epochs, _policy, context, _clock);
+        var module = new PersonalAccessTokens(_facts.Settings, _authority, _epochs, _policy, context, _clock, []);
         _revoked = await module.Revoke(token.CredentialId, cancellation);
         _after = await _facts.VerifyRaw(raw, cancellation);
         _again = await module.Revoke(token.CredentialId, cancellation);

@@ -19,22 +19,37 @@ internal static partial class ForwardedBearerBinding
     /// <returns>The independent bearer facts, or null when no bearer is present.</returns>
     internal static async Task<ForwardedBearerVerification?> Bind(ForwardedIdentityV2Request request, ForwardedIdentityV2Context context, IForwardedBearerVerifier verifier, CancellationToken cancellationToken)
     {
-        var authorization = request.Headers.Where(header => header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (authorization.Length == 0)
+        var authorization = ReadAuthorization(request, context);
+        if (authorization is null) return null;
+        var token = authorization[7..];
+        CheckHash(token, context.ForwardedTokenHash!);
+        var kind = SelectVerifier(token, context);
+        var result = await Dispatch(() => verifier.Verify(kind, authorization, context, cancellationToken));
+        if (!Matches(result, kind, context)) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
+        return result;
+    }
+
+    static string? ReadAuthorization(ForwardedIdentityV2Request request, ForwardedIdentityV2Context context)
+    {
+        var values = request.Headers.Where(header => header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (values.Length == 0)
         {
             if (context.ForwardedTokenHash is not null) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
             return null;
         }
-        if (authorization.Length != 1 || context.ForwardedTokenHash is null || !authorization[0].Value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
-        var token = authorization[0].Value[7..];
-        CheckHash(token, context.ForwardedTokenHash);
+        if (values.Length != 1 || context.ForwardedTokenHash is null || !values[0].Value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
+        return values[0].Value;
+    }
+
+    static ForwardedBearerVerifierKind SelectVerifier(string token, ForwardedIdentityV2Context context)
+    {
         var patNamespace = PatNamespace().IsMatch(token);
         if (patNamespace && context.CredentialKind != CallerCredentialKind.PersonalAccessToken) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
-        var kind = patNamespace ? ForwardedBearerVerifierKind.Pat : ForwardedBearerVerifierKind.OAuth;
-        var result = await Dispatch(verifier, kind, authorization[0].Value, cancellationToken);
-        if (result?.IsAccepted != true || result.Kind != kind || result.AccountKey != new CallerAccountKey(context.Issuer ?? string.Empty, context.Subject ?? string.Empty)) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
-        return result;
+        return patNamespace ? ForwardedBearerVerifierKind.Pat : ForwardedBearerVerifierKind.OAuth;
     }
+
+    static bool Matches(ForwardedBearerVerification? result, ForwardedBearerVerifierKind kind, ForwardedIdentityV2Context context) =>
+        result?.IsAccepted == true && result.Kind == kind && result.AccountKey == new CallerAccountKey(context.Issuer ?? string.Empty, context.Subject ?? string.Empty);
 
     static void CheckHash(string token, string hash)
     {
@@ -52,11 +67,11 @@ internal static partial class ForwardedBearerBinding
         if (!CryptographicOperations.FixedTimeEquals(expected, SHA256.HashData(Encoding.UTF8.GetBytes(token)))) throw ForwardedIdentityV2Rejected.For(ForwardedIdentityV2Rejection.Credential);
     }
 
-    static async Task<ForwardedBearerVerification> Dispatch(IForwardedBearerVerifier verifier, ForwardedBearerVerifierKind kind, string authorization, CancellationToken cancellationToken)
+    static async Task<ForwardedBearerVerification> Dispatch(Func<Task<ForwardedBearerVerification>> verify)
     {
         try
         {
-            return await verifier.Verify(kind, authorization, cancellationToken);
+            return await verify();
         }
         catch (Exception)
         {

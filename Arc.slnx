@@ -85,6 +85,8 @@
         <Project Path="Samples\ArcCore.Specs\ArcCore.Specs.csproj" />
         <Project Path="Samples\VerifiedCallerAcceptance\VerifiedCallerAcceptance.csproj" />
         <Project Path="Samples\VerifiedCallerAcceptance.Specs\VerifiedCallerAcceptance.Specs.csproj" />
+        <Project Path="Samples\OAuthPatCallerAcceptance\OAuthPatCallerAcceptance.csproj" />
+        <Project Path="Samples\OAuthPatCallerAcceptance.Specs\OAuthPatCallerAcceptance.Specs.csproj" />
         <Project Path="Samples\Core\Core.csproj" />
         <Project Path="Samples\Neo4j\Neo4j.csproj" />
         <Project Path="Samples\Chronicle\Chronicle.csproj" />

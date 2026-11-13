@@ -5,6 +5,8 @@ description: Configure signed v2 browser callers and read verified request facts
 
 Cratis Arc can install a signed v2 **browser-session** caller for a receiving capability resource. The verified person becomes the principal used by Arc authorization, `ICurrentPrincipalAccessor`, and Chronicle identity/causation when Chronicle is installed. Arc accepts signed v2 callers only through an admitted forwarding hop: the immediate TLS peer must present a client certificate from a trusted CA with an allowed peer identity. The signature and hop admission do not grant product access.
 
+For a capability resource that admits direct OAuth person grants alongside PATs, use the single-installation [OAuth/PAT composition](oauth-and-pat-callers.md). Browser issuance remains separate from capability admission; the opt-in does not change the general v2 wire contract.
+
 ## Install one receiving resource
 
 The runnable acceptance sample in the repository's `Samples/VerifiedCallerAcceptance` folder shows a complete host and product-owned authorization. This **configuration fragment** belongs in its `Program.Build`, where `builder`, `settings`, and the sample's `PersonDirectory` are available:

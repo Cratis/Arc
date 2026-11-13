@@ -10,7 +10,7 @@ internal sealed class VectorBearerVerifier(VerifiedBearerResult? result) : IForw
     internal int Calls { get; private set; }
     internal ForwardedBearerVerifierKind? LastKind { get; private set; }
 
-    public Task<ForwardedBearerVerification> Verify(ForwardedBearerVerifierKind kind, string authorizationValue, CancellationToken cancellationToken)
+    public Task<ForwardedBearerVerification> Verify(ForwardedBearerVerifierKind kind, string authorizationValue, ForwardedIdentityV2Context context, CancellationToken cancellationToken)
     {
         Calls++;
         LastKind = kind;

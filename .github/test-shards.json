@@ -59,6 +59,7 @@
       "Cratis.Arc.ProxyGenerator.for_XmlDocumentation": 1
     },
     "specProjects": {
+      "Samples/OAuthPatCallerAcceptance.Specs": 16,
       "Samples/VerifiedCallerAcceptance.Specs": 5,
       "Source/DotNET/Arc.Availability.Specs": 5,
       "Source/DotNET/Arc.Core.CodeAnalysis.Specs": 19,
@@ -144,6 +145,7 @@
     {
       "name": "specs-1",
       "projects": [
+        "Samples/OAuthPatCallerAcceptance.Specs",
         "Source/DotNET/Arc.Core.TypeDiscovery.Specs",
         "Source/DotNET/Arc.Specs",
         "Source/DotNET/Cratis.Specs",

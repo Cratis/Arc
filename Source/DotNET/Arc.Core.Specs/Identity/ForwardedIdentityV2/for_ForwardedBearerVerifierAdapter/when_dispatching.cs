@@ -21,7 +21,7 @@ public class when_dispatching : Specification
     async Task Because()
     {
         var vector = ForwardedIdentityV2Vectors.Named("pat-bearer-caller-from-local-pat-verifier");
-        var verified = await new VectorBearerVerifier(vector.Inputs.VerifiedBearer).Verify(ForwardedBearerVerifierKind.Pat, "Bearer fixture", CancellationToken.None);
+        var verified = await new VectorBearerVerifier(vector.Inputs.VerifiedBearer).Verify(ForwardedBearerVerifierKind.Pat, "Bearer fixture", null!, CancellationToken.None);
         _facts = verified.Facts!;
         IVerifiedCredentialSource pat = Substitute.For<VerifiedCredentialSourceForSpecs>();
         pat.Shape.Returns(PresentedCredentialShape.PatBearer);
@@ -50,7 +50,7 @@ public class when_dispatching : Specification
         services.AddScoped<IForwardedBearerVerifier, ForwardedBearerVerifierAdapter>();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         await using var scope = provider.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IForwardedBearerVerifier>().Verify(ForwardedBearerVerifierKind.Pat, "Bearer fixture", CancellationToken.None);
+        return await scope.ServiceProvider.GetRequiredService<IForwardedBearerVerifier>().Verify(ForwardedBearerVerifierKind.Pat, "Bearer fixture", null!, CancellationToken.None);
     }
 
     [Fact] void should_preserve_the_verified_bearer_facts() => ReferenceEquals(_accepted.Facts, _facts).ShouldBeTrue();

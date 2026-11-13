@@ -53,6 +53,8 @@ More than one custom registration for a port, including instance or factory regi
 
 The check uses `ValidateOnStart` and the generic host's `IStartupValidator`. Building or resolving a service provider without starting a host does not execute startup validation automatically. Such hosts must explicitly run startup validation before serving requests.
 
+To add independently verified direct OAuth grants to the same PAT capability installation, see [OAuth and PAT capability callers](oauth-and-pat-callers.md). This is opt-in; do not add a second verified-caller installation. The external sample demonstrates public PAT issuance plus gated MCP and REST operations.
+
 ## Compose browser issuance and PAT callers
 
 Use one `WithPersonalAccessTokens` call for both credential paths on the same resource. Configure signed v2 forwarding and explicitly call `AllowPersonalAccessTokenCallers()` in that call's delegate. Do not also call `WithVerifiedCallers`: a second installation is rejected.

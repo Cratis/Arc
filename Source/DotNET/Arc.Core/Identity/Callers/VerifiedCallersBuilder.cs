@@ -22,11 +22,13 @@ public sealed class VerifiedCallersBuilder
     SignedForwardedIdentityV2Builder? _forwarding;
     bool _allowPersonalAccessTokenCallers;
     WorkloadCallersBuilder? _workloads;
+    ServiceDescriptor? _oauthVerifier;
 
     bool ValidTarget => VerifiedCallerInstallation.IsValid(_resource, _audience, _environment);
     bool ValidBrowserInstallation => ValidTarget && _directory is not null && _forwarding is not null;
     bool ValidPatInstallation => ValidTarget && _directory is not null && _forwarding is null;
-    bool HasWorkloadConflict => _forwarding is not null || _allowPersonalAccessTokenCallers;
+    bool ValidOAuthInstallation => _workloads is null && _allowPersonalAccessTokenCallers && ValidBrowserInstallation;
+    bool HasWorkloadConflict => _forwarding is not null || _allowPersonalAccessTokenCallers || _oauthVerifier is not null;
 
     /// <summary>
     /// Binds the exact resource, audience and environment without normalization.
@@ -79,6 +81,17 @@ public sealed class VerifiedCallersBuilder
         return this;
     }
 
+    /// <summary>Allows independently verified OAuth bearers covered by signed v2 forwarding alongside PAT callers.</summary>
+    /// <typeparam name="TVerifier">The application's request-scoped token verifier.</typeparam>
+    /// <returns>This builder.</returns>
+    /// <remarks>Requires signed forwarding and <see cref="AllowPersonalAccessTokenCallers"/>. Raw OAuth, browser, delegated and sender-constrained callers are not admitted.</remarks>
+    public VerifiedCallersBuilder AllowOAuthBearerCallers<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TVerifier>()
+        where TVerifier : class, IOAuthBearerVerifier
+    {
+        _oauthVerifier = ServiceDescriptor.Scoped<IOAuthBearerVerifier, TVerifier>();
+        return this;
+    }
+
     /// <summary>Installs tenantless Kubernetes service-account callers on the capability lane.</summary>
     /// <param name="configure">The explicit Kubernetes trust and allowlist configuration.</param>
     /// <returns>This builder.</returns>
@@ -95,6 +108,38 @@ public sealed class VerifiedCallersBuilder
     /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete or already installed.</exception>
     internal void Install(IServiceCollection services)
     {
+        ValidateOAuthComposition(false);
+        InstallComposition(services);
+    }
+
+    /// <summary>Installs PAT callers, optionally composing signed browser issuance through the explicit opt-in.</summary>
+    /// <param name="services">The receiving service collection.</param>
+    /// <param name="legacyPrefixes">Explicitly retired credential namespaces.</param>
+    /// <returns>The exact receiving target.</returns>
+    /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete, duplicated or contains forwarding without the composition opt-in.</exception>
+    internal CallerCredentialTarget InstallPersonalAccessTokens(IServiceCollection services, IEnumerable<string> legacyPrefixes)
+    {
+        ValidateOAuthComposition(true);
+        if (_workloads is not null) throw new InvalidVerifiedCallerInstallation("Workload callers cannot be installed through the PAT installation.");
+        if (_allowPersonalAccessTokenCallers)
+        {
+            InstallComposition(services);
+        }
+        else
+        {
+            if (!ValidPatInstallation)
+            {
+                throw new InvalidVerifiedCallerInstallation("PAT callers require a resource, audience, environment and person directory, without signed forwarding configuration.");
+            }
+            RegisterInstallation(services);
+            services.AddSingleton(new PatCapableCallerInstallation());
+        }
+        services.AddSingleton(new ReservedCredentialPrefixes(legacyPrefixes));
+        return new(_resource!, _audience!, _environment!);
+    }
+
+    void InstallComposition(IServiceCollection services)
+    {
         if (_workloads is not null)
         {
             InstallWorkloads(services);
@@ -109,31 +154,20 @@ public sealed class VerifiedCallersBuilder
         _forwarding.InstallNonceStore(services);
         services.AddForwardedIdentityV2(settings);
         if (_allowPersonalAccessTokenCallers) services.AddSingleton(new PatCapableCallerInstallation());
+        if (_oauthVerifier is not null)
+        {
+            services.Add(_oauthVerifier);
+            services.AddSingleton(new OAuthCapableCallerInstallation());
+        }
     }
 
-    /// <summary>Installs PAT callers, optionally composing signed browser issuance through the explicit opt-in.</summary>
-    /// <param name="services">The receiving service collection.</param>
-    /// <param name="legacyPrefixes">Explicitly retired credential namespaces.</param>
-    /// <returns>The exact receiving target.</returns>
-    /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete, duplicated or contains forwarding without the composition opt-in.</exception>
-    internal CallerCredentialTarget InstallPersonalAccessTokens(IServiceCollection services, IEnumerable<string> legacyPrefixes)
+    void ValidateOAuthComposition(bool patModule)
     {
-        if (_workloads is not null) throw new InvalidVerifiedCallerInstallation("Workload callers cannot be installed through the PAT installation.");
-        if (_allowPersonalAccessTokenCallers)
+        if (_oauthVerifier is null) return;
+        if (!patModule || !ValidOAuthInstallation)
         {
-            Install(services);
+            throw new InvalidVerifiedCallerInstallation("OAuth bearer callers require signed forwarding and the PAT composition opt-in without workload callers.");
         }
-        else
-        {
-            if (!ValidPatInstallation)
-            {
-                throw new InvalidVerifiedCallerInstallation("PAT callers require a resource, audience, environment and person directory, without signed forwarding configuration.");
-            }
-            RegisterInstallation(services);
-            services.AddSingleton(new PatCapableCallerInstallation());
-        }
-        services.AddSingleton(new ReservedCredentialPrefixes(legacyPrefixes));
-        return new(_resource!, _audience!, _environment!);
     }
 
     void InstallWorkloads(IServiceCollection services)
