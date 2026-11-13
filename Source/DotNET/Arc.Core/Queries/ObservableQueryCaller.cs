@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 
 namespace Cratis.Arc.Queries;
 
@@ -10,7 +11,7 @@ namespace Cratis.Arc.Queries;
 /// Represents the identity that opened an observable query connection, captured so that later control requests
 /// naming that connection can be checked against it.
 /// </summary>
-/// <param name="IdentityId">The identity identifier claim of the caller, or an empty string when there is none.</param>
+/// <param name="IdentityId">The issuer- and tenant-qualified caller key, or an empty string when there is none.</param>
 /// <param name="IsAuthenticated">Whether the caller's identity is authenticated.</param>
 /// <remarks>
 /// <para>
@@ -25,11 +26,8 @@ namespace Cratis.Arc.Queries;
 /// as a failure mid-subscribe.
 /// </para>
 /// <para>
-/// Only the identity identifier and whether the caller was authenticated are compared. The display name is
-/// deliberately excluded because it is mutable and may legitimately change on a connection held open across a
-/// token refresh, and the tenant is excluded because a control request is authorized with its own tenant rather
-/// than the connection's. This is narrower than Arc for Kotlin and Java's <c>ArcObservableHandshake.sameCaller</c>,
-/// which compares the name and tenant as well.
+/// Ownership compares the identity identifier, subject, or name, qualified by authentication type, issuer,
+/// and tenant when present. An authenticated caller without any of these keys does not match another caller.
 /// </para>
 /// <para>
 /// A connection opened by an unauthenticated caller carries no identity to bind to, so ownership cannot be
@@ -45,11 +43,10 @@ internal sealed record ObservableQueryCaller(string IdentityId, bool IsAuthentic
     /// <returns>The <see cref="ObservableQueryCaller"/> describing the request's caller.</returns>
     public static ObservableQueryCaller CapturedFrom(IHttpRequestContext context)
     {
-        var user = context.User;
-
-        return new ObservableQueryCaller(
-            user?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty,
-            user?.Identity?.IsAuthenticated ?? false);
+        var principal = VerifiedCallerPrincipal.PrincipalFor(context.Items, context.User);
+        var identity = principal?.Identities.OfType<VerifiedCallerIdentity>().FirstOrDefault()
+            ?? principal?.Identity as ClaimsIdentity;
+        return new ObservableQueryCaller(QualifiedKey(identity), identity?.IsAuthenticated ?? false);
     }
 
     /// <summary>
@@ -58,6 +55,37 @@ internal sealed record ObservableQueryCaller(string IdentityId, bool IsAuthentic
     /// <param name="other">The <see cref="ObservableQueryCaller"/> to compare against.</param>
     /// <returns>True when both describe the same caller, false otherwise.</returns>
     public bool IsSameCallerAs(ObservableQueryCaller other) =>
+        (!IsAuthenticated || !string.IsNullOrEmpty(IdentityId)) &&
         IdentityId == other.IdentityId &&
         IsAuthenticated == other.IsAuthenticated;
+
+    static string QualifiedKey(ClaimsIdentity? identity)
+    {
+        if (identity is null)
+        {
+            return string.Empty;
+        }
+
+        var claim = IdentityClaimFor(identity);
+        var key = claim?.Value ?? identity.Name;
+        if (string.IsNullOrEmpty(key))
+        {
+            return string.Empty;
+        }
+
+        return $"{KeyPart(identity.AuthenticationType ?? string.Empty)}{KeyPart(key)}{KeyPart(IssuerFor(identity, claim))}{KeyPart(identity.FindFirst(VerifiedCallerIdentity.TenantClaim)?.Value ?? string.Empty)}";
+    }
+
+    static Claim? IdentityClaimFor(ClaimsIdentity identity) =>
+        NonEmptyClaimFor(identity, ClaimTypes.NameIdentifier)
+        ?? NonEmptyClaimFor(identity, VerifiedCallerIdentity.SubjectClaim)
+        ?? NonEmptyClaimFor(identity, identity.NameClaimType);
+
+    static Claim? NonEmptyClaimFor(ClaimsIdentity identity, string type) =>
+        identity.Claims.FirstOrDefault(_ => _.Type == type && !string.IsNullOrEmpty(_.Value));
+
+    static string IssuerFor(ClaimsIdentity identity, Claim? claim) =>
+        identity.FindFirst(VerifiedCallerIdentity.IssuerClaim)?.Value ?? claim?.Issuer ?? ClaimsIdentity.DefaultIssuer;
+
+    static string KeyPart(string value) => $"{value.Length}:{value}";
 }
