@@ -17,6 +17,7 @@ public class a_startup_validation : Specification
     protected bool _withCapabilities;
     protected bool _withGatedEndpoints;
     protected Exception? _error;
+    protected CapabilitiesOptions _capabilities;
     ServiceProvider _provider;
 
     void Establish()
@@ -44,8 +45,10 @@ public class a_startup_validation : Specification
         _services.AddSingleton(Substitute.For<ICommandPipeline>());
         _services.AddSingleton(Substitute.For<IQueryPipeline>());
         _services.AddLogging();
+        _services.AddSingleton(Substitute.For<Cratis.Execution.ICorrelationIdAccessor>());
         _provider = _services.BuildServiceProvider();
         var validation = ActivatorUtilities.CreateInstance<McpStartupValidation>(_provider);
+        _capabilities = _provider.GetRequiredService<IOptions<CapabilitiesOptions>>().Value;
         _error = Catch.Exception(() => validation.StartingAsync(CancellationToken.None).GetAwaiter().GetResult());
     }
 

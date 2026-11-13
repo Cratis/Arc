@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Linq.Expressions;
+
 namespace Cratis.Arc.Queries;
 
 /// <summary>
@@ -30,4 +32,12 @@ internal abstract class QueryableElementOperations
     /// <param name="count">The number of elements to return.</param>
     /// <returns>An <see cref="IQueryable"/> for continuation.</returns>
     public abstract IQueryable Take(IQueryable queryable, int count);
+
+    /// <summary>
+    /// Filters the rows with a predicate of the shape <c>Func&lt;TElement, bool&gt;</c>.
+    /// </summary>
+    /// <param name="queryable">The <see cref="IQueryable"/> to filter.</param>
+    /// <param name="predicate">The predicate expression.</param>
+    /// <returns>The filtered <see cref="IQueryable"/>.</returns>
+    public abstract IQueryable Where(IQueryable queryable, LambdaExpression predicate);
 }

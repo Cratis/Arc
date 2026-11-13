@@ -250,6 +250,8 @@ export class QueryInstanceCache {
             next.isPerforming,
             next.changeSet,
             next.isReady,
+            next.authorizationFailureReason,
+            next.isRetryable,
         );
     }
 
@@ -258,6 +260,8 @@ export class QueryInstanceCache {
             && result.isSuccess === previous.isSuccess
             && result.isReady === previous.isReady
             && result.isAuthorized === previous.isAuthorized
+            && result.authorizationFailureReason === previous.authorizationFailureReason
+            && result.isRetryable === previous.isRetryable
             && result.isValid === previous.isValid
             && result.hasExceptions === previous.hasExceptions
             && result.exceptionStackTrace === previous.exceptionStackTrace
@@ -378,15 +382,19 @@ export class QueryInstanceCache {
      */
     teardownAllSubscriptions(): void {
         for (const [, entry] of this._entries) {
-            if (entry.pendingCleanup !== undefined) {
-                clearTimeout(entry.pendingCleanup);
-                entry.pendingCleanup = undefined;
-            }
-
-            entry.subscribed = false;
-            entry.teardown?.();
-            entry.teardown = undefined;
+            this.teardownEntry(entry);
         }
+    }
+
+    private teardownEntry(entry: QueryCacheEntry<unknown>): void {
+        if (entry.pendingCleanup !== undefined) {
+            clearTimeout(entry.pendingCleanup);
+            entry.pendingCleanup = undefined;
+        }
+
+        entry.subscribed = false;
+        entry.teardown?.();
+        entry.teardown = undefined;
     }
 
     /**
@@ -395,17 +403,7 @@ export class QueryInstanceCache {
      * unmounts permanently so that all query connections are closed synchronously.
      */
     dispose(): void {
-        for (const [, entry] of this._entries) {
-            if (entry.pendingCleanup !== undefined) {
-                clearTimeout(entry.pendingCleanup);
-                entry.pendingCleanup = undefined;
-            }
-
-            entry.subscribed = false;
-            entry.teardown?.();
-            entry.teardown = undefined;
-        }
-
+        this.teardownAllSubscriptions();
         this._entries.clear();
     }
 

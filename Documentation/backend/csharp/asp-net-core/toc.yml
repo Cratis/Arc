@@ -12,6 +12,8 @@
   href: signed-forwarded-identity-v2.md
 - name: Verified callers
   href: verified-callers.md
+- name: Kubernetes workload callers
+  href: workload-callers.md
 - name: Personal access token adapters
   href: personal-access-token-adapters.md
 - name: Acting on behalf of a user

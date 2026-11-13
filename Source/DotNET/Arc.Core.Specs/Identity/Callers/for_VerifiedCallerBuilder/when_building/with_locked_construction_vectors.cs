@@ -7,7 +7,7 @@ using Cratis.Arc.Identity.Callers.given;
 namespace Cratis.Arc.Identity.Callers.for_VerifiedCallerBuilder.when_building;
 
 /// <summary>
-/// Projection of locked rows 15–17 and 19–21 at Arc's construction boundary only.
+/// Projection of locked rows 15–21 at Arc's construction boundary only.
 /// Proof outcomes are verifier inputs: these checks do not implement DPoP verification or replay detection.
 /// </summary>
 public class with_locked_construction_vectors : Specification
@@ -44,6 +44,7 @@ public class with_locked_construction_vectors : Specification
                 Actor = new(input.GetProperty("verifiedTokenActor").GetProperty("iss").GetString()!, input.GetProperty("verifiedTokenActor").GetProperty("sub").GetString()!),
                 Grant = verified_facts.Delegated().Grant! with { Actor = new(input.GetProperty("grantActor").GetProperty("iss").GetString()!, input.GetProperty("grantActor").GetProperty("sub").GetString()!) }
             },
+            18 => verified_facts.Delegated() with { Grant = null },
             19 => person with { Cnf = input.GetProperty("cnf").GetProperty("jkt").GetString() },
             20 or 21 => person with
             {
@@ -54,7 +55,7 @@ public class with_locked_construction_vectors : Specification
         };
     }
 
-    [Fact] void should_execute_every_selected_row() => _results.Keys.Order().ToArray().ShouldEqual([15, 16, 17, 19, 20, 21]);
+    [Fact] void should_execute_every_selected_row() => _results.Keys.Order().ToArray().ShouldEqual([15, 16, 17, 18, 19, 20, 21]);
     [Fact] void should_reject_the_unsupported_contract() => (_results[15].Actual.Caller is not null).ShouldEqual(_results[15].Expected.GetProperty("accepted").GetBoolean());
     [Fact] void should_classify_the_unsupported_contract() => _results[15].Actual.Refusal.ShouldEqual(CallerRefusal.UnsupportedProfile);
     [Fact] void should_keep_the_pat_label_declared() => _results[16].Actual.Caller!.Client!.Authentication.ToString().ToLowerInvariant().ShouldEqual(_results[16].Expected.GetProperty("client").GetProperty("authentication").GetString());
@@ -62,6 +63,8 @@ public class with_locked_construction_vectors : Specification
     [Fact] void should_not_turn_the_label_into_an_actor() => _results[16].Actual.Caller!.Actor.ShouldBeNull();
     [Fact] void should_refuse_the_grant_actor_mismatch() => (_results[17].Actual.Caller is not null).ShouldEqual(_results[17].Expected.GetProperty("callerConstructed").GetBoolean());
     [Fact] void should_classify_the_grant_mismatch() => _results[17].Actual.Refusal.ShouldEqual(CallerRefusal.GrantMismatch);
+    [Fact] void should_not_construct_from_a_request_supplied_grant() => (_results[18].Actual.Caller is not null).ShouldEqual(_results[18].Expected.GetProperty("callerConstructed").GetBoolean());
+    [Fact] void should_require_a_verified_grant() => _results[18].Actual.Refusal.ShouldEqual(CallerRefusal.GrantMissing);
 
     [Fact]
     void should_fail_closed_for_missing_mismatched_and_replayed_proof_facts()

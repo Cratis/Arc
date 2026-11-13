@@ -32,7 +32,7 @@ public class when_explicit_lookup_keys_have_different_clr_types
             propertyType == typeof(object) ? new WireKey() : Activator.CreateInstance(propertyType, _key)!;
         var commandType = typeof(LookupCommand<>).MakeGenericType(propertyType);
         var command = Activator.CreateInstance(commandType, value)!;
-        var context = new CommandContext(CorrelationId.New(), commandType, command, [], new());
+        var context = new CommandContext(CorrelationId.New(), commandType, command, [], new()).WithCompatibilityConfiguration();
         var parameter = typeof(Dependency<>).MakeGenericType(modelKeyType).GetMethod(nameof(Dependency<string>.Handle))!.GetParameters()[0];
 
         foreach (var mode in new[] { ReadProtectionMode.Off, ReadProtectionMode.Measure, ReadProtectionMode.On })
@@ -45,7 +45,7 @@ public class when_explicit_lookup_keys_have_different_clr_types
     public void should_format_a_numeric_property_for_a_string_model_key()
     {
         var command = new LookupCommand<int>(42);
-        var context = new CommandContext(CorrelationId.New(), command.GetType(), command, [], new());
+        var context = new CommandContext(CorrelationId.New(), command.GetType(), command, [], new()).WithCompatibilityConfiguration();
         var parameter = typeof(Dependency<string>).GetMethod(nameof(Dependency<string>.Handle))!.GetParameters()[0];
         CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.Off).Value.ShouldEqual("42");
     }
@@ -56,7 +56,7 @@ public class when_explicit_lookup_keys_have_different_clr_types
     public void should_still_refuse_an_unspecified_key(string? value)
     {
         var command = new LookupCommand<string?>(value);
-        var context = new CommandContext(CorrelationId.New(), command.GetType(), command, [], new());
+        var context = new CommandContext(CorrelationId.New(), command.GetType(), command, [], new()).WithCompatibilityConfiguration();
         var parameter = typeof(Dependency<string>).GetMethod(nameof(Dependency<string>.Handle))!.GetParameters()[0];
         var failure = Catch.Exception(() => CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On, ProtectedKeyTraversalForSpecs.Create(), out _));
         failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();

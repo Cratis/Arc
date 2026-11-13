@@ -48,8 +48,8 @@ SOURCE = os.path.join(ROOT, 'Source', 'DotNET')
 
 # A project is held to the ratchet by importing this file; it is what switches the analyzers on.
 PROPS_IMPORT = 'AotAnalysis.props'
-# The analyzers need a target framework compatible with net8.0; the props file leaves the others unanalyzed.
-MINIMUM_MAJOR_VERSION = 8
+# The analyzers need a target framework compatible with net10.0; the props file leaves the others unanalyzed.
+MINIMUM_MAJOR_VERSION = 10
 
 SUPPRESSION_IN_CODE = re.compile(
     r'UnconditionalSuppressMessage'
@@ -142,7 +142,7 @@ def covered_projects():
 
 
 def analyzed_frameworks(target_frameworks):
-    """The target frameworks of a semicolon separated list that the analyzers run for (net8.0 or newer)."""
+    """The target frameworks of a semicolon separated list that the analyzers run for (net10.0 or newer)."""
     frameworks = []
     for framework in target_frameworks.split(';'):
         match = re.match(r'^net(\d+)\.\d+', framework.strip())
@@ -367,11 +367,11 @@ def self_test():
         return value
     sarif = {'runs': [{'results': [result('IL2026', 1), result('IL2026', 2), result('CA1000', 3),
                                    result('IL3050', 4, suppressed=True)]}]}
-    counts, _ = collect([('Arc.Core', 'net10.0', sarif), ('Arc.Core', 'net8.0', sarif)])
+    counts, _ = collect([('Arc.Core', 'net10.0', sarif), ('Arc.Core', 'net11.0', sarif)])
     key = 'IL2026|Source/DotNET/Arc.Core/A B.cs|net10.0'
-    assert counts == {key: 2, 'IL2026|Source/DotNET/Arc.Core/A B.cs|net8.0': 2}, counts
+    assert counts == {key: 2, 'IL2026|Source/DotNET/Arc.Core/A B.cs|net11.0': 2}, counts
     assert SARIF_NAME.match('Arc.Core.net10.0.sarif')['project'] == 'Arc.Core'
-    assert SARIF_NAME.match('Arc.net8.0.sarif')['tfm'] == 'net8.0'
+    assert SARIF_NAME.match('Arc.net11.0.sarif')['tfm'] == 'net11.0'
 
     assert not compare('diagnostic', {key: 2}, {key: 2})
     assert [p[0] for p in compare('diagnostic', {key: 1}, {key: 2})] == ['added']
@@ -391,23 +391,23 @@ def self_test():
     assert SUPPRESSION_IN_CONFIGURATION.findall('<NoWarn>$(NoWarn);IL2026</NoWarn>')
     assert SUPPRESSION_IN_CONFIGURATION.findall('dotnet_diagnostic.IL3050.severity = none')
     assert not SUPPRESSION_IN_CONFIGURATION.findall('<NoWarn>CA1000</NoWarn>')
-    assert analyzed_frameworks('net8.0;net9.0;net10.0') == ['net8.0', 'net9.0', 'net10.0']
-    assert analyzed_frameworks('netstandard2.0;net7.0; net10.0 ;net9.0-windows') == ['net10.0', 'net9.0-windows']
+    assert analyzed_frameworks('net10.0;net11.0') == ['net10.0', 'net11.0']
+    assert analyzed_frameworks('netstandard2.0;net7.0; net10.0 ;net11.0-windows') == ['net10.0', 'net11.0-windows']
     assert analyzed_frameworks('netstandard2.0') == []
-    expected = expected_logs({'Source/DotNET/Arc.Core/Arc.Core.csproj': ['net8.0', 'net10.0'],
-                              'Source/DotNET/MongoDB/MongoDB.csproj': ['net8.0', 'net10.0']})
-    assert expected == {('Arc.Core', 'net8.0'), ('Arc.Core', 'net10.0'),
-                        ('MongoDB', 'net8.0'), ('MongoDB', 'net10.0')}, expected
+    expected = expected_logs({'Source/DotNET/Arc.Core/Arc.Core.csproj': ['net11.0', 'net10.0'],
+                              'Source/DotNET/MongoDB/MongoDB.csproj': ['net11.0', 'net10.0']})
+    assert expected == {('Arc.Core', 'net11.0'), ('Arc.Core', 'net10.0'),
+                        ('MongoDB', 'net11.0'), ('MongoDB', 'net10.0')}, expected
     with tempfile.TemporaryDirectory() as directory:
         def log(name):
             with open(os.path.join(directory, name), 'w', encoding='utf-8') as handle:
                 json.dump({'runs': [{'results': []}]}, handle)
-        for name in ('Arc.Core.net8.0.sarif', 'Arc.Core.net10.0.sarif', 'MongoDB.net8.0.sarif',
+        for name in ('Arc.Core.net11.0.sarif', 'Arc.Core.net10.0.sarif', 'MongoDB.net11.0.sarif',
                      'MongoDB.net10.0.sarif'):
             log(name)
         assert len(read_logs(directory, expected)) == 4
         # A missing log, an unexpected extra one and a log of the wrong project must each fail the run.
-        for wrong in (expected | {('Chronicle', 'net8.0')}, expected - {('MongoDB', 'net10.0')},
+        for wrong in (expected | {('Chronicle', 'net11.0')}, expected - {('MongoDB', 'net10.0')},
                       (expected - {('MongoDB', 'net10.0')}) | {('Chronicle', 'net10.0')}):
             try:
                 with contextlib.redirect_stderr(io.StringIO()):

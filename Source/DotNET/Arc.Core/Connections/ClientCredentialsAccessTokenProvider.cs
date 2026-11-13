@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#if !NET11_0_OR_GREATER // System.Net.Http.Json is implicitly imported on net11.0.
 using System.Net.Http.Json;
+#endif
 using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Connections;

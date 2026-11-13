@@ -35,6 +35,11 @@ public record ApplicationModel(
     public IEnumerable<string> Imports { get; init; } = [];
 
     /// <summary>
+    /// Gets the request-scoped values the code provides from read model queries.
+    /// </summary>
+    public IEnumerable<ContextValueModel> ContextValues { get; init; } = [];
+
+    /// <summary>
     /// Gets the application-wide producer census, retained when the model is scoped to one document.
     /// </summary>
     public IReadOnlyDictionary<string, int> EventProducerCounts { get; init; } = new Dictionary<string, int>();

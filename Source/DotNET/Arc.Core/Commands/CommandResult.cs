@@ -3,6 +3,8 @@
 
 using System.Text.Json.Serialization;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -61,6 +63,15 @@ public class CommandResult
     public string AuthorizationFailureReason { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the failure is temporary and the same request can succeed when retried.
+    /// </summary>
+    /// <remarks>
+    /// A retryable result is an error, never a denial: <see cref="IsAuthorized"/> stays true. It is reported over HTTP as
+    /// 503 Service Unavailable.
+    /// </remarks>
+    public bool IsRetryable { get; set; }
+
+    /// <summary>
     /// Gets the server-only recovery summary, when operation declarations participated. This is not an HTTP contract.
     /// </summary>
     [JsonIgnore]
@@ -104,6 +115,14 @@ public class CommandResult
     public static CommandResult Unauthorized(CorrelationId correlationId, string? reason = default) => new() { CorrelationId = correlationId, IsAuthorized = false, AuthorizationFailureReason = reason ?? string.Empty };
 
     /// <summary>
+    /// Creates a new <see cref="CommandResult"/> representing a temporary failure that can succeed when retried.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
+    /// <param name="message">The message describing the failure.</param>
+    /// <returns>A <see cref="CommandResult"/>.</returns>
+    public static CommandResult Retryable(CorrelationId correlationId, string message) => new() { CorrelationId = correlationId, IsRetryable = true, ExceptionMessages = [message] };
+
+    /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing a missing handler.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
@@ -145,7 +164,9 @@ public class CommandResult
     public static CommandResult Error(CorrelationId correlationId, Exception exception) =>
         UnauthorizedCause.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception)
             ? Unauthorized(correlationId)
-            : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
+            : exception is AvailabilityNotDecidedException or ContextValueUnavailableException
+                ? Retryable(correlationId, exception.Message)
+                : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 
     /// <summary>
     /// Creates a new <see cref="CommandResult"/> from an exception.
@@ -173,6 +194,7 @@ public class CommandResult
     {
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
         AuthorizationConfigurationFailed |= commandResults.Any(result => result.AuthorizationConfigurationFailed);
+        IsRetryable |= commandResults.Any(result => result.IsRetryable);
         if (string.IsNullOrEmpty(AuthorizationFailureReason))
         {
             AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;

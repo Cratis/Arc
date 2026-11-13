@@ -8,8 +8,9 @@ namespace Cratis.Arc.Chronicle.Commands.for_EventsWithConcurrencyScopesCommandRe
 
 public class with_the_legacy_constructor : given.an_events_with_concurrency_scopes_command_response_value_handler
 {
-    [Fact]
-    async Task should_preserve_manual_construction_without_registry_validation()
+    bool _succeeded;
+
+    async Task Because()
     {
 #pragma warning disable CS0618 // Verify the retained public constructor's compatibility behavior.
         var handler = new EventsWithConcurrencyScopesCommandResponseValueHandler(_eventLog);
@@ -20,7 +21,13 @@ public class with_the_legacy_constructor : given.an_events_with_concurrency_scop
         CommandTransaction.Current = _unitOfWork;
         var wrapper = new EventForEventSourceId("id", new object()) { EventSourceType = "Account", EventStreamType = "Typo" };
         var result = await handler.Handle(_commandContext, new EventsWithConcurrencyScopes([wrapper], []));
-        result.IsSuccess.ShouldBeTrue();
+        _succeeded = result.IsSuccess;
+    }
+
+    [Fact]
+    void should_preserve_manual_construction_without_registry_validation()
+    {
+        _succeeded.ShouldBeTrue();
         _unitOfWork.AddEventsCallCount.ShouldEqual(1);
     }
 

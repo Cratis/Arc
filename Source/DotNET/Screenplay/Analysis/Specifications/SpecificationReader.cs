@@ -97,37 +97,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         ReadSteps(type, draft, name, stated);
 
-        if (readModel is INamedTypeSymbol namedReadModel && draft.When is null)
-        {
-            if (SpecificationReadModelOutcomeValues.TryRead(
-                    type,
-                    steps,
-                    namedReadModel,
-                    models,
-                    draft,
-                    out var values,
-                    out var source,
-                    out var reason))
-            {
-                ReadStateOfTheReadModel(namedReadModel, values, source!, draft);
-            }
-            else
-            {
-                draft.CannotRead(reason!);
-            }
-        }
-        else if (draft.When is null)
-        {
-            draft.CannotRead(SpecificationMembers.HoldsAnEventScenario(steps)
-                ? "the event it appends is put together somewhere this cannot read"
-                : "the command it issues is put together somewhere this cannot read");
-        }
-        else if (draft.Then.Count == 0 && draft.Errors.Count == 0 && draft.Returns is null && !draft.Denied)
-        {
-            draft.CannotRead(draft.AssertsResponse
-                ? "it asserts only CommandResult.Response, and not as an unconditional equality with concrete values the document can state as then returns"
-                : "it expects no event and no rejection, and those are the outcomes the language holds");
-        }
+        CheckOutcome(type, steps, readModel, draft);
 
         if (draft.Unreadable is not null)
         {
@@ -223,6 +193,48 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         var state = new SpecificationStateModel(readModel.Name, SpecificationStateKind.ReadModel, values);
         draft.AddThen(state, readModel, source);
+    }
+
+    static void CheckStatedOutcome(SpecificationDraft draft)
+    {
+        if (draft.Then.Count != 0 || draft.Errors.Count != 0 || draft.Returns is not null || draft.Denied)
+        {
+            return;
+        }
+
+        draft.CannotRead(draft.AssertsResponse
+            ? "it asserts only CommandResult.Response, and not as an unconditional equality with concrete values the document can state as then returns"
+            : "it expects no event and no rejection, and those are the outcomes the language holds");
+    }
+
+    void CheckOutcome(INamedTypeSymbol type, INamedTypeSymbol steps, ITypeSymbol? readModel, SpecificationDraft draft)
+    {
+        if (draft.When is not null)
+        {
+            CheckStatedOutcome(draft);
+        }
+        else if (readModel is INamedTypeSymbol namedReadModel)
+        {
+            ReadReadModelOutcome(type, steps, namedReadModel, draft);
+        }
+        else
+        {
+            draft.CannotRead(SpecificationMembers.HoldsAnEventScenario(steps)
+                ? "the event it appends is put together somewhere this cannot read"
+                : "the command it issues is put together somewhere this cannot read");
+        }
+    }
+
+    void ReadReadModelOutcome(INamedTypeSymbol type, INamedTypeSymbol steps, INamedTypeSymbol readModel, SpecificationDraft draft)
+    {
+        if (SpecificationReadModelOutcomeValues.TryRead(type, steps, readModel, models, draft, out var values, out var source, out var reason))
+        {
+            ReadStateOfTheReadModel(readModel, values, source!, draft);
+        }
+        else
+        {
+            draft.CannotRead(reason!);
+        }
     }
 
     void ReadSteps(INamedTypeSymbol type, SpecificationDraft draft, string name, ScreenplayDiagnostics stated)

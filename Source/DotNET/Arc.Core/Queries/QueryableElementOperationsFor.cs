@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Linq.Expressions;
+
 namespace Cratis.Arc.Queries;
 
 /// <summary>
@@ -17,4 +19,7 @@ internal sealed class QueryableElementOperationsFor<TElement> : QueryableElement
 
     /// <inheritdoc/>
     public override IQueryable Take(IQueryable queryable, int count) => Queryable.Take((IQueryable<TElement>)queryable, count);
+
+    /// <inheritdoc/>
+    public override IQueryable Where(IQueryable queryable, LambdaExpression predicate) => Queryable.Where((IQueryable<TElement>)queryable, (Expression<Func<TElement, bool>>)predicate);
 }

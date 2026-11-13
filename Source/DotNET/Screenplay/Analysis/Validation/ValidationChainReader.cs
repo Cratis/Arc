@@ -96,7 +96,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
                 preceding = ReadDateRule(call, new(subject, property, forEach), site, rules);
                 continue;
             }
-            var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding, conditional, condition);
+            var added = ReadCall(call, new(property, forEach, semanticModel, location, rules, conditional), preceding, condition);
             if (added != 0)
             {
                 preceding = Math.Max(0, added);
@@ -113,10 +113,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             var name = InvocationChain.NameOf(call);
             if (_conditions.Contains(name))
             {
-                var argument = call.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon?.Name.Identifier.ValueText == "applyConditionTo") ??
-                    call.ArgumentList.Arguments.Skip(1).FirstOrDefault(argument => argument.NameColon is null);
-                var currentOnly = argument is not null && semanticModel.GetConstantValue(argument.Expression) is { HasValue: true, Value: 1 };
-                if (!currentOnly || !interveningValidator)
+                if (!AppliesToCurrentOnly(call, semanticModel) || !interveningValidator)
                 {
                     return $"'{name}{call.ArgumentList}'";
                 }
@@ -130,35 +127,37 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         return null;
     }
 
+    static bool AppliesToCurrentOnly(InvocationExpressionSyntax condition, SemanticModel semanticModel)
+    {
+        var argument = condition.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon?.Name.Identifier.ValueText == "applyConditionTo") ??
+            condition.ArgumentList.Arguments.Skip(1).FirstOrDefault(argument => argument.NameColon is null);
+        return argument is not null && semanticModel.GetConstantValue(argument.Expression) is { HasValue: true, Value: 1 };
+    }
+
+    static bool IsLengthRange(InvocationExpressionSyntax call, bool forEach) =>
+        !forEach && string.Equals(InvocationChain.NameOf(call), Length, StringComparison.Ordinal) && call.ArgumentList.Arguments.Count == 2;
+
+    static bool IsDeclarativeRule(InvocationExpressionSyntax call, ValidationChainSite site) =>
+        IsLengthRange(call, site.ForEach) || ValidationRuleKinds.TryResolve(InvocationChain.NameOf(call), site.ForEach, out _);
+
+    static bool IsMust(InvocationExpressionSyntax call, ValidationChainSite site) =>
+        !site.ForEach && InvocationChain.NameOf(call) == "Must";
+
     /// <summary>
     /// Reads one call of a rule chain.
     /// </summary>
     /// <param name="call">The call to read.</param>
-    /// <param name="property">The property the chain declares rules for.</param>
-    /// <param name="forEach">Whether the rules were declared for each element of a collection.</param>
-    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
-    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
-    /// <param name="rules">The rules collected so far.</param>
+    /// <param name="site">What the chain's calls are read against.</param>
     /// <param name="preceding">The number of rules the call before this one declared.</param>
-    /// <param name="conditional">Whether a named predicate in the chain executes conditionally.</param>
     /// <param name="condition">The condition holding this declarative rule, if any.</param>
     /// <returns>The number of rules the call added, or minus one for an omitted validator.</returns>
-    int ReadCall(
-        InvocationExpressionSyntax call,
-        string property,
-        bool forEach,
-        SemanticModel semanticModel,
-        string location,
-        IList<ValidationRuleModel> rules,
-        int preceding,
-        bool conditional,
-        string? condition)
+    int ReadCall(InvocationExpressionSyntax call, ValidationChainSite site, int preceding, string? condition)
     {
         var name = InvocationChain.NameOf(call);
 
         if (string.Equals(name, WithMessage, StringComparison.Ordinal))
         {
-            ApplyMessage(call, semanticModel, rules, preceding, location);
+            ApplyMessage(call, site, preceding);
 
             return 0;
         }
@@ -168,63 +167,86 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             return 0;
         }
 
-        if (condition is not null && ((!forEach && name == Length && call.ArgumentList.Arguments.Count == 2) ||
-            ValidationRuleKinds.TryResolve(name, forEach, out _)))
+        return ReadConditionalRule(call, site, condition)
+            ?? ReadLengthRange(call, site)
+            ?? ReadNamedPredicate(call, site)
+            ?? ReadDeclarativeRule(call, site);
+    }
+
+    int? ReadConditionalRule(InvocationExpressionSyntax call, ValidationChainSite site, string? condition)
+    {
+        if (condition is null || !IsDeclarativeRule(call, site))
+        {
+            return null;
+        }
+
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnmappableValidationRule,
+            $"The '{InvocationChain.NameOf(call)}' rule on '{site.Property}' executes conditionally under {condition}, so it was left out rather than stated unconditionally",
+            site.Location);
+
+        return -1;
+    }
+
+    int? ReadLengthRange(InvocationExpressionSyntax call, ValidationChainSite site)
+    {
+        if (!IsLengthRange(call, site.ForEach))
+        {
+            return null;
+        }
+
+        site.Rules.Add(new(site.Property, ValidationRuleKind.Min, _operands.Constant(call, 0, site.SemanticModel, site.Location), null));
+        site.Rules.Add(new(site.Property, ValidationRuleKind.Max, _operands.Constant(call, 1, site.SemanticModel, site.Location), null));
+
+        return 2;
+    }
+
+    int? ReadNamedPredicate(InvocationExpressionSyntax call, ValidationChainSite site)
+    {
+        if (!IsMust(call, site) || ReadCustomRule(call, site.Property, site.SemanticModel, site.Conditional) is not { } custom)
+        {
+            return null;
+        }
+
+        if (site.Conditional)
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                $"The '{name}' rule on '{property}' executes conditionally under {condition}, so it was left out rather than stated unconditionally",
-                location);
+                $"The named rule '{custom.Value}' on '{site.Property}' executes conditionally, but a named rule carries no condition, so it was left out",
+                site.Location);
 
             return -1;
         }
 
-        if (!forEach && string.Equals(name, Length, StringComparison.Ordinal) && call.ArgumentList.Arguments.Count == 2)
-        {
-            rules.Add(new(property, ValidationRuleKind.Min, _operands.Constant(call, 0, semanticModel, location), null));
-            rules.Add(new(property, ValidationRuleKind.Max, _operands.Constant(call, 1, semanticModel, location), null));
+        site.Rules.Add(custom);
 
-            return 2;
-        }
+        return 1;
+    }
 
-        if (!forEach && name == "Must" && ReadCustomRule(call, property, semanticModel, conditional) is { } custom)
-        {
-            if (conditional)
-            {
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                    $"The named rule '{custom.Value}' on '{property}' executes conditionally, but a named rule carries no condition, so it was left out",
-                    location);
-
-                return -1;
-            }
-
-            rules.Add(custom);
-
-            return 1;
-        }
-
+    int ReadDeclarativeRule(InvocationExpressionSyntax call, ValidationChainSite site)
+    {
+        var name = InvocationChain.NameOf(call);
         if (_modifiers.Contains(name))
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                $"The '{name}' modifier on '{property}' has no declarative counterpart; it adds no validator to this chain, so it does not change which rule a following message belongs to",
-                location);
+                $"The '{name}' modifier on '{site.Property}' has no declarative counterpart; it adds no validator to this chain, so it does not change which rule a following message belongs to",
+                site.Location);
 
             return 0;
         }
 
-        if (!ValidationRuleKinds.TryResolve(name, forEach, out var kind))
+        if (!ValidationRuleKinds.TryResolve(name, site.ForEach, out var kind))
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                $"The '{name}' rule on '{property}' lives in code and has no declarative counterpart, so it was left out",
-                location);
+                $"The '{name}' rule on '{site.Property}' lives in code and has no declarative counterpart, so it was left out",
+                site.Location);
 
             return -1;
         }
 
-        rules.Add(new(property, kind, _operands.Read(call, name, semanticModel, location), null));
+        site.Rules.Add(new(site.Property, kind, _operands.Read(call, name, site.SemanticModel, site.Location), null));
 
         return 1;
     }
@@ -275,24 +297,19 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
     /// Applies a message to every rule the call before it declared.
     /// </summary>
     /// <param name="call">The call carrying the message.</param>
-    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
-    /// <param name="rules">The rules collected so far.</param>
+    /// <param name="site">What the chain's calls are read against.</param>
     /// <param name="preceding">The number of rules the call before this one declared.</param>
-    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
     /// <remarks>
     /// One call can declare more than one rule - a length range is a lower bound and an upper bound - and a message
     /// written after it was written about the range rather than about its upper half. Attaching it to the last rule
     /// alone would leave the lower bound reporting a message the developer never wrote.
     /// </remarks>
-    void ApplyMessage(
-        InvocationExpressionSyntax call,
-        SemanticModel semanticModel,
-        IList<ValidationRuleModel> rules,
-        int preceding,
-        string location)
+    void ApplyMessage(InvocationExpressionSyntax call, ValidationChainSite site, int preceding)
     {
+        var rules = site.Rules;
+        var location = site.Location;
         var argument = InvocationChain.ArgumentOf(call);
-        var message = ValidationMessages.Read(argument, semanticModel);
+        var message = ValidationMessages.Read(argument, site.SemanticModel);
 
         if (message is null)
         {

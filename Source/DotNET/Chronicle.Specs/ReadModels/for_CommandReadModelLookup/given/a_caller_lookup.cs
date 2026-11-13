@@ -27,7 +27,7 @@ public class a_caller_lookup : a_lookup
         _principalAccessor = Substitute.For<ICurrentPrincipalAccessor>();
         _principalAccessor.Current.Returns(_ => _principal);
         _context = _context with { ServiceProvider = new CallerServices(_context.ServiceProvider, _principalAccessor) };
-        _traversal = new(Options.Create(new ProtectedReadModelKeyOptions()), NullLogger<ProtectedReadModelKeyTraversal>.Instance);
+        _traversal = new(Options.Create(new ProtectedReadModelKeyOptions { Strict = false }), NullLogger<ProtectedReadModelKeyTraversal>.Instance);
         _frame = AuthorizationCommandIdentity.Enter(_principal);
     }
 

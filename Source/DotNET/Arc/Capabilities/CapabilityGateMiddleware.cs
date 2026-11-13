@@ -45,6 +45,8 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        // Capture tenant inputs before workload routing discards the incoming product principal.
+        var workloadTenantAllowed = AllowsWorkloadTenant(context);
         var resolution = await ResolveCapabilityCaller(context);
         if (resolution.Caller is not { } caller)
         {
@@ -53,7 +55,7 @@ internal sealed class CapabilityGateMiddleware(
             await Refuse(context, new CapabilityRefusal(refusal.HttpStatus(), refusal));
             return;
         }
-        if (!CallerAdmission.Allows(caller, _allowed))
+        if (!CallerAdmission.Allows(caller, _allowed) || !workloadTenantAllowed)
         {
             await Refuse(context, new CapabilityRefusal(StatusCodes.Status403Forbidden, null));
             return;
@@ -67,12 +69,8 @@ internal sealed class CapabilityGateMiddleware(
         }
 
         // The verified principal is built here and never registered as an authentication scheme, so the host's own
-        // default scheme selection is untouched. The product's claims transformation still applies.
-        var principal = VerifiedCallerPrincipal.Create(caller);
-        if (context.RequestServices.GetService<IClaimsTransformation>() is { } transformation)
-        {
-            principal = await transformation.TransformAsync(principal);
-        }
+        // default scheme selection is untouched. Person claims transformations do not apply to workloads.
+        var principal = await CreatePrincipal(context, caller);
 
         if (!VerifiedCallerPrincipal.Carries(principal, caller))
         {
@@ -88,15 +86,47 @@ internal sealed class CapabilityGateMiddleware(
             return;
         }
 
+        using var tenantScope = BeginWorkloadTenantScope(context, caller);
         context.User = principal;
         context.Items[VerifiedCallerPrincipal.ItemKey] = principal;
         context.Items[CapabilityCallers.ItemKey] = CapabilityCallerProjection.From(caller, group, CapabilityProtocol.Rest);
         await next(context);
     }
 
+    static bool HasNoResolvedTenant(HttpContext context)
+    {
+        // Candidate avoids person membership checks and includes cached and explicitly selected tenants.
+        // An overridden accessor cannot be pinned by Arc and must not admit a workload request.
+        var accessor = context.RequestServices.GetRequiredService<ITenantIdAccessor>();
+        if (accessor is not TenantIdAccessor tenants || accessor.GetType() != typeof(TenantIdAccessor)) return false;
+        var resolved = context.RequestServices.GetRequiredService<ITenantIdResolver>().Resolve();
+        return tenants.Candidate == TenantId.NotSet && IsUnsetTenant(resolved);
+    }
+
+    static bool IsUnsetTenant(string? tenant) => string.IsNullOrEmpty(tenant) || tenant == TenantId.NotSet.Value;
+
+    static IDisposable? BeginWorkloadTenantScope(HttpContext context, VerifiedCaller caller)
+    {
+        if (caller.PrincipalKind != CallerPrincipalKind.ClusterWorkload) return null;
+        return context.RequestServices.GetRequiredService<TenantIdAccessor>().UseAuthorizedTenant(TenantId.NotSet);
+    }
+
+    static async Task<ClaimsPrincipal> CreatePrincipal(HttpContext context, VerifiedCaller caller)
+    {
+        var principal = VerifiedCallerPrincipal.Create(caller);
+        if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return principal;
+        if (context.RequestServices.GetService<IClaimsTransformation>() is { } transformation) return await transformation.TransformAsync(principal);
+        return principal;
+    }
+
     static Task<CallerResolution> ResolveCapabilityCaller(HttpContext context)
     {
-        if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
+        if (context.RequestServices.GetService<WorkloadCallerInstallation>() is not null)
+        {
+            context.Items[ExpectedCredentialShape.Key] = new ExpectedCredentialShape(PresentedCredentialShape.ServiceAccount);
+            context.User = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+        else if (context.RequestServices.GetService<PatCapableCallerInstallation>() is not null)
         {
             var presentation = context.RequestServices.GetRequiredService<CredentialPresentationGate>().Inspect(new AspNetCoreHttpRequestContext(context));
             if (presentation.Refusal is not null || !AdmitsPresentation(context.GetEndpoint(), presentation.Shape))
@@ -113,6 +143,8 @@ internal sealed class CapabilityGateMiddleware(
 
     static bool MembershipAllows(HttpContext context, VerifiedCaller caller, ClaimsPrincipal principal)
     {
+        if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return true;
+
         // The product's membership check runs here, once, for the verified principal and the caller's checked tenant.
         try
         {
@@ -127,12 +159,9 @@ internal sealed class CapabilityGateMiddleware(
 
     static async Task<bool> ConflictsWithAnotherPrincipal(HttpContext context, VerifiedCaller caller)
     {
+        if (caller.PrincipalKind == CallerPrincipalKind.ClusterWorkload) return false;
         var subject = VerifiedCallerIdentity.SubjectOf(caller);
-        var others = new List<ClaimsPrincipal>();
-        if (context.User.Identities.Any(identity => identity.IsAuthenticated))
-        {
-            others.Add(context.User);
-        }
+        var others = AuthenticatedRequestPrincipals(context);
 
         var defaultScheme = await context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>().GetDefaultAuthenticateSchemeAsync();
         if (defaultScheme is not null)
@@ -144,11 +173,24 @@ internal sealed class CapabilityGateMiddleware(
             }
         }
 
-        return others.Exists(other =>
+        return others.Exists(other => HasConflictingSubject(other, subject));
+    }
+
+    static List<ClaimsPrincipal> AuthenticatedRequestPrincipals(HttpContext context)
+    {
+        var principals = new List<ClaimsPrincipal>();
+        if (context.User.Identities.Any(identity => identity.IsAuthenticated))
         {
-            var otherSubject = (other.FindFirst("sub") ?? other.FindFirst(ClaimTypes.NameIdentifier))?.Value;
-            return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
-        });
+            principals.Add(context.User);
+        }
+
+        return principals;
+    }
+
+    static bool HasConflictingSubject(ClaimsPrincipal principal, string? subject)
+    {
+        var otherSubject = (principal.FindFirst("sub") ?? principal.FindFirst(ClaimTypes.NameIdentifier))?.Value;
+        return otherSubject is null || !string.Equals(otherSubject, subject, StringComparison.Ordinal);
     }
 
     static async Task Refuse(HttpContext context, CapabilityRefusal refusal)
@@ -168,11 +210,7 @@ internal sealed class CapabilityGateMiddleware(
             static state =>
             {
                 var (response, status) = ((HttpResponse, int))state;
-                if (response.StatusCode < StatusCodes.Status400BadRequest)
-                {
-                    response.StatusCode = status;
-                }
-
+                PreserveRefusalStatus(response, status);
                 return Task.CompletedTask;
             },
             (context.Response, refusal.StatusCode));
@@ -190,17 +228,42 @@ internal sealed class CapabilityGateMiddleware(
         await using var writer = new Utf8JsonWriter(context.Response.BodyWriter);
         writer.WriteStartObject();
         writer.WriteString("type", "about:blank");
-        var title = status switch
-        {
-            StatusCodes.Status400BadRequest => "Bad Request",
-            StatusCodes.Status403Forbidden => "Forbidden",
-            _ => "Unauthorized"
-        };
-        writer.WriteString("title", title);
+        writer.WriteString("title", RefusalTitle(status));
         writer.WriteNumber("status", status);
         writer.WriteEndObject();
         await writer.FlushAsync(context.RequestAborted);
         await context.Response.BodyWriter.FlushAsync(context.RequestAborted);
+    }
+
+    static void PreserveRefusalStatus(HttpResponse response, int status)
+    {
+        if (response.StatusCode < StatusCodes.Status400BadRequest)
+        {
+            response.StatusCode = status;
+        }
+    }
+
+    static string RefusalTitle(int status) => status switch
+    {
+        StatusCodes.Status400BadRequest => "Bad Request",
+        StatusCodes.Status403Forbidden => "Forbidden",
+        _ => "Unauthorized"
+    };
+
+    bool AllowsWorkloadTenant(HttpContext context)
+    {
+        if (context.RequestServices.GetService<WorkloadCallerInstallation>() is null) return true;
+
+        if (HasPresentedTenant(context)) return false;
+        return HasNoResolvedTenant(context);
+    }
+
+    bool HasPresentedTenant(HttpContext context)
+    {
+        var tenancy = arc.Value.Tenancy;
+        return context.Request.Headers.ContainsKey(tenancy.HttpHeader) ||
+            context.Request.Query.ContainsKey(tenancy.QueryParameter) ||
+            context.User.HasClaim(claim => claim.Type == tenancy.ClaimType);
     }
 
     bool TryBypassGate(HttpContext context, string group)

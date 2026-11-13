@@ -63,37 +63,35 @@ public class QueryMetadataGenerator : IIncrementalGenerator
     {
         var returnType = UnwrapTask(method.ReturnType);
 
-        if (SymbolEqualityComparer.Default.Equals(returnType, readModelType))
-        {
-            return true;
-        }
+        return SymbolEqualityComparer.Default.Equals(returnType, readModelType) ||
+            IsCollectionOfType(returnType, readModelType) ||
+            IsAsyncEnumerableOf(returnType, readModelType) ||
+            IsSubjectOf(returnType, readModelType);
+    }
 
-        if (IsCollectionOfType(returnType, readModelType))
-        {
-            return true;
-        }
+    /// <summary>
+    /// Gets the type as a closed generic with exactly one type argument and the given name.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <param name="name">The expected type name.</param>
+    /// <returns>The named type, or <see langword="null"/> when it does not match.</returns>
+    static INamedTypeSymbol? AsSingleArgument(ITypeSymbol type, string name) =>
+        type is INamedTypeSymbol named &&
+        string.Equals(named.Name, name, StringComparison.Ordinal) &&
+        named.TypeArguments.Length == 1
+            ? named
+            : null;
 
-        if (returnType is INamedTypeSymbol asyncEnumerable &&
-            string.Equals(asyncEnumerable.Name, "IAsyncEnumerable", StringComparison.Ordinal) &&
-            asyncEnumerable.TypeArguments.Length == 1 &&
-            SymbolEqualityComparer.Default.Equals(asyncEnumerable.TypeArguments[0], readModelType))
-        {
-            return true;
-        }
+    static bool IsAsyncEnumerableOf(ITypeSymbol type, INamedTypeSymbol readModelType) =>
+        AsSingleArgument(type, "IAsyncEnumerable") is { } asyncEnumerable &&
+        SymbolEqualityComparer.Default.Equals(asyncEnumerable.TypeArguments[0], readModelType);
 
-        if (returnType is INamedTypeSymbol subject &&
-            string.Equals(subject.Name, "ISubject", StringComparison.Ordinal) &&
-            subject.TypeArguments.Length == 1)
-        {
-            var subjectArg = subject.TypeArguments[0];
-            if (SymbolEqualityComparer.Default.Equals(subjectArg, readModelType) ||
-                IsCollectionOfType(subjectArg, readModelType))
-            {
-                return true;
-            }
-        }
-
-        return false;
+    static bool IsSubjectOf(ITypeSymbol type, INamedTypeSymbol readModelType)
+    {
+        var subject = AsSingleArgument(type, "ISubject");
+        return subject is not null &&
+            (SymbolEqualityComparer.Default.Equals(subject.TypeArguments[0], readModelType) ||
+             IsCollectionOfType(subject.TypeArguments[0], readModelType));
     }
 
     static ITypeSymbol UnwrapTask(ITypeSymbol returnType) =>
@@ -106,10 +104,9 @@ public class QueryMetadataGenerator : IIncrementalGenerator
 
     static string? GetObservableElementTypeName(IMethodSymbol method)
     {
-        if (UnwrapTask(method.ReturnType) is not INamedTypeSymbol observable ||
-            observable.TypeArguments.Length != 1 ||
-            !(string.Equals(observable.Name, "ISubject", StringComparison.Ordinal) ||
-              string.Equals(observable.Name, "IAsyncEnumerable", StringComparison.Ordinal)))
+        var returnType = UnwrapTask(method.ReturnType);
+        var observable = AsSingleArgument(returnType, "ISubject") ?? AsSingleArgument(returnType, "IAsyncEnumerable");
+        if (observable is null)
         {
             return null;
         }
@@ -135,23 +132,13 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             return SymbolEqualityComparer.Default.Equals(arrayType.ElementType, elementType);
         }
 
-        if (type is INamedTypeSymbol namedType)
-        {
-            if (string.Equals(namedType.Name, "IEnumerable", StringComparison.Ordinal) &&
-                namedType.TypeArguments.Length == 1 &&
-                SymbolEqualityComparer.Default.Equals(namedType.TypeArguments[0], elementType))
-            {
-                return true;
-            }
-
-            return namedType.AllInterfaces.Any(i =>
-                string.Equals(i.Name, "IEnumerable", StringComparison.Ordinal) &&
-                i.TypeArguments.Length == 1 &&
-                SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], elementType));
-        }
-
-        return false;
+        return type is INamedTypeSymbol namedType &&
+            (IsEnumerableOf(namedType, elementType) || namedType.AllInterfaces.Any(_ => IsEnumerableOf(_, elementType)));
     }
+
+    static bool IsEnumerableOf(INamedTypeSymbol type, INamedTypeSymbol elementType) =>
+        AsSingleArgument(type, "IEnumerable") is { } enumerable &&
+        SymbolEqualityComparer.Default.Equals(enumerable.TypeArguments[0], elementType);
 
     static AnnotatedReadModel? GetReadModelInfo(GeneratorSyntaxContext context)
     {
@@ -204,21 +191,21 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         for (var type = readModel; type is not null && type.SpecialType is not SpecialType.System_Object and not SpecialType.System_ValueType; type = type.BaseType)
         {
             var isDeclared = SymbolEqualityComparer.Default.Equals(type, readModel);
-            foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+            foreach (var property in type.GetMembers().OfType<IPropertySymbol>().Where(_ => IsSortKeyProperty(_, isDeclared, compilation)))
             {
-                if (property.DeclaredAccessibility == Accessibility.Public &&
-                    !property.IsIndexer &&
-                    property.RefKind == RefKind.None &&
-                    (isDeclared || !property.IsStatic) &&
-                    IsRegistrableKeyType(property.Type, compilation))
-                {
-                    keyTypes.Add(property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                }
+                keyTypes.Add(property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             }
         }
 
         return [.. keyTypes.OrderBy(_ => _, StringComparer.Ordinal)];
     }
+
+    static bool IsSortKeyProperty(IPropertySymbol property, bool isDeclared, Compilation compilation) =>
+        property.DeclaredAccessibility == Accessibility.Public &&
+        !property.IsIndexer &&
+        property.RefKind == RefKind.None &&
+        (isDeclared || !property.IsStatic) &&
+        IsRegistrableKeyType(property.Type, compilation);
 
     static bool IsRegistrableKeyType(ITypeSymbol type, Compilation compilation) =>
         !type.IsRefLikeType &&
@@ -265,6 +252,18 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             .AppendLine("    internal static void Initialize()")
             .AppendLine("    {");
 
+        AppendQueryRegistrations(sb, readModels);
+        AppendObservableRegistrations(sb, readModels);
+        AppendQueryableRegistrations(sb, readModels);
+
+        sb.AppendLine("    }")
+            .AppendLine("}");
+
+        context.AddSource("GeneratedQueryMetadata.g.cs", sb.ToString());
+    }
+
+    static void AppendQueryRegistrations(StringBuilder sb, ImmutableArray<AnnotatedReadModel> readModels)
+    {
         foreach (var readModel in readModels.GroupBy(_ => _.Metadata.FullyQualifiedTypeName).Select(_ => _.First()))
         {
             foreach (var method in readModel.Metadata.QueryMethodNames)
@@ -283,7 +282,10 @@ public class QueryMetadataGenerator : IIncrementalGenerator
                 sb.AppendLine(readModel.Annotations);
             }
         }
+    }
 
+    static void AppendObservableRegistrations(StringBuilder sb, ImmutableArray<AnnotatedReadModel> readModels)
+    {
         foreach (var elementType in readModels
             .SelectMany(_ => _.Metadata.ObservableElementTypeNames)
             .Distinct(StringComparer.Ordinal)
@@ -293,7 +295,10 @@ public class QueryMetadataGenerator : IIncrementalGenerator
               .Append(elementType)
               .AppendLine(">();");
         }
+    }
 
+    static void AppendQueryableRegistrations(StringBuilder sb, ImmutableArray<AnnotatedReadModel> readModels)
+    {
         foreach (var readModel in readModels
             .Select(_ => _.Metadata)
             .Where(_ => _.HasCollectionQuery)
@@ -314,11 +319,6 @@ public class QueryMetadataGenerator : IIncrementalGenerator
                   .AppendLine(">();");
             }
         }
-
-        sb.AppendLine("    }")
-            .AppendLine("}");
-
-        context.AddSource("GeneratedQueryMetadata.g.cs", sb.ToString());
     }
 
     static string GenerateMarkerType() => new StringBuilder()

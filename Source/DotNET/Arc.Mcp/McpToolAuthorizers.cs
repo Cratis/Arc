@@ -15,7 +15,7 @@ internal static class McpToolAuthorizers
     /// <summary>
     /// Determines whether every registered authorizer allows the caller to use the tool.
     /// </summary>
-    /// <param name="tool">The tool from the ceiling.</param>
+    /// <param name="tool">The tool from the catalog.</param>
     /// <param name="caller">The verified caller.</param>
     /// <param name="services">The services of the request.</param>
     /// <param name="cancellationToken">The cancellation token of the request.</param>

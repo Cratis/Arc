@@ -5,7 +5,6 @@
         <RootNamespace>Cratis.Arc.Mcp</RootNamespace>
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
-        <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Mcp/Arc.Mcp.csproj" />

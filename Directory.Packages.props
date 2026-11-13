@@ -17,15 +17,16 @@
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Cratis -->
+    <PackageVersion Include="Cratis.Choreography" Version="2.7.0" />
     <PackageVersion Include="Cratis.Chronicle" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.144.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.144.0" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.33.1" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.33.1" />
-    <PackageVersion Include="Cratis.Screenplay" Version="6.0.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.20.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.20.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.20.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="6.26.0" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.21.2" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.21.2" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.21.2" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.14" />
@@ -65,7 +66,7 @@
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
          NuGet still orders it above 0.50.4, depending on it forces every consumer that also pulls a
          package targeting the listed line into an NU1605 downgrade error. -->
-    <PackageVersion Include="SharpCompress" Version="0.50.7" />
+    <PackageVersion Include="SharpCompress" Version="0.50.8" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="handlebars.net" Version="2.4.3" />
     <PackageVersion Include="castle.core" Version="5.2.1" />
@@ -102,7 +103,7 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.235" />
     <!-- Specifications -->
-    <PackageVersion Include="Cratis.Specifications.XUnit.v3" Version="5.0.0" />
+    <PackageVersion Include="Cratis.Specifications.XUnit.v3" Version="5.3.0" />
     <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.2" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
     <!-- Required at runtime by the Roslyn testing XUnit verifiers; compile assets are excluded where referenced. -->
@@ -123,7 +124,8 @@
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.5.1" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.win-arm64" Version="7.5.1" />
   </ItemGroup>
-  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET8-9.props" Condition=" '$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0' " />
-  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET8.props" Condition=" '$(TargetFramework)' == 'net8.0' " />
-  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET9.props" Condition=" '$(TargetFramework)' == 'net9.0' " />
+  <!-- The net11.0 pins apply to everything except net10.0 and netstandard2.0 (the condition sits on the item group inside the file, because an Import
+       condition is evaluated before a single-framework project has set its TargetFramework). The netstandard2.0 analyzers and generators load into
+       the consumer's compiler host, so they must not reference System.Collections.Immutable or System.Reflection.Metadata 11, or net10 SDK consumers break. -->
+  <Import Project="$(MSBuildThisFileDirectory)/Directory.Packages.NET11.props" />
 </Project>

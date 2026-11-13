@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 
 namespace Cratis.Arc.Commands.for_ReadProtectionConfiguration.when_requiring_generated_metadata;
@@ -18,5 +17,5 @@ public class with_an_invalid_setting : Specification
 
     void Because() => _required = ReadProtectionConfiguration.RequireGeneratedMetadata(_configuration);
 
-    [Fact] void should_resolve_the_metadata_requirement() => _required.ShouldEqual(!RuntimeFeature.IsDynamicCodeSupported);
+    [Fact] void should_fail_closed_and_require_metadata() => _required.ShouldBeTrue();
 }

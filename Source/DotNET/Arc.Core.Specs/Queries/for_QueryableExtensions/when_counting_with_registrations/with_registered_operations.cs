@@ -22,5 +22,7 @@ public class with_registered_operations : Specification
         public override IQueryable Skip(IQueryable queryable, int count) => queryable;
 
         public override IQueryable Take(IQueryable queryable, int count) => queryable;
+
+        public override IQueryable Where(IQueryable queryable, System.Linq.Expressions.LambdaExpression predicate) => queryable;
     }
 }

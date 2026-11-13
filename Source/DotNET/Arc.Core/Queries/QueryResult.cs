@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -46,6 +48,24 @@ public partial class QueryResult
     /// Gets whether the query was authorized to execute.
     /// </summary>
     public bool IsAuthorized { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the reason for authorization failure, if any.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Availability.AvailabilityReason.NotAvailable"/> tells a part that is not available apart from one the
+    /// caller is not allowed to use.
+    /// </remarks>
+    public string AuthorizationFailureReason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the failure is temporary and the same request can succeed when retried.
+    /// </summary>
+    /// <remarks>
+    /// A retryable result is an error, never a denial: <see cref="IsAuthorized"/> stays true. It is reported over HTTP as
+    /// 503 Service Unavailable.
+    /// </remarks>
+    public bool IsRetryable { get; set; }
 
     /// <summary>
     /// Gets whether the query is valid.
@@ -93,8 +113,17 @@ public partial class QueryResult
     /// Creates a new <see cref="QueryResult"/> representing an unauthorized query execution.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
+    /// <param name="reason">Optional reason for the authorization failure.</param>
     /// <returns>A <see cref="QueryResult"/>.</returns>
-    public static QueryResult Unauthorized(CorrelationId correlationId) => new() { CorrelationId = correlationId, IsAuthorized = false };
+    public static QueryResult Unauthorized(CorrelationId correlationId, string? reason = default) => new() { CorrelationId = correlationId, IsAuthorized = false, AuthorizationFailureReason = reason ?? string.Empty };
+
+    /// <summary>
+    /// Creates a new <see cref="QueryResult"/> representing a temporary failure that can succeed when retried.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
+    /// <param name="message">The message describing the failure.</param>
+    /// <returns>A <see cref="QueryResult"/>.</returns>
+    public static QueryResult Retryable(CorrelationId correlationId, string message) => new() { CorrelationId = correlationId, IsRetryable = true, ExceptionMessages = [message] };
 
     /// <summary>
     /// Creates a new <see cref="QueryResult"/> representing an observable query that has not yet produced its first result.
@@ -146,7 +175,9 @@ public partial class QueryResult
     public static QueryResult Error(CorrelationId correlationId, Exception exception) =>
         UnauthorizedCause.IsCauseOf(exception)
             ? Unauthorized(correlationId)
-            : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
+            : exception is AvailabilityNotDecidedException or ContextValueUnavailableException
+                ? Retryable(correlationId, exception.Message)
+                : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
 
     /// <summary>
     /// Creates a new <see cref="QueryResult"/> from an exception.
@@ -174,6 +205,12 @@ public partial class QueryResult
     {
         IsReady = IsReady && queryResults.All(r => r.IsReady);
         IsAuthorized = IsAuthorized && queryResults.All(r => r.IsAuthorized);
+        IsRetryable |= queryResults.Any(r => r.IsRetryable);
+        if (string.IsNullOrEmpty(AuthorizationFailureReason))
+        {
+            AuthorizationFailureReason = queryResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
+        }
+
         ValidationResults = [.. ValidationResults, .. queryResults.SelectMany(r => r.ValidationResults)];
         ExceptionMessages = [.. ExceptionMessages, .. queryResults.SelectMany(r => r.ExceptionMessages)];
         ExceptionStackTrace = string.Join(Environment.NewLine, new[] { ExceptionStackTrace }.Concat(queryResults.Select(r => r.ExceptionStackTrace)));

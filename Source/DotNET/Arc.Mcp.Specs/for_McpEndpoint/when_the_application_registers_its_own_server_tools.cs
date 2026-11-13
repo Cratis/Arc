@@ -12,7 +12,7 @@ public class when_the_application_registers_its_own_server_tools : an_mcp_host
 {
     McpResponse _listed;
     McpResponse _called;
-    McpResponse _ceilingCall;
+    McpResponse _catalogCall;
 
     protected override void ConfigureOptions(McpOptions options) => options.ExclusiveTools = false;
 
@@ -24,10 +24,10 @@ public class when_the_application_registers_its_own_server_tools : an_mcp_host
         Authenticate(CallerCredentialKind.PersonalAccessToken, ReadScope);
         _listed = await ListTools();
         _called = await CallTool("app_echo", """{"text":"hi"}""");
-        _ceilingCall = await CallTool("who_am_i", "{}");
+        _catalogCall = await CallTool("who_am_i", "{}");
     }
 
-    [Fact] void should_list_the_server_tool_next_to_the_ceiling_tools_the_caller_can_call() => _listed.ToolNames.ShouldContainOnly("app_echo", "who_am_i");
+    [Fact] void should_list_the_server_tool_next_to_the_catalog_tools_the_caller_can_call() => _listed.ToolNames.ShouldContainOnly("app_echo", "who_am_i");
     [Fact] void should_call_the_server_tool() => _called.ToolText.ShouldEqual("echo:hi");
-    [Fact] void should_keep_serving_the_ceiling_tools() => _ceilingCall.IsToolError.ShouldBeFalse();
+    [Fact] void should_keep_serving_the_catalog_tools() => _catalogCall.IsToolError.ShouldBeFalse();
 }

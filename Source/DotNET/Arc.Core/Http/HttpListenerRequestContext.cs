@@ -138,7 +138,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     /// <inheritdoc/>
     public void AppendCookie(string key, string value, CookieOptions options)
     {
-        var cookieHeader = BuildSetCookieHeader(key, value, options);
+        var cookieHeader = BuildSetCookieHeader(new SetCookie(key, value, options));
         context.Response.AppendHeader("Set-Cookie", cookieHeader);
     }
 
@@ -150,7 +150,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
             Expires = DateTimeOffset.Now.AddDays(-1),
             Path = "/"
         };
-        var cookieHeader = BuildSetCookieHeader(key, string.Empty, expiredOptions);
+        var cookieHeader = BuildSetCookieHeader(new SetCookie(key, string.Empty, expiredOptions));
         context.Response.AppendHeader("Set-Cookie", cookieHeader);
     }
 
@@ -176,31 +176,17 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         await stream.CopyToAsync(context.Response.OutputStream, cancellationToken);
     }
 
-    static ReadOnlyDictionary<string, string> ParseQueryString(NameValueCollection? queryString)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (queryString is not null)
-        {
-            foreach (var key in queryString.AllKeys)
-            {
-                if (key is not null)
-                {
-                    result[key] = queryString[key] ?? string.Empty;
-                }
-            }
-        }
-        return result.AsReadOnly();
-    }
+    static ReadOnlyDictionary<string, string> ParseQueryString(NameValueCollection? queryString) =>
+        queryString is null ? new Dictionary<string, string>().AsReadOnly() : ParseNameValues(queryString);
 
-    static ReadOnlyDictionary<string, string> ParseHeaders(NameValueCollection headers)
+    static ReadOnlyDictionary<string, string> ParseHeaders(NameValueCollection headers) => ParseNameValues(headers);
+
+    static ReadOnlyDictionary<string, string> ParseNameValues(NameValueCollection values)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var key in headers.AllKeys)
+        foreach (var key in values.AllKeys.OfType<string>())
         {
-            if (key is not null)
-            {
-                result[key] = headers[key] ?? string.Empty;
-            }
+            result[key] = values[key] ?? string.Empty;
         }
         return result.AsReadOnly();
     }
@@ -215,10 +201,11 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         return result.AsReadOnly();
     }
 
-    static string BuildSetCookieHeader(string key, string value, CookieOptions options)
+    static string BuildSetCookieHeader(SetCookie cookie)
     {
+        var options = cookie.Options;
         var builder = new StringBuilder();
-        builder.Append($"{key}={value}");
+        builder.Append($"{cookie.Key}={cookie.Value}");
 
         if (!string.IsNullOrEmpty(options.Path))
         {
@@ -257,4 +244,6 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         MediaTypeHeaderValue.TryParse(contentType, out var parsed) && parsed.MediaType is { } mediaType &&
         (mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
             (mediaType.StartsWith("application/", StringComparison.OrdinalIgnoreCase) && mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase)));
+
+    sealed record SetCookie(string Key, string Value, CookieOptions Options);
 }

@@ -109,16 +109,7 @@ public static class QueryExtensions
     {
         var typesInvolved = new List<Type>();
 
-        var responseModel = ModelDescriptor.Empty;
-        if (method.ReturnType.IsAssignableTo<Task>() && method.ReturnType.IsGenericType)
-        {
-            var responseType = method.ReturnType.GetGenericArguments()[0];
-            responseModel = responseType.ToModelDescriptor();
-        }
-        else if (method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType)
-        {
-            responseModel = method.ReturnType.ToModelDescriptor();
-        }
+        var responseModel = GetResponseModel(method);
 
         if (!responseModel.Type.IsKnownType())
         {
@@ -132,112 +123,23 @@ public static class QueryExtensions
         var parameterWithComplexTypes = parameterTypes.Where(type => !type.IsKnownType());
         typesInvolved.AddRange(parameterWithComplexTypes);
 
-        var location = readModelType.Namespace?.Split('.') ?? [];
-        var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
-        var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
+        var routing = new RouteContext(readModelType, segmentsToSkip, apiPrefix, allQueryTypes);
+        var includeQueryName = !skipQueryNameInRoute || HasRouteConflict(routing, findAttribute);
+        var route = ResolveRoute(method, routing, includeQueryName);
 
-        var namespaceKey = string.Join('.', location.Skip(segmentsToSkip));
-        var queriesInSameNamespace = allQueryTypes.Where(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(segmentsToSkip)) == namespaceKey);
-        var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods(findAttribute).Count());
-        var hasConflict = totalMethodsInNamespace > 1;
-        var includeQueryName = !skipQueryNameInRoute || hasConflict;
-
-        // Check for Path attribute on method or type
-        var methodRouteAttr = method.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
-        var typeRouteAttr = readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
-        var routeAttributeData = methodRouteAttr ?? typeRouteAttr;
-
-        var customRouteValue = routeAttributeData is { ConstructorArguments.Count: > 0 }
-            ? routeAttributeData.ConstructorArguments[0].Value as string
-            : null;
-
-        string route;
-        if (!string.IsNullOrEmpty(customRouteValue))
-        {
-            // Use the custom route from the attribute
-            route = customRouteValue;
-        }
-        else
-        {
-            // Use conventional route generation
-            route = includeQueryName ? $"{baseUrl}/{method.Name.ToKebabCase()}" : baseUrl;
-            route = route.ToLowerInvariant();
-        }
-
-        var relativePath = readModelType.ResolveTargetPath(segmentsToSkip);
-        var imports = typesInvolved
-                        .GetImports(targetPath, relativePath, segmentsToSkip)
-                        .DistinctBy(_ => _.Type)
-                        .ToList();
-
-        var additionalTypesInvolved = new List<Type>();
-        foreach (var parameter in parameterWithComplexTypes)
-        {
-            parameter.CollectTypesInvolved(additionalTypesInvolved);
-        }
-
-        imports.AddRange(parameterTypes.Where(type => type.HasModule()).Select(type => type.GetImportStatement(targetPath, relativePath, segmentsToSkip)));
-
-        foreach (var property in properties)
-        {
-            property.CollectTypesInvolved(additionalTypesInvolved);
-        }
-
-        imports = [.. imports.DistinctBy(_ => _.Type)];
+        var paths = new ImportPaths(targetPath, readModelType.ResolveTargetPath(segmentsToSkip), segmentsToSkip);
+        var imports = BuildImports(typesInvolved, parameterTypes, paths);
+        var additionalTypesInvolved = CollectAdditionalTypesInvolved(parameterWithComplexTypes, properties);
 
         var documentation = method.GetDocumentation();
-
-        // Extract validation rules for the query's parameters from the three sources that can contribute them, merged
-        // with the same precedence the command path uses: an explicit validator for a matching parameters class, the
-        // validators of any concept-typed parameters, and DataAnnotations on the parameters as a per-parameter fallback.
-        var parametersType = FindParametersTypeFor(readModelType, method);
-
-        // The convention matches CLR types, not nullable-reference annotations. Infer concept rules only from
-        // the actual parameters so a stricter argument-model annotation cannot reintroduce presence rules.
-        var explicitRules = parametersType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false, includeDataAnnotations: false).ToList()
-            : [];
-
-        var conceptRules = new List<PropertyValidationDescriptor>();
-
-        // Keep argument-model annotations at fallback precedence, below rules inferred from the actual parameters.
-        var dataAnnotationsRules = parametersType is not null
-            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(parametersType).ToList()
-            : [];
-        foreach (var param in method.GetParameters())
-        {
-            var parameterName = param.Name.ToCamelCase();
-
-            var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
-            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType, isOptional);
-            if (rulesFromConcept.Count > 0)
-            {
-                conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
-            }
-
-            var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
-            if (rulesFromDataAnnotations.Count > 0)
-            {
-                dataAnnotationsRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromDataAnnotations]));
-            }
-        }
-
-        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
+        var validationRules = ExtractValidationRules(readModelType, method);
 
         // Check for TreatWarningsAsErrors attribute
-        var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||
-                                     readModelType.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute");
+        var treatWarningsAsErrors = FindAttributeData(method, readModelType, a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") is not null;
 
         // Extract roles from authorization attributes on the method and its declaring type (read model)
         var roles = method.GetRoles().ToArray();
-
-        // Check for QueryHttpMethod attribute on method (wins) or read-model type; the enum member name
-        // (Get/Query/Auto) matches the TypeScript QueryHttpMethod enum and is emitted into the proxy.
-        var httpMethodAttr = method.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "QueryHttpMethodAttribute") ??
-                             readModelType.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.Name == "QueryHttpMethodAttribute");
-        var httpMethod = httpMethodAttr is { ConstructorArguments.Count: > 0 }
-            ? Enum.GetName(httpMethodAttr.ConstructorArguments[0].ArgumentType, httpMethodAttr.ConstructorArguments[0].Value!)
-            : null;
+        var httpMethod = ResolveHttpMethod(method, readModelType);
 
         return new(
             readModelType,
@@ -364,4 +266,150 @@ public static class QueryExtensions
     /// <param name="parameter">Parameter to check.</param>
     /// <returns>True if it is optional, false if not.</returns>
     static bool IsOptional(this ParameterInfo parameter) => ParameterNullability.IsOptional(parameter);
+
+    static ModelDescriptor GetResponseModel(MethodInfo method)
+    {
+        var returnType = method.ReturnType;
+        if (returnType.IsAssignableTo<Task>() && returnType.IsGenericType)
+        {
+            return returnType.GetGenericArguments()[0].ToModelDescriptor();
+        }
+
+        if (returnType != TypeExtensions._voidType && returnType != TypeExtensions._taskType)
+        {
+            return returnType.ToModelDescriptor();
+        }
+
+        return ModelDescriptor.Empty;
+    }
+
+    static CustomAttributeData? FindAttributeData(MemberInfo method, MemberInfo readModelType, Func<CustomAttributeData, bool> predicate) =>
+        method.GetCustomAttributesData().FirstOrDefault(predicate) ??
+        readModelType.GetCustomAttributesData().FirstOrDefault(predicate);
+
+    static bool HasRouteConflict(RouteContext routing, Func<MemberInfo, string, bool, CustomAttributeData?>? findAttribute)
+    {
+        var namespaceKey = string.Join('.', (routing.ReadModelType.Namespace?.Split('.') ?? []).Skip(routing.SegmentsToSkip));
+        var queriesInSameNamespace = routing.AllQueryTypes.Where(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(routing.SegmentsToSkip)) == namespaceKey);
+        var totalMethodsInNamespace = queriesInSameNamespace.Sum(t => t.GetQueryMethods(findAttribute).Count());
+        return totalMethodsInNamespace > 1;
+    }
+
+    static string BuildBaseUrl(RouteContext routing)
+    {
+        var location = routing.ReadModelType.Namespace?.Split('.') ?? [];
+        var segments = location.Skip(routing.SegmentsToSkip).Select(segment => segment.ToKebabCase());
+        return $"/{routing.ApiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
+    }
+
+    static string ResolveRoute(MethodInfo method, RouteContext routing, bool includeQueryName)
+    {
+        // Check for Path attribute on method or type
+        var routeAttributeData = FindAttributeData(method, routing.ReadModelType, a => a.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
+
+        var customRouteValue = routeAttributeData is { ConstructorArguments.Count: > 0 }
+            ? routeAttributeData.ConstructorArguments[0].Value as string
+            : null;
+
+        // Use the custom route from the attribute when present, otherwise use conventional route generation
+        if (!string.IsNullOrEmpty(customRouteValue)) return customRouteValue;
+
+        var baseUrl = BuildBaseUrl(routing);
+        var route = includeQueryName ? $"{baseUrl}/{method.Name.ToKebabCase()}" : baseUrl;
+        return route.ToLowerInvariant();
+    }
+
+    static List<ImportStatement> BuildImports(List<Type> typesInvolved, IEnumerable<Type> parameterTypes, ImportPaths paths)
+    {
+        var imports = typesInvolved
+                        .GetImports(paths.TargetPath, paths.RelativePath, paths.SegmentsToSkip)
+                        .DistinctBy(_ => _.Type)
+                        .ToList();
+
+        imports.AddRange(parameterTypes.Where(type => type.HasModule()).Select(type => type.GetImportStatement(paths.TargetPath, paths.RelativePath, paths.SegmentsToSkip)));
+
+        return [.. imports.DistinctBy(_ => _.Type)];
+    }
+
+    static List<Type> CollectAdditionalTypesInvolved(IEnumerable<Type> parameterWithComplexTypes, IEnumerable<PropertyDescriptor> properties)
+    {
+        var additionalTypesInvolved = new List<Type>();
+        foreach (var parameter in parameterWithComplexTypes)
+        {
+            parameter.CollectTypesInvolved(additionalTypesInvolved);
+        }
+
+        foreach (var property in properties)
+        {
+            property.CollectTypesInvolved(additionalTypesInvolved);
+        }
+
+        return additionalTypesInvolved;
+    }
+
+    /// <summary>
+    /// Extracts validation rules for the query's parameters from the three sources that can contribute them, merged
+    /// with the same precedence the command path uses: an explicit validator for a matching parameters class, the
+    /// validators of any concept-typed parameters, and DataAnnotations on the parameters as a per-parameter fallback.
+    /// </summary>
+    /// <param name="readModelType">The read model type owning the query method.</param>
+    /// <param name="method">The query method.</param>
+    /// <returns>The merged validation rules.</returns>
+    static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(TypeInfo readModelType, MethodInfo method)
+    {
+        var parametersType = FindParametersTypeFor(readModelType, method);
+
+        // The convention matches CLR types, not nullable-reference annotations. Infer concept rules only from
+        // the actual parameters so a stricter argument-model annotation cannot reintroduce presence rules.
+        var explicitRules = parametersType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false, includeDataAnnotations: false).ToList()
+            : [];
+
+        var parameters = method.GetParameters();
+        var conceptRules = parameters.Select(param => ConceptRulesFor(readModelType.Assembly, param)).OfType<PropertyValidationDescriptor>().ToList();
+
+        // Keep argument-model annotations at fallback precedence, below rules inferred from the actual parameters.
+        var dataAnnotationsRules = parametersType is not null
+            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(parametersType).ToList()
+            : [];
+        dataAnnotationsRules.AddRange(parameters.Select(DataAnnotationsRulesFor).OfType<PropertyValidationDescriptor>());
+
+        return ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
+    }
+
+    static PropertyValidationDescriptor? ConceptRulesFor(Assembly assembly, ParameterInfo param)
+    {
+        var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+        var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(assembly, param.ParameterType, isOptional);
+        return rulesFromConcept.Count > 0
+            ? new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept])
+            : null;
+    }
+
+    static PropertyValidationDescriptor? DataAnnotationsRulesFor(ParameterInfo param)
+    {
+        var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+        return rulesFromDataAnnotations.Count > 0
+            ? new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromDataAnnotations])
+            : null;
+    }
+
+    /// <summary>
+    /// Resolves the QueryHttpMethod attribute on the method (wins) or the read-model type; the enum member name
+    /// (Get/Query/Auto) matches the TypeScript QueryHttpMethod enum and is emitted into the proxy.
+    /// </summary>
+    /// <param name="method">The query method.</param>
+    /// <param name="readModelType">The read model type owning the query method.</param>
+    /// <returns>The enum member name, or null when no attribute is present.</returns>
+    static string? ResolveHttpMethod(MethodInfo method, TypeInfo readModelType)
+    {
+        var httpMethodAttr = FindAttributeData(method, readModelType, a => a.AttributeType.Name == "QueryHttpMethodAttribute");
+        return httpMethodAttr is { ConstructorArguments.Count: > 0 }
+            ? Enum.GetName(httpMethodAttr.ConstructorArguments[0].ArgumentType, httpMethodAttr.ConstructorArguments[0].Value!)
+            : null;
+    }
+
+    sealed record RouteContext(TypeInfo ReadModelType, int SegmentsToSkip, string ApiPrefix, IEnumerable<TypeInfo> AllQueryTypes);
+
+    sealed record ImportPaths(string TargetPath, string RelativePath, int SegmentsToSkip);
 }

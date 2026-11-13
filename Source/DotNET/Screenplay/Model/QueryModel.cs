@@ -38,4 +38,9 @@ public record QueryModel(
     /// Gets the repository-relative file implementing the query; emission includes it only in authoring mode.
     /// </summary>
     public string? PerformerFile { get; init; }
+
+    /// <summary>
+    /// Gets the availability gates of the part the query lives in.
+    /// </summary>
+    public AvailabilityModel? Availability { get; init; }
 }

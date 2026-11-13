@@ -1,11 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
-using Cratis.Arc.ProxyGenerator.ControllerBased;
-using Cratis.Arc.ProxyGenerator.ModelBound;
-using Cratis.Arc.ProxyGenerator.Templates;
-
 namespace Cratis.Arc.ProxyGenerator;
 
 /// <summary>
@@ -58,7 +53,7 @@ public static partial class Generator
         bool useProxyFileSuffix = false) => GenerateWithFileHeader(string.Empty, assemblyFile, outputPath, segmentsToSkip, message, errorMessage, libraryMode, skipOutputDeletion, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix, skipIndexGeneration, useSourceFileAsOutputFile, assemblyPackageMappings, excludedTypeNames, excludedNamespacePatterns, namespaceRoots, typeMappings, emitInterfaces, useProxyFileSuffix);
 
     /// <inheritdoc cref="Generate"/>
-    internal static async Task<bool> GenerateWithFileHeader(
+    internal static Task<bool> GenerateWithFileHeader(
         string fileHeaderTemplate,
         string assemblyFile,
         string outputPath,
@@ -81,198 +76,28 @@ public static partial class Generator
         bool useProxyFileSuffix = false,
         ICollection<string>? producedFiles = null,
         string? endpointGroup = null,
-        ProxyFramework framework = ProxyFramework.React)
-    {
-        assemblyFile = Path.GetFullPath(assemblyFile);
-        if (!File.Exists(assemblyFile))
-        {
-            errorMessage($"Assembly file '{assemblyFile}' does not exist");
-            return false;
-        }
-
-        if (!Directory.Exists(outputPath))
-        {
-            Directory.CreateDirectory(outputPath);
-        }
-
-        var overallStopwatch = Stopwatch.StartNew();
-
-        TypeExtensions.SetAssemblyPackageMappings(assemblyPackageMappings ?? new Dictionary<string, string>());
-        TypeExtensions.SetExcludedTypes(excludedTypeNames ?? [], excludedNamespacePatterns ?? []);
-        TypeExtensions.SetNamespaceRoots(namespaceRoots ?? []);
-        TypeExtensions.SetTypeMappings(typeMappings ?? []);
-        GeneratedFileNames.UseProxySuffix(useProxyFileSuffix);
-        var phaseStopwatch = Stopwatch.StartNew();
-        if (!TypeExtensions.TryInitializeProjectAssemblies(assemblyFile, message, errorMessage))
-        {
-            return false;
-        }
-        using var projectAssemblies = TypeExtensions.OwnProjectAssemblies();
-        message($"  Project assemblies in {phaseStopwatch.Elapsed}");
-
-        phaseStopwatch.Restart();
-        var sourceFileMap = ConfigureSourceFileGrouping(useSourceFileAsOutputFile, assemblyFile);
-        message($"  Source-file map in {phaseStopwatch.Elapsed}");
-
-        var commands = new List<CommandDescriptor>();
-        var queries = new List<QueryDescriptor>();
-
-        phaseStopwatch.Restart();
-        var controllerBasedArtifactsProvider = new ControllerBasedArtifactsProvider(message, outputPath, segmentsToSkip);
-        commands.AddRange(controllerBasedArtifactsProvider.Commands);
-        queries.AddRange(controllerBasedArtifactsProvider.Queries);
-        message($"  Controller discovery in {phaseStopwatch.Elapsed}");
-
-        phaseStopwatch.Restart();
-        var modelBoundArtifactsProvider = new ModelBoundArtifactsProvider(message, outputPath, segmentsToSkip, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix, endpointGroup);
-        commands.AddRange(modelBoundArtifactsProvider.Commands);
-        queries.AddRange(modelBoundArtifactsProvider.Queries);
-        message($"  Model-bound discovery in {phaseStopwatch.Elapsed}");
-
-        phaseStopwatch.Restart();
-        var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
-        message($"  Identity discovery in {phaseStopwatch.Elapsed}");
-
-        commands = commands.Where(c => !c.Type.IsExcluded()).Select(c => c with { IsFrameworkNeutral = framework == ProxyFramework.None }).ToList();
-        queries = queries.Where(q => !q.Type.IsExcluded()).Select(q => q with { IsFrameworkNeutral = framework == ProxyFramework.None }).ToList();
-
-        message($"  Found {commands.Count} commands and {queries.Count} queries");
-
-        var collisions = ProxyNameCollisions.Find([.. commands, .. queries], segmentsToSkip, sourceFileMap);
-        if (!TryPrepareOutputDirectory(outputPath, skipOutputDeletion, collisions, errorMessage)) return false;
-
-        var typesInvolved = new TypesInvolved();
-        var directories = new List<string>();
-        var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
-        var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
-
-        Dictionary<string, (string Content, string SourceTypeName)>? pendingContent = useSourceFileAsOutputFile ? [] : null;
-
-        await commands.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
-        await singleModelQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        var enumerableQueries = queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList();
-        await enumerableQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        var observableQueries = queries.Where(_ => _.IsObservable).ToList();
-        await observableQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        phaseStopwatch.Restart();
-        foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
-        {
-            identityDetailsType.CollectTypesInvolved(typesInvolved);
-        }
-
-        if (libraryMode)
-        {
-            var allPublicTypes = TypeExtensions.Assemblies
-                .SelectMany(a =>
-                {
-                    try
-                    {
-                        // An open generic definition is skipped: it has no concrete shape to emit, and walking
-                        // one reaches its own type parameters, which are not types at all.
-                        return a.DefinedTypes.Where(t => !t.IsGenericTypeDefinition && ((t.IsPublic && !t.IsAbstract) || t.IsEnum || t.IsInterface));
-                    }
-                    catch
-                    {
-                        return (IEnumerable<Type>)[];
-                    }
-                });
-
-            foreach (var type in allPublicTypes)
-            {
-                type.CollectTypesInvolved(typesInvolved);
-            }
-
-            message($"  Library mode: {typesInvolved.Count} types collected");
-        }
-
-        typesInvolved.RemoveDuplicates();
-        var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
-        var enumSet = enums.ToHashSet();
-
-        var typeDescriptors = typesInvolved.Where(_ => !enumSet.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
-        message($"  Type collection and descriptors in {phaseStopwatch.Elapsed}");
-
-        // A class carries `@field` decorators so Fundamentals can reconstruct it from JSON, which means a
-        // runtime dependency on `@cratis/fundamentals`. A model that is only ever built and read - never
-        // deserialized through that path - does not need either, and a package that deliberately has no
-        // dependencies cannot take one on. Interfaces say the same shape and cost nothing.
-        var typeTemplate = emitInterfaces ? TemplateTypes.Interface : TemplateTypes.Type;
-        await typeDescriptors.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, typeTemplate, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        var regularEnumDescriptors = enums
-            .Where(_ => !_.IsFromMappedAssembly() && !_.IsFlagsEnum())
-            .ToList()
-            .ConvertAll(_ => _.ToEnumDescriptor());
-        await regularEnumDescriptors.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        var flagsEnumDescriptors = enums
-            .Where(_ => !_.IsFromMappedAssembly() && _.IsFlagsEnum())
-            .ToList()
-            .ConvertAll(_ => _.ToEnumDescriptor());
-        await flagsEnumDescriptors.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.FlagsEnum, directories, segmentsToSkip, "flags enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
-
-        // Flush deferred content to disk, comparing final merged hashes against original files
-        if (pendingContent is { Count: > 0 })
-        {
-            await DescriptorExtensions.FlushPendingContentWithFileHeader(fileHeaderTemplate, pendingContent, generatedFiles, message);
-        }
-
-        // Find and remove orphaned files
-        var stopwatch = Stopwatch.StartNew();
-        var orphanedFiles = FileMetadataScanner.FindOrphanedFiles(outputPath, generatedFiles);
-        var removedCount = FileMetadataScanner.RemoveOrphanedFiles(outputPath, orphanedFiles, message);
-        if (removedCount > 0)
-        {
-            message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
-        }
-
-        message($"  Orphan cleanup in {stopwatch.Elapsed}");
-
-        // Update index files intelligently
-        if (!skipIndexGeneration)
-        {
-            stopwatch.Restart();
-            var distinctDirectories = directories.Distinct().ToList();
-            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFilesWithFileHeader(fileHeaderTemplate, distinctDirectories, generatedFiles, orphanedFiles, message, outputPath);
-            var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
-            message($"  {writtenCount} index files written{skippedInfo} in {stopwatch.Elapsed}");
-        }
-        else
-        {
-            message("  Index file generation skipped");
-        }
-
-        CollectProducedFiles(producedFiles, generatedFiles, skipIndexGeneration, outputPath);
-
-        message($"  Overall time: {overallStopwatch.Elapsed}");
-
-        return true;
-    }
-
-    static bool TryPrepareOutputDirectory(string outputPath, bool skipOutputDeletion, IReadOnlyList<ProxyNameCollision> collisions, Action<string> errorMessage)
-    {
-        if (collisions.Count > 0)
-        {
-            ProxyNameCollisions.Report(collisions, errorMessage);
-            return false;
-        }
-
-        if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
-        if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
-
-        return true;
-    }
-
-    static IReadOnlyDictionary<string, string>? ConfigureSourceFileGrouping(bool useSourceFileAsOutputFile, string assemblyFile)
-    {
-        var sourceFileMap = useSourceFileAsOutputFile ? SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile) : null;
-        TypeExtensions.SetSourceFileMap(sourceFileMap);
-
-        return sourceFileMap;
-    }
+        ProxyFramework framework = ProxyFramework.React) =>
+        new GenerationRun(new GenerationSettings(
+            fileHeaderTemplate,
+            outputPath,
+            segmentsToSkip,
+            message,
+            errorMessage,
+            libraryMode,
+            skipOutputDeletion,
+            skipCommandNameInRoute,
+            skipQueryNameInRoute,
+            apiPrefix,
+            skipIndexGeneration,
+            useSourceFileAsOutputFile,
+            assemblyPackageMappings,
+            excludedTypeNames,
+            excludedNamespacePatterns,
+            namespaceRoots,
+            typeMappings,
+            emitInterfaces,
+            useProxyFileSuffix,
+            producedFiles,
+            endpointGroup,
+            framework)).Execute(assemblyFile);
 }

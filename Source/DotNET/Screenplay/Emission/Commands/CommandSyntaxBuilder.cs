@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Availability;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Emission.Types;
@@ -34,6 +35,11 @@ public class CommandSyntaxBuilder(
     public bool AuthoringOnlyConstructs { get; init; }
 
     /// <summary>
+    /// Gets the builder of the <c>available</c> gates, when gates are stated.
+    /// </summary>
+    public AvailabilitySyntaxBuilder? Availability { get; init; }
+
+    /// <summary>
     /// Builds the command declaration.
     /// </summary>
     /// <param name="command">The command to build for.</param>
@@ -52,47 +58,28 @@ public class CommandSyntaxBuilder(
         return new CommandSyntaxBuilder(rooted, types, authorize, validations, produces.WithNaming(rooted), concurrency, names) { AuthoringOnlyConstructs = AuthoringOnlyConstructs }.BuildNamed(command, location);
     }
 
+    static bool HasUnroutedProduction(List<ProducesModel> productions) => productions.Exists(_ => !_.UsesCommandContext && _.Destination is null);
+
+    static bool IsLegacyRoute(CommandModel command) => command.EventSource is null && command.HasAuthoringRoute;
+
+    static bool IsUnroutedScope(CommandModel command) =>
+        command.Authoring?.Route is null && command.Concurrency is not null && command.EventSource is null && !command.HasAuthoringRoute;
+
     CommandSyntax BuildNamed(CommandModel command, string location)
     {
         var authoring = command.Authoring;
         var selectedIdentifier = authoring?.Identifier ?? command.Identifier;
-        var properties = ToProperties(command, location).ToList();
-        if (authoring is not null)
-        {
-            properties = [.. properties.Select(property => property with { IsIdentifier = selectedIdentifier is not null && property.Name == naming.ToPropertyName(selectedIdentifier) }),
-                .. authoring.Generated.Select(property => ToProperty(property, selectedIdentifier) with { IsGenerated = true })];
-        }
+        var properties = ToAuthoredProperties(command, location, selectedIdentifier);
 
         var identifier = properties.Exists(_ => _.IsIdentifier) ? selectedIdentifier : null;
         var productions = command.Produces.ToList();
-        if (productions.Exists(_ => !_.UsesCommandContext && _.Destination is null))
+        if (HasUnroutedProduction(productions))
         {
             properties = [.. properties.Select(_ => _ with { IsIdentifier = false })];
         }
 
         var produced = produces.Build(productions, location, identifier, command.Name).ToList();
-        if (authoring?.Route is null)
-        {
-            concurrency.ReportEventSource(command.EventSource, $"{location}.{command.Name}", AuthoringOnlyConstructs, command.Name);
-            if (!AuthoringOnlyConstructs && command.EventSource is null && command.HasAuthoringRoute)
-            {
-                concurrency.ReportLegacyRoute($"{location}.{command.Name}", command.Name);
-            }
-        }
-        else if (command.EventSource is { ConcurrentByStreamId: true })
-        {
-            concurrency.ReportStreamIdFlag(location);
-        }
-
-        if (!AuthoringOnlyConstructs && authoring?.Route is { Stream: not null } && command.Concurrency is { } omittedScope)
-        {
-            concurrency.ReportOmittedScope(omittedScope, $"{location}.{command.Name}");
-        }
-
-        if (!AuthoringOnlyConstructs && concurrency.ExecutableRoutes && authoring?.Route is null && command.Concurrency is not null && command.EventSource is null && !command.HasAuthoringRoute)
-        {
-            concurrency.ReportLegacyScope($"{location}.{command.Name}");
-        }
+        ReportConcurrency(command, location);
 
         var syntax = new CommandSyntax(
             naming.ToDeclarationName(command.Name),
@@ -105,7 +92,75 @@ public class CommandSyntaxBuilder(
             !AuthoringOnlyConstructs && authoring?.Route is { Stream: not null } ? null : concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));
 
-        return new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
+        var authored = new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
+
+        return Availability is null ? authored : authored with { Available = [.. authored.Available, .. Availability.Build(command.Availability, $"{location}.{command.Name}")] };
+    }
+
+    /// <summary>
+    /// Converts the properties of the command, marking the selected identifier and adding the generated values.
+    /// </summary>
+    /// <param name="command">The command to convert the properties of.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="selectedIdentifier">The property selected as the command's identifier.</param>
+    /// <returns>The properties the body carries.</returns>
+    List<PropertySyntax> ToAuthoredProperties(CommandModel command, string location, string? selectedIdentifier)
+    {
+        var properties = ToProperties(command, location).ToList();
+        if (command.Authoring is not { } authoring)
+        {
+            return properties;
+        }
+
+        return [.. properties.Select(property => property with { IsIdentifier = selectedIdentifier is not null && property.Name == naming.ToPropertyName(selectedIdentifier) }),
+            .. authoring.Generated.Select(property => ToProperty(property, selectedIdentifier) with { IsGenerated = true })];
+    }
+
+    /// <summary>
+    /// Reports what the command's routing and concurrency state leaves out of the declaration.
+    /// </summary>
+    /// <param name="command">The command to report for.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    void ReportConcurrency(CommandModel command, string location)
+    {
+        ReportRouting(command, location);
+        if (!AuthoringOnlyConstructs)
+        {
+            ReportScope(command, $"{location}.{command.Name}");
+        }
+    }
+
+    void ReportRouting(CommandModel command, string location)
+    {
+        if (command.Authoring?.Route is not null)
+        {
+            if (command.EventSource is { ConcurrentByStreamId: true })
+            {
+                concurrency.ReportStreamIdFlag(location);
+            }
+
+            return;
+        }
+
+        var commandLocation = $"{location}.{command.Name}";
+        concurrency.ReportEventSource(command.EventSource, commandLocation, AuthoringOnlyConstructs, command.Name);
+        if (!AuthoringOnlyConstructs && IsLegacyRoute(command))
+        {
+            concurrency.ReportLegacyRoute(commandLocation, command.Name);
+        }
+    }
+
+    void ReportScope(CommandModel command, string commandLocation)
+    {
+        if (command.Authoring?.Route is { Stream: not null } && command.Concurrency is { } omittedScope)
+        {
+            concurrency.ReportOmittedScope(omittedScope, commandLocation);
+        }
+
+        if (concurrency.ExecutableRoutes && IsUnroutedScope(command))
+        {
+            concurrency.ReportLegacyScope(commandLocation);
+        }
     }
 
     /// <summary>

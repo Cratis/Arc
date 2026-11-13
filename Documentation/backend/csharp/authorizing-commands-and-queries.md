@@ -5,6 +5,8 @@ description: Protect Cratis Arc commands and queries with role or policy attribu
 
 Cratis Arc checks role and policy attributes when a command or query runs through its pipeline. Use them when an action or a read needs an access rule, such as allowing only librarians to register authors. Direct C# calls to `Handle()` or a static query bypass these checks.
 
+Authorization says who may do something. To decide whether a part of the application is there at all for a tenant or user, use [availability](availability.md), which is evaluated before authorization and reports a different reason.
+
 ## Authorize at the boundary, not in the logic
 
 Put the access rule on the command record or query method, using attributes from `Cratis.Arc.Authorization`. `[Roles]` requires an authenticated caller with at least one listed role, so your handler does not need to repeat that role check.

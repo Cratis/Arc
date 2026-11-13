@@ -4,6 +4,8 @@
     <Folder Name="/Source/DotNET/">
         <Project Path="Source\DotNET\Arc.Core\Arc.Core.csproj" />
         <Project Path="Source\DotNET\Arc.Core.Specs\Arc.Core.Specs.csproj" />
+        <Project Path="Source\DotNET\Arc.Availability\Arc.Availability.csproj" />
+        <Project Path="Source\DotNET\Arc.Availability.Specs\Arc.Availability.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.BindingParity\Arc.Core.BindingParity.csproj" />
         <Project Path="Source\DotNET\Arc.Core.TypeDiscovery.Specs\Arc.Core.TypeDiscovery.Specs.csproj" />
         <Project Path="Source\DotNET\Arc.Core.TypeDiscovery.Specs.Plugin\Arc.Core.TypeDiscovery.Specs.Plugin.csproj" />
@@ -55,6 +57,7 @@
         <Project Path="Source/DotNET/Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Screenplay.Embedded.Specs.csproj" />
         <Project Path="Source/DotNET/Arc.Core.Specs/Fixtures/SliceLocationConsumer/SliceLocationConsumer.csproj" />
+        <Project Path="Source/DotNET/Arc.Core.Specs/Fixtures/VerifiedCallerConsumer/VerifiedCallerConsumer.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/Consumer/Consumer.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/Interceptors.Generator/Interceptors.Generator.csproj" />
         <Project Path="Source/DotNET/Screenplay.Embedded.Specs/Fixtures/XunitConsumer/XunitConsumer.csproj" />

@@ -5,6 +5,7 @@ using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandTransactionAppender.when_resolving_routing;
 
+[PerFactSpecificationLifecycle]
 public class with_sentinels_and_free_form_stream_ids : given.a_definition_routed_command
 {
     [Fact]

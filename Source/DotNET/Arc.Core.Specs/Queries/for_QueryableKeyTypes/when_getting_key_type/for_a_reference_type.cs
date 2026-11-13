@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#if NET9_0_OR_GREATER
 namespace Cratis.Arc.Queries.for_QueryableKeyTypes.when_getting_key_type;
 
 public class for_a_reference_type : Specification
@@ -15,4 +14,3 @@ public class for_a_reference_type : Specification
     [Fact] void should_use_the_default_equality_comparer() => _keyType.EqualityComparer.ShouldEqual(EqualityComparer<SpecRecord>.Default);
     [Fact] void should_use_the_default_comparer() => _keyType.Comparer.ShouldEqual(Comparer<SpecRecord>.Default);
 }
-#endif

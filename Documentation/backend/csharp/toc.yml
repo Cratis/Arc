@@ -18,12 +18,16 @@
   href: queries/toc.yml
 - name: Authorizing commands and queries
   href: authorizing-commands-and-queries.md
+- name: Availability
+  href: availability.md
+- name: Request-scoped context values
+  href: context-values.md
 - name: Endpoint groups
   href: endpoint-groups.md
 - name: Capability hosting
   href: capability-hosting.md
-- name: Serving MCP tools
-  href: mcp.md
+- name: MCP
+  href: mcp/toc.yml
 - name: Identity
   href: identity/toc.yml
 - name: Tenancy

@@ -48,9 +48,24 @@ if (compilations.Count == 0)
     return 1;
 }
 
+// The applications are read from source, without the solution having been built first, so a project that does not
+// compile - or one whose references are not there - has to fail here rather than yield a quietly smaller document.
+var compileErrors = 0;
 foreach (var compilation in compilations)
 {
     Console.WriteLine($"  project: {compilation.AssemblyName}");
+    foreach (var error in compilation.GetDiagnostics().Where(_ => _.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error))
+    {
+        compileErrors++;
+        Console.WriteLine($"    {compilation.AssemblyName}: {error}");
+    }
+}
+
+if (compileErrors > 0)
+{
+    Console.WriteLine($"{compileErrors} compile error(s) in the projects read, so the document cannot be trusted");
+
+    return 1;
 }
 
 var passed = 0;

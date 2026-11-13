@@ -9,6 +9,7 @@ public class a_read_protection_build : for_AttributePrecedencePolicy.given.a_dec
 {
     protected string _buildMode = string.Empty;
     protected bool _expectFailure;
+    protected bool _importChroniclePackageProps;
     protected string _output = string.Empty;
     protected int _exitCode;
 
@@ -32,7 +33,10 @@ public class a_read_protection_build : for_AttributePrecedencePolicy.given.a_dec
         var project = Path.Combine(workspace, "Consumer.csproj");
         var assemblyInfo = Path.Combine(workspace, "Consumer.AssemblyInfo.cs");
         var target = Path.Combine(root, "Source", "DotNET", "Arc.Core", "build", "Cratis.Arc.Core.targets");
-        await File.WriteAllTextAsync(project, $"<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><GenerateAssemblyInfo>true</GenerateAssemblyInfo><GeneratedAssemblyInfoFile>{assemblyInfo}</GeneratedAssemblyInfoFile><CratisReadProtection>{_buildMode}</CratisReadProtection></PropertyGroup><Import Project=\"{target}\" /></Project>");
+        var chroniclePackageProps = Path.Combine(root, "Source", "DotNET", "Chronicle", "build", "Cratis.Arc.Chronicle.props");
+        var packageImport = _importChroniclePackageProps ? $"<Import Project=\"{chroniclePackageProps}\" />" : string.Empty;
+        var modeProperty = _buildMode.Length == 0 && _importChroniclePackageProps ? string.Empty : $"<CratisReadProtection>{_buildMode}</CratisReadProtection>";
+        await File.WriteAllTextAsync(project, $"<Project Sdk=\"Microsoft.NET.Sdk\">{packageImport}<PropertyGroup><TargetFramework>net10.0</TargetFramework><GenerateAssemblyInfo>true</GenerateAssemblyInfo><GeneratedAssemblyInfoFile>{assemblyInfo}</GeneratedAssemblyInfoFile>{modeProperty}</PropertyGroup><Import Project=\"{target}\" /></Project>");
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = workspace, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         start.ArgumentList.Add("msbuild");
         start.ArgumentList.Add(project);

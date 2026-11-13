@@ -1,12 +1,10 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
-        <TargetFrameworkFolder Condition=" '$(TargetFramework)' == 'net8.0' ">net8.0</TargetFrameworkFolder>
-        <TargetFrameworkFolder Condition=" '$(TargetFramework)' == 'net9.0' ">net9.0</TargetFrameworkFolder>
-        <TargetFrameworkFolder Condition=" '$(TargetFramework)' == 'net10.0' ">net10.0</TargetFrameworkFolder>
+        <!-- One net10.0 task serves every supported consumer framework (net10.0 and net11.0). -->
+        <TargetFrameworkFolder>net10.0</TargetFrameworkFolder>
 
         <!-- Newer consumers (net11.0, net11.0-windows, later) run the net10.0 tool, rolled forward onto the consumer's runtime. -->
-        <CratisProxyGeneratorRollForward Condition=" '$(TargetFrameworkFolder)' == '' and '$(TargetFramework)' != '' and $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0')) ">true</CratisProxyGeneratorRollForward>
-        <TargetFrameworkFolder Condition=" '$(CratisProxyGeneratorRollForward)' == 'true' ">net10.0</TargetFrameworkFolder>
+        <CratisProxyGeneratorRollForward Condition=" '$(TargetFramework)' != '' and $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0')) ">true</CratisProxyGeneratorRollForward>
         <CratisProxyGeneratorHostArguments Condition=" '$(CratisProxyGeneratorRollForward)' == 'true' and '$(CratisProxyGeneratorHostArguments)' == '' ">--roll-forward LatestMajor</CratisProxyGeneratorHostArguments>
         <!-- Until the 11 runtime ships as a release, the host only rolls forward onto it when prereleases are allowed. -->
         <CratisProxyGeneratorEnvironmentVariables Condition=" '$(CratisProxyGeneratorRollForward)' == 'true' and '$(CratisProxyGeneratorEnvironmentVariables)' == '' ">DOTNET_ROLL_FORWARD_TO_PRERELEASE=1</CratisProxyGeneratorEnvironmentVariables>
@@ -33,7 +31,7 @@
         <Message Importance="high" Text="Cratis Arc proxy generation is off: CratisProxiesOutputPath is not set, so no TypeScript proxies are generated. Set it in the project, for example &lt;CratisProxiesOutputPath&gt;%24(MSBuildThisFileDirectory)src&lt;/CratisProxiesOutputPath&gt;. Backend-only projects can silence this message with &lt;CratisProxiesSuppressOutputPathMessage&gt;true&lt;/CratisProxiesSuppressOutputPathMessage&gt;." />
     </Target>
 
-    <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != ''"> 
+    <Target Name="CratisProxyGenerator" AfterTargets="AfterBuild" Condition="'$(CratisProxiesOutputPath)' != '' and '$(CratisProxiesSkip)' != 'true' and '$(DisableProxyGenerator)' != 'true'">
         <PropertyGroup>
             <CratisProxiesOutputPath>$([System.String]::Copy('$(CratisProxiesOutputPath)').TrimEnd('\'))</CratisProxiesOutputPath>
             <!-- In-repo projects import these targets without the package .props. -->

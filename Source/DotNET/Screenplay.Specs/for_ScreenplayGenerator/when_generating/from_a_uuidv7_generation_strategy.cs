@@ -10,9 +10,7 @@ public class from_a_uuidv7_generation_strategy : a_generation_strategy
 {
     [Theory]
     [InlineData("GenerateValue.UuidV7()")]
-#if NET9_0_OR_GREATER
     [InlineData("Guid.CreateVersion7()")]
-#endif
     public void should_bind_and_round_trip_the_time_ordered_strategy(string call)
     {
         Generate((Analyzed.SlicePath, Source(call, "Guid")));

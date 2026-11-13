@@ -17,7 +17,7 @@ public class when_using_the_jit_fallback : given.a_traversal
     /// </summary>
     static when_using_the_jit_fallback()
     {
-        var traversal = new ProtectedReadModelKeyTraversal(Options.Create(new ProtectedReadModelKeyOptions()), _processLogger) { DynamicCodeSupported = true };
+        var traversal = new ProtectedReadModelKeyTraversal(Options.Create(new ProtectedReadModelKeyOptions { Strict = false }), _processLogger) { DynamicCodeSupported = true };
         _valid = traversal.IsValid(new ExternalShape("secret-valid"), "wire");
         _invalid = traversal.IsValid(new ExternalShape("secret#invalid"), "wire");
     }

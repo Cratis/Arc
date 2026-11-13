@@ -23,6 +23,12 @@
       "then": { "accepted": false, "callerConstructed": false }
     },
     {
+      "row": 18,
+      "given": { "verifiedCredentialGrantReference": null, "credentialIdMapping": null },
+      "when": { "operation": "build-caller", "requestSuppliedGrantReference": "grant-request-fixture", "requestSources": ["header", "body", "query"] },
+      "then": { "accepted": false, "requestReferenceUsed": false, "callerConstructed": false }
+    },
+    {
       "row": 19,
       "given": { "cnf": { "jkt": "synthetic-key-a" }, "dpopHeaderPresent": false },
       "when": { "operation": "build-caller", "authorizationScheme": "Bearer" },

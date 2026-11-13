@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Globalization;
-using System.Text.RegularExpressions;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
@@ -81,189 +79,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return FoldCases(rows).OrderBy(specification => specification.Name, StringComparer.Ordinal).ToList();
     }
 
-    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$", RegexOptions.None, 1000)]
-    private static partial Regex IsoInstant();
-
-    static bool HasUnrepresentableCommandSources(SpecificationScenarioEvidence? evidence, CommandModel? command, SpecificationModel specification)
-    {
-        if (evidence is not { HasExplicitCommandSources: true })
-        {
-            return false;
-        }
-        if (evidence.HasUnresolvedCommandSources)
-        {
-            return true;
-        }
-        if (command?.Authoring?.GeneratedParameters == true && specification.When?.For is not null)
-        {
-            return false;
-        }
-
-        return HasDifferentCommandIdentifier(evidence.CommandIdentifier, command);
-    }
-
-    static bool HasDifferentCommandIdentifier(string? statedIdentifier, CommandModel? command)
-    {
-        if (command is null || (command.Authoring?.Identifier ?? command.Identifier) is not { } identifier)
-        {
-            return false;
-        }
-        if (!command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier))
-        {
-            return false;
-        }
-
-        return command.Produces.All(production => production.UsesCommandContext) && statedIdentifier != identifier;
-    }
-
-    CommandModel? IssuedCommand(SpecificationModel specification) => specification.When is { Kind: SpecificationStateKind.Command } action
-        ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == action.Name)
-        : null;
-
-    SpecificationModel? WithRepresentableSources(SpecificationModel specification)
-    {
-        var evidence = SpecificationEvidence.For(specification);
-        var location = evidence?.SourceType.ToDisplayString() ??
-            Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
-        if (specification.When is { Kind: SpecificationStateKind.Command } issued &&
-            Application?.Slices.SelectMany(slice => slice.Commands).Any(command => command.Name == issued.Name) == false)
-        {
-            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its command is not present in the emitted executable document", location);
-            return null;
-        }
-
-        var command = IssuedCommand(specification);
-        if (new SpecificationGenerationPins(Diagnostics).Apply(specification, command, location) is not { } pinned)
-        {
-            return null;
-        }
-        specification = pinned;
-        if (EventRoutes && command?.Produces.Any(production => production.Route is not null) == true && !specification.Errors.Any())
-        {
-            if (SpecificationProductionRoutes.Apply(specification, command) is not { } routed)
-            {
-                Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its per-production destinations and effective routes are not complete ordered concrete fixtures", location);
-                return null;
-            }
-            specification = routed;
-        }
-        if (HasUnrepresentableCommandSources(evidence, command, specification))
-        {
-            Diagnostics?.Warning(
-                ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because its event sources cannot be stated faithfully: an explicit source is not provably the command's own source and cannot be stated as a concrete for value",
-                location);
-            return null;
-        }
-
-        if (EventRoutes && command?.Authoring?.Route is { Stream: not null } commandRoute &&
-            command.Produces.All(production => production.UsesCommandContext))
-        {
-            var streamId = commandRoute.StreamId is { } property
-                ? specification.When!.Values.SingleOrDefault(mapping => mapping.Property == property)?.Source as LiteralSource
-                : commandRoute.StreamIdLiteral;
-            var streamIdParts = commandRoute.StreamIdParts.Select(part => new PropertyMappingModel(part.Name, part.Value is LiteralSource literal ? literal : part.Value is PropertyPathSource path ? specification.When!.Values.SingleOrDefault(mapping => mapping.Property == path.Path)?.Source ?? new LiteralSource(null) : new LiteralSource(null))).ToList();
-            if ((commandRoute.StreamIdType is not null && streamId is null) || streamIdParts.Exists(part => part.Source is not LiteralSource { Value: not null }))
-            {
-                Diagnostics?.Warning(
-                    ScreenplayDiagnosticCodes.UnreadableSpecification,
-                    $"The scenario '{specification.Name}' was left out because its command's stream id is not a concrete fixture",
-                    location);
-                return null;
-            }
-
-            specification = specification with
-            {
-                Then = specification.Then.Select(state => state.Kind == SpecificationStateKind.Event && state.For is null
-                    ? state with { Route = SpecificationRouteDeclarations.Inferred(commandRoute, streamId, streamIdParts) }
-                    : state).ToList()
-            };
-        }
-
-        var responds = command?.Authoring is { Response: not null } or { ResponseFields.Count: > 0 };
-        if (specification.AssertsResponse && responds && specification.Returns?.Fits(command!.Authoring) != true)
-        {
-            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but not as unconditional equalities with concrete values that fit the emitted returns", location);
-            return null;
-        }
-
-        if (ResponseOnlyScenarios.IsResponseOnly(specification) && (!responds || !ResponseOnlyScenarios.RecordsNoFacts(command)))
-        {
-            var reason = !responds
-                ? "its only outcome is a command response the emitted command does not return"
-                : "its only outcome is the command response, and the command is not proven to record no facts; a specification with no expected events asserts that none were produced";
-            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because {reason}", location);
-            return null;
-        }
-
-        if (specification.Returns is not null && !responds)
-        {
-            // As in the legacy document, a response the command does not emit is not asserted.
-            specification = specification with { Returns = null };
-        }
-
-        if (!specification.Errors.Any() && command?.Authoring is { GeneratedParameters: false, Generated.Count: > 0 })
-        {
-            Diagnostics?.Warning(
-                ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because generation needs deterministic when for / generated fixtures, and no faithful fixture was recovered from the Arc scenario; missing fixtures would execute as Unsupported(IdentityAllocation)",
-                location);
-            return null;
-        }
-
-        if (!EventRoutes && specification.Given.Concat(specification.Then)
-            .Concat(specification.When is { } statedAction ? [statedAction] : []).Any(state => state.Route is { Source: not null }))
-        {
-            Diagnostics?.Information(
-                ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
-                $"The scenario '{specification.Name}' was left out because specification event routes require ScreenplayOptions.AuthoringOnlyConstructs; no stream metadata was discarded",
-                location);
-            return null;
-        }
-
-        var occurrences = specification.Given.Concat(specification.Then)
-            .Concat(specification.When is { } action ? [action] : [])
-            .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
-        var requiresLiteralRoute = specification.Given.Concat(specification.When is { } appendedAction ? [appendedAction] : [])
-            .Any(state => state.Route is { Source: not null } && state.For is null);
-        if (EventRoutes && occurrences.Exists(state => state.Route?.Source == "Default"))
-        {
-            Diagnostics?.Information(ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable, $"The scenario '{specification.Name}' was left out because source 'Default' has a reserved stored name (PLAY0273); no partial route was emitted", location);
-            return null;
-        }
-
-        if (EventRoutes && (requiresLiteralRoute || occurrences.Exists(state => !CanStateRoute(state, occurrences))))
-        {
-            Diagnostics?.Warning(
-                ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because its route cannot be stated with the document's source and stream-id types",
-                location);
-            return null;
-        }
-
-        if (occurrences.TrueForAll(state => state.For is null || CanStateSource(state)))
-        {
-            return specification;
-        }
-
-        if (specification.When is { Kind: SpecificationStateKind.Command } ||
-            occurrences.Exists(state => state.Route is { Source: not null }) ||
-            occurrences.Select(state => state.For).Distinct().Count() != 1)
-        {
-            Diagnostics?.Warning(
-                ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because its event sources cannot be stated faithfully as concrete for values of every producing command's unambiguous required scalar identifier type",
-                location);
-            return null;
-        }
-
-        return specification with
-        {
-            Given = specification.Given.Select(state => state with { For = null }).ToList(),
-            When = specification.When is { } when ? when with { For = null } : null,
-            Then = specification.Then.Select(state => state with { For = null }).ToList()
-        };
-    }
+    static SpecificationStateModel? ActionToAccountFor(SpecificationModel specification) =>
+        specification.Errors.Any() || specification.Denied ? null : specification.When;
 
     /// <summary>
     /// Keeps a scenario only when what it says follows its action accounts for the declarative reactions it sets off.
@@ -280,14 +97,13 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </remarks>
     SpecificationModel? WithReactionsAccountedFor(SpecificationModel specification)
     {
-        if (Application is null || specification.When is not { } action || specification.Errors.Any() || specification.Denied)
+        if (Application is null || ActionToAccountFor(specification) is not { } action)
         {
             return specification;
         }
 
         var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled, RefusalsEnabled = ReactionRefusalsEnabled, AtomicBatchesEnabled = ReactionAtomicBatchesEnabled };
-        var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
-            Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
+        var location = LocationOf(specification);
         var reason = specification.Reactor is { } reactor
             ? ReactorScenarioGap(specification, action, reactor, reactions)
             : ActionScenarioGap(specification, action, reactions);
@@ -361,8 +177,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         var remaining = specification.Then.Where(state => !SpecificationOutcomeReader.RestatesAppend(state, specification.When)).ToList();
-        var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
-            Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
+        var location = LocationOf(specification);
         if (remaining.Exists(state => state.Kind == SpecificationStateKind.Event))
         {
             Diagnostics?.Warning(
@@ -382,136 +197,6 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         return specification with { Then = remaining };
-    }
-
-    bool CanStateRoute(SpecificationStateModel state, IEnumerable<SpecificationStateModel> occurrences)
-    {
-        if (state.Route is not { } route)
-        {
-            return true;
-        }
-        if (route.Source is null && route.Stream is null)
-        {
-            return route.StreamId is null && route.StreamIdParts.Count == 0;
-        }
-        if (route.Source is null || route.Stream is null)
-        {
-            return false;
-        }
-
-        if (route.Source == "Default")
-        {
-            return false;
-        }
-
-        var resolved = ResolveRoutes(occurrences);
-        if (resolved.ConflictingSources.Contains(route.Identity!.Source))
-        {
-            return false;
-        }
-        var sourceDeclaration = resolved.Sources.SingleOrDefault(source => source.Identity.Source == route.Identity.Source);
-        var declared = sourceDeclaration?.Streams.SingleOrDefault(stream => stream.Identity == route.Identity);
-        var identity = sourceDeclaration?.IdentifierType;
-        var identifiers = Application?.Slices.SelectMany(slice => slice.Commands)
-            .Where(command => command.Produces.Any(production => production.EventName == state.Name))
-            .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
-            .OfType<TypeReferenceModel>().Distinct().ToList() ?? [];
-        if (identity is not null && (identifiers.Exists(identifier => identifier != identity) ||
-            (state.For is { } source && !CanStateLiteral(source, identity))))
-        {
-            return false;
-        }
-
-        var streamIdType = declared is not null ? declared.StreamIdType : route.StreamId is not null ? new TypeReferenceModel("String", false, false) : null;
-        if (declared?.StreamIdParts.Count > 0)
-        {
-            return streamIdType is null && route.StreamId is null && route.StreamIdParts.Count == declared.StreamIdParts.Count &&
-                route.StreamIdParts.Zip(declared.StreamIdParts).All(pair => pair.First.Property == pair.Second.Name &&
-                    pair.First.Source is LiteralSource part && CanStateStreamId(part, pair.Second.Type));
-        }
-        if (streamIdType is null)
-        {
-            return route.StreamId is null && route.StreamIdParts.Count == 0;
-        }
-
-        return route.StreamIdParts.Count == 0 && route.StreamId is { } id && CanStateStreamId(id, streamIdType);
-    }
-
-    ResolvedEventSources ResolveRoutes(IEnumerable<SpecificationStateModel> occurrences)
-    {
-        if (Application is not { } application)
-        {
-            return new([], new HashSet<string>(StringComparer.Ordinal));
-        }
-        var routes = application.Slices.SelectMany(slice => slice.Commands).SelectMany(Commands.ProductionRouteAdmission.Routes);
-        var stated = SpecificationRouteDeclarations.Read(application, (RoutedOccurrences ?? []).Concat(occurrences));
-
-        return EventSourceDeclarations.Resolve(routes.Concat(stated), EventSourceDeclarations.ObservedRoutes(application, ReactionMetadataEnabled));
-    }
-
-    bool CanStateStreamId(LiteralSource id, TypeReferenceModel type) => CanStateLiteral(id, type) &&
-            (id.Value is not string text || (text.Length > 0 && text.IsNormalized() && naming.ToStringLiteral(text) == text)) &&
-            (id.Value is not long number || number is >= -9007199254740991 and <= 9007199254740991);
-
-    bool CanStateSource(SpecificationStateModel state)
-    {
-        var producers = Application?.Slices.SelectMany(slice => slice.Commands)
-            .Where(command => command.Produces.Any(produced => naming.ToDeclarationName(produced.EventName) == naming.ToDeclarationName(state.Name)))
-            .ToList() ?? [];
-        if (EventRoutes && state.Route is { Source: not null } route)
-        {
-            var declaredType = Application?.Slices.SelectMany(slice => slice.Commands)
-                .SelectMany(Commands.ProductionRouteAdmission.Routes)
-                .FirstOrDefault(candidate => candidate.Identity.HasSameSourceAs(route.Identity))?.IdentifierType;
-            if (declaredType is not null)
-            {
-                return CanStateLiteral(state.For!, declaredType);
-            }
-            if (producers.Count == 0)
-            {
-                return state.For!.Value is string;
-            }
-        }
-
-        if (producers.Count == 0 || producers.Exists(command => (command.Authoring?.Identifier ?? command.Identifier) is null || command.Produces.Any(produced => !produced.UsesCommandContext)))
-        {
-            return false;
-        }
-
-        var identifiers = producers.ConvertAll(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type);
-        if (identifiers.Exists(type => type is null or { IsOptional: true } or { IsCollection: true }) ||
-            identifiers.Select(type => naming.ToDeclarationName(type!.Name)).Distinct(StringComparer.Ordinal).Count() != 1)
-        {
-            return false;
-        }
-
-        return CanStateLiteral(state.For!, identifiers[0]!);
-    }
-
-    bool CanStateLiteral(LiteralSource literal, TypeReferenceModel type)
-    {
-        if (type.IsOptional || type.IsCollection)
-        {
-            return false;
-        }
-
-        var name = naming.ToDeclarationName(type.Name);
-        var concept = Application?.Concepts.SingleOrDefault(concept => naming.ToDeclarationName(concept.Name) == name);
-        var primitive = concept?.Primitive.ToString() ?? name;
-        var value = literal.Value;
-
-        return primitive switch
-        {
-            "Uuid" => value is string uuid && Guid.TryParse(uuid, out var parsed) && parsed.ToString("D", CultureInfo.InvariantCulture) == uuid,
-            "String" => value is string,
-            "Int" => value is int or long,
-            "Decimal" => value is int or long or float or double or decimal,
-            "Bool" => value is bool,
-            "Date" => value is string date && DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
-            "DateTime" => value is string instant && IsoInstant().IsMatch(instant) && DateTimeOffset.TryParse(instant, CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
-            "Enum" => value is string member && concept!.EnumValues.Contains(member, StringComparer.Ordinal),
-            _ => false
-        };
     }
 
     /// <summary>
@@ -600,27 +285,36 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
     SpecificationEventSyntax Event(SpecificationStateModel state, bool expected = false)
     {
-        if (EventRoutes && !expected && state.Route is { Source: null, Stream: null })
+        var unrouted = EventRoutes && state.Route is { Source: null, Stream: null };
+        if (unrouted && !expected)
         {
-            Diagnostics?.Information(
-                ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
-                $"The unrouted occurrence of '{state.Name}' has no route directive because Screenplay allows no stream only on then events",
-                state.Name);
+            ReportUnroutedOccurrence(state);
         }
 
         return new(naming.ToDeclarationName(state.Name), [.. Values(state)], SourceLocation.Start)
         {
             For = SourceOf(state),
-            Stream = EventRoutes && state.Route is { Source: not null, Stream: not null } route
-                ? new(route.Source, route.Stream, SourceLocation.Start)
-                {
-                    StreamId = route.StreamId is { } id ? new("streamId", _sources.Convert(id), SourceLocation.Start) : null,
-                    StreamIdParts = route.StreamIdParts.Select(part => new PropertyMappingSyntax(naming.ToPropertyName(part.Property), _sources.Convert(part.Source), SourceLocation.Start)).ToList()
-                }
-                : null,
-            NoStream = EventRoutes && expected && state.Route is { Source: null, Stream: null } ? new(SourceLocation.Start) : null
+            Stream = EventRoutes ? StreamOf(state) : null,
+            NoStream = unrouted && expected ? new(SourceLocation.Start) : null
         };
     }
+
+    SpecificationStreamSyntax? StreamOf(SpecificationStateModel state) => state.Route is { Source: not null, Stream: not null } route
+        ? new(route.Source, route.Stream, SourceLocation.Start)
+        {
+            StreamId = route.StreamId is { } id ? new("streamId", _sources.Convert(id), SourceLocation.Start) : null,
+            StreamIdParts = StreamIdParts(route)
+        }
+        : null;
+
+    void ReportUnroutedOccurrence(SpecificationStateModel state) =>
+        Diagnostics?.Information(
+            ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
+            $"The unrouted occurrence of '{state.Name}' has no route directive because Screenplay allows no stream only on then events",
+            state.Name);
+
+    List<PropertyMappingSyntax> StreamIdParts(SpecificationEventRouteModel route) =>
+        route.StreamIdParts.Select(part => new PropertyMappingSyntax(naming.ToPropertyName(part.Property), _sources.Convert(part.Source), SourceLocation.Start)).ToList();
 
     /// <summary>
     /// Builds the states of a step that name a read model.

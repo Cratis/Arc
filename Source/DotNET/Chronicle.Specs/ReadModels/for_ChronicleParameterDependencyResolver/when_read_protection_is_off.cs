@@ -8,6 +8,7 @@ using Cratis.Chronicle.ReadModels;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+[PerFactSpecificationLifecycle]
 public class when_read_protection_is_off : given.a_keyed_protected_read
 {
     [Theory]

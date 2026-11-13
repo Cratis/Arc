@@ -47,6 +47,7 @@ public class a_measure_pipeline : a_read_protection_pipeline
         typeof(DecisionReads).GetMethod("RegisterTesting", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [_store, _reader]);
         _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["ReadProtection:RequireGeneratedMetadata"] = "false",
             ["ReadProtection:MeasureSampleRate"] = "0"
         }).Build();
         _services.GetService(typeof(IConfiguration)).Returns(_ => _configuration);

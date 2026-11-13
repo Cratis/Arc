@@ -58,31 +58,40 @@ public class ConceptSyntaxBuilder(
                 continue;
             }
 
-            var values = ToValues(concept);
-            if (concept.Primitive == ScreenplayPrimitive.Enum && values.Count == 0)
+            var syntax = BuildConcept(concept, name);
+            if (syntax is not null)
             {
-                // An enumeration with no values has an empty body, which does not compile.
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.EnumWithoutValues,
-                    $"The concept '{concept.Name}' is an enumeration with no values and was left out",
-                    concept.Name);
-                continue;
+                declared[name] = syntax;
             }
-
-            declared[name] = new(
-                name,
-                ScreenplayPrimitiveTypes.GetName(concept.Primitive),
-                [.. Attributes(concept)],
-                values.ConvertAll(value => value.Name),
-                SourceLocation.Start,
-                [.. validations.Build(ValidationContract(concept), concept.Name, impliedSubject: true)])
-            {
-                ValueNumbers = NumbersOf(concept, values),
-                Generation = ConceptGenerationSyntax.Build(concept, MaximumExecutableModelVersion, diagnostics)
-            };
         }
 
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
+    }
+
+    ConceptSyntax? BuildConcept(ConceptModel concept, string name)
+    {
+        var values = ToValues(concept);
+        if (concept.Primitive == ScreenplayPrimitive.Enum && values.Count == 0)
+        {
+            // An enumeration with no values has an empty body, which does not compile.
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.EnumWithoutValues,
+                $"The concept '{concept.Name}' is an enumeration with no values and was left out",
+                concept.Name);
+            return null;
+        }
+
+        return new(
+            name,
+            ScreenplayPrimitiveTypes.GetName(concept.Primitive),
+            [.. Attributes(concept)],
+            values.ConvertAll(value => value.Name),
+            SourceLocation.Start,
+            [.. validations.Build(ValidationContract(concept), concept.Name, impliedSubject: true)])
+        {
+            ValueNumbers = NumbersOf(concept, values),
+            Generation = ConceptGenerationSyntax.Build(concept, MaximumExecutableModelVersion, diagnostics)
+        };
     }
 
     IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept)
@@ -111,20 +120,30 @@ public class ConceptSyntaxBuilder(
 
         if (concept.IsSensitive)
         {
-            var scope = concept.IsPii ? null : concept.EncryptionScope;
-            if (scope is not null && !AuthoringOnlyConstructs)
-            {
-                diagnostics.Information(
-                    ScreenplayDiagnosticCodes.EncryptionScopeNotRepresentable,
-                    $"Concept '{concept.Name}' has encryption scope '{scope}', which is not stated; bare secret implies Subject scope. Enable ScreenplayOptions.AuthoringOnlyConstructs to state the scope",
-                    concept.Name);
-            }
-
-            yield return new(ConceptAttributeSyntax.Sensitive, SourceLocation.Start)
-            {
-                Scope = AuthoringOnlyConstructs ? scope : null
-            };
+            yield return SensitiveAttribute(concept);
         }
+    }
+
+    /// <summary>
+    /// Builds the sensitive annotation, reporting an encryption scope the document cannot state.
+    /// </summary>
+    /// <param name="concept">The sensitive concept.</param>
+    /// <returns>The sensitive annotation.</returns>
+    ConceptAttributeSyntax SensitiveAttribute(ConceptModel concept)
+    {
+        var scope = concept.IsPii ? null : concept.EncryptionScope;
+        if (scope is not null && !AuthoringOnlyConstructs)
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.EncryptionScopeNotRepresentable,
+                $"Concept '{concept.Name}' has encryption scope '{scope}', which is not stated; bare secret implies Subject scope. Enable ScreenplayOptions.AuthoringOnlyConstructs to state the scope",
+                concept.Name);
+        }
+
+        return new(ConceptAttributeSyntax.Sensitive, SourceLocation.Start)
+        {
+            Scope = AuthoringOnlyConstructs ? scope : null
+        };
     }
 
     /// <summary>
@@ -171,6 +190,18 @@ public class ConceptSyntaxBuilder(
         var members = concept.EnumValues.Select((name, index) => (Name: name, Number: numbers.Count == 0 ? (BigInteger?)null : numbers[index]))
             .Where(member => names.Allows(member.Name, ReservedWords.InConcept, concept.Name, concept.Name))
             .Select(member => (Name: naming.ToPropertyName(member.Name), member.Number)).ToList();
+        ReportNameCollisions(concept, members);
+
+        return members.DistinctBy(member => member.Name, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// Reports enumeration members that share an emitted name.
+    /// </summary>
+    /// <param name="concept">The enumeration being emitted.</param>
+    /// <param name="members">The retained members.</param>
+    void ReportNameCollisions(ConceptModel concept, IEnumerable<(string Name, BigInteger? Number)> members)
+    {
         foreach (var collision in members.GroupBy(member => member.Name, StringComparer.Ordinal).Where(group => group.Count() > 1))
         {
             diagnostics.Warning(
@@ -178,8 +209,6 @@ public class ConceptSyntaxBuilder(
                 $"Enum '{concept.Name}' members share the emitted name '{collision.Key}'; only the first member is declared, and the other member identities are not preserved",
                 concept.Name);
         }
-
-        return members.DistinctBy(member => member.Name, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>

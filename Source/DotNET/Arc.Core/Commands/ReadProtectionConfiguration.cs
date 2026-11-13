@@ -38,8 +38,8 @@ internal static class ReadProtectionConfiguration
     /// Determines whether command key lookup requires generated metadata instead of reflection compatibility.
     /// </summary>
     /// <param name="configuration">The host configuration, when available.</param>
-    /// <returns>True when explicitly required or dynamic code is unsupported.</returns>
+    /// <returns>True unless explicitly set to false on a runtime that supports dynamic code. Missing or invalid values require metadata.</returns>
     internal static bool RequireGeneratedMetadata(IConfiguration? configuration) =>
         !RuntimeFeature.IsDynamicCodeSupported ||
-        (bool.TryParse(Value(configuration, "RequireGeneratedMetadata"), out var required) && required);
+        !(bool.TryParse(Value(configuration, "RequireGeneratedMetadata"), out var required) && !required);
 }
