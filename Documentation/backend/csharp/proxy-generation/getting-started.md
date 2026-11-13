@@ -12,7 +12,7 @@ Reference [Cratis.Arc.ProxyGenerator.Build](https://www.nuget.org/packages/Crati
 ## Choose a dedicated output folder
 
 :::caution[No output path, no proxies]
-The generator runs only when `CratisProxiesOutputPath` is set. With the package referenced and the property empty (its default), the build succeeds, writes no proxies and prints no message. If your frontend cannot find generated files, check this property first.
+The generator runs only when `CratisProxiesOutputPath` is set. With the package referenced and the property empty (its default), the build succeeds, writes no proxies and prints a message saying proxy generation is off. Backend-only projects can silence it with `<CratisProxiesSuppressOutputPathMessage>true</CratisProxiesSuppressOutputPathMessage>`. If your frontend cannot find generated files, check this property first.
 :::
 
 Add this MSBuild fragment **inside your existing `.csproj`'s `Project` element**:

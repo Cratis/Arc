@@ -36,12 +36,7 @@ internal static class ArcOptionsConfiguration
     {
         var authenticationOverride = options.Introspection.AuthenticationOverride;
         var queryHealthAuthenticationOverride = options.QueryHealth.AuthenticationOverride;
-        var exposeExceptionDetails = options.ExplicitExposeExceptionDetails;
         ArcOptionsBinder.Bind(options, configuration, logger);
-        if (configuration["ExposeExceptionDetails"] is null)
-        {
-            options.ExplicitExposeExceptionDetails = exposeExceptionDetails;
-        }
         if (configuration["Introspection:RequireAuthentication"] is null)
         {
             options.Introspection.AuthenticationOverride = authenticationOverride;

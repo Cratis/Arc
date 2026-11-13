@@ -77,7 +77,7 @@ Before you deploy, go through this list:
 2. Register a real authentication scheme, or set `Cratis:Arc:TrustForwardedIdentityHeaders` to `true` only behind an ingress that authenticates callers and strips identity headers. See [Microsoft Identity](./asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
 3. Set `Cratis:Arc:Query:AllowedWebSocketOrigins` to your front-end origins. See [Restricting WebSocket origins](./queries/observable-query-demultiplexer.md#restricting-websocket-origins).
 4. Choose a read-protection mode with `<CratisReadProtection>` per project. Use `Measure` first, then `On`. See [Adopting read protection](./chronicle/consistency/adopting.md).
-5. Leave `ExposeExceptionDetails` `false`. Check the host's configured environment, not just `ASPNETCORE_ENVIRONMENT`; see [Environment detection](./configuration/keys.md#how-arc-detects-development).
+5. Leave `ExposeExceptionDetails` `false`; it defaults to `true` when `ASPNETCORE_ENVIRONMENT` is `Development`. See [Environment detection](./configuration/keys.md#how-arc-detects-development).
 6. Turn off discovery you do not need: set `Cratis:Arc:Introspection:Enabled` and `IdentityDiscovery` to `false`. See [Introspection production access](./introspection/index.md#production-access).
 7. Set `Cratis:Arc:Tenancy:StrictValidatorMembership` to `true` if the application is multi-tenant.
 8. Keep MongoDB `LogCommandBodies` off and keep secrets in secret configuration.

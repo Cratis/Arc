@@ -15,17 +15,6 @@ public static class RuntimeEnvironment
 
     static RuntimeEnvironment()
     {
-        IsDevelopment = IsDevelopmentIn(
-            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-            Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"));
+        IsDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
     }
-
-    /// <summary>
-    /// Determines whether the environment names select the Development environment.
-    /// </summary>
-    /// <param name="aspNetCoreEnvironment">The value of <c>ASPNETCORE_ENVIRONMENT</c>.</param>
-    /// <param name="dotNetEnvironment">The value of <c>DOTNET_ENVIRONMENT</c>.</param>
-    /// <returns>True when Development is selected; <c>ASPNETCORE_ENVIRONMENT</c> wins when both are set, as it does for WebApplication.</returns>
-    internal static bool IsDevelopmentIn(string? aspNetCoreEnvironment, string? dotNetEnvironment) =>
-        (string.IsNullOrEmpty(aspNetCoreEnvironment) ? dotNetEnvironment : aspNetCoreEnvironment) == "Development";
 }

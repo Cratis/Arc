@@ -153,16 +153,11 @@ public class ArcOptions
     /// </summary>
     /// <remarks>
     /// Defaults to <see langword="true"/> only in the Development environment and <see langword="false"/> otherwise.
-    /// The environment is the host's <c>IHostEnvironment</c> when there is one; otherwise <c>ASPNETCORE_ENVIRONMENT</c> or <c>DOTNET_ENVIRONMENT</c>.
-    /// An explicit value, from configuration or code, always wins over that default.
+    /// The default is read from the <c>ASPNETCORE_ENVIRONMENT</c> environment variable; set the value explicitly to override it.
     /// When <see langword="false"/>, exception messages and stack traces are redacted from responses (the full detail
     /// is still logged server-side and the correlation identifier is retained) to avoid leaking internal information.
     /// </remarks>
-    public bool ExposeExceptionDetails
-    {
-        get => ExplicitExposeExceptionDetails ?? HostDevelopmentDefault;
-        set => ExplicitExposeExceptionDetails = value;
-    }
+    public bool ExposeExceptionDetails { get; set; } = RuntimeEnvironment.IsDevelopment;
 
     /// <summary>
     /// Gets or sets the read-protection settings, mirrored from configuration.
@@ -172,16 +167,6 @@ public class ArcOptions
     /// or the original root <c>ReadProtection</c> section), so set them in configuration. Assigning them in code in <c>AddCratis(options =&gt; ...)</c> is not consulted.
     /// </remarks>
     public ReadProtectionOptions ReadProtection { get; set; } = new();
-
-    /// <summary>
-    /// Gets or sets the default for <see cref="ExposeExceptionDetails"/> when it has not been set explicitly; the host's development state.
-    /// </summary>
-    internal bool HostDevelopmentDefault { get; set; } = RuntimeEnvironment.IsDevelopment;
-
-    /// <summary>
-    /// Gets or sets the explicitly set <see cref="ExposeExceptionDetails"/> value, or null when only the host default applies.
-    /// </summary>
-    internal bool? ExplicitExposeExceptionDetails { get; set; }
 
     /// <summary>
     /// Add a type info resolver, typically the application's source-generated <see cref="JsonSerializerContext"/>, to the

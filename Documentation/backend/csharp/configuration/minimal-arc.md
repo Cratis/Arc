@@ -34,7 +34,7 @@ Run it with `dotnet run`. Registration discovers your application's commands and
 
 - Choose [authentication and authorization](../authorizing-commands-and-queries.md). Authentication-required endpoints need a scheme that validates the caller; Arc does not infer one.
 - Leave `TrustForwardedIdentityHeaders` off unless every request comes through a trusted ingress that authenticates callers and replaces identity headers.
-- `ExposeExceptionDetails` defaults to the host's Development state; set it to `false` explicitly when needed. Discovery and query-health access are anonymous in Development and require authentication elsewhere.
-- TypeScript generation requires the proxy build package and a nonempty `CratisProxiesOutputPath`; without it the generator logs that it is skipping output. Keep [build-time and runtime route settings aligned](../proxy-generation/Configuration/routing.md#settings-that-must-match-the-proxy-generator).
+- `ExposeExceptionDetails` defaults to `true` only when `ASPNETCORE_ENVIRONMENT` is `Development`; set it to `false` explicitly when needed. Discovery and query-health access are anonymous in Development and require authentication elsewhere.
+- TypeScript generation requires the proxy build package and a nonempty `CratisProxiesOutputPath`; without it the build prints a message and generates nothing. Keep [build-time and runtime route settings aligned](../proxy-generation/Configuration/routing.md#settings-that-must-match-the-proxy-generator).
 
 See [configuration keys](keys.md) for defaults, or [add Chronicle](minimal-arc-chronicle.md) when you need event sourcing.

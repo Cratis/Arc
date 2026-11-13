@@ -97,7 +97,6 @@ public static class HostBuilderExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddConnectionResolution();
         services.TryAddSingleton<IOperationContextAccessor, OperationContextAccessor>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<ArcOptions>, HostDevelopmentDefaultsConfiguration>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, IntrospectionOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, CommandOptionsValidator>());

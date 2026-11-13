@@ -37,7 +37,7 @@ The first table covers keys already described in [The ArcOptions tree](index.md#
 
 | Key | Default | Purpose and when to change it |
 | --- | --- | --- |
-| `ExposeExceptionDetails` | `true` only in Development, otherwise `false` | Include exception messages and stack traces in results. Leave `false` in production. See [Environment detection](#how-arc-detects-development). |
+| `ExposeExceptionDetails` | `true` only when `ASPNETCORE_ENVIRONMENT` is `Development`, otherwise `false` | Include exception messages and stack traces in results. Leave `false` in production. See [Environment detection](#how-arc-detects-development). |
 | `CorrelationId:HttpHeader` | `X-Correlation-ID` | Rename the correlation header to match your gateway. |
 | `Calendar:TimeZone` | `UTC` | Set an IANA id such as `Europe/Oslo`. An unknown id stops the host. See [Application calendar](../application-calendar.md). |
 | `Hosting:ApplicationUrl` | `http://+:5001/` | Arc.Core host only. The default binds every network interface; use `http://localhost:5001/` for local-only. |
@@ -188,10 +188,8 @@ The runtime, measurement, and startup-admission keys below accept both `Cratis:A
 
 | Key (relative to either section) | Default | Purpose |
 | --- | --- | --- |
-| `DefaultMode` | `On` | Mode when a command has no explicit declaration; `MaximumMode` can cap it. |
 | `MaximumMode` | `On` (no cap) | A ceiling that can only lower the mode. See [Cap the mode at run time](../chronicle/consistency/adopting.md#cap-the-mode-at-run-time). |
 | `RequireGeneratedMetadata` | `true` (always required where dynamic code is unavailable) | Fail instead of falling back to reflection for read-model key lookup. Set `false` only to opt out explicitly. |
-| `EffectivenessWarnings` | `false` | Warn when enabling protection without an Arc command pipeline. A registered warning sink implies `true` unless configured explicitly. |
 
 Chronicle's measurement and startup-admission settings also accept both sections. The table uses the original root spelling:
 
@@ -209,17 +207,17 @@ Chronicle's measurement and startup-admission settings also accept both sections
 
 | Variable | Effect |
 | --- | --- |
-| `DOTNET_ENVIRONMENT`, `ASPNETCORE_ENVIRONMENT` | Development fallback when no host environment is available; `DOTNET_ENVIRONMENT` takes precedence. See [Environment detection](#how-arc-detects-development). |
+| `ASPNETCORE_ENVIRONMENT` | `Development` sets the `ExposeExceptionDetails` default and, when no host environment is available, selects Development for discovery and query-health access. Arc does not read `DOTNET_ENVIRONMENT`. See [Environment detection](#how-arc-detects-development). |
 
 ## How Arc detects Development
 
-`ArcOptions.ExposeExceptionDetails` uses the host's `IHostEnvironment.IsDevelopment()` when registered. Without a host it falls back to `DOTNET_ENVIRONMENT`, then `ASPNETCORE_ENVIRONMENT`. A Development host therefore gets exception details even when its environment was set in code. An explicit configuration or options value always wins:
+`ArcOptions.ExposeExceptionDetails` defaults to `true` only when the `ASPNETCORE_ENVIRONMENT` environment variable is `Development`. A host whose environment is set in code or through host configuration does not change it, and neither does `DOTNET_ENVIRONMENT`. Set the value explicitly to override the default:
 
 ```json
 { "Cratis": { "Arc": { "ExposeExceptionDetails": true } } }
 ```
 
-Discovery access and query-health access also check the host environment first and use the same environment-variable fallback when no host is registered. Arc's service-provider scope validation also follows the host environment. Do not switch a deployed host to Development to restore access.
+Discovery access and query-health access check the host's `IHostEnvironment` first and fall back to `ASPNETCORE_ENVIRONMENT` when no host is registered. Arc's service-provider scope validation also follows the host environment. Do not switch a deployed host to Development to restore access.
 
 ## `AddCratis()` authenticates nobody until you opt in
 
