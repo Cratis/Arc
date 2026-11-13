@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Availability;
+using Cratis.Arc.Contexts;
 using Cratis.Choreography.Availability;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -36,6 +37,7 @@ public static class ArcAvailabilityServiceCollectionExtensions
         services.TryAddSingleton<IAvailabilityGate, ArcAvailabilityGate>();
         services.TryAddScoped<IAvailabilitySubjectProvider, AvailabilitySubjectProvider>();
         services.TryAddScoped<AvailabilityRequestContext>();
+        services.TryAddScoped<IContextValueSource, ChoreographyContextValueSource>();
         services.TryAddScoped<IUnavailableParts, UnavailableParts>();
         return services;
     }

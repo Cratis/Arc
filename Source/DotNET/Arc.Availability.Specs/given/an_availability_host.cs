@@ -23,6 +23,8 @@ public class an_availability_host : Specification
 
     protected virtual IAudienceSource AudienceSource => _audiences;
 
+    protected virtual ContextValueCatalog ValueCatalog => new();
+
     protected virtual void Configure(ArcAvailabilityOptions options)
     {
         options
@@ -47,7 +49,7 @@ public class an_availability_host : Specification
             .AddSingleton(AudienceSource)
             .AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview"))
             .AddSingleton(new AvailabilityCatalog())
-            .AddSingleton(new ContextValueCatalog())
+            .AddSingleton(ValueCatalog)
             .AddArcAvailability(Configure)
             .BuildServiceProvider(true);
         _scope = _root.CreateScope();
