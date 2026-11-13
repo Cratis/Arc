@@ -1,2 +1,8 @@
 - name: Overview
   href: index.md
+- name: Configuration keys
+  href: keys.md
+- name: Minimal Arc setup
+  href: minimal-arc.md
+- name: Minimal Arc and Chronicle setup
+  href: minimal-arc-chronicle.md
