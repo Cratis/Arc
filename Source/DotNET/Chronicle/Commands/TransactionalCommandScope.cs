@@ -112,67 +112,6 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         BeginOwned(context, frame, serviceProvider);
     }
 
-    static void BeginInherited(CommandContext context, TransactionFrame frame, IUnitOfWork inheritedUnit, bool readProtected)
-    {
-        // An enforcing unit is retained even after early completion; a nested invocation cannot replace it.
-        frame.UnitOfWork = inheritedUnit;
-        if (frame.Previous?.Protection is not null)
-        {
-            frame.Protection = inheritedUnit.EnforceReadProtection();
-
-            // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
-            // opened by its caller's body or by an enclosing command that does not enable read protection.
-            frame.ReadAllowance = readProtected
-                ? inheritedUnit.SuspendReadRegions()
-                : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
-        }
-        RegisterEnrollmentContributor(context, frame, inheritedUnit);
-    }
-
-    static void BeginOwned(CommandContext context, TransactionFrame frame, IServiceProvider serviceProvider)
-    {
-        var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
-        frame.SuspendedUnit = frame.Controller?.UnitOfWork;
-        frame.UnitOfWorkManager = unitOfWorkManager;
-        var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
-
-        // The refusal frame owns keyed completion, including commands with protected reads.
-        var owner = OccurrenceExecution.Current is null ? (unitOfWork as UnitOfWork)?.ClaimDecisionReadCommitOwnership() : null;
-        var failedAppends = new List<AppendedEventWithResult>();
-        var observation = new CommitObservation(unitOfWork);
-        _observations.Remove(context.Values);
-        _observations.Add(context.Values, observation);
-        var observer = new FailedAppendObserver(frame, context.CorrelationId, failedAppends, observation);
-        var subscription = (serviceProvider.GetService<IEventLog>()?.AppendOperations)?.Subscribe(appended => observer.Observe(appended));
-
-        CommandTransaction.Current = unitOfWork;
-        frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
-        frame.UnitOfWork = unitOfWork;
-        RefuseImmediateAppendsForOccurrence(frame, unitOfWork);
-        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
-        {
-            frame.Protection = unitOfWork.EnforceReadProtection();
-        }
-        RegisterEnrollmentContributor(context, frame, unitOfWork);
-    }
-
-    static void RefuseImmediateAppendsForOccurrence(TransactionFrame frame, IUnitOfWork unitOfWork)
-    {
-        if (OccurrenceExecution.Current is not { } occurrenceExecution)
-        {
-            return;
-        }
-
-        try
-        {
-            frame.ImmediateAppendRefusal = unitOfWork.RefuseImmediateAppends();
-        }
-        catch (UnitOfWorkImmediateAppendRefusalNotSupported error)
-        {
-            occurrenceExecution.Refuse(error);
-        }
-    }
-
     /// <inheritdoc/>
     public async Task Complete(CommandContext context, CommandResult result)
     {
@@ -257,28 +196,6 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         return true;
     }
 
-    static void RefuseNestedEarlyCompletion(TransactionFrame? ownFrame)
-    {
-        if (ownFrame is not { Owned: null, Previous: { } parent })
-        {
-            return;
-        }
-
-        // A nested command declaring On must not complete its parent's unit, whether or not the parent enforces.
-        if (ownFrame.Protection is not null || ownFrame.ReadProtected)
-        {
-            throw new NestedEarlyCompletionUnderReadProtection(ownFrame.CommandType, parent.CommandType);
-        }
-    }
-
-    static void RecordNestedEarlyCompletion(TransactionFrame? frame)
-    {
-        if (frame?.Previous is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
-        {
-            ReadProtectionTelemetry.Record(frame.CommandType, "nested_early_completion");
-        }
-    }
-
     /// <summary>
     /// Reports decision-read conflicts of an early aggregate commit made through the protected owner as read changes,
     /// as completion does for a commit made at the end of the command.
@@ -335,6 +252,89 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         owner.Completions.Add(completion);
 
         return true;
+    }
+
+    static void BeginInherited(CommandContext context, TransactionFrame frame, IUnitOfWork inheritedUnit, bool readProtected)
+    {
+        // An enforcing unit is retained even after early completion; a nested invocation cannot replace it.
+        frame.UnitOfWork = inheritedUnit;
+        if (frame.Previous?.Protection is not null)
+        {
+            frame.Protection = inheritedUnit.EnforceReadProtection();
+
+            // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
+            // opened by its caller's body or by an enclosing command that does not enable read protection.
+            frame.ReadAllowance = readProtected
+                ? inheritedUnit.SuspendReadRegions()
+                : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
+        }
+        RegisterEnrollmentContributor(context, frame, inheritedUnit);
+    }
+
+    static void BeginOwned(CommandContext context, TransactionFrame frame, IServiceProvider serviceProvider)
+    {
+        var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
+        frame.SuspendedUnit = frame.Controller?.UnitOfWork;
+        frame.UnitOfWorkManager = unitOfWorkManager;
+        var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
+
+        // The refusal frame owns keyed completion, including commands with protected reads.
+        var owner = OccurrenceExecution.Current is null ? (unitOfWork as UnitOfWork)?.ClaimDecisionReadCommitOwnership() : null;
+        var failedAppends = new List<AppendedEventWithResult>();
+        var observation = new CommitObservation(unitOfWork);
+        _observations.Remove(context.Values);
+        _observations.Add(context.Values, observation);
+        var observer = new FailedAppendObserver(frame, context.CorrelationId, failedAppends, observation);
+        var subscription = (serviceProvider.GetService<IEventLog>()?.AppendOperations)?.Subscribe(observer.Observe);
+
+        CommandTransaction.Current = unitOfWork;
+        frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
+        frame.UnitOfWork = unitOfWork;
+        RefuseImmediateAppendsForOccurrence(frame, unitOfWork);
+        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
+        {
+            frame.Protection = unitOfWork.EnforceReadProtection();
+        }
+        RegisterEnrollmentContributor(context, frame, unitOfWork);
+    }
+
+    static void RefuseImmediateAppendsForOccurrence(TransactionFrame frame, IUnitOfWork unitOfWork)
+    {
+        if (OccurrenceExecution.Current is not { } occurrenceExecution)
+        {
+            return;
+        }
+
+        try
+        {
+            frame.ImmediateAppendRefusal = unitOfWork.RefuseImmediateAppends();
+        }
+        catch (UnitOfWorkImmediateAppendRefusalNotSupported error)
+        {
+            occurrenceExecution.Refuse(error);
+        }
+    }
+
+    static void RefuseNestedEarlyCompletion(TransactionFrame? ownFrame)
+    {
+        if (ownFrame is not { Owned: null, Previous: { } parent })
+        {
+            return;
+        }
+
+        // A nested command declaring On must not complete its parent's unit, whether or not the parent enforces.
+        if (ownFrame.Protection is not null || ownFrame.ReadProtected)
+        {
+            throw new NestedEarlyCompletionUnderReadProtection(ownFrame.CommandType, parent.CommandType);
+        }
+    }
+
+    static void RecordNestedEarlyCompletion(TransactionFrame? frame)
+    {
+        if (frame?.Previous is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
+        {
+            ReadProtectionTelemetry.Record(frame.CommandType, "nested_early_completion");
+        }
     }
 
     static bool CapturesOwn(TransactionFrame frame, IUnitOfWork unit, EventSourceId source) =>
