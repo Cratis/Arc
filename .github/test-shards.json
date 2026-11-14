@@ -147,6 +147,7 @@
         "Source/DotNET/Arc.Core.TypeDiscovery.Specs",
         "Source/DotNET/Arc.Specs",
         "Source/DotNET/Cratis.Specs",
+        "Source/DotNET/Neo4j.Chronicle.Specs",
         "Source/DotNET/PersonalAccessTokens.Chronicle.Specs",
         "Source/DotNET/Screenplay.Specs"
       ]

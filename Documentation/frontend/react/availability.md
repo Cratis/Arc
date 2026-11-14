@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc React availability for navigation and screens
-description: Hide the navigation, screens and parts of your React application that are not available to the current tenant or user, and show them again live when that changes.
+description: Hide navigation, screens and parts of your React app that are unavailable to the current tenant or user, and show them again live when that changes.
 ---
 
 Availability decides whether a part of the application exists for the current tenant or user. Where [identity](identity.md) and `RequireRole` decide what a user may do, `AvailabilityProvider` and `RequireAvailable` decide what is offered at all, and update without a reload. They read the [availability query](../../backend/csharp/availability.md#read-availability-on-the-client) of the server, which reports what is not available now and again each time that changes.
