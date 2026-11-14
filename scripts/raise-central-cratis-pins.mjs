@@ -10,11 +10,26 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-const downgradePattern = /Detected package downgrade: (\S+) from (\S+) to centrally defined (\S+?)\.?(?=\s|$)/g;
+const downgradeLinePattern = /Detected package downgrade:[^\r\n]*/g;
+const centralDowngradePattern = /^Detected package downgrade: (\S+) from (\S+) to centrally defined (\S+?)\.?(?=\s|$)/;
+const packageIdPattern = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+const versionPattern = /^\d+(\.\d+){1,3}(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 
+export function isVersion(value) {
+    return versionPattern.test(value);
+}
+
+// Every downgrade in the log is returned. One this script cannot reason about - a non-central
+// downgrade (NU1605) or a malformed package id or version - comes back with `unsupported` set.
 export function parseDowngrades(log) {
     const required = new Map();
-    for (const match of log.matchAll(downgradePattern)) {
+    const unsupported = [];
+    for (const [line] of log.matchAll(downgradeLinePattern)) {
+        const match = centralDowngradePattern.exec(line);
+        if (!match || !packageIdPattern.test(match[1]) || !isVersion(match[2]) || !isVersion(match[3])) {
+            unsupported.push({ name: match?.[1] ?? 'unknown', required: match?.[2] ?? 'unknown', pinned: match?.[3] ?? 'unknown', unsupported: true });
+            continue;
+        }
         const [, name, minimum, pinned] = match;
         const key = name.toLowerCase();
         const existing = required.get(key);
@@ -22,16 +37,18 @@ export function parseDowngrades(log) {
             required.set(key, { name, required: minimum, pinned });
         }
     }
-    return [...required.values()];
+    return [...required.values(), ...unsupported];
 }
 
 function splitVersion(version) {
+    if (!isVersion(version)) throw new Error(`Unsupported version: ${version}`);
     const [core, ...rest] = version.split('+')[0].split('-');
     const numbers = core.split('.').map(part => {
         if (!/^\d+$/.test(part)) throw new Error(`Unsupported version: ${version}`);
         return Number(part);
     });
-    const prerelease = rest.length ? rest.join('-').split('.') : [];
+    // NuGet compares prerelease labels case-insensitively.
+    const prerelease = rest.length ? rest.join('-').toLowerCase().split('.') : [];
     return { numbers, prerelease };
 }
 
@@ -78,6 +95,10 @@ export function raisePins(props, downgrades) {
     const refused = [];
     let updated = props;
     for (const downgrade of downgrades) {
+        if (downgrade.unsupported) {
+            refused.push({ ...downgrade, reason: 'not a central downgrade this script can read' });
+            continue;
+        }
         if (!/^Cratis\./i.test(downgrade.name)) {
             refused.push({ ...downgrade, reason: 'not a Cratis package' });
             continue;
@@ -89,7 +110,7 @@ export function raisePins(props, downgrades) {
         }
         const current = matches[0][2];
         if (compareVersions(downgrade.required, current) <= 0) continue;
-        updated = updated.replace(pinPattern(downgrade.name), `$1${downgrade.required}$3`);
+        updated = updated.replace(pinPattern(downgrade.name), (_, start, __, end) => `${start}${downgrade.required}${end}`);
         raised.push({ name: downgrade.name, from: current, to: downgrade.required });
     }
     return { props: updated, raised, refused };

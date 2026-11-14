@@ -90,6 +90,25 @@ test('fails with nothing to raise when the log has no downgrade', () => {
     assert.equal(result.props, props);
 });
 
+test('refuses without changes when the log also holds a non-central downgrade', () => {
+    const log = downgrade('Cratis.Fundamentals', '7.35.0', '7.34.0') +
+        '/src/Arc.csproj : error NU1605: Detected package downgrade: Cratis.Metrics.Roslyn from 7.35.0 to 7.34.0. Reference the package directly from the project to select a different version.\n';
+    const result = run(log);
+    assert.equal(result.status, 2);
+    assert.equal(result.props, props);
+});
+
+test('refuses a required version that is not a NuGet version', () => {
+    const result = run(downgrade('Cratis.Fundamentals', '7.35.0-x"/><Injected/>', '7.34.0'));
+    assert.equal(result.status, 2);
+    assert.equal(result.props, props);
+});
+
+test('compares prerelease labels case-insensitively', () => {
+    assert.equal(compareVersions('1.0.0-BETA', '1.0.0-alpha'), 1);
+    assert.equal(compareVersions('1.0.0-Alpha', '1.0.0-alpha'), 0);
+});
+
 test('compares versions with prerelease ordering', () => {
     assert.equal(compareVersions('7.35.0', '7.34.9'), 1);
     assert.equal(compareVersions('7.35.0-pr1.2', '7.35.0'), -1);
