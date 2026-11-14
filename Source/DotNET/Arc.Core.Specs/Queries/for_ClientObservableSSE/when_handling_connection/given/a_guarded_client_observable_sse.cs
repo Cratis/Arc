@@ -25,6 +25,7 @@ public class a_guarded_client_observable_sse : Specification
     protected ClaimsPrincipal _principal;
     protected QueryContext _queryContext;
     protected IOptions<ArcOptions> _arcOptions;
+    protected IReadModelInterceptors _readModelInterceptors;
     protected ClientObservableSSE<string> _observable;
 
     /// <summary>
@@ -52,8 +53,8 @@ public class a_guarded_client_observable_sse : Specification
                 return Task.CompletedTask;
             });
 
-        var readModelInterceptors = Substitute.For<IReadModelInterceptors>();
-        readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+        _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
 
         _emissionGuards = Substitute.For<IObservableQueryEmissionGuards>();
@@ -72,7 +73,7 @@ public class a_guarded_client_observable_sse : Specification
         _observable = new ClientObservableSSE<string>(
             _queryContext,
             _subject,
-            readModelInterceptors,
+            _readModelInterceptors,
             Substitute.For<IHttpRequestContextAccessor>(),
             _arcOptions,
             hostApplicationLifetime,
