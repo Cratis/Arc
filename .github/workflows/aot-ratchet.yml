@@ -195,3 +195,140 @@ jobs:
             ${{ runner.temp }}/arc-3595/*.log
             ${{ runner.temp }}/arc-3595/*.trx
           if-no-files-found: warn
+
+  published-arc-core-chronicle:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # Trimmed is excluded until the ILLink IL1012 crash is fixed (dotnet/runtime#136383; Arc#3595).
+        variant: [Untrimmed, NativeAot]
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      MSBUILDDISABLENODEREUSE: "1"
+      PUBLISH_VARIANT: ${{ matrix.variant }}
+    services:
+      chronicle:
+        # Pinned to the kernel release matching the Cratis.Chronicle client in Directory.Packages.props (19.162.0).
+        # The development image carries the default development client credentials the sample connects with.
+        image: cratis/chronicle:19.162.0-development
+        ports:
+          - 35000:35000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@3f8a8a7ef75f72b6b089638b68ec2f9af8f593e3 # main
+        with:
+          mode: restore
+
+      - name: Install NativeAOT prerequisites when missing
+        if: matrix.variant == 'NativeAot'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v clang > /dev/null || ! dpkg -s zlib1g-dev > /dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+          fi
+
+      - name: Prepare acceptance output
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/arc-3634"
+          mkdir -p "$root"
+          {
+            echo "ACCEPTANCE_ROOT=$root"
+            echo "CRATIS_ARC_PUBLISHED_ARCCORECHRONICLE=$root/publish/ArcCoreChronicle"
+            echo "CRATIS_ARC_PUBLISHED_ARCCORECHRONICLE_LOG=$root/application.log"
+          } >> "$GITHUB_ENV"
+
+      - name: Read published outcome baseline from the PR base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Checkout does not persist credentials; this public repository supports anonymous HTTPS fetches.
+          git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          manifest="origin/$BASE_REF:Samples/ArcCoreChronicle.Specs/published-outcomes.json"
+          # The first introduction has no base file to compare against.
+          if git cat-file -e "$manifest" 2>/dev/null; then
+            git show "$manifest" > "$ACCEPTANCE_ROOT/base-manifest.json"
+            echo "BASE_MANIFEST=$ACCEPTANCE_ROOT/base-manifest.json" >> "$GITHUB_ENV"
+          fi
+
+      - name: Wait for the Chronicle kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The port opening is not the kernel being ready; the specs retry until the client has connected.
+          timeout 120 bash -c 'until (echo > /dev/tcp/127.0.0.1/35000) 2> /dev/null; do sleep 2; done'
+
+      - name: Publish ArcCoreChronicle
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish Samples/ArcCoreChronicle/ArcCoreChronicle.csproj -c Release -f net11.0 -r linux-x64 -p:CratisSamplePublish="$PUBLISH_VARIANT" -p:CratisProxiesOutputPath= -o "$ACCEPTANCE_ROOT/publish" > "$ACCEPTANCE_ROOT/publish.log" 2>&1
+
+      - name: Record published image size
+        run: du -sk "$ACCEPTANCE_ROOT/publish" "$CRATIS_ARC_PUBLISHED_ARCCORECHRONICLE"
+
+      - name: Build acceptance runner
+        run: dotnet build Samples/ArcCoreChronicle.Specs/ArcCoreChronicle.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net11.0 -p:CratisProxiesOutputPath=
+
+      - name: Exercise the published host against the Chronicle kernel
+        shell: bash
+        run: |
+          set +e
+          Samples/ArcCoreChronicle.Specs/bin/Release/net11.0/Cratis.Arc.Samples.ArcCoreChronicle.Specs -noLogo -noColor -failSkips -result-trx "$ACCEPTANCE_ROOT/acceptance.trx"
+          status=$?
+          printf 'Acceptance runner exit: %s\n' "$status" | tee "$ACCEPTANCE_ROOT/runner-exit.log"
+          # The checker below owns the verdict, including missing TRX and skips.
+          exit 0
+
+      - name: Hold acceptance facts to tracked outcomes without skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [[ -n "${BASE_MANIFEST:-}" ]]; then
+            args+=(--base-manifest "$BASE_MANIFEST")
+          fi
+          node scripts/published-arccore-outcomes.mjs --trx "$ACCEPTANCE_ROOT/acceptance.trx" --variant "$PUBLISH_VARIANT" --manifest Samples/ArcCoreChronicle.Specs/published-outcomes.json "${args[@]}"
+
+      - name: Dump the Chronicle kernel log
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          docker ps --filter "ancestor=cratis/chronicle:19.162.0-development" --format '{{.ID}}' | while read -r id; do
+            docker logs "$id" > "$ACCEPTANCE_ROOT/kernel.log" 2>&1
+          done
+          exit 0
+
+      - name: Upload acceptance diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: published-arc-core-chronicle-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/arc-3634/*.log
+            ${{ runner.temp }}/arc-3634/*.trx
+          if-no-files-found: warn
