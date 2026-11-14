@@ -77,7 +77,8 @@ public static partial class Generator
         ICollection<string>? producedFiles = null,
         string? endpointGroup = null,
         ProxyFramework framework = ProxyFramework.React,
-        IGeneratedOutput? output = null) =>
+        IGeneratedOutput? output = null,
+        ValidationProjectionReport? projection = null) =>
         new GenerationRun(new GenerationSettings(
             fileHeaderTemplate,
             outputPath,
@@ -101,5 +102,6 @@ public static partial class Generator
             producedFiles,
             endpointGroup,
             framework,
-            output ?? new FileSystemGeneratedOutput())).Execute(assemblyFile);
+            output ?? new FileSystemGeneratedOutput(),
+            projection)).Execute(assemblyFile);
 }

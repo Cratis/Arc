@@ -94,7 +94,8 @@ public static class CommandExtensions
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
-        var rules = validationRules ?? ExtractCommandValidationRules(method);
+        var extraction = validationRules is null ? ExtractCommandValidationRules(method) : new ValidationExtraction(validationRules, []);
+        var rules = extraction.Rules;
         var treatWarningsAsErrors = HasTreatWarningsAsErrors(method);
 
         // Extract roles from authorization attributes on the method and its declaring type
@@ -116,7 +117,8 @@ public static class CommandExtensions
             treatWarningsAsErrors,
             roles)
         {
-            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
+            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip),
+            ValidationProjection = extraction.Projection
         };
     }
 
@@ -146,12 +148,12 @@ public static class CommandExtensions
     /// </summary>
     /// <param name="method">The command method.</param>
     /// <returns>The extracted validation rules.</returns>
-    static IEnumerable<PropertyValidationDescriptor> ExtractCommandValidationRules(MethodInfo method)
+    static ValidationExtraction ExtractCommandValidationRules(MethodInfo method)
     {
         var commandType = method.GetCommandType();
         return commandType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
-            : [];
+            ? ValidationRulesExtractor.ExtractWithProjection(method.DeclaringType!.Assembly, commandType)
+            : new([], []);
     }
 
     static bool HasTreatWarningsAsErrors(MethodInfo method) =>

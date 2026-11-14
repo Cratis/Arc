@@ -55,8 +55,19 @@ public static class ValidationRulesExtractor
     /// <param name="includeConceptRules">Whether to infer rules from concept-typed properties.</param>
     /// <param name="includeDataAnnotations">Whether to include DataAnnotations as fallback rules.</param>
     /// <returns>Collection of property validation descriptors.</returns>
-    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true, bool includeDataAnnotations = true)
+    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true, bool includeDataAnnotations = true) =>
+        ExtractValidationRules(assembly, type, new ValidationExtractionOptions(includeConceptRules, includeDataAnnotations, null));
+
+    internal static ValidationExtraction ExtractWithProjection(Assembly assembly, Type type)
     {
+        var capture = new ValidationProjectionCapture();
+        var rules = ExtractValidationRules(assembly, type, new ValidationExtractionOptions(true, true, capture)).ToList();
+        return new(rules, capture.Details);
+    }
+
+    internal static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, ValidationExtractionOptions options)
+    {
+        var capture = options.Capture;
         // Discovery describes every artifact before excluded ones are filtered out. An excluded type is never
         // emitted, so its validator must not run - and must not fail generation when it cannot be constructed.
         if (type.IsExcluded())
@@ -70,13 +81,15 @@ public static class ValidationRulesExtractor
         var runtimeType = RuntimeValidatorAssemblies.For(type);
 
         // Try FluentValidation first
-        var fluentValidationRules = ExtractFluentValidationRules(runtimeAssembly, runtimeType).ToList();
+        var fluentValidationRules = ExtractFluentValidationRules(runtimeAssembly, runtimeType, capture).ToList();
 
         // Then the rules contributed by the validators of any concept-typed properties
-        var conceptRules = includeConceptRules ? ExtractConceptRules(assembly, type).ToList() : [];
+        var conceptRules = options.IncludeConceptRules ? ExtractConceptRules(assembly, type, capture).ToList() : [];
 
         // Then extract DataAnnotations
-        var dataAnnotationsRules = includeDataAnnotations ? ExtractDataAnnotationsRules(type).ToList() : [];
+        var dataAnnotationsRules = options.IncludeDataAnnotations ? ExtractDataAnnotationsRules(type).ToList() : [];
+
+        capture?.Annotations(dataAnnotationsRules, fluentValidationRules.Concat(conceptRules));
 
         // Merge the rules - FluentValidation takes precedence
         return MergeValidationRules(fluentValidationRules, conceptRules, dataAnnotationsRules);
@@ -95,14 +108,16 @@ public static class ValidationRulesExtractor
     /// rather than the client silently enforcing less than the server. Nullable properties without a Required
     /// annotation omit inferred presence rules only: other client rules accept null and undefined while validating supplied values.
     /// </remarks>
-    public static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type)
+    public static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type) => ExtractConceptRules(assembly, type, null);
+
+    static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type, ValidationProjectionCapture? capture)
     {
         var propertyValidations = new List<PropertyValidationDescriptor>();
 
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             var isOptional = property.IsOptional() && !property.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
-            var rules = ExtractRulesForConceptType(assembly, property.PropertyType, isOptional);
+            var rules = ExtractRulesForConceptType(assembly, property.PropertyType, isOptional, capture?.ForConcept(property.Name.ToCamelCase(), isOptional));
             if (rules.Count > 0)
             {
                 propertyValidations.Add(new PropertyValidationDescriptor(property.Name.ToCamelCase(), [.. rules]));
@@ -126,7 +141,10 @@ public static class ValidationRulesExtractor
     /// Only concepts sitting directly on a property or parameter are projected: the client-side rule builder resolves
     /// a single property name, so it cannot express a rule against a concept nested deeper in the graph.
     /// </remarks>
-    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type, bool isOptional = false)
+    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type, bool isOptional = false) =>
+        ExtractRulesForConceptType(assembly, type, isOptional, null);
+
+    internal static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type, bool isOptional, ValidationProjectionCapture? capture)
     {
         var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
         var runtimeType = RuntimeValidatorAssemblies.For(type);
@@ -137,7 +155,7 @@ public static class ValidationRulesExtractor
         }
 
         // Only these two client rules reject null/undefined; all other supported rules validate supplied values.
-        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType)
+        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType, capture)
             .SelectMany(_ => _.Rules)
             .Where(_ => !isOptional || _.RuleName is not ("notEmpty" or "notNull"))];
     }
@@ -362,7 +380,7 @@ public static class ValidationRulesExtractor
         return default;
     }
 
-    static List<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type)
+    static List<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type, ValidationProjectionCapture? capture = null)
     {
         var validatorType = ValidatorTypes.Find(assembly, type);
         if (validatorType == null)
@@ -376,7 +394,7 @@ public static class ValidationRulesExtractor
 
             return [.. members
                 .Cast<object>()
-                .Select(_ => DescribeMember(descriptor, getRulesMethod, _))
+                .Select(_ => DescribeMember(descriptor, getRulesMethod, _, capture))
                 .OfType<PropertyValidationDescriptor>()];
         }
         catch (Exception exception) when (exception is not ValidationRulesCouldNotBeExtracted)
@@ -385,7 +403,7 @@ public static class ValidationRulesExtractor
         }
     }
 
-    static PropertyValidationDescriptor? DescribeMember(object descriptor, MethodInfo getRulesMethod, object member)
+    static PropertyValidationDescriptor? DescribeMember(object descriptor, MethodInfo getRulesMethod, object member, ValidationProjectionCapture? capture)
     {
         var memberName = member.GetType().GetProperty("Key")?.GetValue(member)?.ToString();
         var propertyName = memberName?.ToCamelCase();
@@ -404,17 +422,23 @@ public static class ValidationRulesExtractor
         }
 
         var rules = memberRules.Cast<object>()
-            .Where(_ => !HasCondition(_))
-            .SelectMany(ExtractRulesFromRule)
+            .SelectMany(rule => ExtractRulesFromRule(rule, capture?.ForMember(propertyName)))
             .ToList();
 
         return rules.Count > 0 ? new PropertyValidationDescriptor(propertyName, [.. rules]) : null;
     }
 
-    static IEnumerable<ValidationRuleDescriptor> ExtractRulesFromRule(object rule) =>
-        rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components
-            ? components.Cast<object>().SelectMany(ExtractRulesFromComponent)
+    static IEnumerable<ValidationRuleDescriptor> ExtractRulesFromRule(object rule, ValidationProjectionCapture? capture)
+    {
+        if (HasCondition(rule))
+        {
+            capture?.Omitted(ValidationRuleKind.Custom, ValidationProjectionReasons.Conditional);
+            return [];
+        }
+        return rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components
+            ? components.Cast<object>().SelectMany(component => ExtractRulesFromComponent(component, capture))
             : [];
+    }
 
     static (object Descriptor, System.Collections.IEnumerable Members, MethodInfo GetRulesMethod) DescribeValidator(Type validatorType)
     {
@@ -482,16 +506,26 @@ public static class ValidationRulesExtractor
         rule.GetType().GetProperty("HasCondition")?.GetValue(rule) is true ||
         rule.GetType().GetProperty("HasAsyncCondition")?.GetValue(rule) is true;
 
-    static List<ValidationRuleDescriptor> ExtractRulesFromComponent(object component)
+    static List<ValidationRuleDescriptor> ExtractRulesFromComponent(object component, ValidationProjectionCapture? capture)
     {
         var validator = component.GetType().GetProperty("Validator")?.GetValue(component);
-        if (validator is null || HasCondition(component))
+        if (validator is null) return [];
+        if (HasCondition(component))
         {
+            capture?.Omitted(ValidationRuleKind.Custom, ValidationProjectionReasons.Conditional);
             return [];
         }
 
         var ruleDescriptor = ExtractRuleFromValidator(validator, component);
-        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(component) }] : [];
+        if (ruleDescriptor is null)
+        {
+            ValidationProjectionObservation.ObserveOmission(validator, capture);
+            return [];
+        }
+        var result = ruleDescriptor with { Severity = GetSeverity(component) };
+        capture?.Projected(result);
+        ValidationProjectionObservation.ObserveDetails(component, capture);
+        return [result];
     }
 
     static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)

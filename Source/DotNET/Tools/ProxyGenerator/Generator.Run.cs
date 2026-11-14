@@ -39,6 +39,7 @@ public static partial class Generator
             _sourceFileMap = Timed("Source-file map", () => ConfigureSourceFileGrouping(assemblyFile));
 
             var artifacts = DiscoverArtifacts();
+            settings.Projection?.Collect(artifacts.Commands, artifacts.Queries);
             if (!TryPrepareOutput(artifacts)) return false;
 
             await WriteArtifacts(artifacts);

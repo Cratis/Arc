@@ -80,12 +80,13 @@ public static class QueryExtensions
             propertyDescriptors.OrderBy(_ => _.Name),
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            validationRules.OrderBy(_ => _.PropertyName),
+            validationRules.Rules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
             roles,
             HttpMethod: null)
         {
-            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
+            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip),
+            ValidationProjection = validationRules.Projection
         };
     }
 
@@ -129,12 +130,13 @@ public static class QueryExtensions
                 param.ParameterType == prop.PropertyType));
     }
 
-    static List<PropertyValidationDescriptor> ExtractValidationRules(MethodInfo method, ParameterInfo[] methodParams, Type? matchingType)
+    static ValidationExtraction ExtractValidationRules(MethodInfo method, ParameterInfo[] methodParams, Type? matchingType)
     {
+        var capture = new ValidationProjectionCapture();
         // Matching CLR types need not agree on nullable-reference annotations. Only extract explicit rules
         // from the DTO; the actual parameter's optionality governs inferred concept rules.
         var explicitRules = matchingType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, matchingType, includeConceptRules: false, includeDataAnnotations: false).ToList()
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, matchingType, new ValidationExtractionOptions(false, false, capture)).ToList()
             : [];
         var dataAnnotationsRules = matchingType is not null
             ? ValidationRulesExtractor.ExtractDataAnnotationsRules(matchingType).ToList()
@@ -142,22 +144,28 @@ public static class QueryExtensions
 
         // Controller queries only infer concept rules when a matching argument DTO exists.
         var conceptRules = matchingType is not null
-            ? ExtractConceptRules(method, methodParams)
+            ? ExtractConceptRules(method, methodParams, capture)
             : [];
 
         var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
 
         // Direct parameter annotations are a whole-DTO fallback, not a per-parameter addition.
-        return validationRules.Count == 0 ? ExtractParameterAnnotationRules(methodParams) : validationRules;
+        capture.Annotations(dataAnnotationsRules, explicitRules.Concat(conceptRules));
+        if (validationRules.Count == 0)
+        {
+            validationRules = ExtractParameterAnnotationRules(methodParams);
+            capture.Annotations(validationRules, []);
+        }
+        return new(validationRules, capture.Details);
     }
 
-    static List<PropertyValidationDescriptor> ExtractConceptRules(MethodInfo method, ParameterInfo[] methodParams)
+    static List<PropertyValidationDescriptor> ExtractConceptRules(MethodInfo method, ParameterInfo[] methodParams, ValidationProjectionCapture capture)
     {
         var conceptRules = new List<PropertyValidationDescriptor>();
         foreach (var param in methodParams)
         {
             var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
-            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType!.Assembly, param.ParameterType, isOptional);
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType!.Assembly, param.ParameterType, isOptional, capture.ForConcept(param.Name.ToCamelCase(), isOptional));
             if (rulesFromConcept.Count > 0)
             {
                 conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));

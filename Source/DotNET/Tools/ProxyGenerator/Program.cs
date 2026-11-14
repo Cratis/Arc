@@ -6,12 +6,17 @@ using Cratis.Arc.ProxyGenerator;
 using static Cratis.Arc.ProxyGenerator.PathHelpers;
 
 var mode = new CommandLineMode(args);
+if (!mode.TryValidate(out var usageError))
+{
+    Console.Error.WriteLine($"error: {usageError}");
+    return ProxyGeneratorExitCodes.Error;
+}
 mode.WriteLine("Cratis Proxy Generator\n");
 
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--check] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--check] [--check-report=text|json] [--report-validation[=text|json]] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 ProxyFramework framework;
@@ -149,12 +154,13 @@ if (namespaceRoots.Count > 0)
 mode.WriteLine();
 
 var stateFile = args.FirstOrDefault(arg => arg.StartsWith("--state-file=", StringComparison.Ordinal))?["--state-file=".Length..];
-if (mode.Check && stateFile is not null)
+if ((mode.Check || mode.ReportsValidation) && stateFile is not null)
 {
-    Console.WriteLine("--state-file is ignored in --check mode");
+    Console.Error.WriteLine(mode.Check ? "--state-file is ignored in --check mode" : "--state-file is ignored when reporting validation projection");
     stateFile = null;
 }
 var checkingOutput = mode.Check ? new CheckingGeneratedOutput(outputPath) : null;
+var projectionReport = mode.ReportsValidation ? new ValidationProjectionReport() : null;
 var fingerprint = stateFile is null ? null : GenerationFingerprint.Compute(
     assemblyFile,
     args.Where(arg => !arg.StartsWith("--state-file=", StringComparison.Ordinal)),
@@ -186,7 +192,7 @@ try
         error =>
         {
             hadErrors = true;
-            Console.Error.WriteLine(mode.Check ? $"error: {error}" : error);
+            Console.Error.WriteLine(mode.Check || mode.ReportsValidation ? $"error: {error}" : error);
         },
         libraryMode,
         skipOutputDeletion,
@@ -205,16 +211,17 @@ try
         producedFiles,
         endpointGroup,
         framework,
-        checkingOutput);
+        checkingOutput,
+        projectionReport);
 }
-catch (Exception exception) when (mode.Check || exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
+catch (Exception exception) when (mode.Check || mode.ReportsValidation || exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
 {
     await Console.Error.WriteLineAsync($"error: {exception.Message}");
     return 1;
 }
-if (mode.Check)
+if (mode.Check || mode.ReportsValidation)
 {
-    return result && !hadErrors ? CommandLineMode.Complete(checkingOutput!) : ProxyGeneratorExitCodes.Error;
+    return result && !hadErrors ? mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;
 }
 if (result && !hadErrors && fingerprint is not null && stateFile is not null)
 {

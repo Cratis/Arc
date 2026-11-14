@@ -73,7 +73,7 @@ Use `--check` in CI to compare committed clients with what the compiled backend 
 dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --check
 ```
 
-Use the same namespace, suffix, grouping and other generation options that produced the committed files. The check prints `missing: <relative-path>`, `changed: <relative-path>` or `obsolete: <relative-path>`, ordered by path then category, followed by a summary. Paths use `/` separators. A clean comparison prints `Proxies are up to date.`. Errors go to stderr with an `error:` prefix.
+Use the same namespace, suffix, grouping and other generation options that produced the committed files. The check prints `missing: <relative-path>`, `changed: <relative-path>` or `obsolete: <relative-path>`, ordered by path then category, followed by a summary. Paths use `/` separators. A clean comparison prints `Proxies are up to date.`. Errors go to stderr with an `error:` prefix. `--check-report=text` is the default; `--check-report=json` emits one JSON document with `schemaVersion: 1`, ordered `drift` entries (`kind`, `relativePath`) and a `validation` array (empty unless requested). Generation progress is suppressed in check mode. Combine JSON drift and validation reports using `--report-validation=json`; mismatched formats are a usage error.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -85,7 +85,7 @@ Missing expected artifacts are drift, including a missing output directory (whic
 
 Obsolete proxies are identified by valid generator metadata, not their filename suffix. The existing orphan scan covers `.ts`, not `.tsx`. Unrelated handwritten files are ignored. Index comparison uses the same merge rules as generation; `--skip-index-generation` excludes all indexes from checking. Unlike normal full regeneration, checking never deletes the output tree, even without `--skip-output-deletion`.
 
-`--state-file` is accepted but ignored with a notice: the state file is never read, written or deleted, and discovery always runs. Checking is not a sandbox: the generator loads and runs trusted assemblies and validator constructors. Only point it at assemblies you would build and run.
+`--state-file` is accepted but ignored with a stderr notice: the state file is never read, written or deleted, and discovery always runs. Checking is not a sandbox: the generator loads and runs trusted assemblies and validator constructors. Only point it at assemblies you would build and run.
 
 ## Troubleshooting
 
