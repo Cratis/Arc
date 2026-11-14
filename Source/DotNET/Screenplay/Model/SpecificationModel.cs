@@ -66,6 +66,11 @@ public record SpecificationModel(
     public string? GenerationFailure { get; init; }
 
     /// <summary>
+    /// Gets the query the scenario calls and the read model it expects back, when it is a query scenario.
+    /// </summary>
+    public SpecificationQueryModel? Read { get; init; }
+
+    /// <summary>
     /// Gets the exact principal recovered from the scenario setup.
     /// </summary>
     internal SpecificationCallerModel? Caller { get; init; }
