@@ -47,6 +47,14 @@ public class CommandCausationScope : ICommandOperationExecutionScope
     /// <inheritdoc/>
     public bool IsCommitParticipant => false;
 
+    /// <summary>
+    /// Gets whether the command executing on this asynchronous flow still has its causation on the chain.
+    /// </summary>
+    /// <remarks>
+    /// False once this scope completed, which can precede another scope's completion when that scope began first.
+    /// </remarks>
+    internal static bool IsActive => _scope.Value is not null;
+
     /// <inheritdoc/>
     public CommandCommitDisposition GetCommitDisposition(CommandContext context) => CommandCommitDisposition.NoCommit;
 
