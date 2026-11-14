@@ -12,7 +12,7 @@ public class and_the_input_is_invalid : given.a_generated_output
     async Task should_fail_without_modifying_any_files(string input)
     {
         if (input != "unsafe-root") AssemblyFile = Path.Combine(Folder, "invalid.dll");
-        if (input == "unloadable") await File.WriteAllTextAsync(AssemblyFile, "not an assembly");
+        if (input == "unloadable") await File.WriteAllTextAsync(AssemblyFile, "not an assembly", TestContext.Current.CancellationToken);
         var options = input == "unsafe-root" ? new[] { "--namespace-root=Cratis=../../escaped" } : [];
         await RunCheck(options);
         Result.ExitCode.ShouldEqual(1);

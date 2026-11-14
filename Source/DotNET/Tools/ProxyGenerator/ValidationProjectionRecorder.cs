@@ -27,7 +27,7 @@ internal static class ValidationProjectionRecorder
     internal static IDisposable? BeginReport(ValidationProjectionReport? report)
     {
         if (report is null) return null;
-        if (_state is null) Interlocked.CompareExchange(ref _state, new AsyncLocal<State?>(), null);
+        LazyInitializer.EnsureInitialized(ref _state);
         return Enter(new(report, new(null)));
     }
 
@@ -96,7 +96,7 @@ internal static class ValidationProjectionRecorder
         if (current?.Context.Endpoint is { } endpoint) current.Report.CompleteEndpoint(endpoint);
     }
 
-    static IDisposable Enter(State state)
+    static Scope Enter(State state)
     {
         var storage = _state!;
         var scope = new Scope(storage, storage.Value);

@@ -14,10 +14,14 @@ public class when_reporting_via_the_executable : Specification
     void Establish()
     {
         _folder = Path.Combine(Path.GetTempPath(), $"cratis-report-{Guid.NewGuid():N}");
-        _assembly = typeof(ProjectionCommand).Assembly.Location;
-        _options = ["--library-mode", .. typeof(ProjectionCommand).Assembly.GetTypes()
-            .Where(_ => _ != typeof(ProjectionCommand) && _ != typeof(ProjectionReadModel))
-            .Select(_ => $"--exclude-type={_.FullName}")];
+        var frameworkDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+        _assembly = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../TestArtifacts/ValidationProjectionFixture/bin",
+            frameworkDirectory.Parent!.Name,
+            frameworkDirectory.Name,
+            "Cratis.Arc.ProxyGenerator.Specs.ValidationProjectionFixture.dll"));
+        _options = [];
     }
 
     void Destroy()
@@ -30,9 +34,9 @@ public class when_reporting_via_the_executable : Specification
     [InlineData("json")]
     async Task should_preserve_generated_bytes_when_reporting(string format)
     {
-        (await ToolProcess.Run(_assembly, _folder, _options)).ExitCode.ShouldEqual(0);
+        (await ToolProcess.Run(_assembly, _folder, [.. _options, "--skip-output-deletion"])).ExitCode.ShouldEqual(0);
         var bytes = ProxyBytes();
-        var result = await ToolProcess.Run(_assembly, _folder, [.. _options, $"--validation-report={format}"]);
+        var result = await ToolProcess.Run(_assembly, _folder, [.. _options, "--skip-output-deletion", $"--validation-report={format}"]);
         result.ExitCode.ShouldEqual(0);
         ProxyBytes().Keys.Order().ShouldEqual(bytes.Keys.Order());
         ProxyBytes().All(pair => bytes[pair.Key].SequenceEqual(pair.Value)).ShouldBeTrue();
@@ -73,7 +77,7 @@ public class when_reporting_via_the_executable : Specification
         var output = Path.Combine(_folder, "proxies");
         var result = await ToolProcess.Run(_assembly, output, [.. _options, $"--validation-report-file={report}"]);
         result.ExitCode.ShouldEqual(0);
-        AssertSafeJson(await File.ReadAllTextAsync(report));
+        AssertSafeJson(await File.ReadAllTextAsync(report, TestContext.Current.CancellationToken));
         Directory.GetFiles(_folder).Select(Path.GetFileName).ShouldContainOnly("report.json");
     }
 
@@ -82,10 +86,10 @@ public class when_reporting_via_the_executable : Specification
     {
         Directory.CreateDirectory(_folder);
         var report = Path.Combine(_folder, "report.json");
-        await File.WriteAllTextAsync(report, "preserve me");
+        await File.WriteAllTextAsync(report, "preserve me", TestContext.Current.CancellationToken);
         var result = await ToolProcess.Run("missing-input.dll", Path.Combine(_folder, "proxies"), $"--validation-report-file={report}");
         result.ExitCode.ShouldEqual(1);
-        (await File.ReadAllTextAsync(report)).ShouldEqual("preserve me");
+        (await File.ReadAllTextAsync(report, TestContext.Current.CancellationToken)).ShouldEqual("preserve me");
     }
 
     Dictionary<string, byte[]> ProxyBytes() => Directory.GetFiles(_folder, "*.ts", SearchOption.AllDirectories)

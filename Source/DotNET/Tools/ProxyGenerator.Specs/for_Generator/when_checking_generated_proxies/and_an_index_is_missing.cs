@@ -8,7 +8,7 @@ public class and_an_index_is_missing : given.a_generated_output
     string _index;
     void Establish()
     {
-        _index = Directory.GetFiles(OutputPath, "index.ts", SearchOption.AllDirectories).First();
+        _index = Directory.GetFiles(OutputPath, "index.ts", SearchOption.AllDirectories)[0];
         File.Delete(_index);
     }
 

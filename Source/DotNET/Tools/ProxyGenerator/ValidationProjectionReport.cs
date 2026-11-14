@@ -63,7 +63,7 @@ internal sealed class ValidationProjectionReport
     /// <param name="endpoint">The completed endpoint.</param>
     internal void CompleteEndpoint(ValidationProjectionEndpoint endpoint)
     {
-        if (_records.Any(_ => _.Endpoint == endpoint && _.Outcome == "projected")) return;
+        if (_records.Exists(_ => _.Endpoint == endpoint && _.Outcome == "projected")) return;
         Add(new(endpoint, null, ValidationRuleKind.Unknown, ValidationProjectionSource.Validator, "omitted", ValidationProjectionReasons.NoProjectableRules));
     }
 

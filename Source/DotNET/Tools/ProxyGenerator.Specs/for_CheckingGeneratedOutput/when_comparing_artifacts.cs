@@ -25,7 +25,7 @@ public class when_comparing_artifacts : Specification
     [InlineData("equal", null)]
     [InlineData("missing", "missing")]
     [InlineData("unowned", "changed")]
-    async Task should_compare_bytes_tolerating_only_the_metadata_time(string change, string expected)
+    async Task should_compare_bytes_tolerating_only_the_metadata_time(string change, string? expected)
     {
         var metadata = new GeneratedFileMetadata("Example", DateTime.UtcNow, "hash");
         var content = metadata.ToCommentLine() + "\nexport const value = 1;\n";
@@ -38,10 +38,10 @@ public class when_comparing_artifacts : Specification
             "unowned" => "// handwritten\nexport const value = 1;\n",
             _ => content
         };
-        if (change != "missing") await File.WriteAllTextAsync(_path, actual);
+        if (change != "missing") await File.WriteAllTextAsync(_path, actual, TestContext.Current.CancellationToken);
         await _output.WriteFile(_path, content);
         _output.Report.Ordered().Select(_ => _.Kind).ShouldEqual(expected is null ? [] : new[] { expected });
-        if (change != "missing") (await File.ReadAllTextAsync(_path)).ShouldEqual(actual);
+        if (change != "missing") (await File.ReadAllTextAsync(_path, TestContext.Current.CancellationToken)).ShouldEqual(actual);
     }
 
     [Fact]
@@ -58,10 +58,11 @@ public class when_comparing_artifacts : Specification
     [Fact]
     void should_order_and_deduplicate_findings()
     {
-        _output.Report.Add("obsolete", "z.ts");
-        _output.Report.Add("changed", "a.ts");
-        _output.Report.Add("changed", "a.ts");
-        _output.Report.Ordered().Select(_ => _.RelativePath).ShouldEqual(["a.ts", "z.ts"]);
+        var output = new CheckingGeneratedOutput(_folder);
+        output.Report.Add("obsolete", "z.ts");
+        output.Report.Add("changed", "a.ts");
+        output.Report.Add("changed", "a.ts");
+        output.Report.Ordered().Select(_ => _.RelativePath).ShouldEqual(["a.ts", "z.ts"]);
     }
 
     void Destroy() => Directory.Delete(_folder, true);

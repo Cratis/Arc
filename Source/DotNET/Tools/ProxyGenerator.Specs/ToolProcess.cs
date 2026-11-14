@@ -5,8 +5,14 @@ using System.Diagnostics;
 
 namespace Cratis.Arc.ProxyGenerator;
 
+/// <summary>Runs the proxy generator tool as a child process for specs.</summary>
 internal static class ToolProcess
 {
+    /// <summary>Runs the generator against an assembly and captures its exit code and output streams.</summary>
+    /// <param name="assembly">The assembly to generate from.</param>
+    /// <param name="outputPath">The output folder.</param>
+    /// <param name="arguments">Additional command line arguments.</param>
+    /// <returns>The exit code, standard output and standard error.</returns>
     internal static async Task<(int ExitCode, string Output, string Error)> Run(string assembly, string outputPath, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo

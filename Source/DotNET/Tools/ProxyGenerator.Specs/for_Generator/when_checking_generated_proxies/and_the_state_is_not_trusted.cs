@@ -11,9 +11,9 @@ public class and_the_state_is_not_trusted : given.a_generated_output
     [InlineData("matching", true, 2)]
     async Task should_compare_without_reading_or_mutating_state(string state, bool drift, int expected)
     {
-        if (state == "stale") await File.WriteAllTextAsync(StateFile, "not JSON");
+        if (state == "stale") await File.WriteAllTextAsync(StateFile, "not JSON", TestContext.Current.CancellationToken);
         if (state == "missing") File.Delete(StateFile);
-        if (drift) await File.AppendAllTextAsync(GeneratedFile, "// edited\n");
+        if (drift) await File.AppendAllTextAsync(GeneratedFile, "// edited\n", TestContext.Current.CancellationToken);
         await RunCheck();
         Result.ExitCode.ShouldEqual(expected);
         VerifyUnchanged();

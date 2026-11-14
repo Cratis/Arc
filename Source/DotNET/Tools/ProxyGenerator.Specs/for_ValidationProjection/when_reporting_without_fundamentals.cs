@@ -18,18 +18,18 @@ public class when_reporting_without_fundamentals : Specification
         _folder = Path.Combine(Path.GetTempPath(), $"arc-report-without-concepts-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_folder);
         var fixture = typeof(MismatchedAssemblyMarker).Assembly;
-        var name = fixture.GetName().Name!;
+        var name = fixture.GetName().Name;
         _assembly = Path.Combine(_folder, $"{name}.dll");
         await File.WriteAllBytesAsync(_assembly, await File.ReadAllBytesAsync(fixture.Location));
-        var dependencies = $$"""
-            {
-              "runtimeTarget": { "name": ".NETCoreApp,Version=v10.0" },
-              "targets": { ".NETCoreApp,Version=v10.0": {
-                "{{name}}/1.0.0": { "runtime": { "{{name}}.dll": {} } }
-              } },
-              "libraries": { "{{name}}/1.0.0": { "type": "project", "serviceable": false, "sha512": "" } }
-            }
-            """;
+        var dependencies = string.Join(
+            "\n",
+            "{",
+            "  \"runtimeTarget\": { \"name\": \".NETCoreApp,Version=v10.0\" },",
+            "  \"targets\": { \".NETCoreApp,Version=v10.0\": {",
+            $"    \"{name}/1.0.0\": {{ \"runtime\": {{ \"{name}.dll\": {{}} }} }}",
+            "  } },",
+            $"  \"libraries\": {{ \"{name}/1.0.0\": {{ \"type\": \"project\", \"serviceable\": false, \"sha512\": \"\" }} }}",
+            "}");
         await File.WriteAllTextAsync(Path.ChangeExtension(_assembly, ".deps.json"), dependencies);
     }
 

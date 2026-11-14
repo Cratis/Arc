@@ -2,11 +2,18 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.for_ValidationProjection;
 
 /// <summary>PRIVATE_DOCUMENTATION_8624 must not enter a projection report.</summary>
+/// <param name="Text">Required text.</param>
+/// <param name="Pattern">Pattern-constrained text.</param>
+/// <param name="Number">A number.</param>
+/// <param name="Conditional">A conditional value.</param>
+/// <param name="Async">An asynchronously validated value.</param>
+/// <param name="Custom">A custom validated value.</param>
+/// <param name="Dynamic">A dynamically validated value.</param>
 [Command]
 public record ProjectionCommand(
     [property: Required(ErrorMessage = "PRIVATE_ANNOTATION_8425")] string Text,
