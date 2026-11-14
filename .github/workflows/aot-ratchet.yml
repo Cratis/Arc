@@ -282,18 +282,24 @@ jobs:
           timeout 120 bash -c 'until (echo > /dev/tcp/127.0.0.1/35000) 2> /dev/null; do sleep 2; done'
 
       - name: Publish ArcCoreChronicle
+        id: publish
+        # A NativeAot publish failure is reported, not fatal; the Untrimmed publish must succeed.
+        continue-on-error: ${{ matrix.variant == 'NativeAot' }}
         shell: bash
         run: |
           set -euo pipefail
           dotnet publish Samples/ArcCoreChronicle/ArcCoreChronicle.csproj -c Release -f net11.0 -r linux-x64 -p:CratisSamplePublish="$PUBLISH_VARIANT" -p:CratisProxiesOutputPath= -o "$ACCEPTANCE_ROOT/publish" > "$ACCEPTANCE_ROOT/publish.log" 2>&1
 
       - name: Record published image size
+        if: steps.publish.outcome == 'success'
         run: du -sk "$ACCEPTANCE_ROOT/publish" "$CRATIS_ARC_PUBLISHED_ARCCORECHRONICLE"
 
       - name: Build acceptance runner
+        if: steps.publish.outcome == 'success'
         run: dotnet build Samples/ArcCoreChronicle.Specs/ArcCoreChronicle.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net11.0 -p:CratisProxiesOutputPath=
 
       - name: Exercise the published host against the Chronicle kernel
+        if: steps.publish.outcome == 'success'
         shell: bash
         run: |
           set +e
@@ -304,6 +310,7 @@ jobs:
           exit 0
 
       - name: Hold acceptance facts to tracked outcomes without skips
+        if: steps.publish.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
