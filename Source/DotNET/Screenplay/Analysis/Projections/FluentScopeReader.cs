@@ -57,18 +57,6 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
     {
         switch (InvocationChain.NameOf(call))
         {
-            case "AutoMap":
-                scope.AutoMap = ProjectionAutoMapMode.Enabled;
-                break;
-
-            case "NoAutoMap":
-                scope.AutoMap = ProjectionAutoMapMode.Disabled;
-                break;
-
-            case "FromEventSequence":
-                scope.Sequence = semanticModel.GetConstantValue(InvocationChain.ArgumentOf(call)!).Value as string;
-                break;
-
             case "From":
                 _blocks.ReadFrom(call, semanticModel, scope, location);
                 break;
@@ -94,32 +82,113 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
                 _blocks.Remove(call, semanticModel, scope.RemovedWithJoin, location);
                 break;
 
+            default:
+                ReadScopeCall(call, semanticModel, scope, location);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Reads the configuration and child scopes of a fluent projection.
+    /// </summary>
+    /// <param name="call">The call to read.</param>
+    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <param name="scope">The scope being collected into.</param>
+    /// <param name="location">Where the projection lives, for use in diagnostics.</param>
+    void ReadScopeCall(InvocationExpressionSyntax call, SemanticModel semanticModel, FluentScope scope, string location)
+    {
+        switch (InvocationChain.NameOf(call))
+        {
+            case "AutoMap":
+                scope.AutoMap = ProjectionAutoMapMode.Enabled;
+                break;
+
+            case "NoAutoMap":
+                scope.AutoMap = ProjectionAutoMapMode.Disabled;
+                break;
+
+            case "FromEventSequence":
+                scope.Sequence = semanticModel.GetConstantValue(InvocationChain.ArgumentOf(call)!).Value as string;
+                break;
+
             case "Children":
-                ReadChild(call, semanticModel, scope.Children, location, identified: true);
+                ReadChild(call, semanticModel, scope.Children, location);
                 break;
 
             case "Nested":
-                ReadChild(call, semanticModel, scope.Nested, location, identified: false);
-                break;
-
-            case "Passive" or "NotRewindable" or "ContainerName" or "WithInitialValues":
-                diagnostics.Information(
-                    ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
-                    $"'{InvocationChain.NameOf(call)}' configures how the projection runs, which a document does not describe",
-                    location);
+                ReadChild(call, semanticModel, scope.Nested, location);
                 break;
 
             case "" or "IdentifiedBy" or "FromEventProperty":
                 break;
 
             default:
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
-                    $"'{InvocationChain.NameOf(call)}' has no counterpart in the projection definition language and was left out",
-                    location);
+                ReportUnmappableCall(InvocationChain.NameOf(call), location);
                 break;
         }
     }
+
+    /// <summary>
+    /// Reports a fluent call that does not describe document state.
+    /// </summary>
+    /// <param name="name">The name of the call.</param>
+    /// <param name="location">Where the projection lives, for use in diagnostics.</param>
+    void ReportUnmappableCall(string name, string location)
+    {
+        if (name is "Passive" or "NotRewindable" or "ContainerName" or "WithInitialValues")
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
+                $"'{name}' configures how the projection runs, which a document does not describe",
+                location);
+        }
+        else
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
+                $"'{name}' has no counterpart in the projection definition language and was left out",
+                location);
+        }
+    }
+
+    /// <summary>
+    /// Supplies the identity implicit in a child collection's joins without replacing explicit mappings.
+    /// </summary>
+    /// <param name="joins">The joins declared within the collection.</param>
+    /// <param name="identifiedBy">The property identifying each child.</param>
+    static void WithChildIdentity(IList<ProjectionJoinModel> joins, string identifiedBy)
+    {
+        if (identifiedBy.Length == 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < joins.Count; index++)
+        {
+            joins[index] = WithChildIdentity(joins[index], identifiedBy);
+        }
+    }
+
+    /// <summary>
+    /// Fills the missing identity paths of a single child join.
+    /// </summary>
+    /// <param name="join">The join to complete.</param>
+    /// <param name="identifiedBy">The property identifying each child.</param>
+    /// <returns>The join with explicit identity paths preserved.</returns>
+    static ProjectionJoinModel WithChildIdentity(ProjectionJoinModel join, string identifiedBy) => join with
+    {
+        On = join.On.Length == 0 ? identifiedBy : join.On,
+        Property = join.Property.Length == 0 ? identifiedBy : join.Property
+    };
+
+    /// <summary>
+    /// Reads a collection identity, leaving nested objects unidentified.
+    /// </summary>
+    /// <param name="call">The call declaring the child scope.</param>
+    /// <param name="body">The body configuring the scope.</param>
+    /// <returns>The declared collection identity, or an empty string.</returns>
+    static string ChildIdentity(InvocationExpressionSyntax call, SyntaxNode body) =>
+        InvocationChain.NameOf(call) == "Children" ? IdentifiedBy(body) ?? string.Empty : string.Empty;
 
     /// <summary>
     /// Reads a child collection or a nested object.
@@ -128,13 +197,11 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
     /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
     /// <param name="scopes">The scopes being collected into.</param>
     /// <param name="location">Where the projection lives, for use in diagnostics.</param>
-    /// <param name="identified">Whether each instance of the scope is identified by an expression.</param>
     void ReadChild(
         InvocationExpressionSyntax call,
         SemanticModel semanticModel,
         IList<ProjectionChildScopeModel> scopes,
-        string location,
-        bool identified)
+        string location)
     {
         var property = ProjectionPaths.ReadDeclared(InvocationChain.ArgumentOf(call));
         var body = InvocationChain.ArgumentOf(call, 1);
@@ -151,6 +218,9 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
         var inner = new FluentScope();
         Read(body, semanticModel, inner, location);
 
-        scopes.Add(new(property, identified ? IdentifiedBy(body) ?? string.Empty : string.Empty, inner.AutoMap, inner.ToModel()));
+        var identifiedBy = ChildIdentity(call, body);
+        WithChildIdentity(inner.Joins, identifiedBy);
+
+        scopes.Add(new(property, identifiedBy, inner.AutoMap, inner.ToModel()));
     }
 }

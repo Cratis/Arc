@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis;
 
@@ -129,6 +130,7 @@ public static class SymbolExtensions
     /// <param name="symbol">The type to read.</param>
     /// <returns>The properties, base types first and in declaration order within each type.</returns>
     /// <remarks>
+    /// Get-only properties with an expression or getter body are computed values, not stored state, and are excluded.
     /// A property declared on a base record is part of what the type carries just as much as one declared on the type
     /// itself - it is serialized, it is sent, and a document leaving it out describes a shape that does not exist.
     /// <para>
@@ -186,8 +188,19 @@ public static class SymbolExtensions
     static IEnumerable<IPropertySymbol> InDeclarationOrder(ITypeSymbol symbol) =>
         symbol.GetMembers()
             .OfType<IPropertySymbol>()
-            .Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer && _.Name != "EqualityContract")
+            .Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer && _.Name != "EqualityContract" && !IsComputed(_))
             .OrderBy(DeclaredIn, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Determines whether a get-only property computes its value in a source body.
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <returns>True when the property has a computed getter rather than stored state.</returns>
+    static bool IsComputed(IPropertySymbol property) =>
+        property.SetMethod is null && property.DeclaringSyntaxReferences
+            .Select(_ => _.GetSyntax())
+            .OfType<PropertyDeclarationSyntax>()
+            .Any(_ => _.ExpressionBody is not null || _.AccessorList?.Accessors.Any(accessor => accessor.Body is not null || accessor.ExpressionBody is not null) == true);
 
     /// <summary>
     /// Gets the file a property is declared in, for ordering the members of a type declared across several of them.
