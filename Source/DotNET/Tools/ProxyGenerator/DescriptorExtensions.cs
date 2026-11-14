@@ -73,8 +73,10 @@ public static class DescriptorExtensions
         IDictionary<string, GeneratedFileMetadata>? generatedFiles = null,
         IReadOnlyDictionary<Type, (IReadOnlyList<string> Commands, IReadOnlyList<string> Queries)>? descriptorOrigins = null,
         IReadOnlyDictionary<string, string>? sourceFileMap = null,
-        IDictionary<string, (string Content, string SourceTypeName)>? pendingContent = null)
+        IDictionary<string, (string Content, string SourceTypeName)>? pendingContent = null,
+        IGeneratedOutput? output = null)
     {
+        output ??= new FileSystemGeneratedOutput();
         var stopwatch = Stopwatch.StartNew();
         var generationTime = DateTime.UtcNow;
         var skippedCount = 0;
@@ -135,7 +137,7 @@ public static class DescriptorExtensions
         foreach (var (normalizedFullPath, group) in descriptorsByOutputPath)
         {
             var directory = Path.GetDirectoryName(normalizedFullPath)!;
-            if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
+            output.EnsureDirectory(directory);
 
             if (!directories.Contains(directory))
             {
@@ -198,7 +200,7 @@ public static class DescriptorExtensions
                 var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
 
                 // Check if file exists with the same hash
-                if (File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
+                if (!output.ComparesBytes && File.Exists(normalizedFullPath) && GeneratedFileMetadata.IsGeneratedFile(normalizedFullPath, out var existingMetadata) &&
                         existingMetadata is not null &&
                         existingMetadata.ContentHash == contentHash)
                 {
@@ -213,7 +215,7 @@ public static class DescriptorExtensions
                 }
 
                 var contentWithMetadata = AddMetadataLine(proxyContent, metadata);
-                await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
+                await output.WriteFile(normalizedFullPath, contentWithMetadata);
 
                 // Track generated file metadata and mark as written
                 if (generatedFiles is not null)
@@ -245,8 +247,17 @@ public static class DescriptorExtensions
         string fileHeaderTemplate,
         IDictionary<string, (string Content, string SourceTypeName)> pendingContent,
         IDictionary<string, GeneratedFileMetadata> generatedFiles,
-        Action<string> message)
+        Action<string> message) =>
+        await FlushPendingContentWithFileHeader(fileHeaderTemplate, pendingContent, generatedFiles, new GeneratedOutputContext(message, new FileSystemGeneratedOutput()));
+
+    internal static async Task FlushPendingContentWithFileHeader(
+        string fileHeaderTemplate,
+        IDictionary<string, (string Content, string SourceTypeName)> pendingContent,
+        IDictionary<string, GeneratedFileMetadata> generatedFiles,
+        GeneratedOutputContext context)
     {
+        var output = context.Output;
+        var message = context.Message;
         var generationTime = DateTime.UtcNow;
         var writtenCount = 0;
         var skippedCount = 0;
@@ -257,7 +268,7 @@ public static class DescriptorExtensions
             var contentHash = GeneratedFileMetadata.ComputeHash(content);
 
             // Compare against the original file on disk (untouched since last build)
-            if (TryGetUnchangedMetadata(normalizedFullPath, contentHash, out var existingMetadata))
+            if (!output.ComparesBytes && TryGetUnchangedMetadata(normalizedFullPath, contentHash, out var existingMetadata))
             {
                 // File hasn't changed, skip writing and preserve the existing timestamp
                 skippedCount++;
@@ -267,7 +278,7 @@ public static class DescriptorExtensions
 
             var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
             var contentWithMetadata = AddMetadataLine(content, metadata);
-            await File.WriteAllTextAsync(normalizedFullPath, contentWithMetadata);
+            await output.WriteFile(normalizedFullPath, contentWithMetadata);
 
             writtenCount++;
             generatedFiles[normalizedFullPath] = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash, true);

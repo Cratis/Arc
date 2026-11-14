@@ -5,12 +5,13 @@ using System.Text;
 using Cratis.Arc.ProxyGenerator;
 using static Cratis.Arc.ProxyGenerator.PathHelpers;
 
-Console.WriteLine("Cratis Proxy Generator\n");
+var mode = new CommandLineMode(args);
+mode.WriteLine("Cratis Proxy Generator\n");
 
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--check] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 ProxyFramework framework;
@@ -100,54 +101,60 @@ foreach (var entry in args.Where(_ => _.StartsWith("--namespace-root=")).Select(
     }
 }
 
-Console.WriteLine("\nParameters:");
-Console.WriteLine($"Assembly: '{assemblyFile}'");
-Console.WriteLine($"Output path: '{outputPath}'");
-Console.WriteLine($"Segments to skip: {segmentsToSkip}");
-Console.WriteLine($"Library mode: {libraryMode}");
-Console.WriteLine($"Skip output deletion: {skipOutputDeletion}");
-Console.WriteLine($"Skip command name in route: {skipCommandNameInRoute}");
-Console.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
-Console.WriteLine($"API prefix: {apiPrefix}");
-Console.WriteLine($"Endpoint group: {endpointGroup ?? "(default)"}");
-Console.WriteLine($"Skip index generation: {skipIndexGeneration}");
-Console.WriteLine($"Use source file as output file: {useSourceFileAsOutputFile}");
-Console.WriteLine($"Use proxy file suffix: {useProxyFileSuffix}");
+mode.WriteLine("\nParameters:");
+mode.WriteLine($"Assembly: '{assemblyFile}'");
+mode.WriteLine($"Output path: '{outputPath}'");
+mode.WriteLine($"Segments to skip: {segmentsToSkip}");
+mode.WriteLine($"Library mode: {libraryMode}");
+mode.WriteLine($"Skip output deletion: {skipOutputDeletion}");
+mode.WriteLine($"Skip command name in route: {skipCommandNameInRoute}");
+mode.WriteLine($"Skip query name in route: {skipQueryNameInRoute}");
+mode.WriteLine($"API prefix: {apiPrefix}");
+mode.WriteLine($"Endpoint group: {endpointGroup ?? "(default)"}");
+mode.WriteLine($"Skip index generation: {skipIndexGeneration}");
+mode.WriteLine($"Use source file as output file: {useSourceFileAsOutputFile}");
+mode.WriteLine($"Use proxy file suffix: {useProxyFileSuffix}");
 if (assemblyPackageMappings.Count > 0)
 {
-    Console.WriteLine("Assembly-to-package mappings:");
+    mode.WriteLine("Assembly-to-package mappings:");
     foreach (var (assembly, package) in assemblyPackageMappings)
     {
-        Console.WriteLine($"  {assembly} -> {package}");
+        mode.WriteLine($"  {assembly} -> {package}");
     }
 }
 if (excludedTypeNames.Count > 0)
 {
-    Console.WriteLine("Excluded types:");
+    mode.WriteLine("Excluded types:");
     foreach (var typeName in excludedTypeNames)
     {
-        Console.WriteLine($"  {typeName}");
+        mode.WriteLine($"  {typeName}");
     }
 }
 if (excludedNamespacePatterns.Count > 0)
 {
-    Console.WriteLine("Excluded namespace patterns:");
+    mode.WriteLine("Excluded namespace patterns:");
     foreach (var pattern in excludedNamespacePatterns)
     {
-        Console.WriteLine($"  {pattern}");
+        mode.WriteLine($"  {pattern}");
     }
 }
 if (namespaceRoots.Count > 0)
 {
-    Console.WriteLine("Namespace roots:");
+    mode.WriteLine("Namespace roots:");
     foreach (var (ns, folder) in namespaceRoots)
     {
-        Console.WriteLine($"  {ns} -> {folder}");
+        mode.WriteLine($"  {ns} -> {folder}");
     }
 }
-Console.WriteLine();
+mode.WriteLine();
 
 var stateFile = args.FirstOrDefault(arg => arg.StartsWith("--state-file=", StringComparison.Ordinal))?["--state-file=".Length..];
+if (mode.Check && stateFile is not null)
+{
+    Console.WriteLine("--state-file is ignored in --check mode");
+    stateFile = null;
+}
+var checkingOutput = mode.Check ? new CheckingGeneratedOutput(outputPath) : null;
 var fingerprint = stateFile is null ? null : GenerationFingerprint.Compute(
     assemblyFile,
     args.Where(arg => !arg.StartsWith("--state-file=", StringComparison.Ordinal)),
@@ -175,11 +182,11 @@ try
         assemblyFile,
         outputPath,
         segmentsToSkip,
-        Console.WriteLine,
+        message => mode.WriteLine(message),
         error =>
         {
             hadErrors = true;
-            Console.Error.WriteLine(error);
+            Console.Error.WriteLine(mode.Check ? $"error: {error}" : error);
         },
         libraryMode,
         skipOutputDeletion,
@@ -197,12 +204,17 @@ try
         useProxyFileSuffix,
         producedFiles,
         endpointGroup,
-        framework);
+        framework,
+        checkingOutput);
 }
-catch (Exception exception) when (exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
+catch (Exception exception) when (mode.Check || exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
 {
     await Console.Error.WriteLineAsync($"error: {exception.Message}");
     return 1;
+}
+if (mode.Check)
+{
+    return result && !hadErrors ? CommandLineMode.Complete(checkingOutput!) : ProxyGeneratorExitCodes.Error;
 }
 if (result && !hadErrors && fingerprint is not null && stateFile is not null)
 {

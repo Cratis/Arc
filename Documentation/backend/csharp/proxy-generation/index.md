@@ -45,4 +45,6 @@ Generated files belong to the generator. After a backend contract changes, regen
 3. Adjust [configuration](Configuration/index.md) when your folder structure or routes differ from the defaults.
 4. Read [output behavior](Configuration/output-behavior.md) before changing deletion settings or mixing generated and handwritten files. Incremental output still removes stale generated files.
 
+In CI, [check committed proxies for drift](file-index-tracking.md#checking-for-drift) with `--check` instead of regenerating them.
+
 For specialized output, see [identity details](identity-details.md), [validation extraction](validation.md), [file tracking](file-index-tracking.md), and [linting generated proxies](linting.md).

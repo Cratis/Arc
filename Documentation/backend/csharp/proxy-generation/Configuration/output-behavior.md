@@ -9,8 +9,11 @@ description: Cratis Arc proxy output settings cover incremental discovery, direc
 | ------------------------- | ------------------------------------------------------------------------------------- |
 | NuGet MSBuild integration | `CratisProxiesSkipOutputDeletion=true`: retain the directory and update incrementally |
 | Direct executable         | Deletes the output directory unless `--skip-output-deletion` is supplied              |
+| Direct executable with `--check` | Compares without writing or deleting the output tree |
 
 Use a dedicated, generated-only directory with one generation owner. Incremental mode does **not** disable orphan cleanup or guarantee preservation of a mixed source tree.
+
+For a non-mutating CI comparison, use [`--check`](../file-index-tracking.md#checking-for-drift). It always discovers artifacts, ignores `--state-file`, and returns `2` for drift (`0` clean, `1` error).
 
 ## Incremental discovery
 

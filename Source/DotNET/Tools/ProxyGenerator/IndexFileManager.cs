@@ -41,7 +41,7 @@ public static partial class IndexFileManager
         UpdateDirectoryIndex(new IndexLocation(directory, generatedFiles), GroupByDirectory(generatedFiles, orphanedFiles), new IndexOutput(fileHeaderTemplate, message, outputPath));
 
     /// <inheritdoc cref="UpdateAllIndexFiles"/>
-    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
+    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath, IGeneratedOutput? generatedOutput = null)
     {
         // Combine explicitly tracked directories with any directory under outputPath
         // that has an existing index.ts file, to catch stale exports from previous runs.
@@ -58,7 +58,7 @@ public static partial class IndexFileManager
         // Grouping once keeps this linear in the number of files, rather than a scan of every file per directory.
         var byDirectory = GroupByDirectory(generatedFiles, orphanedFiles);
 
-        var output = new IndexOutput(fileHeaderTemplate, message, outputPath);
+        var output = new IndexOutput(fileHeaderTemplate, message, outputPath, generatedOutput);
         var writtenCount = allDirectories.Count(_ => UpdateDirectoryIndex(new IndexLocation(_, generatedFiles), byDirectory, output));
         return (writtenCount, allDirectories.Count - writtenCount);
     }
@@ -86,16 +86,8 @@ public static partial class IndexFileManager
 
         var (existingExports, manualLines) = ParseIndexFile(location);
 
-        var hasStaleExports = existingExports.Exists(_ => IsStaleExport(_, location));
-        if (!NeedsRewrite(inDirectory, hasStaleExports, location))
-        {
-            return false;
-        }
-
         var finalExports = BuildFinalExports(existingExports, inDirectory, location);
-
-        // Check if anything changed (compare unsorted since we preserve order)
-        if (existingExports.SequenceEqual(finalExports))
+        if (output.CanKeepExports(location, inDirectory, existingExports, finalExports))
         {
             // No changes - don't rewrite
             return false;
@@ -104,13 +96,13 @@ public static partial class IndexFileManager
         var content = BuildIndexContent(output, location, manualLines, finalExports);
 
         // If the file exists, compare a normalized version (trim and ignore empty lines)
-        if (File.Exists(indexPath) && Normalize(File.ReadAllText(indexPath)) == Normalize(content))
+        if (output.CanKeepContent(indexPath, content))
         {
             // Equivalent content (ignoring blank lines/trim) — don't rewrite
             return false;
         }
 
-        File.WriteAllText(indexPath, content);
+        output.Sink.WriteFile(indexPath, content).GetAwaiter().GetResult();
         output.Message($"    Updated index: {GetRelativePath(output, indexPath)}");
         return true;
     }
@@ -122,7 +114,7 @@ public static partial class IndexFileManager
             return;
         }
 
-        File.Delete(location.IndexPath);
+        output.Sink.DeleteFile(location.IndexPath);
         output.Message($"    Deleted empty index: {GetRelativePath(output, location.IndexPath)}");
     }
 
@@ -399,7 +391,17 @@ public static partial class IndexFileManager
     /// <param name="FileHeaderTemplate">The file header template for a newly created index file.</param>
     /// <param name="Message">Logger to use for outputting messages.</param>
     /// <param name="OutputPath">The base output path for relative path calculation.</param>
-    sealed record IndexOutput(string FileHeaderTemplate, Action<string> Message, string OutputPath);
+    /// <param name="GeneratedOutput">Optional artifact output boundary.</param>
+    sealed record IndexOutput(string FileHeaderTemplate, Action<string> Message, string OutputPath, IGeneratedOutput? GeneratedOutput = null)
+    {
+        public IGeneratedOutput Sink { get; } = GeneratedOutput ?? new FileSystemGeneratedOutput();
+
+        public bool CanKeepExports(IndexLocation location, DirectoryFiles inDirectory, List<string> existing, List<string> expected) =>
+            !Sink.ComparesBytes && (!NeedsRewrite(inDirectory, existing.Exists(_ => IsStaleExport(_, location)), location) || existing.SequenceEqual(expected));
+
+        public bool CanKeepContent(string path, string content) =>
+            !Sink.ComparesBytes && File.Exists(path) && Normalize(File.ReadAllText(path)) == Normalize(content);
+    }
 
     /// <summary>
     /// Represents the directory of an index.ts file together with the generated files tracked for this run.

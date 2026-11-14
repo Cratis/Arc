@@ -56,6 +56,9 @@ public static class FileMetadataScanner
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <returns>The number of files removed.</returns>
     public static int RemoveOrphanedFiles(string outputPath, IEnumerable<string> orphanedFiles, Action<string> message)
+        => RemoveOrphanedFiles(outputPath, orphanedFiles, message, new FileSystemGeneratedOutput());
+
+    internal static int RemoveOrphanedFiles(string outputPath, IEnumerable<string> orphanedFiles, Action<string> message, IGeneratedOutput output)
     {
         var orphanedFilesList = orphanedFiles.ToList();
         if (orphanedFilesList.Count == 0)
@@ -71,7 +74,7 @@ public static class FileMetadataScanner
         {
             if (File.Exists(filePath))
             {
-                File.Delete(filePath);
+                output.DeleteFile(filePath);
                 var relativePath = Path.GetRelativePath(outputPath, filePath).Replace(Path.DirectorySeparatorChar, '/');
                 message($"    Deleted orphaned: {relativePath}");
 
@@ -88,20 +91,20 @@ public static class FileMetadataScanner
             .OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar))
             .ToList();
 
-        foreach (var directory in sortedDirectories)
+        foreach (var directory in sortedDirectories.Where(_ => !output.ComparesBytes))
         {
             if (!Directory.Exists(directory))
             {
                 continue;
             }
 
-            CleanupDirectory(directory, outputPath, message);
+            CleanupDirectory(directory, outputPath, message, output);
         }
 
         return orphanedFilesList.Count;
     }
 
-    static void CleanupDirectory(string directory, string outputPath, Action<string> message)
+    static void CleanupDirectory(string directory, string outputPath, Action<string> message, IGeneratedOutput output)
     {
         // Don't process directories outside the output path
         if (!directory.StartsWith(outputPath, StringComparison.OrdinalIgnoreCase))
@@ -125,13 +128,13 @@ public static class FileMetadataScanner
             var indexPath = Path.Combine(directory, "index.ts");
             if (File.Exists(indexPath))
             {
-                File.Delete(indexPath);
+                output.DeleteFile(indexPath);
                 var relativePath = Path.GetRelativePath(outputPath, indexPath).Replace(Path.DirectorySeparatorChar, '/');
                 message($"    Deleted index: {relativePath}");
             }
 
             // Remove the empty directory
-            Directory.Delete(directory);
+            output.DeleteDirectoryIfEmpty(directory);
             var relativeDir = Path.GetRelativePath(outputPath, directory).Replace(Path.DirectorySeparatorChar, '/');
             message($"    Removed empty directory: {relativeDir}");
 
@@ -139,7 +142,7 @@ public static class FileMetadataScanner
             var parent = Path.GetDirectoryName(directory);
             if (!string.IsNullOrEmpty(parent) && parent != outputPath)
             {
-                CleanupDirectory(parent, outputPath, message);
+                CleanupDirectory(parent, outputPath, message, output);
             }
         }
     }

@@ -30,6 +30,7 @@ public static partial class Generator
     /// <param name="ProducedFiles">Optional collection receiving the produced file paths.</param>
     /// <param name="EndpointGroup">Optional endpoint group.</param>
     /// <param name="Framework">The framework to generate for.</param>
+    /// <param name="Output">The artifact output boundary.</param>
     sealed record GenerationSettings(
         string FileHeaderTemplate,
         string OutputPath,
@@ -52,5 +53,6 @@ public static partial class Generator
         bool UseProxyFileSuffix,
         ICollection<string>? ProducedFiles,
         string? EndpointGroup,
-        ProxyFramework Framework);
+        ProxyFramework Framework,
+        IGeneratedOutput Output);
 }
