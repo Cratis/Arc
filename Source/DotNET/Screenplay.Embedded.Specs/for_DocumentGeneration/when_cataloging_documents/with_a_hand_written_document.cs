@@ -25,7 +25,7 @@ public class with_a_hand_written_document : Specification
     }
 
     [Fact] void should_default_the_authored_document_to_embedded() => _authored.Origin.ShouldEqual(EventModelOrigin.Embedded);
-    [Fact] void should_not_stamp_the_authored_document_as_generated() => _documents.EnumerateArray().Last().TryGetProperty("origin", out _).ShouldBeFalse();
-    [Fact] void should_keep_the_authored_origin_when_read_back() => _readBack.Documents.Last().Origin.ShouldEqual(EventModelOrigin.Embedded);
+    [Fact] void should_not_stamp_the_authored_document_as_generated() => _documents[_documents.GetArrayLength() - 1].TryGetProperty("origin", out _).ShouldBeFalse();
+    [Fact] void should_keep_the_authored_origin_when_read_back() => _readBack.Documents[^1].Origin.ShouldEqual(EventModelOrigin.Embedded);
     [Fact] void should_keep_the_csharp_documents_generated() => _readBack.Documents.SkipLast(1).All(_ => _.Origin == EventModelOrigin.Generated).ShouldBeTrue();
 }

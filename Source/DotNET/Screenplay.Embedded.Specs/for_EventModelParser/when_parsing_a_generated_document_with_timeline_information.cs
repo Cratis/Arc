@@ -1,12 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 using Cratis.Screenplay;
 using Cratis.Screenplay.Diagnostics;
 
 namespace Cratis.Arc.Screenplay.Embedded.for_EventModelParser;
 
+[SuppressMessage("Usage", "MA0136:Raw String contains an implicit end of line character", Justification = "The authored document is explicitly normalized to LF before it is parsed.")]
 public class when_parsing_a_generated_document_with_timeline_information : Specification
 {
     EventModelView _view;
@@ -14,7 +16,7 @@ public class when_parsing_a_generated_document_with_timeline_information : Speci
 
     void Because()
     {
-        const string source =
+        var source =
             """
             domain Library
             module Catalog
@@ -28,7 +30,7 @@ public class when_parsing_a_generated_document_with_timeline_information : Speci
                 slice StateChange Registration
                   event AuthorRegistered
                     name String
-            """;
+            """.ReplaceLineEndings("\n");
         var compiler = new ScreenplayCompiler();
         _hasTimelineInformation = compiler.Compile(source).Diagnostics.Any(_ => _.Code == "PLAY0516" && _.Severity == DiagnosticSeverity.Information);
         _view = new EventModelParser(compiler).Parse("Library", "Library", source, EventModelOrigin.Generated);

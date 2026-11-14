@@ -1,12 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Screenplay.Embedded.for_EventModelParser.given;
 using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 using Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
 
 namespace Cratis.Arc.Screenplay.Embedded.for_EventModelCatalog.when_reading_in_memory_resources;
 
+[SuppressMessage("Usage", "MA0136:Raw String contains an implicit end of line character", Justification = "The authored document is explicitly normalized to LF before it is parsed.")]
 public class with_document_origins : a_document_with_an_unpopulated_field
 {
     EventModelCatalog _catalog;
@@ -27,7 +29,7 @@ public class with_document_origins : a_document_with_an_unpopulated_field
                   {"id":"Embedded","kind":"assembly","resourceName":"embedded.play","origin":"embedded"},
                   {"id":"Generated","kind":"assembly","resourceName":"generated.play","origin":"GeNeRaTeD"}
                 ]}
-                """,
+                """.ReplaceLineEndings("\n"),
             ["legacy.play"] = Source,
             ["embedded.play"] = Source,
             ["generated.play"] = Source
