@@ -18,7 +18,7 @@ public class a_child_collection_joining_other_events : Specification
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn((Analyzed.SlicePath, ChildJoinSources.Source)).ShouldBeEmpty();
-    [Fact] void should_recover_both_joins() => _child.Scope.Joins.Count.ShouldEqual(2);
+    [Fact] void should_recover_both_joins() => _child.Scope.Joins.Count().ShouldEqual(2);
     [Fact] void should_join_on_the_child_identity() => _child.Scope.Joins.Select(join => join.On).Distinct().ShouldContainOnly(["codeId"]);
     [Fact] void should_keep_the_explicitly_mapped_property() => _child.Scope.Joins.Single(join => join.EventType == "CodeUnitObserved").Property.ShouldEqual("Unit");
     [Fact] void should_name_the_automatically_mapped_join() => _child.Scope.Joins.Single(join => join.EventType == "MonthOpened").Property.ShouldEqual("codeId");

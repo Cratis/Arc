@@ -25,7 +25,12 @@ public class a_child_collection_with_joins : Specification
             Joins = [new("unit", "CodeUnitObserved", "codeId", Declare.Map(("unit", "unit")))]
         };
         _result = builder.Build(
-            new ProjectionModel("CodesProjection", "Codes", "event-log", ProjectionAutoMapMode.Enabled, false,
+            new ProjectionModel(
+                "CodesProjection",
+                "Codes",
+                "event-log",
+                ProjectionAutoMapMode.Enabled,
+                false,
                 ProjectionScopeModel.Empty with { Children = [new("entries", "codeId", ProjectionAutoMapMode.Inherit, scope)] }),
             "Library.Codes.Listing");
     }
