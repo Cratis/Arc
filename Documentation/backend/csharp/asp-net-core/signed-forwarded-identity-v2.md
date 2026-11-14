@@ -1,6 +1,6 @@
 ---
 title: Signed forwarded identity v2
-description: The v2 signed forwarded identity wire contract: ES256 envelope, covered headers, authenticated TLS, replay protection, key rotation, and shared test vectors.
+description: "The v2 signed forwarded identity wire contract: ES256 envelope, covered headers, authenticated TLS, replay protection, key rotation and shared test vectors."
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved. -->
