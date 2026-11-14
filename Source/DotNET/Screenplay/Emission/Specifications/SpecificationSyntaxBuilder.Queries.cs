@@ -15,8 +15,10 @@ public partial class SpecificationSyntaxBuilder
     /// <param name="read">The query read, or <see langword="null"/> when the scenario is not a query scenario.</param>
     /// <returns>The <c>then query</c> assertions - one for a query scenario, none otherwise.</returns>
     /// <remarks>
-    /// The expected read model is stated as a subset, never <c>exactly</c>: a whole-result comparison in the source says
-    /// every value it states must match, which is what a subset of every declared property already says.
+    /// The expected read model states every property the read model declares, in declaration order - the analysis
+    /// refuses a scenario that does not - so it is written without <c>exactly</c>, the same way the fact path lowers
+    /// the same scenario. Every value is a literal the analysis proved can be written as it was authored, so nothing
+    /// is sanitized on the way into the document.
     /// </remarks>
     IEnumerable<SpecificationQuerySyntax> Queries(SpecificationQueryModel? read) =>
         read is null

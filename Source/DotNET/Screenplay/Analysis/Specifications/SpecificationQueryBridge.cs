@@ -39,9 +39,14 @@ internal sealed class SpecificationQueryBridge(
     public bool TryRead(INamedTypeSymbol type, SpecificationPlacement placement, out (string Slice, SpecificationModel Specification)? read)
     {
         read = null;
-        if (!_reader.TryRead(type, out var evidence, out var reason))
+        if (!_reader.TryRead(type, out var evidence, out var reason) || evidence is null)
         {
             return Refused(type, reason);
+        }
+
+        if (Unprovable(evidence) is { } unprovable)
+        {
+            return Refused(type, unprovable);
         }
 
         if (placement.SliceOf(type) is not { } slice)
@@ -49,12 +54,7 @@ internal sealed class SpecificationQueryBridge(
             return Refused(type, "no namespace above it declares a slice for it to specify");
         }
 
-        if (Unprovable(evidence!) is { } unprovable)
-        {
-            return Refused(type, unprovable);
-        }
-
-        read = (slice, Specification(SpecificationPlacement.NameOf(type, slice), evidence!));
+        read = (slice, Specification(SpecificationPlacement.NameOf(type, slice), evidence));
         return true;
     }
 
@@ -102,10 +102,33 @@ internal sealed class SpecificationQueryBridge(
             return "two query argument or result paths normalize to the same semantic property name";
         }
 
+        if (!evidence.Arguments.Concat(evidence.Result).All(value => IsExact(value.Source)))
+        {
+            return "a query argument or result value is text the document cannot state exactly as it was authored";
+        }
+
         return inputs is [var input] && IsKeyed(input, properties)
             ? null
             : "the required query input has no unique non-nullable scalar read-model key with the same normalized name and exact type";
     }
+
+    /// <summary>
+    /// Determines whether a value is written into the document exactly as the scenario states it.
+    /// </summary>
+    /// <param name="source">The value the scenario states.</param>
+    /// <returns><see langword="true"/> when nothing about the value would be changed on its way into the document.</returns>
+    /// <remarks>
+    /// Text is written as a document string literal, which collapses whitespace and cannot hold a double quote or a
+    /// backslash. A value that would be changed is not sanitized into a different one; the scenario is left out.
+    /// </remarks>
+    bool IsExact(MappingSourceModel source) => source switch
+    {
+        LiteralSource { Value: string text } => text.IsNormalized() &&
+            !text.Contains('\\', StringComparison.Ordinal) &&
+            string.Equals(_naming.ToStringLiteral(text), text, StringComparison.Ordinal),
+        LiteralSource { Value: object?[] items } => items.All(item => IsExact(new LiteralSource(item))),
+        _ => true
+    };
 
     bool IsKeyed(IParameterSymbol input, IPropertySymbol[] properties) =>
         IsNonNullableScalar(input.Type) &&
