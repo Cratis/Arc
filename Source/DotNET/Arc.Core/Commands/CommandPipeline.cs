@@ -389,6 +389,41 @@ public class CommandPipeline(
         return CommandResult.FromException(correlationId, exception);
     }
 
+    static async Task<PreparedAuthorization?> PrepareAuthorization(object command, IServiceProvider serviceProvider, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
+    {
+        var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+        if (suppliedAuthorization is not null || !declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+        {
+            return suppliedAuthorization;
+        }
+
+        return await (serviceProvider.GetService<AuthorizationEvaluation>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
+            .Prepare(command.GetType(), serviceProvider, cancellationToken);
+    }
+
+    static CommandResult? RefuseUnlessRolesPass(PreparedAuthorization? preparedAuthorization, CorrelationId correlationId, IServiceProvider serviceProvider, AuthorizationPrincipalLease principalLease)
+    {
+        if (preparedAuthorization is null)
+        {
+            return null;
+        }
+
+        if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
+        {
+            return CommandResult.Unauthorized(correlationId);
+        }
+
+        if (preparedAuthorization.PrincipalChanged)
+        {
+            principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
+                .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
+        }
+
+        return null;
+    }
+
     async Task<CommandResult> ExecuteHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
     {
         using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), requestServices);
@@ -540,28 +575,10 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-            var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+            var preparedAuthorization = await PrepareAuthorization(command, serviceProvider, suppliedAuthorization, cancellationToken);
+            if (RefuseUnlessRolesPass(preparedAuthorization, correlationId, serviceProvider, principalLease) is { } unauthorized)
             {
-                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
-                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
-                    .Prepare(command.GetType(), serviceProvider, cancellationToken);
-            }
-
-            if (preparedAuthorization is not null)
-            {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
-                {
-                    return CommandResult.Unauthorized(correlationId);
-                }
-
-                if (preparedAuthorization.PrincipalChanged)
-                {
-                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
-                        .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
-                }
+                return unauthorized;
             }
 
             identityLease.Attach(EnterCallerIdentity(serviceProvider, preparedAuthorization, false));
@@ -869,28 +886,10 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-            var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+            var preparedAuthorization = await PrepareAuthorization(command, serviceProvider, suppliedAuthorization, cancellationToken);
+            if (RefuseUnlessRolesPass(preparedAuthorization, correlationId, serviceProvider, principalLease) is { } unauthorized)
             {
-                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
-                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
-                    .Prepare(command.GetType(), serviceProvider, cancellationToken);
-            }
-
-            if (preparedAuthorization is not null)
-            {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
-                {
-                    return CommandResult.Unauthorized(correlationId);
-                }
-
-                if (preparedAuthorization.PrincipalChanged)
-                {
-                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
-                        .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
-                }
+                return unauthorized;
             }
 
             using var identityGuard = EnterCallerIdentity(serviceProvider, preparedAuthorization, true);
