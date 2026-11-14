@@ -31,12 +31,17 @@ const scopeThatThrows = (validateOn: 'blur' | 'change') => {
 };
 
 describe('when the validation after a value change throws', () => {
-    const { scope, failSilentValidation, beginSilentValidation } = scopeThatThrows('change');
+    let failSilentValidation: sinon.SinonSpy;
+    let beginSilentValidation: sinon.SinonStub;
     let thrown: unknown;
 
     beforeEach(async () => {
+        const arranged = scopeThatThrows('change');
+        failSilentValidation = arranged.failSilentValidation;
+        beginSilentValidation = arranged.beginSilentValidation;
+        thrown = undefined;
         try {
-            await createFieldValueChangeHandler(scope)('b');
+            await createFieldValueChangeHandler(arranged.scope)('b');
         } catch (error) {
             thrown = error;
         }
@@ -44,24 +49,27 @@ describe('when the validation after a value change throws', () => {
 
     it('should claim a token for the client channel', () => beginSilentValidation.calledWith('client').should.be.true);
 
-    it('should report the validation as failed under its token', () => failSilentValidation.calledOnceWith(issue).should.be.true);
+    it('should report the validation as failed under its token', () => failSilentValidation.calledOnceWithExactly(issue).should.be.true);
 
     it('should not swallow the failure', () => (thrown as Error).message.should.equal('validator exploded'));
 });
 
 describe('when the validation on blur throws', () => {
-    const { scope, failSilentValidation } = scopeThatThrows('blur');
+    let failSilentValidation: sinon.SinonSpy;
     let thrown: unknown;
 
     beforeEach(async () => {
+        const arranged = scopeThatThrows('blur');
+        failSilentValidation = arranged.failSilentValidation;
+        thrown = undefined;
         try {
-            await createFieldBlurHandler(scope)();
+            await createFieldBlurHandler(arranged.scope)();
         } catch (error) {
             thrown = error;
         }
     });
 
-    it('should report the validation as failed under its token', () => failSilentValidation.calledOnceWith(issue).should.be.true);
+    it('should report the validation as failed under its token', () => failSilentValidation.calledOnceWithExactly(issue).should.be.true);
 
     it('should not swallow the failure', () => (thrown as Error).message.should.equal('validator exploded'));
 });
