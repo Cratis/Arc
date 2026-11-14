@@ -12,11 +12,13 @@ namespace Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 /// </summary>
 /// <param name="compiler">The Screenplay compiler to compile source with.</param>
 /// <remarks>
-/// The compiler's visitor hook is the only way in: the document is built from what the compiler accepted,
-/// never from the text itself, and nothing outside the process is read to produce it.
+/// Authored documents use the compiler's visitor hook. Generated documents may also draw compiled syntax
+/// with incomplete projection coverage; nothing outside the process is read to produce either document.
 /// </remarks>
 public class EventModelParser(IScreenplayCompiler compiler) : IEventModelParser
 {
+    const string ToleratedCoverageCode = "PLAY0284";
+
     /// <summary>
     /// Initializes a new instance of the <see cref="EventModelParser"/> class.
     /// </summary>
@@ -26,7 +28,42 @@ public class EventModelParser(IScreenplayCompiler compiler) : IEventModelParser
     }
 
     /// <inheritdoc/>
-    public EventModelView Parse(string documentId, string name, string source)
+    public EventModelView Parse(string documentId, string name, string source) =>
+        Parse(documentId, name, source, EventModelOrigin.Embedded);
+
+    /// <inheritdoc/>
+    public EventModelView Parse(string documentId, string name, string source, EventModelOrigin origin) =>
+        origin == EventModelOrigin.Generated
+            ? ParseGenerated(documentId, name, source)
+            : ParseEmbedded(documentId, name, source);
+
+    EventModelView ParseGenerated(string documentId, string name, string source)
+    {
+        var compilation = compiler.Compile(source);
+        var compiled = compilation.Diagnostics ?? [];
+        var errors = compiled.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToList();
+        if (compilation.Value is null || errors.Any(diagnostic => !IsToleratedCoverage(diagnostic)))
+        {
+            return new EventModelView(
+                null,
+                [.. errors.Select(EventModelDiagnostic.From)],
+                [.. compiled.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning).Select(EventModelDiagnostic.From)],
+                false);
+        }
+
+        var visitor = new EventModelSyntaxVisitor(documentId, name);
+        var model = visitor.Visit(compilation.Value);
+        var warnings = compiled
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning || IsToleratedCoverage(diagnostic))
+            .Concat(visitor.Warnings.All);
+
+        return new EventModelView(model, [], [.. warnings.Select(EventModelDiagnostic.From)], true);
+    }
+
+    static bool IsToleratedCoverage(Diagnostic diagnostic) =>
+        diagnostic.Severity == DiagnosticSeverity.Error && string.Equals(diagnostic.Code, ToleratedCoverageCode, StringComparison.Ordinal);
+
+    EventModelView ParseEmbedded(string documentId, string name, string source)
     {
         var visitor = new EventModelSyntaxVisitor(documentId, name);
         var compilation = compiler.Compile(source, visitor);
