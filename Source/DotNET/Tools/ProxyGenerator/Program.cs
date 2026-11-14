@@ -91,8 +91,8 @@ foreach (var entry in args.Where(_ => _.StartsWith("--type-to-ts=")).Select(_ =>
     //
     // On stdout, not stderr: the build invokes this through Exec, which treats what arrives on stderr as build
     // errors, so an ignorable entry would fail the build outright. Exec sets ConsoleToMsBuild, so stdout is
-    // carried into the build log either way.
-    Console.WriteLine(
+    // carried into the build log either way. Routed through the mode so a JSON report on stdout stays parseable.
+    mode.WriteLine(
         $"warning: ignoring unusable --type-to-ts entry '{entry}'. Expected <FullyQualifiedTypeName>=<TsType>[=<Package>] with both a type name and a TypeScript type.");
 }
 

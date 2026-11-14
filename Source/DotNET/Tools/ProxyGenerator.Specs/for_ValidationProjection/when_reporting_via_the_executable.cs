@@ -59,6 +59,14 @@ public class when_reporting_via_the_executable : Specification
     }
 
     [Fact]
+    async Task should_keep_json_stdout_parseable_with_an_unusable_type_mapping()
+    {
+        var result = await ToolProcess.Run(_assembly, _folder, [.. _options, "--type-to-ts=invalid", "--validation-report=json"]);
+        result.ExitCode.ShouldEqual(0);
+        AssertSafeJson(result.Output);
+    }
+
+    [Fact]
     async Task should_write_an_atomic_json_file_outside_the_proxy_tree()
     {
         var report = Path.Combine(_folder, "report.json");

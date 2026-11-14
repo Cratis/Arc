@@ -23,10 +23,9 @@ public class with_a_custom_file_header : Specification
 
     async Task Because()
     {
-        var header = Path.Combine(_folder, "header.txt");
-        await File.WriteAllTextAsync(header, "// Example header\n");
+        var header = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("// Example header\n"));
         var assembly = typeof(DeterministicProxyFirst).Assembly;
-        var options = new[] { "--library-mode", $"--file-header={header}" }
+        var options = new[] { "--library-mode", $"--file-header-base64={header}" }
             .Concat(assembly.GetTypes().Where(type => type != typeof(DeterministicProxyFirst) && type != typeof(DeterministicProxySecond))
                 .Select(type => $"--exclude-type={type.FullName}")).ToArray();
         var generated = await ToolProcess.Run(assembly.Location, _output, options);
