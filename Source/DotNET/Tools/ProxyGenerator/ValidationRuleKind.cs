@@ -7,23 +7,32 @@ namespace Cratis.Arc.ProxyGenerator;
 internal enum ValidationRuleKind
 {
     /// <summary>Presence constraints.</summary>
-    Required,
+    Required = 0,
+
     /// <summary>Length constraints.</summary>
-    Length,
+    Length = 1,
+
     /// <summary>Range constraints.</summary>
-    Range,
+    Range = 2,
+
     /// <summary>Comparisons.</summary>
-    Comparison,
+    Comparison = 3,
+
     /// <summary>Pattern matching.</summary>
-    Regex,
+    Regex = 4,
+
     /// <summary>Email formatting.</summary>
-    Email,
+    Email = 5,
+
     /// <summary>Annotation-based constraints.</summary>
-    DataAnnotation,
+    DataAnnotation = 6,
+
     /// <summary>Concept constraints.</summary>
-    Concept,
+    Concept = 7,
+
     /// <summary>Unmapped custom rules.</summary>
-    Custom,
+    Custom = 8,
+
     /// <summary>No known rule family.</summary>
-    Unknown
+    Unknown = 9
 }

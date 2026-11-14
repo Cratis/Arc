@@ -7,9 +7,11 @@ namespace Cratis.Arc.ProxyGenerator;
 internal enum ValidationProjectionSource
 {
     /// <summary>A FluentValidation validator.</summary>
-    Validator,
+    Validator = 0,
+
     /// <summary>A concept validator.</summary>
-    Concept,
+    Concept = 1,
+
     /// <summary>A DataAnnotations attribute.</summary>
-    DataAnnotation
+    DataAnnotation = 2
 }

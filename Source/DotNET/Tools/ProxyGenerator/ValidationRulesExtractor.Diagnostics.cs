@@ -5,6 +5,7 @@ using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator;
 
+/// <summary>Observes validation extraction decisions when requested.</summary>
 public static partial class ValidationRulesExtractor
 {
     static bool ShouldExtractRule(object rule)
@@ -41,7 +42,7 @@ public static partial class ValidationRulesExtractor
     static void ObserveProjected(ValidationRuleDescriptor rule)
     {
         if (!ValidationProjectionRecorder.IsEnabled) return;
-        var optionalPresence = ValidationProjectionRecorder.IsOptionalConcept && rule.RuleName is "notEmpty" or "notNull";
+        var optionalPresence = ValidationProjectionRecorder.IsOptionalConcept && (rule.RuleName == "notEmpty" || rule.RuleName == "notNull");
         var reason = optionalPresence
             ? ValidationProjectionReasons.OptionalConceptPresence
             : ValidationProjectionRecorder.IsConcept ? ValidationProjectionReasons.ConceptProjected : ValidationProjectionReasons.Projected;
@@ -95,6 +96,9 @@ public static partial class ValidationRulesExtractor
             ["emailAddress"] = ValidationRuleKind.Email
         };
 
+        /// <summary>Gets the coarse family for a projected descriptor.</summary>
+        /// <param name="rule">The client rule name.</param>
+        /// <returns>The rule family.</returns>
         internal static ValidationRuleKind For(string rule) => _kinds.GetValueOrDefault(rule, ValidationRuleKind.DataAnnotation);
     }
 }

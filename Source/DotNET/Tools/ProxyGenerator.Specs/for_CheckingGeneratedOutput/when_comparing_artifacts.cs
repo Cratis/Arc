@@ -32,16 +32,16 @@ public class when_comparing_artifacts : Specification
         var actual = change switch
         {
             "body" => content + "// edited",
-            "source" => content.Replace("Example", "Another"),
-            "hash" => content.Replace("Hash: hash", "Hash: edited"),
-            "time" => content.Replace(metadata.GeneratedTime.ToString("O"), metadata.GeneratedTime.AddDays(-1).ToString("O")),
+            "source" => content.Replace("Example", "Another", StringComparison.Ordinal),
+            "hash" => content.Replace("Hash: hash", "Hash: edited", StringComparison.Ordinal),
+            "time" => content.Replace(metadata.GeneratedTime.ToString("O"), metadata.GeneratedTime.AddDays(-1).ToString("O"), StringComparison.Ordinal),
             "unowned" => "// handwritten\nexport const value = 1;\n",
             _ => content
         };
-        if (change != "missing") File.WriteAllText(_path, actual);
+        if (change != "missing") await File.WriteAllTextAsync(_path, actual);
         await _output.WriteFile(_path, content);
         _output.Report.Ordered().Select(_ => _.Kind).ShouldEqual(expected is null ? [] : new[] { expected });
-        if (change != "missing") File.ReadAllText(_path).ShouldEqual(actual);
+        if (change != "missing") (await File.ReadAllTextAsync(_path)).ShouldEqual(actual);
     }
 
     [Fact]

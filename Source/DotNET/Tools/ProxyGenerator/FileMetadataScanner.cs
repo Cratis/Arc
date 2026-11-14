@@ -58,6 +58,12 @@ public static class FileMetadataScanner
     public static int RemoveOrphanedFiles(string outputPath, IEnumerable<string> orphanedFiles, Action<string> message)
         => RemoveOrphanedFiles(outputPath, orphanedFiles, message, new FileSystemGeneratedOutput());
 
+    /// <summary>Removes orphaned artifacts through the selected output boundary.</summary>
+    /// <param name="outputPath">The output root.</param>
+    /// <param name="orphanedFiles">The orphaned artifact paths.</param>
+    /// <param name="message">The progress logger.</param>
+    /// <param name="output">The artifact output boundary.</param>
+    /// <returns>The number of orphaned artifacts.</returns>
     internal static int RemoveOrphanedFiles(string outputPath, IEnumerable<string> orphanedFiles, Action<string> message, IGeneratedOutput output)
     {
         var orphanedFilesList = orphanedFiles.ToList();

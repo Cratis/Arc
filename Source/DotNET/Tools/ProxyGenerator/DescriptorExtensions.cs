@@ -250,6 +250,12 @@ public static class DescriptorExtensions
         Action<string> message) =>
         await FlushPendingContentWithFileHeader(fileHeaderTemplate, pendingContent, generatedFiles, new GeneratedOutputContext(message, new FileSystemGeneratedOutput()));
 
+    /// <summary>Writes deferred artifacts through the selected output boundary.</summary>
+    /// <param name="fileHeaderTemplate">The file header template.</param>
+    /// <param name="pendingContent">The deferred contents and their source types.</param>
+    /// <param name="generatedFiles">The generated-file registry.</param>
+    /// <param name="context">The output boundary and logger.</param>
+    /// <returns>A task representing the deferred writes.</returns>
     internal static async Task FlushPendingContentWithFileHeader(
         string fileHeaderTemplate,
         IDictionary<string, (string Content, string SourceTypeName)> pendingContent,

@@ -48,7 +48,6 @@ public record CommandDescriptor(
     /// </remarks>
     public bool HasValidationRules => ValidationRules.Any();
 
-
     /// <summary>
     /// Gets the slice location resolved from the same namespace mapping as the proxy's output folder.
     /// </summary>

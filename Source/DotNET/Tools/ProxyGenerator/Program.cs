@@ -8,7 +8,7 @@ using static Cratis.Arc.ProxyGenerator.PathHelpers;
 var mode = new CommandLineMode(args);
 if (!mode.TryValidate(out var usageError))
 {
-    Console.Error.WriteLine($"error: {usageError}");
+    await Console.Error.WriteLineAsync($"error: {usageError}");
     return ProxyGeneratorExitCodes.Error;
 }
 mode.WriteLine("Cratis Proxy Generator\n");
@@ -156,7 +156,7 @@ mode.WriteLine();
 var stateFile = args.FirstOrDefault(arg => arg.StartsWith("--state-file=", StringComparison.Ordinal))?["--state-file=".Length..];
 if ((mode.Check || mode.ReportsValidation) && stateFile is not null)
 {
-    Console.Error.WriteLine(mode.Check ? "--state-file is ignored in --check mode" : "--state-file is ignored when reporting validation projection");
+    await Console.Error.WriteLineAsync(mode.Check ? "--state-file is ignored in --check mode" : "--state-file is ignored when reporting validation projection");
     stateFile = null;
 }
 var checkingOutput = mode.Check ? new CheckingGeneratedOutput(outputPath) : null;
@@ -189,11 +189,11 @@ try
         assemblyFile,
         outputPath,
         segmentsToSkip,
-        message => mode.WriteLine(message),
+        mode.WriteLine,
         error =>
         {
             hadErrors = true;
-            Console.Error.WriteLine(mode.Check || mode.ReportsValidation ? $"error: {error}" : error);
+            mode.WriteError(mode.Check || mode.ReportsValidation ? $"error: {error}" : error);
         },
         libraryMode,
         skipOutputDeletion,
@@ -215,7 +215,7 @@ try
         checkingOutput);
     if (mode.Check || mode.ReportsValidation)
     {
-        return result && !hadErrors ? mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;
+        return result && !hadErrors ? await mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;
     }
 }
 catch (Exception exception) when (mode.Check || mode.ReportsValidation || exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)

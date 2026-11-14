@@ -65,7 +65,7 @@ public class when_reporting_via_the_executable : Specification
         var output = Path.Combine(_folder, "proxies");
         var result = await ToolProcess.Run(_assembly, output, [.. _options, $"--validation-report-file={report}"]);
         result.ExitCode.ShouldEqual(0);
-        AssertSafeJson(File.ReadAllText(report));
+        AssertSafeJson(await File.ReadAllTextAsync(report));
         Directory.GetFiles(_folder).Select(Path.GetFileName).ShouldContainOnly("report.json");
     }
 
@@ -74,10 +74,10 @@ public class when_reporting_via_the_executable : Specification
     {
         Directory.CreateDirectory(_folder);
         var report = Path.Combine(_folder, "report.json");
-        File.WriteAllText(report, "preserve me");
+        await File.WriteAllTextAsync(report, "preserve me");
         var result = await ToolProcess.Run("missing-input.dll", Path.Combine(_folder, "proxies"), $"--validation-report-file={report}");
         result.ExitCode.ShouldEqual(1);
-        File.ReadAllText(report).ShouldEqual("preserve me");
+        (await File.ReadAllTextAsync(report)).ShouldEqual("preserve me");
     }
 
     Dictionary<string, byte[]> ProxyBytes() => Directory.GetFiles(_folder, "*.ts", SearchOption.AllDirectories)

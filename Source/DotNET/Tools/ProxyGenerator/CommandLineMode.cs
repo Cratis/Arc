@@ -31,7 +31,7 @@ internal sealed class CommandLineMode(string[] arguments)
     {
         error = string.Empty;
         if (Check && ReportsValidation) error = "--check cannot be combined with --validation-report or --validation-report-file.";
-        else if (_validationFormat is not null && _validationFormat is not ("text" or "json")) error = "--validation-report must be text or json.";
+        else if (_validationFormat is not null && !IsValidationFormat(_validationFormat)) error = "--validation-report must be text or json.";
         else if (Value(arguments, "--report-validation") is not null || Value(arguments, "--check-report") is not null) error = "Unknown report option. Use --validation-report=text|json.";
         else if (_validationFile is not null) return ValidationReportFile.TryValidate(_validationFile, arguments.ElementAtOrDefault(1), out error);
         return error.Length == 0;
@@ -46,24 +46,30 @@ internal sealed class CommandLineMode(string[] arguments)
         if (_validationFormat != "json") Console.WriteLine(message);
     }
 
+    /// <summary>Writes an error or diagnostic to stderr.</summary>
+    /// <param name="message">The already formatted diagnostic.</param>
+    public void WriteError(string message) => Console.Error.WriteLine(message);
+
     /// <summary>
     /// Completes reporting after successful generation or comparison.
     /// </summary>
     /// <param name="output">Optional comparison sink.</param>
     /// <param name="validation">Optional validation report.</param>
-    /// <returns>The clean or drift exit code.</returns>
-    public int Complete(CheckingGeneratedOutput? output, ValidationProjectionReport? validation)
+    /// <returns>A task containing the clean or drift exit code.</returns>
+    public async Task<int> Complete(CheckingGeneratedOutput? output, ValidationProjectionReport? validation)
     {
         if (output is not null)
         {
-            Console.WriteLine(output.Report.ToText());
+            await Console.Out.WriteLineAsync(output.Report.ToText());
             return output.Report.Ordered().Any() ? ProxyGeneratorExitCodes.Drift : ProxyGeneratorExitCodes.Clean;
         }
         if (validation is null) return ProxyGeneratorExitCodes.Clean;
-        if (_validationFile is not null) ValidationReportFile.Write(_validationFile, validation.ToJson());
-        if (_validationFormat is not null) Console.WriteLine(_validationFormat == "json" ? validation.ToJson() : validation.ToText());
+        if (_validationFile is not null) await ValidationReportFile.Write(_validationFile, validation.ToJson());
+        if (_validationFormat is not null) await Console.Out.WriteLineAsync(_validationFormat == "json" ? validation.ToJson() : validation.ToText());
         return ProxyGeneratorExitCodes.Clean;
     }
+
+    static bool IsValidationFormat(string format) => format == "text" || format == "json";
 
     static string? Value(string[] arguments, string option)
     {

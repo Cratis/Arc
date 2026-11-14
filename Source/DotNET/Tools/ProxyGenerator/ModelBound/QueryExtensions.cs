@@ -376,7 +376,7 @@ public static class QueryExtensions
             : [];
         dataAnnotationsRules.AddRange(parameters.Select(DataAnnotationsRulesFor).OfType<PropertyValidationDescriptor>());
 
-        return ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
+        return ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
     }
 
     static PropertyValidationDescriptor? ConceptRulesFor(Assembly assembly, ParameterInfo param)

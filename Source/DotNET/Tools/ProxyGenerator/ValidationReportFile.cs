@@ -8,6 +8,11 @@ namespace Cratis.Arc.ProxyGenerator;
 /// </summary>
 internal static class ValidationReportFile
 {
+    /// <summary>Validates a report destination outside the generated output tree.</summary>
+    /// <param name="path">The report destination.</param>
+    /// <param name="output">The proxy output root.</param>
+    /// <param name="error">The safe usage error, if invalid.</param>
+    /// <returns>Whether the destination is valid.</returns>
     internal static bool TryValidate(string path, string? output, out string error)
     {
         error = string.Empty;
@@ -32,7 +37,11 @@ internal static class ValidationReportFile
         return error.Length == 0;
     }
 
-    internal static void Write(string path, string json)
+    /// <summary>Atomically publishes a completed report.</summary>
+    /// <param name="path">The report destination.</param>
+    /// <param name="json">The serialized report.</param>
+    /// <returns>A task representing the publication.</returns>
+    internal static async Task Write(string path, string json)
     {
         var destination = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(destination)!;
@@ -40,7 +49,7 @@ internal static class ValidationReportFile
         var temporary = Path.Combine(directory, $".{Path.GetFileName(destination)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllText(temporary, json);
+            await File.WriteAllTextAsync(temporary, json);
             File.Move(temporary, destination, overwrite: true);
         }
         finally

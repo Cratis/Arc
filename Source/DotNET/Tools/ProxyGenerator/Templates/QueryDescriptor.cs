@@ -56,7 +56,6 @@ public record QueryDescriptor(
     /// </remarks>
     public bool HasValidationRules => ValidationRules.Any();
 
-
     /// <summary>
     /// Gets whether a generated sorting accessor collides with the query constructor parameter property.
     /// </summary>

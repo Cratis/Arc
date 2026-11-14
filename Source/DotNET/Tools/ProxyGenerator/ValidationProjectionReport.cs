@@ -20,8 +20,12 @@ internal sealed class ValidationProjectionReport
     };
     readonly List<ValidationProjectionRecord> _records = [];
 
+    /// <summary>Records an extraction decision.</summary>
+    /// <param name="record">The allowlisted decision.</param>
     internal void Add(ValidationProjectionRecord record) => _records.Add(record);
 
+    /// <summary>Gets distinct records in deterministic order.</summary>
+    /// <returns>The ordered decisions.</returns>
     internal IEnumerable<ValidationProjectionRecord> Ordered() => _records
         .OrderBy(_ => _.Endpoint.Kind, StringComparer.Ordinal)
         .ThenBy(_ => _.Endpoint.Name, StringComparer.Ordinal)
@@ -33,12 +37,19 @@ internal sealed class ValidationProjectionReport
         .ThenBy(_ => _.Source)
         .ThenBy(_ => _.Severity);
 
+    /// <summary>Formats human-readable extraction decisions.</summary>
+    /// <returns>The text report.</returns>
     internal string ToText() => string.Join(Environment.NewLine, Ordered().Select(_ =>
         $"{_.Endpoint.Kind} {_.Endpoint.Name} {_.Endpoint.Route} {_.Member ?? "(type)"}: {JsonNamingPolicy.KebabCaseLower.ConvertName(_.RuleKind.ToString())} {JsonNamingPolicy.KebabCaseLower.ConvertName(_.Source.ToString())} {_.Outcome} {_.Reason} severity={_.Severity?.ToString() ?? "unknown"}")
         .Append($"Validation projection: {_records.Count} record(s). Server validation remains authoritative."));
 
+    /// <summary>Serializes the stable report schema.</summary>
+    /// <returns>The JSON document.</returns>
     internal string ToJson() => JsonSerializer.Serialize(new { SchemaVersion = 1, Records = Ordered() }, _jsonOptions);
 
+    /// <summary>Marks annotations superseded by higher-precedence rules.</summary>
+    /// <param name="endpoint">The owning endpoint.</param>
+    /// <param name="member">The camelCase annotated member.</param>
     internal void OverrideAnnotation(ValidationProjectionEndpoint endpoint, string member)
     {
         for (var index = 0; index < _records.Count; index++)
@@ -48,6 +59,8 @@ internal sealed class ValidationProjectionReport
         }
     }
 
+    /// <summary>Adds a type-level decision when no client rules were projected.</summary>
+    /// <param name="endpoint">The completed endpoint.</param>
     internal void CompleteEndpoint(ValidationProjectionEndpoint endpoint)
     {
         if (_records.Any(_ => _.Endpoint == endpoint && _.Outcome == "projected")) return;
