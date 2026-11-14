@@ -18,6 +18,7 @@ import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { QueryFailed } from './QueryFailed.js';
 import { QueryUnauthorized } from './QueryUnauthorized.js';
+import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
 
 type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
 
@@ -252,8 +253,7 @@ function useSuspenseObservableQueryInternal<
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [result, setResult] = useState<QueryResultWithState<TDataType> | null>(null);
     const consumerId = useId();
-    // SAFETY: JavaScript class constructors always expose their runtime name, which is used only as part of the cache key.
-    const queryName = (query as unknown as { name: string }).name;
+    const queryName = resolveSuspenseQueryIdentity(query, isEnabled);
 
     const cacheKey = isEnabled
         ? makeCacheKey(

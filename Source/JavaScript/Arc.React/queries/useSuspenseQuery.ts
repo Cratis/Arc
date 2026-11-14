@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IQueryFor, QueryResultWithState, Paging, Sorting } from '@cratis/arc/queries';
+import { IQueryFor, QueryResult, QueryResultWithState, Paging, Sorting } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
 import { useContext, useEffect, useReducer, useState } from 'react';
 import { SetSorting } from './SetSorting.js';
@@ -14,6 +14,7 @@ import { useCommandScope } from '../commands/useCommandScope.js';
 import { PerformQuery } from './useQuery.js';
 import { QueryFailed } from './QueryFailed.js';
 import { QueryUnauthorized } from './QueryUnauthorized.js';
+import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
 
 type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
 
@@ -46,6 +47,25 @@ function makeCacheKey(
     return `${queryName}:${microservice}:${apiBasePath}:${origin}:${sorting.field ?? ''}:${sorting.direction ?? 0}:${paging.page}:${paging.pageSize}:${JSON.stringify(args)}`;
 }
 
+function createResource<TDataType>(pendingResult: Promise<QueryResult<TDataType>>): SuspenseQueryResource<TDataType> {
+    const resource: SuspenseQueryResource<TDataType> = {
+        status: 'pending',
+        promise: pendingResult.then(queryResult => {
+            if (queryResult.hasExceptions) {
+                resource.status = 'rejected';
+                resource.error = new QueryFailed(queryResult.exceptionMessages, queryResult.exceptionStackTrace);
+            } else if (!queryResult.isAuthorized) {
+                resource.status = 'rejected';
+                resource.error = new QueryUnauthorized();
+            } else {
+                resource.status = 'fulfilled';
+                resource.value = QueryResultWithState.fromQueryResult(queryResult, false);
+            }
+        })
+    };
+    return resource;
+}
+
 function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
     sorting?: Sorting,
@@ -62,7 +82,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
 
     const cacheKey = isEnabled
         ? makeCacheKey(
-            (query as unknown as { name: string }).name,
+            resolveSuspenseQueryIdentity(query),
             arc.microservice,
             arc.apiBasePath ?? '',
             arc.origin ?? '',
@@ -81,21 +101,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
         commandScope.addQuery(queryInstance);
 
-        const resource: SuspenseQueryResource<TDataType> = {
-            status: 'pending',
-            promise: queryInstance.perform(args!).then(queryResult => {
-                if (queryResult.hasExceptions) {
-                    resource.status = 'rejected';
-                    resource.error = new QueryFailed(queryResult.exceptionMessages, queryResult.exceptionStackTrace);
-                } else if (!queryResult.isAuthorized) {
-                    resource.status = 'rejected';
-                    resource.error = new QueryUnauthorized();
-                } else {
-                    resource.status = 'fulfilled';
-                    resource.value = QueryResultWithState.fromQueryResult(queryResult, false);
-                }
-            })
-        };
+        const resource = createResource(queryInstance.perform(args!));
         _queryCache.set(cacheKey, resource as SuspenseQueryResource<unknown>);
     }
 
