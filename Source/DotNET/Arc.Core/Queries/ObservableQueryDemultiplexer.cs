@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
 using Microsoft.Extensions.DependencyInjection;
@@ -332,7 +333,7 @@ public partial class ObservableQueryDemultiplexer(
             // producer thread, where the AsyncLocal tenant context set up when the subscription was
             // created does not flow (see the class remarks).
             using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                context, interceptionScope.ServiceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+                context, interceptionScope.ServiceProvider, identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(context), identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
             var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, interceptionScope.ServiceProvider);
             subscriptionToken.ThrowIfCancellationRequested();
 
@@ -360,7 +361,7 @@ public partial class ObservableQueryDemultiplexer(
             try
             {
                 using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                    context, interceptionScope.ServiceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+                    context, interceptionScope.ServiceProvider, identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(context), identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
                 if (subscriptionToken.IsCancellationRequested)
                 {
                     return;
@@ -483,7 +484,7 @@ public partial class ObservableQueryDemultiplexer(
         ObservableQuerySubscriptionIdentity identity,
         IServiceProvider emissionServices) =>
         ObservableEmissionIdentity.Begin(
-            context, emissionServices, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            context, emissionServices, identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(context), identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
 
     void ReleaseWriteLock(SemaphoreSlim writeLock, CancellationToken token)
     {

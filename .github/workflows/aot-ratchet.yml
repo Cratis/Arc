@@ -42,7 +42,7 @@ jobs:
       # The trim analyzer ships with the SDK, so what it reports can change between SDK releases. Use the SDK
       # global.json names (the 11.0 SDK builds every target framework); the baseline records the version it was made with.
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
 
@@ -86,7 +86,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
 
@@ -137,7 +137,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net11.0 -r linux-x64 -p:CratisSamplePublish="$PUBLISH_VARIANT" -o "$ACCEPTANCE_ROOT/publish" > "$ACCEPTANCE_ROOT/publish.log" 2>&1
+          dotnet publish Samples/ArcCore/ArcCore.csproj -c Release -f net11.0 -r linux-x64 -p:CratisSamplePublish="$PUBLISH_VARIANT" -p:CratisProxiesOutputPath= -o "$ACCEPTANCE_ROOT/publish" > "$ACCEPTANCE_ROOT/publish.log" 2>&1
 
       - name: Summarise publish warnings
         if: always()
@@ -161,7 +161,7 @@ jobs:
         run: du -sk "$ACCEPTANCE_ROOT/publish" "$CRATIS_ARC_PUBLISHED_ARCCORE"
 
       - name: Build acceptance runner
-        run: dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net11.0
+        run: dotnet build Samples/ArcCore.Specs/ArcCore.Specs.csproj --configuration Release -p:CratisSpecsTargetFramework=net11.0 -p:CratisProxiesOutputPath=
 
       - name: Exercise published HTTP commands and queries
         shell: bash

@@ -10,12 +10,22 @@ namespace Cratis.Arc.Availability;
 
 /// <summary>
 /// Represents the default <see cref="IAvailabilitySubjectProvider"/>: the tenant of the request and the subject of the
-/// current principal.
+/// current principal and, for a system caller, the client id it authenticated with.
 /// </summary>
 /// <param name="tenantIdAccessor">The <see cref="ITenantIdAccessor"/>.</param>
 /// <param name="principalAccessor">The <see cref="ICurrentPrincipalAccessor"/>.</param>
 public class AvailabilitySubjectProvider(ITenantIdAccessor tenantIdAccessor, ICurrentPrincipalAccessor principalAccessor) : IAvailabilitySubjectProvider
 {
+    /// <summary>
+    /// The claim a client-credentials token carries for the client that obtained it.
+    /// </summary>
+    public const string ClientIdClaim = "client_id";
+
+    /// <summary>
+    /// The claim read when <see cref="ClientIdClaim"/> is absent: the party the token was issued to.
+    /// </summary>
+    public const string AuthorizedPartyClaim = "azp";
+
     /// <inheritdoc/>
     public AudienceSubject GetSubject()
     {
@@ -26,6 +36,12 @@ public class AvailabilitySubjectProvider(ITenantIdAccessor tenantIdAccessor, ICu
             ? principal.FindFirst("sub")?.Value ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? principal.Identity.Name
             : null;
 
-        return new AudienceSubject(tenant == TenantId.NotSet ? null : tenant.Value, user, isSystem);
+        return new AudienceSubject(tenant == TenantId.NotSet ? null : tenant.Value, user, isSystem)
+        {
+            SystemClientId = isSystem ? GetClientId(principal!) : string.Empty
+        };
     }
+
+    static string GetClientId(ClaimsPrincipal principal) =>
+        principal.FindFirst(ClientIdClaim)?.Value ?? principal.FindFirst(AuthorizedPartyClaim)?.Value ?? string.Empty;
 }

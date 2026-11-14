@@ -22,5 +22,6 @@ public class when_the_system_executes : Specification
 
     [Fact] void should_be_system() => _subject.IsSystem.ShouldBeTrue();
     [Fact] void should_have_no_user() => _subject.User.ShouldBeNull();
+    [Fact] void should_name_no_client_id() => _subject.SystemClientId.ShouldEqual(string.Empty);
     [Fact] void should_have_no_tenant() => _subject.Tenant.ShouldBeNull();
 }

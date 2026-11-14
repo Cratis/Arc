@@ -13,7 +13,7 @@ public class when_scanning_after_own_append : given.a_measure_pipeline
     ReadProtectionMeasureQueue _queue;
     MeterListener _scanListener;
     readonly TaskCompletionSource<string> _match = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    string _reason;
+    protected string _reason;
 
     void Establish()
     {

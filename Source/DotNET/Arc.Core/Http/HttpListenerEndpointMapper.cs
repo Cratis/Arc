@@ -133,7 +133,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     /// Starts the HTTP listener.
     /// </summary>
     /// <param name="serviceProvider">The service provider for request scoping.</param>
-    /// <exception cref="InvalidOperationException">Immediate TLS-hop attestation is required but unavailable.</exception>
+    /// <exception cref="InvalidOperationException">Immediate TLS-hop attestation or duplicate tenant-header preservation is required but unavailable.</exception>
     public void Start(IServiceProvider serviceProvider)
     {
         if (serviceProvider.GetService<Microsoft.Extensions.Options.IOptions<ArcOptions>>()?.Value.ForwardedIdentity.ClientCertificate.Required == true)
@@ -146,6 +146,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
             return;
         }
 
+        TenantHeaderPreservation.ValidateHttpListener(serviceProvider, _logger);
         _services = serviceProvider;
 
         // Resolve discovery before opening the listener, using the actual host rather than the process environment.

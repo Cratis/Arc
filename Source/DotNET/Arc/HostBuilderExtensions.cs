@@ -17,6 +17,7 @@ public static class HostBuilderExtensions
     /// <summary>
     /// Gets the default section name for Arc configuration.
     /// </summary>
+    [Obsolete("Use HostBuilderExtensions.DefaultSectionPaths from Cratis.Arc. This is a duplicate of it and will be removed in a future major version.")]
     public static readonly string[] DefaultArcSectionPaths = ["Cratis", "Arc"];
 
     /// <summary>
