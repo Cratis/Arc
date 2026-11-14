@@ -39,14 +39,14 @@ public static class CommandExtensions
         var documentation = commandType.GetDocumentation();
 
         // Extract validation rules for the command type
-        var validation = ValidationRulesExtractor.ExtractWithProjection(commandType.Assembly, commandType);
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("command", commandType.Name, route)) : null;
+        var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
 
         var severity = ResolveSeverity(commandType);
 
-        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, true, documentation, validation.Rules) with
+        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, true, documentation, validationRules) with
         {
-            BlockOnValidationSeverity = severity,
-            ValidationProjection = validation.Projection
+            BlockOnValidationSeverity = severity
         };
     }
 

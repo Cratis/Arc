@@ -56,8 +56,6 @@ public record QueryDescriptor(
     /// </remarks>
     public bool HasValidationRules => ValidationRules.Any();
 
-    /// <summary>Gets safe projection metadata captured during this descriptor's extraction.</summary>
-    internal IReadOnlyList<ValidationProjectionDetail> ValidationProjection { get; init; } = [];
 
     /// <summary>
     /// Gets whether a generated sorting accessor collides with the query constructor parameter property.

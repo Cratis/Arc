@@ -48,8 +48,6 @@ public record CommandDescriptor(
     /// </remarks>
     public bool HasValidationRules => ValidationRules.Any();
 
-    /// <summary>Gets safe projection metadata captured during this descriptor's extraction.</summary>
-    internal IReadOnlyList<ValidationProjectionDetail> ValidationProjection { get; init; } = [];
 
     /// <summary>
     /// Gets the slice location resolved from the same namespace mapping as the proxy's output folder.

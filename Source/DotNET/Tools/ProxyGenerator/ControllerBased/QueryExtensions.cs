@@ -58,8 +58,10 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("query", method.Name, route)) : null;
         var methodParams = method.GetParameters();
         var validationRules = ExtractValidationRules(method, methodParams, FindMatchingArgumentType(method, methodParams));
+        ValidationProjectionRecorder.CompleteEndpoint();
         var treatWarningsAsErrors = HasTreatWarningsAsErrors(method);
 
         // Extract roles from authorization attributes on the method and its declaring type
@@ -80,13 +82,12 @@ public static class QueryExtensions
             propertyDescriptors.OrderBy(_ => _.Name),
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            validationRules.Rules.OrderBy(_ => _.PropertyName),
+            validationRules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
             roles,
             HttpMethod: null)
         {
-            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip),
-            ValidationProjection = validationRules.Projection
+            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
         };
     }
 
@@ -130,13 +131,12 @@ public static class QueryExtensions
                 param.ParameterType == prop.PropertyType));
     }
 
-    static ValidationExtraction ExtractValidationRules(MethodInfo method, ParameterInfo[] methodParams, Type? matchingType)
+    static List<PropertyValidationDescriptor> ExtractValidationRules(MethodInfo method, ParameterInfo[] methodParams, Type? matchingType)
     {
-        var capture = new ValidationProjectionCapture();
         // Matching CLR types need not agree on nullable-reference annotations. Only extract explicit rules
         // from the DTO; the actual parameter's optionality governs inferred concept rules.
         var explicitRules = matchingType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, matchingType, new ValidationExtractionOptions(false, false, capture)).ToList()
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, matchingType, includeConceptRules: false, includeDataAnnotations: false).ToList()
             : [];
         var dataAnnotationsRules = matchingType is not null
             ? ValidationRulesExtractor.ExtractDataAnnotationsRules(matchingType).ToList()
@@ -144,28 +144,23 @@ public static class QueryExtensions
 
         // Controller queries only infer concept rules when a matching argument DTO exists.
         var conceptRules = matchingType is not null
-            ? ExtractConceptRules(method, methodParams, capture)
+            ? ExtractConceptRules(method, methodParams)
             : [];
 
         var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
 
         // Direct parameter annotations are a whole-DTO fallback, not a per-parameter addition.
-        capture.Annotations(dataAnnotationsRules, explicitRules.Concat(conceptRules));
-        if (validationRules.Count == 0)
-        {
-            validationRules = ExtractParameterAnnotationRules(methodParams);
-            capture.Annotations(validationRules, []);
-        }
-        return new(validationRules, capture.Details);
+        return validationRules.Count == 0 ? ExtractParameterAnnotationRules(methodParams) : validationRules;
     }
 
-    static List<PropertyValidationDescriptor> ExtractConceptRules(MethodInfo method, ParameterInfo[] methodParams, ValidationProjectionCapture capture)
+    static List<PropertyValidationDescriptor> ExtractConceptRules(MethodInfo method, ParameterInfo[] methodParams)
     {
         var conceptRules = new List<PropertyValidationDescriptor>();
         foreach (var param in methodParams)
         {
             var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
-            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType!.Assembly, param.ParameterType, isOptional, capture.ForConcept(param.Name.ToCamelCase(), isOptional));
+            using var concept = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Concept(param.Name.ToCamelCase(), isOptional) : null;
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType!.Assembly, param.ParameterType, isOptional);
             if (rulesFromConcept.Count > 0)
             {
                 conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));

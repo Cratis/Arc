@@ -3,29 +3,36 @@
 
 namespace Cratis.Arc.ProxyGenerator;
 
-/// <summary>Stable reasons for client validation projection decisions.</summary>
+/// <summary>Stable reasons tied to existing extraction decisions.</summary>
 internal static class ValidationProjectionReasons
 {
-    /// <summary>The rule is projectable.</summary>
-    public const string Supported = "supported";
-    /// <summary>The rule depends on a condition.</summary>
-    public const string Conditional = "conditional";
-    /// <summary>The rule uses asynchronous validation.</summary>
-    public const string Async = "async";
-    /// <summary>The validator kind has no client mapping.</summary>
+    /// <summary>The extractor produced a descriptor.</summary>
+    public const string Projected = "projected";
+
+    /// <summary>A block-level condition prevents projection.</summary>
+    public const string BlockCondition = "server-only-block-condition";
+
+    /// <summary>A component condition prevents projection.</summary>
+    public const string ChainedCondition = "server-only-chained-condition";
+
+    /// <summary>An asynchronous condition prevents projection.</summary>
+    public const string AsyncCondition = "server-only-async-condition";
+
+    /// <summary>A concept condition prevents projection.</summary>
+    public const string ConceptCondition = "concept-condition-server-only";
+
+    /// <summary>The extractor has no mapping for the validator.</summary>
     public const string UnsupportedValidator = "unsupported-validator";
-    /// <summary>The comparison is not numeric.</summary>
-    public const string NonNumericComparison = "non-numeric-comparison";
-    /// <summary>The comparison operator has no client mapping.</summary>
-    public const string UnsupportedComparison = "unsupported-comparison";
-    /// <summary>The message requires a runtime delegate.</summary>
-    public const string DeferredMessage = "deferred-message";
-    /// <summary>The severity requires a runtime delegate.</summary>
-    public const string DynamicSeverity = "dynamic-severity";
-    /// <summary>Presence is not required for an optional concept.</summary>
+
+    /// <summary>The extractor produced a concept-contributed descriptor.</summary>
+    public const string ConceptProjected = "concept-contribution-projected";
+
+    /// <summary>Presence rules are omitted for an optional concept.</summary>
     public const string OptionalConceptPresence = "optional-concept-presence";
-    /// <summary>Explicit rules replace the annotation source.</summary>
+
+    /// <summary>Explicit or concept rules replace the annotation source.</summary>
     public const string OverriddenAnnotation = "overridden-annotation";
-    /// <summary>The endpoint has no projectable client rules.</summary>
+
+    /// <summary>The endpoint has no projectable rules.</summary>
     public const string NoProjectableRules = "no-projectable-rules";
 }

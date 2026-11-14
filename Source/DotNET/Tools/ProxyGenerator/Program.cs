@@ -16,7 +16,7 @@ mode.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--check] [--check-report=text|json] [--report-validation[=text|json]] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--framework=none|react] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--state-file=<path>] [--check] [--validation-report=text|json] [--validation-report-file=<path>] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 ProxyFramework framework;
@@ -183,6 +183,7 @@ var producedFiles = stateFile is null ? null : new List<string>();
 bool result;
 try
 {
+    using var recording = ValidationProjectionRecorder.BeginReport(projectionReport);
     result = await Generator.GenerateWithFileHeader(
         fileHeaderTemplate,
         assemblyFile,
@@ -211,17 +212,16 @@ try
         producedFiles,
         endpointGroup,
         framework,
-        checkingOutput,
-        projectionReport);
+        checkingOutput);
+    if (mode.Check || mode.ReportsValidation)
+    {
+        return result && !hadErrors ? mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;
+    }
 }
 catch (Exception exception) when (mode.Check || mode.ReportsValidation || exception is ValidationRulesCouldNotBeExtracted or ValidatorTypesCouldNotBeLoaded or MultipleValidatorsForType)
 {
     await Console.Error.WriteLineAsync($"error: {exception.Message}");
     return 1;
-}
-if (mode.Check || mode.ReportsValidation)
-{
-    return result && !hadErrors ? mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;
 }
 if (result && !hadErrors && fingerprint is not null && stateFile is not null)
 {

@@ -125,39 +125,3 @@ Keep a field rule in a validator when the caller needs it during pre-flight chec
 Check the rule with an invalid command and inspect the returned validation results. At the default threshold, a blocking error prevents handling. Success from the identifier example means a response was allocated; nothing was persisted. If the rule must always block, configure its server-side severity policy rather than relying on the caller's threshold.
 
 Once the validator returns the expected feedback, add [pre-flight command validation](./command-validation.md) to let callers check input without invoking `Provide()` or `Handle()`.
-
-## Reporting client validation projection
-
-The direct proxy-generator executable can explain which validation is available in a generated client:
-
-```bash
-dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --report-validation
-```
-
-This example assumes the packaged tool and compiled backend are already available at those paths. Use your normal generation options as well. `--report-validation` defaults to `text`; `--report-validation=json` emits one schema-versioned JSON document on stdout. Reporting alone still generates proxies and retains normal success/error exit semantics. To report without changing files, combine it with `--check`. For JSON, also specify `--check-report=json`:
-
-```bash
-dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --check --check-report=json --report-validation=json
-```
-
-This produces one document with `schemaVersion: 1`, `drift` and `validation` arrays. Each validation record contains an `endpoint` (`kind`, `name`, `route`) and `projection` (`member`, coarse `ruleKind`, `source`, `outcome`, `reason`, optional known `severity`). Records sort by endpoint, member, rule kind, outcome, reason, source and severity. Outcomes are `projected` or `omitted`; sources are `validator`, `concept` or `data-annotation`. An endpoint with no projectable rules has a type-level record (`member: null`), not an implication that no server validation exists.
-
-The stable reasons are:
-
-| Reason | Meaning |
-| --- | --- |
-| `supported` | A client rule is projectable |
-| `conditional` | A synchronous or asynchronous condition requires runtime context |
-| `async` | An asynchronous validator has no client projection |
-| `unsupported-validator` | A custom validator has no client mapping |
-| `non-numeric-comparison` | A comparison value is not numeric |
-| `unsupported-comparison` | A comparison operator has no client mapping |
-| `deferred-message` | A message delegate is not resolved; the rule may still be projected |
-| `dynamic-severity` | A runtime severity delegate prevents client projection |
-| `optional-concept-presence` | Presence rules are omitted for an optional concept member |
-| `overridden-annotation` | Explicit or concept rules take precedence over annotations |
-| `no-projectable-rules` | The endpoint has no client-projectable rules |
-
-Reports are intentionally allowlisted: they never include messages, regex patterns, rule arguments, literal constants, documentation, exceptions or arbitrary validator names. Reporting observes the existing extraction pass without invoking conditions, predicates, message factories or dynamic severity delegates. It does not construct validators a second time, but normal extraction already loads trusted assemblies and constructs validators. `--state-file` is ignored (with a stderr notice) so reporting always discovers validation. Mixed text/JSON combined formats are rejected with exit `1`; use matching formats. Omissions do not themselves fail generation or change drift exit codes.
-
-This is not an exhaustive server-rule inventory or a proof of validation parity. Dependency-specific and runtime behavior may not be projectable. **Server validation remains authoritative**; reports must never be used to weaken it.

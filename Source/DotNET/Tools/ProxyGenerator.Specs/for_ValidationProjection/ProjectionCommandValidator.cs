@@ -16,6 +16,8 @@ public class ProjectionCommandValidator : AbstractValidator<ProjectionCommand>
         RuleFor(_ => _.Number).GreaterThan(927461);
         RuleFor(_ => _.Conditional).NotEmpty().When(_ => throw new InvalidOperationException("condition must not execute"));
         RuleFor(_ => _.Async).MustAsync((_, _) => throw new InvalidOperationException("async predicate must not execute"));
+        When(_ => throw new InvalidOperationException("block condition must not execute"), () => RuleFor(_ => _.Conditional).NotNull());
+        RuleFor(_ => _.Async).NotEmpty().WhenAsync((_, _) => throw new InvalidOperationException("async condition must not execute"));
         RuleFor(_ => _.Custom).Must(_ => throw new InvalidOperationException("predicate must not execute"));
         RuleFor(_ => _.Dynamic).NotEmpty()
             .WithMessage(_ => throw new InvalidOperationException("message must not execute"))

@@ -73,7 +73,7 @@ Use `--check` in CI to compare committed clients with what the compiled backend 
 dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --check
 ```
 
-Use the same namespace, suffix, grouping and other generation options that produced the committed files. The check prints `missing: <relative-path>`, `changed: <relative-path>` or `obsolete: <relative-path>`, ordered by path then category, followed by a summary. Paths use `/` separators. A clean comparison prints `Proxies are up to date.`. Errors go to stderr with an `error:` prefix. `--check-report=text` is the default; `--check-report=json` emits one JSON document with `schemaVersion: 1`, ordered `drift` entries (`kind`, `relativePath`) and a `validation` array (empty unless requested). Generation progress is suppressed in check mode. Combine JSON drift and validation reports using `--report-validation=json`; mismatched formats are a usage error.
+Use the same namespace, suffix, grouping and other generation options that produced the committed files. The check prints `missing: <relative-path>`, `changed: <relative-path>` or `obsolete: <relative-path>`, ordered by path then category, followed by a summary. Paths use `/` separators. A clean comparison prints `Proxies are up to date.`. Errors go to stderr with an `error:` prefix. Run [validation projection reporting](validation.md#reporting-client-validation-projection) separately: `--check` cannot be combined with either validation report option.
 
 | Exit code | Meaning |
 | --- | --- |

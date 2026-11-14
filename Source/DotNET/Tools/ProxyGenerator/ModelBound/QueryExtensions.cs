@@ -132,7 +132,9 @@ public static class QueryExtensions
         var additionalTypesInvolved = CollectAdditionalTypesInvolved(parameterWithComplexTypes, properties);
 
         var documentation = method.GetDocumentation();
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("query", method.Name, route)) : null;
         var validationRules = ExtractValidationRules(readModelType, method);
+        ValidationProjectionRecorder.CompleteEndpoint();
 
         // Check for TreatWarningsAsErrors attribute
         var treatWarningsAsErrors = FindAttributeData(method, readModelType, a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") is not null;
@@ -156,13 +158,12 @@ public static class QueryExtensions
             properties.OrderBy(_ => _.Name),
             [.. typesInvolved.Concat(additionalTypesInvolved).Distinct().OrderBy(_ => _.FullName)],
             documentation,
-            validationRules.Rules.OrderBy(_ => _.PropertyName),
+            validationRules.OrderBy(_ => _.PropertyName),
             treatWarningsAsErrors,
             roles,
             httpMethod)
         {
-            SliceLocation = readModelType.ResolveSliceLocation(segmentsToSkip),
-            ValidationProjection = validationRules.Projection
+            SliceLocation = readModelType.ResolveSliceLocation(segmentsToSkip)
         };
     }
 
@@ -356,19 +357,18 @@ public static class QueryExtensions
     /// <param name="readModelType">The read model type owning the query method.</param>
     /// <param name="method">The query method.</param>
     /// <returns>The merged validation rules.</returns>
-    static ValidationExtraction ExtractValidationRules(TypeInfo readModelType, MethodInfo method)
+    static List<PropertyValidationDescriptor> ExtractValidationRules(TypeInfo readModelType, MethodInfo method)
     {
-        var capture = new ValidationProjectionCapture();
         var parametersType = FindParametersTypeFor(readModelType, method);
 
         // The convention matches CLR types, not nullable-reference annotations. Infer concept rules only from
         // the actual parameters so a stricter argument-model annotation cannot reintroduce presence rules.
         var explicitRules = parametersType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, new ValidationExtractionOptions(false, false, capture)).ToList()
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false, includeDataAnnotations: false).ToList()
             : [];
 
         var parameters = method.GetParameters();
-        var conceptRules = parameters.Select(param => ConceptRulesFor(readModelType.Assembly, param, capture)).OfType<PropertyValidationDescriptor>().ToList();
+        var conceptRules = parameters.Select(param => ConceptRulesFor(readModelType.Assembly, param)).OfType<PropertyValidationDescriptor>().ToList();
 
         // Keep argument-model annotations at fallback precedence, below rules inferred from the actual parameters.
         var dataAnnotationsRules = parametersType is not null
@@ -376,14 +376,14 @@ public static class QueryExtensions
             : [];
         dataAnnotationsRules.AddRange(parameters.Select(DataAnnotationsRulesFor).OfType<PropertyValidationDescriptor>());
 
-        capture.Annotations(dataAnnotationsRules, explicitRules.Concat(conceptRules));
-        return new(ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules), capture.Details);
+        return ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
     }
 
-    static PropertyValidationDescriptor? ConceptRulesFor(Assembly assembly, ParameterInfo param, ValidationProjectionCapture capture)
+    static PropertyValidationDescriptor? ConceptRulesFor(Assembly assembly, ParameterInfo param)
     {
         var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
-        var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(assembly, param.ParameterType, isOptional, capture.ForConcept(param.Name.ToCamelCase(), isOptional));
+        using var concept = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Concept(param.Name.ToCamelCase(), isOptional) : null;
+        var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(assembly, param.ParameterType, isOptional);
         return rulesFromConcept.Count > 0
             ? new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept])
             : null;

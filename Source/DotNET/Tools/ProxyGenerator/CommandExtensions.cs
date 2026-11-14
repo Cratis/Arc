@@ -94,8 +94,7 @@ public static class CommandExtensions
         // Use override documentation if provided (for model-bound commands), otherwise use method documentation
         var documentation = overrideDocumentation ?? method.GetDocumentation();
 
-        var extraction = validationRules is null ? ExtractCommandValidationRules(method) : new ValidationExtraction(validationRules, []);
-        var rules = extraction.Rules;
+        var rules = ResolveValidationRules(method, validationRules, commandName, route);
         var treatWarningsAsErrors = HasTreatWarningsAsErrors(method);
 
         // Extract roles from authorization attributes on the method and its declaring type
@@ -117,8 +116,7 @@ public static class CommandExtensions
             treatWarningsAsErrors,
             roles)
         {
-            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip),
-            ValidationProjection = extraction.Projection
+            SliceLocation = method.DeclaringType!.ResolveSliceLocation(segmentsToSkip)
         };
     }
 
@@ -148,12 +146,20 @@ public static class CommandExtensions
     /// </summary>
     /// <param name="method">The command method.</param>
     /// <returns>The extracted validation rules.</returns>
-    static ValidationExtraction ExtractCommandValidationRules(MethodInfo method)
+    static IEnumerable<PropertyValidationDescriptor> ExtractCommandValidationRules(MethodInfo method)
     {
         var commandType = method.GetCommandType();
         return commandType is not null
-            ? ValidationRulesExtractor.ExtractWithProjection(method.DeclaringType!.Assembly, commandType)
-            : new([], []);
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType!.Assembly, commandType)
+            : [];
+    }
+
+    static IEnumerable<PropertyValidationDescriptor> ResolveValidationRules(MethodInfo method, IEnumerable<PropertyValidationDescriptor>? supplied, string name, string route)
+    {
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("command", name, route)) : null;
+        var rules = supplied ?? ExtractCommandValidationRules(method);
+        ValidationProjectionRecorder.CompleteEndpoint();
+        return rules;
     }
 
     static bool HasTreatWarningsAsErrors(MethodInfo method) =>
