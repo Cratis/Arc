@@ -3,6 +3,7 @@
 
 import {
     QueryResultWithState,
+    type QueryResult,
     type IObservableQueryFor,
     Sorting,
     Paging,
@@ -27,6 +28,9 @@ interface ObservableSuspenseResource<T> {
     status: SuspenseStatus;
     promise: Promise<void>;
     subscription: ObservableQuerySubscription<T> | null;
+    queryVersion: number;
+    subscriptionGeneration: number;
+    restartSubscription: () => void;
     value?: QueryResultWithState<T>;
     error?: Error;
     resolve?: () => void;
@@ -234,6 +238,82 @@ function makeCacheKey(
     return `${queryName}:${microservice}:${apiBasePath}:${origin}:${sorting.field ?? ''}:${sorting.direction ?? 0}:${paging.page}:${paging.pageSize}:${JSON.stringify(args)}`;
 }
 
+function receiveResponse<TDataType>(
+    resource: ObservableSuspenseResource<TDataType>,
+    response: QueryResult<TDataType>,
+): void {
+    if (response.hasExceptions) {
+        rejectPendingResource(resource, new QueryFailed(response.exceptionMessages, response.exceptionStackTrace));
+    } else if (response.isAuthorized) {
+        const queryResult = QueryResultWithState.fromQueryResult(response, false);
+        resource.value = queryResult;
+        if (resource.status === 'pending') {
+            resource.status = 'fulfilled';
+            resource.resolve?.();
+            resource.resolve = undefined;
+            resource.reject = undefined;
+        } else {
+            resource.listeners.forEach((listener) => listener(queryResult));
+        }
+    } else {
+        rejectPendingResource(resource, new QueryUnauthorized());
+    }
+}
+
+function rejectPendingResource<TDataType>(resource: ObservableSuspenseResource<TDataType>, error: Error): void {
+    if (resource.status !== 'pending') {
+        return;
+    }
+    resource.status = 'rejected';
+    resource.error = error;
+    resource.reject?.(error);
+    resource.resolve = undefined;
+    resource.reject = undefined;
+}
+
+function createResource<TDataType>(
+    cacheKey: string,
+    queryVersion: number,
+    subscribe: (callback: (response: QueryResult<TDataType>) => void) => ObservableQuerySubscription<TDataType>,
+): ObservableSuspenseResource<TDataType> {
+    let resolvePromise!: () => void;
+    let rejectPromise!: (error: Error) => void;
+    const resource: ObservableSuspenseResource<TDataType> = {
+        cacheKey,
+        queryVersion,
+        subscriptionGeneration: 0,
+        status: 'pending',
+        promise: new Promise<void>((resolve, reject) => {
+            resolvePromise = resolve;
+            rejectPromise = reject;
+        }),
+        subscription: null,
+        listeners: new Set(),
+        pendingConsumerIds: new Set(),
+        ownerCount: 0,
+        releaseScheduled: false,
+        disposed: false,
+        lastAccessOrder: ++_nextAccessOrder,
+        restartSubscription: () => {
+            const generation = ++resource.subscriptionGeneration;
+            resource.subscription?.unsubscribe();
+            resource.subscription = null;
+            resource.subscription = subscribe((response) => {
+                if (resource.disposed || generation !== resource.subscriptionGeneration || response.isReady === false) {
+                    return;
+                }
+                receiveResponse(resource, response);
+            });
+        },
+    };
+    resource.resolve = resolvePromise;
+    resource.reject = rejectPromise;
+    _observableCache.set(cacheKey, resource as ObservableSuspenseResource<unknown>);
+    enforceUnclaimedResourceCapacity();
+    resource.restartSubscription();
+    return resource;
+}
+
 function useSuspenseObservableQueryInternal<
     TDataType,
     TQuery extends IObservableQueryFor<TDataType>,
@@ -272,73 +352,15 @@ function useSuspenseObservableQueryInternal<
     }
 
     if (isEnabled && !_observableCache.has(cacheKey)) {
-        const queryInstance = new query() as TQuery;
-        queryInstance.sorting = currentSorting;
-        queryInstance.paging = currentPaging;
-        queryInstance.setMicroservice(arc.microservice);
-        queryInstance.setApiBasePath(arc.apiBasePath ?? '');
-        queryInstance.setOrigin(arc.origin ?? '');
-
-        let resolvePromise!: () => void;
-        let rejectPromise!: (error: Error) => void;
-
-        const resource: ObservableSuspenseResource<TDataType> = {
-            cacheKey,
-            status: 'pending',
-            promise: new Promise<void>((resolve, reject) => {
-                resolvePromise = resolve;
-                rejectPromise = reject;
-            }),
-            subscription: null,
-            listeners: new Set(),
-            pendingConsumerIds: new Set(),
-            ownerCount: 0,
-            releaseScheduled: false,
-            disposed: false,
-            lastAccessOrder: ++_nextAccessOrder,
-        };
-
-        resource.resolve = resolvePromise;
-        resource.reject = rejectPromise;
-        _observableCache.set(cacheKey, resource as ObservableSuspenseResource<unknown>);
-        enforceUnclaimedResourceCapacity();
-
-        resource.subscription = queryInstance.subscribe((response) => {
-            if (resource.disposed || response.isReady === false) {
-                return;
-            }
-
-            if (response.hasExceptions) {
-                if (resource.status === 'pending') {
-                    resource.status = 'rejected';
-                    resource.error = new QueryFailed(
-                        response.exceptionMessages,
-                        response.exceptionStackTrace,
-                    );
-                    resource.reject?.(resource.error);
-                    resource.resolve = undefined;
-                    resource.reject = undefined;
-                }
-            } else if (response.isAuthorized) {
-                const queryResult = QueryResultWithState.fromQueryResult(response, false);
-                resource.value = queryResult;
-
-                if (resource.status === 'pending') {
-                    resource.status = 'fulfilled';
-                    resource.resolve?.();
-                    resource.resolve = undefined;
-                    resource.reject = undefined;
-                } else {
-                    resource.listeners.forEach((listener) => listener(queryResult));
-                }
-            } else if (resource.status === 'pending') {
-                resource.status = 'rejected';
-                resource.error = new QueryUnauthorized();
-                resource.reject?.(resource.error);
-                resource.resolve = undefined;
-                resource.reject = undefined;
-            }
-        }, args as object);
+        createResource<TDataType>(cacheKey, arc.queryVersion ?? 0, (callback) => {
+            const queryInstance = new query() as TQuery;
+            queryInstance.sorting = currentSorting;
+            queryInstance.paging = currentPaging;
+            queryInstance.setMicroservice(arc.microservice);
+            queryInstance.setApiBasePath(arc.apiBasePath ?? '');
+            queryInstance.setOrigin(arc.origin ?? '');
+            return queryInstance.subscribe(callback, args as object);
+        });
     }
 
     const resource = isEnabled
@@ -363,6 +385,17 @@ function useSuspenseObservableQueryInternal<
             releaseResource(resource);
         };
     }, [cacheKey, resource, isEnabled]);
+
+    useEffect(() => {
+        const queryVersion = arc.queryVersion ?? 0;
+        if (!isEnabled || resource === undefined || resource.disposed || resource.queryVersion === queryVersion) {
+            return;
+        }
+        // Consumers share the resource and version marker, so only the first effect restarts it.
+        // Keep the fulfilled value and listeners while the new subscription becomes ready.
+        resource.queryVersion = queryVersion;
+        resource.restartSubscription();
+    }, [arc.queryVersion, resource, isEnabled]);
 
     if (!isEnabled) {
         const disabledInstance = new query();
