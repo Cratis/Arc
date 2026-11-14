@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc availability gates for commands and queries
-description: Refuse commands and queries of a part of your Cratis Arc application that is not available to a tenant, user or system caller, tell clients why, and keep MCP tools and clients in step.
+description: Refuse commands and queries for parts of your Cratis Arc application that are unavailable to a tenant, user or system, tell clients why, and sync MCP tools.
 ---
 
 Authorization says who may do something. Availability says whether a part of the application is there at all for a caller: a commercial package, a preview, a capability switched off for an incident. Arc enforces availability in the command and query pipelines, before authorization, and tells clients with a reason that is different from an authorization denial.

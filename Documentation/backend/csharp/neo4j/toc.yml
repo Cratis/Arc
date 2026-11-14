@@ -8,6 +8,8 @@
   href: querying.md
 - name: Concepts
   href: concepts.md
+- name: Graph Views
+  href: graph-views.md
 - name: Connection Resolution
   href: connection-resolution.md
 - name: Testing
