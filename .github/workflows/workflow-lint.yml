@@ -29,4 +29,4 @@ jobs:
           package-manager-cache: false
           node-version: 23.x
       - name: Check Chronicle inputs
-        run: node --test scripts/chronicle-published-inputs.test.mjs
+        run: node --test scripts/chronicle-published-inputs.test.mjs scripts/raise-central-cratis-pins.test.mjs

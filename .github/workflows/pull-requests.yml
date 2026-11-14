@@ -137,6 +137,8 @@ jobs:
               - ".github/actionlint.yaml"
               - ".github/actionlint.yml"
               - "scripts/chronicle-published-inputs.test.mjs"
+              - "scripts/raise-central-cratis-pins.mjs"
+              - "scripts/raise-central-cratis-pins.test.mjs"
 
   aot-ratchet:
     needs: changes

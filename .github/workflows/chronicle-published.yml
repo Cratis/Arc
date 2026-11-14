@@ -213,16 +213,22 @@ jobs:
         run: |
           version="$VERSION"
           log="${RUNNER_TEMP:-/tmp}/restore.log"
+          raises=0
           for i in $(seq 1 40); do
             if dotnet restore > "$log" 2>&1; then
               echo "Restore succeeded — Cratis.Chronicle $version resolved."
               exit 0
             fi
 
-            # Only a missing package is worth waiting for. A version conflict is a decision this
-            # workflow cannot make - the new Chronicle wants a dependency newer than the one pinned
-            # here - and retrying it for ten minutes buries that under a timeout that blames NuGet.
+            # Only a missing package is worth waiting for. A conflict where the new Chronicle needs a
+            # newer Cratis.* package than the one pinned here is raised to that minimum in the same
+            # candidate commit and restored again. Any other conflict is a decision this workflow
+            # cannot make, and retrying it for ten minutes would bury it under a timeout that blames NuGet.
             if grep -q "NU1109" "$log"; then
+              if [ "$raises" -lt 5 ] && node scripts/raise-central-cratis-pins.mjs --log "$log" --props Directory.Packages.props; then
+                raises=$((raises + 1))
+                continue
+              fi
               echo "::error::Cratis.Chronicle $version needs a dependency newer than the version pinned in Directory.Packages.props. Bump the conflicting pin - retrying will not resolve it."
               grep -E "NU1109.*(Detected package downgrade|-> Cratis\.Chronicle $version ->)" "$log" | sort -u | head -20
               exit 1
