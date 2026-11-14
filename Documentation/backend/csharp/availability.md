@@ -46,6 +46,10 @@ public record QualityScores(VesselId Vessel, int Score)
 
 An audience, a context value and the rules of the three-valued result are described in the Choreography documentation. In short: an unknown decision, such as a missing audience or an absent value, never opens a gate.
 
+## System callers
+
+The subject Arc builds for each request carries the tenant and the user. When the caller is the system, it also carries the client id of the calling system in `AudienceSubject.SystemClientId`, read from the `client_id` claim of the authenticated principal, or from `azp` when `client_id` is absent. Your `IAudienceSource` can then return the system-wide grants plus the grants of that client. A system caller whose principal carries neither claim passes an empty client id and gets the system-wide grants only. Person callers never pass a client id, even when their token carries one.
+
 ## What a refused request looks like
 
 A command or query in a part that is not available is refused before `authorize` is evaluated, so nothing else about the request, such as its validation, is reported to the caller.
