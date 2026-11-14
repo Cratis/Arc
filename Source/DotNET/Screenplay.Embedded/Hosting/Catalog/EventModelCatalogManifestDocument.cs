@@ -37,4 +37,9 @@ internal class EventModelCatalogManifestDocument
     /// Gets or sets the manifest resource name the <c>.play</c> source is embedded under.
     /// </summary>
     public string? ResourceName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the origin of the document - <c>embedded</c> or <c>generated</c>, with absence meaning embedded.
+    /// </summary>
+    public string? Origin { get; set; }
 }
