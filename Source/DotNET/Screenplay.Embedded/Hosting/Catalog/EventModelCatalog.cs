@@ -5,6 +5,7 @@ using System.Collections.Frozen;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 
 namespace Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
 
@@ -95,15 +96,29 @@ public sealed class EventModelCatalog
     /// <param name="source">When this method returns, holds the source of the document - or an empty string when it is unknown.</param>
     /// <returns>True when the document is known and its source could be read, false otherwise.</returns>
     /// <exception cref="MalformedEventModelCatalog">Thrown when the resource the catalog names cannot be read.</exception>
-    public bool TryGetSource(string projectId, string documentId, out string source)
+    public bool TryGetSource(string projectId, string documentId, out string source) =>
+        TryGetSource(projectId, documentId, out source, out _);
+
+    /// <summary>
+    /// Tries to get the source and origin of a document.
+    /// </summary>
+    /// <param name="projectId">The identifier of the project holding the document.</param>
+    /// <param name="documentId">The identifier of the document.</param>
+    /// <param name="source">The source, or an empty string when the document is unknown.</param>
+    /// <param name="origin">The document origin, or embedded when the document is unknown.</param>
+    /// <returns>True when the document and its source are known, false otherwise.</returns>
+    /// <exception cref="MalformedEventModelCatalog">Thrown when the named resource cannot be read.</exception>
+    public bool TryGetSource(string projectId, string documentId, out string source, out EventModelOrigin origin)
     {
         source = string.Empty;
+        origin = EventModelOrigin.Embedded;
         if (!_projects.TryGetValue(projectId, out var project) || !project.Documents.TryGetValue(documentId, out var document))
         {
             return false;
         }
 
         source = ReadResource(project.Resources, document.ResourceName);
+        origin = document.Origin;
         return true;
     }
 
@@ -154,7 +169,7 @@ public sealed class EventModelCatalog
             documents.ToFrozenDictionary(document => document.Id, StringComparer.Ordinal));
     }
 
-    static EventModelDocument ToDocument(string assemblyName, EventModelCatalogManifestDocument document, HashSet<string> resourceNames)
+    static void ValidateResource(string assemblyName, EventModelCatalogManifestDocument document, HashSet<string> resourceNames)
     {
         if (string.IsNullOrWhiteSpace(document.Id))
         {
@@ -170,6 +185,11 @@ public sealed class EventModelCatalog
         {
             throw new MalformedEventModelCatalog(assemblyName, $"the document '{document.Id}' names the resource '{document.ResourceName}', which the assembly does not embed");
         }
+    }
+
+    static EventModelDocument ToDocument(string assemblyName, EventModelCatalogManifestDocument document, HashSet<string> resourceNames)
+    {
+        ValidateResource(assemblyName, document, resourceNames);
 
         if (!Enum.TryParse<EventModelDocumentKind>(document.Kind, true, out var kind) || !Enum.IsDefined(kind))
         {
@@ -177,12 +197,30 @@ public sealed class EventModelCatalog
         }
 
         return new EventModelDocument(
-            document.Id,
-            string.IsNullOrWhiteSpace(document.Title) ? document.Id : document.Title,
-            document.Namespace ?? document.Id,
+            document.Id!,
+            string.IsNullOrWhiteSpace(document.Title) ? document.Id! : document.Title,
+            document.Namespace ?? document.Id!,
             kind,
             string.IsNullOrWhiteSpace(document.ParentId) ? null : document.ParentId,
-            document.ResourceName);
+            document.ResourceName!)
+        {
+            Origin = ReadOrigin(assemblyName, document)
+        };
+    }
+
+    static EventModelOrigin ReadOrigin(string assemblyName, EventModelCatalogManifestDocument document)
+    {
+        if (document.Origin is null)
+        {
+            return EventModelOrigin.Embedded;
+        }
+
+        if (Enum.TryParse<EventModelOrigin>(document.Origin, true, out var origin) && Enum.IsDefined(origin))
+        {
+            return origin;
+        }
+
+        throw new MalformedEventModelCatalog(assemblyName, $"the document '{document.Id}' declares the origin '{document.Origin}', which is not one of embedded or generated");
     }
 
     static string ReadResource(IEventModelResources resources, string resourceName)

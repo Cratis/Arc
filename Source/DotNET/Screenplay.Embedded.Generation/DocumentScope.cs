@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
+
 namespace Cratis.Arc.Screenplay.Embedded.Generation;
 
 /// <summary>
@@ -34,5 +36,8 @@ public record DocumentScope(
     /// <summary>
     /// Gets the catalog entry describing the document.
     /// </summary>
-    public EmbeddedDocument Document => new(Id, Title, Namespace, Kind, ParentId, EmbeddedResourceNames.ForDocument(Id));
+    public EmbeddedDocument Document => new(Id, Title, Namespace, Kind, ParentId, EmbeddedResourceNames.ForDocument(Id))
+    {
+        Origin = EventModelOrigin.Generated
+    };
 }
