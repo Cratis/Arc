@@ -62,6 +62,12 @@ export abstract class ICommandScope {
     abstract addCommand(command: ICommand): void;
 
     /**
+     * Remove a command from tracking in the scope, discarding its failure state.
+     * @param {ICommand} command Command to remove.
+     */
+    abstract removeCommand(command: ICommand): void;
+
+    /**
      * Add a query for tracking in the scope.
      * @param {IQueryFor<unknown, unknown>} query Query to add.
      */

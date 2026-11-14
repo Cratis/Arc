@@ -328,6 +328,10 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
 
     /** @inheritdoc */
     onPropertyChanged(callback: PropertyChanged, thisArg: object) {
+        if (this._callbacks.some(_ => _.callback.deref() === callback && _.thisArg.deref() === thisArg)) {
+            return;
+        }
+
         this._callbacks.push({
             callback: new WeakRef(callback),
             thisArg: new WeakRef(thisArg)
