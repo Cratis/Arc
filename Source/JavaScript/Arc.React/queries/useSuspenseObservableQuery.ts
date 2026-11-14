@@ -3,316 +3,31 @@
 
 import {
     QueryResultWithState,
-    type QueryResult,
     type IObservableQueryFor,
     Sorting,
     Paging,
 } from '@cratis/arc/queries';
-import type { ObservableQuerySubscription } from '@cratis/arc/queries';
 import type { Constructor } from '@cratis/fundamentals';
-import { useState, useEffect, useContext, useId } from 'react';
+import { useState, useContext, useId } from 'react';
 import type { SetSorting } from './SetSorting.js';
 import type { SetPage } from './SetPage.js';
 import type { SetPageSize } from './SetPageSize.js';
 import { ArcContext } from '../ArcContext.js';
 import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
-import { QueryFailed } from './QueryFailed.js';
-import { QueryUnauthorized } from './QueryUnauthorized.js';
 import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
+import { makeSuspenseQueryCacheKey } from './makeSuspenseQueryCacheKey.js';
+import { createSuspenseQueryControls } from './createSuspenseQueryControls.js';
+import { useSuspenseObservableResource } from './useSuspenseObservableResource.js';
+import {
+    ensureObservableSuspenseResource,
+    getObservableSuspenseResource,
+    readObservableSuspenseResource,
+    registerPendingConsumer,
+    unregisterPendingConsumer,
+} from './SuspenseObservableQueryResources.js';
 
-type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
-
-interface ObservableSuspenseResource<T> {
-    readonly cacheKey: string;
-    status: SuspenseStatus;
-    promise: Promise<void>;
-    subscription: ObservableQuerySubscription<T> | null;
-    queryVersion: number;
-    subscriptionGeneration: number;
-    restartSubscription: () => void;
-    value?: QueryResultWithState<T>;
-    error?: Error;
-    resolve?: () => void;
-    reject?: (error: Error) => void;
-    listeners: Set<(value: QueryResultWithState<T>) => void>;
-    pendingConsumerIds: Set<string>;
-    ownerCount: number;
-    releaseScheduled: boolean;
-    disposed: boolean;
-    lastAccessOrder: number;
-}
-
-const maximumUnclaimedResourceCount = 100;
-const maximumPendingConsumerCountPerResource = 100;
-let _nextAccessOrder = 0;
-
-// Module-level cache so resources survive Suspense retries on uncommitted components
-const _observableCache = new Map<string, ObservableSuspenseResource<unknown>>();
-const _pendingResourceByConsumerId = new Map<
-    string,
-    ObservableSuspenseResource<unknown>
->();
-
-function clearPendingConsumers<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-): void {
-    const unknownResource = resource as ObservableSuspenseResource<unknown>;
-    resource.pendingConsumerIds.forEach((consumerId) => {
-        if (_pendingResourceByConsumerId.get(consumerId) === unknownResource) {
-            _pendingResourceByConsumerId.delete(consumerId);
-        }
-    });
-    resource.pendingConsumerIds.clear();
-}
-
-function disposeResource<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-    wakeSuspense: boolean,
-): void {
-    if (resource.disposed) {
-        return;
-    }
-
-    resource.disposed = true;
-    resource.releaseScheduled = false;
-
-    resource.subscription?.unsubscribe();
-    resource.subscription = null;
-    resource.listeners.clear();
-    clearPendingConsumers(resource);
-
-    if (
-        _observableCache.get(resource.cacheKey) ===
-        (resource as ObservableSuspenseResource<unknown>)
-    ) {
-        _observableCache.delete(resource.cacheKey);
-    }
-
-    if (wakeSuspense && resource.status === 'pending') {
-        resource.resolve?.();
-    }
-    resource.resolve = undefined;
-    resource.reject = undefined;
-}
-
-function touchUnclaimedResource<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-): void {
-    if (resource.disposed || resource.ownerCount > 0) {
-        return;
-    }
-
-    resource.lastAccessOrder = ++_nextAccessOrder;
-}
-
-function enforceUnclaimedResourceCapacity(): void {
-    const unclaimedResources = Array.from(_observableCache.values())
-        .filter((resource) => !resource.disposed && resource.ownerCount === 0)
-        .sort((left, right) => left.lastAccessOrder - right.lastAccessOrder);
-
-    const excessResourceCount = unclaimedResources.length - maximumUnclaimedResourceCount;
-    if (excessResourceCount <= 0) {
-        return;
-    }
-
-    unclaimedResources
-        .slice(0, excessResourceCount)
-        .forEach((resource) => disposeResource(resource, true));
-}
-
-function registerPendingConsumer<TDataType>(
-    consumerId: string,
-    resource: ObservableSuspenseResource<TDataType>,
-): void {
-    if (resource.ownerCount > 0) {
-        return;
-    }
-
-    const unknownResource = resource as ObservableSuspenseResource<unknown>;
-    const previousResource = _pendingResourceByConsumerId.get(consumerId);
-
-    if (previousResource !== undefined && previousResource !== unknownResource) {
-        previousResource.pendingConsumerIds.delete(consumerId);
-        if (
-            previousResource.ownerCount === 0 &&
-            previousResource.pendingConsumerIds.size === 0
-        ) {
-            disposeResource(previousResource, true);
-        }
-    }
-
-    _pendingResourceByConsumerId.set(consumerId, unknownResource);
-    resource.pendingConsumerIds.add(consumerId);
-
-    // Suspended renders never commit an effect that can unregister their consumer id. Keep only a
-    // bounded set of the most recent retry/consumer ids for one pending resource; an evicted id can
-    // still claim the resource later because claiming is keyed by the resource itself, not this map.
-    while (resource.pendingConsumerIds.size > maximumPendingConsumerCountPerResource) {
-        const oldestConsumerId = resource.pendingConsumerIds.values().next().value as
-            | string
-            | undefined;
-        if (oldestConsumerId === undefined) {
-            break;
-        }
-        resource.pendingConsumerIds.delete(oldestConsumerId);
-        if (_pendingResourceByConsumerId.get(oldestConsumerId) === unknownResource) {
-            _pendingResourceByConsumerId.delete(oldestConsumerId);
-        }
-    }
-
-    touchUnclaimedResource(resource);
-}
-
-function unregisterPendingConsumer(consumerId: string): void {
-    const resource = _pendingResourceByConsumerId.get(consumerId);
-    if (resource === undefined) {
-        return;
-    }
-
-    _pendingResourceByConsumerId.delete(consumerId);
-    resource.pendingConsumerIds.delete(consumerId);
-    if (resource.ownerCount === 0 && resource.pendingConsumerIds.size === 0) {
-        disposeResource(resource, true);
-    }
-}
-
-function claimResource<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-): boolean {
-    if (
-        resource.disposed ||
-        _observableCache.get(resource.cacheKey) !==
-            (resource as ObservableSuspenseResource<unknown>)
-    ) {
-        return false;
-    }
-
-    clearPendingConsumers(resource);
-    resource.ownerCount++;
-    resource.releaseScheduled = false;
-    return true;
-}
-
-function releaseResource<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-): void {
-    if (resource.disposed) {
-        return;
-    }
-
-    resource.ownerCount = Math.max(0, resource.ownerCount - 1);
-    if (resource.ownerCount === 0 && !resource.releaseScheduled) {
-        resource.releaseScheduled = true;
-        queueMicrotask(() => {
-            if (
-                !resource.disposed &&
-                resource.releaseScheduled &&
-                resource.ownerCount === 0
-            ) {
-                disposeResource(resource, false);
-            }
-        });
-    }
-}
-
-/**
- * Clears the Suspense observable query cache. Call this in test teardown to ensure test isolation.
- */
-export function clearSuspenseObservableQueryCache(): void {
-    Array.from(_observableCache.values()).forEach((resource) => {
-        disposeResource(resource, false);
-    });
-    _nextAccessOrder = 0;
-}
-
-function makeCacheKey(
-    queryName: string,
-    microservice: string,
-    apiBasePath: string,
-    origin: string,
-    sorting: Sorting,
-    paging: Paging,
-    args: unknown,
-): string {
-    return `${queryName}:${microservice}:${apiBasePath}:${origin}:${sorting.field ?? ''}:${sorting.direction ?? 0}:${paging.page}:${paging.pageSize}:${JSON.stringify(args)}`;
-}
-
-function receiveResponse<TDataType>(
-    resource: ObservableSuspenseResource<TDataType>,
-    response: QueryResult<TDataType>,
-): void {
-    if (response.hasExceptions) {
-        rejectPendingResource(resource, new QueryFailed(response.exceptionMessages, response.exceptionStackTrace));
-    } else if (response.isAuthorized) {
-        const queryResult = QueryResultWithState.fromQueryResult(response, false);
-        resource.value = queryResult;
-        if (resource.status === 'pending') {
-            resource.status = 'fulfilled';
-            resource.resolve?.();
-            resource.resolve = undefined;
-            resource.reject = undefined;
-        } else {
-            resource.listeners.forEach((listener) => listener(queryResult));
-        }
-    } else {
-        rejectPendingResource(resource, new QueryUnauthorized());
-    }
-}
-
-function rejectPendingResource<TDataType>(resource: ObservableSuspenseResource<TDataType>, error: Error): void {
-    if (resource.status !== 'pending') {
-        return;
-    }
-    resource.status = 'rejected';
-    resource.error = error;
-    resource.reject?.(error);
-    resource.resolve = undefined;
-    resource.reject = undefined;
-}
-
-function createResource<TDataType>(
-    cacheKey: string,
-    queryVersion: number,
-    subscribe: (callback: (response: QueryResult<TDataType>) => void) => ObservableQuerySubscription<TDataType>,
-): ObservableSuspenseResource<TDataType> {
-    let resolvePromise!: () => void;
-    let rejectPromise!: (error: Error) => void;
-    const resource: ObservableSuspenseResource<TDataType> = {
-        cacheKey,
-        queryVersion,
-        subscriptionGeneration: 0,
-        status: 'pending',
-        promise: new Promise<void>((resolve, reject) => {
-            resolvePromise = resolve;
-            rejectPromise = reject;
-        }),
-        subscription: null,
-        listeners: new Set(),
-        pendingConsumerIds: new Set(),
-        ownerCount: 0,
-        releaseScheduled: false,
-        disposed: false,
-        lastAccessOrder: ++_nextAccessOrder,
-        restartSubscription: () => {
-            const generation = ++resource.subscriptionGeneration;
-            resource.subscription?.unsubscribe();
-            resource.subscription = null;
-            resource.subscription = subscribe((response) => {
-                if (resource.disposed || generation !== resource.subscriptionGeneration || response.isReady === false) {
-                    return;
-                }
-                receiveResponse(resource, response);
-            });
-        },
-    };
-    resource.resolve = resolvePromise;
-    resource.reject = rejectPromise;
-    _observableCache.set(cacheKey, resource as ObservableSuspenseResource<unknown>);
-    enforceUnclaimedResourceCapacity();
-    resource.restartSubscription();
-    return resource;
-}
+export { clearSuspenseObservableQueryCache } from './SuspenseObservableQueryResources.js';
 
 function useSuspenseObservableQueryInternal<
     TDataType,
@@ -320,134 +35,53 @@ function useSuspenseObservableQueryInternal<
     TArguments = object,
 >(
     query: Constructor<TQuery>,
-    sorting?: Sorting,
-    paging?: Paging,
-    args?: TArguments,
-    isEnabled: boolean = true,
+    options: { sorting?: Sorting; paging?: Paging; args?: TArguments; isEnabled: boolean },
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
+    const { sorting, paging, args, isEnabled } = options;
     const arc = useContext(ArcContext);
     useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
-    const [currentSorting, setCurrentSorting] = useState<Sorting>(
-        sorting ?? Sorting.none,
-    );
+    const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [result, setResult] = useState<QueryResultWithState<TDataType> | null>(null);
     const consumerId = useId();
     const queryName = resolveSuspenseQueryIdentity(query, isEnabled);
-
     const cacheKey = isEnabled
-        ? makeCacheKey(
-              queryName,
-              arc.microservice,
-              arc.apiBasePath ?? '',
-              arc.origin ?? '',
-              currentSorting,
-              currentPaging,
-              args,
-          )
+        ? makeSuspenseQueryCacheKey(queryName, arc, { sorting: currentSorting, paging: currentPaging, args })
         : `__noop__${queryName}`;
 
     if (!isEnabled) {
         unregisterPendingConsumer(consumerId);
     }
-
-    if (isEnabled && !_observableCache.has(cacheKey)) {
-        createResource<TDataType>(cacheKey, arc.queryVersion ?? 0, (callback) => {
-            const queryInstance = new query() as TQuery;
-            queryInstance.sorting = currentSorting;
-            queryInstance.paging = currentPaging;
-            queryInstance.setMicroservice(arc.microservice);
-            queryInstance.setApiBasePath(arc.apiBasePath ?? '');
-            queryInstance.setOrigin(arc.origin ?? '');
-            return queryInstance.subscribe(callback, args as object);
+    if (isEnabled) {
+        ensureObservableSuspenseResource<TDataType>(cacheKey, {
+            queryVersion: arc.queryVersion ?? 0,
+            subscribe: (callback) => {
+                const queryInstance = new query() as TQuery;
+                queryInstance.sorting = currentSorting;
+                queryInstance.paging = currentPaging;
+                queryInstance.setMicroservice(arc.microservice);
+                queryInstance.setApiBasePath(arc.apiBasePath ?? '');
+                queryInstance.setOrigin(arc.origin ?? '');
+                return queryInstance.subscribe(callback, args as object);
+            },
         });
     }
+    const resource = isEnabled ? getObservableSuspenseResource<TDataType>(cacheKey) : undefined;
+    registerPendingConsumer(consumerId, resource);
+    useSuspenseObservableResource(resource, { cacheKey, isEnabled, queryVersion: arc.queryVersion }, setResult);
 
-    const resource = isEnabled
-        ? (_observableCache.get(cacheKey) as ObservableSuspenseResource<TDataType>)
-        : undefined;
-
-    if (resource !== undefined) {
-        registerPendingConsumer(consumerId, resource);
-    }
-
-    useEffect(() => {
-        if (!isEnabled || resource === undefined || !claimResource(resource)) {
-            return;
-        }
-        const handleUpdate = (value: QueryResultWithState<TDataType>) => {
-            setResult(value);
-        };
-        resource.listeners.add(handleUpdate);
-
-        return () => {
-            resource.listeners.delete(handleUpdate);
-            releaseResource(resource);
-        };
-    }, [cacheKey, resource, isEnabled]);
-
-    useEffect(() => {
-        const queryVersion = arc.queryVersion ?? 0;
-        if (!isEnabled || resource === undefined || resource.disposed || resource.queryVersion === queryVersion) {
-            return;
-        }
-        // Consumers share the resource and version marker, so only the first effect restarts it.
-        // Keep the fulfilled value and listeners while the new subscription becomes ready.
-        resource.queryVersion = queryVersion;
-        resource.restartSubscription();
-    }, [arc.queryVersion, resource, isEnabled]);
-
+    const controls = createSuspenseQueryControls({
+        paging: currentPaging,
+        setSorting: setCurrentSorting,
+        setPaging: setCurrentPaging,
+        reset: isEnabled ? () => setResult(null) : undefined,
+    });
     if (!isEnabled) {
         const disabledInstance = new query();
-        return [
-            QueryResultWithState.empty(disabledInstance.defaultValue),
-            async (newSorting: Sorting) => {
-                setCurrentSorting(newSorting);
-            },
-            async (page: number) => {
-                setCurrentPaging(new Paging(page, currentPaging.pageSize));
-            },
-            async (pageSize: number) => {
-                setCurrentPaging(new Paging(currentPaging.page, pageSize));
-            },
-        ];
+        return [QueryResultWithState.empty(disabledInstance.defaultValue), ...controls];
     }
-
-    if (resource === undefined) {
-        throw new Error('Expected an enabled suspense observable query resource');
-    }
-
-    if (resource.status === 'rejected') {
-        throw resource.error;
-    }
-
-    if (resource.status === 'pending') {
-        throw resource.promise;
-    }
-
-    if (resource.value === undefined) {
-        throw new Error('Expected a fulfilled suspense observable query resource value');
-    }
-
-    const resetForNewSubscription = () => {
-        setResult(null);
-    };
-
-    return [
-        result ?? resource.value,
-        async (newSorting: Sorting) => {
-            resetForNewSubscription();
-            setCurrentSorting(newSorting);
-        },
-        async (page: number) => {
-            resetForNewSubscription();
-            setCurrentPaging(new Paging(page, currentPaging.pageSize));
-        },
-        async (pageSize: number) => {
-            resetForNewSubscription();
-            setCurrentPaging(new Paging(currentPaging.page, pageSize));
-        },
-    ];
+    const value = readObservableSuspenseResource(resource);
+    return [result ?? value, ...controls];
 }
 
 /**
@@ -478,7 +112,7 @@ export function useSuspenseObservableQuery<
         TDataType,
         TQuery,
         TArguments
-    >(query, sorting, Paging.noPaging, args, isEnabled);
+    >(query, { sorting, paging: Paging.noPaging, args, isEnabled });
     return [result, setSorting];
 }
 
@@ -510,9 +144,6 @@ export function useSuspenseObservableQueryWithPaging<
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     return useSuspenseObservableQueryInternal<TDataType, TQuery, TArguments>(
         query,
-        sorting,
-        paging,
-        args,
-        isEnabled,
+        { sorting, paging, args, isEnabled },
     );
 }
