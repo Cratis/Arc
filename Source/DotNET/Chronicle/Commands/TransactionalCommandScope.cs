@@ -91,7 +91,6 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         var readProtected = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On;
         var frame = CreateFrame(context, readProtected);
         var previous = frame.Previous;
-        var controller = frame.Controller;
         if (previous is not null)
         {
             EnrollAsChild(previous, frame, context.Type);
@@ -107,24 +106,34 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
         if (TryInheritUnit(frame, out var inheritedUnit))
         {
-            // An enforcing unit is retained even after early completion; a nested invocation cannot replace it.
-            frame.UnitOfWork = inheritedUnit;
-            if (previous?.Protection is not null)
-            {
-                frame.Protection = inheritedUnit.EnforceReadProtection();
-
-                // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
-                // opened by its caller's body or by an enclosing command that does not enable read protection.
-                frame.ReadAllowance = readProtected
-                    ? inheritedUnit.SuspendReadRegions()
-                    : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
-            }
-            RegisterEnrollmentContributor(context, frame, inheritedUnit);
+            BeginInherited(context, frame, inheritedUnit, readProtected);
             return;
         }
 
+        BeginOwned(context, frame, serviceProvider);
+    }
+
+    static void BeginInherited(CommandContext context, TransactionFrame frame, IUnitOfWork inheritedUnit, bool readProtected)
+    {
+        // An enforcing unit is retained even after early completion; a nested invocation cannot replace it.
+        frame.UnitOfWork = inheritedUnit;
+        if (frame.Previous?.Protection is not null)
+        {
+            frame.Protection = inheritedUnit.EnforceReadProtection();
+
+            // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
+            // opened by its caller's body or by an enclosing command that does not enable read protection.
+            frame.ReadAllowance = readProtected
+                ? inheritedUnit.SuspendReadRegions()
+                : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
+        }
+        RegisterEnrollmentContributor(context, frame, inheritedUnit);
+    }
+
+    static void BeginOwned(CommandContext context, TransactionFrame frame, IServiceProvider serviceProvider)
+    {
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
-        frame.SuspendedUnit = controller?.UnitOfWork;
+        frame.SuspendedUnit = frame.Controller?.UnitOfWork;
         frame.UnitOfWorkManager = unitOfWorkManager;
         var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
 
@@ -134,44 +143,35 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         var observation = new CommitObservation(unitOfWork);
         _observations.Remove(context.Values);
         _observations.Add(context.Values, observation);
-        var subscription = (serviceProvider.GetService<IEventLog>()?.AppendOperations)?.Subscribe(appended =>
-        {
-            lock (failedAppends)
-            {
-                // Only failures belonging to this command — a failure attributed to a different correlation is a
-                // concurrent command's and must not fail this one. An unattributed failure (no correlation on the
-                // result) is treated as this command's when it was made from inside this command's own flow; the
-                // log is shared by the whole process, so one made by another writer is not (Cratis/Arc#3493).
-                var ownFlow = IsWithin(frame);
-                var attributable = appended.Where(_ => IsAttributable(frame, _.Result.CorrelationId, context.CorrelationId, ownFlow)).ToArray();
-                failedAppends.AddRange(attributable.Where(_ => !_.Result.IsSuccess));
-                lock (observation)
-                {
-                    observation.ImmediateCommitted |= attributable.Any(_ => _.Result.IsSuccess);
-                    observation.ImmediateUncertain |= attributable.Any(_ => !_.Result.IsSuccess && _.Result.Errors.Any());
-                }
-            }
-        });
+        var observer = new FailedAppendObserver(frame, context.CorrelationId, failedAppends, observation);
+        var subscription = (serviceProvider.GetService<IEventLog>()?.AppendOperations)?.Subscribe(appended => observer.Observe(appended));
 
         CommandTransaction.Current = unitOfWork;
         frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
         frame.UnitOfWork = unitOfWork;
-        if (OccurrenceExecution.Current is { } occurrenceExecution)
-        {
-            try
-            {
-                frame.ImmediateAppendRefusal = unitOfWork.RefuseImmediateAppends();
-            }
-            catch (UnitOfWorkImmediateAppendRefusalNotSupported error)
-            {
-                occurrenceExecution.Refuse(error);
-            }
-        }
+        RefuseImmediateAppendsForOccurrence(frame, unitOfWork);
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
         {
             frame.Protection = unitOfWork.EnforceReadProtection();
         }
         RegisterEnrollmentContributor(context, frame, unitOfWork);
+    }
+
+    static void RefuseImmediateAppendsForOccurrence(TransactionFrame frame, IUnitOfWork unitOfWork)
+    {
+        if (OccurrenceExecution.Current is not { } occurrenceExecution)
+        {
+            return;
+        }
+
+        try
+        {
+            frame.ImmediateAppendRefusal = unitOfWork.RefuseImmediateAppends();
+        }
+        catch (UnitOfWorkImmediateAppendRefusalNotSupported error)
+        {
+            occurrenceExecution.Refuse(error);
+        }
     }
 
     /// <inheritdoc/>
@@ -248,27 +248,42 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     {
         OccurrenceExecution.RefuseEarlyCommit();
         var frame = ActiveFrame();
-        var ownsUnit = frame is not null && ReferenceEquals(frame.UnitOfWork, unit);
-        if (ownsUnit && frame!.Owned is null && frame.Previous is { } parent && (frame.Protection is not null || frame.ReadProtected))
+        var ownFrame = frame is not null && ReferenceEquals(frame.UnitOfWork, unit) ? frame : null;
+        RefuseNestedEarlyCompletion(ownFrame);
+        if (ownFrame?.Protection is null)
         {
-            // A nested command declaring On must not complete its parent's unit, whether or not the parent enforces.
-            throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, parent.CommandType);
-        }
-        if (!ownsUnit || frame!.Protection is null)
-        {
-            if (frame?.Previous is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
-            {
-                ReadProtectionTelemetry.Record(frame.CommandType, "nested_early_completion");
-            }
+            RecordNestedEarlyCompletion(frame);
             return false;
         }
-        if (frame.Owned is not { } owned)
+        if (ownFrame.Owned is not { } owned)
         {
-            throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, frame.Previous?.CommandType ?? frame.CommandType);
+            throw new NestedEarlyCompletionUnderReadProtection(ownFrame.CommandType, ownFrame.Previous?.CommandType ?? ownFrame.CommandType);
         }
 
         await CommitOwned(owned, null);
         return true;
+    }
+
+    static void RefuseNestedEarlyCompletion(TransactionFrame? ownFrame)
+    {
+        if (ownFrame is not { Owned: null, Previous: { } parent })
+        {
+            return;
+        }
+
+        // A nested command declaring On must not complete its parent's unit, whether or not the parent enforces.
+        if (ownFrame.Protection is not null || ownFrame.ReadProtected)
+        {
+            throw new NestedEarlyCompletionUnderReadProtection(ownFrame.CommandType, parent.CommandType);
+        }
+    }
+
+    static void RecordNestedEarlyCompletion(TransactionFrame? frame)
+    {
+        if (frame?.Previous is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
+        {
+            ReadProtectionTelemetry.Record(frame.CommandType, "nested_early_completion");
+        }
     }
 
     /// <summary>
@@ -280,7 +295,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>The result, with conflicting reads reported as read changes.</returns>
     internal static AggregateRootCommitResult ReportReadChanges(IUnitOfWork unit, AggregateRootCommitResult result) =>
         !result.IsSuccess && ActiveFrame() is { Protection: not null, Owned: not null } frame && ReferenceEquals(frame.UnitOfWork, unit)
-            ? WithReadChanges(result, unit, frame.CommandType, enforcing: true, frame.Services)
+            ? WithReadChanges(result, unit, new ReadChangeScope(frame.CommandType, Enforcing: true, frame.Services))
             : result;
 
     /// <summary>
@@ -293,7 +308,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     {
         for (var frame = ActiveFrame(); frame is not null; frame = frame.Previous)
         {
-            if (!frame.Completed && ReferenceEquals(frame.UnitOfWork, unit) && frame.FreshIdentifiers.MatchesOwnCapture(source))
+            if (CapturesOwn(frame, unit, source))
             {
                 return true;
             }
@@ -329,6 +344,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         return true;
     }
 
+    static bool CapturesOwn(TransactionFrame frame, IUnitOfWork unit, EventSourceId source) =>
+        !frame.Completed && ReferenceEquals(frame.UnitOfWork, unit) && frame.FreshIdentifiers.MatchesOwnCapture(source);
+
     static async Task CompleteFrame(CommandContext context, CommandResult result, TransactionFrame frame)
     {
         // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
@@ -343,26 +361,55 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         frame.Completed = true;
         _frames.Value = frame.Previous;
 
+        MergeOccurrenceRefusal(context, result);
+
+        if (owned is null)
+        {
+            await CompleteUnowned(frame, result);
+            return;
+        }
+
+        CommandTransaction.Current = null;
+        owned.Subscription?.Dispose();
+        MergeFailedAppends(context, result, owned);
+        RecordImmediateAppendBackstop(context, result, owned.Observation);
+
+        // IsCompleted also means rollback or a commit that threw. Never interpret it as authoritative commitment.
+        if (owned.UnitOfWork.IsCompleted && !owned.Observation.CompletionObserved)
+        {
+            owned.Observation.Disposition = CommandCommitDisposition.Unknown;
+        }
+
+        if (result.IsSuccess)
+        {
+            await CompleteSucceeded(context, result, frame, owned);
+        }
+        else if (!owned.UnitOfWork.IsCompleted)
+        {
+            await RollBackOwned(frame, owned);
+        }
+    }
+
+    static void MergeOccurrenceRefusal(CommandContext context, CommandResult result)
+    {
         // A nested command can turn a programming error into a result its caller ignores. The shared occurrence
         // still refuses the entire transaction: no participating command may commit it or record a receipt.
         if (OccurrenceExecution.Current?.Refusal is { } refusalError)
         {
             result.MergeWith(CommandResult.Error(context.CorrelationId, refusalError));
         }
+    }
 
-        if (owned is null)
+    static async Task CompleteUnowned(TransactionFrame frame, CommandResult result)
+    {
+        if (result.IsSuccess)
         {
-            if (result.IsSuccess)
-            {
-                await CompleteStreams(frame, result);
-            }
-
-            return;
+            await CompleteStreams(frame, result);
         }
+    }
 
-        CommandTransaction.Current = null;
-        owned.Subscription?.Dispose();
-
+    static void MergeFailedAppends(CommandContext context, CommandResult result, OwnedTransaction owned)
+    {
         AppendedEventWithResult[] failedAppends;
         lock (owned.FailedAppends)
         {
@@ -376,76 +423,87 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             var sequence = context.ServiceProvider?.GetService<IEventLog>()?.Id;
             result.MergeWith(sequence is not null ? failedAppend.Result.ToCommandResult(context, sequence) : failedAppend.Result.ToCommandResult());
         }
+    }
 
-        var unitOfWork = owned.UnitOfWork;
-        var observation = owned.Observation;
-
+    static void RecordImmediateAppendBackstop(CommandContext context, CommandResult result, CommitObservation observation)
+    {
         // Fail-loud backstop only: this notification arrives after an immediate append committed without a receipt.
         // Native Chronicle appends are refused up front; retain detection for custom sequence implementations.
-        if (OccurrenceExecution.Current is { } occurrenceExecution && observation.ImmediateCommitted)
+        if (OccurrenceExecution.Current is not { } occurrenceExecution || !observation.ImmediateCommitted)
         {
-            occurrenceExecution.RecordImmediateAppend();
-            result.MergeWith(CommandResult.Error(context.CorrelationId, "The command appended events outside its unit of work while executing for an occurrence."));
+            return;
         }
 
-        // IsCompleted also means rollback or a commit that threw. Never interpret it as authoritative commitment.
-        if (unitOfWork.IsCompleted && !observation.CompletionObserved)
+        occurrenceExecution.RecordImmediateAppend();
+        result.MergeWith(CommandResult.Error(context.CorrelationId, "The command appended events outside its unit of work while executing for an occurrence."));
+    }
+
+    static async Task CompleteSucceeded(CommandContext context, CommandResult result, TransactionFrame frame, OwnedTransaction owned)
+    {
+        var unitOfWork = owned.UnitOfWork;
+        if (!unitOfWork.IsCompleted)
         {
-            observation.Disposition = CommandCommitDisposition.Unknown;
+            await CommitOwned(owned, frame.ImmediateAppendRefusal);
         }
 
-        if (result.IsSuccess)
+        var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
+        if (!commitResult.IsSuccess)
         {
-            if (!unitOfWork.IsCompleted)
-            {
-                await CommitOwned(owned, frame.ImmediateAppendRefusal);
-            }
-
-            var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
-            if (!commitResult.IsSuccess)
-            {
-                result.MergeWith(WithReadChanges(commitResult, unitOfWork, context.Type, frame.Protection is not null, context.ServiceProvider).ToCommandResult(result.CorrelationId));
-            }
-
-            if (result.IsSuccess && frame.Completions.Count > 0)
-            {
-                // A sequence number reported by the unit is not commit evidence: Chronicle also reports one after
-                // rollback or an append that threw. Only this scope's observed successful commit authorizes completion.
-                if (observation.CompletionObserved && commitResult.IsSuccess)
-                {
-                    await CompleteStreams(frame, result);
-                }
-                else
-                {
-                    result.MergeWith(CommandResult.Error(context.CorrelationId, "Stream completion was not applied because the command's commit outcome is unknown."));
-                }
-            }
+            result.MergeWith(WithReadChanges(commitResult, unitOfWork, new ReadChangeScope(context.Type, frame.Protection is not null, context.ServiceProvider)).ToCommandResult(result.CorrelationId));
         }
-        else if (!unitOfWork.IsCompleted)
-        {
-            observation.Disposition = CommandCommitDisposition.Unknown;
-            if (frame.ImmediateAppendRefusal is { } refusal)
-            {
-                await refusal.Rollback();
-            }
-            else if (owned.Owner is not null && unitOfWork is UnitOfWork protectedUnit && (protectedUnit.HasEnrolledDecisionReads || protectedUnit.IsEnforcingReadProtection))
-            {
-                // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
-                // command rolls back with the capability it claimed when it began. Without decision reads the public
-                // Rollback below keeps the exact behaviour commands had before decision reads existed.
-                await protectedUnit.RollbackAsOwner(owned.Owner);
-            }
-            else
-            {
-                await unitOfWork.Rollback();
-            }
 
-            observation.CompletionObserved = true;
-            observation.Disposition = CommandCommitDisposition.NotCommitted;
+        if (result.IsSuccess && frame.Completions.Count > 0)
+        {
+            // A sequence number reported by the unit is not commit evidence: Chronicle also reports one after
+            // rollback or an append that threw. Only this scope's observed successful commit authorizes completion.
+            await CompleteStreamsWhenCommitted(context, result, frame, owned.Observation.CompletionObserved && commitResult.IsSuccess);
         }
     }
 
-    static AggregateRootCommitResult WithReadChanges(AggregateRootCommitResult commitResult, IUnitOfWork unitOfWork, Type commandType, bool enforcing, IServiceProvider? services)
+    static async Task CompleteStreamsWhenCommitted(CommandContext context, CommandResult result, TransactionFrame frame, bool committed)
+    {
+        if (committed)
+        {
+            await CompleteStreams(frame, result);
+        }
+        else
+        {
+            result.MergeWith(CommandResult.Error(context.CorrelationId, "Stream completion was not applied because the command's commit outcome is unknown."));
+        }
+    }
+
+    static async Task RollBackOwned(TransactionFrame frame, OwnedTransaction owned)
+    {
+        var unitOfWork = owned.UnitOfWork;
+        var observation = owned.Observation;
+        observation.Disposition = CommandCommitDisposition.Unknown;
+        if (frame.ImmediateAppendRefusal is { } refusal)
+        {
+            await refusal.Rollback();
+        }
+        else if (HoldsProtectedDecisionReads(owned, out var protectedUnit))
+        {
+            // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
+            // command rolls back with the capability it claimed when it began. Without decision reads the public
+            // Rollback below keeps the exact behaviour commands had before decision reads existed.
+            await protectedUnit.RollbackAsOwner(owned.Owner!);
+        }
+        else
+        {
+            await unitOfWork.Rollback();
+        }
+
+        observation.CompletionObserved = true;
+        observation.Disposition = CommandCommitDisposition.NotCommitted;
+    }
+
+    static bool HoldsProtectedDecisionReads(OwnedTransaction owned, [NotNullWhen(true)] out UnitOfWork? protectedUnit)
+    {
+        protectedUnit = owned.UnitOfWork as UnitOfWork;
+        return owned.Owner is not null && protectedUnit is not null && (protectedUnit.HasEnrolledDecisionReads || protectedUnit.IsEnforcingReadProtection);
+    }
+
+    static AggregateRootCommitResult WithReadChanges(AggregateRootCommitResult commitResult, IUnitOfWork unitOfWork, ReadChangeScope scope)
     {
         var conflicts = unitOfWork is UnitOfWork protectedUnit ? protectedUnit.GetDecisionConflicts().ToArray() : [];
         var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
@@ -457,7 +515,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             ConstraintViolations = commitResult.ConstraintViolations,
             ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
             Errors = commitResult.Errors,
-            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ReadChanges.For(_, commandType, enforcing, services))).ToArray()
+            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ReadChanges.For(_, scope.CommandType, scope.Enforcing, scope.Services))).ToArray()
         };
     }
 
@@ -621,7 +679,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             foreach (var sibling in previous.Children)
             {
                 // The owner boundary belongs to every command declaring On, not only to an enforcing outer unit.
-                if (previous.Protection is not null || sibling.ReadProtected || frame.ReadProtected)
+                if (RefusesConcurrentChild(previous, sibling, frame))
                 {
                     throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, sibling.CommandType, commandType);
                 }
@@ -633,6 +691,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             previous.Children.Add(frame);
         }
     }
+
+    static bool RefusesConcurrentChild(TransactionFrame previous, TransactionFrame sibling, TransactionFrame frame) =>
+        previous.Protection is not null || sibling.ReadProtected || frame.ReadProtected;
 
     static bool TryInheritUnit(TransactionFrame frame, [NotNullWhen(true)] out IUnitOfWork? inheritedUnit)
     {
@@ -662,6 +723,28 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <param name="active">The active frame, if any.</param>
     /// <returns>The controller frame, or <see langword="null"/>.</returns>
     static TransactionFrame? ControllerFrameOf(TransactionFrame? active) => active?.IsControllerAction == true ? active : null;
+
+    sealed class FailedAppendObserver(TransactionFrame frame, CorrelationId commandCorrelation, List<AppendedEventWithResult> failedAppends, CommitObservation observation)
+    {
+        public void Observe(IEnumerable<AppendedEventWithResult> appended)
+        {
+            lock (failedAppends)
+            {
+                // Only failures belonging to this command — a failure attributed to a different correlation is a
+                // concurrent command's and must not fail this one. An unattributed failure (no correlation on the
+                // result) is treated as this command's when it was made from inside this command's own flow; the
+                // log is shared by the whole process, so one made by another writer is not (Cratis/Arc#3493).
+                var ownFlow = IsWithin(frame);
+                var attributable = appended.Where(_ => IsAttributable(frame, _.Result.CorrelationId, commandCorrelation, ownFlow)).ToArray();
+                failedAppends.AddRange(attributable.Where(_ => !_.Result.IsSuccess));
+                lock (observation)
+                {
+                    observation.ImmediateCommitted |= attributable.Any(_ => _.Result.IsSuccess);
+                    observation.ImmediateUncertain |= attributable.Any(_ => !_.Result.IsSuccess && _.Result.Errors.Any());
+                }
+            }
+        }
+    }
 
     sealed class CommitObservation(IUnitOfWork unitOfWork)
     {
@@ -696,6 +779,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         public List<PendingStreamCompletion> Completions { get; } = [];
         public bool Completed { get; set; }
     }
+
+    sealed record ReadChangeScope(Type CommandType, bool Enforcing, IServiceProvider? Services);
 
     sealed record OwnedTransaction(IUnitOfWork UnitOfWork, DecisionReadCommitOwner? Owner, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
 }
