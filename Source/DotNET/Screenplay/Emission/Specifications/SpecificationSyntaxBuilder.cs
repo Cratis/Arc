@@ -235,6 +235,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                 : null,
         GivenCaller = Caller(specification.Caller),
         ThenReturns = Returns(specification.Returns),
+        ThenQueries = [.. Queries(specification.Read)],
         ThenDenied = specification.Denied ? new(SourceLocation.Start) : null,
         Parameters = CaseParameters(specification),
         Cases = CaseRows(specification)
