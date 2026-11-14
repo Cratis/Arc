@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Neo4j.Chronicle.Testing</AssemblyName>
+        <RootNamespace>Cratis.Arc.Neo4j.Chronicle.Testing</RootNamespace>
+        <Description>Testing utilities for Cratis Arc applications that read Neo4j through Chronicle graph views: substitute IGraph in specifications and command scenarios, without a Neo4j server.</Description>
+        <PackageTags>cratis;arc;chronicle;neo4j;graph;graph-views;testing</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Neo4j.Chronicle/Neo4j.Chronicle.csproj" />
+    </ItemGroup>
+</Project>
