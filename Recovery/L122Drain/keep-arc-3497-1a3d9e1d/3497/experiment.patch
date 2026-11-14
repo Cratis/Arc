@@ -1,0 +1,68 @@
+diff --git a/Source/DotNET/Shared/MetadataQueryAttributes.cs b/Source/DotNET/Shared/MetadataQueryAttributes.cs
+index 6745b7972..bd4af7dd0 100644
+--- a/Source/DotNET/Shared/MetadataQueryAttributes.cs
++++ b/Source/DotNET/Shared/MetadataQueryAttributes.cs
+@@ -13,6 +13,13 @@ namespace Cratis.Arc.Queries.ModelBound;
+ /// </summary>
+ internal static class MetadataQueryAttributes
+ {
++    static readonly Dictionary<string, PEReader> _experimentImages = [];
++
++    /// <summary>
++    /// Gets the marker count for the temporary Arc#3497 cause-only experiment.
++    /// </summary>
++    internal static long ExperimentCalls { get; private set; }
++
+     /// <summary>
+     /// Finds an exact marker using only the member's own metadata image before reading its values.
+     /// </summary>
+@@ -29,8 +36,14 @@ internal static class MetadataQueryAttributes
+                 (matchFullName ? _.AttributeType.FullName : _.AttributeType.Name) == fullName);
+         }
+ 
+-        using var stream = File.OpenRead(member.Module.FullyQualifiedName);
+-        using var image = new PEReader(stream, PEStreamOptions.PrefetchMetadata);
++        ExperimentCalls++;
++        var path = member.Module.FullyQualifiedName;
++        if (!_experimentImages.TryGetValue(path, out var image))
++        {
++            using var stream = File.OpenRead(path);
++            image = new PEReader(stream, PEStreamOptions.PrefetchMetadata);
++            _experimentImages.Add(path, image);
++        }
+         var reader = image.GetMetadataReader();
+         var index = 0;
+         foreach (var handle in reader.GetCustomAttributes(MetadataTokens.EntityHandle(member.MetadataToken)))
+diff --git a/Source/DotNET/Tools/ProxyGenerator/Generator.cs b/Source/DotNET/Tools/ProxyGenerator/Generator.cs
+index b2f3caa77..cb090d496 100644
+--- a/Source/DotNET/Tools/ProxyGenerator/Generator.cs
++++ b/Source/DotNET/Tools/ProxyGenerator/Generator.cs
+@@ -103,10 +103,12 @@ internal static async Task<bool> GenerateWithFileHeader(
+         {
+             return false;
+         }
++        message($"  EXP initialize {overallStopwatch.Elapsed}");
+         using var projectAssemblies = TypeExtensions.OwnProjectAssemblies();
+ 
+         var sourceFileMap = ConfigureSourceFileGrouping(useSourceFileAsOutputFile, assemblyFile);
+ 
++        message($"  EXP source map {overallStopwatch.Elapsed}");
+         var commands = new List<CommandDescriptor>();
+         var queries = new List<QueryDescriptor>();
+ 
+@@ -114,12 +116,15 @@ internal static async Task<bool> GenerateWithFileHeader(
+         commands.AddRange(controllerBasedArtifactsProvider.Commands);
+         queries.AddRange(controllerBasedArtifactsProvider.Queries);
+ 
++        message($"  EXP controllers {overallStopwatch.Elapsed}");
+         var modelBoundArtifactsProvider = new ModelBoundArtifactsProvider(message, outputPath, segmentsToSkip, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix);
+         commands.AddRange(modelBoundArtifactsProvider.Commands);
+         queries.AddRange(modelBoundArtifactsProvider.Queries);
+ 
++        message($"  EXP model bound {overallStopwatch.Elapsed} marker calls {Cratis.Arc.Queries.ModelBound.MetadataQueryAttributes.ExperimentCalls}");
+         var identityDetailsTypesProvider = new IdentityDetailsTypesProvider(message);
+ 
++        message($"  EXP identity {overallStopwatch.Elapsed}");
+         commands = commands.Where(c => !c.Type.IsExcluded()).ToList();
+         queries = queries.Where(q => !q.Type.IsExcluded()).ToList();
+ 
