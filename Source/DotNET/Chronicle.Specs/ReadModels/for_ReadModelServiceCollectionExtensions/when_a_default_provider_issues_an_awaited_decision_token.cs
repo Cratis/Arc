@@ -41,8 +41,16 @@ public class when_a_default_provider_issues_an_awaited_decision_token : for_Chro
             CommandDecisionReads.Begin(typeof(Transfer));
             try
             {
-                var pending = ParameterDependencyResolver.ResolveAsync(_defaultProvider, parameter, _ => new InvalidOperationException());
-                _completedBeforeRelease = pending.IsCompleted;
+                ValueTask<object?> pending;
+                try
+                {
+                    pending = ParameterDependencyResolver.ResolveAsync(_defaultProvider, parameter, _ => new InvalidOperationException());
+                    _completedBeforeRelease = pending.IsCompleted;
+                }
+                finally
+                {
+                    PendingStateObserved();
+                }
                 return await pending;
             }
             finally
@@ -52,7 +60,7 @@ public class when_a_default_provider_issues_an_awaited_decision_token : for_Chro
         });
         _failure = await Catch.Exception(async () =>
         {
-            await ReleaseAfterEntry();
+            await ReleaseAfterPendingStateObserved();
             _token = await run.WaitAsync(_bound, TestContext.Current.CancellationToken);
         });
     }
