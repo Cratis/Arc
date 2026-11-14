@@ -248,12 +248,6 @@ internal sealed class ReadProtectionMeasurement
         catch (Exception failure) { Unavailable(failure.GetType().Name); }
     }
 
-    bool CoarsensEarlierRead(MeasuredRead read)
-    {
-        if (read.Model is null || read.Source is not { IsSpecified: true } source) return false;
-        return _reads.Exists(previous => DropsDimensions(previous, source, read));
-    }
-
     static bool DropsDimensions(MeasuredRead previous, EventSourceId source, MeasuredRead read) =>
         previous.Model is not null && previous.Source?.Value == source.Value && StreamDimensions(previous) != StreamDimensions(read);
 
@@ -261,6 +255,12 @@ internal sealed class ReadProtectionMeasurement
         (read.StreamType is { IsAll: false } type ? type.Value : null, read.StreamId is { IsDefault: false } id ? id.Value : null);
 
     static string Refusal(DecisionReadDescription description) => description.UsesPinnedGenerationDelivery ? "GenerationDeliveryNotSupported" : description.Admission.Reason?.ToString() ?? "Admission unavailable";
+
+    bool CoarsensEarlierRead(MeasuredRead read)
+    {
+        if (read.Model is null || read.Source is not { IsSpecified: true } source) return false;
+        return _reads.Exists(previous => DropsDimensions(previous, source, read));
+    }
 
     void Initialize(IServiceProvider? services)
     {
