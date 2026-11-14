@@ -4,7 +4,7 @@
 using Cratis.Arc;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddCratisArc(configureBuilder: arc => arc.WithNeo4j());
+builder.AddCratisArc(configureBuilder: arc => arc.WithNeo4j().WithNeo4jGraphViews());
 
 var app = builder.Build();
 app.UseCratisArc();

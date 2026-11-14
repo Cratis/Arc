@@ -9,5 +9,6 @@
     <ItemGroup>
         <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
         <ProjectReference Include="../../Source/DotNET/Neo4j/Neo4j.csproj" />
+        <ProjectReference Include="../../Source/DotNET/Neo4j.Chronicle/Neo4j.Chronicle.csproj" />
     </ItemGroup>
 </Project>

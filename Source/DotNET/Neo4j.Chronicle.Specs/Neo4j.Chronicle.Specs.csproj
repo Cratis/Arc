@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Neo4j.Chronicle.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Neo4j.Chronicle</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Neo4j.Chronicle/Neo4j.Chronicle.csproj" />
+        <ProjectReference Include="../Neo4j.Chronicle.Testing/Neo4j.Chronicle.Testing.csproj" />
+        <ProjectReference Include="../Neo4j.Testing/Neo4j.Testing.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+</Project>

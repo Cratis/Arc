@@ -26,3 +26,5 @@ var members = await GroupMember.MembersOf(groupId, graph);
 `UseGraphSession(session)` replaces the session with one you built, for instance an `NSubstitute` substitute for `IGraphSession`. Either replacement also answers `IGraphSessionFactory.Open`.
 
 `Run` and `Session` need a real driver and throw on the substitute, so keep application code that maps rows on `Query` and `QuerySingle`, or cover the driver calls with an integration test against Neo4j.
+
+To substitute `IGraph` for queries that read [graph views](./graph-views.md#test-with-a-substitute), use `UseGraphSubstitute()` from `Cratis.Arc.Neo4j.Chronicle.Testing`.

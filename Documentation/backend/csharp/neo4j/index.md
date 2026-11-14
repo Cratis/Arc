@@ -20,6 +20,7 @@ Follow [getting started](./getting-started.md) to install the package, connect y
 
 - [Querying](./querying.md): run Cypher through the session and map the rows to your types.
 - [Concepts](./concepts.md): bind `ConceptAs<T>` values as parameters and get them back in results.
+- [Graph views](./graph-views.md): read Chronicle graph views as typed, nested records through `IGraph`, without writing Cypher.
 - [Testing](./testing.md): substitute the session in specifications and command scenarios.
 
 If your documents live in MongoDB instead, see the [MongoDB integration](../mongodb/index.md). Both follow the same [tenancy](../tenancy/index.md) model.
