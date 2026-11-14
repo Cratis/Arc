@@ -1,6 +1,6 @@
 ---
 title: "Cratis Arc MCP options, attributes and endpoints reference"
-description: Reference for Cratis Arc MCP: McpOptions defaults, McpProfile, the builder and attribute API, startup validation rules, HTTP endpoints and statuses.
+description: Reference for Cratis Arc MCP covering McpOptions defaults, McpProfile, the builder and attribute API, startup validation rules, HTTP endpoints and status codes.
 ---
 
 Assembly: `Cratis.Arc.Mcp` (depends on `ModelContextProtocol.AspNetCore`).
