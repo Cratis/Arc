@@ -123,26 +123,24 @@ public sealed class McpToolCatalog
         }
     }
 
-    static IEnumerable<McpExposureDeclaration> Discover(HashSet<Type> handlerTypes, IQueryPerformer[] performers)
-    {
-        foreach (var type in handlerTypes)
-        {
-            if (type.GetCustomAttribute<ExposeOverMcpAttribute>(false) is { } attribute)
-            {
-                yield return new McpExposureDeclaration(McpToolKind.Command, type, attribute.Name, attribute.Description);
-            }
-        }
+    static IEnumerable<McpExposureDeclaration> Discover(HashSet<Type> handlerTypes, IQueryPerformer[] performers) =>
+        DiscoverCommands(handlerTypes).Concat(DiscoverQueries(performers));
 
-        foreach (var performer in performers)
-        {
-            var methods = performer.ReadModelType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
-                .Where(_ => _.Name == performer.Name.Value);
-            foreach (var attribute in methods.Select(_ => _.GetCustomAttribute<ExposeOverMcpAttribute>(false)).OfType<ExposeOverMcpAttribute>())
-            {
-                yield return new McpExposureDeclaration(McpToolKind.Query, performer.FullyQualifiedName.Value, attribute.Name, attribute.Description);
-            }
-        }
-    }
+    static IEnumerable<McpExposureDeclaration> DiscoverCommands(HashSet<Type> handlerTypes) =>
+        handlerTypes
+            .Select(_ => (Type: _, Attribute: _.GetCustomAttribute<ExposeOverMcpAttribute>(false)))
+            .Where(_ => _.Attribute is not null)
+            .Select(_ => new McpExposureDeclaration(McpToolKind.Command, _.Type, _.Attribute!.Name, _.Attribute.Description));
+
+    static IEnumerable<McpExposureDeclaration> DiscoverQueries(IQueryPerformer[] performers) =>
+        performers.SelectMany(performer => ExposedMethodAttributes(performer)
+            .Select(attribute => new McpExposureDeclaration(McpToolKind.Query, performer.FullyQualifiedName.Value, attribute.Name, attribute.Description)));
+
+    static IEnumerable<ExposeOverMcpAttribute> ExposedMethodAttributes(IQueryPerformer performer) =>
+        performer.ReadModelType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+            .Where(_ => _.Name == performer.Name.Value)
+            .Select(_ => _.GetCustomAttribute<ExposeOverMcpAttribute>(false))
+            .OfType<ExposeOverMcpAttribute>();
 
     static FrozenSet<string> WriteScopesOf(McpOptions options)
     {
@@ -236,11 +234,15 @@ public sealed class McpToolCatalog
 
     static bool IsValidName(string? name)
     {
-        if (string.IsNullOrEmpty(name) || name.Length > MaxNameLength || name[0] is < 'a' or > 'z')
+        if (string.IsNullOrEmpty(name) || name.Length > MaxNameLength)
         {
             return false;
         }
 
-        return name.All(_ => _ is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+        return IsLowerCaseLetter(name[0]) && name.All(IsNameCharacter);
     }
+
+    static bool IsLowerCaseLetter(char character) => character is >= 'a' and <= 'z';
+
+    static bool IsNameCharacter(char character) => IsLowerCaseLetter(character) || character is (>= '0' and <= '9') or '_';
 }
