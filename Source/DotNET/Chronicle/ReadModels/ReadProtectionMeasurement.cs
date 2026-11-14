@@ -118,29 +118,12 @@ internal sealed class ReadProtectionMeasurement
     /// <param name="isReadModel">Whether Chronicle backs the parameter.</param>
     internal void Parameter(ParameterInfo parameter, bool isReadModel) => Try(() =>
     {
-        var type = parameter.ParameterType;
         if (isReadModel)
         {
-            var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? type.GetCustomAttribute<UnprotectedAttribute>();
-            lock (_gate)
-            {
-                _advisory[type] = advisory is null ? null : advisory.Reason ?? "Declared advisory";
-                _explicitLookups[type] = CommandAttributePolicy.HasExplicitLookup(parameter);
-            }
-            if (!PerStreamReadModelBinding.IsDeclared(type)) Classify(type, advisory?.Reason, advisory is not null);
+            ClassifyReadModelParameter(parameter);
             return;
         }
-        var api = typeof(IReadModels).IsAssignableFrom(type) || typeof(IEventStore).IsAssignableFrom(type) || typeof(IEventSequence).IsAssignableFrom(type)
-            ? type.Name
-            : type.IsGenericType && type.GetGenericTypeDefinition().FullName == "MongoDB.Driver.IMongoCollection`1" ? "IMongoCollection" : null;
-        if (api is not null)
-        {
-            Record("refused_read", type, api);
-        }
-        else if (!typeof(IDecisionReads).IsAssignableFrom(type))
-        {
-            Record("unknown_dependency", type, "Outside the read-protection guarantee");
-        }
+        ClassifyDependency(parameter.ParameterType);
     });
 
     /// <summary>
@@ -159,7 +142,7 @@ internal sealed class ReadProtectionMeasurement
             _explicitLookups.TryGetValue(model, out explicitLookup);
         }
         if (!explicitLookup) CommandReadModelLookup.ObserveRedirect(Context, model, key);
-        if (advisory is null && description.Admission.IsAdmitted && !description.UsesPinnedGenerationDelivery)
+        if (advisory is null && ReadProtectionMeasurementRules.IsProtectable(description))
         {
             AddRead(new(model, key.Value, description.EventTypes, null, null, null));
         }
@@ -184,7 +167,7 @@ internal sealed class ReadProtectionMeasurement
             {
                 Record("refused_read", typeof(T), "DetachedReadWhileReadsAreProtected");
             }
-            else if (description.Admission.IsAdmitted && !description.UsesPinnedGenerationDelivery)
+            else if (ReadProtectionMeasurementRules.IsProtectable(description))
             {
                 Record("protected_read", typeof(T), "Would be protected through IDecisionReads");
                 AddRead(new(typeof(T), source, description.EventTypes, sourceType, streamType, streamId));
@@ -249,17 +232,7 @@ internal sealed class ReadProtectionMeasurement
                 Unavailable("Nested invocation has no committed position snapshot");
                 return;
             }
-            if (!_unavailable && Boundary is { } boundary && EventLog is { } log && Random.Shared.NextDouble() < SampleRate)
-            {
-                MeasuredRead[] reads;
-                EventSequenceNumber[] own;
-                lock (_gate)
-                {
-                    reads = _reads.ToArray();
-                    own = _ownPositions.ToArray();
-                }
-                if (reads.Length > 0 && Queue?.Enqueue(new(Context.Type, log, boundary, reads, own, ScanLimit, ScanTimeout, Logger)) != true) Unavailable("Scan queue unavailable");
-            }
+            ScheduleScan();
         });
         _ended = true;
         _current.Value = _previous;
@@ -274,6 +247,15 @@ internal sealed class ReadProtectionMeasurement
         try { action(); }
         catch (Exception failure) { Unavailable(failure.GetType().Name); }
     }
+
+    bool CoarsensEarlierRead(MeasuredRead read)
+    {
+        if (read.Model is null || read.Source is not { IsSpecified: true } source) return false;
+        return _reads.Exists(previous => DropsDimensions(previous, source, read));
+    }
+
+    static bool DropsDimensions(MeasuredRead previous, EventSourceId source, MeasuredRead read) =>
+        previous.Model is not null && previous.Source?.Value == source.Value && StreamDimensions(previous) != StreamDimensions(read);
 
     static (string? Type, string? Id) StreamDimensions(MeasuredRead read) =>
         (read.StreamType is { IsAll: false } type ? type.Value : null, read.StreamId is { IsDefault: false } id ? id.Value : null);
@@ -291,10 +273,10 @@ internal sealed class ReadProtectionMeasurement
         EventLog = services.GetService<IEventLog>();
         Queue = services.GetService<ReadProtectionMeasureQueue>();
         var configuration = services.GetService<IConfiguration>();
-        if (double.TryParse(ReadProtectionConfiguration.Value(configuration, "MeasureTailTimeout"), out var milliseconds) && double.IsFinite(milliseconds)) TailTimeout = TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 1, 5000));
-        if (double.TryParse(ReadProtectionConfiguration.Value(configuration, "MeasureScanTimeout"), out var scanMilliseconds) && double.IsFinite(scanMilliseconds)) ScanTimeout = TimeSpan.FromMilliseconds(Math.Clamp(scanMilliseconds, 1, 5000));
-        if (int.TryParse(ReadProtectionConfiguration.Value(configuration, "MeasureScanLimit"), out var limit)) ScanLimit = Math.Clamp(limit, 1, 500);
-        if (double.TryParse(ReadProtectionConfiguration.Value(configuration, "MeasureSampleRate"), out var rate) && double.IsFinite(rate)) SampleRate = Math.Clamp(rate, 0, 1);
+        if (ReadProtectionMeasurementRules.TryFinite(configuration, "MeasureTailTimeout", out var milliseconds)) TailTimeout = TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 1, 5000));
+        if (ReadProtectionMeasurementRules.TryFinite(configuration, "MeasureScanTimeout", out var scanMilliseconds)) ScanTimeout = TimeSpan.FromMilliseconds(Math.Clamp(scanMilliseconds, 1, 5000));
+        if (ReadProtectionMeasurementRules.TryInteger(configuration, "MeasureScanLimit", out var limit)) ScanLimit = Math.Clamp(limit, 1, 500);
+        if (ReadProtectionMeasurementRules.TryFinite(configuration, "MeasureSampleRate", out var rate)) SampleRate = Math.Clamp(rate, 0, 1);
         if (EventLog is null)
         {
             Unavailable("No event log");
@@ -306,32 +288,87 @@ internal sealed class ReadProtectionMeasurement
 
     void ObserveAppends(IEnumerable<AppendedEventWithResult> appended)
     {
-        // Notifications run on the producer's async flow. Correlation is deliberately NOT attribution evidence.
-        var active = Current;
-        while (active is not null && !ReferenceEquals(active, this)) active = active._previous;
-        if (active is null) return;
+        if (!IsActive()) return;
         lock (_gate)
         {
             foreach (var item in appended)
             {
-                if (_committing.Value == 0) Record("immediate_append", item.Event.Content.GetType(), "Would be refused while reads are protected");
-                if (!item.Result.IsSuccess)
-                {
-                    Record("conflict_today", reason: "Existing append failure");
-                    continue;
-                }
-                if (item.Event.Context.SequenceNumber.IsActualValue)
-                {
-                    if (_ownPositions.Count >= 4096)
-                    {
-                        Unavailable("Own-position observation limit");
-                        return;
-                    }
-                    _ownPositions.Add(item.Event.Context.SequenceNumber);
-                }
-                foreach (var read in _reads.Where(_ => _.Matches(item.Event.Context))) Record("self_write", read.Model, $"Own event at {item.Event.Context.SequenceNumber} matches the read; excluded from foreign conflicts");
+                if (!ObserveAppended(item)) return;
             }
         }
+    }
+
+    bool IsActive()
+    {
+        // Notifications run on the producer's async flow. Correlation is deliberately NOT attribution evidence.
+        var active = Current;
+        while (active is not null && !ReferenceEquals(active, this)) active = active._previous;
+        return active is not null;
+    }
+
+    bool ObserveAppended(AppendedEventWithResult item)
+    {
+        if (_committing.Value == 0) Record("immediate_append", item.Event.Content.GetType(), "Would be refused while reads are protected");
+        if (!item.Result.IsSuccess)
+        {
+            Record("conflict_today", reason: "Existing append failure");
+            return true;
+        }
+        if (!TrackOwnPosition(item.Event.Context.SequenceNumber)) return false;
+        foreach (var read in _reads.Where(_ => _.Matches(item.Event.Context))) Record("self_write", read.Model, $"Own event at {item.Event.Context.SequenceNumber} matches the read; excluded from foreign conflicts");
+        return true;
+    }
+
+    bool TrackOwnPosition(EventSequenceNumber position)
+    {
+        if (!position.IsActualValue) return true;
+        if (_ownPositions.Count >= 4096)
+        {
+            Unavailable("Own-position observation limit");
+            return false;
+        }
+        _ownPositions.Add(position);
+        return true;
+    }
+
+    void ClassifyReadModelParameter(ParameterInfo parameter)
+    {
+        var type = parameter.ParameterType;
+        var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? type.GetCustomAttribute<UnprotectedAttribute>();
+        lock (_gate)
+        {
+            _advisory[type] = advisory is null ? null : advisory.Reason ?? "Declared advisory";
+            _explicitLookups[type] = CommandAttributePolicy.HasExplicitLookup(parameter);
+        }
+        if (!PerStreamReadModelBinding.IsDeclared(type)) Classify(type, advisory?.Reason, advisory is not null);
+    }
+
+    void ClassifyDependency(Type type)
+    {
+        var api = ReadProtectionMeasurementRules.ReadApiName(type);
+        if (api is not null)
+        {
+            Record("refused_read", type, api);
+        }
+        else if (!typeof(IDecisionReads).IsAssignableFrom(type))
+        {
+            Record("unknown_dependency", type, "Outside the read-protection guarantee");
+        }
+    }
+
+    void ScheduleScan()
+    {
+        if (_unavailable || Boundary is not { } boundary || EventLog is not { } log) return;
+        if (Random.Shared.NextDouble() >= SampleRate) return;
+        MeasuredRead[] reads;
+        EventSequenceNumber[] own;
+        lock (_gate)
+        {
+            reads = _reads.ToArray();
+            own = _ownPositions.ToArray();
+        }
+        if (reads.Length == 0) return;
+        if (Queue?.Enqueue(new(Context.Type, log, boundary, reads, own, ScanLimit, ScanTimeout, Logger)) != true) Unavailable("Scan queue unavailable");
     }
 
     void Classify(Type model, string? reason, bool advisory)
@@ -342,7 +379,8 @@ internal sealed class ReadProtectionMeasurement
             return;
         }
         var description = Describe(model);
-        Record(description.Admission.IsAdmitted && !description.UsesPinnedGenerationDelivery ? "protected_read" : "refused_read", model, description.Admission.IsAdmitted && !description.UsesPinnedGenerationDelivery ? "Would be protected" : Refusal(description));
+        var protectable = ReadProtectionMeasurementRules.IsProtectable(description);
+        Record(protectable ? "protected_read" : "refused_read", model, protectable ? "Would be protected" : Refusal(description));
     }
 
     DecisionReadDescription Describe(Type model) => ReadModelDispatch.For(model).Describe(DecisionReads);
@@ -356,8 +394,7 @@ internal sealed class ReadProtectionMeasurement
                 Unavailable("Read observation limit");
                 return;
             }
-            if (read.Model is not null && read.Source is { IsSpecified: true } source &&
-                _reads.Exists(previous => previous.Model is not null && previous.Source?.Value == source.Value && StreamDimensions(previous) != StreamDimensions(read)))
+            if (CoarsensEarlierRead(read))
             {
                 Record("coarsened", read.Model, "stream_dims_dropped");
             }
@@ -369,11 +406,7 @@ internal sealed class ReadProtectionMeasurement
     void ObserveDisplacement(MeasuredRead read, ConcurrencyScope scope, string reason)
     {
         Record("displacement", read.Model, $"{reason} alongside a same-source read would need reconciliation under On");
-        var narrower = (scope.EventStreamType is { IsAll: false } type && type != read.StreamType) ||
-            (scope.EventStreamId is { IsDefault: false } id && id != read.StreamId) ||
-            (scope.EventSourceType is { } sourceType && sourceType != EventSourceType.Default && sourceType != EventSourceType.Unspecified && sourceType != read.SourceType);
-        var later = Boundary is { } boundary && scope.SequenceNumber.IsActualValue && (!boundary.IsActualValue || scope.SequenceNumber > boundary);
-        if (narrower || later || scope == ConcurrencyScope.None || scope == ConcurrencyScope.NotSet || scope.IsIncomplete)
+        if (ReadProtectionMeasurementRules.WouldRefuse(read, scope, Boundary))
         {
             Record("scope_refusal", read.Model, $"{reason} is narrower than the read, later than G0, or incomplete; would be refused under On");
         }
