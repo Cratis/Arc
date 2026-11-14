@@ -1,6 +1,6 @@
 ---
 title: Request-scoped context values in Cratis Arc
-description: Read model-provided values, such as the vessel being viewed, in Cratis Arc command handlers, query performers, policies and validation rules, resolved once per request.
+description: Read model-provided values like the vessel being viewed in Arc command handlers, query performers, policies and validation rules, resolved once per request.
 ---
 
 A model can add values to `$context` with `provide`: the vessel being viewed, the project the user works in. Arc resolves each value lazily, once, for the request that reads it, and every reader in the request sees the same value: gates, command handlers, query performers, policies and validation rules.
