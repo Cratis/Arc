@@ -103,22 +103,6 @@ public class CompilationAnalysis
         SpecificationCatalog.Read(_models, _catalog, slices, diagnostics, heldValues);
 
     /// <summary>
-    /// Reads every scenario this project specifies a slice of the application by, matching query scenarios against the
-    /// queries the application declares.
-    /// </summary>
-    /// <param name="slices">The namespaces a slice was recovered from, across every project.</param>
-    /// <param name="diagnostics">The diagnostics to report to.</param>
-    /// <param name="heldValues">The held values cached for the analysis.</param>
-    /// <param name="queries">The queries the application declares, across every project.</param>
-    /// <returns>The scenarios, arranged under the slice each belongs to.</returns>
-    internal SpecificationCatalog Specifications(
-        IEnumerable<string> slices,
-        ScreenplayDiagnostics diagnostics,
-        HeldValues heldValues,
-        IReadOnlyList<SpecificationQueryCatalog.Entry> queries) =>
-        SpecificationCatalog.Read(_models, _catalog, slices, diagnostics, heldValues, queries);
-
-    /// <summary>
     /// Attaches the rules the validators of this project declare to the concepts they validate.
     /// </summary>
     /// <remarks>
@@ -138,4 +122,20 @@ public class CompilationAnalysis
     /// </remarks>
     public bool ReportCompilationErrors(ScreenplayDiagnostics diagnostics) =>
         CompilationErrors.Report(Compilation, _recovered, diagnostics);
+
+    /// <summary>
+    /// Reads every scenario this project specifies a slice of the application by, matching query scenarios against the
+    /// queries the application declares.
+    /// </summary>
+    /// <param name="slices">The namespaces a slice was recovered from, across every project.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="heldValues">The held values cached for the analysis.</param>
+    /// <param name="queries">The queries the application declares, across every project.</param>
+    /// <returns>The scenarios, arranged under the slice each belongs to.</returns>
+    internal SpecificationCatalog Specifications(
+        IEnumerable<string> slices,
+        ScreenplayDiagnostics diagnostics,
+        HeldValues heldValues,
+        IReadOnlyList<SpecificationQueryCatalog.Entry> queries) =>
+        SpecificationCatalog.Read(_models, _catalog, slices, diagnostics, heldValues, queries);
 }

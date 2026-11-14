@@ -44,6 +44,16 @@ public class SpecificationCatalog
         Read(models, catalog, slices, diagnostics, heldValues, []);
 
     /// <summary>
+    /// Gets the specifications belonging to a slice.
+    /// </summary>
+    /// <param name="namespace">The namespace of the slice.</param>
+    /// <returns>The specifications, ordered by name.</returns>
+    public IEnumerable<SpecificationModel> For(string @namespace) =>
+        _bySlice.TryGetValue(@namespace, out var specifications)
+            ? specifications.OrderBy(_ => _.Name, StringComparer.Ordinal)
+            : [];
+
+    /// <summary>
     /// Reads every specification the compilation declares, matching query scenarios against the declared queries.
     /// </summary>
     /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
@@ -96,16 +106,6 @@ public class SpecificationCatalog
 
         return new(bySlice);
     }
-
-    /// <summary>
-    /// Gets the specifications belonging to a slice.
-    /// </summary>
-    /// <param name="namespace">The namespace of the slice.</param>
-    /// <returns>The specifications, ordered by name.</returns>
-    public IEnumerable<SpecificationModel> For(string @namespace) =>
-        _bySlice.TryGetValue(@namespace, out var specifications)
-            ? specifications.OrderBy(_ => _.Name, StringComparer.Ordinal)
-            : [];
 
     /// <summary>
     /// Reports a scenario a slice is specified by that the language has nowhere to put.
