@@ -194,7 +194,7 @@ For exact field matching outside CommandForm, filter `validationResults` by memb
 | --- | --- |
 | `pending` | A validation is in flight or, for the server, waiting behind `autoServerValidateThrottle`. |
 | `freshness` | `unvalidated`, `stale` (the verdict describes earlier values) or `current`. |
-| `verdict` | `unknown`, `valid`, `invalid` or `error` (the attempt failed - exception, `validatorFailed`, `dependencyUnavailable`, `malformedRequest`, `frameworkFailure`). |
+| `verdict` | `unknown`, `valid`, `invalid` or `error` (the attempt failed - exception, `validatorFailed`, `dependencyUnavailable`, `malformedRequest`, `frameworkFailure`). A command without a server handler currently also reports `error`, because the result carries no machine-readable marker for that case. |
 | `validatedVersion` | The revision of the form values the verdict describes. |
 | `notRunReason` | `unauthorized` when the server refused before any rule ran, `serverValidationDisabled` when `autoServerValidate` is off. |
 
