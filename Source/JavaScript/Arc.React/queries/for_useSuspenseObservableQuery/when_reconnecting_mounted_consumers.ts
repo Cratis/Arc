@@ -21,7 +21,7 @@ function Consumer({ id }: { id: string }) {
     return React.createElement('div', { 'data-testid': id }, result.data[0]?.name);
 }
 
-describe.each([1, 2])('when reconnecting %s mounted suspense observable consumers', (consumerCount) => {
+const describeReconnectingMountedConsumers = (consumerCount: number) => describe(`when reconnecting ${consumerCount} mounted suspense observable consumers`, () => {
     let rendered: ReturnType<typeof render>;
     let reconnect: () => void;
     let removeSecondConsumer: () => void;
@@ -93,3 +93,6 @@ describe.each([1, 2])('when reconnecting %s mounted suspense observable consumer
         FakeSuspenseObservableQuery.unsubscribeCallCount.should.equal(3);
     });
 });
+
+describeReconnectingMountedConsumers(1);
+describeReconnectingMountedConsumers(2);

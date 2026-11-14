@@ -31,7 +31,7 @@ function readyResult(name: string) {
     }, Object, true);
 }
 
-describe.each([false, true])('when suspense observable queries share a minified class name with generated names: %s', (generatedNames) => {
+const describeSharedMinifiedClassName = (generatedNames: boolean) => describe(`when suspense observable queries share a minified class name with generated names: ${generatedNames}`, () => {
     const First = createQuery(generatedNames ? 'Namespace.First.Query' : undefined);
     const Second = createQuery(generatedNames ? 'Namespace.Second.Query' : undefined);
 
@@ -65,3 +65,6 @@ describe.each([false, true])('when suspense observable queries share a minified 
         (screen.getByTestId('second').textContent ?? '').should.equal('Second');
     });
 });
+
+describeSharedMinifiedClassName(false);
+describeSharedMinifiedClassName(true);

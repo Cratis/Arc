@@ -3,14 +3,14 @@
 
 import { QueryInstanceCache } from '../../QueryInstanceCache.js';
 
-describe.each([false, true])('when reconnecting a released entry with a subscription: %s', (hasSubscription) => {
+const describeReconnectingARetainedEntry = (hasSubscription: boolean) => describe(`when reconnecting a released entry with a subscription: ${hasSubscription}`, () => {
     let cache: QueryInstanceCache;
-    let teardown: ReturnType<typeof vi.fn>;
+    let teardown: ReturnType<typeof vi.fn<() => void>>;
 
     beforeEach(() => {
         vi.useFakeTimers();
         cache = new QueryInstanceCache(1000);
-        teardown = vi.fn();
+        teardown = vi.fn<() => void>();
         cache.getOrCreate('RetainedQuery::', () => ({}));
         cache.acquire('RetainedQuery::');
         if (hasSubscription) {
@@ -47,3 +47,6 @@ describe.each([false, true])('when reconnecting a released entry with a subscrip
         cache.has('RetainedQuery::').should.be.false;
     });
 });
+
+describeReconnectingARetainedEntry(false);
+describeReconnectingARetainedEntry(true);

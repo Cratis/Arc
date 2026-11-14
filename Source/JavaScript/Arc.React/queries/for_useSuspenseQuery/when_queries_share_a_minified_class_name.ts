@@ -34,7 +34,7 @@ function tree(first: React.ComponentType, second: React.ComponentType) {
             React.createElement(first), React.createElement(second)));
 }
 
-describe.each([false, true])('when suspense queries share a minified class name with generated names: %s', (generatedNames) => {
+const describeSharedMinifiedClassName = (generatedNames: boolean) => describe(`when suspense queries share a minified class name with generated names: ${generatedNames}`, () => {
     const First = createQuery('/api/first', generatedNames ? 'Namespace.First.Query' : undefined);
     const Second = createQuery('/api/second', generatedNames ? 'Namespace.Second.Query' : undefined);
     let fetchHelper: ReturnType<typeof createFetchHelper>;
@@ -75,3 +75,6 @@ describe.each([false, true])('when suspense queries share a minified class name 
         (screen.getByTestId('second').textContent ?? '').should.equal('First');
     });
 });
+
+describeSharedMinifiedClassName(false);
+describeSharedMinifiedClassName(true);
