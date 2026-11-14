@@ -41,6 +41,8 @@ Returning within the retention window reuses the entry's latest result and live 
 
 The retention timer starts when the last consumer releases an entry, not when the query first runs. After `queryCacheRetentionMs`, which defaults to 30,000 ms, Arc removes the entry and tears down its observable subscription. A returning consumer cancels pending eviction and can reuse the data and subscription.
 
+Reconnecting tears down observable subscriptions without clearing cached data or changing released entries' eviction deadlines. An entry with no consumers still expires on its original schedule, even after repeated reconnects. A returning consumer cancels that eviction; its next release starts a new retention window.
+
 For an observable entry, the lifecycle is:
 
 ```mermaid

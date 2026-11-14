@@ -147,6 +147,18 @@ export class CommandScopeImplementation extends ICommandScope {
     }
 
     /** @inheritdoc */
+    removeCommand(command: ICommand): void {
+        if (!this._commands.includes(command)) {
+            return;
+        }
+
+        this._commands = this._commands.filter(_ => _ !== command);
+        this._validationFailures.delete(command);
+        this._exceptions.delete(command);
+        this.evaluateHasChanges();
+    }
+
+    /** @inheritdoc */
     addQuery(query: IQueryFor<unknown, unknown>): void {
         if (this._queries.some(_ => _ == query)) {
             return;
@@ -170,22 +182,7 @@ export class CommandScopeImplementation extends ICommandScope {
                 const commandResult = await command.execute();
                 commandsToCommandResult.set(command, commandResult);
 
-                if (commandResult.isSuccess) {
-                    callbacks?.onSuccess?.(command, commandResult);
-                } else {
-                    callbacks?.onFailed?.(command, commandResult);
-                    if (!commandResult.isAuthorized) {
-                        callbacks?.onUnauthorized?.(command, commandResult);
-                    }
-                    if (!commandResult.isValid) {
-                        this._validationFailures.set(command, commandResult.validationResults);
-                        callbacks?.onValidationFailure?.(command, commandResult);
-                    }
-                    if (commandResult.hasExceptions) {
-                        this._exceptions.set(command, commandResult.exceptionMessages);
-                        callbacks?.onException?.(command, commandResult);
-                    }
-                }
+                this.handleCommandResult(command, commandResult, callbacks);
             }
         } finally {
             this.setIsPerforming(false);
@@ -199,6 +196,42 @@ export class CommandScopeImplementation extends ICommandScope {
     revertChanges() {
         this._commands.forEach(command => command.revertChanges());
         this.evaluateHasChanges();
+    }
+
+    private handleCommandResult(command: ICommand, result: CommandResult, callbacks?: CommandScopeCallbacks) {
+        if (result.isSuccess) {
+            callbacks?.onSuccess?.(command, result);
+            return;
+        }
+
+        this.handleCommandFailure(command, result, callbacks);
+    }
+
+    private handleCommandFailure(command: ICommand, result: CommandResult, callbacks?: CommandScopeCallbacks) {
+        callbacks?.onFailed?.(command, result);
+        if (!result.isAuthorized) {
+            callbacks?.onUnauthorized?.(command, result);
+        }
+        this.handleValidationFailure(command, result, callbacks);
+        this.handleException(command, result, callbacks);
+    }
+
+    private handleValidationFailure(command: ICommand, result: CommandResult, callbacks?: CommandScopeCallbacks) {
+        if (!result.isValid) {
+            if (this._commands.includes(command)) {
+                this._validationFailures.set(command, result.validationResults);
+            }
+            callbacks?.onValidationFailure?.(command, result);
+        }
+    }
+
+    private handleException(command: ICommand, result: CommandResult, callbacks?: CommandScopeCallbacks) {
+        if (result.hasExceptions) {
+            if (this._commands.includes(command)) {
+                this._exceptions.set(command, result.exceptionMessages);
+            }
+            callbacks?.onException?.(command, result);
+        }
     }
 
     private setIsPerforming(value: boolean) {

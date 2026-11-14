@@ -12,39 +12,11 @@ import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { useCommandScope } from '../commands/useCommandScope.js';
 import { PerformQuery } from './useQuery.js';
-import { QueryFailed } from './QueryFailed.js';
-import { QueryUnauthorized } from './QueryUnauthorized.js';
+import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
+import { makeSuspenseQueryCacheKey } from './makeSuspenseQueryCacheKey.js';
+import { ensureSuspenseQueryResource, readSuspenseQueryResource, removeSuspenseQueryResource } from './SuspenseQueryResources.js';
 
-type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
-
-interface SuspenseQueryResource<T> {
-    status: SuspenseStatus;
-    promise: Promise<void>;
-    value?: QueryResultWithState<T>;
-    error?: Error;
-}
-
-// Module-level cache so resources survive Suspense retries on uncommitted components
-const _queryCache = new Map<string, SuspenseQueryResource<unknown>>();
-
-/**
- * Clears the Suspense query cache. Call this in test teardown to ensure test isolation.
- */
-export function clearSuspenseQueryCache(): void {
-    _queryCache.clear();
-}
-
-function makeCacheKey(
-    queryName: string,
-    microservice: string,
-    apiBasePath: string,
-    origin: string,
-    sorting: Sorting,
-    paging: Paging,
-    args: unknown
-): string {
-    return `${queryName}:${microservice}:${apiBasePath}:${origin}:${sorting.field ?? ''}:${sorting.direction ?? 0}:${paging.page}:${paging.pageSize}:${JSON.stringify(args)}`;
-}
+export { clearSuspenseQueryCache } from './SuspenseQueryResources.js';
 
 function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
@@ -61,48 +33,31 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
     const cacheKey = isEnabled
-        ? makeCacheKey(
-            (query as unknown as { name: string }).name,
-            arc.microservice,
-            arc.apiBasePath ?? '',
-            arc.origin ?? '',
-            currentSorting,
-            currentPaging,
-            args)
+        ? makeSuspenseQueryCacheKey(resolveSuspenseQueryIdentity(query), arc, {
+            sorting: currentSorting,
+            paging: currentPaging,
+            args,
+        })
         : `__noop__${(query as unknown as { name: string }).name}`;
 
-    if (isEnabled && !_queryCache.has(cacheKey)) {
-        const queryInstance = new query() as TQuery;
-        queryInstance.sorting = currentSorting;
-        queryInstance.paging = currentPaging;
-        queryInstance.setMicroservice(arc.microservice);
-        queryInstance.setApiBasePath(arc.apiBasePath ?? '');
-        queryInstance.setOrigin(arc.origin ?? '');
-        queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-        commandScope.addQuery(queryInstance);
-
-        const resource: SuspenseQueryResource<TDataType> = {
-            status: 'pending',
-            promise: queryInstance.perform(args!).then(queryResult => {
-                if (queryResult.hasExceptions) {
-                    resource.status = 'rejected';
-                    resource.error = new QueryFailed(queryResult.exceptionMessages, queryResult.exceptionStackTrace);
-                } else if (!queryResult.isAuthorized) {
-                    resource.status = 'rejected';
-                    resource.error = new QueryUnauthorized();
-                } else {
-                    resource.status = 'fulfilled';
-                    resource.value = QueryResultWithState.fromQueryResult(queryResult, false);
-                }
-            })
-        };
-        _queryCache.set(cacheKey, resource as SuspenseQueryResource<unknown>);
+    if (isEnabled) {
+        ensureSuspenseQueryResource<TDataType>(cacheKey, () => {
+            const queryInstance = new query() as TQuery;
+            queryInstance.sorting = currentSorting;
+            queryInstance.paging = currentPaging;
+            queryInstance.setMicroservice(arc.microservice);
+            queryInstance.setApiBasePath(arc.apiBasePath ?? '');
+            queryInstance.setOrigin(arc.origin ?? '');
+            queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+            commandScope.addQuery(queryInstance);
+            return queryInstance.perform(args!);
+        });
     }
 
     useEffect(() => {
         return () => {
             if (isEnabled) {
-                _queryCache.delete(cacheKey);
+                removeSuspenseQueryResource(cacheKey);
             }
         };
     }, [cacheKey, isEnabled]);
@@ -118,20 +73,12 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         ];
     }
 
-    const resource = _queryCache.get(cacheKey) as SuspenseQueryResource<TDataType>;
-
-    if (resource.status === 'rejected') {
-        throw resource.error;
-    }
-
-    if (resource.status === 'pending') {
-        throw resource.promise;
-    }
+    const value = readSuspenseQueryResource<TDataType>(cacheKey);
 
     return [
-        resource.value!,
+        value,
         async () => {
-            _queryCache.delete(cacheKey);
+            removeSuspenseQueryResource(cacheKey);
             forceUpdate();
         },
         async (newSorting: Sorting) => {

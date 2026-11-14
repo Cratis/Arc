@@ -94,6 +94,10 @@ Raw hooks are `useSuspenseQuery`, `useSuspenseQueryWithPaging`, `useSuspenseObse
 
 Suspense keeps pending requests and results in module-level caches so a request survives React's attempts to render a waiting component. These caches are separate from `QueryInstanceCache`; its default 30-second retention window does not apply. Separate `<Arc>` providers do not isolate authenticated Suspense data.
 
+Resource keys use generated proxies' backend-qualified `queryName`, not their JavaScript class names, so minification cannot make unrelated queries share data. Custom queries without a generated name get a distinct identity per constructor. Consumers of the same query, arguments, and connection settings still share a resource.
+
+Mounted Suspense observable consumers also respond to `reconnectQueries()` from the Arc context. Reconnecting replaces the subscription once per shared resource, even when several consumers use it. The last ready value stays visible while the replacement becomes ready; existing consumers receive its subsequent updates without remounting. This applies only to mounted consumers and does not change the separate Suspense cache's retention or authentication-isolation limitations described above.
+
 For a successfully rendered ordinary query, `perform()` deletes the cached request and result, then requests another render. Refresh can therefore show the loading fallback again. The delegate reuses the hook's arguments: pass changed arguments to the hook, not to `perform()`. Sorting and page changes select a new cache key.
 
 Calling `reset()` clears the error boundary and remounts its children, but it does not clear a failed query from the cache. If the query failed before the component first rendered successfully, no cleanup effect committed. The remounted component can immediately throw the same cached error without issuing another request. Use ordinary hooks for screens that need explicit failure and refresh controls unless your application has a tested way to recover from these cached failures.
