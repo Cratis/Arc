@@ -134,7 +134,7 @@ public class TypeRegistry
 
         if (CarriedTypes.IsRecord(carried))
         {
-            foreach (var property in carried.DeclaredProperties())
+            foreach (var property in carried.StateProperties())
             {
                 RecordPiiUse(property);
             }

@@ -44,7 +44,11 @@ public static partial class ProjectionExpressionConverter
     /// </summary>
     public const string EnumerationPrefix = "$enum(";
 
-    static readonly string[] _eventContextPaths = ["occurred", "sequenceNumber", "correlationId", "eventSourceId"];
+    static readonly string[] _eventContextPaths =
+    [
+        "occurred", "sequenceNumber", "correlationId", "eventSourceId",
+        "causedBy.subject", "causedBy.name", "causedBy.userName"
+    ];
     static readonly string[] _causedByProperties = ["subject", "name", "userName"];
 
     /// <summary>

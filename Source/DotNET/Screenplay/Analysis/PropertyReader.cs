@@ -32,7 +32,7 @@ public class PropertyReader(TypeRegistry types)
     {
         var properties = new List<PropertyModel>();
 
-        foreach (var property in type.DeclaredProperties())
+        foreach (var property in type.StateProperties())
         {
             types.RecordPiiUse(property);
 
