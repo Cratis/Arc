@@ -372,7 +372,7 @@ export class QueryInstanceCache {
 
     /**
      * Tears down all active subscriptions and marks every entry as not subscribed,
-     * but preserves entries, subscriber counts, and listeners. This allows
+     * but preserves entries, subscriber counts, listeners, and pending eviction timers. This allows
      * hooks whose effects re-run afterward to detect that the entry is no longer
      * subscribed and re-establish a fresh connection.
      *
@@ -387,11 +387,6 @@ export class QueryInstanceCache {
     }
 
     private teardownEntry(entry: QueryCacheEntry<unknown>): void {
-        if (entry.pendingCleanup !== undefined) {
-            clearTimeout(entry.pendingCleanup);
-            entry.pendingCleanup = undefined;
-        }
-
         entry.subscribed = false;
         entry.teardown?.();
         entry.teardown = undefined;
@@ -404,6 +399,11 @@ export class QueryInstanceCache {
      */
     dispose(): void {
         this.teardownAllSubscriptions();
+        for (const entry of this._entries.values()) {
+            if (entry.pendingCleanup !== undefined) {
+                clearTimeout(entry.pendingCleanup);
+            }
+        }
         this._entries.clear();
     }
 
