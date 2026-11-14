@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Queries;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -39,10 +40,40 @@ public class SpecificationCatalog
         ArtifactCatalog catalog,
         IEnumerable<string> slices,
         ScreenplayDiagnostics diagnostics,
-        HeldValues? heldValues = null)
+        HeldValues? heldValues = null) =>
+        Read(models, catalog, slices, diagnostics, heldValues, []);
+
+    /// <summary>
+    /// Gets the specifications belonging to a slice.
+    /// </summary>
+    /// <param name="namespace">The namespace of the slice.</param>
+    /// <returns>The specifications, ordered by name.</returns>
+    public IEnumerable<SpecificationModel> For(string @namespace) =>
+        _bySlice.TryGetValue(@namespace, out var specifications)
+            ? specifications.OrderBy(_ => _.Name, StringComparer.Ordinal)
+            : [];
+
+    /// <summary>
+    /// Reads every specification the compilation declares, matching query scenarios against the declared queries.
+    /// </summary>
+    /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
+    /// <param name="catalog">The catalogue of everything the compilation declares.</param>
+    /// <param name="slices">The namespaces a slice was recovered from.</param>
+    /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
+    /// <param name="heldValues">The held values cached for the analysis.</param>
+    /// <param name="queries">The queries the application declares, which a query scenario's call is matched against.</param>
+    /// <returns>The <see cref="SpecificationCatalog"/>.</returns>
+    internal static SpecificationCatalog Read(
+        SemanticModels models,
+        ArtifactCatalog catalog,
+        IEnumerable<string> slices,
+        ScreenplayDiagnostics diagnostics,
+        HeldValues? heldValues,
+        IReadOnlyList<SpecificationQueryCatalog.Entry> queries)
     {
         var reader = new SpecificationReader(models, diagnostics, heldValues);
         var reactors = new ReactorSpecificationReader(models, diagnostics, heldValues);
+        var queryScenarios = new SpecificationQueryBridge(models, queries, diagnostics);
         var theories = new SpecificationTheories(models, diagnostics);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
@@ -52,7 +83,7 @@ public class SpecificationCatalog
         {
             if (!reader.IsSpecification(type))
             {
-                ReadOtherScenario(type, reader, reactors, (placement, bySlice, diagnostics));
+                ReadOtherScenario(type, (reader, reactors, queryScenarios), (placement, bySlice, diagnostics));
                 continue;
             }
 
@@ -75,16 +106,6 @@ public class SpecificationCatalog
 
         return new(bySlice);
     }
-
-    /// <summary>
-    /// Gets the specifications belonging to a slice.
-    /// </summary>
-    /// <param name="namespace">The namespace of the slice.</param>
-    /// <returns>The specifications, ordered by name.</returns>
-    public IEnumerable<SpecificationModel> For(string @namespace) =>
-        _bySlice.TryGetValue(@namespace, out var specifications)
-            ? specifications.OrderBy(_ => _.Name, StringComparer.Ordinal)
-            : [];
 
     /// <summary>
     /// Reports a scenario a slice is specified by that the language has nowhere to put.
@@ -114,22 +135,30 @@ public class SpecificationCatalog
     /// Reads a scenario that is not a specification: a reactor scenario, or one written in a form with no counterpart.
     /// </summary>
     /// <param name="type">The type declaring the scenario.</param>
-    /// <param name="reader">The reader of specifications.</param>
-    /// <param name="reactors">The reader of reactor scenarios.</param>
+    /// <param name="readers">The readers of specifications, of reactor scenarios and of query scenarios.</param>
     /// <param name="target">Where the scenario is placed and reported.</param>
     static void ReadOtherScenario(
         INamedTypeSymbol type,
-        SpecificationReader reader,
-        ReactorSpecificationReader reactors,
+        (SpecificationReader Specifications, ReactorSpecificationReader Reactors, SpecificationQueryBridge Queries) readers,
         (SpecificationPlacement Placement, Dictionary<string, List<SpecificationModel>> BySlice, ScreenplayDiagnostics Diagnostics) target)
     {
         if (ReactorSpecificationReader.ReactorOf(type) is { } reactor)
         {
-            ReadReactorScenario(type, reactor, reactors, target.Placement, target.BySlice, target.Diagnostics);
+            ReadReactorScenario(type, reactor, readers.Reactors, target.Placement, target.BySlice, target.Diagnostics);
             return;
         }
 
-        Report(reader.ScenarioWithoutCounterpart(type), type, target.Diagnostics);
+        if (readers.Queries.TryRead(type, target.Placement, out var read))
+        {
+            if (read is { } recovered)
+            {
+                Add(target.BySlice, recovered.Slice, recovered.Specification);
+            }
+
+            return;
+        }
+
+        Report(readers.Specifications.ScenarioWithoutCounterpart(type), type, target.Diagnostics);
     }
 
     /// <summary>
