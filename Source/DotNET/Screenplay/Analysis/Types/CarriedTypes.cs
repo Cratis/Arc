@@ -64,7 +64,7 @@ public static class CarriedTypes
     /// <param name="walked">The records already walked.</param>
     static void Walk(ITypeSymbol type, Dictionary<string, ITypeSymbol> found, HashSet<string> walked)
     {
-        foreach (var property in type.DeclaredProperties())
+        foreach (var property in type.StateProperties())
         {
             var carried = UnderlyingTypes.Of(property.Type);
             var name = carried.ToDisplayString();

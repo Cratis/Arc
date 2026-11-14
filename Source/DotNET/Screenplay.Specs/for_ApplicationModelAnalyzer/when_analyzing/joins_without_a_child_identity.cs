@@ -42,7 +42,7 @@ public class joins_without_a_child_identity : Specification
     void Because() => _scope = Analyzed.Source(Source).Slice().Projections.Single().Scope;
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn((Analyzed.SlicePath, Source)).ShouldBeEmpty();
-    [Fact] void should_keep_the_explicit_root_key() => _scope.Joins.Single(join => join.EventType == "UnitObserved").On.ShouldEqual("id");
+    [Fact] void should_keep_the_explicit_root_key() => _scope.Joins.Single(join => join.EventType == "UnitObserved").On.ShouldEqual("Id");
     [Fact] void should_keep_the_explicit_root_property() => _scope.Joins.Single(join => join.EventType == "UnitObserved").Property.ShouldEqual("Unit");
     [Fact] void should_not_invent_a_root_key() => _scope.Joins.Single(join => join.EventType == "MonthOpened").On.ShouldEqual(string.Empty);
     [Fact] void should_not_invent_a_root_property() => _scope.Joins.Single(join => join.EventType == "MonthOpened").Property.ShouldEqual(string.Empty);

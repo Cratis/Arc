@@ -130,7 +130,6 @@ public static class SymbolExtensions
     /// <param name="symbol">The type to read.</param>
     /// <returns>The properties, base types first and in declaration order within each type.</returns>
     /// <remarks>
-    /// Get-only properties with an expression or getter body are computed values, not stored state, and are excluded.
     /// A property declared on a base record is part of what the type carries just as much as one declared on the type
     /// itself - it is serialized, it is sent, and a document leaving it out describes a shape that does not exist.
     /// <para>
@@ -154,6 +153,19 @@ public static class SymbolExtensions
             .SelectMany(InDeclarationOrder)
             .Where(_ => seen.Add(_.Name));
     }
+
+    /// <summary>
+    /// Gets the public instance properties representing stored state, including inherited properties.
+    /// </summary>
+    /// <param name="symbol">The type to read.</param>
+    /// <returns>The non-computed properties in declaration order.</returns>
+    /// <remarks>
+    /// Get-only properties with an expression or getter body are excluded from declarations and carried shapes.
+    /// Behavioral analysis uses <see cref="DeclaredProperties"/> so computed members still participate in
+    /// fixture-completeness checks and construction diagnostics.
+    /// </remarks>
+    public static IEnumerable<IPropertySymbol> StateProperties(this ITypeSymbol symbol) =>
+        symbol.DeclaredProperties().Where(_ => !IsComputed(_));
 
     /// <summary>
     /// Gets the path of the file a symbol is declared in.
@@ -188,7 +200,7 @@ public static class SymbolExtensions
     static IEnumerable<IPropertySymbol> InDeclarationOrder(ITypeSymbol symbol) =>
         symbol.GetMembers()
             .OfType<IPropertySymbol>()
-            .Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer && _.Name != "EqualityContract" && !IsComputed(_))
+            .Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer && _.Name != "EqualityContract")
             .OrderBy(DeclaredIn, StringComparer.Ordinal);
 
     /// <summary>

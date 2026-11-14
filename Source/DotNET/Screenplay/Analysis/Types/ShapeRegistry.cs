@@ -105,7 +105,7 @@ public class ShapeRegistry
 
         _declaredFrom[name] = full;
 
-        var properties = type.DeclaredProperties().Select(_ => new PropertyModel(_.Name, resolve(_.Type))).ToList();
+        var properties = type.StateProperties().Select(_ => new PropertyModel(_.Name, resolve(_.Type))).ToList();
         if (properties.Count == 0)
         {
             _declaredFrom.Remove(name);

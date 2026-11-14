@@ -81,64 +81,9 @@ public class DeclarableShapes(TypeRegistry types, IReadOnlySet<string> readModel
     /// <returns>The path of the property and why it cannot be typed, or <see langword="null"/> when every value can.</returns>
     (string Property, string Reason)? FirstUndeclarable(ITypeSymbol type, string path, Dictionary<string, string> reached)
     {
-        foreach (var property in type.DeclaredProperties())
+        foreach (var property in type.StateProperties())
         {
-            var at = $"{path}{property.Name}";
-            if (HoldsNullableElements(property.Type))
-            {
-                return (at, "as a collection whose elements may be null, which a declaration cannot say - 'optional' on a collection says only that the collection may be absent");
-            }
-
-            var carried = UnderlyingTypes.Of(property.Type);
-
-            // Unnameable properties are omitted uniformly during emission, including inside carried records.
-            if (IsPrimitive(carried) || TypeRegistry.CannotNameCarried(carried))
-            {
-                continue;
-            }
-
-            var isConcept = IsConcept(carried);
-            if (!isConcept && !CarriedTypes.IsRecord(carried))
-            {
-                return (at, $"as '{carried.ToDisplayString()}', which the document has no type for");
-            }
-
-            var full = carried.ToDisplayString();
-            var name = naming.ToDeclarationName(carried.Name);
-            if (reached.TryGetValue(name, out var other))
-            {
-                if (string.Equals(other, full, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                return (at, $"as '{full}', and it also holds '{other}', which is declared under the same name '{name}'");
-            }
-
-            reached[name] = full;
-
-            if (readModels.Contains(name))
-            {
-                return (at, $"as '{full}', whose name '{name}' is the name of a read model");
-            }
-
-            if (!types.WouldResolveTo(carried) ||
-                types.Names.Any(_ => !string.Equals(_, carried.Name, StringComparison.Ordinal) && naming.ToDeclarationName(_) == name))
-            {
-                return (at, $"as '{full}', and the document already declares something else as '{name}'");
-            }
-
-            if (isConcept)
-            {
-                continue;
-            }
-
-            if (!carried.DeclaredProperties().Any())
-            {
-                return (at, $"as '{full}', which the document has no type for");
-            }
-
-            if (FirstUndeclarable(carried, $"{at}.", reached) is { } undeclarable)
+            if (UndeclarableProperty(property, path, reached) is { } undeclarable)
             {
                 return undeclarable;
             }
@@ -146,4 +91,90 @@ public class DeclarableShapes(TypeRegistry types, IReadOnlySet<string> readModel
 
         return null;
     }
+
+    /// <summary>
+    /// Checks the stored value of one property before following the declaration of its type.
+    /// </summary>
+    /// <param name="property">The property to check.</param>
+    /// <param name="path">The path of the record holding the property.</param>
+    /// <param name="reached">The full name of every concept and record reached so far, by declaration name.</param>
+    /// <returns>The property and reason it cannot be declared, or <see langword="null"/>.</returns>
+    (string Property, string Reason)? UndeclarableProperty(IPropertySymbol property, string path, Dictionary<string, string> reached)
+    {
+        var at = $"{path}{property.Name}";
+        if (HoldsNullableElements(property.Type))
+        {
+            return (at, "as a collection whose elements may be null, which a declaration cannot say - 'optional' on a collection says only that the collection may be absent");
+        }
+
+        var carried = UnderlyingTypes.Of(property.Type);
+
+        // Unnameable properties are omitted uniformly during emission, including inside carried records.
+        if (IsPrimitive(carried) || TypeRegistry.CannotNameCarried(carried))
+        {
+            return null;
+        }
+
+        if (!IsConcept(carried) && !CarriedTypes.IsRecord(carried))
+        {
+            return (at, $"as '{carried.ToDisplayString()}', which the document has no type for");
+        }
+
+        var full = carried.ToDisplayString();
+        var name = naming.ToDeclarationName(carried.Name);
+        if (reached.TryGetValue(name, out var other))
+        {
+            return string.Equals(other, full, StringComparison.Ordinal)
+                ? null
+                : (at, $"as '{full}', and it also holds '{other}', which is declared under the same name '{name}'");
+        }
+
+        reached[name] = full;
+
+        return UndeclarableDeclaration(carried, at, reached);
+    }
+
+    /// <summary>
+    /// Checks a newly reached declaration and then walks its stored properties.
+    /// </summary>
+    /// <param name="carried">The type requiring a declaration.</param>
+    /// <param name="at">The path of the property carrying the type.</param>
+    /// <param name="reached">The full name of every concept and record reached so far, by declaration name.</param>
+    /// <returns>The property and reason it cannot be declared, or <see langword="null"/>.</returns>
+    (string Property, string Reason)? UndeclarableDeclaration(ITypeSymbol carried, string at, Dictionary<string, string> reached)
+    {
+        var full = carried.ToDisplayString();
+        var name = naming.ToDeclarationName(carried.Name);
+        if (readModels.Contains(name))
+        {
+            return (at, $"as '{full}', whose name '{name}' is the name of a read model");
+        }
+
+        if (HasConflictingDeclaration(carried, name))
+        {
+            return (at, $"as '{full}', and the document already declares something else as '{name}'");
+        }
+
+        if (IsConcept(carried))
+        {
+            return null;
+        }
+
+        if (!carried.StateProperties().Any())
+        {
+            return (at, $"as '{full}', which the document has no type for");
+        }
+
+        return FirstUndeclarable(carried, $"{at}.", reached);
+    }
+
+    /// <summary>
+    /// Determines whether another type already occupies the declaration name of a carried value.
+    /// </summary>
+    /// <param name="carried">The type requiring a declaration.</param>
+    /// <param name="name">The declaration name.</param>
+    /// <returns>True when the declaration would refer to a different type.</returns>
+    bool HasConflictingDeclaration(ITypeSymbol carried, string name) =>
+        !types.WouldResolveTo(carried) ||
+        types.Names.Any(_ => !string.Equals(_, carried.Name, StringComparison.Ordinal) && naming.ToDeclarationName(_) == name);
 }
