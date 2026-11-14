@@ -1,6 +1,6 @@
 ---
 title: Command operations that invoke Screenplay abilities in Cratis Arc
-description: Back a Cratis Arc command operation with the abilities of a Screenplay system, run them before commit, compensate when the command does not commit, and substitute them in specifications.
+description: Back a Cratis Arc command operation with Screenplay system abilities, run them before commit, compensate if the command fails, and substitute them in specs.
 ---
 
 A Screenplay model can say that a command's operation phases call abilities of an external system. This page shows how an [Arc command operation](index.md) is written so that it runs those abilities inside the command request, and how Arc reads the operation back into a model.

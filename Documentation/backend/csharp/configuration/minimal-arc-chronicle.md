@@ -1,6 +1,6 @@
 ---
 title: Minimal Cratis Arc and Chronicle setup
-description: Start an ASP.NET Core application with Cratis Arc and a separate Chronicle event store, understand the identity defaults, and choose explicit registration when needed.
+description: Start an ASP.NET Core app with Cratis Arc and a separate Chronicle event store, learn the identity defaults, and choose explicit registration when needed.
 ---
 
 Use the `Cratis` composition package to register Arc, the Chronicle client, and the Microsoft Identity Platform forwarded-header authentication scheme together. Arc itself does not require Chronicle; see [Arc alone](minimal-arc.md).
