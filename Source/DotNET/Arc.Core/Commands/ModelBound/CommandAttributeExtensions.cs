@@ -19,6 +19,13 @@ public static class CommandAttributeExtensions
     public static bool IsCommand(this Type type) => type.HasAttribute<CommandAttribute>() && type.HasHandleMethod();
 
     /// <summary>
+    /// Checks whether the type is marked for protocol-only command execution.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>True if the type is directly marked with <see cref="ProtocolOnlyAttribute"/>.</returns>
+    public static bool IsProtocolOnly(this Type type) => type.IsDefined(typeof(ProtocolOnlyAttribute), inherit: false);
+
+    /// <summary>
     /// Check if a type has a Handle method that takes a single argument of type object.
     /// </summary>
     /// <param name="type">Type to check.</param>
