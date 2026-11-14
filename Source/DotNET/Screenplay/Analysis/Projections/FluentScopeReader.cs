@@ -47,6 +47,56 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
             .FirstOrDefault(_ => _ is not null);
 
     /// <summary>
+    /// Supplies the identity implicit in a child collection's joins without replacing explicit mappings.
+    /// </summary>
+    /// <param name="joins">The joins declared within the collection.</param>
+    /// <param name="identifiedBy">The property identifying each child.</param>
+    static void WithChildIdentity(IList<ProjectionJoinModel> joins, string identifiedBy)
+    {
+        if (identifiedBy.Length == 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < joins.Count; index++)
+        {
+            joins[index] = WithChildIdentity(joins[index], identifiedBy);
+        }
+    }
+
+    /// <summary>
+    /// Fills the missing identity paths of a single child join.
+    /// </summary>
+    /// <param name="join">The join to complete.</param>
+    /// <param name="identifiedBy">The property identifying each child.</param>
+    /// <returns>The join with explicit identity paths preserved.</returns>
+    static ProjectionJoinModel WithChildIdentity(ProjectionJoinModel join, string identifiedBy) => join with
+    {
+        On = join.On.Length == 0 ? identifiedBy : join.On,
+        Property = join.Property.Length == 0 ? identifiedBy : join.Property
+    };
+
+    /// <summary>
+    /// Reads a collection identity, leaving nested objects unidentified.
+    /// </summary>
+    /// <param name="call">The call declaring the child scope.</param>
+    /// <param name="body">The body configuring the scope.</param>
+    /// <returns>The declared collection identity, or an empty string.</returns>
+    static string ChildIdentity(InvocationExpressionSyntax call, SyntaxNode body) =>
+        string.Equals(InvocationChain.NameOf(call), "Children", StringComparison.Ordinal) ? IdentifiedBy(body) ?? string.Empty : string.Empty;
+
+    /// <summary>
+    /// Tells whether a fluent call only configures how the projection runs.
+    /// </summary>
+    /// <param name="name">The name of the call.</param>
+    /// <returns>True when the call configures the runtime rather than document state.</returns>
+    static bool ConfiguresRuntime(string name) => name switch
+    {
+        "Passive" or "NotRewindable" or "ContainerName" or "WithInitialValues" => true,
+        _ => false
+    };
+
+    /// <summary>
     /// Reads one call of a scope's chain.
     /// </summary>
     /// <param name="call">The call to read.</param>
@@ -135,7 +185,7 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
     /// <param name="location">Where the projection lives, for use in diagnostics.</param>
     void ReportUnmappableCall(string name, string location)
     {
-        if (name is "Passive" or "NotRewindable" or "ContainerName" or "WithInitialValues")
+        if (ConfiguresRuntime(name))
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableProjectionConstruct,
@@ -150,45 +200,6 @@ public class FluentScopeReader(ScreenplayDiagnostics diagnostics)
                 location);
         }
     }
-
-    /// <summary>
-    /// Supplies the identity implicit in a child collection's joins without replacing explicit mappings.
-    /// </summary>
-    /// <param name="joins">The joins declared within the collection.</param>
-    /// <param name="identifiedBy">The property identifying each child.</param>
-    static void WithChildIdentity(IList<ProjectionJoinModel> joins, string identifiedBy)
-    {
-        if (identifiedBy.Length == 0)
-        {
-            return;
-        }
-
-        for (var index = 0; index < joins.Count; index++)
-        {
-            joins[index] = WithChildIdentity(joins[index], identifiedBy);
-        }
-    }
-
-    /// <summary>
-    /// Fills the missing identity paths of a single child join.
-    /// </summary>
-    /// <param name="join">The join to complete.</param>
-    /// <param name="identifiedBy">The property identifying each child.</param>
-    /// <returns>The join with explicit identity paths preserved.</returns>
-    static ProjectionJoinModel WithChildIdentity(ProjectionJoinModel join, string identifiedBy) => join with
-    {
-        On = join.On.Length == 0 ? identifiedBy : join.On,
-        Property = join.Property.Length == 0 ? identifiedBy : join.Property
-    };
-
-    /// <summary>
-    /// Reads a collection identity, leaving nested objects unidentified.
-    /// </summary>
-    /// <param name="call">The call declaring the child scope.</param>
-    /// <param name="body">The body configuring the scope.</param>
-    /// <returns>The declared collection identity, or an empty string.</returns>
-    static string ChildIdentity(InvocationExpressionSyntax call, SyntaxNode body) =>
-        InvocationChain.NameOf(call) == "Children" ? IdentifiedBy(body) ?? string.Empty : string.Empty;
 
     /// <summary>
     /// Reads a child collection or a nested object.
