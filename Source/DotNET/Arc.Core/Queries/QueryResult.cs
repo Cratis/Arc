@@ -113,9 +113,20 @@ public partial class QueryResult
     /// Creates a new <see cref="QueryResult"/> representing an unauthorized query execution.
     /// </summary>
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
+    /// <returns>A <see cref="QueryResult"/>.</returns>
+    /// <remarks>
+    /// Kept as a separate overload, not as an optional parameter on <see cref="Unauthorized(CorrelationId, string?)"/>,
+    /// so that assemblies compiled against earlier versions keep binding to this exact signature.
+    /// </remarks>
+    public static QueryResult Unauthorized(CorrelationId correlationId) => Unauthorized(correlationId, null);
+
+    /// <summary>
+    /// Creates a new <see cref="QueryResult"/> representing an unauthorized query execution with a reason.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the query.</param>
     /// <param name="reason">Optional reason for the authorization failure.</param>
     /// <returns>A <see cref="QueryResult"/>.</returns>
-    public static QueryResult Unauthorized(CorrelationId correlationId, string? reason = default) => new() { CorrelationId = correlationId, IsAuthorized = false, AuthorizationFailureReason = reason ?? string.Empty };
+    public static QueryResult Unauthorized(CorrelationId correlationId, string? reason) => new() { CorrelationId = correlationId, IsAuthorized = false, AuthorizationFailureReason = reason ?? string.Empty };
 
     /// <summary>
     /// Creates a new <see cref="QueryResult"/> representing a temporary failure that can succeed when retried.

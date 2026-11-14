@@ -22,9 +22,23 @@ public static class SpecificationQueryCatalog
     /// <param name="context">The analyzed source context.</param>
     /// <returns>The catalog, one entry per declared query.</returns>
     public static IReadOnlyList<Entry> From(DotNetAnalysisContext context) =>
-        [.. context.Projects
+        From(context.Projects
             .Where(project => project.Role == DotNetProjectRole.Application)
-            .SelectMany(project => ArtifactCatalog.From(project.Compilation).Types)
+            .Select(project => ArtifactCatalog.From(project.Compilation)));
+
+    /// <summary>
+    /// Builds the catalog of every query the given catalogues declare.
+    /// </summary>
+    /// <param name="catalogs">The catalogues of the compilations whose queries are catalogued, each taken as the application's own.</param>
+    /// <returns>The catalog, one entry per declared query.</returns>
+    /// <remarks>
+    /// When the generator is handed bare compilations there is no role to tell a specification project from an
+    /// application project, so every compilation is taken as the application's own - the same view the rest of that
+    /// analysis has, which reads queries from every compilation it is handed.
+    /// </remarks>
+    internal static IReadOnlyList<Entry> From(IEnumerable<ArtifactCatalog> catalogs) =>
+        [.. catalogs
+            .SelectMany(catalog => catalog.Types)
             .Where(QueryReader.IsReadModel)
             .SelectMany(readModel => QueryReader.MethodsOf(readModel)
                 .Select(method => new Entry(readModel, method, DotNetMethodSignatures.From(method))))];

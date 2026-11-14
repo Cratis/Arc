@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Policies;
+using Cratis.Arc.Screenplay.Analysis.Queries;
 using Cratis.Arc.Screenplay.Analysis.ReadModels;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
@@ -74,7 +75,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         whole.Elsewhere.ReadRoutes(userInterfaceFiles, ordered.Select((compilation, index) => SourcePaths.RootOf(compilation, catalogs[index])), retained, diagnostics);
         var joined = whole.Elsewhere.Apply(retained);
         var slices = ReadModelPlacement.Place(
-            Specified(projects, joined, diagnostics, new HeldValues(whole.Models)),
+            Specified(projects, joined, diagnostics, (new HeldValues(whole.Models), SpecificationQueryCatalog.From(catalogs))),
             whole.ReadModels,
             whole.Types,
             new ScreenplayNaming(),
@@ -128,7 +129,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     /// <param name="projects">The projects the application is written as, in the order they were read.</param>
     /// <param name="slices">The slices of the application, joined across every project.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
-    /// <param name="heldValues">The held values cached for the analysis.</param>
+    /// <param name="reading">The held values cached for the analysis, and the queries the application declares.</param>
     /// <returns>The slices, each carrying the scenarios it is specified by.</returns>
     /// <remarks>
     /// A scenario is written in one project and reads the symbols of that project's compilation, so it is recovered
@@ -143,10 +144,10 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         IReadOnlyList<CompilationAnalysis> projects,
         IReadOnlyList<SliceModel> slices,
         ScreenplayDiagnostics diagnostics,
-        HeldValues heldValues)
+        (HeldValues HeldValues, IReadOnlyList<SpecificationQueryCatalog.Entry> Queries) reading)
     {
         var namespaces = slices.Select(_ => _.Namespace).ToList();
-        var catalogs = projects.Select(_ => _.Specifications(namespaces, diagnostics, heldValues)).ToList();
+        var catalogs = projects.Select(_ => _.Specifications(namespaces, diagnostics, reading.HeldValues, reading.Queries)).ToList();
 
         return
         [
