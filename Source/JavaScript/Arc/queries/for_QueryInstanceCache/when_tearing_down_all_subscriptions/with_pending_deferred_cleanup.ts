@@ -28,6 +28,6 @@ describe('when tearing down all subscriptions with pending deferred cleanup', ()
     });
 
     it('should call teardown', () => teardownCalled.should.be.true);
-    it('should keep the entry', () => cache.has('MyQuery::').should.be.true);
+    it('should evict the released entry when deferred cleanup fires', () => cache.has('MyQuery::').should.be.false);
     it('should mark the entry as not subscribed', () => cache.isSubscribed('MyQuery::').should.be.false);
 });

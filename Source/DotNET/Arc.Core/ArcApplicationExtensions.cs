@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
@@ -134,7 +135,10 @@ public static class ArcApplicationExtensions
             throw new EndpointGroupsNotSupportedByHost(host);
         }
 
-        var commandTypes = services.GetRequiredService<ICommandHandlerProviders>().Handlers.Select(_ => _.CommandType);
+        // Protocol-only commands are never exposed over HTTP, so their endpoint group needs no port restriction.
+        var commandTypes = services.GetRequiredService<ICommandHandlerProviders>().Handlers
+            .Select(_ => _.CommandType)
+            .Where(_ => !_.IsProtocolOnly());
         var queries = services.GetRequiredService<IQueryPerformerProviders>().Performers;
         if (commandTypes.Any(_ => EndpointGroup.For(_) is not null) || queries.Any(_ => _.GetEndpointGroup() is not null))
         {

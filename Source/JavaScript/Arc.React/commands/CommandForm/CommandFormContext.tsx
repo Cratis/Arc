@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react';
 import type { Constructor } from '@cratis/fundamentals';
 import type { SetCommandValues } from '../useCommand.js';
 import type { ICommandResult } from '@cratis/arc/commands';
+import type { CommandFormValidationChannel, CommandFormValidationState } from './commandFormValidationState.js';
 
 export type BeforeExecuteCallback<TCommand> = (values: TCommand) => TCommand;
 
@@ -54,6 +55,13 @@ export interface CommandFormState {
      * Whether the current identity holds at least one of the roles the command requires.
      */
     isAuthorized: boolean;
+
+    /**
+     * What validation has concluded, per channel, and how fresh that is. Built-in forms always supply it;
+     * treat an absent value as unknown, which is what a custom or mocked state has to say.
+     * A current, valid verdict is a preflight: it never guarantees the command will execute successfully.
+     */
+    validation?: CommandFormValidationState;
 }
 
 /**
@@ -80,6 +88,9 @@ export interface CommandFormContextValue<TCommand> {
     isValid: boolean;
     isAuthorized: boolean;
 
+    /** See {@link CommandFormState.validation}. */
+    validation?: CommandFormValidationState;
+
     /**
      * Whether at least one execution of the command is in flight. Executions are counted rather than
      * flagged, so overlapping submissions keep this true until the last one has settled.
@@ -89,8 +100,10 @@ export interface CommandFormContextValue<TCommand> {
      * Claims a token for a silent validation that is about to be issued. Several validations are
      * legitimately in flight at once, so hand the token back to {@link setSilentValidationResult} and a
      * result that a later one has already overtaken is discarded instead of overwriting it.
+     * @param channel The channel the validation is expected to run on; it is what `validation` reports
+     * as pending meanwhile. Defaults to the client.
      */
-    beginSilentValidation: () => number;
+    beginSilentValidation: (channel?: CommandFormValidationChannel) => number;
 
     /**
      * Applies a silent validation result, which is what drives {@link isValid}.
@@ -100,6 +113,13 @@ export interface CommandFormContextValue<TCommand> {
      * @returns True when the result was applied, false when a later one had already been.
      */
     setSilentValidationResult: (result: ICommandResult<unknown>, issue?: number) => boolean;
+
+    /**
+     * Reports that the validation issued under a token threw, so its channel records an `error` outcome
+     * instead of staying pending. Optional: a custom or mocked context may not supply it.
+     * @param issue The token claimed from {@link beginSilentValidation}.
+     */
+    failSilentValidation?: (issue: number) => void;
     onFieldValidate?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown) => string | undefined;
     onFieldChange?: (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo) => void;
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;

@@ -25,15 +25,15 @@ public class CompiledEventModels(EventModelCatalog catalog)
     public bool TryGet(string projectId, string documentId, [NotNullWhen(true)] out EventModelView? model)
     {
         model = null;
-        if (!catalog.TryGetSource(projectId, documentId, out var source))
+        if (!catalog.TryGetSource(projectId, documentId, out var source, out var origin))
         {
             return false;
         }
 
         model = _models.GetOrAdd(
             (projectId, documentId),
-            static (key, text) => new(() => new EventModelParser().Parse(key.Document, key.Document, text)),
-            source).Value;
+            static (key, document) => new(() => new EventModelParser().Parse(key.Document, key.Document, document.Source, document.Origin)),
+            (Source: source, Origin: origin)).Value;
         return true;
     }
 }

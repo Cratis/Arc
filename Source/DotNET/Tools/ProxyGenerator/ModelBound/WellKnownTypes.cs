@@ -14,6 +14,11 @@ public static class WellKnownTypes
     public const string CommandAttribute = "CommandAttribute";
 
     /// <summary>
+    /// The ProtocolOnlyAttribute type name.
+    /// </summary>
+    public const string ProtocolOnlyAttribute = "ProtocolOnlyAttribute";
+
+    /// <summary>
     /// The ReadModelAttribute type name.
     /// </summary>
     public const string ReadModelAttribute = "ReadModelAttribute";
