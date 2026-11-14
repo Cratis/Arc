@@ -26,7 +26,7 @@ public class with_a_rendered_query_scenario : given.a_rendered_query_scenario
     }
 
     [Fact] void should_generate_a_document_that_binds() => AssertDocument();
-    [Fact] void should_not_leave_the_scenario_out() => Result.Diagnostics.Where(diagnostic => diagnostic.Code is ScreenplayDiagnosticCodes.UnreadableSpecification or ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart).ShouldBeEmpty();
+    [Fact] void should_not_leave_the_scenario_out() => Result.Diagnostics.Where(diagnostic => string.Equals(diagnostic.Code, ScreenplayDiagnosticCodes.UnreadableSpecification, StringComparison.Ordinal) || string.Equals(diagnostic.Code, ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart, StringComparison.Ordinal)).ShouldBeEmpty();
     [Fact] void should_recover_the_query_the_scenario_calls() => _specification.Read!.Query.ShouldEqual("ProjectById");
     [Fact] void should_recover_no_command_to_execute() => _specification.When.ShouldBeNull();
     [Fact] void should_recover_no_given_state() => _specification.Given.ShouldBeEmpty();
