@@ -16,6 +16,7 @@ For Kotlin and Java annotations and their contracts, see the
 | Attribute | Valid on | Effect |
 |---|---|---|
 | `[Command]` | class | Marks a record or class as a command. Arc exposes it, validates and authorizes it, and calls its `Handle()` method. |
+| `[ProtocolOnly]` (`Cratis.Arc.Commands.ModelBound`) | command class | Keeps a `[Command]` available to protocol adapters and `ICommandPipeline`, without generated HTTP execution or validation routes, introspection/OpenAPI entries, or TypeScript command proxies. Does not bypass authorization and is not inherited. See [protocol-only commands](commands/model-bound/index.md#protocol-only-commands). |
 | `[ReadModel]` | class | Marks a type as a read model. Eligible public or internal static methods become queries; private helpers do not. |
 
 ```csharp

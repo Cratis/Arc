@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Approvals;
@@ -30,12 +31,13 @@ public static class CommandEndpointMapper
         var options = arcOptions.GeneratedApis;
         var commandHandlerProviders = serviceProvider.GetRequiredService<ICommandHandlerProviders>();
 
+        var handlers = commandHandlerProviders.Handlers.Where(handler => !handler.CommandType.IsProtocolOnly()).ToArray();
         var handlersByNamespace = EndpointRouteHelper.GroupByNamespace(
-            commandHandlerProviders.Handlers,
+            handlers,
             h => h.Location,
             options.SegmentsToSkipForRoute);
 
-        foreach (var handler in commandHandlerProviders.Handlers)
+        foreach (var handler in handlers)
         {
             var endpointGroup = EndpointGroup.EnsureServed(handler.CommandType, arcOptions.EndpointGroups);
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
