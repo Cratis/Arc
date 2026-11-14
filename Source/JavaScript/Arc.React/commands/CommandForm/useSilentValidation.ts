@@ -4,6 +4,14 @@
 import React, { useCallback, useState } from 'react';
 import type { ICommandResult } from '@cratis/arc/commands';
 import { runCommandValidation } from './runCommandValidation.js';
+import type { CommandFormValidationChannel } from './commandFormValidationState.js';
+
+/** What the silent validation reports to the tracker of validation freshness. */
+export interface SilentValidationTracker {
+    begin: (issue: number, channel: CommandFormValidationChannel) => void;
+    settle: (issue: number, result: ICommandResult<unknown>, applied: boolean) => void;
+    fail: (issue: number) => void;
+}
 
 /**
  * Runs and orders the silent validation of a command form.
@@ -22,12 +30,14 @@ import { runCommandValidation } from './runCommandValidation.js';
  * @param {object} commandInstance The command to validate.
  * @param {boolean | undefined} autoServerValidate Whether the silent validation also contacts the server.
  * @param {Function} setCommandResult Publishes a validation result as the form's command result.
+ * @param {SilentValidationTracker} tracker Told when each run starts, settles or fails.
  * @returns The silent validation result and the functions to run and apply validations.
  */
 export function useSilentValidation(
     commandInstance: object,
     autoServerValidate: boolean | undefined,
     setCommandResult: (result: ICommandResult<unknown>) => void,
+    tracker: SilentValidationTracker,
 ) {
     const [silentValidationResult, setSilentValidationResult] = useState<
         ICommandResult<unknown> | undefined
@@ -35,31 +45,47 @@ export function useSilentValidation(
     const silentValidationIssue = React.useRef(0);
     const lastAppliedSilentValidationIssue = React.useRef(-1);
 
-    const beginSilentValidation = useCallback(() => silentValidationIssue.current++, []);
+    const beginSilentValidation = useCallback(
+        (channel: CommandFormValidationChannel = 'client') => {
+            const issue = silentValidationIssue.current++;
+            tracker.begin(issue, channel);
+            return issue;
+        },
+        [tracker],
+    );
 
     const applySilentValidationResult = useCallback(
         (validationResult: ICommandResult<unknown>, issue?: number) => {
             if (issue === undefined) {
                 // An unguarded write - a custom field going through the context - is taken as current, so
-                // anything issued before it is stale from here on.
+                // anything issued before it is stale from here on. It has no issue to settle, so it can
+                // never make the validation metadata current.
                 lastAppliedSilentValidationIssue.current = silentValidationIssue.current;
             } else {
-                if (issue < lastAppliedSilentValidationIssue.current) return false;
+                const overtaken = issue < lastAppliedSilentValidationIssue.current;
+                tracker.settle(issue, validationResult, !overtaken);
+                if (overtaken) return false;
                 lastAppliedSilentValidationIssue.current = issue;
             }
             setSilentValidationResult(validationResult);
             return true;
         },
-        [],
+        [tracker],
     );
 
     const validateSilently = useCallback(
         async (showErrors: boolean) => {
-            const issue = beginSilentValidation();
-            const validationResult = await runCommandValidation(
-                commandInstance,
-                autoServerValidate ?? false,
-            );
+            const issue = beginSilentValidation(autoServerValidate ? 'server' : 'client');
+            let validationResult: ICommandResult<unknown> | undefined;
+            try {
+                validationResult = await runCommandValidation(
+                    commandInstance,
+                    autoServerValidate ?? false,
+                );
+            } catch (error) {
+                tracker.fail(issue);
+                throw error;
+            }
             if (!validationResult) return;
             if (!applySilentValidationResult(validationResult, issue)) return;
             if (showErrors) {
@@ -72,6 +98,7 @@ export function useSilentValidation(
             beginSilentValidation,
             applySilentValidationResult,
             setCommandResult,
+            tracker,
         ],
     );
 

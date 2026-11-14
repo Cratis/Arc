@@ -23,6 +23,7 @@ import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validati
 import type { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
 import { useSilentValidation } from './useSilentValidation.js';
+import { useCommandFormValidationState } from './useCommandFormValidationState.js';
 import { useInitialValueSync } from './useInitialValueSync.js';
 import { useCommandFormFieldRegistry } from './useCommandFormFieldRegistry.js';
 import { memberMatchesField } from './memberMatchesField.js';
@@ -293,20 +294,28 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     const commandInstance = useCommandResult[0] as unknown as TCommand;
     const setCommandValuesInternal = useCommandResult[1] as SetCommandValues<TCommand>;
     const [commandVersion, setCommandVersion] = useState(0);
+    const {
+        validation,
+        invalidate: invalidateValidation,
+        schedule: scheduleServerValidation,
+        tracker: validationTracker,
+    } = useCommandFormValidationState(commandInstance, props.autoServerValidate);
     const setCommandValues = useCallback(
         (values: TCommand) => {
             setCommandValuesInternal(values);
+            invalidateValidation();
             setCommandVersion((version) => version + 1);
         },
-        [setCommandValuesInternal],
+        [setCommandValuesInternal, invalidateValidation],
     );
     const setCommandInitialValues = useCallback(
         (values: Partial<TCommand>) => {
             // SAFETY: Arc-generated command types extend Command even though CommandForm's public generic accepts object.
             (commandInstance as unknown as Command).setInitialValues(values as object);
+            invalidateValidation();
             setCommandVersion((version) => version + 1);
         },
-        [commandInstance],
+        [commandInstance, invalidateValidation],
     );
     const [nativeCommandResult, setNativeCommandResult] = useState<
         ICommandResult<unknown> | undefined
@@ -350,7 +359,12 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         beginSilentValidation,
         applySilentValidationResult,
         validateSilently,
-    } = useSilentValidation(commandInstance, props.autoServerValidate, setCommandResult);
+    } = useSilentValidation(
+        commandInstance,
+        props.autoServerValidate,
+        setCommandResult,
+        validationTracker,
+    );
 
     useInitialValueSync<TCommand>({
         mergedInitialValues,
@@ -404,7 +418,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         ) {
             const performValidation = () => {
                 lastServerValidateVersion.current = commandVersion;
-                const issue = beginSilentValidation();
+                scheduleServerValidation(false);
+                const issue = beginSilentValidation('server');
                 void (async () => {
                     try {
                         const validationResult = await (
@@ -424,6 +439,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                         }
                     } catch (error) {
                         // Silently handle validation errors - they'll be in the result
+                        validationTracker.fail(issue);
                         console.error('Server validation error:', error);
                     }
                 })();
@@ -432,6 +448,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             // Apply throttle if specified
             const throttleMs = props.autoServerValidateThrottle ?? 500;
             if (throttleMs > 0) {
+                scheduleServerValidation(true);
                 serverValidateThrottleTimer.current = setTimeout(
                     performValidation,
                     throttleMs,
@@ -445,6 +462,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             if (serverValidateThrottleTimer.current) {
                 clearTimeout(serverValidateThrottleTimer.current);
                 serverValidateThrottleTimer.current = null;
+                scheduleServerValidation(false);
             }
         };
     }, [
@@ -457,6 +475,8 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         beginSilentValidation,
         applySilentValidationResult,
         setCommandResult,
+        scheduleServerValidation,
+        validationTracker,
     ]);
 
     const setCustomFieldError = useCallback(
@@ -567,10 +587,10 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     // depend on it: everything it needs is parked in a ref, refreshed after every commit, and the handle
     // itself is built once. A handle rebuilt per render would re-attach a callback ref on every parent
     // render, which is a re-attach loop when the parent re-renders in response to being handed the ref.
-    const latestRef = React.useRef({ handleExecute, isCommandValid, isAuthorized });
+    const latestRef = React.useRef({ handleExecute, isCommandValid, isAuthorized, validation });
     const onStateChangeRef = React.useRef(props.onStateChange);
     React.useLayoutEffect(() => {
-        latestRef.current = { handleExecute, isCommandValid, isAuthorized };
+        latestRef.current = { handleExecute, isCommandValid, isAuthorized, validation };
         onStateChangeRef.current = props.onStateChange;
     });
 
@@ -587,17 +607,20 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             get isAuthorized() {
                 return latestRef.current.isAuthorized;
             },
+            get validation() {
+                return latestRef.current.validation;
+            },
         }),
         [],
     );
 
     // An imperative handle is not reactive - reading it cannot re-render the parent. This is the other
     // half: the parent is told when the state changes so its own submit button can follow along. The
-    // dependencies are the three booleans and nothing else; the callback is read through a ref so an
-    // inline arrow cannot re-fire it.
+    // dependencies are the three booleans and the validation snapshot, which keeps its identity until a
+    // channel actually changes; the callback is read through a ref so an inline arrow cannot re-fire it.
     React.useEffect(() => {
-        onStateChangeRef.current?.({ isExecuting, isValid, isAuthorized });
-    }, [isExecuting, isValid, isAuthorized]);
+        onStateChangeRef.current?.({ isExecuting, isValid, isAuthorized, validation });
+    }, [isExecuting, isValid, isAuthorized, validation]);
 
     const handleFormSubmit = useCallback(
         (e: React.FormEvent) => {
@@ -626,9 +649,11 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             return isCommandValid && !hasCustomFieldErrors(customFieldErrorsRef.current);
         },
         isAuthorized,
+        validation,
         isExecuting,
         beginSilentValidation,
         setSilentValidationResult: applySilentValidationResult,
+        failSilentValidation: validationTracker.fail,
         onFieldValidate: props.onFieldValidate,
         onFieldChange: props.onFieldChange,
         onBeforeExecute: props.onBeforeExecute,

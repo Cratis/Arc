@@ -105,6 +105,23 @@ function notifyFieldChanged(scope: CommandFormFieldHandlerScope, value: unknown)
     );
 }
 
+/**
+ * Runs a validation whose token is already claimed. A throw is reported so the channel records an
+ * error instead of staying pending, and is rethrown so the failure is not swallowed.
+ */
+async function runGuardedValidation(
+    context: CommandFormContextValue<unknown>,
+    issue: number,
+    useServerValidation: boolean,
+): Promise<ICommandResult<unknown> | undefined> {
+    try {
+        return await runCommandValidation(context.commandInstance, useServerValidation);
+    } catch (error) {
+        context.failSilentValidation?.(issue);
+        throw error;
+    }
+}
+
 async function validateAfterChange(scope: CommandFormFieldHandlerScope): Promise<void> {
     const { context } = scope;
 
@@ -119,8 +136,8 @@ async function validateAfterChange(scope: CommandFormFieldHandlerScope): Promise
     // once per character.
     // Claimed before the run starts, so a burst of keystrokes resolving out of order applies
     // the newest verdict rather than the last one to arrive - see beginSilentValidation.
-    const issue = context.beginSilentValidation();
-    const validationResult = await runCommandValidation(context.commandInstance, false);
+    const issue = context.beginSilentValidation('client');
+    const validationResult = await runGuardedValidation(context, issue, false);
     const describesCurrentValues =
         validationResult !== undefined &&
         context.setSilentValidationResult(validationResult, issue);
@@ -163,11 +180,8 @@ async function validateOnBlur(
 
     // With autoServerValidate this run crosses the network, which makes it the one most
     // likely to be overtaken by a client-side run issued after it.
-    const issue = context.beginSilentValidation();
-    const validationResult = await runCommandValidation(
-        context.commandInstance,
-        context.autoServerValidate,
-    );
+    const issue = context.beginSilentValidation(context.autoServerValidate ? 'server' : 'client');
+    const validationResult = await runGuardedValidation(context, issue, context.autoServerValidate);
 
     // Keep silent result current (covers edge cases where blur fires
     // without a preceding onChange, e.g. clipboard paste in some browsers).
