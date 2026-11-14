@@ -31,7 +31,7 @@ public class when_executing_a_protocol_only_command : given.a_command_pipeline
     [Fact] void should_keep_the_discovered_handler() => _provider.Handlers.Single().CommandType.ShouldEqual(typeof(ProtocolCommand));
     [Fact] void should_run_the_execution_filters() => _commandFilters.Received(1).OnExecution(Arg.Is<CommandContext>(context => ReferenceEquals(context.Command, _command)));
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_return_the_handler_response() => _result.Response.ShouldEqual("protocol response");
+    [Fact] void should_return_the_handler_response() => _result.ResponsePayload.ShouldEqual("protocol response");
 
     [Command]
     [ProtocolOnly]
