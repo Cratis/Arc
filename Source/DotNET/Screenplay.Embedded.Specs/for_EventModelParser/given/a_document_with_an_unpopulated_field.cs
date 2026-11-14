@@ -5,6 +5,7 @@ namespace Cratis.Arc.Screenplay.Embedded.for_EventModelParser.given;
 
 public class a_document_with_an_unpopulated_field : Specification
 {
+    // joinedName intentionally has no projection assignment, exercising the real PLAY0284 diagnostic.
     protected const string Source =
         """
         type Row

@@ -37,12 +37,15 @@ public class EventModelParser(IScreenplayCompiler compiler) : IEventModelParser
             ? ParseGenerated(documentId, name, source)
             : ParseEmbedded(documentId, name, source);
 
+    static bool IsToleratedCoverage(Diagnostic diagnostic) =>
+        diagnostic.Severity == DiagnosticSeverity.Error && string.Equals(diagnostic.Code, ToleratedCoverageCode, StringComparison.Ordinal);
+
     EventModelView ParseGenerated(string documentId, string name, string source)
     {
         var compilation = compiler.Compile(source);
         var compiled = compilation.Diagnostics ?? [];
         var errors = compiled.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToList();
-        if (compilation.Value is null || errors.Any(diagnostic => !IsToleratedCoverage(diagnostic)))
+        if (compilation.Value is null || errors.Exists(diagnostic => !IsToleratedCoverage(diagnostic)))
         {
             return new EventModelView(
                 null,
@@ -59,9 +62,6 @@ public class EventModelParser(IScreenplayCompiler compiler) : IEventModelParser
 
         return new EventModelView(model, [], [.. warnings.Select(EventModelDiagnostic.From)], true);
     }
-
-    static bool IsToleratedCoverage(Diagnostic diagnostic) =>
-        diagnostic.Severity == DiagnosticSeverity.Error && string.Equals(diagnostic.Code, ToleratedCoverageCode, StringComparison.Ordinal);
 
     EventModelView ParseEmbedded(string documentId, string name, string source)
     {

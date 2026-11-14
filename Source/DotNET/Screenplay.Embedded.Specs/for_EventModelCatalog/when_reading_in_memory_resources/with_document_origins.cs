@@ -10,12 +10,13 @@ namespace Cratis.Arc.Screenplay.Embedded.for_EventModelCatalog.when_reading_in_m
 public class with_document_origins : a_document_with_an_unpopulated_field
 {
     EventModelCatalog _catalog;
+    CompiledEventModels _models;
     EventModelView _legacy;
     EventModelView _embedded;
     EventModelView _generated;
     EventModelView _cached;
 
-    void Because()
+    void Establish()
     {
         var resources = new InMemoryEventModelResources("Records", new Dictionary<string, string>
         {
@@ -32,11 +33,15 @@ public class with_document_origins : a_document_with_an_unpopulated_field
             ["generated.play"] = Source
         });
         _catalog = EventModelCatalog.For([resources]);
-        var models = new CompiledEventModels(_catalog);
-        models.TryGet("Records", "Legacy", out _legacy);
-        models.TryGet("Records", "Embedded", out _embedded);
-        models.TryGet("Records", "Generated", out _generated);
-        models.TryGet("Records", "Generated", out _cached);
+        _models = new CompiledEventModels(_catalog);
+    }
+
+    void Because()
+    {
+        _models.TryGet("Records", "Legacy", out _legacy);
+        _models.TryGet("Records", "Embedded", out _embedded);
+        _models.TryGet("Records", "Generated", out _generated);
+        _models.TryGet("Records", "Generated", out _cached);
     }
 
     [Fact] void should_default_unmarked_documents_to_embedded() => _catalog.Projects.Single().Documents.Single(_ => _.Id == "Legacy").Origin.ShouldEqual(EventModelOrigin.Embedded);

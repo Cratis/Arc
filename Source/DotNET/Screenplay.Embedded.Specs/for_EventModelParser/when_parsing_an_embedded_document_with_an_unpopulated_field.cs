@@ -22,6 +22,6 @@ public class when_parsing_an_embedded_document_with_an_unpopulated_field : given
     [Fact] void should_report_the_coverage_error() => _view.Errors.Select(_ => _.Code).ShouldContain("PLAY0284");
     [Fact] void should_not_demote_the_error() => _view.Warnings.Select(_ => _.Code).ShouldNotContain("PLAY0284");
     [Fact] void should_keep_the_legacy_overload_strict() => _legacy.Success.ShouldBeFalse();
-    [Fact] void should_keep_the_legacy_coverage_error() => _legacy.Errors.ShouldEqual(_view.Errors);
+    [Fact] void should_keep_the_legacy_coverage_error() => _legacy.Errors.ShouldEqual<EventModelDiagnostic>(_view.Errors);
     [Fact] void should_not_draw_the_legacy_document() => _legacy.EventModel.ShouldBeNull();
 }
