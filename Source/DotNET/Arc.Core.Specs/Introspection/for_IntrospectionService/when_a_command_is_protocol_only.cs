@@ -14,8 +14,9 @@ public class when_a_command_is_protocol_only : Specification
 
     void Because()
     {
+        ICommandHandler[] handlers = [Handler(typeof(ProtocolCommand)), Handler(typeof(PublicCommand))];
         var providers = Substitute.For<ICommandHandlerProviders>();
-        providers.Handlers.Returns([Handler(typeof(ProtocolCommand)), Handler(typeof(PublicCommand))]);
+        providers.Handlers.Returns(handlers);
         var service = new IntrospectionService(
             providers,
             Substitute.For<IQueryPerformerProviders>(),

@@ -15,12 +15,14 @@ public class when_mapping_a_protocol_only_command : Specification
 
     void Because()
     {
-        var providers = Substitute.For<ICommandHandlerProviders>();
-        providers.Handlers.Returns([
+        ICommandHandler[] handlers =
+        [
             Handler(typeof(ProtocolCommand)),
             Handler(typeof(ExplicitProtocolCommand)),
             Handler(typeof(PublicCommand))
-        ]);
+        ];
+        var providers = Substitute.For<ICommandHandlerProviders>();
+        providers.Handlers.Returns(handlers);
         _mapper = new a_recording_endpoint_mapper();
         var options = new ArcOptions();
         options.GeneratedApis.IncludeCommandNameInRoute = false;
