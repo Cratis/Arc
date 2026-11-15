@@ -47,7 +47,7 @@ export default defineConfig({
 });
 ```
 
-Keep decorated view model classes in `.ts` files for this default configuration: the plugin's default file filter matches `.ts`, not `.tsx`. It reads `tsconfig.json` in the working directory by default. If your application uses a separate configuration file, pass its path through the plugin's `tsconfigPath` option.
+Keep decorated view model classes in `.ts` files for this default configuration: the plugin's default file filter matches `.ts`, not `.tsx`. By default this plugin processes `.ts` files whose content matches its decorator pattern. If you put decorated classes in `.tsx`, use `EmitMetadataPlugin({ fileRegEx: /\.tsx?$/ })`. It reads `tsconfig.json` in the working directory by default. If your application uses a separate configuration file, pass its path through the plugin's `tsconfigPath` option.
 
 ## Bindings
 

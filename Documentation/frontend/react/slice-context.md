@@ -148,7 +148,7 @@ The wrapped component renders the original inside a slice scope for its folder, 
 
 The plugin identifies components from the function's own return values. Every return must resolve to JSX, `null` or `undefined`, and at least one must be JSX. It follows `?:`, `&&`, `||`, `??` and local constants, but does not inspect nested functions. A store such as `create(set => ({ render: () => <div /> }))` or a function returning column definitions is therefore left alone.
 
-It wraps exported component functions and exported calls given such a function, including `memo(...)`, `forwardRef(...)` and `withViewModel(...)`. Named exports must start with an uppercase letter. Classes, async functions and unexported components are not wrapped.
+It wraps exported component functions and exported calls given such a function, including `memo(...)`, `forwardRef(...)` and `withViewModel(...)`. The wrapper keeps the component's existing name (or the declaration name); it does not rename. Named exports, including exported aliases, must start with an uppercase letter; default exports are wrapped regardless of name, and lowercase or anonymous default exports keep their names. Classes, async functions and unexported components are not wrapped.
 
 An exported function declaration becomes a constant, so it is no longer hoisted: code at the top level of the same module that uses the component before its declaration fails. Use it after the declaration, or move the component to its own module.
 

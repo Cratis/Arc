@@ -84,9 +84,9 @@ useDialog(AddressDialog, { slice: { module: 'Orders', feature: 'Shipping', slice
 
 Tracked dialogs appear in `useApplicationContext().dialogs`, bottom first. The application's focused `location` follows the top-most dialog; closing it restores the dialog below or the page. Changing an open dialog's title or slice updates its entry without changing the stack order.
 
-For a shared dialog header, use `useDialogSliceLocation()` to read the containing dialog's location directly. Outside a dialog it returns `SliceLocation.empty`.
+For a shared dialog header, use `useDialogSliceLocation()` to read the containing dialog's location directly. The helper needs an application layer context, and an untracked dialog clears that context while keeping its slice scope, so the helper returns `SliceLocation.empty` there, even when nested inside a tracked dialog. Outside a dialog it also returns `SliceLocation.empty`. Custom confirmation or busy-indicator chrome is affected because the built-in dialogs use untracked options.
 
-When `sliceMarkers` is enabled on `<Arc>`, the dialog content is wrapped in the marker element too. Renderers that portal the content elsewhere can use `sliceMarkerAttributes(useDialogSliceLocation())` on their own element.
+When `sliceMarkers` is enabled on `<Arc>`, the dialog content is wrapped in the marker element too. Renderers that portal the content elsewhere can use `sliceMarkerAttributes(useDialogSliceLocation())` on their own element when the dialog is tracked; for an untracked dialog the helper returns `SliceLocation.empty`, so that marker carries no location.
 
 ## Confirmation dialogs
 

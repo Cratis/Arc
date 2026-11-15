@@ -51,7 +51,7 @@ Client-side rules give feedback before a request; they do not replace server val
 
 For an HTTP query request, a server validation rejection returns HTTP 400 with a result whose `isValid` and `isSuccess` are `false`. `perform()` preserves the member names and messages in `validationResults`; React query hooks expose those same fields.
 
-Observable subscriptions to model-bound queries deliver one invalid result through the callback and then end that subscription, over WebSocket or SSE in direct or hub mode. Controller-based direct WebSocket and SSE queries also send a terminal validation result rather than treating the rejection as a failed connection. For background on the controller-based direct WebSocket case, see [#3230](https://github.com/Cratis/Arc/issues/3230). Correct the arguments and create a new subscription to try again.
+Observable subscriptions to model-bound queries deliver one invalid result through the callback and then end that subscription, over WebSocket or SSE in direct or hub mode. For an authorized request with validation enabled that fails validation, a built-in controller-based GET query over a direct WebSocket accepts the connection, sends one terminal invalid result and closes it normally; over SSE it writes that one result. The rejection is not a failed connection. This describes Arc's built-in controller query validation, not custom middleware or queries that ignore validation. Correct the arguments and create a new subscription to try again.
 
 For general validation docs, see [Validation](../validation/index.md).
 
