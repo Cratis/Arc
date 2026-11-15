@@ -10,7 +10,7 @@ namespace Cratis.Arc.ProxyGenerator;
 /// <summary>
 /// Extracts validation rules from FluentValidation validators and DataAnnotations attributes.
 /// </summary>
-public static class ValidationRulesExtractor
+public static partial class ValidationRulesExtractor
 {
     const string NotNullValidatorType = "FluentValidation.Validators.INotNullValidator";
     const string NotEmptyValidatorType = "FluentValidation.Validators.INotEmptyValidator";
@@ -102,6 +102,7 @@ public static class ValidationRulesExtractor
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             var isOptional = property.IsOptional() && !property.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            using var concept = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Concept(property.Name.ToCamelCase(), isOptional) : null;
             var rules = ExtractRulesForConceptType(assembly, property.PropertyType, isOptional);
             if (rules.Count > 0)
             {
@@ -153,6 +154,7 @@ public static class ValidationRulesExtractor
 
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
+            using var annotation = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Annotation(property.Name.ToCamelCase()) : null;
             var rules = ExtractDataAnnotationsFromMember(property);
             if (rules.Count > 0)
             {
@@ -170,6 +172,7 @@ public static class ValidationRulesExtractor
     /// <returns>Collection of validation rule descriptors.</returns>
     public static IReadOnlyList<ValidationRuleDescriptor> ExtractDataAnnotationsFromParameter(ParameterInfo parameter)
     {
+        using var annotation = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Annotation(parameter.Name.ToCamelCase()) : null;
         var attributesData = parameter.GetCustomAttributesData();
         return ExtractDataAnnotationsFromAttributesData(attributesData);
     }
@@ -212,6 +215,10 @@ public static class ValidationRulesExtractor
             if (!merged.ContainsKey(rule.PropertyName))
             {
                 merged[rule.PropertyName] = rule;
+            }
+            else
+            {
+                ValidationProjectionRecorder.OverrideAnnotation(rule);
             }
         }
 
@@ -278,7 +285,9 @@ public static class ValidationRulesExtractor
             var attributeTypeName = attributeData.AttributeType.FullName;
             if (attributeTypeName is not null)
             {
-                rules.AddRange(ExtractRulesFromAttribute(attributeTypeName, attributeData));
+                var extracted = ExtractRulesFromAttribute(attributeTypeName, attributeData);
+                ObserveAnnotations(extracted);
+                rules.AddRange(extracted);
             }
         }
 
@@ -403,18 +412,16 @@ public static class ValidationRulesExtractor
             return null;
         }
 
+        using var memberScope = ValidationProjectionRecorder.Member(propertyName);
         var rules = memberRules.Cast<object>()
-            .Where(_ => !HasCondition(_))
-            .SelectMany(ExtractRulesFromRule)
+            .Where(ShouldExtractRule)
+            .SelectMany(rule => rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components
+                ? components.Cast<object>().SelectMany(ExtractRulesFromComponent)
+                : [])
             .ToList();
 
         return rules.Count > 0 ? new PropertyValidationDescriptor(propertyName, [.. rules]) : null;
     }
-
-    static IEnumerable<ValidationRuleDescriptor> ExtractRulesFromRule(object rule) =>
-        rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components
-            ? components.Cast<object>().SelectMany(ExtractRulesFromComponent)
-            : [];
 
     static (object Descriptor, System.Collections.IEnumerable Members, MethodInfo GetRulesMethod) DescribeValidator(Type validatorType)
     {
@@ -485,13 +492,22 @@ public static class ValidationRulesExtractor
     static List<ValidationRuleDescriptor> ExtractRulesFromComponent(object component)
     {
         var validator = component.GetType().GetProperty("Validator")?.GetValue(component);
-        if (validator is null || HasCondition(component))
+        if (validator is null) return [];
+        if (HasCondition(component))
         {
+            ObserveCondition(component, validator, ValidationProjectionReasons.ChainedCondition);
             return [];
         }
 
         var ruleDescriptor = ExtractRuleFromValidator(validator, component);
-        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(component) }] : [];
+        if (ruleDescriptor is null)
+        {
+            ObserveUnsupported(validator);
+            return [];
+        }
+        var result = ruleDescriptor with { Severity = GetSeverity(component) };
+        ObserveProjected(result);
+        return [result];
     }
 
     static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)

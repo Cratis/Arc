@@ -48,7 +48,7 @@ public static partial class Generator
             var orphanedFiles = RemoveOrphanedFiles();
             UpdateIndexFiles(orphanedFiles);
 
-            CollectProducedFiles(settings.ProducedFiles, _generatedFiles, settings.SkipIndexGeneration, settings.OutputPath);
+            if (!settings.Output.ComparesBytes) CollectProducedFiles(settings.ProducedFiles, _generatedFiles, settings.SkipIndexGeneration, settings.OutputPath);
             settings.Message($"  Overall time: {overallStopwatch.Elapsed}");
 
             return true;
@@ -78,7 +78,7 @@ public static partial class Generator
 
             if (!Directory.Exists(settings.OutputPath))
             {
-                Directory.CreateDirectory(settings.OutputPath);
+                settings.Output.EnsureDirectory(settings.OutputPath);
             }
 
             return true;
@@ -161,14 +161,14 @@ public static partial class Generator
             }
 
             var outputPath = settings.OutputPath;
-            if (Directory.Exists(outputPath) && !settings.SkipOutputDeletion) Directory.Delete(outputPath, true);
-            if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
+            if (ShouldDeleteOutput(outputPath)) Directory.Delete(outputPath, true);
+            settings.Output.EnsureDirectory(outputPath);
 
             return true;
         }
 
         Task Write(IEnumerable<IDescriptor> descriptors, HandlebarsTemplate<object, object> template, string typeNameToEcho) =>
-            descriptors.WriteWithFileHeader(settings.FileHeaderTemplate, settings.OutputPath, _typesInvolved, template, _directories, settings.SegmentsToSkip, typeNameToEcho, settings.Message, settings.ErrorMessage, _generatedFiles, _descriptorOrigins, _sourceFileMap, _pendingContent);
+            descriptors.WriteWithFileHeader(settings.FileHeaderTemplate, settings.OutputPath, _typesInvolved, template, _directories, settings.SegmentsToSkip, typeNameToEcho, settings.Message, settings.ErrorMessage, _generatedFiles, _descriptorOrigins, _sourceFileMap, _pendingContent, settings.Output);
 
         async Task WriteArtifacts(DiscoveredArtifacts artifacts)
         {
@@ -177,6 +177,8 @@ public static partial class Generator
             await Write(artifacts.Queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList(), TemplateTypes.Query, "queries");
             await Write(artifacts.Queries.Where(_ => _.IsObservable).ToList(), TemplateTypes.ObservableQuery, "observable queries");
         }
+
+        bool ShouldDeleteOutput(string path) => !settings.Output.ComparesBytes && Directory.Exists(path) && !settings.SkipOutputDeletion;
 
         async Task WriteTypesAndEnums(IEnumerable<Type> identityDetailsTypes)
         {
@@ -232,7 +234,7 @@ public static partial class Generator
             // Flush deferred content to disk, comparing final merged hashes against original files
             if (_pendingContent is { Count: > 0 })
             {
-                await DescriptorExtensions.FlushPendingContentWithFileHeader(settings.FileHeaderTemplate, _pendingContent, _generatedFiles, settings.Message);
+                await DescriptorExtensions.FlushPendingContentWithFileHeader(settings.FileHeaderTemplate, _pendingContent, _generatedFiles, new GeneratedOutputContext(settings.Message, settings.Output));
             }
         }
 
@@ -240,7 +242,7 @@ public static partial class Generator
         {
             var stopwatch = Stopwatch.StartNew();
             var orphanedFiles = FileMetadataScanner.FindOrphanedFiles(settings.OutputPath, _generatedFiles);
-            var removedCount = FileMetadataScanner.RemoveOrphanedFiles(settings.OutputPath, orphanedFiles, settings.Message);
+            var removedCount = FileMetadataScanner.RemoveOrphanedFiles(settings.OutputPath, orphanedFiles, settings.Message, settings.Output);
             if (removedCount > 0)
             {
                 settings.Message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
@@ -260,7 +262,7 @@ public static partial class Generator
 
             var stopwatch = Stopwatch.StartNew();
             var distinctDirectories = _directories.Distinct().ToList();
-            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFilesWithFileHeader(settings.FileHeaderTemplate, distinctDirectories, _generatedFiles, orphanedFiles, settings.Message, settings.OutputPath);
+            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFilesWithFileHeader(settings.FileHeaderTemplate, distinctDirectories, _generatedFiles, orphanedFiles, settings.Message, settings.OutputPath, settings.Output);
             var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
             settings.Message($"  {writtenCount} index files written{skippedInfo} in {stopwatch.Elapsed}");
         }

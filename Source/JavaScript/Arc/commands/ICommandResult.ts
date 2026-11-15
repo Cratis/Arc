@@ -54,6 +54,9 @@ import { ValidationResult } from '../validation/ValidationResult.js';
       */
      readonly isRetryable?: boolean;
 
+    /** Gets whether the command has no registered server handler. Servers that do not report it are read as false. */
+    readonly isMissingHandler?: boolean;
+
      /**
       * Gets the stack trace if there was an exception.
       */

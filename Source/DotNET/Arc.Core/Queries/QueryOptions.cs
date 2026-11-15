@@ -24,4 +24,13 @@ public class QueryOptions
     /// configured, even as an empty list, only the application's own origin and the listed origins are accepted.
     /// </summary>
     public IList<string>? AllowedWebSocketOrigins { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum number of emissions that may be pending for one observable query subscription at a time.
+    /// The count includes the emission being processed and the ones waiting behind it. A consumer that falls further behind
+    /// has its subscription terminated (observable query hub) or its connection closed (single-query endpoints) instead of
+    /// letting the server queue emissions without bound; the client can reconnect and receives a fresh result.
+    /// Must be at least 1. Defaults to 256.
+    /// </summary>
+    public int MaxQueuedEmissionsPerSubscription { get; set; } = 256;
 }

@@ -180,6 +180,60 @@ One-shot queries validate before `perform()`. Observable queries also validate b
 
 For a direct `ConceptAs<T>` property on an extracted command/query DTO, or a direct model-bound query parameter, the primitive representation receives extractable rules from its concept validator. Controller query parameters require a matching DTO concept property as described above. Nullable concept members omit inferred presence rules (`notEmpty` and `notNull`) unless the property or parameter itself has `[Required]`, but retain other inferred rules, such as `maxLength` and `emailAddress`, which accept null or undefined. Explicit model rules and annotations still apply under the precedence rules above. For both model-bound and controller queries, the actual parameter's optionality governs inferred rules even when its argument model has different nullable-reference annotations. Concepts nested inside deeper object graphs are not recursively projected by this mechanism. See [backend validation](../commands/validation.md) for server enforcement.
 
+## Reporting client validation projection
+
+Use the direct proxy-generator executable to explain the validation available in a generated client. With the packaged tool and compiled backend available at these paths, run:
+
+```bash
+dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --validation-report=text
+```
+
+Include your normal generation options. `--validation-report=text` prints the report after normal progress; `--validation-report=json` emits only one JSON document on stdout. Both still generate proxies. To save JSON separately without changing console output, choose a destination outside the proxy output tree:
+
+```bash
+dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --validation-report-file=artifacts/validation.json
+```
+
+The destination must not equal or be inside `frontend/generated`, even after path normalization, and must not be an existing directory. Its parent directory is created if needed. The report is written atomically only after generation succeeds; a failed run leaves an existing report untouched. Both report options may be used together. Exit codes remain `0` for success and `1` for errors. Report omissions alone are not errors. Combining `--check` with either report option is a usage error (`1`); run [drift checking](file-index-tracking.md#checking-for-drift) separately. `--state-file` is ignored with a stderr notice so reporting always discovers validation.
+
+JSON uses `schemaVersion: 1` and a `records` array. Each flat record contains `endpoint` (`kind`, `name`, `route`), `member` (camelCase or `null` for a type-level decision), coarse `ruleKind`, `source`, `outcome`, `reason`, and `severity` (known numeric severity or `null`). Records are ordered by endpoint, member, rule kind, outcome, reason, source and severity. Sources are `validator`, `concept`, or `data-annotation`; outcomes are `projected` or `omitted`.
+
+For example, a projected required rule has this shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "records": [{
+    "endpoint": { "kind": "command", "name": "RegisterUser", "route": "/api/users/register" },
+    "member": "name",
+    "ruleKind": "required",
+    "source": "validator",
+    "outcome": "projected",
+    "reason": "projected",
+    "severity": 3
+  }]
+}
+```
+
+| Reason | Meaning |
+| --- | --- |
+| `projected` | A supported validator or annotation contributes a client rule |
+| `server-only-block-condition` | A block `When`/`Unless` requires server context |
+| `server-only-chained-condition` | A chained synchronous condition cannot be projected |
+| `server-only-async-condition` | An asynchronous condition cannot be projected |
+| `unsupported-validator` | The validator or comparison value has no client mapping |
+| `concept-contribution-projected` | A concept validator contributes a client rule |
+| `concept-condition-server-only` | A concept rule has a condition and stays server-side |
+| `optional-concept-presence` | Presence rules are omitted for an optional concept member |
+| `overridden-annotation` | Explicit or concept rules take precedence over the annotation |
+| `no-projectable-rules` | The endpoint has no client-projectable rules |
+
+Unknown runtime-dependent severity is reported as `null`, without invoking its delegate; extraction still emits the descriptor. The report does not claim that a rule was omitted merely because its severity is unknown.
+
+Reports contain no messages, patterns, literal rule arguments, documentation, exception details, or arbitrary validator names. Reporting observes the existing extraction pass without invoking predicates, conditions, message factories, or dynamic severity delegates, and without constructing validators again. Normal extraction still loads trusted assemblies and constructs validators: only use assemblies you would build and run. Reporting does not change generated proxy bytes.
+
+This is a report of inspected extraction decisions, not an exhaustive inventory of server rules or proof of client/server parity. **Server validation remains authoritative**; do not weaken it to match a client report.
+
 ## Limitations to account for
 
 - `Must`, `MustAsync`, custom validators, and dependency-backed business checks are not translated into browser logic.

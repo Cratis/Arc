@@ -55,6 +55,7 @@ type ServerCommandResult = {
     exceptionStackTrace: string;
     authorizationFailureReason: string;
     isRetryable?: boolean;
+    isMissingHandler?: boolean;
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
     response: any;
@@ -146,6 +147,9 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
     /** @inheritdoc */
     readonly isRetryable: boolean;
 
+    /** Whether no server handler was registered, so execution or validation did not run. */
+    readonly isMissingHandler: boolean;
+
     /** @inheritdoc */
     readonly response?: TResponse;
 
@@ -168,20 +172,9 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
         // Older servers do not report retryable failures; none of their results are.
         this.isRetryable = result.isRetryable ?? false;
 
-        if (result.response !== undefined && result.response !== null) {
-            const isPrimitive = responseInstanceType === String || responseInstanceType === Number || responseInstanceType === Boolean;
-            if (isResponseTypeEnumerable) {
-                this.response = (Array.isArray(result.response)
-                    ? (isPrimitive
-                        ? Array.from(result.response)
-                        : JsonSerializer.deserializeArrayFromInstance(responseInstanceType, result.response))
-                    : []) as TResponse;
-            } else {
-                this.response = (isPrimitive
-                    ? result.response
-                    : JsonSerializer.deserializeFromInstance(responseInstanceType, result.response)) as TResponse;
-            }
-        }
+        // Older servers do not identify missing handlers.
+        this.isMissingHandler = result.isMissingHandler ?? false;
+        this.response = this.deserializeResponse(result, responseInstanceType, isResponseTypeEnumerable);
     }
 
     /**
@@ -262,5 +255,22 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
             callback(this.validationResults);
         }
         return this;
+    }
+
+    private deserializeResponse(result: ServerCommandResult, responseInstanceType: Constructor, isResponseTypeEnumerable: boolean): TResponse | undefined {
+        if (result.response === undefined || result.response === null) {
+            return undefined;
+        }
+        const isPrimitive = responseInstanceType === String || responseInstanceType === Number || responseInstanceType === Boolean;
+        if (isResponseTypeEnumerable) {
+            return (Array.isArray(result.response)
+                ? (isPrimitive
+                    ? Array.from(result.response)
+                    : JsonSerializer.deserializeArrayFromInstance(responseInstanceType, result.response))
+                : []) as TResponse;
+        }
+        return (isPrimitive
+            ? result.response
+            : JsonSerializer.deserializeFromInstance(responseInstanceType, result.response)) as TResponse;
     }
 }

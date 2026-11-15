@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net.WebSockets;
 using System.Security.Claims;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Callers;
@@ -150,7 +151,7 @@ public class ClientEnumerableObservable<T>(
             return true;
         }
 
-        if (result.Error is null)
+        if (result.Status != WebSocketSendStatus.Failed)
         {
             return true;
         }
@@ -160,8 +161,10 @@ public class ClientEnumerableObservable<T>(
             return false;
         }
 
-        logger.EnumerableObservableSkip();
-        return true;
+        logger.EnumerableObservableError(result.Error!);
+        await connection.Cancellation.CancelAsync();
+        await connection.WebSocket.Close(WebSocketCloseStatus.InternalServerError, null, CancellationToken.None);
+        return false;
     }
 
     sealed class Connection(IHttpRequestContext context, IWebSocket webSocket, CancellationTokenSource cancellation, SemaphoreSlim writeLock, ObservableQueryTelemetry telemetry, ClaimsPrincipal principal)

@@ -76,7 +76,8 @@ public static partial class Generator
         bool useProxyFileSuffix = false,
         ICollection<string>? producedFiles = null,
         string? endpointGroup = null,
-        ProxyFramework framework = ProxyFramework.React) =>
+        ProxyFramework framework = ProxyFramework.React,
+        IGeneratedOutput? output = null) =>
         new GenerationRun(new GenerationSettings(
             fileHeaderTemplate,
             outputPath,
@@ -99,5 +100,6 @@ public static partial class Generator
             useProxyFileSuffix,
             producedFiles,
             endpointGroup,
-            framework)).Execute(assemblyFile);
+            framework,
+            output ?? new FileSystemGeneratedOutput())).Execute(assemblyFile);
 }

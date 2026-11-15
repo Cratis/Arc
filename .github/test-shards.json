@@ -127,6 +127,7 @@
         "Cratis.Arc.ProxyGenerator.Scenarios.for_Queries",
         "Cratis.Arc.ProxyGenerator.Specs.ModelBound.for_TypeExtensionsModelBound",
         "Cratis.Arc.ProxyGenerator.Templates.for_Interface",
+        "Cratis.Arc.ProxyGenerator.for_CheckingGeneratedOutput",
         "Cratis.Arc.ProxyGenerator.for_FileHeader",
         "Cratis.Arc.ProxyGenerator.for_FileNameComparer",
         "Cratis.Arc.ProxyGenerator.for_GenerationFingerprint",
@@ -135,6 +136,7 @@
         "Cratis.Arc.ProxyGenerator.for_SourceFileResolver",
         "Cratis.Arc.ProxyGenerator.for_TargetTypeExtensions",
         "Cratis.Arc.ProxyGenerator.for_TypeScriptContentCombiner",
+        "Cratis.Arc.ProxyGenerator.for_ValidationProjection",
         "Cratis.Arc.ProxyGenerator.for_ValidationRulesExtractor",
         "Cratis.Arc.ProxyGenerator.for_XmlDocumentation"
       ]

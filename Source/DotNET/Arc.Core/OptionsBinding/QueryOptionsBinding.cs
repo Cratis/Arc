@@ -18,6 +18,7 @@ internal static class QueryOptionsBinding
     static Member[] Members() =>
     [
         Member.Of<QueryOptions, TimeSpan>("KeepAliveInterval", Leaves.TimeSpan, static _ => _.KeepAliveInterval, static (o, v) => o.KeepAliveInterval = v),
+        Member.Of<QueryOptions, int>("MaxQueuedEmissionsPerSubscription", Leaves.Int, static _ => _.MaxQueuedEmissionsPerSubscription, static (o, v) => o.MaxQueuedEmissionsPerSubscription = v),
         Member.Of<QueryOptions, IList<string>?>("AllowedWebSocketOrigins", new ListType<string>(Leaves.String), static _ => _.AllowedWebSocketOrigins, static (o, v) => o.AllowedWebSocketOrigins = v)
     ];
 }

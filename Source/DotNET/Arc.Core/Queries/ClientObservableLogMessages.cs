@@ -51,4 +51,7 @@ internal static partial class ClientObservableLogMessages
 
     [LoggerMessage(LogLevel.Information, "An emission guard denied the observable query mid-stream — terminating the subscription")]
     internal static partial void ObservableEmissionDenied(this ILogger<IClientObservable> logger);
+
+    [LoggerMessage(LogLevel.Warning, "The client of observable query '{QueryName}' fell more than {Capacity} emissions behind — closing the connection")]
+    internal static partial void ObservableEmissionBacklogExceeded(this ILogger<IClientObservable> logger, string queryName, int capacity);
 }
