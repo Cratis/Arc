@@ -9,17 +9,21 @@ namespace Cratis.Arc.Commands;
 public class CommandContextValues : Dictionary<string, object>
 {
     /// <summary>
-    /// Gets an empty set of command context values.
-    /// </summary>
-    public static readonly CommandContextValues Empty = new();
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="CommandContextValues"/> class.
     /// </summary>
     public CommandContextValues()
         : base(StringComparer.OrdinalIgnoreCase)
     {
     }
+
+    /// <summary>
+    /// Gets a new, empty set of command context values.
+    /// </summary>
+    /// <remarks>
+    /// Each access returns a new instance. Command context values are writable, so a shared instance
+    /// would leak values written by one command context into every other context that uses it.
+    /// </remarks>
+    public static CommandContextValues Empty => new();
 
     /// <summary>
     /// Merges another set of command context values into this instance.
