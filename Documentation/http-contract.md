@@ -74,6 +74,7 @@ observable ones, and can be switched off so query routes accept GET only.
 | `X-Correlation-ID` | The correlation header, configurable. A valid UUID is reused; a missing or invalid value is replaced. The effective UUID is echoed on the response under the configured name. See [Correlation](#correlation). |
 | `X-Allowed-Severity` | The maximum nonblocking validation severity for the request. C# caps it at `Warning` by default; commands or the host can explicitly opt in to a higher maximum. See [the divergence note](#x-allowed-severity-parsing-and-reach) before relying on it. |
 | `x-cratis-tenant-id` | The tenant header, configurable. See [Tenant resolution](#tenant-resolution). |
+| `X-Ignore-Warnings` | C# MVC controller hosts only: `true` keeps only `Error` validation results in a command or query result, even when warnings are treated as errors. Model-bound endpoints ignore it. |
 
 Header lookup is case-insensitive, as HTTP requires.
 
@@ -267,6 +268,7 @@ sensitive.
 | `exceptionMessages` | Array | Always present; production redaction replaces detail. |
 | `exceptionStackTrace` | String | Empty when redacted or absent. |
 | `authorizationFailureReason` | String | Empty when absent. |
+| `isRetryable` | Boolean | C#: true when the failure is temporary and the same request can succeed when retried. A retryable result is an error, never a denial: `isAuthorized` stays true. |
 | `isValid` | Boolean | True only when `validationResults` is empty, regardless of severity. |
 | `hasExceptions` | Boolean | True when `exceptionMessages` is nonempty. |
 | `isSuccess` | Boolean | Authorized, valid, and exception-free. |
@@ -293,6 +295,8 @@ unchanged by redaction.
 | `validationResults` | Array | Always present, including when empty. |
 | `exceptionMessages` | Array | Always present; production redaction replaces detail. |
 | `exceptionStackTrace` | String | Empty when redacted or absent. |
+| `authorizationFailureReason` | String | C#: the authorization failure reason; empty when absent. |
+| `isRetryable` | Boolean | C#: true when the failure is temporary and the same request can succeed when retried. |
 | `paging` | Object | Always present. |
 | `changeSet` | Object | Present only for a delta-mode observable emission. |
 | `isValid` | Boolean | True only when `validationResults` is empty. |
@@ -315,11 +319,16 @@ When `changeSet` is absent, `data` is the complete current snapshot.
 | Command or query authorization failure | 403 |
 | Observable wait for the first result timed out | 408 |
 | Pipeline or host exception | 500 |
+| Retryable failure (C#) | 503 |
 
 Status selection is ordered, and the order matters when a result carries more than one
 kind of failure: success first, then authorization failure (403), then validation
-failure (400), then not-ready (202), then exception (500). A failed result never exposes
-a response value.
+failure (400), then not-ready (202), then retryable failure (503), then exception (500).
+A failed result never exposes a response value.
+
+On C#, a result is retryable when an availability decision could not be made or a
+context value it needs was unavailable. The body carries `isRetryable: true`, so a client
+can retry the same request later.
 
 A malformed or wrong-typed request body is a client error, not a server fault: it becomes
 a validation failure carrying the `malformedRequest` reason without echoing arbitrary parser messages.
@@ -455,18 +464,22 @@ refresh while the stream stays open - keeps working on C#; on the JVM a change t
 principal name or the resolved tenant ends it. Do not treat a connection ID as a
 bearer-style secret on either implementation.
 
-### Query health is anonymous on .NET
+### Query health access differs
 
 `/.cratis/queries/health` reports connection and subscription identifiers, remote IP
 addresses, user agents, and user identities.
 
-- **C#**: the health read model is declared `[AllowAnonymous]`, so the endpoint is
-  reachable without credentials.
+- **C#**: the endpoint allows anonymous callers in Development and requires an
+  authenticated caller everywhere else by default. Set
+  `Cratis:Arc:QueryHealth:RequireAuthentication` to override the environment default, and
+  `Cratis:Arc:QueryHealth:Roles` to require one of the listed roles in every environment.
+  See [Query health](backend/csharp/queries/query-health.md).
 - **JVM**: the route requires an authenticated caller whenever authentication handlers are
   configured.
 
-**Why it matters**: a client may not assume the endpoint is protected. On a C# host,
-restrict the path at ingress if the diagnostics are sensitive.
+**Why it matters**: a client may not assume the same access rules on both. A C# host in
+Development, or one that sets `RequireAuthentication` to `false`, exposes the diagnostics
+anonymously; restrict the path at ingress there if they are sensitive.
 
 ### Observable HTTP snapshot readiness
 
@@ -544,8 +557,9 @@ has to work on both. Do not send a name, and do not assume it affects queries.
 ### Admission control and request limits
 
 - **C#**: there is no connection or subscription admission control and no request-body
-  size gate in Arc itself. 429, 503, `Retry-After`, and 413 are not produced by Arc; any
-  such response comes from the surrounding host or infrastructure.
+  size gate in Arc itself. 429, `Retry-After`, and 413 are not produced by Arc; any such
+  response comes from the surrounding host or infrastructure. Arc's only 503 is a
+  [retryable result](#http-statuses), which carries no `Retry-After` header.
 - **JVM**: the host bounds concurrent Arc operations, physical observable connections,
   subscriptions per connection, outbound frames, inbound WebSocket message bytes,
   connection lifetime, and retained revision tombstones. Exhaustion fails closed: 503 with

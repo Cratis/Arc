@@ -124,6 +124,8 @@ export const Greeting = () => {
 
 `refresh()` sets `isLoading` back to `true` until the new request finishes. Keep the loading branch during refresh so the UI does not decide access using stale identity data.
 
+When the identity was signed in and the refreshed identity is not, the server-side session has ended: the sign-in expired, or the tenant or authorization it depended on was revoked. The provider then reloads the page, so the browser goes through an ordinary navigation that the host can answer by redirecting to sign in. The reload is triggered before the promise resolves, and the promise still resolves with the unset identity, so nothing awaiting the refresh is left hanging before the navigation tears the page down. A refresh that fails with an error does not reload; it rejects and leaves the decision to the caller.
+
 `isLoading` belongs to React's `IIdentityContext`, not the framework-independent `IIdentity` in the core package.
 
 ## Role checking

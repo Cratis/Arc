@@ -121,6 +121,9 @@ These extension methods return `void`. Built-in assertion failures throw `Comman
 | `ShouldHaveValidationErrorFor(string message)`                      | A validation result's message contains the text using ordinal, case-sensitive matching; this is **not** a property-path lookup |
 | `ShouldHaveValidationErrorBecauseOf(ValidationResultReason reason)` | A validation result carries that reason                                                                                        |
 | `ShouldHaveConstraintViolationFor(string constraintName)`           | A validation result has reason `ConstraintViolation` and `ReasonDetail` exactly equal to the name                              |
+| `ShouldBeRejected()`                                                | Validation rejected the command; validation results that are only `DependencyUnavailable` do not count                         |
+| `ShouldBeRejected(string reason)`                                   | A validation message exactly equals the reason, using ordinal comparison                                                       |
+| `ShouldBeDenied()`                                                  | `IsAuthorized` is false                                                                                                        |
 | `ShouldBeAuthorized()`                                              | `IsAuthorized` is true                                                                                                         |
 | `ShouldNotBeAuthorized()`                                           | `IsAuthorized` is false                                                                                                        |
 | `ShouldNotHaveExceptions()`                                         | `HasExceptions` is false                                                                                                       |

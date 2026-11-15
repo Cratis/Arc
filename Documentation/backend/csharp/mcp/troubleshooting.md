@@ -20,14 +20,14 @@ Startup validation runs in this order. Fix the first error you see.
 | `MCP serving requires WithCapabilities() (registration order does not matter), and a port assigned to its endpoint group. Install verified callers with WithPersonalAccessTokens() or WithVerifiedCallers(). See ...` | `WithMcp` without capability hosting. | Add `WithCapabilities(...)`, in any order relative to `WithMcp(...)`. |
 | `Capability endpoint group '<group>' has no port. Assign one with ArcOptions.EndpointGroups.Assign("<group>", <port>).` | The capabilities endpoint group has no port. | `options.EndpointGroups.Assign("capabilities", port)` in the `AddCratisArc` options. |
 | `McpOptions.<option> is missing or invalid for the <profile> profile.` | An option is invalid. `<option>` names it. | See the rules in the [options reference](reference.md). For `OAuthOnly` and `Combined`, set `PublicOrigin`, `Resource` (= `PublicOrigin` + `Path`) and `AuthorizationServers`. |
-| `MCP tool '<name>' is invalid. Names must match ^[a-z][a-z0-9_]{0,63}$.` | Bad tool name. | Use lowercase letters, digits and underscores, starting with a letter. |
-| `MCP tool '<name>' is declared more than once.` | Duplicate name. | Rename one. |
+| `MCP tool name '<name>' is invalid. Names must match ^[a-z][a-z0-9_]{0,63}$.` | Bad tool name. | Use lowercase letters, digits and underscores, starting with a letter. |
+| `MCP tool name '<name>' is declared more than once.` | Duplicate name. | Rename one. |
 | `MCP tool '<name>' has no description.` | Missing description. | Add `Description` or the builder argument. |
 | `MCP tool '<name>' exposes '<op>', which is not a command or query known to Arc.` | A wrong query name or an operation without a handler. | For `ExposeQuery`, use `ExposeQuery<TReadModel>(nameof(TReadModel.Method), ...)`. Make sure the command has a handler. |
 | `... which requires approval. Approval-required commands are never exposed over MCP.` | The command has `[RequiresApproval]`. | Do not expose it. |
 | `MCP tool '<name>' requires no scope. Configure McpOptions.ApplicationName, ReadScope and WriteScope.` | No application name and no explicit scope. | Set `ApplicationName`, or `ReadScope` and `WriteScope`. |
 | `... may change state, so every scope set it declares must require McpOptions.WriteScope or one of McpOptions.WriteScopes.` | A write tool, usually a curated source, requires only read scopes. | Require `WriteScope` or add the scope to `WriteScopes`. |
-| `MCP tool '<name>' is used both by a tool registered on the MCP server and by an exposed tool.` | Name clash with a server-registered tool. | Rename one. |
+| `MCP tool name '<name>' is used both by a tool registered on the MCP server and by an exposed tool.` | Name clash with a server-registered tool. | Rename one. |
 | Warning 5103: `MCP requires scope '<scope>', which PatOptions.AllowedScopes does not allow. PATs cannot satisfy this tool scope. ...` | A tool needs a scope that `PatOptions.AllowedScopes` lacks, and no scope set of that tool (required or alternative) is fully allowed, so no PAT can call it. Startup still succeeds; the warning is logged once per missing scope. It is not raised when no PAT installation is present. | Add the scope to `PatOptions.AllowedScopes`, or adjust `McpOptions.ReadScope`/`WriteScope` and the tool's scope declarations. Scopes with an `admin` or `approve` segment can never be allowed for a PAT. |
 | Startup fails for a command you did not expose | Arc validates authorization for every discovered command and query. | Fix the missing or invalid authorization policy it names. |
 
@@ -76,4 +76,4 @@ A tool failure returns a result with `isError` set, not an HTTP error. The resul
 
 ## The tool list is empty or missing a tool
 
-`tools/list` shows only tools the caller's scopes and the authorizers allow. An empty list has three likely causes: the token holds none of the tools' scopes, the registered authorizers hide every tool, or no tools are exposed. A missing write tool means the token lacks the write scope or an authorizer denies it. A request without an accepted caller gets 401, not an empty list.
+`tools/list` shows only tools the caller's scopes and the authorizers allow, and that are [available](../availability.md) to the caller. An empty list has four likely causes: the token holds none of the tools' scopes, the registered authorizers hide every tool, the availability gate decides that the tools' parts are not available, or no tools are exposed. A gate that cannot decide does not hide a tool; calling it returns a retryable tool error. A missing write tool means the token lacks the write scope or an authorizer denies it. A request without an accepted caller gets 401, not an empty list.

@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc command filters for shared checks
-description: Command filters apply shared checks before Cratis Arc model-bound handlers run. Authorization filters run first; blocking failures stop execution.
+description: Command filters apply shared checks before Cratis Arc model-bound handlers run. Availability and authorization filters run first; blocking failures stop execution.
 ---
 
 A command filter applies a shared check before a Cratis Arc model-bound command reaches `Provide()` or `Handle()`. Use one for rules that belong across commands rather than inside a single handler. Filters run through `ICommandPipeline`; controller-based commands use ASP.NET Core MVC filters and authorization instead.
@@ -9,7 +9,7 @@ A command filter applies a shared check before a Cratis Arc model-bound command 
 
 Arc discovers `ICommandFilter` implementations and resolves them from the command's service scope. `OnExecution(CommandContext)` runs before `Provide()` and `Handle()`.
 
-Filters implementing `IAuthorizationCommandFilter` run first, followed by ordinary `ICommandFilter` implementations. Each group retains discovery order, but that order is not a configurable priority mechanism.
+Filters run in three ordered groups: filters implementing `IAvailabilityCommandFilter` first, then filters implementing `IAuthorizationCommandFilter`, then ordinary `ICommandFilter` implementations. `IAvailabilityCommandFilter` extends `IAuthorizationCommandFilter`, so availability is part of authorization and runs before it. Each group retains discovery order, but that order is not a configurable priority mechanism.
 
 Arc merges each filter's result into the command result. Authorization denials, exceptions, and validation failures that block under the effective severity policy stop the chain. Permitted validation failures do not prevent later filters from running. If a filter throws, its failure is merged without discarding earlier verdicts.
 
@@ -81,6 +81,7 @@ Keep this class in a discovered assembly and configure authentication to establi
 
 | Filter in `Cratis.Arc.Commands.Filters` | Behavior |
 | --- | --- |
+| `AvailabilityFilter` | Implements `IAvailabilityCommandFilter`; asks the registered availability gate whether the command is available to the caller and returns an unauthorized verdict with the reason `NotAvailable` when it is not. A gate that cannot decide produces a retryable error. Without a gate, every command is available. See [availability](../availability.md). |
 | `AuthorizationFilter` | Implements `IAuthorizationCommandFilter`; evaluates Arc authentication/role requirements and returns an unauthorized verdict when denied. |
 | `DataAnnotationValidationFilter` | Validates command properties. Positional records require targets such as `[property: Required]`. |
 | `FluentValidationFilter` | Validates the command graph with discovered validators. |

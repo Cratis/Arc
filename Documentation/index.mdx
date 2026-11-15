@@ -48,7 +48,7 @@ before connecting your first screen.
   <LinkCard title="Frontend contracts" href="#frontend-contracts"
     description="Use the generated TypeScript runtime directly or compose it with React." />
   <LinkCard title="Persistence choices" href="#persistence-choices"
-    description="Keep current state in application services, MongoDB, or EF Core, or add Chronicle." />
+    description="Keep current state in application services, MongoDB, EF Core, or Neo4j, or add Chronicle." />
 </CardGrid>
 
 <CardGrid>
@@ -204,6 +204,11 @@ for your backend. Each backend integrates with its own ecosystem's data access.
     href="/arc/backend/csharp/entity-framework/"
   />
   <LinkCard
+    title="Neo4j (C#)"
+    description="Read the current tenant's Neo4j graph from commands and queries through tenant-aware sessions with typed concept mapping."
+    href="/arc/backend/csharp/neo4j/"
+  />
+  <LinkCard
     title="Spring Data (Kotlin and Java)"
     description="Inject JPA or MongoDB repositories into queries and commands, with Arc paging, tenant routing, transactions and observable change streams."
     href="/arc/backend/kotlin/guides/spring-data/"
@@ -231,6 +236,15 @@ Arc-specific ESLint rules.
 - Generate OpenAPI descriptions: [C#](/arc/backend/csharp/open-api/) or [Kotlin and Java](/arc/backend/kotlin/guides/openapi/)
 - Test command behavior: [C#](/arc/backend/csharp/testing/), [Kotlin and Java](/arc/backend/kotlin/guides/testing/), or [TypeScript](/arc/backend/typescript/testing/)
 - Review analyzer rules: [C# Roslyn analyzers](/arc/backend/csharp/code-analysis/) or [Kotlin KSP diagnostics](/arc/backend/kotlin/reference/diagnostics/)
+
+## Optional C# packages
+
+These C# packages add capabilities a host opts into:
+
+- [Agent tools over MCP](/arc/backend/csharp/mcp/) — `Cratis.Arc.Mcp` serves chosen commands and queries as Model Context Protocol tools through the same pipelines
+- [Availability gates](/arc/backend/csharp/availability/) — `Cratis.Arc.Availability` refuses commands and queries for parts of the application that are not available to a caller
+- [Personal access tokens](/arc/backend/csharp/asp-net-core/personal-access-token-adapters/) — `Cratis.Arc.PersonalAccessTokens` issues and verifies personal access tokens for capability endpoints
+- [Azure connection authentication](/arc/backend/csharp/tenancy/connection-resolution/#microsoft-entra-id-with-a-managed-identity) — `Cratis.Arc.Connections.Azure` signs connection resolution in with a managed or workload identity
 
 :::caution[Check the combination you use]
 These are separate packages and integration surfaces. Their existence does not
