@@ -11,5 +11,6 @@ public class and_there_is_no_handler : given.a_command_pipeline
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_exceptions() => _result.HasExceptions.ShouldBeTrue();
+    [Fact] void should_identify_the_missing_handler() => _result.IsMissingHandler.ShouldBeTrue();
     [Fact] void should_not_set_current_command_context() => _commandContextModifier.DidNotReceive().SetCurrent(Arg.Any<CommandContext>());
 }

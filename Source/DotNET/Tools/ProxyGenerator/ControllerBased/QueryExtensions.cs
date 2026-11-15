@@ -58,8 +58,10 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("query", method.Name, route)) : null;
         var methodParams = method.GetParameters();
         var validationRules = ExtractValidationRules(method, methodParams, FindMatchingArgumentType(method, methodParams));
+        ValidationProjectionRecorder.CompleteEndpoint();
         var treatWarningsAsErrors = HasTreatWarningsAsErrors(method);
 
         // Extract roles from authorization attributes on the method and its declaring type
@@ -157,6 +159,7 @@ public static class QueryExtensions
         foreach (var param in methodParams)
         {
             var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            using var concept = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Concept(param.Name.ToCamelCase(), isOptional) : null;
             var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType!.Assembly, param.ParameterType, isOptional);
             if (rulesFromConcept.Count > 0)
             {

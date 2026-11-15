@@ -10,6 +10,7 @@ using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -54,6 +55,8 @@ public class ClientObservable<T>(
         var isTerminated = false;
         using var cts = new CancellationTokenSource();
         var drain = new DirectObservableEmissionDrain(cts);
+        var backlogCapacity = BacklogCapacityFor(context);
+        var backlog = new EmissionBacklog(backlogCapacity);
         var emissionPrincipal = ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(context, queryContext.AuthorizedPrincipal);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
@@ -128,7 +131,7 @@ public class ClientObservable<T>(
 
         async void Next(T data)
         {
-            if (!drain.TryEnter())
+            if (!backlog.TryEnter(drain, CloseOnBacklogOverflow))
             {
                 return;
             }
@@ -151,8 +154,17 @@ public class ClientObservable<T>(
                     emissionGate.Release();
                 }
 
-                drain.Exit();
+                backlog.Leave(drain);
             }
+        }
+
+        // The consumer cannot keep up: stop queueing for it. Cancelling ends the connection, which unsubscribes
+        // from the producer; the client reconnects and receives a fresh result.
+        void CloseOnBacklogOverflow()
+        {
+            logger.ObservableEmissionBacklogExceeded(queryContext.Name.Value, backlogCapacity);
+            _ = drain.Cancel();
+            tcs.TrySetResult();
         }
 
         async Task EmitWithinGate(T data)
@@ -313,6 +325,16 @@ public class ClientObservable<T>(
             tcs.TrySetResult();
         }
     }
+
+    /// <summary>
+    /// Reads the emission backlog capacity from the connection's services, as this observable has no options constructor parameter
+    /// (it is activated by reflection and built by hand in specs).
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/> of the connection.</param>
+    /// <returns>The configured capacity, or the default when none is configured.</returns>
+    static int BacklogCapacityFor(IHttpRequestContext context) =>
+        context.RequestServices.GetService<IOptions<ArcOptions>>()?.Value.Query.MaxQueuedEmissionsPerSubscription
+            ?? new QueryOptions().MaxQueuedEmissionsPerSubscription;
 
     static void ThrowTeardownFailures(Exception? terminationFailure, Exception? receiverFailure)
     {

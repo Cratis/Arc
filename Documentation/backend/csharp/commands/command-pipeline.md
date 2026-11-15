@@ -129,6 +129,7 @@ These cancellation extension overloads forward the token to Arc's cancellation-a
 | `IsAuthorized` | The authorization verdict. |
 | `IsValid` | Whether `ValidationResults` is empty; this alone does not establish success. |
 | `HasExceptions` | Whether exception messages are present. |
+| `IsMissingHandler` | No handler was registered, so execution or validation could not run. Serialized as `isMissingHandler`; the result still carries exceptions and HTTP 500. |
 | `ValidationResults` | Individual Arc validation failures remaining after applicable filtering. |
 | `ExceptionMessages`, `ExceptionStackTrace` | Exception details; handle as potentially sensitive diagnostic information. |
 | `AuthorizationFailureReason` | A supplied reason for denial, when present. |

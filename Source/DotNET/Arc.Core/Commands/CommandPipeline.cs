@@ -147,6 +147,8 @@ public class CommandPipeline(
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
                 AuthorizationConfigurationFailed = result.AuthorizationConfigurationFailed,
                 Recovery = result.Recovery,
+                IsRetryable = result.IsRetryable,
+                IsMissingHandler = result.IsMissingHandler,
                 OperationOutcomes = result.OperationOutcomes,
                 Response = response is TResult typedResponse ? typedResponse : default
             };

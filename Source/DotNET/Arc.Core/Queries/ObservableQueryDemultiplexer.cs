@@ -257,6 +257,8 @@ public partial class ObservableQueryDemultiplexer(
 
         var interceptionScope = serviceProvider.CreateScope();
         var lifetime = new StreamingQuerySubscription(token, logger.SubscriptionCleanupFailed);
+        var backlogCapacity = arcOptions.Value.Query.MaxQueuedEmissionsPerSubscription;
+        var backlog = new EmissionBacklog(backlogCapacity);
         AddOwnedResources(lifetime, emissionGate, interceptionScope);
 
         var subscriptionToken = lifetime.Token;
@@ -289,6 +291,13 @@ public partial class ObservableQueryDemultiplexer(
                 return;
             }
 
+            if (!backlog.TryAdmit())
+            {
+                lifetime.Exit();
+                TerminateOnBacklogOverflow();
+                return;
+            }
+
             var gateAcquired = false;
             var previousContext = httpRequestContextAccessor.Current;
             try
@@ -316,7 +325,49 @@ public partial class ObservableQueryDemultiplexer(
                 {
                     emissionGate.Release();
                 }
+
+                backlog.Release();
                 lifetime.Exit();
+            }
+        }
+
+        // The consumer cannot keep up: detach from the producer so nothing more queues, then tell the client why.
+        // The notice is best effort and must not hold the producer's thread, so it runs detached on the connection token.
+        void TerminateOnBacklogOverflow()
+        {
+            if (!backlog.TryMarkOverflowed())
+            {
+                return;
+            }
+
+            logger.EmissionBacklogExceeded(queryId, backlogCapacity);
+            lifetime.Dispose();
+            _ = NotifyOverflow();
+        }
+
+        async Task NotifyOverflow()
+        {
+            // The error is started first because the hub only delivers it while the subscription is still current, but
+            // it is not awaited before completing: a stalled socket holds the write lock, and the subscription must
+            // still be released.
+            Task notice;
+            try
+            {
+                notice = onError(queryId, "The subscription was closed because the client fell too far behind. Subscribe again to receive a fresh result.", token);
+            }
+            catch (Exception error) when (!IsFatal(error))
+            {
+                notice = Task.CompletedTask;
+            }
+
+            try
+            {
+                onCompleted();
+                await notice;
+            }
+            catch (Exception error) when (!IsFatal(error))
+            {
+                logger.EmissionAfterDisconnect(queryId);
             }
         }
 

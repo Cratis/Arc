@@ -38,6 +38,11 @@ export class CommandResults implements ICommandResult {
     }
 
     /** @inheritdoc */
+    get isMissingHandler(): boolean {
+        return this.isAnyTrue(_ => _.isMissingHandler === true);
+    }
+
+    /** @inheritdoc */
     get validationResults(): ValidationResult[] {
         const errors: ValidationResult[] = [];
 

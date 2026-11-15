@@ -52,6 +52,7 @@ The first table covers keys already described in [The ArcOptions tree](index.md#
 | `Command:MaximumCallerAllowedSeverity` | `Warning` | Highest severity a caller may allow through the severity header. See [validation severity filtering](../commands/validation-severity-filtering.md). |
 | `Command:IgnoreCallerAllowedSeverity` | `false` | Ignore the caller header entirely. |
 | `Query:KeepAliveInterval` | `00:00:30` | Idle keep-alive for observable query connections; zero or negative disables it. |
+| `Query:MaxQueuedEmissionsPerSubscription` | `256` | Most emissions pending for one observable query subscription. A client that falls further behind is disconnected and gets a fresh result on reconnect. Must be at least 1. |
 | `Query:AllowedWebSocketOrigins` | not set, which accepts any origin | Set to your front-end origins for production. See [Restricting WebSocket origins](../queries/observable-query-demultiplexer.md#restricting-websocket-origins). |
 | `QueryHealth:RequireAuthentication` | unset: anonymous in Development, authenticated elsewhere | Set `true` to require sign-in in Development as well. See [Query health](../queries/query-health.md). |
 | `QueryHealth:Roles` | not set | Restrict the query-health feed to these roles. |

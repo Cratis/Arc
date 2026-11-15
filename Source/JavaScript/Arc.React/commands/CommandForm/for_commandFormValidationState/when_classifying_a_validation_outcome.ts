@@ -10,6 +10,9 @@ const failing = (reason?: string): ICommandResult<unknown> =>
         new ValidationResult(ValidationResultSeverity.Error, 'message', ['name'], null, reason),
     ]) as ICommandResult<unknown>;
 
+const missingHandler = (): ICommandResult<unknown> =>
+    ({ ...CommandResult.failed(['arbitrary diagnostic']), isMissingHandler: true } as ICommandResult<unknown>);
+
 const unauthorized = (): ICommandResult<unknown> =>
     ({ ...CommandResult.empty, isAuthorized: false, isSuccess: false } as ICommandResult<unknown>);
 
@@ -46,6 +49,18 @@ describe('when classifying a validation outcome', () => {
 
     it('should say why an unauthorized result did not run', () =>
         classifyValidationOutcome(unauthorized()).notRunReason!.should.equal(CommandFormValidationNotRunReason.Unauthorized));
+
+    it('should treat a missing handler with exceptions as unknown', () =>
+        classifyValidationOutcome(missingHandler()).verdict.should.equal('unknown'));
+
+    it('should explain why a missing handler could not validate', () =>
+        classifyValidationOutcome(missingHandler()).notRunReason!.should.equal(CommandFormValidationNotRunReason.MissingHandler));
+
+    it('should preserve authorization precedence over a missing handler', () =>
+        classifyValidationOutcome({ ...missingHandler(), isAuthorized: false }).notRunReason!.should.equal(CommandFormValidationNotRunReason.Unauthorized));
+
+    it('should not infer a missing handler from exception text', () =>
+        classifyValidationOutcome(CommandResult.failed(['No handler found for command of type Example']) as ICommandResult<unknown>).verdict.should.equal('error'));
 
     it('should not carry a not-run reason for a verdict', () =>
         (classifyValidationOutcome(failing()).notRunReason === undefined).should.be.true);
