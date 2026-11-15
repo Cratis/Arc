@@ -189,7 +189,7 @@ Observable query subscriptions send the same JSON object text as one named argum
 
 ## Validation attributes
 
-The model-bound `DataAnnotationValidationFilter` validates a supplied argument with the validation attributes declared on the **method parameter** (for example `[Required]`, `[MinLength]` or `[Range]`) whenever the Arc source generator has registered that parameter's metadata. It falls back to validation attributes declared on the **parameter type** when no metadata was registered for the parameter.
+The model-bound `DataAnnotationValidationFilter` enforces validation attributes such as `[Required]`, `[MinLength]`, or `[Range]` declared on a static query method's parameters. Arc's source generator records those attributes at build time, and the filter validates each supplied argument against them; a failure returns HTTP 400 with a validation result for that argument. On a concept parameter, the attributes validate the concept's underlying value.
 
 The generator skips registration for a query, and the method-parameter attributes are then not enforced, when:
 
@@ -198,6 +198,4 @@ The generator skips registration for a query, and the method-parameter attribute
 - the read model, the type that declares the query, or a parameter type cannot be named from generated code (for example a file-local, inaccessible or experimental-assembly type);
 - the query method cannot be resolved unambiguously by reflection, for example when a generic overload such as `Search<T>(Number count, Text name)` has the same name and parameter types as the query. Rename the helper method so the query signature is unique.
 
-The filter does not recursively inspect the properties of a DTO parameter; this is a separate limitation. Do not assume property-level annotations inside a DTO are enforced by this filter. If a rule must always hold, express it with the FluentValidation example linked below instead of relying on attribute registration.
-
-Use the complete [FluentValidation argument-set example](../validation.md). MVC DataAnnotations follow MVC's separate rules.
+When the generator cannot record metadata for a parameter, the filter falls back to validation attributes declared on the parameter's type. It does not recursively inspect DTO properties; use a [query validator](../validation.md) for rules on a complex argument or across arguments. MVC DataAnnotations follow MVC's separate rules.

@@ -6,6 +6,7 @@ using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Arc.Http;
 using Cratis.Chronicle;
+using Cratis.Chronicle.Connections;
 using Cratis.Chronicle.Identities;
 using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,6 +47,10 @@ public static class ArcBuilderExtensions
         Action<IChronicleBuilder>? configureChronicleBuilder = default)
     {
         builder.Services.AddAggregateRoots(builder.Types);
+
+        // Chronicle creates its connection from options unless the application supplies one explicitly.
+        // A convention binding bypasses that factory and cannot supply the connection's constructor values.
+        builder.Services.RemoveArcServiceBindingsFor(typeof(IChronicleConnection));
 
         var beforeChronicle = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
         var applicationBindings = new HashSet<ServiceDescriptor>(ReferenceEqualityComparer.Instance);

@@ -1,0 +1,23 @@
+{
+  "facts": 11,
+  "variants": {
+    "Untrimmed": {
+      "expectedFailures": {}
+    },
+    "NativeAot": {
+      "expectedFailures": {
+        "PublishedArcCoreChronicle › when reading my profile without a caller › should not be authorized": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading my profile without a caller › should respond with forbidden": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading my profile without a caller › should not disclose any display name": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading a missing protected profile › should respond with bad request": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading a missing protected profile › should not be valid": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading a missing protected profile › should report that the profile does not exist": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading a missing protected profile › should not disclose any display name": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading a protected profile › should return the display name": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading my profile as the caller › should return the display name of the caller": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading my profile as the caller › should respond with ok": "https://github.com/Cratis/Chronicle/issues/5133",
+        "PublishedArcCoreChronicle › when reading a protected profile › should respond with ok": "https://github.com/Cratis/Chronicle/issues/5133"
+      }
+    }
+  }
+}

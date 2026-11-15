@@ -25,7 +25,7 @@ Each item includes:
 - `documentationSummary`: Summary text from type metadata when available.
 - `argumentsSchema`: JSON Schema for query arguments, including argument names, types, and required fields.
 
-Introspection applies a performer's custom `[Path]`, but does not mirror all final route deduplication/replacement decisions. Treat it as discovered-operation metadata, not an authoritative inventory of callable URLs. Queries marked `[ExcludeFromDiscovery]` on the read model or method are omitted without disabling their routes.
+Introspection applies a performer's custom `[Path]`, but does not mirror all final route deduplication/replacement decisions. Treat it as discovered-operation metadata, not an authoritative inventory of callable URLs. Queries marked `[ExcludeFromDiscovery]` on the read model or method are omitted without disabling their routes. Queries in a named [endpoint group](../endpoint-groups.md) are omitted too; the catalog lists default-group queries only.
 
 ## Typical uses
 

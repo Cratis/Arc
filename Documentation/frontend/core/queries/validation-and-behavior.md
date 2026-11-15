@@ -82,6 +82,8 @@ Use the result fields to choose the next action, rather than treating every `isS
 - `isReady: false`: keep a pending state; it is not evidence of an empty dataset.
 - `isValid: false`: use `validationResults` to explain which arguments need correcting.
 - `isAuthorized: false`: handle denied access rather than asking the user to change query arguments.
+- `isNotAvailable(result)` from `@cratis/arc/availability` is `true`: the query's part of the application is not available to the caller (`isAuthorized: false` with `authorizationFailureReason` set to `NotAvailable`). Hide that part rather than reporting a denial. See [availability](../../react/availability.md).
+- `isRetryable: true`: the failure is temporary, and the same query can succeed later; retry, or offer the user to try again. The C# host answers HTTP 503 for it.
 - `hasExceptions: true`: inspect `exceptionMessages` and send available diagnostic details to your logger.
 
 For `QueryFor.perform()`, a non-abort network failure resolves to a ready result with default data, `isSuccess: false`, and `hasExceptions: true`. A response that cannot be parsed as JSON instead returns the generic unsuccessful result with no exception messages. Neither should be displayed as a successful empty dataset.
