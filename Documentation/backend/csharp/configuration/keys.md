@@ -87,6 +87,7 @@ The first table covers keys already described in [The ArcOptions tree](index.md#
 | `Tenancy:FixedTenantId` | `development` | Tenant for `Fixed` and `Development`. Prefer this name. |
 | `Tenancy:IngressValidatesTenant` | `false` | Assert that a trusted ingress validates caller-to-tenant membership. It only silences a startup diagnostic. See [Tenancy configuration](../tenancy/configuration.md). |
 | `Tenancy:StrictValidatorMembership` | `false` | Recommended `true` for new applications. |
+| `Tenancy:RequireDuplicateHeaderPreservation` | `false` | Refuse HttpListener startup with a resolver that reads the tenant header. See [Tenant resolvers](../tenancy/resolvers.md). |
 | `OnBehalfOf:Enabled` | `false` | Accept signed acting-on-behalf-of assertions. |
 | `OnBehalfOf:Issuer`, `OnBehalfOf:Audience`, `OnBehalfOf:Service` | empty strings | Expected issuer, audience, and optional service. |
 | `OnBehalfOf:SigningKeys` | empty list | Each key has `KeyId` and `PublicKeyPem`, both empty by default. |

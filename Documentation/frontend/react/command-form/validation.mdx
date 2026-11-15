@@ -105,6 +105,14 @@ export function ProfileForm() {
 
 The summary can show the full result array. For a single input, `getFieldError('email')` returns the first matching message, giving custom errors precedence, just like the built-in field display.
 
+To place one field's message yourself, render `ValidationMessage` from `@cratis/arc.react/commands` inside the form. It takes the same property accessor as the fields, reads `getFieldError` for that property, and renders nothing when there is no message:
+
+```tsx
+<ValidationMessage<UpdateProfile> value={c => c.email} />
+```
+
+The message renders in a `<small>` element colored with the `--color-error` CSS variable.
+
 Keep rule messages safe for end users. The summary replaces messages whose `reason` is not `rule` with application wording. Client-side required-property checks also use `reason: 'rule'`, with `reasonDetail: 'Required'`; map that detail to your own copy too, as described in [validation results](../../core/validation/results.md). Translation in the summary does not change messages rendered independently by custom fields.
 
 Form `isValid` uses the latest applied silent result's `isValid` flag and also requires that no nonempty custom field errors remain. It does not read the displayed `commandResult.isValid` or require an empty message array: non-blocking messages follow the command's severity policy. The form's `isAuthorized` checks the client identity's roles, not server authorization.

@@ -138,9 +138,11 @@ export function ProfileEditor({ userId }: { userId: string }) {
 }
 ```
 
-The query must be **single-instance**, not enumerable; an enumerable query throws. For an emitting source, use `populateFromObservableQuery` instead, with the same `populateFromQueryArgs` prop. Choose one source. Observable updates require an actual emitting backend source; Arc does not infer one from a database write.
+The query must be **single-instance**, not enumerable; an enumerable query throws `QueryReturnsMultipleInstances`. For an emitting source, use `populateFromObservableQuery` instead, with the same `populateFromQueryArgs` prop. Choose one source. Observable updates require an actual emitting backend source; Arc does not infer one from a database write.
 
 Matching fields are seeded by name through `setInitialValues`, including falsy values. These populated properties become the change-tracking baseline. Unrelated edits are preserved when other populated properties change; a changed source value for an edited property can overwrite that edit. Decide whether live repopulation is appropriate for your editor. The `key` above deliberately creates a fresh form when the selected user changes.
+
+To read the same population source outside the form's props, use `usePopulateFromQuery(query, args)` or `usePopulateFromObservableQuery(query, args)` from `@cratis/arc.react/commands`. Each returns the query's data once it has loaded successfully, and `undefined` before that or when no query is given. Omitting the query makes the hook a no-op, so a component can call it unconditionally. An enumerable query throws `QueryReturnsMultipleInstances`, exported from `@cratis/arc.react/queries`.
 
 Population does not supply loading or error UI. If editing or saving before a successful load would be unsafe, load and inspect the query result in the parent, show its loading/error state there, and mount the form only when ready. `isValid` describes validation, not whether the query has loaded.
 

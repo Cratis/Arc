@@ -43,6 +43,8 @@ flowchart TD
 | `queryConnectionCount` | `number` | `1`; hub connection slots (SSE capped at four) |
 | `observableQueryTransferMode` | `ObservableQueryTransferMode` | `Delta`; see [change streams](./queries/change-stream.md) |
 | `queryCacheRetentionMs` | `number` | `30000`; retention after the last cache consumer releases an entry |
+| `sliceMarkers` | `boolean` | `false`; when `true`, `<Slice>` and slice folder boundaries render a `display: contents` element with `data-cratis-module`, `data-cratis-feature`, and `data-cratis-slice`. See [slice context](./slice-context.md) |
+| `applicationContext` | `ApplicationContext` | Created by `<Arc>` when omitted; pass one to create the store up front and subscribe to it outside React. See [application context](./application-context.md) |
 
 `observableQueryDiagnostics` is a service exposed **on `ArcContext`**, not an `<Arc>` prop. See [diagnostics](./queries/observable-query-diagnostics.md).
 
