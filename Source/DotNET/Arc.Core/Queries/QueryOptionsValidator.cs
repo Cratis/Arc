@@ -14,12 +14,24 @@ public class QueryOptionsValidator : IValidateOptions<ArcOptions>
     /// <inheritdoc/>
     public ValidateOptionsResult Validate(string? name, ArcOptions options)
     {
+        var failures = new List<string>();
+
         var invalid = (options.Query.AllowedWebSocketOrigins ?? [])
             .Where(entry => entry != WebSocketOrigins.Wildcard && !WebSocketOrigins.TryNormalize(entry, out _))
             .ToArray();
 
-        return invalid.Length == 0
+        if (invalid.Length > 0)
+        {
+            failures.Add($"Cratis:Arc:Query:AllowedWebSocketOrigins entries must be '*' or an origin such as 'https://app.example.com'. Invalid: {string.Join(", ", invalid.Select(_ => $"'{_}'"))}.");
+        }
+
+        if (options.Query.MaxQueuedEmissionsPerSubscription < 1)
+        {
+            failures.Add($"Cratis:Arc:Query:MaxQueuedEmissionsPerSubscription must be at least 1. Configured: {options.Query.MaxQueuedEmissionsPerSubscription}.");
+        }
+
+        return failures.Count == 0
             ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail($"Cratis:Arc:Query:AllowedWebSocketOrigins entries must be '*' or an origin such as 'https://app.example.com'. Invalid: {string.Join(", ", invalid.Select(_ => $"'{_}'"))}.");
+            : ValidateOptionsResult.Fail(failures);
     }
 }

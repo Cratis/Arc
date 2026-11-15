@@ -23,6 +23,11 @@ public class a_guarded_websocket_connection : a_guarded_connection
     protected long? _unsubscribeRevision;
     protected long? _unsubscribeBeforeSubscribeRevision;
 
+    /// <summary>
+    /// What the socket does once a message has been recorded; a spec returns an incomplete task to stall the sender.
+    /// </summary>
+    protected Func<ObservableQueryHubMessage, Task> _beforeSendCompletes = _ => Task.CompletedTask;
+
     Func<Task> _afterUnsubscribe = () => Task.CompletedTask;
     Func<Task> _script = () => Task.CompletedTask;
     int _receiveCount;
@@ -63,6 +68,7 @@ public class a_guarded_websocket_connection : a_guarded_connection
                 {
                     _sentMessages.Enqueue(hubMessage);
                     _signals.Signal();
+                    return _beforeSendCompletes(hubMessage);
                 }
 
                 return Task.CompletedTask;

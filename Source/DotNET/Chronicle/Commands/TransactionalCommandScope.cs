@@ -10,6 +10,7 @@ using Cratis.Arc.Chronicle.Occurrences;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
@@ -182,6 +183,12 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             // Begin may have thrown before this scope created a frame. Do not complete an enclosing command.
             return;
         }
+
+        // This scope can complete after the command's causation scope did; deferred work, such as the commit and
+        // stream completions enrolled by response value handlers, still happens on the command's behalf.
+        using var causation = CommandCausationScope.IsActive
+            ? null
+            : context.ServiceProvider?.GetService<ICausationManager>()?.BeginScope(CommandCausation.Type, CommandCausation.PropertiesFor(context.Type, context.Command));
 
         try
         {

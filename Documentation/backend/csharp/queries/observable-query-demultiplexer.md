@@ -182,4 +182,8 @@ The initial verdict does not automatically revoke a long-lived stream. Use [emis
 
 `ArcOptions.Query.KeepAliveInterval` defaults to 30 seconds. Idle WebSocket/SSE connections receive a `Ping`; ongoing data suppresses unnecessary keep-alives. Zero or negative disables keep-alive, advertised as `keepAliveIntervalMs: 0` on `Connected`. Clients should derive their idle threshold from that advertisement rather than hard-coding 30 seconds.
 
+## Slow clients
+
+`ArcOptions.Query.MaxQueuedEmissionsPerSubscription` (default 256, minimum 1) caps how many emissions may be pending for one subscription, counting the one being sent. When a client reads slower than the query produces, the hub stops queueing for it once the cap is reached: it detaches that subscription from the producer, sends an `Error` message for the query id, and completes the subscription. Other subscriptions on the connection are unaffected. Subscribe again to receive a fresh result. The single-query WebSocket and SSE endpoints apply the same cap by closing the connection.
+
 See [frontend multiplexing](../../../frontend/react/queries/observable-query-multiplexing.md) for the supplied client rather than implementing the lifecycle from scratch.

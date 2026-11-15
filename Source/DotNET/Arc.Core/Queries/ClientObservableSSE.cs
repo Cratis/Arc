@@ -51,6 +51,7 @@ public class ClientObservableSSE<T>(
         using var cts = new CancellationTokenSource();
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted, cts.Token);
         var drain = new DirectObservableEmissionDrain(cts);
+        var backlog = new EmissionBacklog(arcOptions.Value.Query.MaxQueuedEmissionsPerSubscription);
         var emissionPrincipal = ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(context, queryContext.AuthorizedPrincipal);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
@@ -85,7 +86,7 @@ public class ClientObservableSSE<T>(
 
         async void Next(T data)
         {
-            if (!drain.TryEnter())
+            if (!backlog.TryEnter(drain, CloseOnBacklogOverflow))
             {
                 return;
             }
@@ -165,8 +166,17 @@ public class ClientObservableSSE<T>(
                     emissionGate.Release();
                 }
 
-                drain.Exit();
+                backlog.Leave(drain);
             }
+        }
+
+        // The consumer cannot keep up: stop queueing for it. Cancelling ends the stream, which unsubscribes
+        // from the producer; the client reconnects and receives a fresh result.
+        void CloseOnBacklogOverflow()
+        {
+            logger.ObservableEmissionBacklogExceeded(queryContext.Name.Value, arcOptions.Value.Query.MaxQueuedEmissionsPerSubscription);
+            _ = drain.Cancel();
+            tcs.TrySetResult();
         }
 
         // Returns true when the emission may be written. A denial also tells the client it is no longer authorized
