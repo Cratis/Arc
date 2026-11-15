@@ -8,4 +8,5 @@ public class when_handling_forged_headers_in_development : given.a_handler_in_en
     async Task Because() => _result = await Handle("Development");
 
     [Fact] void should_authenticate() => _result.IsAuthenticated.ShouldBeTrue();
+    [Fact] void should_read_the_roles() => _result.Principal!.IsInRole("admin").ShouldBeTrue();
 }

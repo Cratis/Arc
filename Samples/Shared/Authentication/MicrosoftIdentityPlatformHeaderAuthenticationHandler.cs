@@ -42,7 +42,7 @@ public class MicrosoftIdentityPlatformHeaderAuthenticationHandler(IHostEnvironme
         try
         {
             var token = Convert.FromBase64String(principalHeader);
-            clientPrincipal = JsonSerializer.Deserialize(token, SamplesJsonSerializerContext.Default.ClientPrincipal);
+            clientPrincipal = JsonSerializer.Deserialize(token, ClientPrincipalJsonSerializerContext.Default.ClientPrincipal);
         }
         catch
         {
