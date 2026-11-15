@@ -394,6 +394,71 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+  # The live Neo4j specifications of the graph views package run in the ordinary spec shards too, where they skip because no
+  # server is configured. This job gives them a real Neo4j: every shared query vector is seeded into the server and run
+  # through the executor, so the Cypher the translator writes is proven on the database it is written for. The server runs
+  # without authentication (it is only reachable from this job); the specifications still need the three variables set.
+  neo4j-live:
+    name: neo4j-live
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: none
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -a bolt://localhost:7687 'RETURN 1'"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup .Net 11
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: ${{ env.DOTNET11_VERSION }}
+
+      - name: Run the live Neo4j specifications
+        env:
+          NEO4J_TEST_URI: bolt://localhost:7687
+          NEO4J_TEST_USER: neo4j
+          NEO4J_TEST_PASSWORD: not-used-the-server-has-no-authentication
+        run: dotnet test Source/DotNET/Neo4j.Chronicle.Specs --configuration Release --framework net11.0 --filter "FullyQualifiedName~Integration" --logger "trx;LogFileName=neo4j-live.trx" --results-directory "$RUNNER_TEMP/neo4j-live"
+
+      - name: Verify the live specifications ran
+        run: |
+          set -euo pipefail
+          trx="$RUNNER_TEMP/neo4j-live/neo4j-live.trx"
+          test -f "$trx"
+          python3 - "$trx" <<'PY'
+          import re, sys
+          text = open(sys.argv[1], encoding="utf-8").read()
+          counters = re.search(r'<Counters [^>]*>', text).group(0)
+          passed = int(re.search(r'passed="(\d+)"', counters).group(1))
+          skipped = int(re.search(r'notExecuted="(\d+)"', counters).group(1)) if 'notExecuted' in counters else 0
+          print(counters)
+          if passed < 2 or skipped:
+              sys.exit(f"the live specifications must run and pass, not skip: passed={passed} skipped={skipped}")
+          PY
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results-neo4j-live
+          path: ${{ runner.temp }}/neo4j-live/*.trx
+          retention-days: 7
+          if-no-files-found: warn
+
   # Every Screenplay specification builds its compilation from source strings, which is what makes them hermetic -
   # and what puts a whole class of defect out of their reach by construction. A compilation built that way has no
   # intermediate folder, no source generator output on disk and no referenced package declaring an event, so a
@@ -568,7 +633,7 @@ jobs:
   # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
-    needs: [embedded-viewer, dotnet-build, analyzers, specs, screenplay-end-to-end, proxy-specs]
+    needs: [embedded-viewer, dotnet-build, analyzers, specs, neo4j-live, screenplay-end-to-end, proxy-specs]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

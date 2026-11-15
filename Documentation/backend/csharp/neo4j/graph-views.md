@@ -104,6 +104,19 @@ var group = await GroupWithMembers.WithMembers(groupId, graph);
 
 To evaluate the clauses against a graph built from events, use Chronicle's `GraphScenario` and hand its graph to the service collection with `UseGraph(scenario.Graph)`.
 
+## Test against a real Neo4j
+
+The package's own specifications include a set that runs every shared query vector against a live Neo4j server: the graph of the vectors is seeded into the server in a namespace of its own, each query goes through the executor, and the rows are compared with the expected result. They are opt-in, so a build without a server skips them. To run them, point the specifications at a server with three environment variables and run the specifications of the package:
+
+```bash
+export NEO4J_TEST_URI=bolt://localhost:7687
+export NEO4J_TEST_USER=neo4j
+export NEO4J_TEST_PASSWORD=<the password of the server>
+dotnet test Source/DotNET/Neo4j.Chronicle.Specs --filter "FullyQualifiedName~Integration"
+```
+
+The repository's build runs them in a `neo4j-live` job against a `neo4j:5-community` server, and fails the job when they skip instead of run. Set `NEO4J_TEST_DATABASE` to use a database other than `neo4j`.
+
 ## Limits
 
 - Nesting is finite. A view cannot contain itself, and there are no variable-length paths.
