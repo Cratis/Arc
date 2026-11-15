@@ -195,7 +195,8 @@ The generator skips registration for a query, and the method-parameter attribute
 
 - the query method or a parameter is marked `[Obsolete]`, `[Experimental]` or with a trimming/AOT annotation such as `[RequiresUnreferencedCode]`;
 - a parameter is a `ref`, `out` or `in` parameter;
-- the read model, the type that declares the query, or a parameter type cannot be named from generated code (for example a file-local, inaccessible or experimental-assembly type).
+- the read model, the type that declares the query, or a parameter type cannot be named from generated code (for example a file-local, inaccessible or experimental-assembly type);
+- the query method cannot be resolved unambiguously by reflection, for example when a generic overload such as `Search<T>(Number count, Text name)` has the same name and parameter types as the query. Rename the helper method so the query signature is unique.
 
 The filter does not recursively inspect the properties of a DTO parameter; this is a separate limitation. Do not assume property-level annotations inside a DTO are enforced by this filter. If a rule must always hold, express it with the FluentValidation example linked below instead of relying on attribute registration.
 
