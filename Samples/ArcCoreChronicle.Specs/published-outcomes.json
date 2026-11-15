@@ -1,0 +1,11 @@
+{
+  "facts": 11,
+  "variants": {
+    "Untrimmed": {
+      "expectedFailures": {}
+    },
+    "NativeAot": {
+      "expectedFailures": {}
+    }
+  }
+}
