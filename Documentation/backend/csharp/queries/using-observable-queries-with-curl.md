@@ -44,6 +44,7 @@ Use the HTTP status and result together to decide what happened:
 | 403 from an emission guard | Delivery was denied, including when the guard failed; no data is returned. |
 | 408 | The server's wait expired without an allowed result. |
 | 500 | The source failed or completed before an allowed result, or result processing failed. |
+| 503 | The query's availability could not be decided, or a context value it needs was unavailable. The body carries `isRetryable: true`; retry with backoff. |
 
 Waiting does not bypass authorization or validation. Correct an invalid request or denied access before retrying it.
 

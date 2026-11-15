@@ -159,7 +159,7 @@ Do not use the default threshold for the first request: it already allows warnin
 
 The pipeline applies filtering to command-filter outcomes and during `Provide()` argument resolution. It does **not** re-filter a singular validation value returned by `Handle()` through its response handler. A warning returned from `Handle()` still makes the result invalid, so moving a warning into the handler changes the confirmation behavior.
 
-The built-in response handler recognizes only a singular Arc `ValidationResult`. A validation array returned by `Handle()` is response data, not a collection of validation failures. `Provide()` separately supports `IEnumerable<ValidationResult>` control values.
+The built-in response handler recognizes only a singular Arc `ValidationResult`. A validation array returned by `Handle()` is response data on the ordinary response path, not a collection of validation failures. When the returned values include a command operation, the pipeline classifies them separately and does not treat a validation collection as response data; see [response value handlers](./response-value-handlers.md#automatic-response-handling). Return a single `ValidationResult` to report a failure. `Provide()` separately supports `IEnumerable<ValidationResult>` control values.
 
 Within the command-filter chain, authorization filters run first. Ordinary filters continue after permitted validation failures and stop on a blocking failure. Generated-value validation is separate and rejects any returned failure, regardless of this caller threshold. Enforce critical invariants at the operation or storage boundary; validation alone supplies no concurrency or integrity guarantee.
 

@@ -154,6 +154,17 @@ if (!result.hasData) {
 return <AccountDetails account={result.data} />;
 ```
 
+## Finding a document by ID
+
+The same extensions in the `MongoDB.Driver` namespace also read one document by its `_id`:
+
+```csharp
+T? FindById<T, TId>(this IMongoCollection<T> collection, TId id);
+Task<T?> FindByIdAsync<T, TId>(this IMongoCollection<T> collection, TId id);
+```
+
+Both return the document, or `default` when none matches, and throw when more than one does. Prefer `FindByIdAsync` in request handling.
+
 ## Advanced Usage
 
 If no first result arrives, check replica-set configuration, permissions, ID mapping and connectivity. Logging for `MongoDB.Driver.MongoCollection` reports observation failures; `Cratis.Arc.MongoDB.MongoDBWatcher` reports shared-stream connections and reconnects.

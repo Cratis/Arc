@@ -44,7 +44,7 @@ In React, this is usually configured through `<Arc queryDirectMode={...} />`. Se
 
 ## Polling transport
 
-If a proxy cuts long-lived connections, your host caps request duration, or you want to scale to zero between requests, use polling instead of keeping a WebSocket or SSE stream open. You still subscribe to the observable query, but Arc fetches its current snapshot through repeated HTTP GET requests.
+If a proxy cuts long-lived connections, your host caps request duration, or you want to scale to zero between requests, use polling instead of keeping a WebSocket or SSE stream open. You still subscribe to the observable query, but Arc fetches its current snapshot through repeated HTTP GET requests. Polling therefore needs a query whose GET request returns a snapshot result envelope. Built-in model-bound `IAsyncEnumerable` queries require a streaming transport and do not provide that snapshot path: their plain HTTP handler rejects the request with HTTP 400, so do not select polling for them.
 
 Select polling explicitly before subscribing; Arc does not automatically select it or fall back between transports in this release:
 

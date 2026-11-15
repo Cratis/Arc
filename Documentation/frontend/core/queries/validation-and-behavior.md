@@ -51,7 +51,7 @@ Client-side rules give feedback before a request; they do not replace server val
 
 For an HTTP query request, a server validation rejection returns HTTP 400 with a result whose `isValid` and `isSuccess` are `false`. `perform()` preserves the member names and messages in `validationResults`; React query hooks expose those same fields.
 
-Observable subscriptions to model-bound queries deliver one invalid result through the callback and then end that subscription, over WebSocket or SSE in direct or hub mode. Controller-based direct WebSocket and SSE queries also send a terminal validation result rather than treating the rejection as a failed connection. For background on the controller-based direct WebSocket case, see [#3230](https://github.com/Cratis/Arc/issues/3230). Correct the arguments and create a new subscription to try again.
+Observable subscriptions to model-bound queries deliver one invalid result through the callback and then end that subscription, over WebSocket or SSE in direct or hub mode. For an authorized request with validation enabled that fails validation, a built-in controller-based GET query over a direct WebSocket accepts the connection, sends one terminal invalid result and closes it normally; over SSE it writes that one result. The rejection is not a failed connection. This describes Arc's built-in controller query validation, not custom middleware or queries that ignore validation. Correct the arguments and create a new subscription to try again.
 
 For general validation docs, see [Validation](../validation/index.md).
 
@@ -82,6 +82,8 @@ Use the result fields to choose the next action, rather than treating every `isS
 - `isReady: false`: keep a pending state; it is not evidence of an empty dataset.
 - `isValid: false`: use `validationResults` to explain which arguments need correcting.
 - `isAuthorized: false`: handle denied access rather than asking the user to change query arguments.
+- `isNotAvailable(result)` from `@cratis/arc/availability` is `true`: the query's part of the application is not available to the caller (`isAuthorized: false` with `authorizationFailureReason` set to `NotAvailable`). Hide that part rather than reporting a denial. See [availability](../../react/availability.md).
+- `isRetryable: true`: the failure is temporary, and the same query can succeed later; retry, or offer the user to try again. The C# host answers HTTP 503 for it.
 - `hasExceptions: true`: inspect `exceptionMessages` and send available diagnostic details to your logger.
 
 For `QueryFor.perform()`, a non-abort network failure resolves to a ready result with default data, `isSuccess: false`, and `hasExceptions: true`. A response that cannot be parsed as JSON instead returns the generic unsuccessful result with no exception messages. Neither should be displayed as a successful empty dataset.

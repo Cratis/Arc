@@ -49,7 +49,7 @@ public class CookieAuthenticationHandler(IHostEnvironment? environment = null) :
         try
         {
             var token = Convert.FromBase64String(cookieValue);
-            clientPrincipal = JsonSerializer.Deserialize(token, SamplesJsonSerializerContext.Default.ClientPrincipal);
+            clientPrincipal = JsonSerializer.Deserialize(token, ClientPrincipalJsonSerializerContext.Default.ClientPrincipal);
         }
         catch
         {

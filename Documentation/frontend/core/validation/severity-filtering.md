@@ -21,7 +21,7 @@ For overridable advice, use the result's severity to decide whether to offer a c
 
 The numeric enum is `Unknown = 0`, `Information = 1`, `Warning = 2`, `Error = 3`. An explicit severity blocks results greater than the allowed level. Passing `Unknown` therefore blocks Information, Warning, and Error, but does not itself block Unknown results.
 
-A generated proxy can also carry `blockOnValidationSeverity`, the minimum severity that must block execution. With that policy, results at or above its level block, Unknown results also block, and neither argument can relax the policy. A caller can still choose a stricter threshold.
+A generated proxy can also carry `blockOnValidationSeverity`, the minimum severity that must block execution. With that policy, results at or above its level block, Unknown results also block, and neither argument can relax the policy. A caller can still choose a stricter threshold, and `ignoreWarnings: true` does not remove the declared floor. This local filtering is a client-side convenience, not authoritative enforcement. When a request does proceed, the supplied `X-Allowed-Severity` and `X-Ignore-Warnings` choices are still sent, and the server's policy remains authoritative.
 
 When a request is sent, the severity argument becomes the `X-Allowed-Severity` header; `ignoreWarnings: true` also sends `X-Ignore-Warnings: true`. The C# HTTP endpoint caps caller severity at Warning unless the command or host explicitly opts in. Do not pass Error as an override: without a declared client policy, it can filter out all client errors even though the server can still reject them.
 

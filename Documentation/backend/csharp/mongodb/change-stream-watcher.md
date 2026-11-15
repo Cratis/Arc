@@ -123,6 +123,17 @@ public class CatalogController(IMongoDBWatcher watcher) : Controller
 }
 ```
 
+## Reading raw database changes
+
+To react to changes yourself rather than through a joined observation, subscribe to the shared stream directly:
+
+```csharp
+IObservable<ChangeStreamDocument<BsonDocument>> GetChanges(string databaseName);
+IObservable<ChangeStreamDocument<BsonDocument>> GetChanges(IMongoDatabase database);
+```
+
+Both return a hot observable of every change in the database, across all its collections, and open the stream when it is not already open. Every subscription to one database shares a single change stream, so subscribing opens no extra connection, and a subscriber sees only changes that arrive after it subscribed. The `IMongoDatabase` overload opens the stream with that database's own client, so a database from another client is watched on the deployment it lives on.
+
 ## Lifetime and disposal
 
 `IMongoDBWatcher` is a singleton. The host owns the singleton and disposes it at shutdown. A failed database watch reconnects with exponential backoff (one second up to 60 seconds), carrying its last resume token. An invalidation or an expired/invalid resume token discards that token, reopens the stream, and refreshes every joined observation. Tokens are held in memory, not as durable consumer checkpoints.

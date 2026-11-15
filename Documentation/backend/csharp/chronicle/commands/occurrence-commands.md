@@ -99,6 +99,17 @@ Return events or use `.Transactional` on the command's unit of work instead of a
 
 A custom `IEventSequence` must honor Chronicle's append-admission contract. The executor's post-commit detection on the command's event log is only a backstop: it cannot prevent a custom implementation's immediate write or cover other sequence instances. See [transactional commands](./transactional-commands.md) for the append boundary.
 
+### When events are already committed
+
+Two errors report that events reached the event log without a receipt. The executor throws them after the command ran instead of returning a disposition, because the effect cannot be settled safely:
+
+| Error | When | What is committed |
+| --- | --- | --- |
+| `OccurrenceCommandAppendedImmediately` | The command appended events outside its unit of work, for example through a direct append to an event sequence that the backstop detected. | Those events, without a receipt. Redelivering the occurrence would append them again. |
+| `OccurrenceCommandReceiptNotCommitted` | The command succeeded and committed events, or validated a protected decision, but the commit reported no effect receipt. The executor fails closed instead of reporting success. | The events, if any, without a receipt. |
+
+Both are programming or integration errors, not retryable failures. Do not redeliver blindly: inspect what was committed first (the events carry the occurrence's causation), then fix the command to return the events from the handler or append through the command's unit of work.
+
 ## Fail closed without the kernel capability
 
 If `effect-receipts` is absent or unknown, the executor throws Chronicle's `EffectReceiptsNotSupported` before running the command. There is no fallback that executes the command without a receipt.

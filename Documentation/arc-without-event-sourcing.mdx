@@ -9,7 +9,7 @@ Use this approach for a bounded CRUD (create, read, update, delete) feature, suc
 
 ## The line between Arc and Chronicle
 
-Arc can sit on top of Chronicle; Chronicle never depends on Arc. A current-state slice uses Arc without that integration. Each backend has its own current-state integrations: [MongoDB](./backend/csharp/mongodb/index.md) and [Entity Framework](./backend/csharp/entity-framework/index.md) on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on JVM, [MongoDB or Drizzle](/arc/backend/typescript/reference/capabilities/) on TypeScript, and explicit providers in [Arc for Go](/arc/go/). Check Go's [parity reference](/arc/go/parity/) for each provider's verification limits. Chronicle adds the optional event-sourced path.
+Arc can sit on top of Chronicle; Chronicle never depends on Arc. A current-state slice uses Arc without that integration. Each backend has its own current-state integrations: [MongoDB](./backend/csharp/mongodb/index.md), [Entity Framework](./backend/csharp/entity-framework/index.md), and [Neo4j](./backend/csharp/neo4j/index.md) on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on JVM, [MongoDB or Drizzle](/arc/backend/typescript/reference/capabilities/) on TypeScript, and explicit providers in [Arc for Go](/arc/go/). Check Go's [parity reference](/arc/go/parity/) for each provider's verification limits. Chronicle adds the optional event-sourced path.
 
 ```mermaid
 flowchart TB

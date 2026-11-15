@@ -161,6 +161,8 @@ Authorizers only narrow access:
 - They apply to the tools of the catalog only, not to tools registered directly on the MCP server.
 - They run for every catalog tool on every `tools/list`, and again for each call, in admission and in the dispatcher. Keep them cheap, and cache any lookup they need.
 
+When an [availability gate](../availability.md) is registered, `tools/list` also hides a catalog tool whose command or query is not available to the caller, and the call is refused through Arc's pipelines. A gate that cannot decide does not hide the tool.
+
 ## Tools registered on the MCP server
 
 By default only the tool catalog is served. Tools you register directly on the MCP server, for example with `AddMcpServer().WithTools(...)`, are removed, together with any custom tool list or call handlers. To serve them next to the catalog, turn `ExclusiveTools` off:

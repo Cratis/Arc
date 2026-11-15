@@ -49,6 +49,6 @@ If a few controller actions and an existing client already meet your needs, you 
 
 ## Where to start
 
-- Build your first feature with [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or [TypeScript from source](/arc/backend/typescript/getting-started/).
+- Build your first feature with [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or [TypeScript](/arc/backend/typescript/getting-started/).
 - Walk the full database-backed path in the [Arc tutorial](/arc/tutorial/).
 - Need the wider stack? [Why developers choose Cratis](/why-cratis/) shows how Arc, Chronicle, Components, and the tools fit together.

@@ -27,7 +27,7 @@ Prefer [IQueryable paging](paging.md). If you need complete control over status 
 
 ## Nullable return types
 
-A null response from a default Arc-wrapped MVC GET becomes a failed result with `exceptionMessages` containing `"Null data returned"`; it is not ordinary successful absence or an automatic 404. This differs from the [model-bound pipeline](../model-bound/return-types.md#collections-and-absence), where null can remain a success.
+A null response from a default Arc-wrapped MVC GET becomes a failed result; it is not ordinary successful absence or an automatic 404. The `"Null data returned"` diagnostic appears in `exceptionMessages` only when the host exposes exception details, which Arc does by default only in the Development environment. Otherwise standard redaction replaces it with a generic internal-error message and the details stay in the server log with the correlation ID. Keep that secure default; do not enable exception-detail exposure to see this message. This differs from the [model-bound pipeline](../model-bound/return-types.md#collections-and-absence), where null can remain a success.
 
 Choose deliberately:
 
