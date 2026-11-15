@@ -65,6 +65,28 @@ A separate orphan-directory cleanup phase can delete `index.ts` without checking
 
 For dependable isolation, keep handwritten source, assets, and public barrels **outside** the generated output directory. Do not rely on the skipped-tracking flag as a safety switch.
 
+## Checking for drift
+
+Use `--check` in CI to compare committed clients with what the compiled backend would generate, without writing or deleting any proxy files or directories. Run the packaged executable directly; the MSBuild target regenerates clients and does not expose this flag. With a built backend at `bin/Release/net10.0/MyApp.dll` and the packaged tool available as `Cratis.Arc.ProxyGenerator.dll`:
+
+```bash
+dotnet Cratis.Arc.ProxyGenerator.dll bin/Release/net10.0/MyApp.dll frontend/generated --check
+```
+
+Use the same namespace, suffix, grouping and other generation options that produced the committed files. The check prints `missing: <relative-path>`, `changed: <relative-path>` or `obsolete: <relative-path>`, ordered by path then category, followed by a summary. Paths use `/` separators. A clean comparison prints `Proxies are up to date.`. Errors go to stderr with an `error:` prefix. Run [validation projection reporting](validation.md#reporting-client-validation-projection) separately: `--check` cannot be combined with either validation report option.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | A complete comparison found no drift |
+| `1` | Usage, loading, extraction or comparison failed |
+| `2` | A complete comparison found drift |
+
+Missing expected artifacts are drift, including a missing output directory (which stays absent). Changed artifacts are compared byte-for-byte, not by trusting their embedded hash. Only the metadata `Time:` token is retained from the existing file: editing the body, source name or hash is drift, but editing only that timestamp is not. An unmarked file at an expected generated path is also changed.
+
+Obsolete proxies are identified by valid generator metadata, not their filename suffix. The existing orphan scan covers `.ts`, not `.tsx`. Unrelated handwritten files are ignored. Index comparison uses the same merge rules as generation; `--skip-index-generation` excludes all indexes from checking. Unlike normal full regeneration, checking never deletes the output tree, even without `--skip-output-deletion`.
+
+`--state-file` is accepted but ignored with a stderr notice: the state file is never read, written or deleted, and discovery always runs. Checking is not a sandbox: the generator loads and runs trusted assemblies and validator constructors. Only point it at assemblies you would build and run.
+
 ## Troubleshooting
 
 - **A stale proxy remains:** confirm it has valid generated metadata on the first line (legacy) or the fourth line after the exact standard Cratis copyright and license lines and a blank third line, and lies under the configured output path. Unmarked files are not recognized as orphans.

@@ -132,7 +132,9 @@ public static class QueryExtensions
         var additionalTypesInvolved = CollectAdditionalTypesInvolved(parameterWithComplexTypes, properties);
 
         var documentation = method.GetDocumentation();
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("query", method.Name, route)) : null;
         var validationRules = ExtractValidationRules(readModelType, method);
+        ValidationProjectionRecorder.CompleteEndpoint();
 
         // Check for TreatWarningsAsErrors attribute
         var treatWarningsAsErrors = FindAttributeData(method, readModelType, a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") is not null;
@@ -355,7 +357,7 @@ public static class QueryExtensions
     /// <param name="readModelType">The read model type owning the query method.</param>
     /// <param name="method">The query method.</param>
     /// <returns>The merged validation rules.</returns>
-    static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(TypeInfo readModelType, MethodInfo method)
+    static List<PropertyValidationDescriptor> ExtractValidationRules(TypeInfo readModelType, MethodInfo method)
     {
         var parametersType = FindParametersTypeFor(readModelType, method);
 
@@ -374,12 +376,13 @@ public static class QueryExtensions
             : [];
         dataAnnotationsRules.AddRange(parameters.Select(DataAnnotationsRulesFor).OfType<PropertyValidationDescriptor>());
 
-        return ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
+        return ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
     }
 
     static PropertyValidationDescriptor? ConceptRulesFor(Assembly assembly, ParameterInfo param)
     {
         var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+        using var concept = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Concept(param.Name.ToCamelCase(), isOptional) : null;
         var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(assembly, param.ParameterType, isOptional);
         return rulesFromConcept.Count > 0
             ? new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept])
