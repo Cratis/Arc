@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 
 namespace Cratis.Arc.ProxyGenerator;
@@ -19,7 +20,8 @@ namespace Cratis.Arc.ProxyGenerator;
 /// </para>
 /// <para>
 /// Used as a last-resort <see cref="AppDomain.AssemblyResolve"/> handler, this answers those requests from the
-/// application's <c>deps.json</c>, falling back to the application's output folder. It is consulted only after every
+/// application's <c>deps.json</c>, falling back to the application's output folder and the ASP.NET Core shared
+/// framework. It is consulted only after every
 /// other resolution has missed, so nothing that resolves today changes. Assemblies load into the default context,
 /// alongside the executable validator assemblies, so shared types keep a single identity.
 /// </para>
@@ -45,7 +47,7 @@ internal sealed class ApplicationRuntimeDependencies
     /// </summary>
     /// <param name="sender">The sender of the event.</param>
     /// <param name="args">The resolution request.</param>
-    /// <returns>The application's copy of the assembly, or <see langword="null"/> when the application has none.</returns>
+    /// <returns>The application or shared framework assembly, or <see langword="null"/> when neither has a match.</returns>
     public Assembly? Resolve(object? sender, ResolveEventArgs args)
     {
         var path = PathFor(new AssemblyName(args.Name));
@@ -65,6 +67,43 @@ internal sealed class ApplicationRuntimeDependencies
         }
     }
 
+    /// <summary>
+    /// Finds an ASP.NET Core assembly compatible with the requested framework version.
+    /// </summary>
+    /// <param name="name">The requested assembly identity.</param>
+    /// <param name="runtimeDirectory">The active .NET runtime directory.</param>
+    /// <returns>The matching assembly path, or null when no compatible framework contains it.</returns>
+    internal static string? SharedFrameworkAssemblyPath(AssemblyName name, string runtimeDirectory)
+    {
+        if (!IsSimpleName(name.Name))
+        {
+            return null;
+        }
+
+        var frameworkRoot = Path.GetFullPath(Path.Combine(runtimeDirectory, "..", "..", "Microsoft.AspNetCore.App"));
+        if (!Directory.Exists(frameworkRoot))
+        {
+            return null;
+        }
+
+        var runtimeVersion = Path.GetFileName(Path.TrimEndingDirectorySeparator(runtimeDirectory));
+        var requestedVersion = name.Version ?? Environment.Version;
+        return Directory.GetDirectories(frameworkRoot)
+            .Select(path => new
+            {
+                Path = path,
+                Version = Version.TryParse(Path.GetFileName(path).Split('-')[0], out var version) ? version : null
+            })
+            .Where(_ => _.Version is not null && _.Version.Major == requestedVersion.Major && _.Version.Minor == requestedVersion.Minor)
+            .OrderByDescending(_ => Path.GetFileName(_.Path) == runtimeVersion)
+            .ThenByDescending(_ => _.Version)
+            .ThenBy(_ => Path.GetFileName(_.Path).Contains('-'))
+            .Select(_ => Path.Combine(_.Path, $"{name.Name}.dll"))
+            .FirstOrDefault(File.Exists);
+    }
+
+    static bool IsSimpleName(string? name) => !string.IsNullOrEmpty(name) && name == Path.GetFileName(name);
+
     static AssemblyDependencyResolver? CreateResolver(string assemblyFile)
     {
         try
@@ -80,17 +119,17 @@ internal sealed class ApplicationRuntimeDependencies
 
     string? PathFor(AssemblyName name)
     {
+        if (!IsSimpleName(name.Name))
+        {
+            return null;
+        }
+
         if (_resolver?.ResolveAssemblyToPath(name) is { } resolved && File.Exists(resolved))
         {
             return resolved;
         }
 
-        if (string.IsNullOrEmpty(name.Name))
-        {
-            return null;
-        }
-
         var probed = Path.Combine(_applicationFolder, $"{name.Name}.dll");
-        return File.Exists(probed) ? probed : null;
+        return File.Exists(probed) ? probed : SharedFrameworkAssemblyPath(name, RuntimeEnvironment.GetRuntimeDirectory());
     }
 }
