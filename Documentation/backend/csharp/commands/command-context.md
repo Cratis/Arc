@@ -14,6 +14,9 @@ description: CommandContext in Cratis Arc carries invocation metadata, with depe
 | `Dependencies` | Resolved handler arguments; empty during filters and scope initialization. |
 | `GeneratedValues` | Validated values captured while resolving generated handler parameters; see [validation and captures](./generated-values.md#validation-and-captures). |
 | `Values` | A case-insensitive `CommandContextValues` dictionary. |
+| `ProvidedValues` | The [context values](../context-values.md) provided for this command, resolved lazily and once per request. Cast to `dynamic` to read them by name. |
+| `ValuesAs<T>()` | Returns the provided values as `T`, whose public properties or constructor parameters are named after the values; throws `ContextValuesTypeMismatch` when they do not fit. |
+| `AuthorizedPrincipal` | The `ClaimsPrincipal` that scheme authentication selected for the rest of this execution, or `null` when none was selected. |
 | `AllowedSeverity` | Optional threshold for the stages described in [severity filtering](./validation-severity-filtering.md). |
 | `Response` | Selected caller response, if any; available after response processing, not the raw handler return or proof of final success. |
 | `ServiceProvider` | The provider for this invocation's service scope, when supplied. |

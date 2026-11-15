@@ -17,6 +17,9 @@ Arc discovers `ICommandExecutionScope` implementations and resolves them from th
 2. Awaits `BeginAsync(context)` sequentially on scopes implementing `IAsyncCommandExecutionScope`, in the same order.
 3. Runs filters, resolves provided data and handler arguments, awaits `Handle()`, and processes its response.
 4. Calls asynchronous `Complete(context, result)` in reverse scope order, including when validation fails or execution throws.
+5. Calls synchronous `End(context)` in reverse scope order on scopes implementing `ICommandInvocationExecutionScope`, in the pipeline's `finally`.
+
+Implement `ICommandInvocationExecutionScope` when a scope holds invocation resources that must be released however the invocation ends. `End` runs even when beginning or completing a scope fails, and an `End` that throws does not stop the remaining scopes from ending. Release resources there; report outcomes in `Complete`, which receives the result.
 
 Plan for partial initialization. For commands whose declared return type can contain operations, completion runs only for scopes whose `Begin` was attempted, including one whose `Begin` threw. For other commands, every materialized scope completes once, even if an earlier failure prevented its `Begin` from running. Write `Complete` so it can handle missing state.
 

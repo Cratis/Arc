@@ -132,6 +132,7 @@ These cancellation extension overloads forward the token to Arc's cancellation-a
 | `ValidationResults` | Individual Arc validation failures remaining after applicable filtering. |
 | `ExceptionMessages`, `ExceptionStackTrace` | Exception details; handle as potentially sensitive diagnostic information. |
 | `AuthorizationFailureReason` | A supplied reason for denial, when present. |
+| `IsRetryable` | Whether the failure is temporary, so the same command can succeed when sent again later; for example, an availability decision or a required context value could not be resolved. Such a result is authorized and carries exception messages; HTTP endpoints answer 503. |
 | `CorrelationId` | Identifier for correlating this execution. |
 | `Recovery` | Optional backend-only command operation recovery summary; excluded from HTTP JSON. |
 | `OperationOutcomes` | Backend-only observations of started operation invocations; excluded from HTTP JSON. |
@@ -168,6 +169,14 @@ This covers parameter binding only. It does not make general dependency injectio
 ## Exception handling
 
 The pipeline catches handler, filter, response-handler, and scope-completion exceptions and represents failures in `CommandResult`. Exceptions implementing `IValidationFailure` can be translated into validation outcomes; ordinary exceptions produce exception details. A wrong requested generic response type is a separate caller error, described above.
+
+To turn a specific exception into a different command failure, implement `ICommandExceptionMapper`:
+
+```csharp
+bool TryMap(CommandContext context, Exception exception, [NotNullWhen(true)] out CommandResult? result);
+```
+
+Arc discovers mappers and resolves them from the command's service scope. For an exception escaping execution or response processing, each mapper is asked in turn; the first that returns `true` supplies the result, which should keep the invocation's correlation identifier. When every mapper declines, Arc applies the default conversion. Map by exception type, not by parsing messages. Exceptions that signal an authorization denial become an unauthorized result before any mapper runs, and a mapper that throws fails the command with that error, so execution scopes still roll back their pending work.
 
 Arc does not undo arbitrary direct application-service writes on failure. Prefer [command operations](./operations/index.md) for inline work you want the framework to execute and, when safe, compensate. Their commit-aware recovery does not imply atomic rollback, automatic retries, or crash recovery. Specialized persistence coordination still belongs in a deliberately implemented [execution scope](./command-execution-scopes.md). The [Chronicle transaction integration](./transactional-commands.md) is optional and has its own boundaries.
 
