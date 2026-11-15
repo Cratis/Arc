@@ -89,17 +89,24 @@ Custom renderers implement `IQueryRendererFor<T>` with `QueryRendererResult Exec
 
 ## Query filters
 
-Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return `Task<QueryResult>`. Implement `IAuthorizationQueryFilter` for access decisions that must precede ordinary validation filters. Discovered filters are resolved from the operation's service provider; **authorization filters run first**, then other filters, preserving discovery order within each group. This is not a registration-order guarantee.
+Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return `Task<QueryResult>`. Implement `IAuthorizationQueryFilter` for access decisions that must precede ordinary validation filters. Discovered filters are resolved from the operation's service provider and run in three ordered groups: **availability filters (`IAvailabilityQueryFilter`) first, then authorization filters, then other filters**, preserving discovery order within each group. This is not a registration-order guarantee. `IAvailabilityQueryFilter` extends `IAuthorizationQueryFilter`, so availability runs as part of the authorization stage.
 
 | Built-in filter | Current behavior |
 | --- | --- |
+| `AvailabilityFilter` | Asks the registered availability gate whether the query is available to the caller and refuses with `authorizationFailureReason` `NotAvailable` when it is not. A gate that cannot decide produces a retryable error. Without a gate, every query is available. See [availability](../availability.md) |
 | `AuthorizationFilter` | Evaluates the query's authorization declaration: authentication, roles, and registered named policies, plus named schemes on the ASP.NET Core host |
 | `FluentValidationFilter` | Validates a matching argument model or individual supplied argument graphs |
-| `DataAnnotationValidationFilter` | Reads annotations on parameter types, not method-parameter attributes or nested DTO properties |
+| `DataAnnotationValidationFilter` | Validates the attributes on a static query method's parameters from metadata Arc's source generator records at build time. A parameter without generated metadata falls back to the attributes on its type. It does not recursively inspect DTO properties |
 
 Use `QueryResult.Unauthorized(context.CorrelationId)` for denial, not an input-validation error. `QueryResult.Success(...)` permits the next stage; it does not supply the final read data. The [query-health access settings](query-health.md#configure-access) control authentication and roles for the health feed across direct model-bound and hub paths.
 
 For input rules, follow [query validation](validation.md). For roles, policies, and schemes on queries, see [model-bound authorization](model-bound/authorization.md) and [authorization](../core/authorization.md).
+
+## Query transports
+
+Each HTTP method a model-bound query accepts is served by an `IQueryRequestReader`. Arc ships readers for GET (`QueryStringQueryRequestReader`) and QUERY (`BodyQueryRequestReader`). The endpoint mapper discovers every implementation through `IInstancesOf<IQueryRequestReader>` and maps one endpoint per reader for each query, so a new HTTP method or argument source is a new implementation, not a change to the mapper.
+
+A reader declares its `HttpMethod`, an `EndpointNamePrefix` that keeps endpoint names unique across transports, the `RequestBodyType` it expects (`null` without a body), whether its endpoints are included in the API description (`IncludeInApiDescription`), and the `ResponseCacheControl` header value (`null` to leave it unset). `Read(IHttpRequestContext context, IQueryPerformer performer)` returns a `QueryRequest(QueryArguments Arguments, Paging Paging, Sorting Sorting)`; use the performer to convert argument values to the parameter types.
 
 ## Compose outside `AddCratisArc`
 
@@ -121,4 +128,4 @@ If you want all Core services rather than manual composition, `IServiceCollectio
 
 ## Streaming boundary
 
-An `ISubject<IEnumerable<T>>` is not automatically paged: MongoDB `Observe()` implements paging using the context; arbitrary subjects must supply their own behavior. Streaming delivery applies interception per emission, while **observable HTTP snapshots currently do not**. Read [interception limitations](read-model-interception.md) before relying on masking, and [observable lifetime](model-bound/observable-queries.md#subscription-lifetime) before composing streams.
+An `ISubject<IEnumerable<T>>` is not automatically paged: MongoDB `Observe()` implements paging using the context; arbitrary subjects must supply their own behavior. Streaming delivery and observable HTTP snapshots both apply interception per emission. Read [interception limitations](read-model-interception.md) before relying on masking, and [observable lifetime](model-bound/observable-queries.md#subscription-lifetime) before composing streams.

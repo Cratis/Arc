@@ -189,6 +189,6 @@ Observable query subscriptions send the same JSON object text as one named argum
 
 ## Validation attributes
 
-The current model-bound `DataAnnotationValidationFilter` reads validation attributes from the **parameter type**, not from the method parameter's attributes, and does not recursively inspect DTO properties. `[Required]`, `[MinLength]`, or `[Range]` on a static query parameter therefore do not enforce the advertised rule. This is a current limitation, not a recommendation to omit validation.
+The model-bound `DataAnnotationValidationFilter` enforces validation attributes such as `[Required]`, `[MinLength]`, or `[Range]` declared on a static query method's parameters. Arc's source generator records those attributes at build time, and the filter validates each supplied argument against them; a failure returns HTTP 400 with a validation result for that argument. On a concept parameter, the attributes validate the concept's underlying value.
 
-Use the complete [FluentValidation argument-set example](../validation.md). MVC DataAnnotations follow MVC's separate rules.
+When the generator cannot record metadata for a parameter, the filter falls back to validation attributes declared on the parameter's type. It does not recursively inspect DTO properties; use a [query validator](../validation.md) for rules on a complex argument or across arguments. MVC DataAnnotations follow MVC's separate rules.
