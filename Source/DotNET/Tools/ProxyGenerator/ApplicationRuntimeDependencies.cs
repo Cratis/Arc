@@ -75,6 +75,11 @@ internal sealed class ApplicationRuntimeDependencies
     /// <returns>The matching assembly path, or null when no compatible framework contains it.</returns>
     internal static string? SharedFrameworkAssemblyPath(AssemblyName name, string runtimeDirectory)
     {
+        if (!IsSimpleName(name.Name))
+        {
+            return null;
+        }
+
         var frameworkRoot = Path.GetFullPath(Path.Combine(runtimeDirectory, "..", "..", "Microsoft.AspNetCore.App"));
         if (!Directory.Exists(frameworkRoot))
         {
@@ -92,9 +97,12 @@ internal sealed class ApplicationRuntimeDependencies
             .Where(_ => _.Version is not null && _.Version.Major == requestedVersion.Major && _.Version.Minor == requestedVersion.Minor)
             .OrderByDescending(_ => Path.GetFileName(_.Path) == runtimeVersion)
             .ThenByDescending(_ => _.Version)
+            .ThenBy(_ => Path.GetFileName(_.Path).Contains('-'))
             .Select(_ => Path.Combine(_.Path, $"{name.Name}.dll"))
             .FirstOrDefault(File.Exists);
     }
+
+    static bool IsSimpleName(string? name) => !string.IsNullOrEmpty(name) && name == Path.GetFileName(name);
 
     static AssemblyDependencyResolver? CreateResolver(string assemblyFile)
     {
@@ -111,14 +119,14 @@ internal sealed class ApplicationRuntimeDependencies
 
     string? PathFor(AssemblyName name)
     {
+        if (!IsSimpleName(name.Name))
+        {
+            return null;
+        }
+
         if (_resolver?.ResolveAssemblyToPath(name) is { } resolved && File.Exists(resolved))
         {
             return resolved;
-        }
-
-        if (string.IsNullOrEmpty(name.Name))
-        {
-            return null;
         }
 
         var probed = Path.Combine(_applicationFolder, $"{name.Name}.dll");
