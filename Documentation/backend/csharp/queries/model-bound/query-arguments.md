@@ -43,7 +43,7 @@ Arc converts the incoming name to `AccountName`; the predicate uses that domain 
 
 The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose. If a supplied scalar or concept value cannot be converted to the declared parameter type, GET and QUERY reject it with HTTP 400 and a validation error naming the argument and its type; the query does not run. This also applies to nullable and defaulted parameters when a value is supplied: invalid input does not fall back to null or the default. Use the named validation error to correct the argument before trying the read again. Omitting a defaulted parameter is different from supplying an invalid value.
 
-Arc binds supported scalar values and collections of those values, including arrays and lists. It does **not** provide general nested-JSON DTO binding. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported DTO shapes cannot be constructed by these readers; use a supported scalar or collection argument instead.
+Arc binds supported scalar values, collections of those values (including arrays and lists), and [string-keyed dictionaries](#dictionary-arguments) of supported scalar values. It does **not** provide general nested-JSON DTO binding. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported DTO shapes cannot be constructed by these readers; use a supported scalar or collection argument instead.
 
 These limitations concern the supplied HTTP readers. Already-typed arguments passed directly to `IQueryPipeline`, custom readers/converters, and [MVC DTO binding](../controller-based/query-arguments.md) are different paths. FluentValidation's ability to traverse an object does not prove HTTP can construct that object.
 
@@ -189,6 +189,14 @@ Observable query subscriptions send the same JSON object text as one named argum
 
 ## Validation attributes
 
-The current model-bound `DataAnnotationValidationFilter` reads validation attributes from the **parameter type**, not from the method parameter's attributes, and does not recursively inspect DTO properties. `[Required]`, `[MinLength]`, or `[Range]` on a static query parameter therefore do not enforce the advertised rule. This is a current limitation, not a recommendation to omit validation.
+The model-bound `DataAnnotationValidationFilter` validates a supplied argument with the validation attributes declared on the **method parameter** (for example `[Required]`, `[MinLength]` or `[Range]`) whenever the Arc source generator has registered that parameter's metadata. It falls back to validation attributes declared on the **parameter type** when no metadata was registered for the parameter.
+
+The generator skips registration for a query, and the method-parameter attributes are then not enforced, when:
+
+- the query method or a parameter is marked `[Obsolete]`, `[Experimental]` or with a trimming/AOT annotation such as `[RequiresUnreferencedCode]`;
+- a parameter is a `ref`, `out` or `in` parameter;
+- the read model, the type that declares the query, or a parameter type cannot be named from generated code (for example a file-local, inaccessible or experimental-assembly type).
+
+The filter does not recursively inspect the properties of a DTO parameter; this is a separate limitation. Do not assume property-level annotations inside a DTO are enforced by this filter. If a rule must always hold, express it with the FluentValidation example linked below instead of relying on attribute registration.
 
 Use the complete [FluentValidation argument-set example](../validation.md). MVC DataAnnotations follow MVC's separate rules.

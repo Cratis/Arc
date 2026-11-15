@@ -83,7 +83,7 @@ For the declared product query, this is the complete request envelope:
 }
 ```
 
-`paging` and `sorting` are optional; page numbers start at zero. Arguments bind by parameter name. Supported collection parameters can receive JSON arrays, while ordinary scalar parameters use scalar conversion. Putting an object in `arguments` does not make an arbitrary DTO parameter bindable. Model-bound readers do not bind route placeholders, so use the explicit path and named arguments shown here.
+`paging` and `sorting` are optional; page numbers start at zero. Arguments bind by parameter name. Supported collection parameters can receive JSON arrays, string-keyed dictionaries of supported scalar values can receive JSON objects, and ordinary scalar parameters use scalar conversion (see the [supported argument shapes](model-bound/query-arguments.md#dictionary-arguments)). Putting an object in `arguments` does not make an arbitrary DTO parameter bindable. Model-bound readers do not bind route placeholders, so use the explicit path and named arguments shown here.
 
 ## Call it with cURL
 
