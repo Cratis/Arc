@@ -20,7 +20,8 @@ public class when_arc_results_are_structured : an_mcp_host
 
     protected override void ConfigureMcp(McpBuilder mcp) => mcp
         .Expose<ReplyToNote>("reply_note", "Replies.")
-        .ExposeQuery<StructuredReadModel>(nameof(StructuredReadModel.All), "structured_notes", "Lists notes.");
+        .ExposeQuery<StructuredReadModel>(nameof(StructuredReadModel.StructuredNotes), "structured_notes", "Lists notes.")
+        .ExposeQuery<StructuredReadModel>(nameof(StructuredReadModel.FailedStructuredNotes), "failed_structured_notes", "Fails to list notes.");
 
     protected override void ConfigureServices(IServiceCollection services)
     {
@@ -44,14 +45,16 @@ public class when_arc_results_are_structured : an_mcp_host
         _command = await CallTool("reply_note", "{\"text\":\"hello\"}");
         _failedCommand = await CallTool("reply_note", "{\"text\":\"fail\"}");
         _query = await CallTool("structured_notes", "{\"page\":1,\"page_size\":2}");
-        _failedQuery = await CallTool("structured_notes", "{\"fail\":true}");
+        _failedQuery = await CallTool("failed_structured_notes", "{}");
     }
 
     [Fact] void should_keep_command_text_and_structured_content_equal() => JsonElement.DeepEquals(JsonElement.Parse(_command.ToolText), Structured(_command)).ShouldBeTrue();
     [Fact] void should_keep_query_text_and_structured_content_equal() => JsonElement.DeepEquals(JsonElement.Parse(_query.ToolText), Structured(_query)).ShouldBeTrue();
     [Fact] void should_return_the_command_response() => Structured(_command).GetProperty("response").GetString().ShouldEqual("reply:hello");
+    [Fact] void should_succeed_for_the_query() => _query.IsToolError.ShouldBeFalse();
     [Fact] void should_return_paging() => Structured(_query).GetProperty("paging").GetProperty("size").GetInt32().ShouldEqual(2);
     [Fact] void should_return_query_data() => Structured(_query).GetProperty("data").GetArrayLength().ShouldEqual(1);
+    [Fact] void should_return_the_requested_page() => Structured(_query).GetProperty("data")[0].GetProperty("text").GetString().ShouldEqual("third");
     [Fact] void should_mark_a_command_pipeline_failure() => _failedCommand.IsToolError.ShouldBeTrue();
     [Fact] void should_mark_a_query_pipeline_failure() => _failedQuery.IsToolError.ShouldBeTrue();
     [Fact] void should_suppress_a_failed_command_response() => Suppressed(Structured(_failedCommand), "response").ShouldBeTrue();
