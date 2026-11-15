@@ -17,7 +17,7 @@ export type CommandFormValidationFreshness = 'unvalidated' | 'stale' | 'current'
 
 /**
  * What a channel concluded.
- * - `unknown`: nothing was concluded.
+ * - `unknown`: nothing was concluded, or the attempt could not run.
  * - `valid` / `invalid`: the rules ran and accepted / rejected the values.
  * - `error`: the attempt itself failed, so nothing is known about the rules.
  */
@@ -47,6 +47,8 @@ export interface CommandFormValidationState {
 export const CommandFormValidationNotRunReason = {
     /** The server refused the validation before any rule ran. */
     Unauthorized: 'unauthorized',
+    /** The server has no registered handler, so server validation could not run. */
+    MissingHandler: 'missingHandler',
 
     /** The form does not validate against the server - `autoServerValidate` is off. */
     ServerValidationDisabled: 'serverValidationDisabled',
@@ -95,10 +97,15 @@ export function classifyValidationOutcome(
         return { verdict: 'unknown', notRunReason: CommandFormValidationNotRunReason.Unauthorized };
     }
 
+    if (result.isMissingHandler) {
+        return { verdict: 'unknown', notRunReason: CommandFormValidationNotRunReason.MissingHandler };
+    }
+    if (result.hasExceptions || result.exceptionMessages.length > 0) return { verdict: 'error' };
+
     const hasInfrastructureFailure = result.validationResults.some(
         (validationResult) => infrastructureReasons.includes(validationResult.reason),
     );
-    if (result.hasExceptions || result.exceptionMessages.length > 0 || hasInfrastructureFailure) {
+    if (hasInfrastructureFailure) {
         return { verdict: 'error' };
     }
 
@@ -144,7 +151,8 @@ export function describeDisabledServer(
     state: CommandFormValidationState,
     serverValidationEnabled: boolean,
 ): CommandFormValidationState {
-    if (serverValidationEnabled || state.server.freshness !== 'unvalidated' || state.server.notRunReason) return state;
+    if (serverValidationEnabled) return state;
+    if (state.server.freshness !== 'unvalidated' || state.server.notRunReason) return state;
     return {
         ...state,
         server: { ...state.server, notRunReason: CommandFormValidationNotRunReason.ServerValidationDisabled },

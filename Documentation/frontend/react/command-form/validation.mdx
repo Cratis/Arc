@@ -182,6 +182,7 @@ Preflight can still stop at local validation and never grants permission to exec
 | `validationResults` | Array of `{ severity, message, members, state, reason, reasonDetail? }`. |
 | `exceptionMessages`, `exceptionStackTrace` | Exception diagnostics. |
 | `authorizationFailureReason` | Authorization failure detail. |
+| `isMissingHandler` | No server handler was registered, so execution or validation could not run. Defaults to `false` with older servers. |
 | `correlationId`, `response` | Correlation identifier and optional typed response. |
 
 For exact field matching outside CommandForm, filter `validationResults` by member name and map to messages. Account for casing/nested paths in your own renderer; within the form prefer `getFieldError()` for its field-matching behavior.
@@ -194,9 +195,11 @@ For exact field matching outside CommandForm, filter `validationResults` by memb
 | --- | --- |
 | `pending` | A validation is in flight or, for the server, waiting behind `autoServerValidateThrottle`. |
 | `freshness` | `unvalidated`, `stale` (the verdict describes earlier values) or `current`. |
-| `verdict` | `unknown`, `valid`, `invalid` or `error` (the attempt failed - exception, `validatorFailed`, `dependencyUnavailable`, `malformedRequest`, `frameworkFailure`). A command without a server handler currently also reports `error`, because the result carries no machine-readable marker for that case. |
+| `verdict` | `unknown`, `valid`, `invalid` or `error` (the attempt failed - exception, `validatorFailed`, `dependencyUnavailable`, `malformedRequest`, `frameworkFailure`). A command without a server handler reports `unknown`. |
 | `validatedVersion` | The revision of the form values the verdict describes. |
-| `notRunReason` | `unauthorized` when the server refused before any rule ran, `serverValidationDisabled` when `autoServerValidate` is off. |
+| `notRunReason` | `unauthorized` when the server refused before any rule ran, `missingHandler` when no server handler was registered, `serverValidationDisabled` when `autoServerValidate` is off. |
+
+A missing handler leaves the server channel `unvalidated`, with no `validatedVersion`, just like an unauthorized attempt. The result's exception diagnostics and HTTP status are unchanged.
 
 A `current`, `valid` verdict is a preflight: it never guarantees the command will execute successfully. A result is attributed to the server channel only when the server could have produced it; when client rules reject, `Command.validate()` answers locally and that result is recorded as the client's.
 

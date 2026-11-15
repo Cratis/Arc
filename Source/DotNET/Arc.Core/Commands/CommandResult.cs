@@ -72,6 +72,11 @@ public class CommandResult
     public bool IsRetryable { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether no command handler was registered, so execution or validation did not run.
+    /// </summary>
+    public bool IsMissingHandler { get; set; }
+
+    /// <summary>
     /// Gets the server-only recovery summary, when operation declarations participated. This is not an HTTP contract.
     /// </summary>
     [JsonIgnore]
@@ -128,7 +133,7 @@ public class CommandResult
     /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
     /// <param name="type">The type of command that is missing a handler.</param>
     /// <returns>A <see cref="CommandResult"/>.</returns>
-    public static CommandResult MissingHandler(CorrelationId correlationId, Type type) => new() { CorrelationId = correlationId, ExceptionMessages = [$"No handler found for command of type {type}"] };
+    public static CommandResult MissingHandler(CorrelationId correlationId, Type type) => new() { CorrelationId = correlationId, IsMissingHandler = true, ExceptionMessages = [$"No handler found for command of type {type}"] };
 
     /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing an error.
@@ -195,6 +200,7 @@ public class CommandResult
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
         AuthorizationConfigurationFailed |= commandResults.Any(result => result.AuthorizationConfigurationFailed);
         IsRetryable |= commandResults.Any(result => result.IsRetryable);
+        IsMissingHandler |= commandResults.Any(result => result.IsMissingHandler);
         if (string.IsNullOrEmpty(AuthorizationFailureReason))
         {
             AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
