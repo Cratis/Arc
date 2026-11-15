@@ -12,7 +12,7 @@ capability exists in the language you work in before you design around it.
 
 :::note[Arc for TypeScript]
 [Arc for TypeScript](/arc/backend/typescript/) on Node.js is
-available from source, with no published npm package. It is not in this matrix: a column
+published on npm. It is not in this matrix: a column
 here needs evidence behind every cell.
 Its [capability reference](/arc/backend/typescript/reference/capabilities/) gives the status
 of each capability, the spec or check that proves it, and where it deliberately differs from
@@ -98,7 +98,7 @@ Not every Java contract is discovered the same way:
 | Renderers, read-model interceptors, and emission guards | Implemented | Implemented | Implemented | [C#](backend/csharp/queries/read-model-interception.md) · [Kotlin and Java](/arc/backend/kotlin/guides/queries/) |
 | Services in query methods | Implemented | Implemented | Implemented | Service parameters are injected and never become client arguments. [C#](backend/csharp/queries/model-bound/dependency-injection.md) · [Kotlin and Java](/arc/backend/kotlin/guides/queries/) |
 | Spring Data `Pageable`, `Sort`, and `Page` | Not applicable | Implemented | Implemented | [Kotlin and Java](/arc/backend/kotlin/guides/spring-data/repositories/) |
-| Query health endpoint | Implemented | Implemented | Implemented | `/.cratis/queries/health`. Its authentication differs; see [the HTTP contract](http-contract.md#query-health-is-anonymous-on-net). [C#](backend/csharp/queries/query-health.md) |
+| Query health endpoint | Implemented | Implemented | Implemented | `/.cratis/queries/health`. Its authentication differs; see [the HTTP contract](http-contract.md#query-health-access-differs). [C#](backend/csharp/queries/query-health.md) |
 
 ## Validation
 
@@ -132,6 +132,8 @@ Not every Java contract is discovered the same way:
 | Observable queries from database changes | Implemented | Implemented | Implemented | C# observes MongoDB collections and EF Core sets. The JVM uses MongoDB change streams, which need a replica set or sharded cluster, and explicit in-process JPA notifications. [C#](backend/csharp/mongodb/observing-collections.md) · [Kotlin and Java](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) |
 | Read models in command handlers | Implemented | Implemented | Implemented | Arc resolves a read model by command key and hands it to the handler. [C#](backend/csharp/chronicle/read-models/other-providers.md) · [Kotlin and Java](/arc/backend/kotlin/guides/spring-data/repositories/) |
 
+C# also reads Neo4j graphs through `Cratis.Arc.Neo4j`, with tenant-aware sessions injected into commands and queries. It is not compared with the JVM here. See [Neo4j](backend/csharp/neo4j/index.md).
+
 ## Chronicle integration
 
 | Capability | C# | Kotlin | Java | Notes |
@@ -146,7 +148,7 @@ Not every Java contract is discovered the same way:
 
 | Capability | C# | Kotlin | Java | Notes |
 | --- | --- | --- | --- | --- |
-| In-process scenarios | Partial | Implemented | Implemented | C# has command and snapshot query scenarios, but no observable-query scenario. The JVM has command, query, and observable query scenarios; Java uses the `Blocking*` and `Async*` scenario classes. [C# commands](backend/csharp/testing/command-scenario.md) · [C# queries](backend/csharp/testing/query-scenario.md) · [Kotlin and Java](/arc/backend/kotlin/guides/testing/) |
+| In-process scenarios | Implemented | Implemented | Implemented | C# has command and query scenarios; `QueryScenario.Observe` returns a `QueryObservation` for asserting later emissions of an observable query. The JVM has command, query, and observable query scenarios; Java uses the `Blocking*` and `Async*` scenario classes. [C# commands](backend/csharp/testing/command-scenario.md) · [C# queries](backend/csharp/testing/query-scenario.md) · [Kotlin and Java](/arc/backend/kotlin/guides/testing/) |
 
 ## Tooling and clients
 
@@ -187,6 +189,15 @@ them as not planned for the JVM. They are listed here rather than marked not pla
 | --- | --- | --- |
 | [Command operations](backend/csharp/commands/operations/index.md) | C# | Not in source; no decision recorded. |
 | [Aggregate roots](backend/csharp/chronicle/aggregates/index.md) | C# | Not in source; no decision recorded. |
+
+## C# packages outside this comparison
+
+These optional C# packages are not compared with the JVM on this page:
+
+- [MCP](backend/csharp/mcp/index.md): `Cratis.Arc.Mcp` serves chosen commands and queries as Model Context Protocol tools.
+- [Availability](backend/csharp/availability.md): `Cratis.Arc.Availability` refuses commands and queries for parts of the application that are not available to a caller.
+- [Personal access tokens](backend/csharp/asp-net-core/personal-access-token-adapters.md): `Cratis.Arc.PersonalAccessTokens` issues and verifies personal access tokens for capability endpoints.
+- [Azure connection authentication](backend/csharp/tenancy/connection-resolution.md#microsoft-entra-id-with-a-managed-identity): `Cratis.Arc.Connections.Azure` authenticates connection resolution with a managed or workload identity.
 
 ## What this page leaves out
 

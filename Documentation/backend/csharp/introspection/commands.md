@@ -26,6 +26,8 @@ Each item includes:
 
 Introspection does not mirror all final endpoint replacement decisions. It also derives `namespace` and `route` from the **default** route options, not from `Cratis:Arc:GeneratedApis` (`ArcOptions.GeneratedApis`), which is what the endpoint mapper uses. If you change the route prefix, segments to skip, or name inclusion there, the reported routes can differ from the callable ones. Use it to inspect discovered-operation metadata, not as an authoritative inventory of callable URLs.
 
+The catalog lists default-group commands only. It omits commands marked `[ExcludeFromDiscovery]`, commands in a named [endpoint group](../endpoint-groups.md), and [protocol-only commands](../commands/model-bound/index.md#protocol-only-commands). Omitting a command from the catalog does not change its authorization.
+
 ## Typical uses
 
 - Generate dynamic command catalogs in internal tooling.

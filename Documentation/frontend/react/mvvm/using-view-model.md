@@ -347,7 +347,7 @@ change.
 ### Handling Query Params
 
 For the scenario were the query params are changing while the component is not unloaded, implementing the `IHandleQueryParams<>`
-interface is a better option. It is a generic interface, but the generic argument is optional and is defaulted to
+interface is an option, but it receives notifications only when the router's search-parameter object compares as changed (see the note below), so do not rely on it to report every query-string change. It is a generic interface, but the generic argument is optional and is defaulted to
 `object` if not specified.
 
 ```ts
@@ -364,7 +364,7 @@ export class MyViewModel implements IHandleQueryParams<SearchParams> {
 }
 ```
 
-> Note: The `handleQueryParams` method will be called both on initial load and for any subsequent changes.
+> Note: The `handleQueryParams` method is called on initial load. Later notifications depend on a comparison of the router's raw search-parameter object (reference identity, then a recursive comparison of its keys), not of the resulting entries, so do not rely on it to report every query-string change.
 
 ## View Model lifecycle
 

@@ -70,6 +70,11 @@ For `/lookup?id=123`, the result is `{"id":"123"}`. Other context members includ
 | `AllowAnonymous` | Lets the request proceed even if authentication fails |
 | `RequireAuthentication` | Throws `AuthenticationRequiredWithoutHandlers` when no authentication handler is available |
 | `Roles` | Comma-separated roles; the authenticated caller must have at least one |
+| `RequestBodyType` | The request body type, if any, for the API description |
+| `ResponseType` | The response body type, if any, for the API description |
+| `ExcludeFromApiDescription` | Leaves the endpoint out of the generated API description, such as OpenAPI |
+| `EndpointGroup` | The named [endpoint group](../endpoint-groups.md) the endpoint belongs to; `null` is the default group. A host that supports endpoint groups serves the endpoint only on the ports assigned to that group |
+| `ServesEveryEndpointGroup` | Makes the endpoint reachable on every port; it resolves the artifacts it serves by the endpoint groups of the port the request arrived on |
 
 With authentication handlers available, an endpoint without `AllowAnonymous: true` requires successful authentication. The middleware returns 401 if authentication fails and 403 if the principal lacks every role listed in `Roles`. `AllowAnonymous: true` bypasses both checks.
 

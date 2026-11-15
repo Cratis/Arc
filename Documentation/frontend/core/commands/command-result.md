@@ -19,12 +19,15 @@ interface ICommandResult<TResponse = object> {
     readonly validationResults: ValidationResult[];
     readonly exceptionMessages: string[];
     readonly authorizationFailureReason: string;
+    readonly isRetryable?: boolean;
     readonly exceptionStackTrace: string;
     readonly response?: TResponse;
 }
 ```
 
 `authorizationFailureReason` carries the reason a command was not authorized when the server supplies one; it is empty otherwise.
+
+The `CommandResult` class also exposes `isNotAvailable`, derived from `isAuthorized` and `authorizationFailureReason`. See [isNotAvailable](#isnotavailable).
 
 ## Status Properties
 
@@ -122,6 +125,33 @@ if (result.hasExceptions) {
     showErrorMessage('An unexpected error occurred. Please try again.');
 }
 ```
+
+### isRetryable
+
+Reports a temporary failure: the same command can succeed when sent again later. The `CommandResult` class reads it from the payload and defaults it to `false` when the server omits it.
+
+- `true`: The server could not complete the command for now, for example because an availability decision or a context value the command needs was unavailable. The C# host answers HTTP 503, and the result also carries exception messages. A retryable result is never a denial: `isAuthorized` stays `true`.
+- `false`: The failure, if any, is not reported as temporary.
+
+```typescript
+const result = await command.execute();
+if (result.isRetryable) {
+    // Offer the user to try again, or retry with backoff
+}
+```
+
+### isNotAvailable
+
+Reports that the command was refused because its part of the application is not available to the caller. It is `true` when `isAuthorized` is `false` and `authorizationFailureReason` is `NotAvailable`. This differs from a forbidden result: the caller is not told whether it would have been allowed. See [availability](../../react/availability.md).
+
+```typescript
+const result = await command.execute();
+if (result.isNotAvailable) {
+    // Hide or disable the part of the UI that sent the command
+}
+```
+
+The same check is available as a function for any command or query result: `isNotAvailable(result)` from `@cratis/arc/availability`.
 
 ## Understanding the Relationship
 
@@ -304,6 +334,9 @@ result
     })
     .onUnauthorized(() => {
         console.log('Not authorized');
+    })
+    .onNotAvailable(() => {
+        console.log('Not available to this caller');
     })
     .onValidationFailure((validationResults) => {
         console.log('Validation errors:', validationResults);
