@@ -59,7 +59,7 @@ public class when_enforcing_method_body_regions : Specification
             });
             failure.ShouldBeOfExactType<ReadRefusedWhileReadsAreProtected>();
             new ReadProtectionCommandExceptionMapper().TryMap(_context, failure!, out var result).ShouldBeTrue();
-            result!.ExceptionMessages.Single().ShouldEqual($"AdvisoryCommand called {operation} while read protection is On. Take a read model as a parameter, use IDecisionReads.Get in Provide, or mark the method [Unprotected(\"why\")].");
+            result!.ExceptionMessages.Single().ShouldEqual($"AdvisoryCommand called {operation} while read protection is On. Take a read model as a parameter, use IDecisionReads or DecisionRead<T> directly in Handle(), or mark the method [Unprotected(\"why\")].");
         }
         finally
         {
