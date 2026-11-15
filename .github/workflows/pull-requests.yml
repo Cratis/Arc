@@ -54,8 +54,6 @@ jobs:
               - "Samples/ArcCore/**"
               - "Samples/Shared/**"
               - "Samples/ArcCore.Specs/**"
-              - "Samples/ArcCoreChronicle/**"
-              - "Samples/ArcCoreChronicle.Specs/**"
               - "Directory.Build.props"
               - "Directory.Build.targets"
               - "Directory.Packages*.props"

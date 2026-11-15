@@ -6,8 +6,6 @@ using System.Text.Json;
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
-using Cratis.Execution;
-using Microsoft.Extensions.Hosting;
 
 namespace Samples.Authentication;
 
@@ -15,22 +13,11 @@ namespace Samples.Authentication;
 /// Represents an <see cref="IAuthenticationHandler"/> that reads Microsoft Identity Platform headers
 /// for use in Arc.Core-based applications (non-ASP.NET Core).
 /// </summary>
-/// <remarks>
-/// WARNING: This handler trusts unsigned, client-supplied headers, so any caller can impersonate any user.
-/// It simulates a trusted ingress for local demos only. Never copy it into an application. Handlers are
-/// discovered automatically, so the handler itself ignores every request outside the Development environment.
-/// </remarks>
-/// <param name="environment">The optional host environment; when absent, the ASPNETCORE_ENVIRONMENT variable decides.</param>
-public class MicrosoftIdentityPlatformHeaderAuthenticationHandler(IHostEnvironment? environment = null) : IAuthenticationHandler
+public class MicrosoftIdentityPlatformHeaderAuthenticationHandler : IAuthenticationHandler
 {
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
-        if (!(environment?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment))
-        {
-            return Task.FromResult(AuthenticationResult.Anonymous);
-        }
-
         if (!context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityIdHeader, out var userId) ||
             !context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, out var userName) ||
             !context.Headers.TryGetValue(MicrosoftIdentityPlatformHeaders.PrincipalHeader, out var principalHeader))
