@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc command filters for shared checks
-description: Command filters apply shared checks before Cratis Arc model-bound handlers run. Availability and authorization filters run first; blocking failures stop execution.
+description: Command filters apply shared checks before Cratis Arc model-bound handlers run. Availability and authorization run first; a blocking failure stops execution.
 ---
 
 A command filter applies a shared check before a Cratis Arc model-bound command reaches `Provide()` or `Handle()`. Use one for rules that belong across commands rather than inside a single handler. Filters run through `ICommandPipeline`; controller-based commands use ASP.NET Core MVC filters and authorization instead.
