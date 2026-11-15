@@ -106,7 +106,7 @@ Two errors report that events reached the event log without a receipt. The execu
 | Error | When | What is committed |
 | --- | --- | --- |
 | `OccurrenceCommandAppendedImmediately` | The command appended events outside its unit of work, for example through a direct append to an event sequence that the backstop detected. | Those events, without a receipt. Redelivering the occurrence would append them again. |
-| `OccurrenceCommandReceiptNotCommitted` | The command succeeded and committed events, or validated a protected decision, but the commit reported no effect receipt. The executor fails closed instead of reporting success. | The events, without a receipt. |
+| `OccurrenceCommandReceiptNotCommitted` | The command succeeded and committed events, or validated a protected decision, but the commit reported no effect receipt. The executor fails closed instead of reporting success. | The events, if any, without a receipt. |
 
 Both are programming or integration errors, not retryable failures. Do not redeliver blindly: inspect what was committed first (the events carry the occurrence's causation), then fix the command to return the events from the handler or append through the command's unit of work.
 
