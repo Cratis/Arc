@@ -49,7 +49,8 @@ public class a_published_host_with_a_profile : Specification
     /// <param name="route">The route of the read command.</param>
     /// <param name="body">The command body.</param>
     /// <param name="principal">The optional sample principal.</param>
-    /// <returns>A task that completes when the read succeeded or the projection timeout elapsed.</returns>
+    /// <returns>A task that completes when the read succeeded.</returns>
+    /// <exception cref="TimeoutException">The profile could not be read before the projection timeout elapsed.</exception>
     protected Task ReadWhenProjected(string route, string body, string? principal = null) =>
         PostUntilSuccessful(route, body, principal, TimeSpan.FromSeconds(30));
 
@@ -70,6 +71,9 @@ public class a_published_host_with_a_profile : Specification
             $$"""{"subject":"{{_subject}}","displayName":"{{DisplayName}}"}""",
             null,
             TimeSpan.FromSeconds(90));
+
+        // Registration can finish before Chronicle has registered the protected read-model definition.
+        await ReadWhenProjected("read-mine", "{}", PrincipalFor(_subject));
     }
 
     async Task Destroy()
@@ -100,7 +104,7 @@ public class a_published_host_with_a_profile : Specification
 
             if (DateTime.UtcNow >= deadline)
             {
-                return;
+                throw new TimeoutException($"The '{route}' command did not succeed within {timeout}.{Environment.NewLine}{Diagnostics}");
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(500));
