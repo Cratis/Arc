@@ -12,7 +12,7 @@ capability exists in the language you work in before you design around it.
 
 :::note[Arc for TypeScript]
 [Arc for TypeScript](/arc/backend/typescript/) on Node.js is
-available from source, with no published npm package. It is not in this matrix: a column
+published on npm. It is not in this matrix: a column
 here needs evidence behind every cell.
 Its [capability reference](/arc/backend/typescript/reference/capabilities/) gives the status
 of each capability, the spec or check that proves it, and where it deliberately differs from
