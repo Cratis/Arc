@@ -5,7 +5,7 @@ description: Build and check a Cratis Arc feature with recipes for React command
 
 Cratis Arc task recipes help you add or check one part of an application feature: submit a command, reject invalid input, or read the data a screen needs. Each recipe explains the setup it assumes, shows a minimal implementation, and gives you an outcome to check.
 
-Start with an Arc application configured for [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript backend](/arc/backend/typescript/getting-started/) (available from source; server packages are not published to npm). If you have not built a feature yet, the [tutorial](/arc/tutorial/) walks through the setup and implementation together. The TypeScript [capability reference](/arc/backend/typescript/reference/capabilities/) describes that backend's supported behavior.
+Start with an Arc application configured for [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript backend](/arc/backend/typescript/getting-started/) (published on npm). If you have not built a feature yet, the [tutorial](/arc/tutorial/) walks through the setup and implementation together. The TypeScript [capability reference](/arc/backend/typescript/reference/capabilities/) describes that backend's supported behavior.
 
 For [Arc for Go](/arc/go/), start with its [running application guide](/arc/go/backend/go/core/getting-started/) and [parity reference](/arc/go/parity/). The recipes' backend tabs do not yet include Go examples; use the Go guides for registration, handlers, queries, and generated clients rather than translating framework-specific APIs.
 

@@ -77,8 +77,7 @@ before connecting your first screen.
 ## Start an Arc host
 
 Arc has implementations for ASP.NET Core, Spring Boot, Node.js, and Go.
-The TypeScript backend is [available from source](/arc/backend/typescript/), with no
-published npm package. [Arc for Go](/arc/go/) records its supported contracts
+The TypeScript backend is [published on npm](/arc/backend/typescript/) (`@cratis/arc.core`, `@cratis/platform`). [Arc for Go](/arc/go/) records its supported contracts
 and verification limits separately. Neither claims full parity with C#. Choose a backend below and compare the
 [backend capabilities](./capabilities.md) before relying on a shared example. The shared
 [HTTP contract](./http-contract.md) is verified for C# and JVM; TypeScript and Go
@@ -96,7 +95,7 @@ document their coverage separately.
   <LinkCard
     title="TypeScript on Node.js"
     href="/arc/backend/typescript/getting-started/"
-    description="Build an Arc host from source; check its capability reference for supported APIs and limits." />
+    description="Install from npm and build an Arc host; check its capability reference for supported APIs and limits." />
   <LinkCard
     title="Go"
     href="/arc/go/backend/go/core/getting-started/"

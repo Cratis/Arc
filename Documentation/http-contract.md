@@ -13,7 +13,7 @@ both behaviors so a client author can see the edge before hitting it.
 
 :::note[Arc for TypeScript]
 [Arc for TypeScript](/arc/backend/typescript/) on Node.js is
-available from source, with no published npm package. The statements on this page are verified for the C# and JVM implementations.
+published on npm. The statements on this page are verified for the C# and JVM implementations.
 Arc for TypeScript follows this contract for the capabilities it implements, and a paired
 suite checks a bounded set of routes against a C# host. Where it differs, for example by
 answering 401 rather than 403 to an anonymous
