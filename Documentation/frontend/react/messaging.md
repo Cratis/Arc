@@ -21,13 +21,19 @@ export const Details = () => {
 
 Call `useOnMessage` in the component that should react to a message. It subscribes through the nearest messenger and cleans up when the component unmounts. You do not need `useCallback` around the handler; the hook invokes the latest callback reference.
 
-```tsx
-import { useOnMessage } from '@cratis/arc.react/messaging';
+Declare the message class once in a module that both the subscriber and the publisher import. Two separate classes with the same name are different types, so a subscription to one never receives messages sent as the other:
 
-class UserSelected {
+```tsx
+// UserSelected.ts
+export class UserSelected {
     constructor(readonly userId: string) {
     }
 }
+```
+
+```tsx
+import { useOnMessage } from '@cratis/arc.react/messaging';
+import { UserSelected } from './UserSelected';
 
 export const UserDetails = () => {
     useOnMessage(UserSelected, message => {
@@ -55,11 +61,7 @@ In the list, call `useSendMessage()` and publish a `UserSelected` instance when 
 
 ```tsx
 import { useSendMessage } from '@cratis/arc.react/messaging';
-
-class UserSelected {
-    constructor(readonly userId: string) {
-    }
-}
+import { UserSelected } from './UserSelected';
 
 export const UserList = () => {
     const send = useSendMessage();

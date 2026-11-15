@@ -306,6 +306,8 @@ import { useIdentity } from '@cratis/arc.react/identity';
 
 export const Home = () => {
     const identity = useIdentity<UserIdentityDetails>();
+    if (!identity.isSet || !identity.details?.userId) return null;
+
     // identity.details.userId is a proper Guid instance with all its methods
     return (
         <>
@@ -324,9 +326,13 @@ import { useIdentity } from '@cratis/arc.react/identity';
 export const Home = () => {
     const identity = useIdentity(UserIdentityDetails);
 
+    if (!identity.isSet || !identity.details?.userId) return null;
+
     return (
-        <h3>User ID: {identity.details.userId.toString()}</h3>
-        <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+        <>
+            <h3>User ID: {identity.details.userId.toString()}</h3>
+            <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+        </>
     );
 };
 ```
