@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Queries;
@@ -10,6 +11,8 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 internal static class WebSocketSends
 {
+    static readonly ConcurrentDictionary<Type, bool> _customSendMessage = new();
+
     /// <summary>
     /// Sends a result without inferring delivery from a legacy null return.
     /// </summary>
@@ -23,7 +26,7 @@ internal static class WebSocketSends
     {
         try
         {
-            if (handler is IWebSocketMessageSender sender)
+            if (handler is IWebSocketMessageSender sender && !ReimplementsSendMessage(handler))
             {
                 return await sender.Send(webSocket, queryResult, writeLock, token);
             }
@@ -35,5 +38,21 @@ internal static class WebSocketSends
         {
             return WebSocketSendResult.Failed(error);
         }
+    }
+
+    static bool ReimplementsSendMessage(IWebSocketConnectionHandler handler)
+    {
+        var type = handler.GetType();
+        if (handler is not WebSocketConnectionHandler || type == typeof(WebSocketConnectionHandler))
+        {
+            return false;
+        }
+
+        return _customSendMessage.GetOrAdd(type, static runtimeType =>
+        {
+            var mapping = runtimeType.GetInterfaceMap(typeof(IWebSocketConnectionHandler));
+            var index = Array.FindIndex(mapping.InterfaceMethods, method => method.Name == nameof(IWebSocketConnectionHandler.SendMessage));
+            return mapping.TargetMethods[index].DeclaringType != typeof(WebSocketConnectionHandler);
+        });
     }
 }
