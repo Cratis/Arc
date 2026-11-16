@@ -178,23 +178,9 @@ public class ReactionReader(SemanticModels models)
     {
         for (var current = reactor; current is not null; current = current.BaseType)
         {
-            foreach (var attribute in current.GetAttributes())
+            if (current.GetAttributes().Any(NarrowsObservation))
             {
-                if (attribute.AttributeClass is not { } type)
-                {
-                    continue;
-                }
-
-                if (type.Is(WellKnownTypeNames.FilterEventsByTagAttribute) ||
-                    type.Is(WellKnownTypeNames.EventStoreAttribute))
-                {
-                    return true;
-                }
-
-                if (NamesASequence(type) && !NamesTheEventLog(type, attribute))
-                {
-                    return true;
-                }
+                return true;
             }
         }
 
@@ -202,6 +188,12 @@ public class ReactionReader(SemanticModels models)
             handler.Parameters[0].Type.HasAttribute(WellKnownTypeNames.EventStoreAttribute) ||
             handler.Parameters[0].Type.ContainingAssembly?.HasAttribute(WellKnownTypeNames.EventStoreAttribute) == true);
     }
+
+    static bool NarrowsObservation(AttributeData attribute) =>
+        attribute.AttributeClass is { } type &&
+        (type.Is(WellKnownTypeNames.FilterEventsByTagAttribute) ||
+            type.Is(WellKnownTypeNames.EventStoreAttribute) ||
+            (NamesASequence(type) && !NamesTheEventLog(type, attribute)));
 
     /// <summary>
     /// Determines whether an attribute names the sequence a reactor observes.
@@ -329,6 +321,9 @@ public class ReactionReader(SemanticModels models)
 
     static bool InheritsContextRoute(ReactionEffect effect) => EventReader.IsEvent(effect.Type) && effect.Destination is null;
 
+    static bool IsInvocationResult(ITypeSymbol type, bool sequence, bool asynchronous) =>
+        type.Is("Cratis.Arc.Chronicle.Reactors.CommandInvocation") || sequence || asynchronous;
+
     /// <summary>
     /// Reads one handler.
     /// </summary>
@@ -353,7 +348,7 @@ public class ReactionReader(SemanticModels models)
             return null;
         }
         var sequence = ElementOf(returned.Type) is not null;
-        if ((returned.Type.Is("Cratis.Arc.Chronicle.Reactors.CommandInvocation") || sequence || returned.Asynchronous) &&
+        if (IsInvocationResult(returned.Type, sequence, returned.Asynchronous) &&
             new ReactionInvocations(models, Constraints).Read(returned.Value, semanticModel, handler, routesAppends) is { } invocation)
         {
             return invocation;
