@@ -101,10 +101,13 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         _ => null
     };
 
+    static bool IsDependencyParameter(IParameterSymbol parameter, IMethodSymbol[] providers) =>
+        ReadType(parameter.Type) is not null &&
+        (parameter.ContainingSymbol.Name != "Handle" || !providers.Any(provider => Provides(provider.ReturnType, parameter.Type)));
+
     IParameterSymbol[] Parameters(IMethodSymbol[] methods, IMethodSymbol[] providers, ReadScope scope)
     {
-        var parameters = methods.SelectMany(method => method.Parameters).Where(parameter => ReadType(parameter.Type) is not null &&
-            (parameter.ContainingSymbol.Name != "Handle" || !providers.Any(provider => Provides(provider.ReturnType, parameter.Type)))).ToArray();
+        var parameters = methods.SelectMany(method => method.Parameters).Where(parameter => IsDependencyParameter(parameter, providers)).ToArray();
         if (enabled)
         {
             return parameters;
