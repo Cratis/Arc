@@ -83,7 +83,8 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        if (!concurrency.EventSource && sourceType is null && streamType is null && streamId is null && eventTypes.Count == 0)
+        var scope = new ConcurrencySyntax(concurrency.EventSource, sourceType, streamType, streamId, eventTypes, SourceLocation.Start);
+        if (IsEmpty(scope))
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.EmptyConcurrencyScope,
@@ -93,7 +94,7 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             return null;
         }
 
-        return new(concurrency.EventSource, sourceType, streamType, streamId, eventTypes, SourceLocation.Start);
+        return scope;
     }
 
     /// <summary>
@@ -126,10 +127,7 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 location);
         }
 
-        var command = commandName is null ? "The command" : $"The command '{commandName}'";
-        var message = authoringOnlyConstructs || ExecutableRoutes
-            ? $"{command} appends through event source '{eventSource.Source}'{stream}, but no unambiguous readable route could be stated; only the existing concurrency dimensions are emitted"
-            : $"{command} appends through event source '{eventSource.Source}'{stream}; source and stream declarations are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs; only the existing concurrency dimensions are emitted";
+        var message = EventSourceMessage(eventSource, stream, authoringOnlyConstructs, commandName);
         if (authoringOnlyConstructs)
         {
             diagnostics.Warning(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, message, location);
@@ -163,6 +161,17 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         ScreenplayDiagnosticCodes.EventStreamIdConcurrencyNotRepresentable,
         "Dynamic stream-id concurrency has no valueless flag in the current grammar and was left out",
         location);
+
+    static bool IsEmpty(ConcurrencySyntax scope) =>
+        scope is { EventSource: false, EventSourceType: null, EventStreamType: null, EventStreamId: null } && !scope.EventTypes.Any();
+
+    string EventSourceMessage(EventSourceBindingModel eventSource, string stream, bool authoringOnlyConstructs, string? commandName)
+    {
+        var command = commandName is null ? "The command" : $"The command '{commandName}'";
+        return authoringOnlyConstructs || ExecutableRoutes
+            ? $"{command} appends through event source '{eventSource.Source}'{stream}, but no unambiguous readable route could be stated; only the existing concurrency dimensions are emitted"
+            : $"{command} appends through event source '{eventSource.Source}'{stream}; source and stream declarations are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs; only the existing concurrency dimensions are emitted";
+    }
 
     /// <summary>
     /// Converts a dimension of the scope into the identifier it is written as.
