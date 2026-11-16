@@ -76,76 +76,19 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
             return null;
         }
 
-        string? responseType = null;
-        LiteralSource? scalar = null;
-        var fields = new List<PropertyMappingModel>();
-        var any = false;
-
+        var reader = new ResponseReader(this, result);
         foreach (var (body, semanticModel) in bodies)
         {
             foreach (var access in body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Where(member => ReadsResponse(member, semanticModel)))
             {
-                any = true;
-                if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(Receiver(access.Expression)).Symbol?.OriginalDefinition, result.OriginalDefinition) ||
-                    semanticModel.GetSymbolInfo(access).Symbol is not IPropertySymbol { ContainingType: { } commandResult } ||
-                    !commandResult.Is(CommandResultOfT) || commandResult.TypeArguments is not [var type] ||
-                    type.NullableAnnotation == NullableAnnotation.Annotated ||
-                    (responseType ??= ResponseTypes.NameOf(type)) != ResponseTypes.NameOf(type))
+                if (!reader.TryRead(access, semanticModel, body))
                 {
                     return null;
                 }
-
-                type = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
-                var subject = (ExpressionSyntax)access;
-                IPropertySymbol? field = null;
-                if (Outer(subject) is MemberAccessExpressionSyntax fieldAccess && fieldAccess.Expression == Wrapper(subject) &&
-                    semanticModel.GetSymbolInfo(fieldAccess).Symbol is IPropertySymbol property &&
-                    type is INamedTypeSymbol { IsRecord: true } record && record.FindBase(WellKnownTypeNames.ConceptAs) is null &&
-                    SymbolEqualityComparer.Default.Equals(property.ContainingType, record) &&
-                    record.DeclaredProperties().Any(declared => SymbolEqualityComparer.Default.Equals(declared, property)))
-                {
-                    field = property;
-                    subject = fieldAccess;
-                }
-
-                if (ExpectedOf(subject, semanticModel, body) is not { } expected)
-                {
-                    return null;
-                }
-
-                if (field is not null)
-                {
-                    if (scalar is not null || !TryAdd(fields, field.Name, Literal(expected, field.Type, semanticModel)))
-                    {
-                        return null;
-                    }
-
-                    continue;
-                }
-
-                if (type is INamedTypeSymbol { IsRecord: true } whole && whole.FindBase(WellKnownTypeNames.ConceptAs) is null)
-                {
-                    if (scalar is not null || !TryReadRecord(expected, whole, semanticModel, fields))
-                    {
-                        return null;
-                    }
-
-                    continue;
-                }
-
-                var value = Literal(expected, type, semanticModel);
-                if (value is null || fields.Count > 0 || (scalar is not null && !Equals(scalar.Value, value.Value)))
-                {
-                    return null;
-                }
-
-                scalar = value;
             }
         }
 
-        return any && responseType is not null && (scalar is not null || fields.Count > 0)
-            ? new(responseType, scalar, fields)
-            : null;
+        return reader.Response;
     }
 
     /// <summary>
@@ -203,35 +146,83 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
     static ExpressionSyntax? ExpectedOf(ExpressionSyntax subject, SemanticModel semanticModel, SyntaxNode body)
     {
         var wrapped = Wrapper(subject);
+        return ShouldEqualExpected(wrapped, semanticModel, body) ?? AssertEqualExpected(wrapped, semanticModel, body);
+    }
+
+    static ExpressionSyntax? ShouldEqualExpected(ExpressionSyntax wrapped, SemanticModel model, SyntaxNode body)
+    {
         if (wrapped.Parent is MemberAccessExpressionSyntax receiver && receiver.Expression == wrapped &&
             receiver.Parent is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } should && should.Expression == receiver &&
-            argument.NameColon is null && argument.RefKindKeyword.IsKind(SyntaxKind.None) &&
-            semanticModel.GetSymbolInfo(should).Symbol is IMethodSymbol { ReducedFrom: { } extension } &&
-            string.Equals(extension.Name, ShouldEqual, StringComparison.Ordinal) &&
-            extension.ContainingType.Is(ShouldEqualityExtensions) && extension.Parameters.Length == 2 &&
+            IsPlainArgument(argument) && IsShouldEqual(model.GetSymbolInfo(should).Symbol) &&
             StepsTaken.AlwaysCompletesThrough(should, body))
         {
             return argument.Expression;
         }
 
+        return null;
+    }
+
+    static bool IsPlainArgument(ArgumentSyntax argument) => argument.NameColon is null && argument.RefKindKeyword.IsKind(SyntaxKind.None);
+
+    static bool IsShouldEqual(ISymbol? symbol) => symbol is IMethodSymbol { ReducedFrom: { } extension } &&
+        string.Equals(extension.Name, ShouldEqual, StringComparison.Ordinal) &&
+        extension.ContainingType.Is(ShouldEqualityExtensions) && extension.Parameters.Length == 2;
+
+    static ExpressionSyntax? AssertEqualExpected(ExpressionSyntax wrapped, SemanticModel model, SyntaxNode body)
+    {
         if (wrapped.Parent is ArgumentSyntax actual && actual.Parent is ArgumentListSyntax { Arguments.Count: 2 } list &&
-            list.Parent is InvocationExpressionSyntax equal &&
-            semanticModel.GetSymbolInfo(equal).Symbol is IMethodSymbol { Parameters: [var first, var second] } method &&
-            string.Equals(method.Name, AssertEqual, StringComparison.Ordinal) && method.ContainingType.Is(XunitAssert) &&
-            string.Equals(first.Name, Expected, StringComparison.Ordinal) && string.Equals(second.Name, Actual, StringComparison.Ordinal) &&
-            SymbolEqualityComparer.Default.Equals(first.Type, second.Type) &&
-            (method.OriginalDefinition.Parameters[0].Type is ITypeParameterSymbol || first.Type.SpecialType == SpecialType.System_String) &&
+            list.Parent is InvocationExpressionSyntax equal && IsAssertEqual(model.GetSymbolInfo(equal).Symbol) &&
             StepsTaken.AlwaysCompletesThrough(equal, body))
         {
-            var actualIndex = list.Arguments.IndexOf(actual);
-            var expectedArgument = list.Arguments[1 - actualIndex];
-            var actualName = actual.NameColon?.Name.Identifier.ValueText ?? (actualIndex == 1 ? Actual : Expected);
-            var expectedName = expectedArgument.NameColon?.Name.Identifier.ValueText ?? (actualIndex == 1 ? Expected : Actual);
-            return actualName == Actual && expectedName == Expected ? expectedArgument.Expression : null;
+            return ExpectedArgument(actual, list);
         }
 
         return null;
     }
+
+    static bool IsAssertEqual(ISymbol? symbol) => symbol is IMethodSymbol { Parameters: [var first, var second] } method &&
+        string.Equals(method.Name, AssertEqual, StringComparison.Ordinal) && method.ContainingType.Is(XunitAssert) &&
+        string.Equals(first.Name, Expected, StringComparison.Ordinal) && string.Equals(second.Name, Actual, StringComparison.Ordinal) &&
+        SymbolEqualityComparer.Default.Equals(first.Type, second.Type) &&
+        (method.OriginalDefinition.Parameters[0].Type is ITypeParameterSymbol || first.Type.SpecialType == SpecialType.System_String);
+
+    static ExpressionSyntax? ExpectedArgument(ArgumentSyntax actual, ArgumentListSyntax list)
+    {
+        var actualIndex = list.Arguments.IndexOf(actual);
+        var expectedArgument = list.Arguments[1 - actualIndex];
+        var actualName = actual.NameColon?.Name.Identifier.ValueText ?? (actualIndex == 1 ? Actual : Expected);
+        var expectedName = expectedArgument.NameColon?.Name.Identifier.ValueText ?? (actualIndex == 1 ? Expected : Actual);
+        return actualName == Actual && expectedName == Expected ? expectedArgument.Expression : null;
+    }
+
+    static ITypeSymbol? ResponseTypeOf(MemberAccessExpressionSyntax access, ISymbol result, SemanticModel model)
+    {
+        if (!IsResult(access.Expression, result, model) ||
+            model.GetSymbolInfo(access).Symbol is not IPropertySymbol { ContainingType: { } commandResult } ||
+            !commandResult.Is(CommandResultOfT) || commandResult.TypeArguments is not [var type] ||
+            type.NullableAnnotation == NullableAnnotation.Annotated)
+        {
+            return null;
+        }
+
+        return type;
+    }
+
+    static (ExpressionSyntax Subject, IPropertySymbol? Field) ResponseSubject(ExpressionSyntax subject, ITypeSymbol type, SemanticModel model)
+    {
+        if (Outer(subject) is MemberAccessExpressionSyntax fieldAccess && fieldAccess.Expression == Wrapper(subject) &&
+            model.GetSymbolInfo(fieldAccess).Symbol is IPropertySymbol property &&
+            type is INamedTypeSymbol record && IsRecordResponse(record) &&
+            SymbolEqualityComparer.Default.Equals(property.ContainingType, record) &&
+            record.DeclaredProperties().Any(declared => SymbolEqualityComparer.Default.Equals(declared, property)))
+        {
+            return (fieldAccess, property);
+        }
+
+        return (subject, null);
+    }
+
+    static bool IsRecordResponse(INamedTypeSymbol type) => type.IsRecord && type.FindBase(WellKnownTypeNames.ConceptAs) is null;
 
     static bool TryAdd(List<PropertyMappingModel> fields, string name, LiteralSource? value)
     {
@@ -441,5 +432,51 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
             semanticModel.GetConstantValue(unwrapped) is { HasValue: true, Value: { } constant }
             ? new LiteralSource(constant)
             : null;
+    }
+
+    sealed class ResponseReader(SpecificationReturnValues owner, ISymbol result)
+    {
+        readonly List<PropertyMappingModel> _fields = [];
+        string? _responseType;
+        LiteralSource? _scalar;
+
+        public SpecificationReturnModel? Response => _responseType is not null && (_scalar is not null || _fields.Count > 0)
+            ? new(_responseType, _scalar, _fields)
+            : null;
+
+        public bool TryRead(MemberAccessExpressionSyntax access, SemanticModel model, SyntaxNode body)
+        {
+            if (ResponseTypeOf(access, result, model) is not { } type ||
+                (_responseType ??= ResponseTypes.NameOf(type)) != ResponseTypes.NameOf(type))
+            {
+                return false;
+            }
+
+            type = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+            var (subject, field) = ResponseSubject(access, type, model);
+            return ExpectedOf(subject, model, body) is { } expected && TryReadExpected(expected, type, field, model);
+        }
+
+        bool TryReadExpected(ExpressionSyntax expected, ITypeSymbol type, IPropertySymbol? field, SemanticModel model)
+        {
+            if (field is not null)
+            {
+                return _scalar is null && TryAdd(_fields, field.Name, owner.Literal(expected, field.Type, model));
+            }
+
+            if (type is INamedTypeSymbol whole && IsRecordResponse(whole))
+            {
+                return _scalar is null && owner.TryReadRecord(expected, whole, model, _fields);
+            }
+
+            var value = owner.Literal(expected, type, model);
+            if (value is null || _fields.Count > 0 || (_scalar is not null && !Equals(_scalar.Value, value.Value)))
+            {
+                return false;
+            }
+
+            _scalar = value;
+            return true;
+        }
     }
 }
