@@ -167,6 +167,57 @@ public class HeldValues(SemanticModels models)
             .Take(2).ToList() is [var only] ? only : null;
     }
 
+    static bool IsRecordParameter(ISymbol symbol) =>
+        symbol is IPropertySymbol { ContainingType.IsRecord: true, DeclaringSyntaxReferences.Length: > 0 } &&
+        symbol.DeclaringSyntaxReferences.All(reference => reference.GetSyntax() is ParameterSyntax { Parent.Parent: RecordDeclarationSyntax });
+
+    static bool IsComputedProperty(ISymbol symbol) => symbol is IPropertySymbol &&
+        (symbol.DeclaringSyntaxReferences.Length == 0 || symbol.DeclaringSyntaxReferences.Any(HasComputedAccessors));
+
+    static bool HasComputedAccessors(SyntaxReference reference) => reference.GetSyntax() is not PropertyDeclarationSyntax
+    { ExpressionBody: null, AccessorList: { } accessors } || accessors.Accessors.Any(HasBody);
+
+    static bool HasBody(AccessorDeclarationSyntax accessor) => accessor.Body is not null || accessor.ExpressionBody is not null;
+
+    static bool IsWriteCandidate(SyntaxNode node) => node is AssignmentExpressionSyntax ||
+        node.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
+            (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression ||
+        node is ArgumentSyntax { RefKindKeyword.RawKind: not 0 };
+
+    static void RecordWrite(SyntaxNode candidate, SemanticModel model, Writes writes)
+    {
+        var target = candidate switch
+        {
+            AssignmentExpressionSyntax assignment => assignment.Left,
+            ArgumentSyntax argument => argument.Expression,
+            _ => candidate.ChildNodes().OfType<ExpressionSyntax>().FirstOrDefault()
+        };
+        if (target is not (IdentifierNameSyntax or MemberAccessExpressionSyntax) ||
+            model.GetSymbolInfo(target).Symbol is not { } symbol || !Names(target, symbol))
+        {
+            return;
+        }
+
+        if (candidate is AssignmentExpressionSyntax assigned)
+        {
+            RecordAssignment(symbol, assigned, writes);
+        }
+        else
+        {
+            writes.Mutations.Add(symbol);
+        }
+    }
+
+    static void RecordAssignment(ISymbol symbol, AssignmentExpressionSyntax assigned, Writes writes)
+    {
+        if (!writes.Assignments.TryGetValue(symbol, out var assignments))
+        {
+            writes.Assignments[symbol] = assignments = [];
+        }
+
+        assignments.Add(assigned);
+    }
+
     bool ReadStability(ISymbol symbol, Compilation compilation)
     {
         if (symbol is IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true })
@@ -174,17 +225,14 @@ public class HeldValues(SemanticModels models)
             return true;
         }
 
-        if (symbol is IPropertySymbol { ContainingType.IsRecord: true, DeclaringSyntaxReferences.Length: > 0 } &&
-            symbol.DeclaringSyntaxReferences.All(reference => reference.GetSyntax() is ParameterSyntax { Parent.Parent: RecordDeclarationSyntax }))
+        if (IsRecordParameter(symbol))
         {
             var recordWrites = WritesIn(compilation);
 
             return !recordWrites.Assignments.ContainsKey(symbol) && !recordWrites.Mutations.Contains(symbol);
         }
 
-        if (symbol is IPropertySymbol && (symbol.DeclaringSyntaxReferences.Length == 0 ||
-            symbol.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is not PropertyDeclarationSyntax
-            { ExpressionBody: null, AccessorList: { } accessors } || accessors.Accessors.Any(accessor => accessor.Body is not null || accessor.ExpressionBody is not null))))
+        if (IsComputedProperty(symbol))
         {
             return false;
         }
@@ -274,10 +322,7 @@ public class HeldValues(SemanticModels models)
         var writes = new Writes();
         foreach (var tree in compilation.SyntaxTrees)
         {
-            var candidates = tree.GetRoot().DescendantNodes().Where(node => node is AssignmentExpressionSyntax ||
-                node.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
-                    (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression ||
-                node is ArgumentSyntax { RefKindKeyword.RawKind: not 0 }).ToList();
+            var candidates = tree.GetRoot().DescendantNodes().Where(IsWriteCandidate).ToList();
             if (candidates.Count == 0 || models.For(tree) is not { } model)
             {
                 continue;
@@ -285,31 +330,7 @@ public class HeldValues(SemanticModels models)
 
             foreach (var candidate in candidates)
             {
-                var target = candidate switch
-                {
-                    AssignmentExpressionSyntax assignment => assignment.Left,
-                    ArgumentSyntax argument => argument.Expression,
-                    _ => candidate.ChildNodes().OfType<ExpressionSyntax>().FirstOrDefault()
-                };
-                if (target is not (IdentifierNameSyntax or MemberAccessExpressionSyntax) ||
-                    model.GetSymbolInfo(target).Symbol is not { } symbol || !Names(target, symbol))
-                {
-                    continue;
-                }
-
-                if (candidate is AssignmentExpressionSyntax assigned)
-                {
-                    if (!writes.Assignments.TryGetValue(symbol, out var assignments))
-                    {
-                        writes.Assignments[symbol] = assignments = [];
-                    }
-
-                    assignments.Add(assigned);
-                }
-                else
-                {
-                    writes.Mutations.Add(symbol);
-                }
+                RecordWrite(candidate, model, writes);
             }
         }
 
