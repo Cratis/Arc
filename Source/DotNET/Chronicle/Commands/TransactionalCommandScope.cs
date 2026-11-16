@@ -363,6 +363,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
         MergeOccurrenceRefusal(context, result);
 
+        // The completion helpers return the Task to await instead of being async themselves, so completing a command
+        // adds no async state machine (and no extra allocation when the commit suspends) beyond this method's own.
         if (owned is null)
         {
             await CompleteUnowned(frame, result);
@@ -382,11 +384,20 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
         if (result.IsSuccess)
         {
-            await CompleteSucceeded(context, result, frame, owned);
+            await CommitPending(frame, owned);
+            var commitSucceeded = MergeCommitResult(context, result, frame, owned);
+            if (result.IsSuccess && frame.Completions.Count > 0)
+            {
+                // A sequence number reported by the unit is not commit evidence: Chronicle also reports one after
+                // rollback or an append that threw. Only this scope's observed successful commit authorizes completion.
+                await CompleteStreamsWhenCommitted(context, result, frame, owned.Observation.CompletionObserved && commitSucceeded);
+            }
         }
         else if (!owned.UnitOfWork.IsCompleted)
         {
             await RollBackOwned(frame, owned);
+            owned.Observation.CompletionObserved = true;
+            owned.Observation.Disposition = CommandCommitDisposition.NotCommitted;
         }
     }
 
@@ -400,13 +411,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
     }
 
-    static async Task CompleteUnowned(TransactionFrame frame, CommandResult result)
-    {
-        if (result.IsSuccess)
-        {
-            await CompleteStreams(frame, result);
-        }
-    }
+    static Task CompleteUnowned(TransactionFrame frame, CommandResult result) =>
+        result.IsSuccess ? CompleteStreams(frame, result) : Task.CompletedTask;
 
     static void MergeFailedAppends(CommandContext context, CommandResult result, OwnedTransaction owned)
     {
@@ -438,63 +444,49 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         result.MergeWith(CommandResult.Error(context.CorrelationId, "The command appended events outside its unit of work while executing for an occurrence."));
     }
 
-    static async Task CompleteSucceeded(CommandContext context, CommandResult result, TransactionFrame frame, OwnedTransaction owned)
+    static Task CommitPending(TransactionFrame frame, OwnedTransaction owned) =>
+        owned.UnitOfWork.IsCompleted ? Task.CompletedTask : CommitOwned(owned, frame.ImmediateAppendRefusal);
+
+    static bool MergeCommitResult(CommandContext context, CommandResult result, TransactionFrame frame, OwnedTransaction owned)
     {
         var unitOfWork = owned.UnitOfWork;
-        if (!unitOfWork.IsCompleted)
-        {
-            await CommitOwned(owned, frame.ImmediateAppendRefusal);
-        }
-
         var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
         if (!commitResult.IsSuccess)
         {
             result.MergeWith(WithReadChanges(commitResult, unitOfWork, new ReadChangeScope(context.Type, frame.Protection is not null, context.ServiceProvider)).ToCommandResult(result.CorrelationId));
         }
 
-        if (result.IsSuccess && frame.Completions.Count > 0)
-        {
-            // A sequence number reported by the unit is not commit evidence: Chronicle also reports one after
-            // rollback or an append that threw. Only this scope's observed successful commit authorizes completion.
-            await CompleteStreamsWhenCommitted(context, result, frame, owned.Observation.CompletionObserved && commitResult.IsSuccess);
-        }
+        return commitResult.IsSuccess;
     }
 
-    static async Task CompleteStreamsWhenCommitted(CommandContext context, CommandResult result, TransactionFrame frame, bool committed)
+    static Task CompleteStreamsWhenCommitted(CommandContext context, CommandResult result, TransactionFrame frame, bool committed)
     {
         if (committed)
         {
-            await CompleteStreams(frame, result);
+            return CompleteStreams(frame, result);
         }
-        else
-        {
-            result.MergeWith(CommandResult.Error(context.CorrelationId, "Stream completion was not applied because the command's commit outcome is unknown."));
-        }
+
+        result.MergeWith(CommandResult.Error(context.CorrelationId, "Stream completion was not applied because the command's commit outcome is unknown."));
+        return Task.CompletedTask;
     }
 
-    static async Task RollBackOwned(TransactionFrame frame, OwnedTransaction owned)
+    static Task RollBackOwned(TransactionFrame frame, OwnedTransaction owned)
     {
-        var unitOfWork = owned.UnitOfWork;
-        var observation = owned.Observation;
-        observation.Disposition = CommandCommitDisposition.Unknown;
+        owned.Observation.Disposition = CommandCommitDisposition.Unknown;
         if (frame.ImmediateAppendRefusal is { } refusal)
         {
-            await refusal.Rollback();
+            return refusal.Rollback();
         }
-        else if (HoldsProtectedDecisionReads(owned, out var protectedUnit))
+
+        if (HoldsProtectedDecisionReads(owned, out var protectedUnit))
         {
             // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
             // command rolls back with the capability it claimed when it began. Without decision reads the public
             // Rollback below keeps the exact behaviour commands had before decision reads existed.
-            await protectedUnit.RollbackAsOwner(owned.Owner!);
-        }
-        else
-        {
-            await unitOfWork.Rollback();
+            return protectedUnit.RollbackAsOwner(owned.Owner!);
         }
 
-        observation.CompletionObserved = true;
-        observation.Disposition = CommandCommitDisposition.NotCommitted;
+        return owned.UnitOfWork.Rollback();
     }
 
     static bool HoldsProtectedDecisionReads(OwnedTransaction owned, [NotNullWhen(true)] out UnitOfWork? protectedUnit)
@@ -724,6 +716,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>The controller frame, or <see langword="null"/>.</returns>
     static TransactionFrame? ControllerFrameOf(TransactionFrame? active) => active?.IsControllerAction == true ? active : null;
 
+    readonly record struct ReadChangeScope(Type CommandType, bool Enforcing, IServiceProvider? Services);
+
     sealed class FailedAppendObserver(TransactionFrame frame, CorrelationId commandCorrelation, List<AppendedEventWithResult> failedAppends, CommitObservation observation)
     {
         public void Observe(IEnumerable<AppendedEventWithResult> appended)
@@ -779,8 +773,6 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         public List<PendingStreamCompletion> Completions { get; } = [];
         public bool Completed { get; set; }
     }
-
-    sealed record ReadChangeScope(Type CommandType, bool Enforcing, IServiceProvider? Services);
 
     sealed record OwnedTransaction(IUnitOfWork UnitOfWork, DecisionReadCommitOwner? Owner, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
 }
