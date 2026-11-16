@@ -18,9 +18,10 @@ public partial class CommandPipeline
     /// Represents one command execution and the state its authorization, scope and handling steps share.
     /// </summary>
     /// <remarks>
-    /// Every step that changes ambient (async-local) state - principal, caller identity, snapshot, operation boundary
-    /// and the execution scopes - runs synchronously or is awaited directly from <see cref="Run"/>, so that state stays
-    /// visible to the later steps, scope completion and the invocation cleanup, exactly as within a single method.
+    /// Assignments an async method makes to async-local values never flow back to its caller once it returns. Every step
+    /// that sets ambient state - principal, caller identity, snapshot, operation boundary and the synchronous scope
+    /// beginnings - is therefore a synchronous method called from <see cref="Run"/>, which keeps the state visible to
+    /// the later steps, scope completion and the invocation cleanup, exactly as within a single method.
     /// </remarks>
     /// <param name="pipeline">The pipeline the command runs in.</param>
     /// <param name="invocation">The invocation being executed.</param>
@@ -157,7 +158,10 @@ public partial class CommandPipeline
             identityLease.Attach(pipeline.EnterCallerIdentity(services, _preparedAuthorization, false));
             AuthorizationExecutionScopes.MarkWorkStarted(services);
             OperationActivity.AddResolvedTenant(invocation.Activity, services);
-            _context = pipeline.BeginContext(invocation, _correlationId, _preparedAuthorization);
+
+            // Held before the modifier runs, so a failure setting it is still mapped against this command's context.
+            _context = pipeline.CreateContext(invocation, _correlationId, _preparedAuthorization);
+            pipeline.SetCurrentContext(_context);
             BeginExecutionScopes(_context);
             return null;
         }

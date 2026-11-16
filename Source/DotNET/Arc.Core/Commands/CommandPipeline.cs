@@ -494,12 +494,7 @@ public partial class CommandPipeline(
         return handler;
     }
 
-    CommandContext BeginContext(CommandInvocation invocation, CorrelationId correlationId, PreparedAuthorization? prepared)
-    {
-        var context = CreateContext(invocation, correlationId, prepared);
-        contextModifier.SetCurrent(context);
-        return context;
-    }
+    void SetCurrentContext(CommandContext context) => contextModifier.SetCurrent(context);
 
     ICommandExecutionScope[] ResolveExecutionScopes(IServiceProvider services) => [.. DiscoveredInstances.ResolvedFrom(services, executionScopes)];
 
@@ -563,7 +558,8 @@ public partial class CommandPipeline(
             using var identityGuard = EnterCallerIdentity(serviceProvider, preparedAuthorization, true);
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
-            var commandContext = BeginContext(invocation, correlationId, preparedAuthorization);
+            var commandContext = CreateContext(invocation, correlationId, preparedAuthorization);
+            SetCurrentContext(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
             using var snapshot = OperationSnapshot.Begin(serviceProvider, () => commandContext.AuthorizedPrincipalSnapshot);
