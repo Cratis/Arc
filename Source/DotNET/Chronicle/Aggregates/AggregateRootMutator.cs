@@ -45,19 +45,7 @@ public class AggregateRootMutator(
             var deserializedEvents = await Task.WhenAll(deserializedEventsTasks);
 
             // User handlers run outside the contributed-read allowance.
-            await eventHandlers.Handle(aggregateRootContext.AggregateRoot, deserializedEvents, handledEventAndContext =>
-            {
-                var nextSequenceNumber = handledEventAndContext.Context.SequenceNumber.Next();
-                if (handledEventAndContext.Context.SequenceNumber == EventSequenceNumber.Unavailable)
-                {
-                    return;
-                }
-                if (nextSequenceNumber.IsActualValue && nextSequenceNumber > aggregateRootContext.NextSequenceNumber)
-                {
-                    aggregateRootContext.HasEvents = true;
-                    aggregateRootContext.NextSequenceNumber = nextSequenceNumber;
-                }
-            });
+            await eventHandlers.Handle(aggregateRootContext.AggregateRoot, deserializedEvents, AdvanceSequenceNumber);
         }
 
         if (tailSequenceNumber.IsActualValue)
@@ -142,11 +130,7 @@ public class AggregateRootMutator(
                     aggregateRootContext.EventStreamType,
                     aggregateRootContext.EventStreamId,
                     aggregateRootContext.EventSourceType))
-                .Where(_ =>
-                    _.Context.SequenceNumber >= aggregateRootContext.NextSequenceNumber &&
-                    _.Context.EventSourceType == aggregateRootContext.EventSourceType &&
-                    _.Context.EventStreamType == aggregateRootContext.EventStreamType &&
-                    _.Context.EventStreamId == aggregateRootContext.EventStreamId)
+                .Where(IsNextDeclaredEvent)
                 .ToArray();
         }
         else
@@ -157,28 +141,53 @@ public class AggregateRootMutator(
 
         if (enforcing)
         {
-            var types = !aggregateRootContext.HasDeclaredEventSource() && ownTailSequenceNumber.IsActualValue && eventHandlers.EventTypes.Count > 0
-                ? eventHandlers.EventTypes
-                : null;
-            var captured = new ConcurrencyScope(
-                tailSequenceNumber.IsActualValue ? tailSequenceNumber : aggregateRootContext.TailEventSequenceNumber,
-                aggregateRootContext.EventSourceId,
-                scope.EventStreamType,
-                scope.EventStreamId,
-                scope.EventSourceType,
-                types);
-            var fresh = (aggregateRootContext as AggregateRootContext)?.FreshIdentifiers?.Resolve(
-                aggregateRootContext.EventSequence.Id, aggregateRootContext.EventSourceId, null, false);
-            unit.EnrolContributedRead(new(
-                fresh is null ? ConcurrencyScopeOrigin.Aggregate : ConcurrencyScopeOrigin.Explicit,
-                aggregateRootContext.EventSourceId,
-                fresh ?? captured,
-                eventStore.Name,
-                eventStore.Namespace,
-                aggregateRootContext.EventSequence.Id,
-                aggregateRootContext.AggregateRoot.GetType().Name));
+            EnrolContributedRead(unit, scope, tailSequenceNumber, ownTailSequenceNumber);
         }
 
         return (tailSequenceNumber, ownTailSequenceNumber, events);
+    }
+
+    bool IsNextDeclaredEvent(AppendedEvent @event) =>
+        @event.Context.SequenceNumber >= aggregateRootContext.NextSequenceNumber &&
+        @event.Context.EventSourceType == aggregateRootContext.EventSourceType &&
+        @event.Context.EventStreamType == aggregateRootContext.EventStreamType &&
+        @event.Context.EventStreamId == aggregateRootContext.EventStreamId;
+
+    void AdvanceSequenceNumber(EventAndContext handledEventAndContext)
+    {
+        var nextSequenceNumber = handledEventAndContext.Context.SequenceNumber.Next();
+        if (handledEventAndContext.Context.SequenceNumber == EventSequenceNumber.Unavailable)
+        {
+            return;
+        }
+        if (nextSequenceNumber.IsActualValue && nextSequenceNumber > aggregateRootContext.NextSequenceNumber)
+        {
+            aggregateRootContext.HasEvents = true;
+            aggregateRootContext.NextSequenceNumber = nextSequenceNumber;
+        }
+    }
+
+    void EnrolContributedRead(IUnitOfWork unit, AggregateRootGuardedScope scope, EventSequenceNumber tailSequenceNumber, EventSequenceNumber ownTailSequenceNumber)
+    {
+        var types = !aggregateRootContext.HasDeclaredEventSource() && ownTailSequenceNumber.IsActualValue && eventHandlers.EventTypes.Count > 0
+            ? eventHandlers.EventTypes
+            : null;
+        var captured = new ConcurrencyScope(
+            tailSequenceNumber.IsActualValue ? tailSequenceNumber : aggregateRootContext.TailEventSequenceNumber,
+            aggregateRootContext.EventSourceId,
+            scope.EventStreamType,
+            scope.EventStreamId,
+            scope.EventSourceType,
+            types);
+        var fresh = (aggregateRootContext as AggregateRootContext)?.FreshIdentifiers?.Resolve(
+            aggregateRootContext.EventSequence.Id, aggregateRootContext.EventSourceId, null, false);
+        unit.EnrolContributedRead(new(
+            fresh is null ? ConcurrencyScopeOrigin.Aggregate : ConcurrencyScopeOrigin.Explicit,
+            aggregateRootContext.EventSourceId,
+            fresh ?? captured,
+            eventStore.Name,
+            eventStore.Namespace,
+            aggregateRootContext.EventSequence.Id,
+            aggregateRootContext.AggregateRoot.GetType().Name));
     }
 }
