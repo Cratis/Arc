@@ -85,34 +85,11 @@ internal static class PerStreamReadModelBinding
         var declaration = Declaration(model)!;
         var source = declaration.AttributeType.GenericTypeArguments[0];
         var stream = (string)declaration.ConstructorArguments[0].Value!;
-        if (parameter?.GetCustomAttribute<LookUpByAttribute>() is { } lookup)
-        {
-            throw new InvalidLookUpBy(context.Type, lookup.Property, "the stream belongs to the command's own event source");
-        }
-        if (parameter is not null && LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
-        {
-            throw new InvalidLookUpBy(context.Type, provider.GetType().GenericTypeArguments[0], "cannot redirect a per-stream read model; the stream belongs to the command's own event source");
-        }
+        ValidateLookup(context, parameter);
         var definition = services.GetRequiredService<IEventSources>().GetFor(source);
-        ReadModelStreamNotOnCommandRoute Refuse(string reason) => new(context.Type, parameter?.Name ?? model.Name, model, source, stream, reason);
-        EventRoute route;
-        try
-        {
-            route = context.GetEventRoute();
-        }
-        catch (EventStreamIdTemplatePartMissing missing)
-        {
-            if (missing.Property == "resolved stream id") throw Refuse("declares no stream id");
-            throw new ReadModelStreamPartMissing(model, missing.Property);
-        }
-        if (route.EventSourceType != definition.EventSourceType || route.EventStreamType.Value != stream || route.EventStreamType.IsAll)
-        {
-            throw Refuse(route.EventStreamType.IsAll ? "declares no stream" : $"appends to {route.EventSourceType}/{route.EventStreamType}");
-        }
-        if (route.EventStreamId.IsDefault || route.EventStreamId == EventStreamId.NotSet || string.IsNullOrWhiteSpace(route.EventStreamId.Value))
-        {
-            throw Refuse("declares no stream id");
-        }
+        var declaredStream = new DeclaredStream(model, source, stream);
+        var route = declaredStream.ResolveRoute(context, parameter);
+        declaredStream.ValidateRoute(route, definition.EventSourceType, context, parameter);
         if (!context.GetEventSourceIdOrDefault().IsSpecified)
         {
             throw new UnableToResolveReadModelFromCommandContext(model);
@@ -164,6 +141,18 @@ internal static class PerStreamReadModelBinding
         return instance is null ? null : await services.GetRequiredService<IReadModels>().Release(instance);
     }
 
+    static void ValidateLookup(CommandContext context, ParameterInfo? parameter)
+    {
+        if (parameter?.GetCustomAttribute<LookUpByAttribute>() is { } lookup)
+        {
+            throw new InvalidLookUpBy(context.Type, lookup.Property, "the stream belongs to the command's own event source");
+        }
+        if (parameter is not null && LookUpByKeyProviderDeclarations.For(parameter).FirstOrDefault(LookUpByKeyProviderDeclarations.IsProvider) is { } provider)
+        {
+            throw new InvalidLookUpBy(context.Type, provider.GetType().GenericTypeArguments[0], "cannot redirect a per-stream read model; the stream belongs to the command's own event source");
+        }
+    }
+
     static StreamReadPlan Plan<T>(CommandContext context, IServiceProvider services, ParameterInfo? parameter)
         where T : class
     {
@@ -207,6 +196,43 @@ internal static class PerStreamReadModelBinding
 
     static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
         attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
+
+    readonly record struct DeclaredStream(Type Model, Type Source, string Stream)
+    {
+        public EventRoute ResolveRoute(CommandContext context, ParameterInfo? parameter)
+        {
+            try
+            {
+                return context.GetEventRoute();
+            }
+            catch (EventStreamIdTemplatePartMissing missing)
+            {
+                if (missing.Property == "resolved stream id") throw Refuse(context, parameter, "declares no stream id");
+                throw new ReadModelStreamPartMissing(Model, missing.Property);
+            }
+        }
+
+        public void ValidateRoute(EventRoute route, EventSourceType sourceType, CommandContext context, ParameterInfo? parameter)
+        {
+            if (!Matches(route, sourceType))
+            {
+                throw Refuse(context, parameter, route.EventStreamType.IsAll ? "declares no stream" : $"appends to {route.EventSourceType}/{route.EventStreamType}");
+            }
+            if (!HasStreamId(route))
+            {
+                throw Refuse(context, parameter, "declares no stream id");
+            }
+        }
+
+        static bool HasStreamId(EventRoute route) =>
+            !route.EventStreamId.IsDefault && route.EventStreamId != EventStreamId.NotSet && !string.IsNullOrWhiteSpace(route.EventStreamId.Value);
+
+        bool Matches(EventRoute route, EventSourceType sourceType) =>
+            route.EventSourceType == sourceType && route.EventStreamType.Value == Stream && !route.EventStreamType.IsAll;
+
+        ReadModelStreamNotOnCommandRoute Refuse(CommandContext context, ParameterInfo? parameter, string reason) =>
+            new(context.Type, parameter?.Name ?? Model.Name, Model, Source, Stream, reason);
+    }
 
     sealed record StreamReadPlan(EventRoute Route, EventSourceId Source, IDecisionReads Reader)
     {
