@@ -89,13 +89,18 @@ public class CommandSyntaxBuilder(
             produced,
             AuthoringOnlyConstructs || !command.HasNoFactBehavior ? ToHandler(command, produced.Count) : null,
             SourceLocation.Start,
-            !AuthoringOnlyConstructs && authoring?.Route is { Stream: not null } ? null : concurrency.Build(command.Concurrency, location),
+            ToConcurrency(command, location),
             naming.ToStringLiteral(command.Description));
 
         var authored = new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
 
         return Availability is null ? authored : authored with { Available = [.. authored.Available, .. Availability.Build(command.Availability, $"{location}.{command.Name}")] };
     }
+
+    ConcurrencySyntax? ToConcurrency(CommandModel command, string location) =>
+        !AuthoringOnlyConstructs && command.Authoring?.Route is { Stream: not null }
+            ? null
+            : concurrency.Build(command.Concurrency, location);
 
     /// <summary>
     /// Converts the properties of the command, marking the selected identifier and adding the generated values.
