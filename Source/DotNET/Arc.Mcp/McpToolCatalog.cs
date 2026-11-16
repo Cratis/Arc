@@ -127,22 +127,24 @@ public sealed class McpToolCatalog
     {
         foreach (var type in handlerTypes)
         {
-            if (type.GetCustomAttribute<ExposeOverMcpAttribute>(false) is { } attribute)
-            {
-                yield return new McpExposureDeclaration(McpToolKind.Command, type, attribute.Name, attribute.Description);
-            }
+            if (type.GetCustomAttribute<ExposeOverMcpAttribute>(false) is not { } attribute) continue;
+            yield return new McpExposureDeclaration(McpToolKind.Command, type, attribute.Name, attribute.Description);
         }
 
         foreach (var performer in performers)
         {
-            var methods = performer.ReadModelType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
-                .Where(_ => _.Name == performer.Name.Value);
-            foreach (var attribute in methods.Select(_ => _.GetCustomAttribute<ExposeOverMcpAttribute>(false)).OfType<ExposeOverMcpAttribute>())
+            foreach (var attribute in ExposedMethodAttributes(performer))
             {
                 yield return new McpExposureDeclaration(McpToolKind.Query, performer.FullyQualifiedName.Value, attribute.Name, attribute.Description);
             }
         }
     }
+
+    static IEnumerable<ExposeOverMcpAttribute> ExposedMethodAttributes(IQueryPerformer performer) =>
+        performer.ReadModelType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+            .Where(_ => _.Name == performer.Name.Value)
+            .Select(_ => _.GetCustomAttribute<ExposeOverMcpAttribute>(false))
+            .OfType<ExposeOverMcpAttribute>();
 
     static FrozenSet<string> WriteScopesOf(McpOptions options)
     {
@@ -236,11 +238,15 @@ public sealed class McpToolCatalog
 
     static bool IsValidName(string? name)
     {
-        if (string.IsNullOrEmpty(name) || name.Length > MaxNameLength || name[0] is < 'a' or > 'z')
+        if (string.IsNullOrEmpty(name) || name.Length > MaxNameLength)
         {
             return false;
         }
 
-        return name.All(_ => _ is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_');
+        return IsLowerCaseLetter(name[0]) && name.All(IsNameCharacter);
     }
+
+    static bool IsLowerCaseLetter(char character) => character is >= 'a' and <= 'z';
+
+    static bool IsNameCharacter(char character) => IsLowerCaseLetter(character) || character is (>= '0' and <= '9') or '_';
 }
