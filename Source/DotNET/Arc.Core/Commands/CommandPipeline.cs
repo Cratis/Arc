@@ -362,6 +362,41 @@ public class CommandPipeline(
     internal Task<CommandResult> RefuseUnboundHosted(UnboundCommandRefusalRequest request, CancellationToken cancellationToken) =>
         new UnboundCommandRefusal(activitySource, GetCorrelationId, PrepareHostedType).Refuse(request, cancellationToken);
 
+    static async ValueTask<PreparedAuthorization?> PrepareAuthorization(Type commandType, IServiceProvider services, PreparedAuthorization? supplied, CancellationToken cancellationToken)
+    {
+        var declarations = services.GetService<AuthorizationDeclarations>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+        if (supplied is not null || !declarations.For(commandType).RequiresAsynchronousEvaluation)
+        {
+            return supplied;
+        }
+
+        return await (services.GetService<AuthorizationEvaluation>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
+            .Prepare(commandType, services, cancellationToken);
+    }
+
+    static bool AttachAuthorizedPrincipal(PreparedAuthorization? prepared, AuthorizationPrincipalLease lease, IServiceProvider services)
+    {
+        if (prepared is null)
+        {
+            return true;
+        }
+
+        if (!AuthorizationEvaluator.CheckRoles(prepared.Declaration, prepared.SelectedPrincipal, prepared.EvaluatesAnonymous))
+        {
+            return false;
+        }
+
+        if (prepared.PrincipalChanged)
+        {
+            lease.Attach(services.GetRequiredService<AuthorizationPrincipalScope>()
+                .Begin(prepared.SelectedPrincipal!, services));
+        }
+
+        return true;
+    }
+
     static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
     {
         if (UnauthorizedCause.IsCauseOf(exception) || ReadModelKeyResolutionDenied.IsCauseOf(exception))
@@ -542,49 +577,17 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-            var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+            var preparedAuthorization = await PrepareAuthorization(command.GetType(), serviceProvider, suppliedAuthorization, cancellationToken);
+            if (!AttachAuthorizedPrincipal(preparedAuthorization, principalLease, serviceProvider))
             {
-                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
-                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
-                    .Prepare(command.GetType(), serviceProvider, cancellationToken);
-            }
-
-            if (preparedAuthorization is not null)
-            {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
-                {
-                    return CommandResult.Unauthorized(correlationId);
-                }
-
-                if (preparedAuthorization.PrincipalChanged)
-                {
-                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
-                        .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
-                }
+                return CommandResult.Unauthorized(correlationId);
             }
 
             identityLease.Attach(EnterCallerIdentity(serviceProvider, preparedAuthorization, false));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
 
-            var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
-            commandContext = new CommandContext(
-                correlationId,
-                command.GetType(),
-                command,
-                [],
-                BuildContextValues(command, serviceProvider, preparedAuthorization),
-                severityPolicy.AllowedSeverity,
-                ServiceProvider: serviceProvider,
-                CancellationToken: cancellationToken)
-            {
-                PreparedAuthorization = preparedAuthorization,
-                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown,
-                ReceivedAt = OperationContextScope.Current ?? default
-            };
+            commandContext = CreateContext(command, serviceProvider, correlationId, allowedSeverity, preparedAuthorization, cancellationToken);
             contextModifier.SetCurrent(commandContext);
 
             // Materialized once so Begin and Complete are guaranteed to act on the same scope instances, and resolved
@@ -767,64 +770,73 @@ public class CommandPipeline(
 
         return await CompleteExecutionScopes(result);
 
-        async Task<CommandResult> CompleteExecutionScopes(CommandResult commandResult)
+        Task<CommandResult> CompleteExecutionScopes(CommandResult commandResult)
         {
             if (commandContext is null || scopes is null || executionScopesCompleted)
             {
-                return commandResult;
+                return Task.FromResult(commandResult);
             }
 
             executionScopesCompleted = true;
             operations?.CaptureFailure(commandResult, failureSource);
-
-            // Scopes nest: the last scope begun is the first completed, like using-blocks. Every scope completes
-            // exactly once and in isolation — a failure completing one scope must never prevent the remaining
-            // scopes from completing — and a failure becomes an exception outcome on the result rather than a
-            // raw exception to the caller.
-            for (var index = (frame.MayParticipate ? begunScopeCount : scopes.Length) - 1; index >= 0; index--)
-            {
-                operations?.RestoreFailure(commandResult);
-                try
-                {
-                    await scopes[index].Complete(commandContext, commandResult);
-                }
-                catch (Exception ex)
-                {
-                    OperationActivity.RecordException(activity, ex);
-                    commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
-                }
-
-                operations?.CaptureFailure(commandResult, CommandOperationFailureSource.ScopeCompletion);
-            }
-
-            if (operations is not null)
-            {
-                var disposition = CommandCommitDisposition.Unknown;
-                try
-                {
-                    disposition = CommandOperationExecution.Disposition(scopes, commandContext);
-                }
-                catch (Exception exception)
-                {
-                    OperationActivity.RecordException(activity, exception);
-                    commandResult.MergeWith(CommandResult.FromException(correlationId, exception));
-                    operations.CaptureFailure(commandResult, CommandOperationFailureSource.ScopeCompletion);
-                }
-
-                await operations.Recover(commandResult, disposition);
-            }
-
-            // A response describes what the command produced, and it is bound onto the result as soon as the handler
-            // returns it - before the scopes above complete, and therefore before a transaction has committed. Once
-            // every scope has had its say, a command that did not succeed produced nothing the caller may act on, so
-            // the response is taken back rather than serialized into an error response body.
-            if (!commandResult.IsSuccess)
-            {
-                commandResult.ClearResponse();
-            }
-
-            return commandResult;
+            return CompleteScopes(commandContext, scopes, frame.MayParticipate ? begunScopeCount : scopes.Length, operations, commandResult, activity);
         }
+    }
+
+    async Task<CommandResult> CompleteScopes(CommandContext context, ICommandExecutionScope[] scopes, int count, CommandOperationExecution? operations, CommandResult result, Activity? activity)
+    {
+        // Scopes nest: the last scope begun is the first completed, like using-blocks. Every scope completes
+        // exactly once and in isolation — a failure completing one scope must never prevent the remaining
+        // scopes from completing — and a failure becomes an exception outcome on the result rather than a
+        // raw exception to the caller.
+        for (var index = count - 1; index >= 0; index--)
+        {
+            operations?.RestoreFailure(result);
+            try
+            {
+                await scopes[index].Complete(context, result);
+            }
+            catch (Exception ex)
+            {
+                OperationActivity.RecordException(activity, ex);
+                result.MergeWith(CommandResult.FromException(context.CorrelationId, ex));
+            }
+
+            operations?.CaptureFailure(result, CommandOperationFailureSource.ScopeCompletion);
+        }
+
+        if (operations is not null)
+        {
+            await RecoverOperations(context, scopes, operations, result, activity);
+        }
+
+        // A response describes what the command produced, and it is bound onto the result as soon as the handler
+        // returns it - before the scopes above complete, and therefore before a transaction has committed. Once
+        // every scope has had its say, a command that did not succeed produced nothing the caller may act on, so
+        // the response is taken back rather than serialized into an error response body.
+        if (!result.IsSuccess)
+        {
+            result.ClearResponse();
+        }
+
+        return result;
+    }
+
+    async ValueTask RecoverOperations(CommandContext context, ICommandExecutionScope[] scopes, CommandOperationExecution operations, CommandResult result, Activity? activity)
+    {
+        var disposition = CommandCommitDisposition.Unknown;
+        try
+        {
+            disposition = CommandOperationExecution.Disposition(scopes, context);
+        }
+        catch (Exception exception)
+        {
+            OperationActivity.RecordException(activity, exception);
+            result.MergeWith(CommandResult.FromException(context.CorrelationId, exception));
+            operations.CaptureFailure(result, CommandOperationFailureSource.ScopeCompletion);
+        }
+
+        await operations.Recover(result, disposition);
     }
 
     /// <summary>
@@ -871,48 +883,16 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
-            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-            var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+            var preparedAuthorization = await PrepareAuthorization(command.GetType(), serviceProvider, suppliedAuthorization, cancellationToken);
+            if (!AttachAuthorizedPrincipal(preparedAuthorization, principalLease, serviceProvider))
             {
-                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
-                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
-                    .Prepare(command.GetType(), serviceProvider, cancellationToken);
-            }
-
-            if (preparedAuthorization is not null)
-            {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
-                {
-                    return CommandResult.Unauthorized(correlationId);
-                }
-
-                if (preparedAuthorization.PrincipalChanged)
-                {
-                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
-                        .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
-                }
+                return CommandResult.Unauthorized(correlationId);
             }
 
             using var identityGuard = EnterCallerIdentity(serviceProvider, preparedAuthorization, true);
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             OperationActivity.AddResolvedTenant(activity, serviceProvider);
-            var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
-            var commandContext = new CommandContext(
-                correlationId,
-                command.GetType(),
-                command,
-                [],
-                BuildContextValues(command, serviceProvider, preparedAuthorization),
-                severityPolicy.AllowedSeverity,
-                ServiceProvider: serviceProvider,
-                CancellationToken: cancellationToken)
-            {
-                PreparedAuthorization = preparedAuthorization,
-                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown,
-                ReceivedAt = OperationContextScope.Current ?? default
-            };
+            var commandContext = CreateContext(command, serviceProvider, correlationId, allowedSeverity, preparedAuthorization, cancellationToken);
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
@@ -942,6 +922,25 @@ public class CommandPipeline(
         }
 
         return result;
+    }
+
+    CommandContext CreateContext(object command, IServiceProvider services, CorrelationId correlationId, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? prepared, CancellationToken cancellationToken)
+    {
+        var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
+        return new(
+            correlationId,
+            command.GetType(),
+            command,
+            [],
+            BuildContextValues(command, services, prepared),
+            severityPolicy.AllowedSeverity,
+            ServiceProvider: services,
+            CancellationToken: cancellationToken)
+        {
+            PreparedAuthorization = prepared,
+            BlockUnknownValidationSeverity = severityPolicy.BlockUnknown,
+            ReceivedAt = OperationContextScope.Current ?? default
+        };
     }
 
     IDisposable EnterCallerIdentity(IServiceProvider services, PreparedAuthorization? prepared, bool forValidation)
@@ -1113,28 +1112,7 @@ public class CommandPipeline(
         // First pass: identify and set the response value
         // Handlers may check commandContext.Response, so we need to set it before checking possibility to handle
         var valuesToProcess = new List<object>();
-        object? responseValue = null;
-
-        foreach (var value in values)
-        {
-            // Check if this value should be the response (non-handled value)
-            // We need to check this WITHOUT the response being set yet
-            if (!CanHandleValue(value, commandContext))
-            {
-                var unwrappedValue = UnwrapValue(value);
-                if (responseValue is null)
-                {
-                    responseValue = unwrappedValue;
-                    commandContext = commandContext with { Response = unwrappedValue };
-                    result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
-                }
-                else
-                {
-                    // Multiple unhandled values - can't determine which should be the response
-                    throw new MultipleUnhandledTupleValues([responseValue, unwrappedValue]);
-                }
-            }
-        }
+        (commandContext, result) = IdentifyTupleResponse(values, commandContext, correlationId, result);
 
         // Second pass: now that response is set, check which values can be handled
         // Some handlers may depend on commandContext.Response being set
@@ -1150,6 +1128,33 @@ public class CommandPipeline(
         foreach (var value in valuesToProcess)
         {
             result.MergeWith(await HandleValue(value, commandContext));
+        }
+
+        return (commandContext, result);
+    }
+
+    (CommandContext CommandContext, CommandResult Result) IdentifyTupleResponse(List<object> values, CommandContext commandContext, CorrelationId correlationId, CommandResult result)
+    {
+        object? responseValue = null;
+        foreach (var value in values)
+        {
+            // Check if this value should be the response (non-handled value)
+            // We need to check this WITHOUT the response being set yet
+            if (CanHandleValue(value, commandContext))
+            {
+                continue;
+            }
+
+            var unwrappedValue = UnwrapValue(value);
+            if (responseValue is not null)
+            {
+                // Multiple unhandled values - can't determine which should be the response
+                throw new MultipleUnhandledTupleValues([responseValue, unwrappedValue]);
+            }
+
+            responseValue = unwrappedValue;
+            commandContext = commandContext with { Response = unwrappedValue };
+            result = CreateCommandResultWithResponse(correlationId, unwrappedValue);
         }
 
         return (commandContext, result);
