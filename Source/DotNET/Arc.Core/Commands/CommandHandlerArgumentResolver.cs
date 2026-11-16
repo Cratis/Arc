@@ -28,19 +28,7 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
     {
         var provided = await provideInvoker.Invoke(context, serviceProvider);
 
-        // Unmarked (legacy) commands keep their existing Provide semantics; only declared decision profiles are checked.
-        if (provided.Count > 0 && CommandDecisionPolicy.Mode != CommandDecisionMode.Legacy &&
-            serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) is IEnumerable<ICommandDependencySafety> safetyChecks)
-        {
-            var checks = safetyChecks.ToArray();
-            foreach (var value in provided)
-            {
-                foreach (var safety in checks)
-                {
-                    safety.ValidateProvided(value);
-                }
-            }
-        }
+        ValidateProvidedValues(provided, serviceProvider);
 
         var controlResult = CommandResult.Success(context.CorrelationId);
         var candidates = new List<object>();
@@ -68,6 +56,23 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         return new CommandHandlerArgumentResolution(arguments, CommandResult.Success(context.CorrelationId));
     }
 
+    static void ValidateProvidedValues(IReadOnlyList<object> provided, IServiceProvider serviceProvider)
+    {
+        // Unmarked (legacy) commands keep their existing Provide semantics; only declared decision profiles are checked.
+        if (provided.Count > 0 && CommandDecisionPolicy.Mode != CommandDecisionMode.Legacy &&
+            serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) is IEnumerable<ICommandDependencySafety> safetyChecks)
+        {
+            var checks = safetyChecks.ToArray();
+            foreach (var value in provided)
+            {
+                foreach (var safety in checks)
+                {
+                    safety.ValidateProvided(value);
+                }
+            }
+        }
+    }
+
     static async Task<object?[]> BuildArguments(
         ICommandHandler handler,
         List<object> candidates,
@@ -91,12 +96,7 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
             else if (candidates.Find(parameterType.IsInstanceOfType) is { } match)
             {
-                RefuseProvideForCallerKeyedParameter(handler, parameter);
-                if (CommandDecisionPolicy.IsProtected)
-                {
-                    serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
-                        .ValidateCommandDependency(parameterType, match);
-                }
+                ValidateProvidedDependency(handler, parameter, parameterType, match, serviceProvider);
                 arguments[i] = match;
                 candidates.Remove(match);
             }
@@ -110,6 +110,21 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         }
 
         return arguments;
+    }
+
+    static void ValidateProvidedDependency(
+        ICommandHandler handler,
+        ParameterInfo parameter,
+        Type parameterType,
+        object match,
+        IServiceProvider serviceProvider)
+    {
+        RefuseProvideForCallerKeyedParameter(handler, parameter);
+        if (CommandDecisionPolicy.IsProtected)
+        {
+            serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
+                .ValidateCommandDependency(parameterType, match);
+        }
     }
 
     static void RefuseProvideForCallerKeyedParameter(ICommandHandler handler, ParameterInfo parameter)
