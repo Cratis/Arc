@@ -55,7 +55,7 @@ internal class UnboundCommandRefusal(
             return;
         }
 
-        CommandPipeline.RecordCommand(activity, request.RequestServices, request.CommandType, result, started, cancellationToken);
+        CommandPipeline.RecordCommand(new(activity, request.RequestServices, request.CommandType, started, cancellationToken), result);
     }
 
     static void RecordFailure(UnboundCommandRefusalRequest request, Activity? activity, Exception exception, long started, CancellationToken cancellationToken)
@@ -66,7 +66,7 @@ internal class UnboundCommandRefusal(
             return;
         }
 
-        CommandPipeline.RecordCommandFailure(activity, request.RequestServices, request.CommandType, exception, started, cancellationToken);
+        CommandPipeline.RecordCommandFailure(new(activity, request.RequestServices, request.CommandType, started, cancellationToken), exception);
     }
 
     static T Required<T>(IServiceProvider services, string name)
