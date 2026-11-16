@@ -57,8 +57,9 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         var mappings = new List<PropertyMappingModel>();
         var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
 
-        ReadArguments(creation, constructor, semanticModel, owner, eventType, location, mappings, bindings);
-        ReadInitializer(creation, semanticModel, owner, eventType, location, mappings, bindings);
+        var context = new MappingContext(semanticModel, owner, eventType, location, bindings);
+        ReadArguments(creation, constructor, context, mappings);
+        ReadInitializer(creation, context, mappings);
 
         return mappings;
     }
@@ -89,6 +90,11 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     static string PropertyOf(ITypeSymbol eventType, string name) =>
         eventType.DeclaredProperties().FirstOrDefault(_ => string.Equals(_.Name, name, StringComparison.OrdinalIgnoreCase))?.Name ?? name;
 
+    static bool IsPropertyValue(ExpressionSyntax expression, string property, string path, MappingContext context) =>
+        !path.Contains('.', StringComparison.Ordinal) && SymbolEqualityComparer.Default.Equals(
+            context.SemanticModel.GetTypeInfo(MappingSourceReader.Unwrap(expression)).Type,
+            context.EventType.DeclaredProperties().FirstOrDefault(target => target.Name == property)?.Type);
+
     static bool IsReadDependency(ExpressionSyntax expression, SemanticModel semanticModel)
     {
         var current = MappingSourceReader.Unwrap(expression);
@@ -105,21 +111,13 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="creation">The construction to read.</param>
     /// <param name="constructor">The constructor being called.</param>
-    /// <param name="semanticModel">The semantic model of the tree the construction lives in.</param>
-    /// <param name="owner">The type whose properties count as the command's own input.</param>
-    /// <param name="eventType">The type of the event being constructed.</param>
-    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="context">The source and target of the mappings being read.</param>
     /// <param name="mappings">The mappings collected so far.</param>
-    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     void ReadArguments(
         BaseObjectCreationExpressionSyntax creation,
         IMethodSymbol? constructor,
-        SemanticModel semanticModel,
-        ITypeSymbol owner,
-        ITypeSymbol eventType,
-        string location,
-        List<PropertyMappingModel> mappings,
-        ParameterBindings? bindings)
+        MappingContext context,
+        List<PropertyMappingModel> mappings)
     {
         var arguments = creation.ArgumentList?.Arguments;
         if (arguments is null)
@@ -133,11 +131,11 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
             var name = NameOf(argument, constructor, index);
             if (name is null)
             {
-                Report(eventType, $"argument {index + 1}", location);
+                Report(context.EventType, $"argument {index + 1}", context.Location);
                 continue;
             }
 
-            Add(mappings, PropertyOf(eventType, name), argument.Expression, semanticModel, owner, eventType, location, bindings);
+            Add(mappings, PropertyOf(context.EventType, name), argument.Expression, context);
         }
     }
 
@@ -145,30 +143,22 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// Reads the mappings an object initializer declares.
     /// </summary>
     /// <param name="creation">The construction to read.</param>
-    /// <param name="semanticModel">The semantic model of the tree the construction lives in.</param>
-    /// <param name="owner">The type whose properties count as the command's own input.</param>
-    /// <param name="eventType">The type of the event being constructed.</param>
-    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="context">The source and target of the mappings being read.</param>
     /// <param name="mappings">The mappings collected so far.</param>
-    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
     void ReadInitializer(
         BaseObjectCreationExpressionSyntax creation,
-        SemanticModel semanticModel,
-        ITypeSymbol owner,
-        ITypeSymbol eventType,
-        string location,
-        List<PropertyMappingModel> mappings,
-        ParameterBindings? bindings)
+        MappingContext context,
+        List<PropertyMappingModel> mappings)
     {
         foreach (var assignment in creation.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>() ?? [])
         {
             if (assignment.Left is not IdentifierNameSyntax identifier)
             {
-                Report(eventType, assignment.Left.ToString(), location);
+                Report(context.EventType, assignment.Left.ToString(), context.Location);
                 continue;
             }
 
-            Add(mappings, PropertyOf(eventType, identifier.Identifier.ValueText), assignment.Right, semanticModel, owner, eventType, location, bindings);
+            Add(mappings, PropertyOf(context.EventType, identifier.Identifier.ValueText), assignment.Right, context);
         }
     }
 
@@ -178,43 +168,40 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="mappings">The mappings collected so far.</param>
     /// <param name="property">The property being filled in.</param>
     /// <param name="expression">The expression filling it in.</param>
-    /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
-    /// <param name="owner">The type whose properties count as the command's own input.</param>
-    /// <param name="eventType">The type of the event being constructed.</param>
-    /// <param name="location">Where the command lives, for use in diagnostics.</param>
-    /// <param name="bindings">What the call site gave the parameters of the body being read.</param>
+    /// <param name="context">The source and target of the mappings being read.</param>
     void Add(
         List<PropertyMappingModel> mappings,
         string property,
         ExpressionSyntax expression,
-        SemanticModel semanticModel,
-        ITypeSymbol owner,
-        ITypeSymbol eventType,
-        string location,
-        ParameterBindings? bindings)
+        MappingContext context)
     {
-        if (_authoring?.UnavailableIn(expression, semanticModel, bindings) is { } unavailable)
+        if (_authoring?.UnavailableIn(expression, context.SemanticModel, context.Bindings) is { } unavailable)
         {
             mappings.Add(new(property, new UnavailableValueSource(unavailable)));
             return;
         }
 
-        var source = _sources.Read(expression, semanticModel, owner, location, bindings);
-        if (source is null && _authoring?.ReadPath(expression, semanticModel) is { } path &&
-            ((!path.Contains('.', StringComparison.Ordinal) && SymbolEqualityComparer.Default.Equals(
-                semanticModel.GetTypeInfo(MappingSourceReader.Unwrap(expression)).Type,
-                eventType.DeclaredProperties().FirstOrDefault(target => target.Name == property)?.Type)) ||
-                IsReadDependency(expression, semanticModel)))
-        {
-            source = new PropertyPathSource(path);
-        }
+        var source = _sources.Read(expression, context.SemanticModel, context.Owner, context.Location, context.Bindings) ??
+            ReadAuthoringSource(expression, property, context);
         if (source is null)
         {
-            Report(eventType, property, location);
+            Report(context.EventType, property, context.Location);
             return;
         }
 
         mappings.Add(new(property, source));
+    }
+
+    PropertyPathSource? ReadAuthoringSource(ExpressionSyntax expression, string property, MappingContext context)
+    {
+        if (_authoring?.ReadPath(expression, context.SemanticModel) is not { } path)
+        {
+            return null;
+        }
+
+        return IsPropertyValue(expression, property, path, context) || IsReadDependency(expression, context.SemanticModel)
+            ? new PropertyPathSource(path)
+            : null;
     }
 
     /// <summary>
@@ -231,4 +218,6 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
             $"The value given to '{eventType.Name}.{property}' is code rather than command input or a constant, so the mapping was left out",
             location);
     }
+
+    sealed record MappingContext(SemanticModel SemanticModel, ITypeSymbol Owner, ITypeSymbol EventType, string Location, ParameterBindings? Bindings);
 }
