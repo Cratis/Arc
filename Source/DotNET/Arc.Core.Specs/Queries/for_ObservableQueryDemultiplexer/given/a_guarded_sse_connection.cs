@@ -96,11 +96,7 @@ public class a_guarded_sse_connection : a_guarded_connection
         subscribeContext.RequestServices.Returns(_admissionServices);
 
         // The subscribe POST carries the freshest identity; the demultiplexer transfers it onto the SSE connection.
-        subscribeContext.User.Returns(_principal);
-        subscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSESubscribeRequest), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult<object?>(CreateRequest()));
-        subscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
-            .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
+        ConfigureControlRequest(subscribeContext, CreateRequest, queryId);
         return subscribeContext;
 
         ObservableQuerySSESubscribeRequest CreateRequest()
@@ -118,11 +114,7 @@ public class a_guarded_sse_connection : a_guarded_connection
     {
         var unsubscribeContext = Substitute.For<IHttpRequestContext>();
         unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
-        unsubscribeContext.User.Returns(_principal);
-        unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult<object?>(CreateRequest()));
-        unsubscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))
-            .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
+        ConfigureControlRequest(unsubscribeContext, CreateRequest, queryId);
         return unsubscribeContext;
 
         ObservableQuerySSEUnsubscribeRequest CreateRequest()
@@ -131,6 +123,15 @@ public class a_guarded_sse_connection : a_guarded_connection
             typeof(ObservableQuerySSEUnsubscribeRequest).GetProperty("Revision")!.SetValue(request, revision);
             return request;
         }
+    }
+
+    void ConfigureControlRequest<TRequest>(IHttpRequestContext context, Func<TRequest> createRequest, string queryId)
+    {
+        context.User.Returns(_principal);
+        context.ReadBodyAsJson(typeof(TRequest), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<object?>(createRequest()));
+        context.When(_ => _.SetStatusCode(Arg.Any<int>()))
+            .Do(callInfo => _subscribeStatusCodes[queryId] = callInfo.Arg<int>());
     }
 
     protected bool TryExtractConnectionId(out string connectionId)
