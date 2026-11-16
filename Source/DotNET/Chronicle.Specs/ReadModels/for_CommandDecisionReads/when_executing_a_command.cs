@@ -251,24 +251,12 @@ public class when_executing_a_command
     [Fact]
     public async Task should_not_complete_outer_frame_when_nested_begin_never_reached_this_scope()
     {
-        var (_, log, unit) = DecisionFixtures.Transaction();
-        var manager = Substitute.For<IUnitOfWorkManager>();
-        manager.Begin(Arg.Any<CorrelationId>()).Returns(unit);
-        var services = Substitute.For<IServiceProvider>();
-        services.GetService(typeof(IUnitOfWorkManager)).Returns(manager);
-        var scope = new TransactionalCommandScope();
-        var outerId = CorrelationId.New();
-        var outer = new CommandContext(outerId, typeof(Command), new Command(), [], new(), ServiceProvider: services);
-        var nested = new CommandContext(CorrelationId.New(), typeof(NestedCommand), new NestedCommand(), [], new(), ServiceProvider: services);
-        log.AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>>())
-            .Returns(AppendManyResult.Success(outerId, []));
-        scope.Begin(outer);
-        unit.AddDecisionRead(DecisionFixtures.Protected<Model>("source"));
+        var (scope, unit, outer, nested) = BeginOuterCommand();
         await scope.Complete(nested, CommandResult.Error(nested.CorrelationId, "nested Begin failed"));
         Assert.False(unit.IsCompleted);
         Assert.True(CommandTransaction.TryGetActive(out var active));
         Assert.Same(unit, active);
-        await scope.Complete(outer, CommandResult.Success(outerId));
+        await scope.Complete(outer, CommandResult.Success(outer.CorrelationId));
         Assert.True(unit.IsCompleted);
         Assert.False(CommandTransaction.TryGetActive(out _));
     }
@@ -276,25 +264,13 @@ public class when_executing_a_command
     [Fact]
     public async Task should_restore_the_owning_scope_after_a_nested_command_completes()
     {
-        var (_, log, unit) = DecisionFixtures.Transaction();
-        var manager = Substitute.For<IUnitOfWorkManager>();
-        manager.Begin(Arg.Any<CorrelationId>()).Returns(unit);
-        var services = Substitute.For<IServiceProvider>();
-        services.GetService(typeof(IUnitOfWorkManager)).Returns(manager);
-        var scope = new TransactionalCommandScope();
-        var outerId = CorrelationId.New();
-        var outer = new CommandContext(outerId, typeof(Command), new Command(), [], new(), ServiceProvider: services);
-        var nested = new CommandContext(CorrelationId.New(), typeof(NestedCommand), new NestedCommand(), [], new(), ServiceProvider: services);
-        log.AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>>())
-            .Returns(AppendManyResult.Success(outerId, []));
-        scope.Begin(outer);
-        unit.AddDecisionRead(DecisionFixtures.Protected<Model>("source"));
+        var (scope, unit, outer, nested) = BeginOuterCommand();
         scope.Begin(nested);
         await scope.Complete(nested, CommandResult.Success(nested.CorrelationId));
         Assert.False(unit.IsCompleted);
         Assert.True(CommandTransaction.TryGetActive(out var active));
         Assert.Same(unit, active);
-        await scope.Complete(outer, CommandResult.Success(outerId));
+        await scope.Complete(outer, CommandResult.Success(outer.CorrelationId));
         Assert.True(unit.IsCompleted);
         Assert.False(CommandTransaction.TryGetActive(out _));
     }
@@ -321,6 +297,24 @@ public class when_executing_a_command
 
         await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
         await legacy.Received(1).GetInstanceById<Model>((ReadModelKey)"source");
+    }
+
+    static (TransactionalCommandScope Scope, UnitOfWork Unit, CommandContext Outer, CommandContext Nested) BeginOuterCommand()
+    {
+        var (_, log, unit) = DecisionFixtures.Transaction();
+        var manager = Substitute.For<IUnitOfWorkManager>();
+        manager.Begin(Arg.Any<CorrelationId>()).Returns(unit);
+        var services = Substitute.For<IServiceProvider>();
+        services.GetService(typeof(IUnitOfWorkManager)).Returns(manager);
+        var scope = new TransactionalCommandScope();
+        var outerId = CorrelationId.New();
+        var outer = new CommandContext(outerId, typeof(Command), new Command(), [], new(), ServiceProvider: services);
+        var nested = new CommandContext(CorrelationId.New(), typeof(NestedCommand), new NestedCommand(), [], new(), ServiceProvider: services);
+        log.AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>>())
+            .Returns(AppendManyResult.Success(outerId, []));
+        scope.Begin(outer);
+        unit.AddDecisionRead(DecisionFixtures.Protected<Model>("source"));
+        return (scope, unit, outer, nested);
     }
 
     public class Model;

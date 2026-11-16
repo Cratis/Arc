@@ -19,6 +19,26 @@ public class when_generating_lint_compliant_output : Specification
         _directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_directory);
         var pending = new Dictionary<string, (string Content, string SourceTypeName)>();
+        GenerateTemplateVariants(Add);
+        Add(TemplateTypes.Enum(new { Name = "Sample", Values = new[] { new { Name = "First", Value = 1 } } }));
+        Add(TemplateTypes.FlagsEnum(new { Name = "Sample", Values = new[] { new { Name = "First", Value = 1 } }, AllFlagsExpression = "Sample.first" }));
+        Add(TypeScriptContentCombiner.Combine([TemplateTypes.Type(new { Name = "First", Properties = Array.Empty<object>(), Imports = Array.Empty<object>() }), TemplateTypes.Interface(new { Name = "Second", Properties = Array.Empty<object>(), Imports = Array.Empty<object>() })]));
+        Add(ResponseHooks());
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "eslint.config.mjs")))
+        {
+            root = root.Parent;
+        }
+        root.ShouldNotBeNull();
+        await DescriptorExtensions.FlushPendingContentWithFileHeader(FileHeader.Resolve(root.FullName, null), pending, new Dictionary<string, GeneratedFileMetadata>(), _ => { });
+        _contents = [.. pending.Keys.Select(File.ReadAllText)];
+        await LintGeneratedContents(root.FullName);
+
+        void Add(string content) => pending.Add(Path.Combine(_directory, $"Fixture{pending.Count}.ts"), (content, "Sample"));
+    }
+
+    static void GenerateTemplateVariants(Action<string> add)
+    {
         foreach (var enumerable in new[] { false, true })
         {
             foreach (var populated in new[] { false, true })
@@ -47,30 +67,21 @@ public class when_generating_lint_compliant_output : Specification
                         TreatWarningsAsErrorsForPolicy = false,
                         HttpMethod = "Post"
                     };
-                    Add(TemplateTypes.Command(descriptor));
-                    Add(TemplateTypes.Query(descriptor));
-                    Add(TemplateTypes.ObservableQuery(descriptor));
-                    Add(TemplateTypes.Type(descriptor));
-                    Add(TemplateTypes.Interface(descriptor));
+                    add(TemplateTypes.Command(descriptor));
+                    add(TemplateTypes.Query(descriptor));
+                    add(TemplateTypes.ObservableQuery(descriptor));
+                    add(TemplateTypes.Type(descriptor));
+                    add(TemplateTypes.Interface(descriptor));
                 }
             }
         }
-        Add(TemplateTypes.Enum(new { Name = "Sample", Values = new[] { new { Name = "First", Value = 1 } } }));
-        Add(TemplateTypes.FlagsEnum(new { Name = "Sample", Values = new[] { new { Name = "First", Value = 1 } }, AllFlagsExpression = "Sample.first" }));
-        Add(TypeScriptContentCombiner.Combine([TemplateTypes.Type(new { Name = "First", Properties = Array.Empty<object>(), Imports = Array.Empty<object>() }), TemplateTypes.Interface(new { Name = "Second", Properties = Array.Empty<object>(), Imports = Array.Empty<object>() })]));
-        Add(ResponseHooks());
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "eslint.config.mjs")))
-        {
-            root = root.Parent;
-        }
-        root.ShouldNotBeNull();
-        await DescriptorExtensions.FlushPendingContentWithFileHeader(FileHeader.Resolve(root!.FullName, null), pending, new Dictionary<string, GeneratedFileMetadata>(), _ => { });
-        _contents = [.. pending.Keys.Select(File.ReadAllText)];
+    }
 
+    async Task LintGeneratedContents(string root)
+    {
         var start = new ProcessStartInfo("node")
         {
-            WorkingDirectory = root!.FullName,
+            WorkingDirectory = root,
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -94,8 +105,6 @@ public class when_generating_lint_compliant_output : Specification
         _output = await stdout + await stderr;
         _exitCode = process.ExitCode;
         Console.WriteLine(_output);
-
-        void Add(string content) => pending.Add(Path.Combine(_directory, $"Fixture{pending.Count}.ts"), (content, "Sample"));
     }
 
     [Fact] void should_lint_every_generated_shape_without_warnings() => Assert.True(_exitCode == 0, _output);
@@ -141,6 +150,15 @@ public class when_generating_lint_compliant_output : Specification
             }));
         }
 
+        AddInternalMemberNamesCommand(contents);
+        AddUserSliceLocationProxies(contents);
+        AddSliceLocationMemberProxies(contents);
+        AddResponseConsumers(contents);
+        return TypeScriptContentCombiner.Combine(contents);
+    }
+
+    static void AddInternalMemberNamesCommand(List<string> contents)
+    {
         // Compile properties named after every Command backing member against the actual base class.
         contents.Add(TemplateTypes.Command(new
         {
@@ -154,7 +172,10 @@ public class when_generating_lint_compliant_output : Specification
             Roles = Array.Empty<string>(),
             TreatWarningsAsErrorsForPolicy = false
         }));
+    }
 
+    static void AddUserSliceLocationProxies(List<string> contents)
+    {
         // A consumer type named SliceLocation must coexist with the slice location Arc imports for every proxy.
         contents.Add(TemplateTypes.Type(new { Name = "SliceLocation", Properties = new[] { new { Name = "Name", Type = "string", Constructor = "String", IsNullable = false } }, Imports = Array.Empty<object>() }));
         contents.Add(TemplateTypes.Command(new
@@ -189,7 +210,10 @@ public class when_generating_lint_compliant_output : Specification
                 TreatWarningsAsErrors = false
             }));
         }
+    }
 
+    static void AddSliceLocationMemberProxies(List<string> contents)
+    {
         // A command property or query parameter named SliceLocation becomes an instance member named sliceLocation;
         // it must type-check beside the static slice location every proxy carries.
         contents.Add(TemplateTypes.Command(new
@@ -224,6 +248,10 @@ public class when_generating_lint_compliant_output : Specification
                 TreatWarningsAsErrors = false
             }));
         }
+    }
+
+    static void AddResponseConsumers(List<string> contents)
+    {
         contents.Add(string.Join<string>('\n',
         [
             "export function useSliceLocationMembers(): string[] {",
@@ -266,7 +294,6 @@ public class when_generating_lint_compliant_output : Specification
             "collisionCommand.setOrigin('https://api.example.com');",
             "export const originValue: string = collisionCommand.origin;"
         ]));
-        return TypeScriptContentCombiner.Combine(contents);
     }
 
     void Destroy()

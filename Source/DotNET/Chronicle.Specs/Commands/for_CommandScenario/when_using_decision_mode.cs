@@ -24,8 +24,7 @@ public class when_using_decision_mode
     public async Task absent_decision_can_commit()
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
-        var source = EventSourceId.New();
-        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
+        var (source, result) = await ExecuteAtNewSource(scenario, source => new DecideAtSource(source));
         result.ShouldBeSuccessful();
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue();
         scenario.AppendedEvents.Count.ShouldEqual(1);
@@ -35,9 +34,7 @@ public class when_using_decision_mode
     public async Task competing_creation_rejects_absent_decision_without_committing_owner_event()
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
-        var source = EventSourceId.New();
-        scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
+        var (source, result) = await ExecuteAtNewSource(scenario, source => new DecideAtSource(source), source => scenario.AppendConcurrently(source, new DecisionStateChanged()));
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
         (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue();
@@ -47,9 +44,7 @@ public class when_using_decision_mode
     public async Task seeded_state_is_read_from_the_same_log()
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
-        var source = EventSourceId.New();
-        scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
+        var (_, result) = await ExecuteAtNewSource(scenario, source => new DecideAtSource(source), source => scenario.Given.ForEventSource(source).Events(new DecisionStateChanged()));
         result.ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
@@ -58,9 +53,7 @@ public class when_using_decision_mode
     public async Task irrelevant_competitor_does_not_conflict()
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
-        var source = EventSourceId.New();
-        scenario.AppendConcurrently(EventSourceId.New(), new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
+        var (_, result) = await ExecuteAtNewSource(scenario, source => new DecideAtSource(source), _ => scenario.AppendConcurrently(EventSourceId.New(), new DecisionStateChanged()));
         result.ShouldBeSuccessful();
         scenario.AppendedEvents.Count.ShouldEqual(1);
     }
@@ -69,10 +62,11 @@ public class when_using_decision_mode
     public async Task present_decision_conflicts_when_matching_event_arrives()
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
-        var source = EventSourceId.New();
-        scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
-        scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new DecideAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
+        var (_, result) = await ExecuteAtNewSource(scenario, source => new DecideAtSource(source), source =>
+        {
+            scenario.Given.ForEventSource(source).Events(new DecisionStateChanged());
+            scenario.AppendConcurrently(source, new DecisionStateChanged());
+        });
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
     }
@@ -93,9 +87,7 @@ public class when_using_decision_mode
     public async Task validate_only_conflicts_without_appending_any_owner_event()
     {
         await using var scenario = new CommandScenario<CheckAtSource>();
-        var source = EventSourceId.New();
-        scenario.AppendConcurrently(source, new DecisionStateChanged());
-        var result = await scenario.Execute(new CheckAtSource(source), global::Xunit.TestContext.Current.CancellationToken);
+        var (_, result) = await ExecuteAtNewSource(scenario, source => new CheckAtSource(source), source => scenario.AppendConcurrently(source, new DecisionStateChanged()));
         result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
         scenario.AppendedEvents.Count.ShouldEqual(0);
     }
@@ -347,6 +339,17 @@ public class when_using_decision_mode
     public record UnprotectedDecision(EventSourceId EventSourceId)
     {
         public DecisionFinished Handle(DecisionRead<DecisionState> read) => new(read.Exists);
+    }
+
+    static async Task<(EventSourceId Source, CommandResult Result)> ExecuteAtNewSource<TCommand>(
+        CommandScenario<TCommand> scenario,
+        Func<EventSourceId, TCommand> command,
+        Action<EventSourceId>? arrange = null)
+    {
+        var source = EventSourceId.New();
+        arrange?.Invoke(source);
+        var result = await scenario.Execute(command(source), global::Xunit.TestContext.Current.CancellationToken);
+        return (source, result);
     }
 
     [Command]
