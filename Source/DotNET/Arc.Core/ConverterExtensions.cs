@@ -299,36 +299,8 @@ public static class ConverterExtensions
     /// </remarks>
     static object ConvertToEnumerable(object value, Type targetType, Type elementType)
     {
-        var stringValue = value.ToString() ?? string.Empty;
-        var parts = value is IEnumerable values and not string
-            ? values.Cast<object?>().ToArray()
-            : stringValue.Length == 0
-                ? []
-                : stringValue.Split(',', StringSplitOptions.TrimEntries).Cast<object?>().ToArray();
-        var array = Array.CreateInstance(elementType, parts.Length);
-        for (var index = 0; index < parts.Length; index++)
-        {
-            var part = parts[index];
-            if (part is null)
-            {
-                if (Nullable.GetUnderlyingType(elementType) is null)
-                {
-                    throw new InvalidCollectionQueryArgument(targetType, part);
-                }
-
-                array.SetValue(null, index);
-                continue;
-            }
-
-            // Scalar ConvertTo deliberately retains its existing default-on-failure behavior. A collection
-            // must instead distinguish a successful conversion from a default value returned for bad input.
-            if (!TryConvertCollectionElement(part, elementType, out var converted))
-            {
-                throw new InvalidCollectionQueryArgument(targetType, part);
-            }
-
-            array.SetValue(converted, index);
-        }
+        var parts = CollectionParts(value);
+        var array = ConvertCollectionElements(parts, targetType, elementType);
 
         if (targetType.IsInstanceOfType(array))
         {
@@ -357,6 +329,46 @@ public static class ConverterExtensions
         return constructor is not null ? constructor.Invoke([list]) : array;
     }
 
+    static object?[] CollectionParts(object value)
+    {
+        var stringValue = value.ToString() ?? string.Empty;
+        return value is IEnumerable values and not string
+            ? values.Cast<object?>().ToArray()
+            : stringValue.Length == 0
+                ? []
+                : stringValue.Split(',', StringSplitOptions.TrimEntries).Cast<object?>().ToArray();
+    }
+
+    static Array ConvertCollectionElements(object?[] parts, Type targetType, Type elementType)
+    {
+        var array = Array.CreateInstance(elementType, parts.Length);
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var part = parts[index];
+            if (part is null)
+            {
+                if (Nullable.GetUnderlyingType(elementType) is null)
+                {
+                    throw new InvalidCollectionQueryArgument(targetType, part);
+                }
+
+                array.SetValue(null, index);
+                continue;
+            }
+
+            // Scalar ConvertTo deliberately retains its existing default-on-failure behavior. A collection
+            // must instead distinguish a successful conversion from a default value returned for bad input.
+            if (!TryConvertCollectionElement(part, elementType, out var converted))
+            {
+                throw new InvalidCollectionQueryArgument(targetType, part);
+            }
+
+            array.SetValue(converted, index);
+        }
+
+        return array;
+    }
+
     static bool TryConvertCollectionElement(object value, Type elementType, out object? converted)
     {
         converted = null;
@@ -376,40 +388,43 @@ public static class ConverterExtensions
 
         if (typeof(JsonNode).IsAssignableFrom(scalarType) || scalarType == typeof(JsonDocument))
         {
-            try
-            {
-                converted = scalarType == typeof(JsonDocument) ? JsonDocument.Parse(text!) : JsonNode.Parse(text!);
-                return converted is not null && scalarType.IsInstanceOfType(converted);
-            }
-            catch (JsonException)
-            {
-                return false;
-            }
+            return TryParseJsonElement(text, scalarType, out converted);
         }
 
-        if (string.IsNullOrEmpty(text))
-        {
-            return false;
-        }
-
-        // A custom TypeConverter or a concept's underlying type can also return a default on failure.
-        // Check that the input is valid by converting through the same scalar path without accepting
-        // a fabricated default for an invalid value.
-        if (scalarType.IsConcept())
-        {
-            var conceptValueType = scalarType.GetConceptValueType();
-            if (!TryConvertCollectionElement(value, conceptValueType, out _))
-            {
-                return false;
-            }
-        }
-        else if (!TryParseScalar(text, scalarType, out var parsed) || parsed is null)
+        if (string.IsNullOrEmpty(text) || !IsValidCollectionScalar(value, text, scalarType))
         {
             return false;
         }
 
         converted = value.ConvertTo(elementType);
         return converted is not null;
+    }
+
+    static bool TryParseJsonElement(string? text, Type scalarType, out object? converted)
+    {
+        converted = null;
+        try
+        {
+            converted = scalarType == typeof(JsonDocument) ? JsonDocument.Parse(text!) : JsonNode.Parse(text!);
+            return converted is not null && scalarType.IsInstanceOfType(converted);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    static bool IsValidCollectionScalar(object value, string text, Type scalarType)
+    {
+        // A custom TypeConverter or a concept's underlying type can also return a default on failure.
+        // Check that the input is valid by converting through the same scalar path without accepting
+        // a fabricated default for an invalid value.
+        if (scalarType.IsConcept())
+        {
+            return TryConvertCollectionElement(value, scalarType.GetConceptValueType(), out _);
+        }
+
+        return TryParseScalar(text, scalarType, out var parsed) && parsed is not null;
     }
 
     static object? ConvertToUnderlyingType(object value, Type targetType, bool returnNullOnFailure = false)
@@ -477,7 +492,10 @@ public static class ConverterExtensions
         }
     }
 
-    static object? ParseKnownScalar(string value, Type type)
+    static object? ParseKnownScalar(string value, Type type) =>
+        ParsePrimitiveScalar(value, type) ?? ParseAdditionalScalar(value, type);
+
+    static object? ParsePrimitiveScalar(string value, Type type)
     {
         if (type == typeof(int))
             return int.Parse(value);
@@ -489,6 +507,12 @@ public static class ConverterExtensions
             return byte.Parse(value);
         if (type == typeof(bool))
             return bool.Parse(value);
+
+        return null;
+    }
+
+    static object? ParseAdditionalScalar(string value, Type type)
+    {
         if (type == typeof(float))
             return float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
         if (type == typeof(double))
