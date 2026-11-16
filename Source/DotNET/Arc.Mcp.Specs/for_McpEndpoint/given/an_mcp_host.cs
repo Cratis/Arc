@@ -93,41 +93,54 @@ public class an_mcp_host : Specification
 
     async Task StartHost()
     {
+        SelectPorts();
+        _probe = new McpProbe();
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls($"http://127.0.0.1:{_capabilityPort}", $"http://127.0.0.1:{_defaultPort}");
+        builder.AddCratisArc(
+            ConfigureArc,
+            configureBuilder: arc => arc
+                .WithoutControllers()
+                .WithCapabilities(options => options.GatedEndpoints = SelectGatedEndpoints ? new CapabilityEndpointSelector() : null)
+                .WithMcp(ConfigureTools));
+        ConfigureHostServices(builder.Services);
+        _app = builder.Build();
+        _app.UseCratisArc();
+        MapMcpEndpoint(_app);
+        ConfigureEndpoints(_app);
+        await _app.StartAsync(CancellationToken);
+    }
+
+    void SelectPorts()
+    {
         _capabilityPort = FreePort();
         do
         {
             _defaultPort = FreePort();
         }
         while (_defaultPort == _capabilityPort);
+    }
 
-        _probe = new McpProbe();
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls($"http://127.0.0.1:{_capabilityPort}", $"http://127.0.0.1:{_defaultPort}");
-        builder.AddCratisArc(
-            options =>
-            {
-                options.EndpointGroups.Assign("capabilities", _capabilityPort);
-                ConfigureArcOptions(options);
-            },
-            configureBuilder: arc => arc
-                .WithoutControllers()
-                .WithCapabilities(options => options.GatedEndpoints = SelectGatedEndpoints ? new CapabilityEndpointSelector() : null)
-                .WithMcp(mcp =>
-                {
-                    mcp.Configure(Configure)
-                        .Expose<WriteNote>("write_note", "Writes a note.")
-                        .AddToolSource<WhoAmI>();
-                    ConfigureMcp(mcp);
-                }));
-        ConfigureCallers(builder.Services);
-        builder.Services.AddSingleton(_probe);
-        RegisterCommands(builder.Services);
-        ConfigureServices(builder.Services);
-        _app = builder.Build();
-        _app.UseCratisArc();
-        MapMcpEndpoint(_app);
-        ConfigureEndpoints(_app);
-        await _app.StartAsync(CancellationToken);
+    void ConfigureArc(ArcOptions options)
+    {
+        options.EndpointGroups.Assign("capabilities", _capabilityPort);
+        ConfigureArcOptions(options);
+    }
+
+    void ConfigureTools(McpBuilder mcp)
+    {
+        mcp.Configure(Configure)
+            .Expose<WriteNote>("write_note", "Writes a note.")
+            .AddToolSource<WhoAmI>();
+        ConfigureMcp(mcp);
+    }
+
+    void ConfigureHostServices(IServiceCollection services)
+    {
+        ConfigureCallers(services);
+        services.AddSingleton(_probe);
+        RegisterCommands(services);
+        ConfigureServices(services);
     }
 
     async Task Destroy()
