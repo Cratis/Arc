@@ -73,12 +73,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
 
-        var method = ModelBoundQueryMethod.GetMethods(typeof(TReadModel), candidate => candidate.IsValidQueryFor(typeof(TReadModel)))
-            .FirstOrDefault(candidate => candidate.Name == methodName);
-        if (method is not null && IsAsyncEnumerable(UnwrapTask(method.ReturnType)))
-        {
-            throw new StreamingQueryNotSupported(methodName);
-        }
+        ThrowIfStreamingQuery(methodName);
 
         var name = new FullyQualifiedQueryName($"{typeof(TReadModel).FullName ?? typeof(TReadModel).Name}.{methodName}");
         var result = await _pipeline!.PerformHosted(name, arguments ?? QueryArguments.Empty, paging ?? Paging.NotPaged, sorting ?? Sorting.None, _serviceProvider!, cancellationToken);
@@ -92,23 +87,12 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         {
             if (result.IsSuccess && result.Data is { } data && IsAsyncEnumerable(data.GetType()))
             {
-                switch (data)
-                {
-                    case IAsyncDisposable asyncDisposable:
-                        await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-                        break;
-                    case IDisposable disposable:
-                        disposable.Dispose();
-                        break;
-                }
+                await DisposeStream(data).ConfigureAwait(false);
 
                 throw new StreamingQueryNotSupported(methodName);
             }
 
-            if (result.IsSuccess && result.OwnedScope is not null && result.Data is IEnumerable sequence and not ICollection)
-            {
-                result.Data = sequence.Cast<TReadModel>().ToList();
-            }
+            if (result.IsSuccess) MaterializeOwnedSequence(result);
 
             return result;
         }
@@ -235,6 +219,38 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         _disposed = true;
     }
 
+    static void ThrowIfStreamingQuery(string methodName)
+    {
+        var method = ModelBoundQueryMethod.GetMethods(typeof(TReadModel), candidate => candidate.IsValidQueryFor(typeof(TReadModel)))
+            .FirstOrDefault(candidate => candidate.Name == methodName);
+        if (method is not null && IsAsyncEnumerable(UnwrapTask(method.ReturnType)))
+        {
+            throw new StreamingQueryNotSupported(methodName);
+        }
+    }
+
+    static ValueTask DisposeStream(object stream)
+    {
+        switch (stream)
+        {
+            case IAsyncDisposable asyncDisposable:
+                return asyncDisposable.DisposeAsync();
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    static void MaterializeOwnedSequence(QueryResult result)
+    {
+        if (result.OwnedScope is not null && result.Data is IEnumerable sequence and not ICollection)
+        {
+            result.Data = sequence.Cast<TReadModel>().ToList();
+        }
+    }
+
     static Type UnwrapTask(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Task<>)
         ? type.GetGenericArguments()[0]
         : type;
@@ -255,10 +271,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         {
             using (result.OwnedScope)
             {
-                if (result.OwnedScope is not null && result.Data is IEnumerable sequence and not ICollection)
-                {
-                    result.Data = sequence.Cast<TReadModel>().ToList();
-                }
+                MaterializeOwnedSequence(result);
             }
 
             return RegisterObservation(new(result), !timeoutAsResult);
