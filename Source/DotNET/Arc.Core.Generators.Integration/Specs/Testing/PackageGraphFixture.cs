@@ -347,12 +347,14 @@ public sealed class PackageGraphFixture : IDisposable
             [Roles("Admin")]
             public sealed class Secured;
             """;
-        return DiscoverCodeFix(
-            "arc-code-fix",
-            "Cratis.Arc.Core",
-            "ARC0011",
-            original,
-            "[Roles(nameof(Role.Admin))]");
+        return DiscoverCodeFix(new()
+        {
+            Name = "arc-code-fix",
+            PackageId = "Cratis.Arc.Core",
+            DiagnosticId = "ARC0011",
+            OriginalSource = original,
+            ExpectedSource = "[Roles(nameof(Role.Admin))]"
+        });
     }
 
     CodeFixHostResult DiscoverChronicleCodeFix()
@@ -368,34 +370,36 @@ public sealed class PackageGraphFixture : IDisposable
                 public void Handle() { }
             }
             """;
-        return DiscoverCodeFix(
-            "chronicle-code-fix",
-            "Cratis.Arc.Chronicle",
-            "ARCCHR0008",
-            original,
-            "[property: Cratis.Chronicle.Keys.Key]");
+        return DiscoverCodeFix(new()
+        {
+            Name = "chronicle-code-fix",
+            PackageId = "Cratis.Arc.Chronicle",
+            DiagnosticId = "ARCCHR0008",
+            OriginalSource = original,
+            ExpectedSource = "[property: Cratis.Chronicle.Keys.Key]"
+        });
     }
 
-    CodeFixHostResult DiscoverCodeFix(string name, string packageId, string diagnosticId, string originalSource, string expectedSource)
+    CodeFixHostResult DiscoverCodeFix(CodeFixExample example)
     {
-        var consumerDirectory = Path.Join(_workingDirectory, "code-fixes", name);
+        var consumerDirectory = Path.Join(_workingDirectory, "code-fixes", example.Name);
         Directory.CreateDirectory(consumerDirectory);
         var projectPath = Path.Join(consumerDirectory, "Consumer.csproj");
         var sourcePath = Path.Join(consumerDirectory, "Consumer.cs");
-        File.WriteAllText(projectPath, CreateConsumerProject([packageId], emitGeneratedFiles: false));
-        File.WriteAllText(sourcePath, originalSource);
+        File.WriteAllText(projectPath, CreateConsumerProject([example.PackageId], emitGeneratedFiles: false));
+        File.WriteAllText(sourcePath, example.OriginalSource);
 
         RestoreConsumer(consumerDirectory, projectPath);
         var formatResult = RunDotNet(
             consumerDirectory,
-            ["format", "analyzers", projectPath, "--no-restore", "--diagnostics", diagnosticId, "--verbosity", "diagnostic"],
+            ["format", "analyzers", projectPath, "--no-restore", "--diagnostics", example.DiagnosticId, "--verbosity", "diagnostic"],
             isolatedPackages: true);
         RunDotNet(consumerDirectory, ["build", projectPath, "--no-restore"], isolatedPackages: true);
 
         var rewrittenSource = File.ReadAllText(sourcePath);
         return new(
-            diagnosticId,
-            rewrittenSource.Contains(expectedSource, StringComparison.Ordinal),
+            example.DiagnosticId,
+            rewrittenSource.Contains(example.ExpectedSource, StringComparison.Ordinal),
             formatResult.StandardOutput.Contains("Formatted 1", StringComparison.Ordinal));
     }
 
@@ -562,6 +566,15 @@ public sealed class PackageGraphFixture : IDisposable
         }
 
         throw new PackageGraphFailure("Could not locate the repository root from the integration spec output directory.");
+    }
+
+    sealed record CodeFixExample
+    {
+        public required string Name { get; init; }
+        public required string PackageId { get; init; }
+        public required string DiagnosticId { get; init; }
+        public required string OriginalSource { get; init; }
+        public required string ExpectedSource { get; init; }
     }
 
     sealed record PackageDefinition(string Id, string ProjectPath);
