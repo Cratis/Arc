@@ -34,8 +34,24 @@ public static partial class TypeScriptContentCombiner
 
         var parsed = contentList.ConvertAll(ParseContent);
 
-        var header = parsed[0].Header;
+        var (eslintLines, importLines) = MergePreamble(parsed);
+        var bodies = parsed
+            .Select(s => s.Body.Trim())
+            .Where(b => !string.IsNullOrEmpty(b))
+            .ToList();
 
+        bodies = TopologicallySortBodies(bodies);
+
+        var exportedTypes = CollectExportedTypeNames(bodies);
+        var filteredImportLines = importLines
+            .Where(line => !IsImportForExportedType(line, exportedTypes))
+            .ToList();
+
+        return RenderContent(parsed[0].Header, eslintLines, filteredImportLines, bodies);
+    }
+
+    static (List<string> EslintLines, List<string> ImportLines) MergePreamble(IEnumerable<ParsedContent> parsed)
+    {
         var seenPreambleLines = new HashSet<string>(StringComparer.Ordinal);
         var eslintLines = new List<string>();
 
@@ -48,50 +64,22 @@ public static partial class TypeScriptContentCombiner
         // Non-named imports (side-effect, default, namespace) deduplicated by exact string.
         var otherImportLines = new List<string>();
 
-        foreach (var section in parsed)
+        foreach (var line in parsed.SelectMany(section => section.PreambleLines).Where(seenPreambleLines.Add))
         {
-            foreach (var line in section.PreambleLines)
+            if (!line.TrimStart().StartsWith("import ", StringComparison.Ordinal))
             {
-                if (!seenPreambleLines.Add(line))
-                {
-                    continue;
-                }
-
-                if (!line.TrimStart().StartsWith("import ", StringComparison.Ordinal))
-                {
-                    eslintLines.Add(line);
-                    continue;
-                }
-
-                var namedMatch = NamedImportRegex().Match(line);
-                if (!namedMatch.Success)
-                {
-                    otherImportLines.Add(line);
-                    continue;
-                }
-
-                var modulePath = namedMatch.Groups["module"].Value;
-                var namesRaw = namedMatch.Groups["names"].Value;
-                var names = namesRaw
-                    .Split(',')
-                    .Select(n => n.Trim())
-                    .Where(n => !string.IsNullOrEmpty(n));
-
-                if (!namedImportsByModule.TryGetValue(modulePath, out var existing))
-                {
-                    existing = new LinkedList<string>();
-                    namedImportsByModule[modulePath] = existing;
-                    moduleOrder.Add(modulePath);
-                }
-
-                foreach (var name in names)
-                {
-                    if (!existing.Contains(name))
-                    {
-                        existing.AddLast(name);
-                    }
-                }
+                eslintLines.Add(line);
+                continue;
             }
+
+            var namedMatch = NamedImportRegex().Match(line);
+            if (!namedMatch.Success)
+            {
+                otherImportLines.Add(line);
+                continue;
+            }
+
+            AddNamedImport(namedMatch, namedImportsByModule, moduleOrder);
         }
 
         // Reconstruct merged import lines in module encounter order.
@@ -105,18 +93,33 @@ public static partial class TypeScriptContentCombiner
         }
         importLines.AddRange(otherImportLines);
 
-        var bodies = parsed
-            .Select(s => s.Body.Trim())
-            .Where(b => !string.IsNullOrEmpty(b))
-            .ToList();
+        return (eslintLines, importLines);
+    }
 
-        bodies = TopologicallySortBodies(bodies);
+    static void AddNamedImport(Match namedMatch, Dictionary<string, LinkedList<string>> namedImportsByModule, List<string> moduleOrder)
+    {
+        var modulePath = namedMatch.Groups["module"].Value;
+        var namesRaw = namedMatch.Groups["names"].Value;
+        var names = namesRaw
+            .Split(',')
+            .Select(n => n.Trim())
+            .Where(n => !string.IsNullOrEmpty(n));
 
-        var exportedTypes = CollectExportedTypeNames(bodies);
-        var filteredImportLines = importLines
-            .Where(line => !IsImportForExportedType(line, exportedTypes))
-            .ToList();
+        if (!namedImportsByModule.TryGetValue(modulePath, out var existing))
+        {
+            existing = new LinkedList<string>();
+            namedImportsByModule[modulePath] = existing;
+            moduleOrder.Add(modulePath);
+        }
 
+        foreach (var name in names.Where(name => !existing.Contains(name)))
+        {
+            existing.AddLast(name);
+        }
+    }
+
+    static string RenderContent(string header, IEnumerable<string> eslintLines, IEnumerable<string> importLines, List<string> bodies)
+    {
         var sb = new StringBuilder()
             .AppendLine(header);
 
@@ -125,7 +128,7 @@ public static partial class TypeScriptContentCombiner
             sb.AppendLine(line);
         }
 
-        foreach (var line in filteredImportLines)
+        foreach (var line in importLines)
         {
             sb.AppendLine(line);
         }
@@ -160,41 +163,7 @@ public static partial class TypeScriptContentCombiner
         var headerLength = lines.TakeWhile(line => string.IsNullOrWhiteSpace(line) || line.StartsWith("//", StringComparison.Ordinal)).Count();
         var header = string.Join('\n', lines.Take(headerLength)).TrimEnd();
 
-        // Walk backwards from the code start to include decorator lines and any preceding JSDoc block
-        // in the body, so that per-type documentation and @derivedType decorators are not mixed into
-        // the shared preamble section.
-        var bodyStartIndex = codeStartIndex;
-        var checkIndex = codeStartIndex - 1;
-
-        while (checkIndex >= 0 && string.IsNullOrWhiteSpace(lines[checkIndex]))
-        {
-            checkIndex--;
-        }
-
-        // Include any decorator lines (e.g. @derivedType('...')) in the body.
-        while (checkIndex >= 0 && lines[checkIndex].TrimStart().StartsWith('@'))
-        {
-            bodyStartIndex = checkIndex;
-            checkIndex--;
-            while (checkIndex >= 0 && string.IsNullOrWhiteSpace(lines[checkIndex]))
-            {
-                checkIndex--;
-            }
-        }
-
-        if (checkIndex >= 0 && lines[checkIndex].TrimStart().StartsWith("*/", StringComparison.Ordinal))
-        {
-            var scanIndex = checkIndex;
-            while (scanIndex >= 0 && !lines[scanIndex].TrimStart().StartsWith("/**", StringComparison.Ordinal))
-            {
-                scanIndex--;
-            }
-
-            if (scanIndex >= 0 && lines[scanIndex].TrimStart().StartsWith("/**", StringComparison.Ordinal))
-            {
-                bodyStartIndex = scanIndex;
-            }
-        }
+        var bodyStartIndex = FindBodyStartIndex(lines, codeStartIndex);
 
         var preambleLines = lines
             .Skip(headerLength)
@@ -205,6 +174,47 @@ public static partial class TypeScriptContentCombiner
         var body = string.Join('\n', lines.Skip(bodyStartIndex));
 
         return new ParsedContent(header, preambleLines, body);
+    }
+
+    static int FindBodyStartIndex(List<string> lines, int codeStartIndex)
+    {
+        // Walk backwards to include decorators and preceding JSDoc in the body rather than the shared preamble.
+        var bodyStartIndex = codeStartIndex;
+        var checkIndex = SkipBlankLines(lines, codeStartIndex - 1);
+
+        while (checkIndex >= 0 && lines[checkIndex].TrimStart().StartsWith('@'))
+        {
+            bodyStartIndex = checkIndex;
+            checkIndex = SkipBlankLines(lines, checkIndex - 1);
+        }
+
+        return FindPrecedingDocumentation(lines, checkIndex, bodyStartIndex);
+    }
+
+    static int SkipBlankLines(List<string> lines, int index)
+    {
+        while (index >= 0 && string.IsNullOrWhiteSpace(lines[index]))
+        {
+            index--;
+        }
+
+        return index;
+    }
+
+    static int FindPrecedingDocumentation(List<string> lines, int checkIndex, int bodyStartIndex)
+    {
+        if (checkIndex < 0 || !lines[checkIndex].TrimStart().StartsWith("*/", StringComparison.Ordinal))
+        {
+            return bodyStartIndex;
+        }
+
+        var scanIndex = checkIndex;
+        while (scanIndex >= 0 && !lines[scanIndex].TrimStart().StartsWith("/**", StringComparison.Ordinal))
+        {
+            scanIndex--;
+        }
+
+        return scanIndex >= 0 ? scanIndex : bodyStartIndex;
     }
 
     /// <summary>
@@ -286,19 +296,33 @@ public static partial class TypeScriptContentCombiner
             return bodies;
         }
 
+        var (bodyExports, bodyDependencies) = CollectBodyReferences(bodies);
+        var graph = BuildDependencyGraph(bodyExports, bodyDependencies);
+
+        // Kahn's algorithm uses a FIFO queue and the original adjacency order.
+        var queue = FindIndependentBodies(graph.InDegree);
+        var sorted = new List<string>(bodies.Count);
+        while (queue.Count > 0)
+        {
+            var index = queue.Dequeue();
+            sorted.Add(bodies[index]);
+            EnqueueReadyDependents(graph.Dependents[index], graph.InDegree, queue);
+        }
+
+        AppendUnresolvedBodies(bodies, sorted, graph.InDegree);
+
+        return sorted;
+    }
+
+    static (List<HashSet<string>> Exports, List<HashSet<string>> Dependencies) CollectBodyReferences(IEnumerable<string> bodies)
+    {
         var exportPattern = ExportDeclarationRegex();
-        var fieldPattern = FieldDecoratorRegex();
-        var decoratorTypePattern = DecoratorTypeReferenceRegex();
-        var extendsPattern = ExtendsClauseRegex();
         var builtInTypes = new HashSet<string>(StringComparer.Ordinal)
         {
             "String", "Number", "Boolean", "Date", "Object"
         };
-
-        // Map each body to its exported type names and the custom types it references through @field decorators.
         var bodyExports = new List<HashSet<string>>();
         var bodyDependencies = new List<HashSet<string>>();
-        var annotationPattern = PropertyTypeAnnotationRegex();
 
         foreach (var body in bodies)
         {
@@ -308,60 +332,74 @@ public static partial class TypeScriptContentCombiner
                 exports.Add(match.Groups["name"].Value);
             }
 
-            var dependencies = new HashSet<string>(StringComparer.Ordinal);
-            var decoratedTypeNames = fieldPattern
-                .Matches(body)
-                .SelectMany(match => decoratorTypePattern.Matches(match.Groups["arguments"].Value))
-                .Select(match => match.Groups["type"].Value)
-                .Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName));
-
-            foreach (var typeName in decoratedTypeNames)
-            {
-                dependencies.Add(typeName);
-            }
-
-            foreach (var typeName in annotationPattern.Matches(body).Select(match => match.Groups["type"].Value).Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName)))
-            {
-                dependencies.Add(typeName);
-            }
-
-            // Treat `extends BaseType` as a dependency so that the base class body is ordered
-            // before the derived class body when both are combined into the same file.
-            foreach (var typeName in extendsPattern.Matches(body).Select(match => match.Groups["type"].Value).Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName)))
-            {
-                dependencies.Add(typeName);
-            }
-
             bodyExports.Add(exports);
-            bodyDependencies.Add(dependencies);
+            bodyDependencies.Add(CollectBodyDependencies(body, exports, builtInTypes));
         }
 
-        // Build adjacency: body i depends on body j if j exports a type that i references.
-        var inDegree = new int[bodies.Count];
-        var dependents = new List<List<int>>();
-        for (var i = 0; i < bodies.Count; i++)
+        return (bodyExports, bodyDependencies);
+    }
+
+    static HashSet<string> CollectBodyDependencies(string body, HashSet<string> exports, HashSet<string> builtInTypes)
+    {
+        var dependencies = new HashSet<string>(StringComparer.Ordinal);
+        var decoratedTypeNames = FieldDecoratorRegex()
+            .Matches(body)
+            .SelectMany(match => DecoratorTypeReferenceRegex().Matches(match.Groups["arguments"].Value))
+            .Select(match => match.Groups["type"].Value);
+        var annotatedTypeNames = PropertyTypeAnnotationRegex().Matches(body).Select(match => match.Groups["type"].Value);
+
+        // Treat `extends BaseType` as a dependency so that the base class body is ordered
+        // before the derived class body when both are combined into the same file.
+        var baseTypeNames = ExtendsClauseRegex().Matches(body).Select(match => match.Groups["type"].Value);
+        var referencedTypeNames = decoratedTypeNames
+            .Concat(annotatedTypeNames)
+            .Concat(baseTypeNames)
+            .Where(typeName => !builtInTypes.Contains(typeName) && !exports.Contains(typeName));
+
+        foreach (var typeName in referencedTypeNames)
         {
-            dependents.Add([]);
+            dependencies.Add(typeName);
         }
 
-        for (var i = 0; i < bodies.Count; i++)
+        return dependencies;
+    }
+
+    static (int[] InDegree, List<List<int>> Dependents) BuildDependencyGraph(List<HashSet<string>> bodyExports, List<HashSet<string>> bodyDependencies)
+    {
+        var graph = (InDegree: new int[bodyExports.Count], Dependents: new List<List<int>>());
+        for (var i = 0; i < bodyExports.Count; i++)
         {
-            foreach (var dep in bodyDependencies[i])
+            graph.Dependents.Add([]);
+        }
+
+        for (var i = 0; i < bodyExports.Count; i++)
+        {
+            AddDependencyEdges(i, bodyExports, bodyDependencies[i], graph);
+        }
+
+        return graph;
+    }
+
+    static void AddDependencyEdges(int bodyIndex, List<HashSet<string>> bodyExports, HashSet<string> dependencies, (int[] InDegree, List<List<int>> Dependents) graph)
+    {
+        // Preserve dependency and exporter iteration order, including multiple edges between bodies.
+        foreach (var dependency in dependencies)
+        {
+            for (var j = 0; j < bodyExports.Count; j++)
             {
-                for (var j = 0; j < bodies.Count; j++)
+                if (bodyIndex != j && bodyExports[j].Contains(dependency))
                 {
-                    if (i != j && bodyExports[j].Contains(dep))
-                    {
-                        dependents[j].Add(i);
-                        inDegree[i]++;
-                    }
+                    graph.Dependents[j].Add(bodyIndex);
+                    graph.InDegree[bodyIndex]++;
                 }
             }
         }
+    }
 
-        // Kahn's algorithm for topological sort.
+    static Queue<int> FindIndependentBodies(int[] inDegree)
+    {
         var queue = new Queue<int>();
-        for (var i = 0; i < bodies.Count; i++)
+        for (var i = 0; i < inDegree.Length; i++)
         {
             if (inDegree[i] == 0)
             {
@@ -369,21 +407,23 @@ public static partial class TypeScriptContentCombiner
             }
         }
 
-        var sorted = new List<string>(bodies.Count);
-        while (queue.Count > 0)
+        return queue;
+    }
+
+    static void EnqueueReadyDependents(List<int> dependents, int[] inDegree, Queue<int> queue)
+    {
+        foreach (var dependent in dependents)
         {
-            var index = queue.Dequeue();
-            sorted.Add(bodies[index]);
-            foreach (var dependent in dependents[index])
+            inDegree[dependent]--;
+            if (inDegree[dependent] == 0)
             {
-                inDegree[dependent]--;
-                if (inDegree[dependent] == 0)
-                {
-                    queue.Enqueue(dependent);
-                }
+                queue.Enqueue(dependent);
             }
         }
+    }
 
+    static void AppendUnresolvedBodies(List<string> bodies, List<string> sorted, int[] inDegree)
+    {
         // If there is a cycle, fall back to original order for any remaining bodies.
         if (sorted.Count < bodies.Count)
         {
@@ -395,8 +435,6 @@ public static partial class TypeScriptContentCombiner
                 }
             }
         }
-
-        return sorted;
     }
 
     sealed record ParsedContent(string Header, IReadOnlyList<string> PreambleLines, string Body);
