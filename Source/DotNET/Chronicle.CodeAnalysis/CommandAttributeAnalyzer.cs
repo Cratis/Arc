@@ -39,16 +39,7 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
     static void AnalyzeType(SymbolAnalysisContext context)
     {
         var type = (INamedTypeSymbol)context.Symbol;
-        var profile = CommandAttributeSymbols.ResolveCommand(type);
-        if (profile.Conflict == AttributePrecedencePolicy.ProtectionConflict)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0029_ProtectedAndUnprotected, type.Locations.FirstOrDefault(), type.Name));
-        }
-        else if (profile.Conflict == AttributePrecedencePolicy.ReadProtectionConflict)
-        {
-            var mode = CommandAttributeSymbols.Find(type, AttributePrecedencePolicy.ReadProtectionName)?.ConstructorArguments.FirstOrDefault().Value;
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0029_ReadProtectionAndUnprotected, type.Locations.FirstOrDefault(), type.Name, mode is 1 ? "Measure" : "On"));
-        }
+        AnalyzeProtectionConflict(context, type);
 
         var declaration = type.GetAttributes().FirstOrDefault(_ => _.AttributeClass?.ToDisplayString() == AttributePrecedencePolicy.ReadProtectionName);
         if (declaration is null)
@@ -68,6 +59,20 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
                  CommandAttributeSymbols.Find(type.ContainingAssembly, AttributePrecedencePolicy.ReadProtectionName)?.ConstructorArguments.FirstOrDefault().Value is null or 0)
         {
             ReportInert(context, type, "ReadProtection Off is redundant when the assembly is already Off");
+        }
+    }
+
+    static void AnalyzeProtectionConflict(SymbolAnalysisContext context, INamedTypeSymbol type)
+    {
+        var profile = CommandAttributeSymbols.ResolveCommand(type);
+        if (profile.Conflict == AttributePrecedencePolicy.ProtectionConflict)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0029_ProtectedAndUnprotected, type.Locations.FirstOrDefault(), type.Name));
+        }
+        else if (profile.Conflict == AttributePrecedencePolicy.ReadProtectionConflict)
+        {
+            var mode = CommandAttributeSymbols.Find(type, AttributePrecedencePolicy.ReadProtectionName)?.ConstructorArguments.FirstOrDefault().Value;
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0029_ReadProtectionAndUnprotected, type.Locations.FirstOrDefault(), type.Name, mode is 1 ? "Measure" : "On"));
         }
     }
 
@@ -96,19 +101,24 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
         if (resolution.Conflict is not null)
         {
-            var suggestion = properties.Where(property => EditDistance(propertyName, property.Name) <= 2)
-                .OrderBy(property => EditDistance(propertyName, property.Name)).ThenBy(property => property.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
-            var diagnosticProperties = ImmutableDictionary<string, string?>.Empty
-                .Add("SuggestedProperty", suggestion)
-                .Add("SuggestedCommandType", command.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_MissingLookupProperty, parameter.Locations.FirstOrDefault(), diagnosticProperties, parameter.Name, propertyName, command.Name, suggestion ?? "an existing command property"));
+            ReportMissingLookup(context, parameter, command, propertyName);
         }
 
         // Explicit lookup keys are canonicalized independently of the model's CLR Id type at runtime.
         // Even non-concept values have the runtime's ToEventSourceId/ToString fallback.
+    }
+
+    static void ReportMissingLookup(SymbolAnalysisContext context, IParameterSymbol parameter, INamedTypeSymbol command, string propertyName)
+    {
+        var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
+        var suggestion = properties.Where(property => EditDistance(propertyName, property.Name) <= 2)
+            .OrderBy(property => EditDistance(propertyName, property.Name)).ThenBy(property => property.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
+        var diagnosticProperties = ImmutableDictionary<string, string?>.Empty
+            .Add("SuggestedProperty", suggestion)
+            .Add("SuggestedCommandType", command.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_MissingLookupProperty, parameter.Locations.FirstOrDefault(), diagnosticProperties, parameter.Name, propertyName, command.Name, suggestion ?? "an existing command property"));
     }
 
     static string? LookupProperty(SymbolAnalysisContext context, IParameterSymbol parameter)

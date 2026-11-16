@@ -116,13 +116,16 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
 
     static IEnumerable<ITypeSymbol> ProducedTypes(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol named && Namespace(named) == "System.Threading.Tasks" && (named.Name == "Task" || named.Name == "ValueTask"))
+        if (type is INamedTypeSymbol named && IsTask(named))
         {
             return named.TypeArguments.Length == 1 ? FlattenTypes(named.TypeArguments[0]) : [];
         }
 
         return FlattenTypes(type);
     }
+
+    static bool IsTask(INamedTypeSymbol type) =>
+        IsNamed(type, "System.Threading.Tasks", "Task") || IsNamed(type, "System.Threading.Tasks", "ValueTask");
 
     static IEnumerable<ITypeSymbol> FlattenTypes(ITypeSymbol type) =>
         UnwrapAlternatives(type).SelectMany(alternative => TupleElements(alternative) is { } elements
@@ -136,7 +139,7 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             return tuple.TupleElements.Select(element => element.Type);
         }
 
-        if (type is INamedTypeSymbol named && named.Name == "Tuple" && Namespace(named) == "System")
+        if (type is INamedTypeSymbol named && IsNamed(named, "System", "Tuple"))
         {
             return named.TypeArguments.Length == 8
                 ? named.TypeArguments.Take(7).Concat(TupleElements(named.TypeArguments[7]) ?? [named.TypeArguments[7]])
@@ -154,21 +157,31 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             return UnwrapAlternatives(nullable.TypeArguments[0]);
         }
 
-        if (type is not INamedTypeSymbol named || !named.AllInterfaces.Any(contract => contract.Name == "IOneOf" && Namespace(contract) == "OneOf"))
+        if (type is not INamedTypeSymbol named || !IsOneOf(named))
         {
             return [type];
         }
 
-        for (var candidate = named; candidate is not null; candidate = candidate.BaseType)
+        return AlternativeTypes(named).SelectMany(UnwrapAlternatives);
+    }
+
+    static bool IsOneOf(INamedTypeSymbol type) => type.AllInterfaces.Any(contract => IsNamed(contract, "OneOf", "IOneOf"));
+
+    static ImmutableArray<ITypeSymbol> AlternativeTypes(INamedTypeSymbol type)
+    {
+        for (var candidate = type; candidate is not null; candidate = candidate.BaseType)
         {
-            if (Namespace(candidate) == "OneOf" && (candidate.Name == "OneOf" || candidate.Name == "OneOfBase"))
+            if (IsOneOfDefinition(candidate))
             {
-                return candidate.TypeArguments.SelectMany(UnwrapAlternatives);
+                return candidate.TypeArguments;
             }
         }
 
-        return named.TypeArguments.SelectMany(UnwrapAlternatives);
+        return type.TypeArguments;
     }
+
+    static bool IsOneOfDefinition(INamedTypeSymbol type) =>
+        Namespace(type) == "OneOf" && (type.Name == "OneOf" || type.Name == "OneOfBase");
 
     static bool IsAssignableTo(ITypeSymbol source, ITypeSymbol destination) =>
         SymbolEqualityComparer.Default.Equals(source, destination) ||
@@ -200,13 +213,8 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
         internal void AnalyzeDeclaration(SyntaxNodeAnalysisContext context)
         {
             var syntax = (AttributeSyntax)context.Node;
-            if (syntax.Parent?.Parent is ParameterSyntax parameterSyntax &&
-                context.SemanticModel.GetSymbolInfo(syntax, context.CancellationToken).Symbol is IMethodSymbol constructor &&
-                SymbolEqualityComparer.Default.Equals(constructor.ContainingType, generatedAttribute) &&
-                context.SemanticModel.GetDeclaredSymbol(parameterSyntax, context.CancellationToken) is IParameterSymbol parameter &&
-                AttributeOf(parameter) is { } attribute &&
-                (parameter.ContainingSymbol is not IMethodSymbol method || method.Name != "Handle" || method.IsStatic ||
-                    IsUnsupportedArtifact(method.ContainingType)))
+            if (GeneratedParameter(context, syntax) is { } parameter &&
+                AttributeOf(parameter) is { } attribute && IsUnsupportedDeclaration(parameter))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
@@ -230,18 +238,39 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             foreach (var declaration in handle.Parameters.Select(parameter => (Parameter: parameter, Attribute: EffectiveAttributeOf(parameter)))
                 .Where(declaration => declaration.Attribute is not null))
             {
-                AnalyzeParameter(context, command, declaration.Parameter, declaration.Attribute!, names, providedTypes);
+                AnalyzeParameter(context, declaration, names, providedTypes);
             }
         }
 
+        IParameterSymbol? GeneratedParameter(SyntaxNodeAnalysisContext context, AttributeSyntax syntax)
+        {
+            if (syntax.Parent?.Parent is not ParameterSyntax parameterSyntax)
+            {
+                return null;
+            }
+
+            if (context.SemanticModel.GetSymbolInfo(syntax, context.CancellationToken).Symbol is not IMethodSymbol constructor ||
+                !SymbolEqualityComparer.Default.Equals(constructor.ContainingType, generatedAttribute))
+            {
+                return null;
+            }
+
+            return context.SemanticModel.GetDeclaredSymbol(parameterSyntax, context.CancellationToken);
+        }
+
+        bool IsUnsupportedDeclaration(IParameterSymbol parameter) =>
+            parameter.ContainingSymbol is not IMethodSymbol method || method.Name != "Handle" || method.IsStatic ||
+            IsUnsupportedArtifact(method.ContainingType);
+
         void AnalyzeParameter(
             SymbolAnalysisContext context,
-            INamedTypeSymbol command,
-            IParameterSymbol parameter,
-            AttributeData attribute,
+            (IParameterSymbol Parameter, AttributeData? Attribute) declaration,
             HashSet<string> names,
             ITypeSymbol[] providedTypes)
         {
+            var command = context.Symbol;
+            var parameter = declaration.Parameter;
+            var attribute = declaration.Attribute!;
             var location = ParameterLocation(parameter, attribute, context.CancellationToken);
             AnalyzeGenerationContracts(context, parameter, location);
 
