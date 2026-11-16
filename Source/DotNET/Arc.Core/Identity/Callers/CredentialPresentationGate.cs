@@ -74,24 +74,7 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
             return Refuse(CallerRefusal.CredentialInUri);
         }
 
-        var authorization = Array.AsReadOnly(raw.GetHeaderValues("Authorization").ToArray());
-        var envelope = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in raw.HeaderNames.Where(IsEnvelope).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            envelope.Add(name, Array.AsReadOnly(raw.GetHeaderValues(name).ToArray()));
-        }
-        if (authorization.Concat(envelope.Values.SelectMany(values => values)).Any(_reservedPrefixes.Refuses))
-        {
-            return Refuse(CallerRefusal.LegacyCredentialUnsupported);
-        }
-        var sessionCookieNames = _fixedSessionCookies.Concat(_additionalSessionCookieNames?.Names ?? []).Where(name => !string.IsNullOrWhiteSpace(name)).ToArray();
-        var sessionCookie = raw.GetHeaderValues("Cookie").Any(header => HasSessionCookie(header, sessionCookieNames));
-        var presented = Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase), sessionCookiePresent: sessionCookie));
-        if (presented.Shape == PresentedCredentialShape.OAuthBearer && ExpectedCredentialShape.Read(request)?.Shape == PresentedCredentialShape.ServiceAccount)
-        {
-            return new(presented.Authorization, presented.Envelope, shape: PresentedCredentialShape.ServiceAccount);
-        }
-        return presented;
+        return InspectHeaders(request, raw);
     }
 
     static bool TryReadRawRequest(IHttpRequestContext request, out ICanReadForwardedIdentityRequest raw)
@@ -195,6 +178,28 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         var key = equals < 0 ? pair : pair[..equals];
         var value = equals < 0 ? string.Empty : pair[(equals + 1)..];
         return _queryCredentials.Contains(Uri.UnescapeDataString(key.Replace('+', ' '))) || InPatNamespace(value);
+    }
+
+    CredentialPresentation InspectHeaders(IHttpRequestContext request, ICanReadForwardedIdentityRequest raw)
+    {
+        var authorization = Array.AsReadOnly(raw.GetHeaderValues("Authorization").ToArray());
+        var envelope = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in raw.HeaderNames.Where(IsEnvelope).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            envelope.Add(name, Array.AsReadOnly(raw.GetHeaderValues(name).ToArray()));
+        }
+        if (authorization.Concat(envelope.Values.SelectMany(values => values)).Any(_reservedPrefixes.Refuses))
+        {
+            return Refuse(CallerRefusal.LegacyCredentialUnsupported);
+        }
+        var sessionCookieNames = _fixedSessionCookies.Concat(_additionalSessionCookieNames?.Names ?? []).Where(name => !string.IsNullOrWhiteSpace(name)).ToArray();
+        var sessionCookie = raw.GetHeaderValues("Cookie").Any(header => HasSessionCookie(header, sessionCookieNames));
+        var presented = Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase), sessionCookiePresent: sessionCookie));
+        if (presented.Shape == PresentedCredentialShape.OAuthBearer && ExpectedCredentialShape.Read(request)?.Shape == PresentedCredentialShape.ServiceAccount)
+        {
+            return new(presented.Authorization, presented.Envelope, shape: PresentedCredentialShape.ServiceAccount);
+        }
+        return presented;
     }
 
     bool HasRetiredUriCredential(string target)

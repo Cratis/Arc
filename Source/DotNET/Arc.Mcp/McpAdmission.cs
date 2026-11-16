@@ -123,15 +123,7 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCatalogF
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                var names = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var property in element.EnumerateObject())
-                {
-                    if (!names.Add(property.Name) || HasDuplicateProperties(property.Value))
-                    {
-                        return true;
-                    }
-                }
-                return false;
+                return HasDuplicateObjectProperties(element);
 
             case JsonValueKind.Array:
                 return element.EnumerateArray().Any(HasDuplicateProperties);
@@ -139,6 +131,19 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCatalogF
             default:
                 return false;
         }
+    }
+
+    static bool HasDuplicateObjectProperties(JsonElement element)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!names.Add(property.Name) || HasDuplicateProperties(property.Value))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     static bool IsToolCall(JsonElement root) =>
@@ -182,23 +187,28 @@ internal sealed class McpAdmission(IOptions<McpOptions> options, McpToolCatalogF
                 return (InvalidRequest, null);
             }
 
-            if (!IsToolCall(root) || !TryFindTool(root, out var tool))
-            {
-                return (null, null);
-            }
-
-            if (caller.HoldsScopesFor(tool!))
-            {
-                return (null, tool);
-            }
-
-            var scopes = tool!.RequiredScopes;
-            return ((context, settings) => McpChallenge.Write(
-                context,
-                StatusCodes.Status403Forbidden,
-                "insufficient_scope",
-                McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), tool);
+            return InspectToolCall(root, caller);
         }
+    }
+
+    (Func<HttpContext, McpOptions, Task>? Refusal, McpToolDescriptor? Tool) InspectToolCall(JsonElement root, McpCaller caller)
+    {
+        if (!IsToolCall(root) || !TryFindTool(root, out var tool))
+        {
+            return (null, null);
+        }
+
+        if (caller.HoldsScopesFor(tool!))
+        {
+            return (null, tool);
+        }
+
+        var scopes = tool!.RequiredScopes;
+        return ((context, settings) => McpChallenge.Write(
+            context,
+            StatusCodes.Status403Forbidden,
+            "insufficient_scope",
+            McpChallenge.InsufficientScope(settings, scopes, caller.CanStepUp)), tool);
     }
 
     bool TryFindTool(JsonElement root, out McpToolDescriptor? tool)

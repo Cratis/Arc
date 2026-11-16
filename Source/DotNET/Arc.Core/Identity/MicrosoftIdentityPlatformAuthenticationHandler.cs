@@ -40,13 +40,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
 
         if (options.Value.ForwardedIdentity?.Enabled == true)
         {
-            var signed = ForwardedIdentityAuthentication.Authenticate(context, options.Value, nameof(MicrosoftIdentityPlatformAuthenticationHandler), context.Path);
-            if (signed.Failure is { } failure)
-            {
-                ForwardedIdentityLogMessages.Rejected(_logger, failure);
-                return Task.FromResult(AuthenticationResult.Failed(failure));
-            }
-            return Task.FromResult(signed.Principal is { } signedPrincipal ? AuthenticationResult.Succeeded(signedPrincipal) : AuthenticationResult.Anonymous);
+            return AuthenticateSignedIdentity(context);
         }
 
         var headers = context.Headers;
@@ -67,6 +61,22 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
             return Task.FromResult(AuthenticationResult.Anonymous);
         }
 
+        return AuthenticateTrustedHeaders(context, headers, onBehalfOf);
+    }
+
+    Task<AuthenticationResult> AuthenticateSignedIdentity(IHttpRequestContext context)
+    {
+        var signed = ForwardedIdentityAuthentication.Authenticate(context, options.Value, nameof(MicrosoftIdentityPlatformAuthenticationHandler), context.Path);
+        if (signed.Failure is { } failure)
+        {
+            ForwardedIdentityLogMessages.Rejected(_logger, failure);
+            return Task.FromResult(AuthenticationResult.Failed(failure));
+        }
+        return Task.FromResult(signed.Principal is { } signedPrincipal ? AuthenticationResult.Succeeded(signedPrincipal) : AuthenticationResult.Anonymous);
+    }
+
+    Task<AuthenticationResult> AuthenticateTrustedHeaders(IHttpRequestContext context, IReadOnlyDictionary<string, string> headers, bool onBehalfOf)
+    {
         if (!headers.ContainsKey(MicrosoftIdentityPlatformHeaders.IdentityIdHeader) ||
             !headers.ContainsKey(MicrosoftIdentityPlatformHeaders.IdentityNameHeader) ||
             !headers.ContainsKey(MicrosoftIdentityPlatformHeaders.PrincipalHeader))
@@ -74,21 +84,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
             return onBehalfOf ? Reject(OnBehalfOfFailures.MissingRepresentedUser) : Task.FromResult(AuthenticationResult.Anonymous);
         }
 
-        ClientPrincipal? clientPrincipal = null;
-        try
-        {
-            var tokenAsString = headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader];
-            if (!string.IsNullOrEmpty(tokenAsString))
-            {
-                var token = Convert.FromBase64String(tokenAsString);
-                clientPrincipal = JsonSerializer.Deserialize(token, options.Value.JsonSerializerOptions.ResolveTypeInfo<ClientPrincipal>());
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.FailedResolvingClientPrincipal(ex);
-        }
-
+        var clientPrincipal = ResolveClientPrincipal(headers);
         if (clientPrincipal == null)
         {
             const string invalidPrincipal = "Not authenticated - invalid representation of ClientPrincipal";
@@ -116,6 +112,25 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
         var principal = new ClaimsPrincipal(identity);
 
         return Task.FromResult(AuthenticationResult.Succeeded(principal));
+    }
+
+    ClientPrincipal? ResolveClientPrincipal(IReadOnlyDictionary<string, string> headers)
+    {
+        ClientPrincipal? clientPrincipal = null;
+        try
+        {
+            var tokenAsString = headers[MicrosoftIdentityPlatformHeaders.PrincipalHeader];
+            if (!string.IsNullOrEmpty(tokenAsString))
+            {
+                var token = Convert.FromBase64String(tokenAsString);
+                clientPrincipal = JsonSerializer.Deserialize(token, options.Value.JsonSerializerOptions.ResolveTypeInfo<ClientPrincipal>());
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.FailedResolvingClientPrincipal(ex);
+        }
+        return clientPrincipal;
     }
 
     OnBehalfOfForward ForwardFrom(IHttpRequestContext context) => new(
