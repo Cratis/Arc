@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Tenancy;
 
 /// <summary>
-/// Resolves a tenant only when all nonempty values in its HTTP header agree.
+/// Resolves a tenant only when all nonempty values it was sent agree, whether they arrived in a header or in a query string.
 /// </summary>
 internal static class TenantHeader
 {
@@ -21,6 +21,16 @@ internal static class TenantHeader
             return string.Empty;
         }
 
+        return Agreed(value);
+    }
+
+    /// <summary>
+    /// Resolves the tenant from agreeing, comma-separated values.
+    /// </summary>
+    /// <param name="value">The value as received, with repeated occurrences folded into one comma-separated string.</param>
+    /// <returns>The single tenant ID, or an empty string if values are missing or conflicting.</returns>
+    internal static string Agreed(string value)
+    {
         var tenantIds = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
