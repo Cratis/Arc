@@ -18,9 +18,16 @@ public class TenantNamespaceResolver(ITenantIdAccessor tenantIdAccessor) : IEven
     /// namespace. Storage that partitions by tenant has to agree with this mapping; see
     /// <see cref="TenantId.IsDefault"/>.
     /// </remarks>
+    /// <exception cref="TenantIdIsNotAValidNamespace">The tenant ID contains a comma. Chronicle creates a namespace the first time
+    /// a name is used, so a tenant sent twice and folded into <c>acme,acme</c> would otherwise become a namespace of its own.</exception>
     public EventStoreNamespaceName Resolve()
     {
         var tenantId = tenantIdAccessor.Current;
+        if (tenantId.Value.Contains(','))
+        {
+            throw new TenantIdIsNotAValidNamespace(tenantId);
+        }
+
         return tenantId.IsDefault
             ? EventStoreNamespaceName.Default
             : new EventStoreNamespaceName(tenantId.Value);
