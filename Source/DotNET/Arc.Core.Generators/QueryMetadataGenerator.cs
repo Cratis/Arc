@@ -143,7 +143,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             return null;
         }
 
-        if (!ReadModelCandidates.IsReadModel(typeSymbol, context.SemanticModel.Compilation))
+        if (!ReadModelCandidates.IsReadModel(typeSymbol))
         {
             return null;
         }

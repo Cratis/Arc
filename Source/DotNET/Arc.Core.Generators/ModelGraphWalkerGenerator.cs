@@ -173,6 +173,6 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
 
     static string ReadModelName(GeneratorSyntaxContext syntax, CancellationToken cancellationToken) =>
         ReadModelCandidates.FirstDeclaration(syntax, cancellationToken) is { } readModel &&
-        ReadModelCandidates.IsReadModel(readModel, syntax.SemanticModel.Compilation)
+        ReadModelCandidates.IsReadModel(readModel)
             ? MetadataNameOf(readModel) : string.Empty;
 }

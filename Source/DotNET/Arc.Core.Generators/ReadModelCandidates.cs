@@ -39,13 +39,12 @@ internal static class ReadModelCandidates
     /// Determines whether a type owns read-model queries, including inherited explicit selection.
     /// </summary>
     /// <param name="type">The candidate type.</param>
-    /// <param name="compilation">The current compilation.</param>
     /// <returns>Whether the type owns read-model queries.</returns>
-    internal static bool IsReadModel(INamedTypeSymbol type, Compilation compilation)
-    {
-        var readModelAttribute = compilation.GetTypeByMetadataName(ModelBoundQueryMethodSymbols.ReadModelName);
-        return type.GetAttributes().Any(attribute => attribute.AttributeClass is { } attributeType &&
-            SymbolEqualityComparer.Default.Equals(attributeType, readModelAttribute)) ||
-            ModelBoundQueryMethodSymbols.RequiresQueryAttribute(type);
-    }
+    /// <remarks>
+    /// The attribute is matched by name, as in <see cref="ModelBoundQueryMethodSymbols"/>, so an attribute with the same
+    /// full name in more than one referenced assembly still marks the type as a read model.
+    /// </remarks>
+    internal static bool IsReadModel(INamedTypeSymbol type) =>
+        type.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == ModelBoundQueryMethodSymbols.ReadModelName) ||
+        ModelBoundQueryMethodSymbols.RequiresQueryAttribute(type);
 }
