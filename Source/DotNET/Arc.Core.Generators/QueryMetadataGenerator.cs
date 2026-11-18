@@ -5,7 +5,6 @@ using System.Collections.Immutable;
 using System.Text;
 using Cratis.Arc.Queries.ModelBound;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Generators;
 
@@ -21,32 +20,29 @@ namespace Cratis.Arc.Generators;
 [Generator]
 public class QueryMetadataGenerator : IIncrementalGenerator
 {
-    const string ReadModelAttributeFullName = "Cratis.Arc.Queries.ModelBound.ReadModelAttribute";
-
     /// <inheritdoc/>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var declarations = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is TypeDeclarationSyntax,
-            static (syntax, _) => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) as INamedTypeSymbol)
-            .Where(static type => type is not null).Collect();
-        context.RegisterSourceOutput(declarations, static (output, types) =>
+            static (node, _) => ReadModelCandidates.HasRelatedSyntax(node),
+            static (syntax, cancellationToken) => ReadModelCandidates.FirstDeclaration(syntax, cancellationToken) is { } type
+                ? ModelBoundQueryMethodSymbols.Validate(type, method => IsValidQueryMethod(method, type)).ToImmutableArray()
+                : ImmutableArray<Diagnostic>.Empty);
+        context.RegisterSourceOutput(declarations, static (output, diagnostics) =>
         {
-            foreach (var type in types.OfType<INamedTypeSymbol>().Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
+            foreach (var diagnostic in diagnostics)
             {
-                foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type, method => IsValidQueryMethod(method, type)))
-                {
-                    output.ReportDiagnostic(diagnostic);
-                }
+                output.ReportDiagnostic(diagnostic);
             }
         });
 
         var readModelProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
-                predicate: static (node, _) => node is TypeDeclarationSyntax,
-                transform: static (ctx, _) => GetReadModelInfo(ctx))
+                predicate: static (node, _) => ReadModelCandidates.HasRelatedSyntax(node),
+                transform: static (ctx, cancellationToken) => GetReadModelInfo(ctx, cancellationToken))
             .Where(static info => info is not null)
             .Select(static (info, _) => info!)
+            .WithTrackingName("ReadModelMetadata")
             .Collect();
 
         context.RegisterSourceOutput(readModelProvider, static (spc, readModels) =>
@@ -140,15 +136,14 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         AsSingleArgument(type, "IEnumerable") is { } enumerable &&
         SymbolEqualityComparer.Default.Equals(enumerable.TypeArguments[0], elementType);
 
-    static AnnotatedReadModel? GetReadModelInfo(GeneratorSyntaxContext context)
+    static AnnotatedReadModel? GetReadModelInfo(GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
-        var typeDecl = (TypeDeclarationSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol typeSymbol)
+        if (ReadModelCandidates.FirstDeclaration(context, cancellationToken) is not { } typeSymbol)
         {
             return null;
         }
 
-        if (!HasReadModelAttribute(typeSymbol) && !ModelBoundQueryMethodSymbols.RequiresQueryAttribute(typeSymbol))
+        if (!ReadModelCandidates.IsReadModel(typeSymbol, context.SemanticModel.Compilation))
         {
             return null;
         }
@@ -219,10 +214,6 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         INamedTypeSymbol named => named.TypeKind != TypeKind.Error && !named.IsRefLikeType && named.TypeArguments.All(IsUsableTypeArgument),
         _ => type.TypeKind != TypeKind.Error
     };
-
-    static bool HasReadModelAttribute(INamedTypeSymbol typeSymbol) =>
-        typeSymbol.GetAttributes().Any(a =>
-            string.Equals(a.AttributeClass?.ToDisplayString(), ReadModelAttributeFullName, StringComparison.Ordinal));
 
     static void GenerateSource(SourceProductionContext context, ImmutableArray<AnnotatedReadModel> readModels)
     {
@@ -335,9 +326,15 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         .AppendLine("}")
         .ToString();
 
-    sealed class AnnotatedReadModel(ReadModelInfo metadata, string annotations)
+    sealed record AnnotatedReadModel
     {
-        internal ReadModelInfo Metadata { get; } = metadata;
-        internal string Annotations { get; } = annotations;
+        internal AnnotatedReadModel(ReadModelInfo metadata, string annotations)
+        {
+            Metadata = metadata;
+            Annotations = annotations;
+        }
+
+        internal ReadModelInfo Metadata { get; }
+        internal string Annotations { get; }
     }
 }

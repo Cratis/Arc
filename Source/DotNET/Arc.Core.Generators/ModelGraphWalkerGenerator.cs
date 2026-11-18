@@ -17,7 +17,6 @@ namespace Cratis.Arc.Generators;
 public class ModelGraphWalkerGenerator : IIncrementalGenerator
 {
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
-    const string ReadModelAttribute = "Cratis.Arc.Queries.ModelBound.ReadModelAttribute";
     const string Walkers = "Cratis.Arc.Validation.ModelGraphWalkers";
 
     /// <inheritdoc/>
@@ -32,10 +31,10 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
             .Collect();
 
         var readModels = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is TypeDeclarationSyntax,
-            static (syntax, _) => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol readModel &&
-                (readModel.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == ReadModelAttribute) || ModelBoundQueryMethodSymbols.RequiresQueryAttribute(readModel))
-                    ? MetadataNameOf(readModel) : string.Empty)
+            static (node, _) => ReadModelCandidates.HasRelatedSyntax(node),
+            static (syntax, cancellationToken) => ReadModelName(syntax, cancellationToken))
+            .Where(static name => name.Length > 0)
+            .WithTrackingName("ReadModelRoots")
             .Collect();
 
         var validators = context.SyntaxProvider.CreateSyntaxProvider(
@@ -83,7 +82,11 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
     /// <returns>The validation registrations.</returns>
     internal static EquatableArray<ModelGraphWalker> WalkersFor(ImmutableArray<string> commands, ImmutableArray<string> readModels, Compilation compilation, CancellationToken cancellationToken)
     {
-        if ((commands.IsEmpty && readModels.IsEmpty) || compilation.GetTypeByMetadataName(Walkers) is null)
+        if (commands.IsEmpty && readModels.IsEmpty)
+        {
+            return new([]);
+        }
+        if (compilation.GetTypeByMetadataName(Walkers) is null)
         {
             return new([]);
         }
@@ -167,4 +170,9 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
 
         return roots;
     }
+
+    static string ReadModelName(GeneratorSyntaxContext syntax, CancellationToken cancellationToken) =>
+        ReadModelCandidates.FirstDeclaration(syntax, cancellationToken) is { } readModel &&
+        ReadModelCandidates.IsReadModel(readModel, syntax.SemanticModel.Compilation)
+            ? MetadataNameOf(readModel) : string.Empty;
 }
