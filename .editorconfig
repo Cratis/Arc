@@ -126,7 +126,39 @@ csharp_indent_braces = false
 
 # A specification is recognized by where it sits as well as by the project it is in, because a slice is specified
 # beside the source it specifies - a `when_<behavior>` folder inside the application project, not a project of its own.
-[{**/*.Specs/**/*.cs,Integration/**/*.cs,**/when_*/**.cs}]
+# Roslyn requires **.cs to cover both direct and nested files; **/*.cs requires a subfolder (Cratis/Arc#3891).
+[{**.Specs/**.cs,**/for_*/**.cs,Integration/**.cs,**/when_*/**.cs,**/given/**.cs,**/and_*/**.cs,**/when_*.cs}]
+# Spec fixtures intentionally exercise unsafe inputs, hard-coded keys and certificates (Cratis/Arc#3891)
+dotnet_diagnostic.CA3001.severity = none
+dotnet_diagnostic.CA3002.severity = none
+dotnet_diagnostic.CA3003.severity = none
+dotnet_diagnostic.CA3004.severity = none
+dotnet_diagnostic.CA3005.severity = none
+dotnet_diagnostic.CA3006.severity = none
+dotnet_diagnostic.CA3007.severity = none
+dotnet_diagnostic.CA3008.severity = none
+dotnet_diagnostic.CA3009.severity = none
+dotnet_diagnostic.CA3010.severity = none
+dotnet_diagnostic.CA3011.severity = none
+dotnet_diagnostic.CA3012.severity = none
+dotnet_diagnostic.CA5390.severity = none
+dotnet_diagnostic.CA5403.severity = none
+# Constant arrange/assert conditions are intentional in specs (Cratis/Arc#3891)
+dotnet_diagnostic.CA1508.severity = none
+# Cancellation propagation is not guarded in specs (Cratis/Arc#3891)
+dotnet_diagnostic.MA0032.severity = none
+dotnet_diagnostic.MA0040.severity = none
+dotnet_diagnostic.MA0079.severity = none
+dotnet_diagnostic.MA0080.severity = none
+# Style analysis that does not guard spec correctness (Cratis/Arc#3891)
+dotnet_diagnostic.SA1121.severity = none
+dotnet_diagnostic.IDE0370.severity = none
+dotnet_diagnostic.IDE0059.severity = none
+dotnet_diagnostic.MA0042.severity = none
+dotnet_diagnostic.MA0045.severity = none
+dotnet_diagnostic.RCS1020.severity = none
+dotnet_diagnostic.IDE0320.severity = none
+dotnet_diagnostic.SA1625.severity = none
 dotnet_diagnostic.CA1001.severity = none
 dotnet_diagnostic.CA1008.severity = none
 dotnet_diagnostic.CA1024.severity = none
