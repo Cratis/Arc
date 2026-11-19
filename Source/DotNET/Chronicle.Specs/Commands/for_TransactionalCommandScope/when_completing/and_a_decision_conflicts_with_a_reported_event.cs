@@ -50,7 +50,7 @@ public class and_a_decision_conflicts_with_a_reported_event : given.a_transactio
     [Fact]
     void should_name_the_conflicting_event_and_its_position() =>
         _result.ValidationResults.Single(_ => _.Message.Contains("'source' changed")).Message
-            .ShouldEqual("SampleModel 'source' changed after it was read (BookBorrowed at 1042). Read it again and resubmit.");
+            .ShouldEqual("SampleModel changed after it was read (BookBorrowed at 1042). Read it again and resubmit.");
 
     [Fact]
     void should_carry_the_conflicting_event_in_the_state()
