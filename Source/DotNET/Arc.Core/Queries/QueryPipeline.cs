@@ -352,17 +352,17 @@ public partial class QueryPipeline(
         return intercepted.First();
     }
 
-    async Task<QueryResult> ValidatePaging(Paging paging, CorrelationId correlationId)
+    async Task<QueryResult> ValidatePaging(Paging paging, CorrelationId correlationId, IServiceProvider serviceProvider)
     {
         var result = QueryResult.Success(correlationId);
-        await ValidatePagingValue(result, correlationId, paging.Page, nameof(Paging.Page));
-        await ValidatePagingValue(result, correlationId, paging.Size, nameof(Paging.Size));
+        await ValidatePagingValue(result, paging.Page, nameof(Paging.Page), serviceProvider);
+        await ValidatePagingValue(result, paging.Size, nameof(Paging.Size), serviceProvider);
         return result;
     }
 
-    async Task ValidatePagingValue<T>(QueryResult result, CorrelationId correlationId, T value, string property)
+    async Task ValidatePagingValue<T>(QueryResult result, T value, string property, IServiceProvider serviceProvider)
     {
-        if (!discoverableValidators.TryGet(typeof(T), out var validator))
+        if (!discoverableValidators.TryGet(typeof(T), serviceProvider, out var validator))
         {
             return;
         }
@@ -370,7 +370,7 @@ public partial class QueryPipeline(
         var validationResult = await validator.ValidateAsync(new ValidationContext<T>(value));
         foreach (var error in validationResult.Errors)
         {
-            result.MergeWith(QueryResult.WithValidationError(correlationId, property, error.ErrorMessage));
+            result.MergeWith(QueryResult.WithValidationError(result.CorrelationId, property, error.ErrorMessage));
         }
     }
 

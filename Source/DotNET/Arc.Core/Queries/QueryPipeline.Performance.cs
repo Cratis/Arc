@@ -211,7 +211,7 @@ public partial class QueryPipeline
             return null;
         }
 
-        var pagingValidation = await ValidatePaging(state.Paging, state.CorrelationId);
+        var pagingValidation = await ValidatePaging(state.Paging, state.CorrelationId, state.ServiceProvider);
         return pagingValidation.IsSuccess ? null : pagingValidation;
     }
 
