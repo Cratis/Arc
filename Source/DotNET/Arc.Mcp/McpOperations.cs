@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -91,7 +92,7 @@ internal sealed class McpOperations(
 
     static bool IsStreamingType(Type type)
     {
-        if (HasGenericDefinition(type, typeof(Task<>)) || HasGenericDefinition(type, typeof(ValueTask<>)))
+        if (IsResultWrapper(type))
         {
             return IsStreamingType(type.GetGenericArguments()[0]);
         }
@@ -100,6 +101,11 @@ internal sealed class McpOperations(
         return type.GetInterfaces().Append(type).Any(candidate =>
             HasGenericDefinition(candidate, typeof(ISubject<>)) || HasGenericDefinition(candidate, typeof(IAsyncEnumerable<>)));
     }
+
+    static bool IsResultWrapper(Type type) =>
+        HasGenericDefinition(type, typeof(Task<>)) ||
+        HasGenericDefinition(type, typeof(ValueTask<>)) ||
+        HasGenericDefinition(type, typeof(ActionResult<>));
 
     static bool HasGenericDefinition(Type type, Type definition) => type.IsGenericType && type.GetGenericTypeDefinition() == definition;
 
@@ -137,6 +143,7 @@ internal sealed class McpOperations(
         {
             if (result.IsSuccess && call.Services.GetService<IObservableQueryHandler>()?.IsStreamingResult(result.Data) == true)
             {
+                // Opaque declared returns (such as object) cannot be checked before execution; keep this fallback.
                 // A tool call is one request and one response: a stream would outlive the caller's admission and emission identity.
                 return McpToolResult.Error(Unsupported);
             }
