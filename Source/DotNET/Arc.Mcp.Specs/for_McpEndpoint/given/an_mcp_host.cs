@@ -10,6 +10,8 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Commands.ResponseValueHandlers;
 using Cratis.Arc.Identity.Callers;
+using Cratis.Arc.Queries;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
@@ -124,10 +126,9 @@ public class an_mcp_host : Specification
                 }));
         ConfigureCallers(builder.Services);
 
-        // Chronicle's discovered administration queries validate this policy even when not exposed as tools.
-        builder.Services.AddAuthorizationBuilder().AddPolicy("Chronicle.Administrator", policy => policy.RequireAuthenticatedUser());
         builder.Services.AddSingleton(_probe);
         RegisterCommands(builder.Services);
+        RegisterQueries(builder.Services);
 
         // Plain Arc hosts do not install Chronicle; adapter specs explicitly register their real execution scope.
         builder.Services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(new KnownInstancesOf<ICommandExecutionScope>());
@@ -242,6 +243,15 @@ public class an_mcp_host : Specification
         services.AddSingleton(commands);
         services.AddSingleton(Substitute.For<ICommandKeys>());
     }
+
+    static void RegisterQueries(IServiceCollection services) => services.AddSingleton<IInstancesOf<IQueryPerformerProvider>>(provider =>
+    {
+        // Optional Chronicle adapter dependencies must not add unrelated queries and policies to this host.
+        var queries = Substitute.For<IQueryPerformerProvider>();
+        queries.Performers.Returns(provider.GetRequiredService<QueryPerformerProvider>().Performers
+            .Where(performer => performer.ReadModelType.Assembly == typeof(an_mcp_host).Assembly).ToArray());
+        return new KnownInstancesOf<IQueryPerformerProvider>(queries);
+    });
 
     void Configure(McpOptions options)
     {
