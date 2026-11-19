@@ -169,6 +169,10 @@ public record BorrowBookDecision(BookId Book, MemberId Member) : ICanProvideEven
 }
 ```
 
+Arc decides who issues a `DecisionRead<T>` token once for each root provider, on the first token binding through that root. The framework issues it, through its asynchronous binding, only when the registration that `AddReadModels` added is the last non-keyed `DecisionRead<T>` registration. If the application registered `DecisionRead<T>` before `AddReadModels`, or registers it afterwards, the application registration owns the token and runs through ordinary dependency injection. Later registration changes never alter a root's first answer; a root built afterwards decides for itself.
+
+Which registrations that first decision reads depends on the provider. A root built by `ProtectedDecisionServiceProviderFactory` or `BuildProtectedDecisionServiceProvider()`, and first bound through a child scope (the normal command pipeline), uses the registrations frozen when it was built. Any other provider, including a plain `BuildServiceProvider()`, reads the live service collection at first use, so a registration added or removed between build and first use changes the answer, and the built provider may still resolve a different registration than the one that was judged. A root built by Arc's factory but first bound directly through the root, rather than a child scope, also reads the live collection, and its child scopes then share that answer. Do not add or remove `DecisionRead<T>` registrations after building a provider. The generic host and `WebApplicationBuilder` lock the collection once built; a plain `BuildServiceProvider()` does not. See [certified validators](../certified-validators.md) for the factory.
+
 For new commands, put the state rule in a validator and take a plain read-model parameter under `On`. When migrating the example above, enable `On` before adding validator constructor dependencies: a `[ProtectedDecision]` command outside `On` refuses them. See [Validators](../validators.md#commands-marked-protecteddecision).
 
 ## Several event sources
