@@ -31,17 +31,9 @@ public class CommandActionFilter(
     /// <inheritdoc/>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (context.ActionDescriptor.Parameters.Any(parameter => RequiresApproval(parameter.ParameterType)) ||
-            context.ActionArguments.Values.Any(argument => argument is not null && RequiresApproval(argument.GetType())))
+        if (InvolvesApprovalGatedType(context))
         {
-            using var approvalReceipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
-            var approvalContext = EstablishCommandContext(context);
-            PublishResult(context, null, new CommandResult<object>
-            {
-                CorrelationId = approvalContext.CorrelationId,
-                IsAuthorized = false,
-                AuthorizationFailureReason = ApprovalGate.RefusalReason
-            });
+            RefuseForApproval(context);
             return;
         }
 
@@ -63,12 +55,16 @@ public class CommandActionFilter(
         }
 
         await ExecuteCommand(context, next, commandContext);
-
-        bool RequiresApproval(Type type) =>
-            ApprovalGate.RequiresApproval(type) ||
-            (context.HttpContext.RequestServices?.GetService<IModelMetadataProvider>()?.GetMetadataForType(type).ElementMetadata?.ModelType is { } elementType &&
-             ApprovalGate.RequiresApproval(elementType));
     }
+
+    static bool InvolvesApprovalGatedType(ActionExecutingContext context) =>
+        context.ActionDescriptor.Parameters.Any(parameter => RequiresApproval(context, parameter.ParameterType)) ||
+        context.ActionArguments.Values.Any(argument => argument is not null && RequiresApproval(context, argument.GetType()));
+
+    static bool RequiresApproval(ActionExecutingContext context, Type type) =>
+        ApprovalGate.RequiresApproval(type) ||
+        (context.HttpContext.RequestServices?.GetService<IModelMetadataProvider>()?.GetMetadataForType(type).ElementMetadata?.ModelType is { } elementType &&
+         ApprovalGate.RequiresApproval(elementType));
 
     static async Task ExecuteCommand(ActionExecutingContext context, ActionExecutionDelegate next, CommandContext commandContext)
     {
@@ -153,7 +149,7 @@ public class CommandActionFilter(
     {
         if (UnauthorizedCause.IsCauseOf(actionException ?? executed?.Exception))
         {
-            if (executed is not null) executed.Exception = null;
+            ClearException(executed);
             return new CommandResult<object>
             {
                 CorrelationId = context.HttpContext.GetCorrelationId(),
@@ -169,19 +165,46 @@ public class CommandActionFilter(
         };
         if ((actionException ?? executed?.Exception) is { } exception)
         {
-            var messages = new List<string>();
             result.ExceptionStackTrace = exception.StackTrace ?? string.Empty;
-            do
-            {
-                messages.Add(exception.Message);
-                exception = exception.InnerException;
-            }
-            while (exception is not null);
-            result.ExceptionMessages = [.. messages];
-            if (executed is not null) executed.Exception = null;
+            result.ExceptionMessages = CollectMessages(exception);
+            ClearException(executed);
         }
         return result;
     }
+
+    static void ClearException(ActionExecutedContext? executed)
+    {
+        if (executed is not null) executed.Exception = null;
+    }
+
+    static string[] CollectMessages(Exception? exception)
+    {
+        var messages = new List<string>();
+        while (exception is not null)
+        {
+            messages.Add(exception.Message);
+            exception = exception.InnerException;
+        }
+        return [.. messages];
+    }
+
+    static (object Command, Type CommandType) ResolveCommand(ActionExecutingContext context)
+    {
+        var bodyParam = context.ActionDescriptor.Parameters
+            .FirstOrDefault(p => p.BindingInfo?.BindingSource == BindingSource.Body);
+
+        if (bodyParam is not null && context.ActionArguments.TryGetValue(bodyParam.Name, out var commandObj) && commandObj is not null)
+        {
+            return (commandObj, commandObj.GetType());
+        }
+
+        return (new object(), typeof(object));
+    }
+
+    static SliceLocation ResolveSliceLocation(ActionExecutingContext context, Type commandType) =>
+        context.ActionDescriptor is ControllerActionDescriptor { ControllerTypeInfo: { } controllerType }
+            ? SliceLocation.For(controllerType)
+            : SliceLocation.For(commandType);
 
     static async Task CompleteScopes(CommandContext context, ICommandExecutionScope[] scopes, CommandResult result)
     {
@@ -249,29 +272,24 @@ public class CommandActionFilter(
         }
     }
 
+    void RefuseForApproval(ActionExecutingContext context)
+    {
+        using var approvalReceipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
+        var approvalContext = EstablishCommandContext(context);
+        PublishResult(context, null, new CommandResult<object>
+        {
+            CorrelationId = approvalContext.CorrelationId,
+            IsAuthorized = false,
+            AuthorizationFailureReason = ApprovalGate.RefusalReason
+        });
+    }
+
     CommandContext EstablishCommandContext(ActionExecutingContext context)
     {
-        var bodyParam = context.ActionDescriptor.Parameters
-            .FirstOrDefault(p => p.BindingInfo?.BindingSource == BindingSource.Body);
-
-        object command;
-        Type commandType;
-
-        if (bodyParam is not null && context.ActionArguments.TryGetValue(bodyParam.Name, out var commandObj) && commandObj is not null)
-        {
-            command = commandObj;
-            commandType = commandObj.GetType();
-        }
-        else
-        {
-            command = new object();
-            commandType = typeof(object);
-        }
+        var (command, commandType) = ResolveCommand(context);
 
         // The proxy generator places a controller's commands by the controller's namespace, so the slice location follows it.
-        var sliceLocation = context.ActionDescriptor is ControllerActionDescriptor { ControllerTypeInfo: { } controllerType }
-            ? SliceLocation.For(controllerType)
-            : SliceLocation.For(commandType);
+        var sliceLocation = ResolveSliceLocation(context, commandType);
 
         var values = contextValuesBuilder.Build(command);
         var commandContext = new CommandContext(

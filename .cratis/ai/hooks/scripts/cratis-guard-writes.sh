@@ -3,12 +3,10 @@
 # PreToolUse hook — hard block on writes that must never happen.
 #
 # Exits 2 (block the tool call, stderr goes back to the model) for:
-#   1. Generated files      — anything whose header marks it as Cratis-generated output
-#                             (.cratis/ai/rules/general.md rule 15 [contract])
-#   2. Dependency manifests — Directory.Packages.props, global.json, lockfiles, NuGet config
+#   1. Dependency manifests — Directory.Packages.props, global.json, lockfiles, NuGet config
 #                             (allowed by default for a github.com/Cratis origin)
-#   3. Environment files    — .env and friends (secrets)
-#   4. Agent controls       — permissions, hooks and installed managed corpus/adapters
+#   2. Environment files    — .env and friends (secrets)
+#   3. Agent controls       — permissions, hooks and installed managed corpus/adapters
 #
 # While jq is missing the guard cannot read the tool call, so it refuses every call.
 #
@@ -190,7 +188,7 @@ origin_matches() {
 # One policy vocabulary for normal Write/Edit and whole-command reference checks.
 manifest_patterns=(package.json Directory.Packages.props global.json NuGet.config yarn.lock package-lock.json pnpm-lock.yaml packages.lock.json)
 environment_patterns=('.env' '.env.*' '*.env')
-control_patterns=('.claude/settings.json' '.claude/settings.local.json' '.mcp.json' '.pi/settings.json' '.pi/extensions/*')
+control_patterns=('.claude/settings.json' '.claude/settings.local.json' '.mcp.json' '.pi/settings.json' '.pi/extensions/*' '.cratis/ai.manifest.json' '.cratis/ai.json')
 
 # Glob-language intersection, not expansion/eval. A star has an epsilon transition and
 # a character loop. The product automaton accepts iff the two patterns share a spelling.
@@ -207,20 +205,24 @@ function tokens(s, side,    i, c, j, k, t, copy, jumps, first, closing) {
     s = tolower(s)
     if (side == 1) {
         copy = s
+        if (s ~ /[@?*+!]\(/) exit 2
         if (index(s, "{") && index(s, "[")) exit 2
         if (gsub(/\[/, "[", copy) > 64) exit 2
         first = index(s, "{")
         for (k = length(s); k > first; k--) if (substr(s, k, 1) == "}") { closing = k; break }
-        if (first && closing) {
+        if (first && closing && s != "{}") {
             if (index(substr(s, first, closing - first + 1), "/")) exit 2
+            if (substr(s, first, closing - first + 1) ~ /[$`'"\\]/) exit 2
             if (substr(s, 1, first - 1) substr(s, closing + 1) ~ /[^a-z0-9._\/*?,+=:@%-]/) exit 2
-            s = substr(s, 1, first) substr(s, closing)
+            s = substr(s, 1, first - 1) "*" substr(s, closing + 1)
         }
     }
     for (i = 1; i <= length(s); i++) {
         c = substr(s, i, 1); t = c; j = i
-        if (c == "{") {
-            j = index(substr(s, i), "}"); j = j ? i + j - 1 : i; t = "*"
+        # Only a standalone empty brace argument is literal; path placeholders can expand.
+        if (c == "{" && s != "{}") {
+            j = index(substr(s, i), "}")
+            if (j) { j = i + j - 1; t = "*" } else j = i
             if (side == 1 && index(substr(s, i, j - i + 1), "/")) exit 2
         }
         N[side]++; A[side, N[side]] = t
@@ -292,6 +294,8 @@ control_match() {
     local value="$1" reference_pattern="$reference_pattern" pattern LC_ALL=C
     shift
     if names_match "$value" "$@"; then return 0; fi
+    # Do not turn a standalone placeholder into a path by appending descendants.
+    [ "$value" != '{}' ] || return 1
     [ "$reference_mode" = 1 ] || return 1
     if [ "$reference_pattern" = 0 ]; then
         shopt -s nocasematch
@@ -305,6 +309,23 @@ control_match() {
 }
 
 # ── 4. Agent controls and installed managed trees ─────────────────────────────
+# Authoring requires committed framework source, not a mutable remote URL or new files.
+authored_cache_root=""
+authored_cache_status=1
+authored_corpus_repository() {
+    if [ "$authored_cache_root" != "$1" ]; then
+        authored_cache_root="$1"
+        authored_cache_status=1
+        if git -C "$1" cat-file -e HEAD:Cratis.AI.slnx 2>/dev/null &&
+            git -C "$1" cat-file -e HEAD:.cratis/ai/hooks/scripts/cratis-guard-writes.sh 2>/dev/null &&
+            git -C "$1" show HEAD:Source/Pi.Plugin/package.json 2>/dev/null |
+                jq -e -s 'length == 1 and .[0].name == "@cratis/pi" and .[0].type == "module"' >/dev/null 2>&1; then
+            authored_cache_status=0
+        fi
+    fi
+    return "$authored_cache_status"
+}
+
 agent_control_target() {
     local target="$1" directory policy_root target_rel managed pattern
     dir_of "$target"
@@ -319,9 +340,14 @@ agent_control_target() {
     policy_root="$directory"
     relative_to "$target" "$policy_root"
     target_rel="$REPLY"
-    if [ -f "$policy_root/.cratis/ai.manifest.json" ]; then
+    # Policy files remain controls even in the authored corpus repository.
+    if control_match "$target_rel" '.cratis/ai.manifest.json' '.cratis/ai.json'; then return 0; fi
+    if [ ! -f "$policy_root/.cratis/ai.manifest.json" ] && authored_corpus_repository "$policy_root"; then
+        return 1
+    fi
+    if [ -f "$policy_root/.cratis/ai.manifest.json" ] || [ -d "$policy_root/.cratis/ai" ]; then
         if control_match "$target_rel" '.cratis/ai/*'; then return 0; fi
-        if control_match "$target_rel" '.claude/*' '.pi/*'; then
+        if [ -f "$policy_root/.cratis/ai.manifest.json" ] && control_match "$target_rel" '.claude/*' '.pi/*'; then
             # Integration paths, not corpus Files, establish adapter ownership.
             managed="$(jq -r '
                 (.Integrations // []) | if type != "array" then empty else
@@ -335,33 +361,11 @@ agent_control_target() {
                 if control_match "$target_rel" "$pattern"; then return 0; fi
             done <<<"$managed"
         fi
-    else
-        # The corpus is authored source in Cratis/AI, not a managed installation.
-        repository_origin "$policy_root"
-        if origin_matches '^(https://github\.com/|git@github\.com:|ssh://git@github\.com(:[0-9]+)?/)cratis/ai(\.git)?/?$'; then
-            return 1
-        fi
     fi
     control_match "$target_rel" "${control_patterns[@]}"
 }
 
-# ── 1. Generated files ────────────────────────────────────────────────────────
-# The marker must be a real header: a comment opener at the start of one of the first few lines.
-# Merely *mentioning* the string — documentation, a rule file, this corpus — is not a match.
-marker='^[[:space:]]*(//|/\*|#|<!--)[[:space:]]*@generated by Cratis'
-
-# True when one of the first five lines of stdin carries the marker (head -n 5 | grep -E, without forks).
-first_lines_carry_marker() {
-    local LC_ALL=C line count=0
-    while [ "$count" -lt 5 ] && { IFS= read -r line || [ -n "$line" ]; }; do
-        count=$((count + 1))
-        # shellcheck disable=SC2034
-        [[ "$line" =~ $marker ]] && return 0
-    done
-    return 1
-}
-
-# ── 2. Dependency manifests, lockfiles, SDK and NuGet configuration ───────────
+# ── Dependency manifests, lockfiles, SDK and NuGet configuration ──────────────
 manifest_writes_allowed() {
     local setting="" directory policy_root start="$PWD"
     # Authorization belongs to the write target, which may be outside the session's checkout.
@@ -393,22 +397,25 @@ manifest_writes_allowed() {
 
 # Return the category, leaving normal Write/Edit diagnostics unchanged below.
 classify_file() {
-    local reference_pattern="${2:-0}"
+    local reference_pattern="${2:-0}" physical_base=""
     abspath "$1" "$cwd"; normalize_target_path "$REPLY"; file="$REPLY"
     base_of "$file"; base="$REPLY"
     physical_target_path "$file" || physical_file=""
+    if [ -n "$physical_file" ]; then base_of "$physical_file"; physical_base="$REPLY"; fi
     if agent_control_target "$file" || { [ -n "$physical_file" ] && agent_control_target "$physical_file"; }; then
         classification=controls; return 0
     fi
-    if [ -f "$file" ] && first_lines_carry_marker 2>/dev/null <"$file" && LC_ALL=C grep -Iq . "$file" 2>/dev/null; then
-        classification=generated; return 0
+    if names_match "$base" "${manifest_patterns[@]}" || names_match "$physical_base" "${manifest_patterns[@]}"; then
+        if manifest_writes_allowed; then
+            # Preserve reference-pattern policy when resolution leaves the basename unchanged.
+            [ "$base" != "$physical_base" ] || return 1
+        else
+            classification=manifest; return 0
+        fi
     fi
-    if [ -n "$new_content" ] && first_lines_carry_marker <<<"$new_content"; then classification=content; return 0; fi
-    if names_match "$base" "${manifest_patterns[@]}"; then
-        if manifest_writes_allowed; then return 1; fi
-        classification=manifest; return 0
+    if names_match "$base" "${environment_patterns[@]}" || names_match "$physical_base" "${environment_patterns[@]}"; then
+        classification=environment; return 0
     fi
-    if names_match "$base" "${environment_patterns[@]}"; then classification=environment; return 0; fi
     return 1
 }
 
@@ -425,10 +432,13 @@ if [ "$reference_mode" = 1 ]; then
     unset 'candidates[last]'
     new_content=""
     for candidate in "${candidates[@]}"; do
+        # Reflog selectors name revisions, unless the prefix or the literal path (or its symlink target) is protected.
+        if [[ "$candidate" =~ ^[A-Za-z0-9._/-]*@\{(-?[0-9]+|upstream|push|u)\}$ ]] \
+            && ! classify_file "${candidate%@*}" && ! classify_file "$candidate"; then continue; fi
         reference_pattern=0
-        case "$candidate" in *'*'* | *'?'* | *'['* | *'{'*) reference_pattern=1 ;; esac
+        case "$candidate" in *'*'* | *'?'* | *'['* | *'{'* | *'@('* | *'+('* | *'!('*) reference_pattern=1 ;; esac
         if classify_file "$candidate" "$reference_pattern"; then printf '%s\n' "$candidate"; continue; fi
-        # Existing generated files can have arbitrary names; inspect actual glob matches too.
+        # Inspect actual glob matches too, including symlinks to protected targets.
         if [ "$reference_pattern" = 1 ]; then
             count=0
             while IFS= read -r expanded; do
@@ -446,12 +456,6 @@ case "$classification" in
     controls) block \
         "This target controls the agent's permissions or extensions, or belongs to an installed managed corpus/adapter tree. Agent Write/Edit calls may not alter their own controls or managed instructions." \
         "Instead: report the intended change. Use 'cratis ai update' for managed files, or let a person change settings. An explicitly authorized protected write requires CRATIS_HOOKS_ALLOW_PROTECTED_WRITES=1 in the harness environment. Do not retry through a shell write." ;;
-    generated) block \
-        "This file is generated output (its header marks it as generated by Cratis). Rule 15 [contract] in .cratis/ai/rules/general.md: never edit a generated file — the next build overwrites it." \
-        "Instead: change the C# source it is generated from (the [Command] / [ReadModel] record) and rebuild with 'dotnet build -c Debug' to regenerate the proxy." ;;
-    content) block \
-        "The content being written opens with a Cratis generated-file header. Proxies are produced by the Cratis proxy generator, never hand-written." \
-        "Instead: write the C# source and run 'dotnet build -c Debug' to generate the proxy." ;;
     manifest) block \
         "'$base' is a dependency manifest / lockfile / SDK or NuGet configuration file. .cratis/ai/rules/general.md (Source-of-Truth Discipline): don't change these unless explicitly asked." \
         "To allow dependency updates for this repository, set allowDependencyManifestWrites to true in .cratis/ai.json. If the user explicitly asked for this change, re-run the tool call with CRATIS_HOOKS_ALLOW_PROTECTED_WRITES=1 exported. Otherwise take the dependency as given and solve the problem in source." ;;

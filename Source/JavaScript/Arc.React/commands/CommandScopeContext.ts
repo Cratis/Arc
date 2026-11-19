@@ -17,6 +17,7 @@ export const defaultCommandScopeContext: ICommandScope = new class extends IComm
     get exceptions() { return new Map(); }
     get aggregatedExceptions() { return []; }
     addCommand() { }
+    removeCommand() { }
     addQuery() { }
     addChildScope() { }
     async execute() { return new CommandResults(new Map()); }

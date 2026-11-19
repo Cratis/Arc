@@ -111,5 +111,5 @@ internal sealed class DecisionReadAdmissionStartup(
         return refusals;
     }
 
-    bool IsConfigured(string mode) => string.Equals(configuration["ReadProtection:StartupAdmissionCheck"], mode, StringComparison.OrdinalIgnoreCase);
+    bool IsConfigured(string mode) => string.Equals(ReadProtectionConfiguration.Value(configuration, "StartupAdmissionCheck"), mode, StringComparison.OrdinalIgnoreCase);
 }

@@ -10,7 +10,7 @@ namespace Cratis.Arc.ProxyGenerator;
 /// <summary>
 /// Extracts validation rules from FluentValidation validators and DataAnnotations attributes.
 /// </summary>
-public static class ValidationRulesExtractor
+public static partial class ValidationRulesExtractor
 {
     const string NotNullValidatorType = "FluentValidation.Validators.INotNullValidator";
     const string NotEmptyValidatorType = "FluentValidation.Validators.INotEmptyValidator";
@@ -22,6 +22,30 @@ public static class ValidationRulesExtractor
     const string ComparisonValidatorType = "FluentValidation.Validators.IComparisonValidator";
     const string RegularExpressionValidatorType = "FluentValidation.Validators.IRegularExpressionValidator";
     const string ConceptAsType = "Cratis.Concepts.ConceptAs`1";
+
+    static readonly Dictionary<string, string> _simpleAttributeRules = new()
+    {
+        ["System.ComponentModel.DataAnnotations.RequiredAttribute"] = "notEmpty",
+        ["System.ComponentModel.DataAnnotations.EmailAddressAttribute"] = "emailAddress",
+        ["System.ComponentModel.DataAnnotations.PhoneAttribute"] = "phone",
+        ["System.ComponentModel.DataAnnotations.UrlAttribute"] = "url",
+        ["System.ComponentModel.DataAnnotations.CreditCardAttribute"] = "creditCard"
+    };
+
+    static readonly (string InterfaceName, Func<object, string?, ValidationRuleDescriptor?> Extract)[] _validatorRuleExtractors =
+    [
+        (NotNullValidatorType, (_, message) => new ValidationRuleDescriptor("notNull", [], message)),
+        (NotEmptyValidatorType, (_, message) => new ValidationRuleDescriptor("notEmpty", [], message)),
+        (EmailValidatorType, (_, message) => new ValidationRuleDescriptor("emailAddress", [], message)),
+
+        // The specific length validators come before the generic ILengthValidator.
+        (MinimumLengthValidatorType, ExtractMinimumLengthRule),
+        (MaximumLengthValidatorType, ExtractMaximumLengthRule),
+        (ExactLengthValidatorType, ExtractExactLengthRule),
+        (LengthValidatorType, ExtractLengthRule),
+        (ComparisonValidatorType, ExtractComparisonRule),
+        (RegularExpressionValidatorType, ExtractRegexRule)
+    ];
 
     /// <summary>
     /// Extract validation rules for a specific type using FluentValidation validators.
@@ -78,6 +102,7 @@ public static class ValidationRulesExtractor
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             var isOptional = property.IsOptional() && !property.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            using var concept = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Concept(property.Name.ToCamelCase(), isOptional) : null;
             var rules = ExtractRulesForConceptType(assembly, property.PropertyType, isOptional);
             if (rules.Count > 0)
             {
@@ -129,6 +154,7 @@ public static class ValidationRulesExtractor
 
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
+            using var annotation = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Annotation(property.Name.ToCamelCase()) : null;
             var rules = ExtractDataAnnotationsFromMember(property);
             if (rules.Count > 0)
             {
@@ -146,6 +172,7 @@ public static class ValidationRulesExtractor
     /// <returns>Collection of validation rule descriptors.</returns>
     public static IReadOnlyList<ValidationRuleDescriptor> ExtractDataAnnotationsFromParameter(ParameterInfo parameter)
     {
+        using var annotation = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Annotation(parameter.Name.ToCamelCase()) : null;
         var attributesData = parameter.GetCustomAttributesData();
         return ExtractDataAnnotationsFromAttributesData(attributesData);
     }
@@ -188,6 +215,10 @@ public static class ValidationRulesExtractor
             if (!merged.ContainsKey(rule.PropertyName))
             {
                 merged[rule.PropertyName] = rule;
+            }
+            else
+            {
+                ValidationProjectionRecorder.OverrideAnnotation(rule);
             }
         }
 
@@ -251,88 +282,42 @@ public static class ValidationRulesExtractor
 
         foreach (var attributeData in attributesData)
         {
-            var attributeType = attributeData.AttributeType;
-            var attributeTypeName = attributeType.FullName;
-
-            if (attributeTypeName == null)
+            var attributeTypeName = attributeData.AttributeType.FullName;
+            if (attributeTypeName is not null)
             {
-                continue;
-            }
-
-            switch (attributeTypeName)
-            {
-                case "System.ComponentModel.DataAnnotations.RequiredAttribute":
-                    {
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("notEmpty", [], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.StringLengthAttribute":
-                    {
-                        var maximumLength = GetConstructorArgument<int>(attributeData, 0);
-                        var minimumLength = GetNamedArgument<int>(attributeData, "MinimumLength");
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(ExtractStringLengthRuleFromData(minimumLength, maximumLength, errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.MinLengthAttribute":
-                    {
-                        var length = GetConstructorArgument<int>(attributeData, 0);
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("minLength", [length], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.MaxLengthAttribute":
-                    {
-                        var length = GetConstructorArgument<int>(attributeData, 0);
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("maxLength", [length], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.RangeAttribute":
-                    {
-                        var minimum = GetConstructorArgument<object>(attributeData, 0);
-                        var maximum = GetConstructorArgument<object>(attributeData, 1);
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.AddRange(ExtractRangeRulesFromData(minimum, maximum, errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.RegularExpressionAttribute":
-                    {
-                        var pattern = GetConstructorArgument<string>(attributeData, 0) ?? string.Empty;
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("matches", [new RegularExpressionPattern(pattern)], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.EmailAddressAttribute":
-                    {
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("emailAddress", [], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.PhoneAttribute":
-                    {
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("phone", [], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.UrlAttribute":
-                    {
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("url", [], errorMessage));
-                        break;
-                    }
-                case "System.ComponentModel.DataAnnotations.CreditCardAttribute":
-                    {
-                        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
-                        rules.Add(new ValidationRuleDescriptor("creditCard", [], errorMessage));
-                        break;
-                    }
+                var extracted = ExtractRulesFromAttribute(attributeTypeName, attributeData);
+                ObserveAnnotations(extracted);
+                rules.AddRange(extracted);
             }
         }
 
         return rules;
     }
+
+    static List<ValidationRuleDescriptor> ExtractRulesFromAttribute(string attributeTypeName, CustomAttributeData attributeData)
+    {
+        var errorMessage = GetNamedArgument<string>(attributeData, "ErrorMessage");
+
+        if (_simpleAttributeRules.TryGetValue(attributeTypeName, out var ruleName))
+        {
+            return [new ValidationRuleDescriptor(ruleName, [], errorMessage)];
+        }
+
+        return attributeTypeName switch
+        {
+            "System.ComponentModel.DataAnnotations.StringLengthAttribute" => [ExtractStringLengthRuleFromData(GetNamedArgument<int>(attributeData, "MinimumLength"), GetConstructorArgument<int>(attributeData, 0), errorMessage)],
+            "System.ComponentModel.DataAnnotations.MinLengthAttribute" => [new ValidationRuleDescriptor("minLength", [GetConstructorArgument<int>(attributeData, 0)], errorMessage)],
+            "System.ComponentModel.DataAnnotations.MaxLengthAttribute" => [new ValidationRuleDescriptor("maxLength", [GetConstructorArgument<int>(attributeData, 0)], errorMessage)],
+            _ => ExtractValueRulesFromAttribute(attributeTypeName, attributeData, errorMessage)
+        };
+    }
+
+    static List<ValidationRuleDescriptor> ExtractValueRulesFromAttribute(string attributeTypeName, CustomAttributeData attributeData, string? errorMessage) => attributeTypeName switch
+    {
+        "System.ComponentModel.DataAnnotations.RangeAttribute" => ExtractRangeRulesFromData(GetConstructorArgument<object>(attributeData, 0), GetConstructorArgument<object>(attributeData, 1), errorMessage),
+        "System.ComponentModel.DataAnnotations.RegularExpressionAttribute" => [new ValidationRuleDescriptor("matches", [new RegularExpressionPattern(GetConstructorArgument<string>(attributeData, 0) ?? string.Empty)], errorMessage)],
+        _ => []
+    };
 
     static ValidationRuleDescriptor ExtractStringLengthRuleFromData(int minimumLength, int maximumLength, string? errorMessage)
     {
@@ -397,53 +382,45 @@ public static class ValidationRulesExtractor
         try
         {
             var (descriptor, members, getRulesMethod) = DescribeValidator(validatorType);
-            var propertyValidations = new List<PropertyValidationDescriptor>();
 
-            // Iterate through members
-            foreach (var member in members)
-            {
-                var keyProperty = member.GetType().GetProperty("Key");
-                var memberName = keyProperty?.GetValue(member)?.ToString();
-                var propertyName = memberName?.ToCamelCase();
-
-                if (string.IsNullOrEmpty(propertyName))
-                {
-                    continue;
-                }
-
-                var rules = new List<ValidationRuleDescriptor>();
-
-                // Read the owning rules as well as their components: block-level When conditions live on the
-                // owning rule, while chained When conditions live on individual components. Neither can be
-                // represented by the client rule builder, so leave them for server-side validation.
-                if (getRulesMethod.Invoke(descriptor, [memberName]) is not System.Collections.IEnumerable memberRules)
-                {
-                    continue;
-                }
-
-                foreach (var rule in memberRules.Cast<object>().Where(_ => !HasCondition(_)))
-                {
-                    if (rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components)
-                    {
-                        foreach (var component in components)
-                        {
-                            rules.AddRange(ExtractRulesFromComponent(component));
-                        }
-                    }
-                }
-
-                if (rules.Count > 0)
-                {
-                    propertyValidations.Add(new PropertyValidationDescriptor(propertyName, [.. rules]));
-                }
-            }
-
-            return propertyValidations;
+            return [.. members
+                .Cast<object>()
+                .Select(_ => DescribeMember(descriptor, getRulesMethod, _))
+                .OfType<PropertyValidationDescriptor>()];
         }
         catch (Exception exception) when (exception is not ValidationRulesCouldNotBeExtracted)
         {
             throw new ValidationRulesCouldNotBeExtracted(type, validatorType, exception);
         }
+    }
+
+    static PropertyValidationDescriptor? DescribeMember(object descriptor, MethodInfo getRulesMethod, object member)
+    {
+        var memberName = member.GetType().GetProperty("Key")?.GetValue(member)?.ToString();
+        var propertyName = memberName?.ToCamelCase();
+
+        if (string.IsNullOrEmpty(propertyName))
+        {
+            return null;
+        }
+
+        // Read the owning rules as well as their components: block-level When conditions live on the
+        // owning rule, while chained When conditions live on individual components. Neither can be
+        // represented by the client rule builder, so leave them for server-side validation.
+        if (getRulesMethod.Invoke(descriptor, [memberName]) is not System.Collections.IEnumerable memberRules)
+        {
+            return null;
+        }
+
+        using var memberScope = ValidationProjectionRecorder.Member(propertyName);
+        var rules = memberRules.Cast<object>()
+            .Where(ShouldExtractRule)
+            .SelectMany(rule => rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components
+                ? components.Cast<object>().SelectMany(ExtractRulesFromComponent)
+                : [])
+            .ToList();
+
+        return rules.Count > 0 ? new PropertyValidationDescriptor(propertyName, [.. rules]) : null;
     }
 
     static (object Descriptor, System.Collections.IEnumerable Members, MethodInfo GetRulesMethod) DescribeValidator(Type validatorType)
@@ -515,68 +492,37 @@ public static class ValidationRulesExtractor
     static List<ValidationRuleDescriptor> ExtractRulesFromComponent(object component)
     {
         var validator = component.GetType().GetProperty("Validator")?.GetValue(component);
-        if (validator is null || HasCondition(component))
+        if (validator is null) return [];
+        if (HasCondition(component))
         {
+            ObserveCondition(component, validator, ValidationProjectionReasons.ChainedCondition);
             return [];
         }
 
         var ruleDescriptor = ExtractRuleFromValidator(validator, component);
-        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(component) }] : [];
+        if (ruleDescriptor is null)
+        {
+            ObserveUnsupported(validator);
+            return [];
+        }
+        var result = ruleDescriptor with { Severity = GetSeverity(component) };
+        ObserveProjected(result);
+        return [result];
     }
 
     static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)
     {
-        var validatorType = validator.GetType();
         var errorMessage = GetCustomErrorMessage(component);
 
         // Check validator type by interface
-        var interfaces = validatorType.GetInterfaces();
-        var interfaceNames = interfaces.Select(i => i.FullName ?? i.Name).ToHashSet();
+        var interfaceNames = validator.GetType().GetInterfaces().Select(i => i.FullName ?? i.Name).ToHashSet();
 
-        if (interfaceNames.Contains(NotNullValidatorType))
+        foreach (var (interfaceName, extract) in _validatorRuleExtractors)
         {
-            return new ValidationRuleDescriptor("notNull", [], errorMessage);
-        }
-
-        if (interfaceNames.Contains(NotEmptyValidatorType))
-        {
-            return new ValidationRuleDescriptor("notEmpty", [], errorMessage);
-        }
-
-        if (interfaceNames.Contains(EmailValidatorType))
-        {
-            return new ValidationRuleDescriptor("emailAddress", [], errorMessage);
-        }
-
-        // Handle specific length validators first before the generic ILengthValidator
-        if (interfaceNames.Contains(MinimumLengthValidatorType))
-        {
-            return ExtractMinimumLengthRule(validator, errorMessage);
-        }
-
-        if (interfaceNames.Contains(MaximumLengthValidatorType))
-        {
-            return ExtractMaximumLengthRule(validator, errorMessage);
-        }
-
-        if (interfaceNames.Contains(ExactLengthValidatorType))
-        {
-            return ExtractExactLengthRule(validator, errorMessage);
-        }
-
-        if (interfaceNames.Contains(LengthValidatorType))
-        {
-            return ExtractLengthRule(validator, errorMessage);
-        }
-
-        if (interfaceNames.Contains(ComparisonValidatorType))
-        {
-            return ExtractComparisonRule(validator, errorMessage);
-        }
-
-        if (interfaceNames.Contains(RegularExpressionValidatorType))
-        {
-            return ExtractRegexRule(validator, errorMessage);
+            if (interfaceNames.Contains(interfaceName))
+            {
+                return extract(validator, errorMessage);
+            }
         }
 
         return null;
@@ -601,14 +547,21 @@ public static class ValidationRulesExtractor
             return 3; // FluentValidation defaults to Error.
         }
 
-        if (provider is not Delegate severityProvider ||
-            severityProvider.Method.DeclaringType?.DeclaringType?.FullName != "FluentValidation.DefaultValidatorOptions")
-        {
-            return null;
-        }
+        return provider is Delegate severityProvider && IsDefaultSeverityProvider(severityProvider)
+            ? ReadConstantSeverity(severityProvider)
+            : null;
+    }
 
+    static bool IsDefaultSeverityProvider(Delegate severityProvider) =>
+        severityProvider.Method.DeclaringType?.DeclaringType?.FullName == "FluentValidation.DefaultValidatorOptions";
+
+    static bool IsSeverityField(FieldInfo field) =>
+        field.Name == "severity" && field.FieldType.FullName == "FluentValidation.Severity";
+
+    static int? ReadConstantSeverity(Delegate severityProvider)
+    {
         var fields = severityProvider.Target?.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (fields is not { Length: 1 } || fields[0].Name != "severity" || fields[0].FieldType.FullName != "FluentValidation.Severity")
+        if (fields is not { Length: 1 } || !IsSeverityField(fields[0]))
         {
             return null;
         }
@@ -626,77 +579,65 @@ public static class ValidationRulesExtractor
     {
         try
         {
-            // FluentValidation 12.x stores custom messages in the _errorMessage field on RuleComponent
-            var errorMessageField = component.GetType()
-                .GetField("_errorMessage", BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (errorMessageField != null)
-            {
-                var errorMessage = errorMessageField.GetValue(component) as string;
-
-                if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    return errorMessage;
-                }
-            }
-
-            // A message declared lazily - .WithMessage(_ => Messages.Something) - is held as a factory instead, and
-            // is deliberately left unprojected. A factory is deferred precisely because its value is not known yet,
-            // so calling it here would answer for a different process, on a different machine, at a different time,
-            // under ambient state this one cannot stand in for - the culture, the clock, a tenant, a feature flag.
-            // A delegate is opaque, so there is no way to tell a factory that returns a constant from one that does
-            // not, which leaves not calling it as the only guess-free move. The cost is small and the rule still
-            // mirrors: the generated client rule falls back to its own default message, and any message the author
-            // actually authored is resolved by the server, correctly, for the request that asked for it.
-
-            // Fallback: Try FluentValidation 11.x approach with ErrorMessageSource property
-            var errorMessageSource = component.GetType()
-                .GetProperty("ErrorMessageSource", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.GetValue(component);
-
-            if (errorMessageSource != null)
-            {
-                var errorMessage = errorMessageSource.GetType()
-                    .GetProperty("ErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                    ?.GetValue(errorMessageSource) as string;
-
-                if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    return errorMessage;
-                }
-            }
+            var errorMessage = ReadErrorMessageField(component);
+            return string.IsNullOrEmpty(errorMessage) ? ReadErrorMessageSource(component) : errorMessage;
         }
         catch
         {
             // Ignore
+            return null;
         }
+    }
 
-        return null;
+    static string? ReadErrorMessageField(object component)
+    {
+        // FluentValidation 12.x stores custom messages in the _errorMessage field on RuleComponent
+        var field = component.GetType().GetField("_errorMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+        return field?.GetValue(component) as string;
+    }
+
+    static string? ReadErrorMessageSource(object component)
+    {
+        // A message declared lazily - .WithMessage(_ => Messages.Something) - is held as a factory instead, and
+        // is deliberately left unprojected. A factory is deferred precisely because its value is not known yet,
+        // so calling it here would answer for a different process, on a different machine, at a different time,
+        // under ambient state this one cannot stand in for - the culture, the clock, a tenant, a feature flag.
+        // A delegate is opaque, so there is no way to tell a factory that returns a constant from one that does
+        // not, which leaves not calling it as the only guess-free move. The cost is small and the rule still
+        // mirrors: the generated client rule falls back to its own default message, and any message the author
+        // actually authored is resolved by the server, correctly, for the request that asked for it.
+
+        // Fallback: Try FluentValidation 11.x approach with ErrorMessageSource property
+        var errorMessageSource = component.GetType()
+            .GetProperty("ErrorMessageSource", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(component);
+
+        var errorMessage = errorMessageSource?.GetType()
+            .GetProperty("ErrorMessage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(errorMessageSource) as string;
+
+        return string.IsNullOrEmpty(errorMessage) ? null : errorMessage;
     }
 
     static ValidationRuleDescriptor ExtractLengthRule(object validator, string? errorMessage)
     {
-        var validatorType = validator.GetType();
-        var minProperty = validatorType.GetProperty("Min", BindingFlags.Public | BindingFlags.Instance);
-        var maxProperty = validatorType.GetProperty("Max", BindingFlags.Public | BindingFlags.Instance);
+        var min = ReadLengthBound(validator, "Min", -1);
+        var max = ReadLengthBound(validator, "Max", -1);
 
-        var min = minProperty?.GetValue(validator) as int? ?? -1;
-        var max = maxProperty?.GetValue(validator) as int? ?? -1;
-
-        // Check for both min and max being set (both non-negative and max is not -1)
-        if (min >= 0 && max >= 0 && max != -1)
+        // Check for both min and max being set (both non-negative)
+        if (min >= 0 && max >= 0)
         {
             return new ValidationRuleDescriptor("length", [min, max], errorMessage);
         }
 
         // Check for minimum length only
-        if (min >= 0 && (max == -1 || max == int.MaxValue))
+        if (min >= 0 && max is -1 or int.MaxValue)
         {
             return new ValidationRuleDescriptor("minLength", [min], errorMessage);
         }
 
         // Check for maximum length only
-        if (max >= 0 && max != -1 && (min == -1 || min == 0))
+        if (max >= 0 && min is -1 or 0)
         {
             return new ValidationRuleDescriptor("maxLength", [max], errorMessage);
         }
@@ -704,70 +645,51 @@ public static class ValidationRulesExtractor
         return new ValidationRuleDescriptor("notEmpty", [], errorMessage);
     }
 
-    static ValidationRuleDescriptor ExtractMinimumLengthRule(object validator, string? errorMessage)
-    {
-        var validatorType = validator.GetType();
-        var minProperty = validatorType.GetProperty("Min", BindingFlags.Public | BindingFlags.Instance);
-        var min = minProperty?.GetValue(validator) as int? ?? 0;
-        return new ValidationRuleDescriptor("minLength", [min], errorMessage);
-    }
+    static int ReadLengthBound(object validator, string propertyName, int fallback) =>
+        validator.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(validator) as int? ?? fallback;
 
-    static ValidationRuleDescriptor ExtractMaximumLengthRule(object validator, string? errorMessage)
-    {
-        var validatorType = validator.GetType();
-        var maxProperty = validatorType.GetProperty("Max", BindingFlags.Public | BindingFlags.Instance);
-        var max = maxProperty?.GetValue(validator) as int? ?? 0;
-        return new ValidationRuleDescriptor("maxLength", [max], errorMessage);
-    }
+    static ValidationRuleDescriptor ExtractMinimumLengthRule(object validator, string? errorMessage) =>
+        new("minLength", [ReadLengthBound(validator, "Min", 0)], errorMessage);
+
+    static ValidationRuleDescriptor ExtractMaximumLengthRule(object validator, string? errorMessage) =>
+        new("maxLength", [ReadLengthBound(validator, "Max", 0)], errorMessage);
 
     static ValidationRuleDescriptor ExtractExactLengthRule(object validator, string? errorMessage)
     {
         // ExactLengthValidator has no Length property - it is a LengthValidator whose Min and Max both carry the
         // exact length.
-        var validatorType = validator.GetType();
-        var minProperty = validatorType.GetProperty("Min", BindingFlags.Public | BindingFlags.Instance);
-        var length = minProperty?.GetValue(validator) as int? ?? 0;
+        var length = ReadLengthBound(validator, "Min", 0);
         return new ValidationRuleDescriptor("length", [length, length], errorMessage);
     }
 
     static ValidationRuleDescriptor? ExtractComparisonRule(object validator, string? errorMessage)
     {
         var validatorType = validator.GetType();
-        var valueToCompareProperty = validatorType.GetProperty("ValueToCompare");
-        var comparisonProperty = validatorType.GetProperty("Comparison");
-
-        var valueToCompare = valueToCompareProperty?.GetValue(validator);
-        if (valueToCompare == null)
-        {
-            return null;
-        }
+        var valueToCompare = validatorType.GetProperty("ValueToCompare")?.GetValue(validator);
 
         // The client-side comparison validators operate on numbers, so a non-numeric constant comparison cannot be
         // projected. In practice this is a "must be set" sentinel such as GreaterThan(DateOnly.MinValue), which the
         // server still enforces; emitting it here would only produce a client rule the browser cannot evaluate.
-        if (!IsNumeric(valueToCompare))
-        {
-            return null;
-        }
-
-        var comparison = comparisonProperty?.GetValue(validator);
-        if (comparison == null)
+        if (valueToCompare is null || !IsNumeric(valueToCompare))
         {
             return null;
         }
 
         // Comparison is an enum, get its string value
-        var comparisonName = comparison.ToString();
+        var comparisonName = validatorType.GetProperty("Comparison")?.GetValue(validator)?.ToString();
+        var ruleName = ToComparisonRuleName(comparisonName);
 
-        return comparisonName switch
-        {
-            "GreaterThan" => new ValidationRuleDescriptor("greaterThan", [valueToCompare], errorMessage),
-            "GreaterThanOrEqual" => new ValidationRuleDescriptor("greaterThanOrEqual", [valueToCompare], errorMessage),
-            "LessThan" => new ValidationRuleDescriptor("lessThan", [valueToCompare], errorMessage),
-            "LessThanOrEqual" => new ValidationRuleDescriptor("lessThanOrEqual", [valueToCompare], errorMessage),
-            _ => null
-        };
+        return ruleName is null ? null : new ValidationRuleDescriptor(ruleName, [valueToCompare], errorMessage);
     }
+
+    static string? ToComparisonRuleName(string? comparisonName) => comparisonName switch
+    {
+        "GreaterThan" => "greaterThan",
+        "GreaterThanOrEqual" => "greaterThanOrEqual",
+        "LessThan" => "lessThan",
+        "LessThanOrEqual" => "lessThanOrEqual",
+        _ => null
+    };
 
     static bool IsNumeric(object value) => value
         is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;

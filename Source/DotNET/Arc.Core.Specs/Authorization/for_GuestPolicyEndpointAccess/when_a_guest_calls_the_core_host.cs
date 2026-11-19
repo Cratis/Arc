@@ -4,6 +4,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text;
 using Cratis.Arc.Authentication;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
@@ -27,6 +28,98 @@ public class when_a_guest_calls_the_core_host
     [InlineData("unannotated", HttpStatusCode.Unauthorized)]
     public async Task should_only_admit_guest_policy_endpoints(string path, HttpStatusCode expected)
     {
+        var (app, address, probe) = BuildHost();
+        await using var host = app;
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(10) };
+            using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { }, global::Xunit.TestContext.Current.CancellationToken);
+            await ShouldHaveStatus(command, expected, "command");
+            using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { }, global::Xunit.TestContext.Current.CancellationToken);
+            await ShouldHaveStatus(validation, expected, "validation");
+            using var query = await client.GetAsync($"/guest-query/{path}", global::Xunit.TestContext.Current.CancellationToken);
+            await ShouldHaveStatus(query, expected, "query");
+            using var queryRequest = new HttpRequestMessage(new HttpMethod("QUERY"), $"/guest-query/{path}") { Content = JsonContent.Create(new { }) };
+            using var bodyQuery = await client.SendAsync(queryRequest, global::Xunit.TestContext.Current.CancellationToken);
+            await ShouldHaveStatus(bodyQuery, expected, "body query");
+            probe.Commands.ShouldEqual(expected == HttpStatusCode.OK ? 1 : 0);
+            probe.Queries.ShouldEqual(expected == HttpStatusCode.OK ? 2 : 0);
+            probe.GuestPolicyCalls.ShouldEqual(expected is HttpStatusCode.OK or HttpStatusCode.Forbidden ? 4 : 0);
+        }
+        finally
+        {
+            // Finish host teardown even when test-runner cancellation has fired.
+#pragma warning disable xUnit1051
+            await app.StopAsync();
+#pragma warning restore xUnit1051
+        }
+    }
+
+    [Fact]
+    public async Task should_refuse_a_request_whose_body_arrives_late_without_corrupting_the_connection()
+    {
+        var responses = await SendEarlyRejectedRequest("Content-Length: 2\r\n", "{}", false);
+        responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        responses.Split("HTTP/1.1 401").Length.ShouldEqual(3);
+    }
+
+    [Fact]
+    public async Task should_refuse_a_request_whose_chunked_body_arrives_late_without_corrupting_the_connection()
+    {
+        var responses = await SendEarlyRejectedRequest("Transfer-Encoding: chunked\r\n", "2\r\n{}\r\n0\r\n\r\n", false);
+        responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        responses.Split("HTTP/1.1 401").Length.ShouldEqual(3);
+    }
+
+    [Fact]
+    public async Task should_close_the_connection_when_an_early_rejected_body_is_oversized()
+    {
+        var body = new string('a', 256 * 1024);
+        var responses = await SendEarlyRejectedRequest($"Content-Length: {body.Length}\r\n", body, true);
+        responses.Contains("400 Bad Request", StringComparison.Ordinal).ShouldBeFalse();
+        (responses.Split("HTTP/1.1 ").Length <= 2).ShouldBeTrue();
+    }
+
+    static async Task<string> SendEarlyRejectedRequest(string framingHeader, string body, bool tolerateReset)
+    {
+        var (app, address, _) = BuildHost();
+        await using var host = app;
+        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
+        try
+        {
+            var uri = new Uri(address);
+            using var tcp = new TcpClient();
+            await tcp.ConnectAsync(uri.Host, uri.Port, global::Xunit.TestContext.Current.CancellationToken);
+            var stream = tcp.GetStream();
+            var request = $"POST /guest-spec/ordinary/validate HTTP/1.1\r\nHost: {uri.Authority}\r\nContent-Type: application/json\r\n{framingHeader}\r\n";
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(request), global::Xunit.TestContext.Current.CancellationToken);
+            await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
+            try
+            {
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(body), global::Xunit.TestContext.Current.CancellationToken);
+                await Task.Delay(300, global::Xunit.TestContext.Current.CancellationToken);
+                var followUp = $"GET /guest-query/ordinary HTTP/1.1\r\nHost: {uri.Authority}\r\nConnection: close\r\n\r\n";
+                await stream.WriteAsync(Encoding.ASCII.GetBytes(followUp), global::Xunit.TestContext.Current.CancellationToken);
+                using var reader = new StreamReader(stream, Encoding.ASCII);
+                return await reader.ReadToEndAsync(global::Xunit.TestContext.Current.CancellationToken);
+            }
+            catch (IOException) when (tolerateReset)
+            {
+                // The server may close the connection while the body is still being sent.
+                return string.Empty;
+            }
+        }
+        finally
+        {
+#pragma warning disable xUnit1051
+            await app.StopAsync();
+#pragma warning restore xUnit1051
+        }
+    }
+
+    static (ArcApplication App, string Address, Probe Probe) BuildHost()
+    {
         using var portProbe = new TcpListener(IPAddress.Loopback, 0);
         portProbe.Start();
         var port = ((IPEndPoint)portProbe.LocalEndpoint).Port;
@@ -43,32 +136,20 @@ public class when_a_guest_calls_the_core_host
         var probe = new Probe();
         builder.Services.AddSingleton(probe);
         RegisterArtifacts(builder.Services);
-        await using var app = builder.Build();
+        var app = builder.Build();
         app.UseCratisArc();
-        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
-        try
+        return (app, address, probe);
+    }
+
+    static async Task ShouldHaveStatus(HttpResponseMessage response, HttpStatusCode expected, string request)
+    {
+        if (response.StatusCode == expected)
         {
-            using var client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(10) };
-            using var command = await client.PostAsJsonAsync($"/guest-spec/{path}", new { }, global::Xunit.TestContext.Current.CancellationToken);
-            command.StatusCode.ShouldEqual(expected);
-            using var validation = await client.PostAsJsonAsync($"/guest-spec/{path}/validate", new { }, global::Xunit.TestContext.Current.CancellationToken);
-            validation.StatusCode.ShouldEqual(expected);
-            using var query = await client.GetAsync($"/guest-query/{path}", global::Xunit.TestContext.Current.CancellationToken);
-            query.StatusCode.ShouldEqual(expected);
-            using var queryRequest = new HttpRequestMessage(new HttpMethod("QUERY"), $"/guest-query/{path}") { Content = JsonContent.Create(new { }) };
-            using var bodyQuery = await client.SendAsync(queryRequest, global::Xunit.TestContext.Current.CancellationToken);
-            bodyQuery.StatusCode.ShouldEqual(expected);
-            probe.Commands.ShouldEqual(expected == HttpStatusCode.OK ? 1 : 0);
-            probe.Queries.ShouldEqual(expected == HttpStatusCode.OK ? 2 : 0);
-            probe.GuestPolicyCalls.ShouldEqual(expected is HttpStatusCode.OK or HttpStatusCode.Forbidden ? 4 : 0);
+            return;
         }
-        finally
-        {
-            // Finish host teardown even when test-runner cancellation has fired.
-#pragma warning disable xUnit1051
-            await app.StopAsync();
-#pragma warning restore xUnit1051
-        }
+
+        var body = await response.Content.ReadAsStringAsync(global::Xunit.TestContext.Current.CancellationToken);
+        throw new InvalidOperationException($"The {request} request returned {response.StatusCode} instead of {expected}: {body}");
     }
 
     static void RegisterArtifacts(IServiceCollection services)

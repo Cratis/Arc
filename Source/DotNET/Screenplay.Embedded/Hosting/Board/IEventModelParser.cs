@@ -16,4 +16,15 @@ public interface IEventModelParser
     /// <param name="source">The Screenplay source.</param>
     /// <returns>The resulting <see cref="EventModelView"/>.</returns>
     EventModelView Parse(string documentId, string name, string source);
+
+    /// <summary>
+    /// Parses Screenplay source into a board document according to its origin.
+    /// </summary>
+    /// <param name="documentId">The identifier of the document - every identity in the result is derived from it.</param>
+    /// <param name="name">The name to give the document when the source names no domain.</param>
+    /// <param name="source">The Screenplay source.</param>
+    /// <param name="origin">Whether the source was authored or derived from C# analysis.</param>
+    /// <returns>The resulting <see cref="EventModelView"/>.</returns>
+    EventModelView Parse(string documentId, string name, string source, EventModelOrigin origin) =>
+        Parse(documentId, name, source);
 }

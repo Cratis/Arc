@@ -4,6 +4,7 @@
         <RootNamespace>Cratis.Arc.OpenApi</RootNamespace>
         <Description>OpenAPI document transformation for Cratis Arc: schemas and operations for concepts, commands, queries, and typed results in CQRS applications on ASP.NET Core.</Description>
         <PackageTags>cratis;arc;cqrs;openapi;aspnetcore;commands;queries</PackageTags>
+        <!-- Microsoft.OpenApi 3.x (Microsoft.AspNetCore.OpenApi 11) is source-incompatible with the transformers; net11.0 support is a follow-up. -->
         <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>

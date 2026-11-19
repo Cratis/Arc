@@ -255,7 +255,7 @@ public static partial class TypeExtensions
         DetachProjectAssemblies(disposeMetadataLoadContext: true);
     }
 
-    static void InitializeWellKnownTypes()
+    static void InitializeWellKnownTypes(Action<string> message)
     {
         _taskType = GetMetadataType(typeof(Task));
         _voidType = GetMetadataType(typeof(void));
@@ -267,7 +267,7 @@ public static partial class TypeExtensions
         }
         catch
         {
-            Console.WriteLine("  Could not load Cratis.Fundamentals, concepts will not be supported");
+            message("  Could not load Cratis.Fundamentals, concepts will not be supported");
         }
 
         var aspNetCore = _metadataLoadContext.LoadFromAssemblyName("Microsoft.AspNetCore.Mvc.Core");
@@ -374,7 +374,7 @@ public static partial class TypeExtensions
             _assembliesByName[loadedAssembly.GetName().Name!] = loadedAssembly;
         }
 
-        InitializeWellKnownTypes();
+        InitializeWellKnownTypes(message);
     }
 
     sealed class ProjectAssembliesLifetime(MetadataLoadContext? ownedMetadataLoadContext) : IDisposable

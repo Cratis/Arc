@@ -129,10 +129,7 @@ public class AuthorizationEvaluator(
     /// <returns>Whether they describe the same effective authorization.</returns>
     internal static bool SameDeclaration(AuthorizationDeclaration checkedDeclaration, AuthorizationDeclaration current)
     {
-        if (checkedDeclaration.AllowsAnonymous != current.AllowsAnonymous ||
-            checkedDeclaration.IsExplicit != current.IsExplicit ||
-            checkedDeclaration.Requirements.Count != current.Requirements.Count ||
-            !checkedDeclaration.RequiredScopes.SequenceEqual(current.RequiredScopes, StringComparer.Ordinal))
+        if (!SameShape(checkedDeclaration, current))
         {
             return false;
         }
@@ -156,6 +153,18 @@ public class AuthorizationEvaluator(
 
         return true;
     }
+
+    static bool SameShape(AuthorizationDeclaration checkedDeclaration, AuthorizationDeclaration current) =>
+        checkedDeclaration.AllowsAnonymous == current.AllowsAnonymous &&
+        checkedDeclaration.IsExplicit == current.IsExplicit &&
+        checkedDeclaration.Requirements.Count == current.Requirements.Count &&
+        checkedDeclaration.RequiredScopes.SequenceEqual(current.RequiredScopes, StringComparer.Ordinal);
+
+    static bool CoversCheck(AuthorizedEvaluation evaluation, MemberInfo target, AuthorizationDeclaration declaration, ClaimsPrincipal? principal) =>
+        evaluation.Target.Equals(target) &&
+        AuthorizationPrincipalIdentity.Same(evaluation.Principal, principal) &&
+        (!evaluation.EvaluatesAnonymous || !HasAuthenticatedIdentity(principal)) &&
+        SameDeclaration(evaluation.Declaration, declaration);
 
     static IEnumerable<(bool IsPolicy, string Name)> OrderedSchemesAndPolicies(AuthorizationDeclaration declaration)
     {
@@ -183,9 +192,7 @@ public class AuthorizationEvaluator(
         var principal = currentPrincipalAccessor.Current;
         if (declaration.RequiresAsynchronousEvaluation &&
             _alreadyEvaluated.Value is { } checkedEvaluation &&
-            checkedEvaluation.Target.Equals(target) && AuthorizationPrincipalIdentity.Same(checkedEvaluation.Principal, principal) &&
-            (!checkedEvaluation.EvaluatesAnonymous || !HasAuthenticatedIdentity(principal)) &&
-            SameDeclaration(checkedEvaluation.Declaration, declaration))
+            CoversCheck(checkedEvaluation, target, declaration, principal))
         {
             return CheckRoles(declaration, principal, checkedEvaluation.EvaluatesAnonymous);
         }

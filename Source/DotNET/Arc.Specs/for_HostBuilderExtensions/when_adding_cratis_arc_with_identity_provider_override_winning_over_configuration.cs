@@ -13,7 +13,7 @@ public class when_adding_cratis_arc_with_identity_provider_override_winning_over
 
     void Because()
     {
-        var configurationPath = ConfigurationPath.Combine(HostBuilderExtensions.DefaultArcSectionPaths);
+        var configurationPath = ConfigurationPath.Combine(Cratis.Arc.HostBuilderExtensions.DefaultSectionPaths);
         var configurationValues = new Dictionary<string, string?>
         {
             [$"{configurationPath}:IdentityDetailsProvider"] = typeof(ConfiguredIdentityDetailsProvider).AssemblyQualifiedName

@@ -37,6 +37,7 @@ internal static class McpToolListFilter
                 {
                     if (catalog.TryGet(tool.Name, out var descriptor)
                         ? caller.HoldsScopesFor(descriptor!) && await McpToolAuthorizers.Allow(new McpToolAuthorization(descriptor!, caller.Capability, http.RequestServices, cancellationToken) { Operation = McpToolOperation.List })
+                            && await McpToolAvailability.IsListed(descriptor!, http.RequestServices, cancellationToken)
                         : !exclusive)
                     {
                         listed.Add(tool);

@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_per_stream_models;
 
+[PerFactSpecificationLifecycle]
 public class when_binding_a_month : given.a_monthly_account
 {
     [Theory]

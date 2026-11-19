@@ -64,7 +64,9 @@ export function useCommand<
     const context = useContext(CommandScopeContext);
 
     useEffect(() => {
-        context.addCommand?.(command.current! as Command<object, object>);
+        const registered = command.current! as Command<object, object>;
+        context.addCommand?.(registered);
+        return () => context.removeCommand?.(registered);
     }, [context]);
 
     const setCommandValues = useCallback((values: TCommandContent) => {

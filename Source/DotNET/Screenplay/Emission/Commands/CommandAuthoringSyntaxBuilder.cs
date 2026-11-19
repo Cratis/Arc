@@ -76,14 +76,22 @@ public class CommandAuthoringSyntaxBuilder(IScreenplayNaming naming, TypeReferen
         InlineOperation = new OperationSyntax(operation.Name, operation.System, operation.Inputs.Select(Input).ToList(), SourceLocation.Start)
         {
             Description = naming.ToStringLiteral(operation.Description),
-            Execute = Phase(operation.SourceFilePath),
-            Compensate = operation.Compensates ? Phase(operation.SourceFilePath) : null
+            Execute = operation.ExecuteInvocations.Count > 0 ? Invoking(operation.ExecuteInvocations) : Phase(operation.SourceFilePath),
+            Compensate = operation.CompensateInvocations.Count > 0 ? Invoking(operation.CompensateInvocations) : operation.Compensates ? Phase(operation.SourceFilePath) : null
         }
     };
 
     PropertyMappingSyntax Mapping(PropertyMappingModel mapping) => new(naming.ToPropertyName(mapping.Property), _sources.Convert(mapping.Source), SourceLocation.Start);
 
     PropertySyntax Input(PropertyModel input) => new(naming.ToPropertyName(input.Name), types.Convert(input.Type), SourceLocation.Start);
+
+    OperationPhaseSyntax Invoking(IEnumerable<AbilityInvocationModel> invocations) => new(null, null, null, null, SourceLocation.Start)
+    {
+        Invocations = invocations.Select(invocation => new InvokesSyntax(
+            $"{invocation.System}.{invocation.Ability}",
+            invocation.Inputs.Select(Mapping).ToList(),
+            SourceLocation.Start)).ToList()
+    };
 
     OperationPhaseSyntax Phase(string? path) => new(null, path is null ? null : new FileReferenceSyntax(naming.ToFilePath(path)!, SourceLocation.Start), null, new ImplementationSyntax([], SourceLocation.Start), SourceLocation.Start);
 }

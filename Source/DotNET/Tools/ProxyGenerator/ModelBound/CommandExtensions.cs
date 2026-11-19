@@ -32,6 +32,34 @@ public static class CommandExtensions
         IEnumerable<TypeInfo> allCommandTypes)
     {
         var properties = GetInputPropertyDescriptors(commandType);
+        var route = ResolveRoute(commandType, segmentsToSkip, skipCommandNameInRoute, apiPrefix, allCommandTypes);
+        var handleMethod = commandType.GetHandleMethod();
+
+        // For model-bound commands, we want the documentation from the command type, not the Handle method
+        var documentation = commandType.GetDocumentation();
+
+        // Extract validation rules for the command type
+        using var recording = ValidationProjectionRecorder.IsEnabled ? ValidationProjectionRecorder.Begin(new("command", commandType.Name, route)) : null;
+        var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
+
+        var severity = ResolveSeverity(commandType);
+
+        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, true, documentation, validationRules) with
+        {
+            BlockOnValidationSeverity = severity
+        };
+    }
+
+    static string ResolveRoute(TypeInfo commandType, int segmentsToSkip, bool skipCommandNameInRoute, string apiPrefix, IEnumerable<TypeInfo> allCommandTypes)
+    {
+        var customRoute = commandType.GetCustomAttributesData().FirstOrDefault(attribute =>
+            attribute.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
+        if (customRoute is { ConstructorArguments.Count: > 0 } &&
+            customRoute.ConstructorArguments[0].Value is string { Length: > 0 } path)
+        {
+            return path;
+        }
+
         var location = commandType.Namespace?.Split('.') ?? [];
         var segments = location.Skip(segmentsToSkip).Select(segment => segment.ToKebabCase());
         var baseUrl = $"/{apiPrefix}/{string.Join('/', segments)}".TrimEnd('/');
@@ -40,36 +68,21 @@ public static class CommandExtensions
         var hasConflict = allCommandTypes.Count(t => string.Join('.', (t.Namespace?.Split('.') ?? []).Skip(segmentsToSkip)) == namespaceKey) > 1;
         var includeCommandName = !skipCommandNameInRoute || hasConflict;
         var route = includeCommandName ? $"{baseUrl}/{commandType.Name.ToKebabCase()}" : baseUrl;
-        route = route.ToLowerInvariant();
-        var customRoute = commandType.GetCustomAttributesData().FirstOrDefault(attribute =>
-            attribute.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
-        if (customRoute is { ConstructorArguments.Count: > 0 } &&
-            customRoute.ConstructorArguments[0].Value is string { Length: > 0 } path)
-        {
-            route = path;
-        }
+        return route.ToLowerInvariant();
+    }
 
-        var handleMethod = commandType.GetHandleMethod();
-
-        // For model-bound commands, we want the documentation from the command type, not the Handle method
-        var documentation = commandType.GetDocumentation();
-
-        // Extract validation rules for the command type
-        var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
-
+    static int? ResolveSeverity(TypeInfo commandType)
+    {
         var severityAttribute = ResolveBlockingSeverity(commandType);
         int? severity = severityAttribute is null ? null : Convert.ToInt32(severityAttribute.ConstructorArguments[0].Value);
 
         // The generator does not reference Arc.Core; its wire values run from Unknown (0) through Error (3).
-        if (severity is not null && (severity < 0 || severity > 3))
+        if (severity is < 0 or > 3)
         {
             throw new InvalidCommandValidationSeverity(commandType, severity.Value);
         }
 
-        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, true, documentation, validationRules) with
-        {
-            BlockOnValidationSeverity = severity
-        };
+        return severity;
     }
 
     static List<PropertyDescriptor> GetInputPropertyDescriptors(Type commandType)

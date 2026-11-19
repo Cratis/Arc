@@ -9,6 +9,7 @@ using Cratis.Chronicle.ReadModels;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 
+[PerFactSpecificationLifecycle]
 public class when_a_fresh_fold_is_incomplete : when_reading_a_stream.given.a_stream_reader
 {
     [Fact]

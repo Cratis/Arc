@@ -27,6 +27,24 @@ public static class WellKnownTypeNames
     /// <summary>The attribute marking a model-bound read model.</summary>
     public const string ReadModelAttribute = "Cratis.Arc.Queries.ModelBound.ReadModelAttribute";
 
+    /// <summary>The attribute gating a part to audiences.</summary>
+    public const string AvailableForAttribute = "Cratis.Arc.Availability.AvailableForAttribute";
+
+    /// <summary>The attribute gating a part with a named availability.</summary>
+    public const string AvailableWithAttribute = "Cratis.Arc.Availability.AvailableWithAttribute";
+
+    /// <summary>The catalog request-scoped values are declared in.</summary>
+    public const string ContextValueCatalog = "Cratis.Choreography.Availability.Context.ContextValueCatalog";
+
+    /// <summary>The provider resolving a value from a read model query.</summary>
+    public const string ReadModelContextValueProvider = "Cratis.Choreography.Availability.Context.Providers.ReadModelContextValueProvider";
+
+    /// <summary>The scope a value is declared at.</summary>
+    public const string ContextScope = "Cratis.Choreography.Availability.Context.ContextScope";
+
+    /// <summary>The options gates are registered with.</summary>
+    public const string ArcAvailabilityOptions = "Cratis.Arc.Availability.ArcAvailabilityOptions";
+
     /// <summary>The attribute requiring an authenticated caller.</summary>
     public const string AuthorizeAttribute = "Cratis.Arc.Authorization.AuthorizeAttribute";
 

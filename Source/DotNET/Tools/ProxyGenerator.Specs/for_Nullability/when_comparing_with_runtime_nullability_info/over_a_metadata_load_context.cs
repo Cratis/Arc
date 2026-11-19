@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #nullable enable
-#pragma warning disable CS8618
+#pragma warning disable CS8618, CA1819 // CA1819: the fixture covers enum arrays, which made NullabilityInfoContext throw over a MetadataLoadContext on .NET 11.
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -54,7 +54,7 @@ public class over_a_metadata_load_context : Specification
 
     void Destroy() => _context.Dispose();
 
-    [Fact] void should_compare_all_members() => _compared.ShouldEqual(14);
+    [Fact] void should_compare_all_members() => _compared.ShouldEqual(18);
     [Fact] void should_match_runtime_nullability_info() => _mismatches.ShouldBeEmpty();
 
     public class Fixture
@@ -69,6 +69,10 @@ public class over_a_metadata_load_context : Specification
         [MaybeNull] public string MaybeReadOnly { get; }
         [NotNull] public string? NotNullReadOnly { get; }
         public Dictionary<string, string?>? NullableDictionary { get; set; }
+        public DayOfWeek[] EnumArray { get; set; }
+        public DayOfWeek[]? NullableEnumArray { get; set; }
+        public IReadOnlyList<DayOfWeek> EnumList { get; set; }
+        public DayOfWeek?[] ArrayOfNullableEnum { get; set; }
 
         public void Method(string required, string? optional, List<string>? optionalList, [AllowNull] string allowed)
         {

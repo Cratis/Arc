@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Screenplay.Embedded.Generation;
+using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 
 namespace Cratis.Arc.Screenplay.Embedded.for_DocumentGeneration.when_cataloging_documents;
 
@@ -23,13 +24,20 @@ public class for_an_application : Specification
         _generation = new EmbeddedDocumentGenerator()
             .Generate(given.an_application.Build(), given.an_application.Options(), []);
         _json = _generation.Catalog.Serialize();
-        _documents = JsonDocument.Parse(_json).RootElement.GetProperty("documents");
+        using var document = JsonDocument.Parse(_json);
+        _documents = document.RootElement.GetProperty("documents").Clone();
     }
 
     JsonElement DocumentOf(string id) =>
         _documents.EnumerateArray().First(_ => _.GetProperty("id").GetString() == id);
 
     [Fact] void should_hold_every_generated_document() => _documents.GetArrayLength().ShouldEqual(5);
+
+    [Fact] void should_mark_every_document_derived_from_csharp_as_generated() =>
+        _generation.Catalog.Documents.All(_ => _.Origin == EventModelOrigin.Generated).ShouldBeTrue();
+
+    [Fact] void should_write_the_generated_origin_in_the_manifest() =>
+        _documents.EnumerateArray().All(_ => _.GetProperty("origin").GetString() == "generated").ShouldBeTrue();
 
     [Fact] void should_identify_the_assembly_document_by_the_root_namespace() =>
         DocumentOf(given.an_application.RootNamespace).GetProperty("kind").GetString().ShouldEqual("assembly");

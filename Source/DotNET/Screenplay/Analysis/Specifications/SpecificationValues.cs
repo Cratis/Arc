@@ -41,7 +41,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         string specification,
         string location,
         SpecificationDraft draft) =>
-        Read(creation, semanticModel, type, type, specification, location, draft, queryValues: false);
+        Read(creation, new SpecificationValueContext(semanticModel, type, type, specification, location, draft, QueryValues: false));
 
     /// <summary>
     /// Reads the values one exact Stage-generated query result construction states.
@@ -67,7 +67,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         string specification,
         string location,
         SpecificationDraft draft) =>
-        Read(creation, semanticModel, type, sourceType, specification, location, draft, queryValues: true);
+        Read(creation, new SpecificationValueContext(semanticModel, type, sourceType, specification, location, draft, QueryValues: true));
 
     /// <summary>
     /// Gets every value a construction states, from its arguments and from its initializer.
@@ -79,6 +79,19 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         BaseObjectCreationExpressionSyntax creation,
         IMethodSymbol? constructor)
     {
+        return StatedArguments(creation, constructor).Concat(StatedInitializers(creation));
+    }
+
+    /// <summary>
+    /// Gets the values a construction states through its arguments.
+    /// </summary>
+    /// <param name="creation">The construction to read.</param>
+    /// <param name="constructor">The constructor being called.</param>
+    /// <returns>The values, each with the name it fills in.</returns>
+    static IEnumerable<(string Name, ExpressionSyntax Expression)> StatedArguments(
+        BaseObjectCreationExpressionSyntax creation,
+        IMethodSymbol? constructor)
+    {
         var arguments = creation.ArgumentList?.Arguments ?? [];
         for (var index = 0; index < arguments.Count; index++)
         {
@@ -87,13 +100,19 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
                 yield return (name, arguments[index].Expression);
             }
         }
+    }
 
-        foreach (var assignment in creation.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>() ?? [])
+    /// <summary>
+    /// Gets the values a construction states through its initializer.
+    /// </summary>
+    /// <param name="creation">The construction to read.</param>
+    /// <returns>The values, each with the name it fills in.</returns>
+    static IEnumerable<(string Name, ExpressionSyntax Expression)> StatedInitializers(BaseObjectCreationExpressionSyntax creation)
+    {
+        var assignments = creation.Initializer?.Expressions.OfType<AssignmentExpressionSyntax>() ?? [];
+        foreach (var assignment in assignments.Where(assignment => assignment.Left is IdentifierNameSyntax))
         {
-            if (assignment.Left is IdentifierNameSyntax identifier)
-            {
-                yield return (identifier.Identifier.ValueText, assignment.Right);
-            }
+            yield return (((IdentifierNameSyntax)assignment.Left).Identifier.ValueText, assignment.Right);
         }
     }
 
@@ -140,42 +159,163 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         (property.Type.NullableAnnotation == NullableAnnotation.Annotated ||
          property.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
 
-    List<PropertyMappingModel> Read(
-        BaseObjectCreationExpressionSyntax creation,
-        SemanticModel semanticModel,
-        ITypeSymbol type,
-        ITypeSymbol sourceType,
-        string specification,
-        string location,
-        SpecificationDraft draft,
-        bool queryValues)
+    static IPropertySymbol? DeclaredProperty(ITypeSymbol type, string property) =>
+        type.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
+
+    static string NullNotAccepted(ITypeSymbol type, string property) =>
+        $"it states '{type.Name}.{property}' as null, which the Screenplay binder does not accept in this fixture";
+
+    static string? ConstantRefusal(ExpressionSyntax expression, string property, IPropertySymbol? localProperty, SpecificationValueContext context)
+    {
+        if (localProperty is null ||
+            context.SemanticModel.GetConstantValue(MappingSourceReader.Unwrap(expression)) is not { HasValue: true } constant)
+        {
+            return null;
+        }
+
+        if (!StatableValues.TryState(localProperty.Type, constant.Value, out _))
+        {
+            return $"it states {StatableValues.WhyNot(context.Type, localProperty, constant.Value)}";
+        }
+
+        return constant.Value is null && !CanStateNull(context.Type, localProperty) ? NullNotAccepted(context.Type, property) : null;
+    }
+
+    static void AddMapping(List<PropertyMappingModel> values, PropertyMappingModel mapping, ExpressionSyntax expression, SpecificationDraft draft)
+    {
+        values.Add(mapping);
+        draft.AddValue(mapping, expression.GetLocation());
+    }
+
+    static bool RefusesNull(LiteralSource? literal, string property, SpecificationValueContext context)
+    {
+        if (literal is not { Value: null } || context.QueryValues)
+        {
+            return false;
+        }
+
+        var localProperty = DeclaredProperty(context.Type, property);
+        if (localProperty is null || CanStateNull(context.Type, localProperty))
+        {
+            return false;
+        }
+
+        context.Draft.CannotRead(NullNotAccepted(context.Type, property));
+        return true;
+    }
+
+    List<PropertyMappingModel> Read(BaseObjectCreationExpressionSyntax creation, SpecificationValueContext context)
     {
         var values = new List<PropertyMappingModel>();
-        var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
+        var constructor = context.SemanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
 
         foreach (var (name, expression) in Stated(creation, constructor))
         {
-            Add(values, PropertyOf(type, name, queryValues), expression, semanticModel, type, sourceType, specification, location, draft, queryValues);
+            Add(values, PropertyOf(context.Type, name, context.QueryValues), expression, context);
         }
 
-        if (!queryValues)
+        if (!context.QueryValues)
         {
-            Complete(type, values, draft);
+            Complete(context.Type, values, context.Draft);
         }
 
         return values;
     }
 
-    bool PreservesConversion(ExpressionSyntax expression, SemanticModel semanticModel, ITypeSymbol type, string property, SpecificationDraft draft)
+    bool PreservesConversion(ExpressionSyntax expression, string property, SpecificationValueContext context)
     {
-        if (ValuePreservingConversions.Preserves(expression, semanticModel, models, trustFrameworkMetadata: true))
+        if (ValuePreservingConversions.Preserves(expression, context.SemanticModel, models, trustFrameworkMetadata: true))
         {
             return true;
         }
 
-        draft.CannotRead($"it cannot prove that a user-defined conversion for '{type.Name}.{property}' forwards its backing value unchanged");
+        context.Draft.CannotRead($"it cannot prove that a user-defined conversion for '{context.Type.Name}.{property}' forwards its backing value unchanged");
         return false;
     }
+
+    /// <summary>
+    /// Adds a value a case table binds, when it binds one.
+    /// </summary>
+    /// <param name="values">The values collected so far.</param>
+    /// <param name="property">The property being filled in.</param>
+    /// <param name="expression">The expression filling it in.</param>
+    /// <param name="context">What the value is read against.</param>
+    /// <returns>True when the case table decided the value, whether or not it could be added.</returns>
+    bool TryAddCaseValue(List<PropertyMappingModel> values, string property, ExpressionSyntax expression, SpecificationValueContext context)
+    {
+        var localProperty = DeclaredProperty(context.Type, property);
+        var draft = context.Draft;
+        if (localProperty is null || draft.CaseValues?.TryRead(
+                expression, context.SemanticModel, localProperty.Type, CanStateNull(context.Type, localProperty), out var bound) != true)
+        {
+            return false;
+        }
+
+        if (bound is null)
+        {
+            draft.CannotRead(draft.CaseValues.Failure!);
+        }
+        else if (PreservesConversion(expression, property, context))
+        {
+            AddMapping(values, new PropertyMappingModel(property, bound), expression, draft);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the literal an expression states, when it states one.
+    /// </summary>
+    /// <param name="expression">The expression filling the property in.</param>
+    /// <param name="property">The property being filled in.</param>
+    /// <param name="context">What the value is read against.</param>
+    /// <returns>The literal, if any, and whether the scenario was refused because of the value.</returns>
+    (LiteralSource? Literal, bool Refused) ReadLiteral(ExpressionSyntax expression, string property, SpecificationValueContext context)
+    {
+        var localProperty = DeclaredProperty(context.Type, property);
+        var sourceProperty = DeclaredProperty(context.SourceType, property);
+        if (context.QueryValues)
+        {
+            var queryLiteral = localProperty is not null && sourceProperty is not null
+                ? _sources.ReadQueryLiteral(expression, context.SemanticModel, localProperty.Type, sourceProperty.Type)
+                : null;
+            return (queryLiteral, false);
+        }
+
+        if (ConstantRefusal(expression, property, localProperty, context) is { } refusal)
+        {
+            context.Draft.CannotRead(refusal);
+            return (null, true);
+        }
+
+        return ReadSourceLiteral(expression, property, localProperty, context);
+    }
+
+    (LiteralSource? Literal, bool Refused) ReadSourceLiteral(ExpressionSyntax expression, string property, IPropertySymbol? localProperty, SpecificationValueContext context)
+    {
+        string? reason = null;
+        var literal = localProperty is not null
+            ? SpecificationCollections.Read(expression, context.SemanticModel, localProperty.Type, _sources, out reason, models)
+            : null;
+        if (reason is not null)
+        {
+            context.Draft.CannotRead($"it states '{context.Type.Name}.{property}' with {reason}");
+            return (null, true);
+        }
+
+        literal ??= _sources.Read(expression, context.SemanticModel, context.Type, context.Location) as LiteralSource;
+        if (literal is null && localProperty is not null)
+        {
+            literal = ReadRenderedCommandLiteral(expression, localProperty, context);
+        }
+
+        return (literal, false);
+    }
+
+    LiteralSource? ReadRenderedCommandLiteral(ExpressionSyntax expression, IPropertySymbol localProperty, SpecificationValueContext context) =>
+        context.Draft.RenderedCommand?.IsCommand(context.Type) == true
+            ? context.Draft.RenderedCommand.ReadLiteral(expression, localProperty.Type, _sources, context.SemanticModel)
+            : null;
 
     /// <summary>
     /// Adds a value, reporting one that is code rather than stating it as something it is not.
@@ -183,13 +323,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="values">The values collected so far.</param>
     /// <param name="property">The property being filled in.</param>
     /// <param name="expression">The expression filling it in.</param>
-    /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
-    /// <param name="type">The type being constructed in the specification compilation.</param>
-    /// <param name="sourceType">The corresponding exact type declared by the application.</param>
-    /// <param name="specification">The name of the specification.</param>
-    /// <param name="location">Where the specification lives.</param>
-    /// <param name="draft">The scenario collecting exact value evidence.</param>
-    /// <param name="queryValues">Whether the additive Stage query literal syntax is admitted.</param>
+    /// <param name="context">What the value is read against.</param>
     /// <remarks>
     /// An identity made on the spot is left out without a word, because there is no value for the document to have
     /// missed - see <see cref="GeneratedIdentities"/>. A value that is code is one the source states and the document
@@ -198,102 +332,31 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// combined into a value no member is declared with), or <see langword="null"/> for a required property - takes the
     /// whole scenario with it, because what it issues or starts from would no longer be what was written.
     /// </remarks>
-    void Add(
-        List<PropertyMappingModel> values,
-        string property,
-        ExpressionSyntax expression,
-        SemanticModel semanticModel,
-        ITypeSymbol type,
-        ITypeSymbol sourceType,
-        string specification,
-        string location,
-        SpecificationDraft draft,
-        bool queryValues)
+    void Add(List<PropertyMappingModel> values, string property, ExpressionSyntax expression, SpecificationValueContext context)
     {
-        var localProperty = type.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
-        var sourceProperty = sourceType.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
-        if (localProperty is not null && draft.CaseValues?.TryRead(
-                expression, semanticModel, localProperty.Type, CanStateNull(type, localProperty), out var bound) == true)
-        {
-            if (bound is null)
-            {
-                draft.CannotRead(draft.CaseValues.Failure!);
-                return;
-            }
-
-            if (!PreservesConversion(expression, semanticModel, type, property, draft))
-            {
-                return;
-            }
-
-            var mapping = new PropertyMappingModel(property, bound);
-            values.Add(mapping);
-            draft.AddValue(mapping, expression.GetLocation());
-            return;
-        }
-
-        if (!PreservesConversion(expression, semanticModel, type, property, draft))
+        if (TryAddCaseValue(values, property, expression, context) || !PreservesConversion(expression, property, context))
         {
             return;
         }
 
-        LiteralSource? literal;
-        if (queryValues)
+        var (literal, refused) = ReadLiteral(expression, property, context);
+        if (refused || RefusesNull(literal, property, context))
         {
-            literal = localProperty is not null && sourceProperty is not null
-                ? _sources.ReadQueryLiteral(expression, semanticModel, localProperty.Type, sourceProperty.Type)
-                : null;
-        }
-        else if (localProperty is not null &&
-                 semanticModel.GetConstantValue(MappingSourceReader.Unwrap(expression)) is { HasValue: true } constant &&
-                 (!StatableValues.TryState(localProperty.Type, constant.Value, out _) ||
-                  (constant.Value is null && !CanStateNull(type, localProperty))))
-        {
-            draft.CannotRead(!StatableValues.TryState(localProperty.Type, constant.Value, out _)
-                ? $"it states {StatableValues.WhyNot(type, localProperty, constant.Value)}"
-                : $"it states '{type.Name}.{property}' as null, which the Screenplay binder does not accept in this fixture");
-            return;
-        }
-        else
-        {
-            string? reason = null;
-            literal = localProperty is not null
-                ? SpecificationCollections.Read(expression, semanticModel, localProperty.Type, _sources, out reason, models)
-                : null;
-            if (reason is not null)
-            {
-                draft.CannotRead($"it states '{type.Name}.{property}' with {reason}");
-                return;
-            }
-
-            literal ??= _sources.Read(expression, semanticModel, type, location) as LiteralSource;
-            if (literal is null && localProperty is not null && draft.RenderedCommand?.IsCommand(type) == true)
-            {
-                literal = draft.RenderedCommand.ReadLiteral(expression, localProperty.Type, _sources, semanticModel);
-            }
-        }
-        if (literal is { Value: null } && localProperty is not null && !queryValues && !CanStateNull(type, localProperty))
-        {
-            draft.CannotRead($"it states '{type.Name}.{property}' as null, which the Screenplay binder does not accept in this fixture");
             return;
         }
 
         if (literal is not null)
         {
-            var value = new PropertyMappingModel(property, literal);
-            values.Add(value);
-            draft.AddValue(value, expression.GetLocation());
+            AddMapping(values, new PropertyMappingModel(property, literal), expression, context.Draft);
             return;
         }
 
-        if (identities.Yields(expression, semanticModel))
+        if (!identities.Yields(expression, context.SemanticModel))
         {
-            return;
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnreadableSpecificationValue,
+                $"The value '{context.Specification}' states for '{context.Type.Name}.{property}' is code rather than a constant, so the scenario states everything but that value",
+                context.Location);
         }
-
-        diagnostics.Information(
-            ScreenplayDiagnosticCodes.UnreadableSpecificationValue,
-            $"The value '{specification}' states for '{type.Name}.{property}' is code rather than a constant, so the scenario states everything but that value",
-            location);
     }
 }

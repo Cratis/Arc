@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Net;
+using System.Security.Claims;
 using System.Threading.Channels;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
@@ -178,11 +179,13 @@ public static class ObservableQueryHttp
         var services = context.Request!.RequestServices;
         try
         {
-            using var identity = BeginRequestEmissionIdentity(context, services);
+            var principal = PrincipalFor(context);
+            using var identity = BeginRequestEmissionIdentity(context, services, principal);
             var processing = new EmissionProcessingContext(
                 context,
                 services.GetRequiredService<IReadModelInterceptors>(),
                 services.GetRequiredService<IObservableQueryEmissionGuards>(),
+                principal,
                 deadline.Token);
             return streamingData is IAsyncEnumerable<T> enumerable
                 ? await CreateEnumerableResponse(processing, enumerable)
@@ -215,14 +218,19 @@ public static class ObservableQueryHttp
         }
     }
 
-    static IDisposable BeginRequestEmissionIdentity(ObservableQueryHttpContext context, IServiceProvider services)
+    static ClaimsPrincipal? PrincipalFor(ObservableQueryHttpContext context) =>
+        context.Request is { } request
+            ? ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(request, context.Query.AuthorizedPrincipal)
+            : context.Query.AuthorizedPrincipal;
+
+    static IDisposable BeginRequestEmissionIdentity(ObservableQueryHttpContext context, IServiceProvider services, ClaimsPrincipal? principal)
     {
         var request = context.Request!;
         var tenant = context.Query.EmissionTenant ?? services.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = context.Query.NativeEmissionRequest ??
             (services.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?.CaptureLiveRequest(services);
 
-        return ObservableEmissionIdentity.Begin(request, services, context.Query.AuthorizedPrincipal ?? request.User, tenant, nativeRequest);
+        return ObservableEmissionIdentity.Begin(request, services, principal!, tenant, nativeRequest);
     }
 
     static async Task<ObservableQueryHttpResponse> CreateObservableResponse<T>(EmissionProcessingContext processing, IObservable<T> streamingData)
@@ -321,7 +329,7 @@ public static class ObservableQueryHttp
             ? processing.Guards.Guard(new ObservableQueryEmissionContext(
                 queryContext.Name,
                 queryContext.Arguments ?? QueryArguments.Empty,
-                queryContext.AuthorizedPrincipal ?? request.User,
+                processing.Principal,
                 queryContext.CorrelationId,
                 request.RequestServices,
                 processing.IsFirstEmission,
@@ -414,6 +422,7 @@ public static class ObservableQueryHttp
         ObservableQueryHttpContext Http,
         IReadModelInterceptors Interceptors,
         IObservableQueryEmissionGuards Guards,
+        ClaimsPrincipal? Principal,
         CancellationToken Token)
     {
         /// <summary>

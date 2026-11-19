@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.EndpointGroups;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries;
@@ -49,12 +50,13 @@ public class IntrospectionService : IIntrospectionService
 
     static List<CommandIntrospectionMetadata> BuildCommands(ICommandHandlerProviders providers, ApiEndpointOptions options, JsonSerializerOptions schemaGenerationOptions)
     {
+        var handlers = providers.Handlers.Where(handler => !handler.CommandType.IsProtocolOnly()).ToArray();
         var handlersByNamespace = EndpointRouteHelper.GroupByNamespace(
-            providers.Handlers,
+            handlers,
             h => h.Location,
             options.SegmentsToSkipForRoute);
 
-        return providers.Handlers.Where(handler => !handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true) && EndpointGroup.For(handler.CommandType) is null).Select(handler =>
+        return handlers.Where(handler => !handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true) && EndpointGroup.For(handler.CommandType) is null).Select(handler =>
         {
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
             var includeCommandName = EndpointRouteHelper.ShouldIncludeNameInRoute(

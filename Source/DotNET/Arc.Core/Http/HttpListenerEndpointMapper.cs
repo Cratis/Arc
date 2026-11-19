@@ -133,7 +133,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     /// Starts the HTTP listener.
     /// </summary>
     /// <param name="serviceProvider">The service provider for request scoping.</param>
-    /// <exception cref="InvalidOperationException">Immediate TLS-hop attestation is required but unavailable.</exception>
+    /// <exception cref="InvalidOperationException">Immediate TLS-hop attestation or duplicate tenant-header preservation is required but unavailable.</exception>
     public void Start(IServiceProvider serviceProvider)
     {
         if (serviceProvider.GetService<Microsoft.Extensions.Options.IOptions<ArcOptions>>()?.Value.ForwardedIdentity.ClientCertificate.Required == true)
@@ -146,6 +146,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
             return;
         }
 
+        TenantHeaderPreservation.ValidateHttpListener(serviceProvider, _logger);
         _services = serviceProvider;
 
         // Resolve discovery before opening the listener, using the actual host rather than the process environment.
@@ -155,46 +156,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
         }
         _pendingDiscoveryMappings.Clear();
 
-        // Initialize middlewares
-        _wellKnownRoutesMiddleware = new WellKnownRoutesMiddleware(
-            serviceProvider,
-            serviceProvider.GetRequiredService<ILogger<WellKnownRoutesMiddleware>>());
-
-        _staticFilesMiddleware = new StaticFilesMiddleware(
-            serviceProvider.GetRequiredService<ILogger<StaticFilesMiddleware>>());
-
-        _fallbackMiddleware = new FallbackMiddleware(
-            serviceProvider.GetRequiredService<ILogger<FallbackMiddleware>>());
-
-        // Register pending routes
-        foreach (var route in _pendingRoutes)
-        {
-            _wellKnownRoutesMiddleware.RegisterRoute(route.Method, route.Pattern, route.Handler, route.Metadata);
-        }
-        _pendingRoutes.Clear();
-
-        // Configure pending static file configurations
-        foreach (var config in _pendingStaticFileConfigurations)
-        {
-            _staticFilesMiddleware.AddConfiguration(config);
-        }
-
-        // Configure fallback if set
-        if (_fallbackFilePath is not null && _pendingStaticFileConfigurations.Count > 0)
-        {
-            var firstConfig = _pendingStaticFileConfigurations[0];
-            _fallbackMiddleware.ConfigureFallback(_fallbackFilePath, firstConfig.FileSystemPath);
-        }
-
-        _pendingStaticFileConfigurations.Clear();
-
-        // Build the pipeline
-        var middlewares = new List<IHttpRequestMiddleware>
-        {
-            _wellKnownRoutesMiddleware,
-            _staticFilesMiddleware,
-            _fallbackMiddleware
-        };
+        var middlewares = CreateMiddlewares(serviceProvider);
 
         _pipeline = new HttpRequestPipeline(
             middlewares,
@@ -202,19 +164,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
 
         _cancellationTokenSource = new CancellationTokenSource();
         _listener.Start();
-
-        // The accept loop outlives Start; it must not capture a tenant selected by the caller.
-        if (ExecutionContext.IsFlowSuppressed())
-        {
-            _listenerTask = Listen(_cancellationTokenSource.Token);
-        }
-        else
-        {
-            using (ExecutionContext.SuppressFlow())
-            {
-                _listenerTask = Listen(_cancellationTokenSource.Token);
-            }
-        }
+        StartListening(_cancellationTokenSource.Token);
 
         _isStarted = true;
 
@@ -284,6 +234,65 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     public void MapFallbackToFile(string filePath)
     {
         _fallbackFilePath = filePath;
+    }
+
+    List<IHttpRequestMiddleware> CreateMiddlewares(IServiceProvider serviceProvider)
+    {
+        // Initialize middlewares
+        _wellKnownRoutesMiddleware = new WellKnownRoutesMiddleware(
+            serviceProvider,
+            serviceProvider.GetRequiredService<ILogger<WellKnownRoutesMiddleware>>());
+
+        _staticFilesMiddleware = new StaticFilesMiddleware(
+            serviceProvider.GetRequiredService<ILogger<StaticFilesMiddleware>>());
+
+        _fallbackMiddleware = new FallbackMiddleware(
+            serviceProvider.GetRequiredService<ILogger<FallbackMiddleware>>());
+
+        // Register pending routes
+        foreach (var route in _pendingRoutes)
+        {
+            _wellKnownRoutesMiddleware.RegisterRoute(route.Method, route.Pattern, route.Handler, route.Metadata);
+        }
+        _pendingRoutes.Clear();
+
+        // Configure pending static file configurations
+        foreach (var config in _pendingStaticFileConfigurations)
+        {
+            _staticFilesMiddleware.AddConfiguration(config);
+        }
+
+        // Configure fallback if set
+        if (_fallbackFilePath is not null && _pendingStaticFileConfigurations.Count > 0)
+        {
+            var firstConfig = _pendingStaticFileConfigurations[0];
+            _fallbackMiddleware.ConfigureFallback(_fallbackFilePath, firstConfig.FileSystemPath);
+        }
+
+        _pendingStaticFileConfigurations.Clear();
+
+        return
+        [
+            _wellKnownRoutesMiddleware,
+            _staticFilesMiddleware,
+            _fallbackMiddleware
+        ];
+    }
+
+    void StartListening(CancellationToken cancellationToken)
+    {
+        // The accept loop outlives Start; it must not capture a tenant selected by the caller.
+        if (ExecutionContext.IsFlowSuppressed())
+        {
+            _listenerTask = Listen(cancellationToken);
+        }
+        else
+        {
+            using (ExecutionContext.SuppressFlow())
+            {
+                _listenerTask = Listen(cancellationToken);
+            }
+        }
     }
 
     void MapRoute(string method, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)

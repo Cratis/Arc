@@ -4,7 +4,7 @@
          by this import) and inert in every normal build: only the ratchet passes CratisAotAnalysis=true. It is limited to target frameworks that support the analyzers - the netstandard
          analyzer and generator projects fail with NETSDK1210 - and reports the analyzer diagnostics as warnings
          so the whole project is analyzed rather than failing at the first one. -->
-    <PropertyGroup Condition="'$(CratisAotAnalysis)' == 'true' AND '$(TargetFramework)' != '' AND $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <PropertyGroup Condition="'$(CratisAotAnalysis)' == 'true' AND '$(TargetFramework)' != '' AND $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net10.0'))">
         <IsAotCompatible>true</IsAotCompatible>
         <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
         <MSBuildTreatWarningsAsErrors>false</MSBuildTreatWarningsAsErrors>

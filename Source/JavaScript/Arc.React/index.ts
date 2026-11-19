@@ -4,6 +4,7 @@
 import * as applicationContext from './applicationContext/index.js';
 import * as commands from './commands/index.js';
 import * as dialogs from './dialogs/index.js';
+import * as availability from './availability/index.js';
 import * as identity from './identity/index.js';
 import * as messaging from './messaging/index.js';
 import * as queries from './queries/index.js';
@@ -19,6 +20,7 @@ export {
     applicationContext,
     commands,
     dialogs,
+    availability,
     identity,
     messaging,
     queries,

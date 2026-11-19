@@ -8,4 +8,7 @@ public class when_handling_a_forged_cookie_in_development : given.a_handler_in_e
     async Task Because() => _result = await Handle("Development");
 
     [Fact] void should_authenticate() => _result.IsAuthenticated.ShouldBeTrue();
+    [Fact] void should_read_the_subject() => _result.Principal!.FindFirst("sub")!.Value.ShouldEqual("forged-3657");
+    [Fact] void should_read_the_user_details() => _result.Principal!.Identity!.Name.ShouldEqual("forged");
+    [Fact] void should_read_the_roles() => _result.Principal!.IsInRole("admin").ShouldBeTrue();
 }

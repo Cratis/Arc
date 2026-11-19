@@ -14,5 +14,8 @@ internal enum PresentedCredentialShape
     PatBearer = 1,
 
     /// <summary>A bearer outside a PAT namespace.</summary>
-    OAuthBearer = 2
+    OAuthBearer = 2,
+
+    /// <summary>A bearer explicitly routed by server-owned workload endpoint metadata.</summary>
+    ServiceAccount = 3
 }

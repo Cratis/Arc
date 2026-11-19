@@ -67,7 +67,7 @@ public static class TenancyOptionsExtensions
         options.Tenancy.ResolverType = TenantResolverType.Development;
         if (tenantId is not null)
         {
-            options.Tenancy.DevelopmentTenantId = tenantId;
+            options.Tenancy.FixedTenantId = tenantId;
         }
         return options;
     }

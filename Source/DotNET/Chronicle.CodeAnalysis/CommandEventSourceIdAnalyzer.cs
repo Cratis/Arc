@@ -181,10 +181,21 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
     static bool ReturnsExplicitEventSource(IMethodSymbol method)
     {
-        var returnType = UnwrapResponse(method.ReturnType);
+        return ProvidesExplicitEventSource(UnwrapResponse(method.ReturnType));
+    }
+
+    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType)
+    {
         if (returnType is null)
         {
             return false;
+        }
+
+        if (returnType is INamedTypeSymbol oneOf && IsOneOf(oneOf))
+        {
+            // Every arm must either carry an explicit event source or be a validation failure, and at least one must carry it.
+            var arms = oneOf.TypeArguments.Select(UnwrapResponse).ToArray();
+            return arms.Any(ProvidesExplicitEventSource) && arms.All(arm => arm is not null && (ProvidesExplicitEventSource(arm) || IsValidationResult(arm)));
         }
 
         if (IsEventForEventSourceId(returnType) || IsSequenceOfEventForEventSourceId(returnType))
@@ -194,6 +205,12 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
         return TupleProvidesExplicitEventSource(returnType);
     }
+
+    static bool IsOneOf(INamedTypeSymbol type) =>
+        type.Name == "OneOf" && type.ContainingNamespace?.ToDisplayString() == "OneOf";
+
+    static bool IsValidationResult(ITypeSymbol type) =>
+        type.Name == "ValidationResult" && type.ContainingNamespace?.ToDisplayString() == "Cratis.Arc.Validation";
 
     static bool TupleProvidesExplicitEventSource(ITypeSymbol returnType)
     {

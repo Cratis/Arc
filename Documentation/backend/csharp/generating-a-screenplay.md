@@ -1125,6 +1125,31 @@ Duplicate literal paths, wildcard or optional paths, computed paths or elements,
 
 `<Link to>`, inline JSX `onClick` navigation outside menu items, row-click navigation, relative destinations such as `navigate('..')`, template literals, variables, and navigation with state or options remain reported, not inferred. Encoded destination segments, query strings, and fragments also remain unmatched. These require gesture or URL readers beyond literal route-to-screen resolution.
 
+## Availability gates and provided values
+
+[Availability](availability.md) and [request-scoped values](context-values.md) are written in the model with `audience`, `availability`, `available` and `provide`. The generator states the part of them that source says exactly, and reports the rest.
+
+| In code | In the document |
+| --- | --- |
+| `[AvailableFor("Plus", "Preview")]` on a command or a read model | `audience Plus`, `audience Preview` at the top, and `available for Plus or Preview` on the command, or on every query of the read model |
+| Several gate attributes on one type | One `available` line for each, so every one of them has to hold |
+| `[AvailableWith("DataQuality")]` | `available with DataQuality` and an `availability DataQuality` declaration without rules (`SP0081`) |
+| `catalog.Declare(new ContextValueDeclaration("vessel", new ReadModelContextValueProvider(query, "VesselByKey", "arguments.vesselId"), ContextScope.Of("Fleet")))` | `provide vessel Vessel optional from query VesselByKey by $context.arguments.vesselId` in the module, feature or slice the scope names, or at the application for `ContextScope.Application` |
+
+An availability is defined at run time in the host's `AvailabilityCatalog`, so the document declares the name and says where the rules are. Complete the `for`, `when` and `with` lines by hand; a regeneration leaves them out again. Until you do, the declared availability has no rules, so read the warning as a gap in the model and not as an open gate to rely on.
+
+A scope names a part of the application and not a Screenplay level, so the generator looks for the name among the modules, then among the features beneath them. A scope that names none of them is reported (`SP0080`) and the value is left out.
+
+The generator reports `SP0080` and states nothing for what it cannot say faithfully:
+
+- an audience or availability name that is not an identifier;
+- a gate registered in code with `Gate` or `GateNamespace`, which is composed with an expression at run time;
+- a value that the host, an expression or code provides, because the language needs a type for it and the code does not state one;
+- a value resolved by a query that is not exactly one keyed snapshot query of the application, or that returns a collection;
+- a value keyed by something other than a command or query input, or declared at a scope the generator cannot read.
+
+The document it generates is checked like every other: it is bound by the Screenplay compiler, so a gate or value the compiler refuses is a defect of the generator and not something to leave to the next reader.
+
 ## What is not expressed
 
 A generated `.play` describes the model recovered from the analyzed source; it is not a lossless copy of the application. Rendering supported constructs back to code does not restore omitted behavior, custom implementations, or source detail. The limits below explain what remains outside the document.

@@ -8,6 +8,7 @@ using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads.when_reading_a_stream;
 
+[PerFactSpecificationLifecycle]
 public class with_policy_refusals : given.a_stream_reader
 {
     [Fact]

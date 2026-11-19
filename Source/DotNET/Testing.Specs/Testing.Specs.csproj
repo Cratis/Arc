@@ -5,7 +5,6 @@
         <RootNamespace>Cratis.Arc.Testing</RootNamespace>
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
-        <TargetFrameworks>net10.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Testing/Testing.csproj" />

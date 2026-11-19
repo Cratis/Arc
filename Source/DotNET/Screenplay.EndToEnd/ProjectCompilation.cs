@@ -96,7 +96,11 @@ public static class ProjectCompilation
         using var workspace = MSBuildWorkspace.Create();
         using var subscription = workspace.RegisterWorkspaceFailedHandler(args => Report(args, reported, failures));
 
-        var project = await workspace.OpenProjectAsync(path);
+        Project project;
+        using (await OpeningLock.Acquire())
+        {
+            project = await workspace.OpenProjectAsync(path);
+        }
 
         return new(await CompilationsOf(project.Solution), project.AssemblyName);
     }
@@ -114,7 +118,13 @@ public static class ProjectCompilation
         using var workspace = MSBuildWorkspace.Create();
         using var subscription = workspace.RegisterWorkspaceFailedHandler(args => Report(args, reported, failures));
 
-        return await CompilationsOf(await workspace.OpenSolutionAsync(path));
+        Solution solution;
+        using (await OpeningLock.Acquire())
+        {
+            solution = await workspace.OpenSolutionAsync(path);
+        }
+
+        return await CompilationsOf(solution);
     }
 
     /// <summary>

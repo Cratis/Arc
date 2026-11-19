@@ -38,6 +38,9 @@ The executable accepts `--framework=none` or `--framework=react`; other values f
 | Property or item | Default / required metadata | Topic |
 | --- | --- | --- |
 | `CratisProxiesOutputPath` | Empty disables generation | [Basic](basic.md) |
+| `CratisProxiesSuppressOutputPathMessage` | Off unless `true`; silences the build message printed when `CratisProxiesOutputPath` is empty | [Basic](basic.md) |
+| `CratisProxiesEndpointGroup` | Empty generates the default group; a name generates that group's model-bound commands and queries instead | [Endpoint groups](../../endpoint-groups.md#discovery-and-proxies) |
+| `CratisProxiesSkip` (alias `DisableProxyGenerator`) | Off unless `true`; skips generation for that build, for example on the command line with `-p:CratisProxiesSkip=true` | [Basic](basic.md) |
 | `CratisProxiesSegmentsToSkip` | Empty resolves to `0` | [Basic](basic.md) |
 | `CratisProxiesUseSourceFileAsOutputFile` | Off unless `true` | [Basic](basic.md) |
 | `CratisProxiesLibraryMode` | `false` | [Library mode](library-mode.md) |

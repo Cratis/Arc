@@ -58,7 +58,7 @@ public static class DbSetExtensions
         var entityType = dbSet.EntityType;
         var keyProperties = entityType.FindPrimaryKey()?.Properties;
 
-        if (keyProperties?.Any() != true)
+        if (keyProperties is not { Count: > 0 })
         {
             throw new EntityDoesNotHavePrimaryKey(typeof(TEntity));
         }

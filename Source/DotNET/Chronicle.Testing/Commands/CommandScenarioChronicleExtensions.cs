@@ -89,15 +89,29 @@ public static class CommandScenarioChronicleExtensions
         /// <para>
         /// No longer needed: a scenario enables the in-process log itself for commands that declare read protection On or
         /// Measure, are protected decisions, or take decision dependencies. It is kept, hidden, so existing tests keep
-        /// compiling; only an Off command without such dependencies still needs it, for example to append concurrently.
+        /// compiling. An Off command without such dependencies, or an untyped <c>CommandScenario&lt;object&gt;</c>, can use
+        /// <see cref="EnableDecisionReads"/> instead.
         /// </para>
         /// </remarks>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
         /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
-        [Obsolete("The scenario selects decision reads from the command's declarations. Remove this call.")]
+        [Obsolete("The scenario selects decision reads from the command's declarations. Remove this call, or call EnableDecisionReads() for an untyped scenario.")]
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public CommandScenario<TCommand> UseDecisionReads()
+        public CommandScenario<TCommand> UseDecisionReads() => scenario.EnableDecisionReads();
+
+        /// <summary>
+        /// Enables the shared decision log explicitly for scenarios whose command declarations cannot be selected at construction.
+        /// </summary>
+        /// <remarks>
+        /// Use this for an untyped <c>CommandScenario&lt;object&gt;</c> before seeding events or read models and before
+        /// the first Execute or Validate call. Typed scenarios select decision reads automatically from their command declarations.
+        /// </remarks>
+        /// <returns>The scenario for further configuration.</returns>
+        /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
+        /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
+        /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        public CommandScenario<TCommand> EnableDecisionReads()
         {
             if (scenario.IsInitialized)
             {

@@ -310,6 +310,19 @@ An Arc pipeline authorization rejection sets `IsAuthorized = false`; mapped HTTP
 
 Exercise the pipeline with [command scenarios](../testing/command-scenario.md) and assert `ShouldNotBeAuthorized()` or `ShouldBeAuthorized()`. Include anonymous callers, authenticated callers without the required role, and callers with an allowed role. For custom rules, include resource access and tenant membership cases.
 
+### Specifying a policy that decides from recorded state
+
+A policy that reads state is an ordinary class with a read-model dependency, so specify it directly: construct it with a substitute for the store and call `IsAuthorized`. Cover the four outcomes that matter, because they are the ones a deployment will hit.
+
+| Specification | Store returns | Expected |
+| --- | --- | --- |
+| The plan includes the feature | the recorded plan | allowed |
+| The plan excludes the feature | the recorded plan | denied |
+| No plan is recorded | nothing | denied |
+| The store is unavailable | throws | denied |
+
+Use a command scenario when you also want the pipeline's own behavior (validation, the unauthorized result shape) in the same specification. Seed the state the policy reads with `scenario.Given.ForEventSource(id).ReadModel(instance)`; the instance is what `IReadModels.GetInstanceById` returns for that key, and a key you did not seed is an absent instance. A seeded instance is a stand-in for what the store holds: it proves the policy's decision, not that your projection has produced that state.
+
 Test HTTP access separately if you rely on ingress or ASP.NET middleware. Direct pipeline specs do not exercise those boundaries.
 
 ## Next steps

@@ -4,12 +4,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
-using System.Reflection;
 using Cratis.Arc.Authorization;
-using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Observability;
-using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
@@ -19,7 +16,6 @@ using Cratis.Traces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -34,7 +30,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="readModelInterceptors">The <see cref="IReadModelInterceptors"/> for intercepting read models.</param>
 /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> for validating paging and sorting.</param>
 /// <param name="activitySource">The <see cref="IActivitySource{T}"/> for tracing.</param>
-public class QueryPipeline(
+public partial class QueryPipeline(
     ICorrelationIdAccessor correlationIdAccessor,
     IQueryContextManager queryContextManager,
     IQueryFilters queryFilters,
@@ -50,20 +46,8 @@ public class QueryPipeline(
     public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
         using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
-        var (knownName, nameResolved) = KnownNameWhenTraced(queryName);
-        using var span = activitySource.Perform(knownName ?? WellKnownTelemetryNames.Other);
-        var observation = BeginObservation(span.Activity, queryName, knownName, nameResolved);
-        try
-        {
-            var result = await PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, span.Activity, cancellationToken);
-            Record(observation, serviceProvider, result, cancellationToken);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            RecordFailure(observation, serviceProvider, ex, cancellationToken);
-            throw;
-        }
+        var request = new QueryRequest(queryName, arguments, paging, sorting, serviceProvider);
+        return await Observe(request, activity => PerformCore(request, null, activity, cancellationToken), cancellationToken);
     }
 
     /// <summary>
@@ -84,20 +68,8 @@ public class QueryPipeline(
 
         // The span starts before authorization is prepared, so a request turned away on the way in is traced and
         // measured like one turned away inside the pipeline.
-        var (knownName, nameResolved) = KnownNameWhenTraced(queryName);
-        using var span = activitySource.Perform(knownName ?? WellKnownTelemetryNames.Other);
-        var observation = BeginObservation(span.Activity, queryName, knownName, nameResolved);
-        try
-        {
-            var result = await PerformHostedGuarded(queryName, arguments, paging, sorting, requestServices, span.Activity, cancellationToken);
-            Record(observation, requestServices, result, cancellationToken);
-            return result;
-        }
-        catch (Exception ex)
-        {
-            RecordFailure(observation, requestServices, ex, cancellationToken);
-            throw;
-        }
+        var request = new QueryRequest(queryName, arguments, paging, sorting, requestServices);
+        return await Observe(request, activity => PerformHostedGuarded(request, activity, cancellationToken), cancellationToken);
     }
 
     /// <summary>
@@ -121,6 +93,26 @@ public class QueryPipeline(
         return IsObservable(result.Data.GetType()) ? WellKnownTelemetryNames.ObservableTransport : WellKnownTelemetryNames.SnapshotTransport;
     }
 
+    static void RecordOnActivity(Activity? activity, QueryResult? result, string transport)
+    {
+        if (activity is not { IsAllDataRequested: true })
+        {
+            return;
+        }
+
+        activity.SetTag(WellKnownTelemetryNames.QueryTransport, transport);
+        if (result is not null)
+        {
+            OperationActivity.AddCorrelationId(activity, result.CorrelationId);
+        }
+
+        if (result?.AuthorizedTenant is { } tenant && tenant != TenantId.NotSet)
+        {
+            activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value)
+                .SetTag(WellKnownTelemetryNames.TenantId, tenant.Value);
+        }
+    }
+
     static QueryObservation BeginObservation(Activity? activity, FullyQualifiedQueryName queryName, string? knownName, bool nameResolved)
     {
         if (knownName is not null && activity is { IsAllDataRequested: true })
@@ -131,11 +123,30 @@ public class QueryPipeline(
         return new(activity, queryName, knownName, nameResolved, Stopwatch.GetTimestamp());
     }
 
-    async Task<QueryResult> PerformHostedGuarded(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, Activity? activity, CancellationToken cancellationToken)
+    async Task<QueryResult> Observe(QueryRequest request, Func<Activity?, Task<QueryResult>> perform, CancellationToken cancellationToken)
     {
+        var (knownName, nameResolved) = KnownNameWhenTraced(request.QueryName);
+        using var span = activitySource.Perform(knownName ?? WellKnownTelemetryNames.Other);
+        var observation = BeginObservation(span.Activity, request.QueryName, knownName, nameResolved);
         try
         {
-            return await PerformHostedCore(queryName, arguments, paging, sorting, requestServices, activity, cancellationToken);
+            var result = await perform(span.Activity);
+            Record(observation, request.ServiceProvider, result, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            RecordFailure(observation, request.ServiceProvider, ex, cancellationToken);
+            throw;
+        }
+    }
+
+    async Task<QueryResult> PerformHostedGuarded(QueryRequest request, Activity? activity, CancellationToken cancellationToken)
+    {
+        var requestServices = request.ServiceProvider;
+        try
+        {
+            return await PerformHostedCore(request, activity, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -193,48 +204,32 @@ public class QueryPipeline(
 
         var outcome = result is null ? OperationOutcomes.ForException(cancellationToken) : OperationOutcomes.For(result, cancellationToken);
         var transport = result is null ? WellKnownTelemetryNames.UnknownTransport : TransportOf(result);
-        if (activity is { IsAllDataRequested: true })
-        {
-            activity.SetTag(WellKnownTelemetryNames.QueryTransport, transport);
-            if (result is not null)
-            {
-                OperationActivity.AddCorrelationId(activity, result.CorrelationId);
-            }
-
-            if (result?.AuthorizedTenant is { } tenant && tenant != TenantId.NotSet)
-            {
-                activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value)
-                    .SetTag(WellKnownTelemetryNames.TenantId, tenant.Value);
-            }
-        }
-
+        RecordOnActivity(activity, result, transport);
         OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.QueryOutcome, outcome, result?.ValidationResults ?? []);
         if (measured)
         {
-            var knownName = observation.NameResolved ? observation.KnownName : KnownNameOf(observation.QueryName);
-            metrics!.RecordQuery(knownName ?? WellKnownTelemetryNames.Other, transport, outcome, Stopwatch.GetElapsedTime(observation.Started));
+            RecordMeasurement(metrics!, observation, transport, outcome);
         }
     }
 
-    async Task<QueryResult> PerformHostedCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, Activity? activity, CancellationToken cancellationToken)
+    void RecordMeasurement(PipelineMetrics metrics, QueryObservation observation, string transport, string outcome)
     {
-        if (!queryPerformerProviders.TryGetPerformersFor(queryName, out var performer))
+        var knownName = observation.NameResolved ? observation.KnownName : KnownNameOf(observation.QueryName);
+        metrics.RecordQuery(knownName ?? WellKnownTelemetryNames.Other, transport, outcome, Stopwatch.GetElapsedTime(observation.Started));
+    }
+
+    async Task<QueryResult> PerformHostedCore(QueryRequest request, Activity? activity, CancellationToken cancellationToken)
+    {
+        var requestServices = request.ServiceProvider;
+        if (!queryPerformerProviders.TryGetPerformersFor(request.QueryName, out var performer))
         {
-            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, activity, cancellationToken);
+            return await PerformCore(request, null, activity, cancellationToken);
         }
 
-        var declarations = requestServices.GetService<AuthorizationDeclarations>() ??
-            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-        var target = QueryAuthorizationTarget.For(performer, declarations);
-        var declaration = target switch
-        {
-            MethodInfo method => declarations.For(method),
-            Type type => declarations.For(type),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
+        var (target, declaration) = ResolveAuthorization(performer, requestServices);
         if (!declaration.RequiresAsynchronousEvaluation)
         {
-            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, activity, cancellationToken);
+            return await PerformCore(request, null, activity, cancellationToken);
         }
 
         var evaluation = requestServices.GetService<AuthorizationEvaluation>() ??
@@ -242,14 +237,14 @@ public class QueryPipeline(
         var prepared = await evaluation.Prepare(target, requestServices, cancellationToken);
         if (!prepared.PrincipalChanged)
         {
-            return await PerformCore(queryName, arguments, paging, sorting, requestServices, prepared, activity, cancellationToken);
+            return await PerformCore(request, prepared, activity, cancellationToken);
         }
 
         var scope = requestServices.GetRequiredService<IServiceScopeFactory>().CreateScope();
         try
         {
             using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
-            var result = await PerformCore(queryName, arguments, paging, sorting, scope.ServiceProvider, prepared, activity, cancellationToken);
+            var result = await PerformCore(request with { ServiceProvider = scope.ServiceProvider }, prepared, activity, cancellationToken);
             result.OwnedScope = scope;
             return result;
         }
@@ -319,205 +314,6 @@ public class QueryPipeline(
         }
     }
 
-    async Task<QueryResult> PerformCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, PreparedAuthorization? prepared, Activity? activity, CancellationToken cancellationToken)
-    {
-        var correlationId = GetCorrelationId();
-
-        // A query performed from a protected command is not part of that command's decision; its own validators run.
-        using var decisionQuery = CommandDecisionPolicy.BeginQuery();
-        var result = QueryResult.Success(correlationId);
-        using var principalLease = new AuthorizationPrincipalLease();
-        using var snapshotLease = new AuthorizationPrincipalLease();
-        OperationSnapshot? snapshot = null;
-        try
-        {
-            if (paging.IsPaged)
-            {
-                var pagingValidation = await ValidatePaging(paging, correlationId);
-                if (!pagingValidation.IsSuccess)
-                {
-                    return pagingValidation;
-                }
-            }
-
-            if (!queryPerformerProviders.TryGetPerformersFor(queryName, out var queryPerformer))
-            {
-                return QueryResult.MissingPerformer(correlationId, queryName);
-            }
-
-            var coercedArguments = CoerceArguments(arguments, queryPerformer);
-            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, ServiceProvider: serviceProvider, CancellationToken: cancellationToken)
-            {
-                PreparedAuthorization = prepared,
-                ReceivedAt = OperationContextScope.Current ?? default,
-                SliceLocation = SliceLocationFor(queryPerformer)
-            };
-
-            // Install the prepared identity before any filter is discovered or constructed. Filter constructors can
-            // resolve scoped, tenant-bound dependencies that must never be cached under the outer request identity.
-            if (prepared?.PrincipalChanged == true && prepared.SelectedPrincipal is { } selectedPrincipal)
-            {
-                principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal, serviceProvider));
-            }
-
-            OperationActivity.AddResolvedTenant(activity, serviceProvider);
-
-            if (queryFilters is IStagedQueryFilters stagedFilters)
-            {
-                queryContextManager.Set(context);
-                result = await stagedFilters.Authorize(context);
-                if (!result.IsSuccess)
-                {
-                    return result;
-                }
-
-                if (prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
-                {
-                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(authorizedPrincipal, serviceProvider));
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
-                var authorizedDependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
-                context = context with { Dependencies = authorizedDependencies };
-                queryContextManager.Set(context);
-                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipalSnapshot);
-                snapshotLease.Attach(snapshot);
-                result.MergeWith(await stagedFilters.AfterAuthorization(context));
-            }
-            else
-            {
-                if (prepared?.Declaration.RequiresAsynchronousEvaluation == true)
-                {
-                    throw new InvalidAuthorizationConfiguration("Advanced query authorization requires Arc's staged authorization filters before dependency construction.");
-                }
-
-                // Preserve the contract of custom IQueryFilters implementations that expect dependencies on entry.
-                AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
-                var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
-                context = context with { Dependencies = dependencies };
-                queryContextManager.Set(context);
-                snapshot = OperationSnapshot.Begin(serviceProvider, () => context.AuthorizedPrincipalSnapshot);
-                snapshotLease.Attach(snapshot);
-                result = await queryFilters.OnPerform(context);
-                if (result.IsSuccess && prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
-                {
-                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(authorizedPrincipal, serviceProvider));
-                }
-            }
-
-            if (snapshot is { MembershipDenied: true })
-            {
-                return QueryResult.Unauthorized(correlationId);
-            }
-
-            if (!result.IsSuccess)
-            {
-                return result;
-            }
-
-            // Capture the filter's effective scope before the performer can mutate its original value.
-            // Every emission reconstructs its own copy from this baseline.
-            if (context.SubscriptionScope is { } subscriptionScope)
-            {
-                var serializerOptions = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.JsonSerializerOptions
-                    ?? new ArcOptions().JsonSerializerOptions;
-                context.SubscriptionScopeSnapshot = new ObservableQuerySubscriptionScopeSnapshot(subscriptionScope, serializerOptions);
-            }
-
-            result.AuthorizedPrincipal = context.AuthorizedPrincipal;
-            result.AuthorizedArguments = context.Arguments;
-            result.AuthorizedQueryContext = context;
-            if (context.AuthorizedPrincipal is not null)
-            {
-                result.AuthorizedTenant = serviceProvider.GetRequiredService<TenantIdAccessor>().Current;
-            }
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Direct Perform calls do not prepare custom evaluator declarations without recognized attribute metadata.
-            // Re-resolve even after a successful no-policy filter: a custom evaluator can change requirements on the
-            // same target before invocation. Caching that absence could bypass a newly required policy. This costs
-            // another declaration lookup on the no-policy path, but does not run a policy a second time.
-            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-            var target = QueryAuthorizationTarget.For(queryPerformer, declarations);
-            var declaration = target switch
-            {
-                MethodInfo method => declarations.For(method),
-                Type type => declarations.For(type),
-                _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-            };
-
-            if ((declaration.RequiresAsynchronousEvaluation && context.AuthorizedExecution is null) ||
-                (context.AuthorizedExecution is { } verdict &&
-                 !verdict.IsCurrent(
-                     target,
-                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
-                     declaration)))
-            {
-                return QueryResult.Unauthorized(correlationId);
-            }
-
-            // The single choke point: a denied snapshot never reaches the performer.
-            if (snapshot is { MembershipDenied: true })
-            {
-                return QueryResult.Unauthorized(correlationId);
-            }
-
-            var data = await queryPerformer.Perform(context);
-            if (data is null)
-            {
-                return result;
-            }
-            data = await QueryRowNarrower.Narrow(queryName, queryPerformer.ReadModelType, data, context, serviceProvider);
-            var rendererResult = queryRenderers.Render(queryName, data, serviceProvider);
-            if (rendererResult is null)
-            {
-                return QueryResult.Error(correlationId, "No renderer result");
-            }
-            result.Data = await ApplyInterceptors(queryPerformer.ReadModelType, rendererResult.Data, serviceProvider);
-            result.Paging = context.Paging == Paging.NotPaged ? PagingInfo.NotPaged : new PagingInfo(
-                        context.Paging.Page,
-                        context.Paging.Size,
-                        rendererResult.TotalItems);
-
-            return result;
-        }
-        catch (MissingArgumentForQuery ex)
-        {
-            OperationActivity.RecordException(activity, ex);
-            result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
-        }
-        catch (Exception ex) when (ex is IValidationFailure)
-        {
-            OperationActivity.RecordException(activity, ex);
-            result.MergeWith(QueryResult.FromException(correlationId, ex));
-        }
-        catch (AuthorizationIdentityChanged ex)
-        {
-            OperationActivity.RecordException(activity, ex);
-            return QueryResult.Unauthorized(correlationId);
-        }
-        catch (Exception ex) when (UnauthorizedCause.IsCauseOf(ex))
-        {
-            OperationActivity.RecordException(activity, ex);
-            result.MergeWith(QueryResult.Unauthorized(correlationId));
-        }
-        catch (InvalidAuthorizationConfiguration ex)
-        {
-            OperationActivity.RecordException(activity, ex);
-            result.MergeWith(QueryResult.Unauthorized(correlationId));
-            result.ExceptionMessages = [.. result.ExceptionMessages, ex.Message];
-        }
-        catch (Exception ex)
-        {
-            OperationActivity.RecordException(activity, ex);
-            result.MergeWith(QueryResult.Error(correlationId, ex));
-        }
-
-        return result;
-    }
-
     CorrelationId GetCorrelationId()
     {
         var correlationId = correlationIdAccessor.Current;
@@ -559,34 +355,23 @@ public class QueryPipeline(
     async Task<QueryResult> ValidatePaging(Paging paging, CorrelationId correlationId)
     {
         var result = QueryResult.Success(correlationId);
-
-        if (discoverableValidators.TryGet(typeof(PageNumber), out var pageNumberValidator))
-        {
-            var validationContext = new ValidationContext<PageNumber>(paging.Page);
-            var validationResult = await pageNumberValidator.ValidateAsync(validationContext);
-            if (!validationResult.IsValid)
-            {
-                foreach (var error in validationResult.Errors)
-                {
-                    result.MergeWith(QueryResult.WithValidationError(correlationId, nameof(Paging.Page), error.ErrorMessage));
-                }
-            }
-        }
-
-        if (discoverableValidators.TryGet(typeof(PageSize), out var pageSizeValidator))
-        {
-            var validationContext = new ValidationContext<PageSize>(paging.Size);
-            var validationResult = await pageSizeValidator.ValidateAsync(validationContext);
-            if (!validationResult.IsValid)
-            {
-                foreach (var error in validationResult.Errors)
-                {
-                    result.MergeWith(QueryResult.WithValidationError(correlationId, nameof(Paging.Size), error.ErrorMessage));
-                }
-            }
-        }
-
+        await ValidatePagingValue(result, correlationId, paging.Page, nameof(Paging.Page));
+        await ValidatePagingValue(result, correlationId, paging.Size, nameof(Paging.Size));
         return result;
+    }
+
+    async Task ValidatePagingValue<T>(QueryResult result, CorrelationId correlationId, T value, string property)
+    {
+        if (!discoverableValidators.TryGet(typeof(T), out var validator))
+        {
+            return;
+        }
+
+        var validationResult = await validator.ValidateAsync(new ValidationContext<T>(value));
+        foreach (var error in validationResult.Errors)
+        {
+            result.MergeWith(QueryResult.WithValidationError(correlationId, property, error.ErrorMessage));
+        }
     }
 
     /// <summary>
@@ -598,4 +383,14 @@ public class QueryPipeline(
     /// <param name="NameResolved">Whether <paramref name="KnownName"/> was looked up.</param>
     /// <param name="Started">When the query started, as a <see cref="Stopwatch"/> timestamp.</param>
     readonly record struct QueryObservation(Activity? Activity, FullyQualifiedQueryName QueryName, string? KnownName, bool NameResolved, long Started);
+
+    /// <summary>
+    /// Holds what identifies one query call: the name, the arguments, the paging, the sorting and the provider to perform it with.
+    /// </summary>
+    /// <param name="QueryName">The name of the query.</param>
+    /// <param name="Arguments">The raw arguments.</param>
+    /// <param name="Paging">The paging.</param>
+    /// <param name="Sorting">The sorting.</param>
+    /// <param name="ServiceProvider">The provider the query is performed with.</param>
+    readonly record struct QueryRequest(FullyQualifiedQueryName QueryName, QueryArguments Arguments, Paging Paging, Sorting Sorting, IServiceProvider ServiceProvider);
 }

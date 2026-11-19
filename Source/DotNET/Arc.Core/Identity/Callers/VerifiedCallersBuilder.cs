@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Identity.ForwardedIdentityV2;
+using Cratis.Arc.Identity.Workload;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,6 +21,12 @@ public sealed class VerifiedCallersBuilder
     ServiceDescriptor? _directory;
     SignedForwardedIdentityV2Builder? _forwarding;
     bool _allowPersonalAccessTokenCallers;
+    WorkloadCallersBuilder? _workloads;
+
+    bool ValidTarget => VerifiedCallerInstallation.IsValid(_resource, _audience, _environment);
+    bool ValidBrowserInstallation => ValidTarget && _directory is not null && _forwarding is not null;
+    bool ValidPatInstallation => ValidTarget && _directory is not null && _forwarding is null;
+    bool HasWorkloadConflict => _forwarding is not null || _allowPersonalAccessTokenCallers;
 
     /// <summary>
     /// Binds the exact resource, audience and environment without normalization.
@@ -72,16 +79,32 @@ public sealed class VerifiedCallersBuilder
         return this;
     }
 
+    /// <summary>Installs tenantless Kubernetes service-account callers on the capability lane.</summary>
+    /// <param name="configure">The explicit Kubernetes trust and allowlist configuration.</param>
+    /// <returns>This builder.</returns>
+    public VerifiedCallersBuilder UseWorkloadCallers(Action<WorkloadCallersBuilder> configure)
+    {
+        var workloads = new WorkloadCallersBuilder();
+        configure(workloads);
+        _workloads = workloads;
+        return this;
+    }
+
     /// <summary>Validates and atomically registers the installation configuration.</summary>
     /// <param name="services">The receiving service collection.</param>
     /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete or already installed.</exception>
     internal void Install(IServiceCollection services)
     {
-        if (!VerifiedCallerInstallation.IsValid(_resource, _audience, _environment) || _directory is null || _forwarding is null)
+        if (_workloads is not null)
+        {
+            InstallWorkloads(services);
+            return;
+        }
+        if (!ValidBrowserInstallation)
         {
             throw new InvalidVerifiedCallerInstallation("Verified callers require a resource, audience, environment, person directory and signed forwarding configuration.");
         }
-        var settings = _forwarding.Settings(_resource!, _audience!);
+        var settings = _forwarding!.Settings(_resource!, _audience!);
         RegisterInstallation(services);
         _forwarding.InstallNonceStore(services);
         services.AddForwardedIdentityV2(settings);
@@ -95,13 +118,14 @@ public sealed class VerifiedCallersBuilder
     /// <exception cref="InvalidVerifiedCallerInstallation">The configuration is incomplete, duplicated or contains forwarding without the composition opt-in.</exception>
     internal CallerCredentialTarget InstallPersonalAccessTokens(IServiceCollection services, IEnumerable<string> legacyPrefixes)
     {
+        if (_workloads is not null) throw new InvalidVerifiedCallerInstallation("Workload callers cannot be installed through the PAT installation.");
         if (_allowPersonalAccessTokenCallers)
         {
             Install(services);
         }
         else
         {
-            if (!VerifiedCallerInstallation.IsValid(_resource, _audience, _environment) || _directory is null || _forwarding is not null)
+            if (!ValidPatInstallation)
             {
                 throw new InvalidVerifiedCallerInstallation("PAT callers require a resource, audience, environment and person directory, without signed forwarding configuration.");
             }
@@ -110,6 +134,17 @@ public sealed class VerifiedCallersBuilder
         }
         services.AddSingleton(new ReservedCredentialPrefixes(legacyPrefixes));
         return new(_resource!, _audience!, _environment!);
+    }
+
+    void InstallWorkloads(IServiceCollection services)
+    {
+        if (!ValidTarget || HasWorkloadConflict)
+        {
+            throw new InvalidVerifiedCallerInstallation("Workload callers require an exact resource, audience and environment without browser or PAT composition.");
+        }
+        _workloads!.Validate();
+        RegisterInstallation(services);
+        _workloads.Install(services, new(_resource!, _audience!, _environment!));
     }
 
     void RegisterInstallation(IServiceCollection services)
@@ -123,7 +158,7 @@ public sealed class VerifiedCallersBuilder
         services.RemoveAll<CallerResourceCatalog>();
         services.AddSingleton(new VerifiedCallerInstallation(_resource, _environment));
         services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string>(StringComparer.Ordinal) { [_resource!] = _audience! }));
-        services.Add(_directory!);
+        if (_directory is not null) services.Add(_directory);
         services.AddVerifiedCallers();
     }
 

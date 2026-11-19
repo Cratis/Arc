@@ -272,13 +272,20 @@ class SpecificationRunner:
     root: Path
     results: Path
     configuration: str
+    framework: str = "net11.0"
 
     def assembly_path(self, project: str) -> Path:
         project_file = self.root / project / f"{Path(project).name}.csproj"
         assemblies = ET.parse(project_file).getroot().findall("./PropertyGroup/AssemblyName")
         if len(assemblies) != 1 or not assemblies[0].text:
             raise ValueError(f"expected one AssemblyName in {project_file}")
-        return (project_file.parent / "bin" / self.configuration / "net10.0" / assemblies[0].text).resolve()
+        # A project that declares its own frameworks (OpenApi.Specs is net10.0 only) runs on those, not on the leg's framework.
+        # The Samples (VerifiedCallerAcceptance.Specs) are net11.0 only by policy and declare a single TargetFramework.
+        root_element = ET.parse(project_file).getroot()
+        declared = [framework.text.split(";") for tag in ("TargetFrameworks", "TargetFramework") for framework in root_element.findall(f"./PropertyGroup/{tag}") if framework.text]
+        frameworks = declared[0] if declared else [self.framework]
+        framework = self.framework if self.framework in frameworks else frameworks[0]
+        return (project_file.parent / "bin" / self.configuration / framework / assemblies[0].text).resolve()
 
     def command(self, project: str, namespaces: list[str] | None) -> list[str]:
         assembly = self.assembly_path(project)
@@ -473,10 +480,15 @@ def self_test_ordinary_runner(root: Path, valid: dict, expect, quietly) -> None:
     write(root / SPEC_ROOT / "One.Specs" / "One.Specs.csproj", "<Project><PropertyGroup><AssemblyName>Cratis.One.Specs</AssemblyName></PropertyGroup></Project>")
     runner_results = root / "runner-results"
     runner = SpecificationRunner(root, runner_results, "Release")
+    declared_single = root / SPEC_ROOT / "Single.Specs"
+    declared_single.mkdir(parents=True, exist_ok=True)
+    (declared_single / "Single.Specs.csproj").write_text("<Project><PropertyGroup><AssemblyName>Cratis.Single.Specs</AssemblyName><TargetFramework>net11.0</TargetFramework><TargetFrameworks></TargetFrameworks></PropertyGroup></Project>")
+    expect("a declared TargetFramework wins over the leg framework", SpecificationRunner(root, runner_results, "Release", "net10.0").assembly_path("Source/DotNET/Single.Specs").parent.name, "net11.0")
+    expect("runner framework is selectable", SpecificationRunner(root, runner_results, "Release", "net10.0").assembly_path("Source/DotNET/One.Specs").parent.name, "net10.0")
 
     def run_fake_child(code: int, content: str | None) -> tuple[int, str]:
         def fake_child(command, *, cwd, check):
-            expect("runner command", command[:4], [str((root / SPEC_ROOT / "One.Specs/bin/Release/net10.0" / ("Cratis.One.Specs.exe" if os.name == "nt" else "Cratis.One.Specs")).resolve()), "-noLogo", "-noColor", "-result-trx"])
+            expect("runner command", command[:4], [str((root / SPEC_ROOT / "One.Specs/bin/Release/net11.0" / ("Cratis.One.Specs.exe" if os.name == "nt" else "Cratis.One.Specs")).resolve()), "-noLogo", "-noColor", "-result-trx"])
             expect("runner working directory", cwd, root)
             expect("runner retains child exit", check, False)
             if content is not None:
@@ -515,7 +527,7 @@ def self_test_proxy_runner(root: Path, valid: dict, expect, quietly) -> None:
 
     proxy = root / PROXY_SPECS
     write(proxy / PROXY_SPECS_PROJECT_FILE, "<Project><PropertyGroup><AssemblyName>Cratis.Arc.ProxyGenerator.Specs</AssemblyName></PropertyGroup></Project>")
-    assembly = (proxy / "bin/Release/net10.0/Cratis.Arc.ProxyGenerator.Specs.dll").resolve()
+    assembly = (proxy / "bin/Release/net11.0/Cratis.Arc.ProxyGenerator.Specs.dll").resolve()
     proxy_document = json.loads(json.dumps(valid))
     proxy_document["proxyShards"][0]["namespaces"].append("Cratis.P.Scoped.for_B")
     proxy_results = (root / "proxy-results").resolve()
@@ -670,6 +682,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--shard")
     parser.add_argument("--results", type=Path)
     parser.add_argument("--configuration", choices=["Debug", "Release"], default="Release")
+    parser.add_argument("--framework", default="net11.0", help="target framework folder the specs were built for (net11.0 or net10.0)")
     parser.add_argument("--root", type=Path, default=Path("."))
     arguments = parser.parse_args(argv)
     if arguments.self_test:
@@ -700,7 +713,7 @@ def main(argv: list[str]) -> int:
         if not arguments.results:
             raise CannotRun(f"'{arguments.command}' needs --results")
         handlers = {
-            "run": lambda: SpecificationRunner(arguments.root.resolve(), arguments.results, arguments.configuration).run(document, arguments.shard),
+            "run": lambda: SpecificationRunner(arguments.root.resolve(), arguments.results, arguments.configuration, arguments.framework).run(document, arguments.shard),
             "verify-trx": lambda: verify_trx(document, arguments.shard, arguments.results),
         }
         return handlers[arguments.command]()

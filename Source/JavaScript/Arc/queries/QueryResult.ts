@@ -20,6 +20,8 @@ type ServerQueryResult = {
     validationResults: ServerValidationResult[];
     exceptionMessages: string[];
     exceptionStackTrace: string;
+    authorizationFailureReason?: string;
+    isRetryable?: boolean;
     paging: ServerPagingInfo;
     changeSet?: ServerChangeSet;
 };
@@ -200,6 +202,8 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         // the transient not-ready state and are therefore complete from the client's perspective.
         this.isReady = result.isReady ?? true;
         this.isAuthorized = result.isAuthorized;
+        this.authorizationFailureReason = result.authorizationFailureReason ?? '';
+        this.isRetryable = result.isRetryable ?? false;
         this.isValid = result.isValid;
         this.hasExceptions = result.hasExceptions;
         this.validationResults = result.validationResults.map(
@@ -260,6 +264,12 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
 
     /** @inheritdoc */
     readonly isAuthorized: boolean;
+
+    /** @inheritdoc */
+    readonly authorizationFailureReason?: string;
+
+    /** @inheritdoc */
+    readonly isRetryable?: boolean;
 
     /** @inheritdoc */
     readonly isValid: boolean;

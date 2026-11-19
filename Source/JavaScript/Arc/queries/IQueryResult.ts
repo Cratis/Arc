@@ -40,6 +40,18 @@ export interface IQueryResult<TDataType> {
     readonly isAuthorized: boolean;
 
     /**
+     * Gets the reason for authorization failure, if any. {@link NotAvailable} means the part of the application
+     * is not available to the caller, which is not the same as being forbidden.
+     */
+    readonly authorizationFailureReason?: string;
+
+    /**
+     * Gets whether the failure is temporary and the same query can succeed when retried. It is never a denial.
+     * Servers that do not report it are read as false.
+     */
+    readonly isRetryable?: boolean;
+
+    /**
      * Gets whether or not the query is valid.
      */
     readonly isValid: boolean;

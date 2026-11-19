@@ -2,10 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-#if NET9_0_OR_GREATER
 using System.Reflection;
 using System.Runtime.CompilerServices;
-#endif
 using Cratis.Concepts;
 using MongoDB.Bson.Serialization;
 
@@ -31,12 +29,10 @@ public class ConceptSerializationProvider : IBsonSerializationProvider
     {
         if (type.IsConcept())
         {
-#if NET9_0_OR_GREATER
             if (!RuntimeFeature.IsDynamicCodeSupported)
             {
                 return GetSerializerWithoutDynamicCode(type);
             }
-#endif
 
             return GetSerializerThroughReflection(type);
         }
@@ -44,7 +40,6 @@ public class ConceptSerializationProvider : IBsonSerializationProvider
         return null!;
     }
 
-#if NET9_0_OR_GREATER
     /// <summary>
     /// Gets the serializer of a concept without closing a generic method through reflection over dynamic code.
     /// </summary>
@@ -63,7 +58,6 @@ public class ConceptSerializationProvider : IBsonSerializationProvider
     /// <returns>The <see cref="ConceptSerializer{T}"/> for the concept.</returns>
     static ConceptSerializer<T> CreateReferenceConceptSerializer<T>()
         where T : class => new();
-#endif
 
     [RequiresDynamicCode("Closes the concept serializer over a concept type only known at runtime.")]
     IBsonSerializer GetSerializerThroughReflection(Type type)

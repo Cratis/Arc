@@ -37,8 +37,15 @@ public class and_a_decision_read_is_issued_for_a_framework_registered_token : gi
             CommandDecisionReads.Begin(typeof(Transfer));
             try
             {
-                _pending = _resolver.Resolve(_services, _parameter);
-                _completedBeforeRelease = _pending.IsCompleted;
+                try
+                {
+                    _pending = _resolver.Resolve(_services, _parameter);
+                    _completedBeforeRelease = _pending.IsCompleted;
+                }
+                finally
+                {
+                    PendingStateObserved();
+                }
                 return (await _pending).Dependency;
             }
             finally
@@ -48,7 +55,7 @@ public class and_a_decision_read_is_issued_for_a_framework_registered_token : gi
         });
         _failure = await Catch.Exception(async () =>
         {
-            await ReleaseAfterEntry();
+            await ReleaseAfterPendingStateObserved();
             _token = await run.WaitAsync(_bound, TestContext.Current.CancellationToken);
         });
     }

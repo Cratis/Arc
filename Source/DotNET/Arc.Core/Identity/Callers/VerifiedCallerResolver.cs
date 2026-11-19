@@ -116,13 +116,18 @@ internal sealed class VerifiedCallerResolver(
         {
             return new(null, verification.Refusal ?? CallerRefusal.SourceRefused);
         }
-        var result = builder.Build(verification.Facts, installation, CurrentTenant());
+        var tenant = verification.Facts.CredentialKind == CallerCredentialKind.Workload ? TenantId.NotSet : CurrentTenant();
+        var result = builder.Build(verification.Facts, installation, tenant);
         return new(result.Caller, result.Refusal);
     }
 
     /// <summary>Reads the tenant without a membership check, which runs once the verified principal exists.</summary>
     /// <returns>The tenant candidate.</returns>
-    TenantId CurrentTenant() => tenants is TenantIdAccessor accessor ? accessor.Candidate : tenants.Current;
+    TenantId CurrentTenant()
+    {
+        if (requests.Current is { } request && ExpectedCredentialShape.Read(request)?.Shape == PresentedCredentialShape.ServiceAccount) return TenantId.NotSet;
+        return tenants is TenantIdAccessor accessor ? accessor.Candidate : tenants.Current;
+    }
 
     sealed class Entry(CallerResolutionInputs inputs, VerifiedCallerInstallation installation)
     {

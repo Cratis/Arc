@@ -6,6 +6,7 @@ using Cratis.Chronicle.ReadModels;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+[PerFactSpecificationLifecycle]
 public class when_refusing_read_shapes : given.protected_plain_models
 {
     [Theory]

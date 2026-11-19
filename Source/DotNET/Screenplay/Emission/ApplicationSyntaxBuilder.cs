@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Availability;
 using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Emission.Constraints;
@@ -35,6 +36,7 @@ namespace Cratis.Arc.Screenplay.Emission;
 public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
 {
     readonly AuthorizeSyntaxBuilder _authorize = new();
+    readonly AvailabilitySyntaxBuilder _availability = new(diagnostics);
     readonly ValidationSyntaxBuilder _validations = new(naming, diagnostics);
     readonly TypeReferenceConverter _types = new(naming);
     readonly NameAvailability _names = new(naming, diagnostics);
@@ -56,52 +58,20 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
-        model = new UnnameableProperties(diagnostics).Apply(model);
-        model = Analysis.DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
-        model = Analysis.UuidComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
-        model = Analysis.ProtectedReads.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
-        var generatedConcepts = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
-            (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
-            .ToHashSet(StringComparer.Ordinal);
-        model = model with
-        {
-            Concepts = model.Concepts.Select(concept => concept with { HasGeneratedUses = concept.HasGeneratedUses || generatedConcepts.Contains(concept.Name) }).ToList()
-        };
-        model = ProductionRouteAdmission.Apply(model, diagnostics, options.MaximumExecutableModelVersion);
-        var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
-        if (options.AuthoringOnlyConstructs)
-        {
-            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion, authoringOnlyConstructs: true));
-        }
-        else
-        {
-            if (eventRoutes)
-            {
-                model = AuthoringDeclarations.Resolve(model, diagnostics, authoringOnlyConstructs: false);
-            }
-
-            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion));
-        }
-
-        if (options.AuthoringOnlyConstructs)
-        {
-            model = AuthoringDeclarations.Resolve(model, diagnostics, options.AuthoringOnlyConstructs);
-        }
-
-        model = new ExecutableValidationRules(diagnostics).Apply(model, generatedConcepts, options.MaximumExecutableModelVersion);
+        var admitted = Admit(model, options);
+        model = admitted.Model;
 
         var domain = ToName(model.Domain, options.Domain);
         var conceptDiagnostics = new ScreenplayDiagnostics();
         var concepts = new ConceptSyntaxBuilder(naming, _validations, conceptDiagnostics, _names) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, MaximumExecutableModelVersion = options.MaximumExecutableModelVersion }.Build(model.Concepts).ToList();
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
         var declaredReadModels = new ReadModelDeclarations(naming, _types, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], diagnostics).Of(model.Slices);
-        var originalSlices = model.Slices;
+        var originalModel = model;
         model = EmittedModel = ExecutableGenerationFixtures.Apply(ReadModelReferences.Apply(model, declaredReadModels, diagnostics), concepts);
-        var omittedReferenceSlices = originalSlices.Zip(model.Slices)
-            .Where(pair => pair.First.Queries.Count() != pair.Second.Queries.Count() || pair.First.Projections.Count() != pair.Second.Projections.Count() || pair.First.Specifications.Count() != pair.Second.Specifications.Count())
-            .Select(pair => (pair.Second.Namespace, pair.Second.Name)).ToHashSet();
         var routedOccurrences = new List<SpecificationStateModel>();
-        var modules = BuildModules(model, options, domain, declaredReadModels, omittedReferenceSlices, routedOccurrences).ToList();
+        var modules = BuildModules(new(model, options, domain, declaredReadModels, OmittedReferenceSlices(originalModel, model), routedOccurrences)).ToList();
+        var provided = new ContextValueSyntaxBuilder(naming, _types, diagnostics).Place(model with { ContextValues = originalModel.ContextValues }, modules);
+        modules = [.. provided.Modules];
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         var application = new ApplicationSyntax(
@@ -114,21 +84,97 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             Types: [.. declaredTypes])
         {
             CommandReadMode = Analysis.ProtectedReads.Mode(model),
-            ReactionProductionMode = (options.MaximumExecutableModelVersion is not { } batchCap || batchCap.IsAtLeast(SemanticVersion.V22)) && AtomicReactionBatches.Required(modules)
-                ? ReactionProductionMode.Atomic : null,
-            Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
-                .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-                .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
-            EventSources = eventRoutes ? new EventSourceSyntaxBuilder(naming).Build(model, routedOccurrences, options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10)) : []
+            ReactionProductionMode = AtLeast(options, SemanticVersion.V22) && AtomicReactionBatches.Required(modules) ? ReactionProductionMode.Atomic : null,
+            Provides = provided.Application,
+            Audiences = [.. _availability.Audiences()],
+            Availabilities = [.. _availability.Availabilities()],
+            Systems = options.AuthoringOnlyConstructs ? SystemsOf(model, _types, naming) : [],
+            EventSources = admitted.EventRoutes ? new EventSourceSyntaxBuilder(naming).Build(model, routedOccurrences, AtLeast(options, SemanticVersion.V10)) : []
         };
         application = new EmittedIdentityCompliance(application).Apply(diagnostics);
+        ReportRetainedConceptDiagnostics(application, conceptDiagnostics);
+
+        return application;
+    }
+
+    static bool AtLeast(ScreenplayOptions options, SemanticVersion version) =>
+        options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(version);
+
+    static HashSet<string> GeneratedConceptsOf(ApplicationModel model) =>
+        model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
+            (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
+            .ToHashSet(StringComparer.Ordinal);
+
+    static HashSet<(string Namespace, string Name)> OmittedReferenceSlices(ApplicationModel original, ApplicationModel emitted) =>
+        original.Slices.Zip(emitted.Slices)
+            .Where(pair => pair.First.Queries.Count() != pair.Second.Queries.Count() || pair.First.Projections.Count() != pair.Second.Projections.Count() || pair.First.Specifications.Count() != pair.Second.Specifications.Count())
+            .Select(pair => (pair.Second.Namespace, pair.Second.Name)).ToHashSet();
+
+    static List<SystemSyntax> SystemsOf(ApplicationModel model, TypeReferenceConverter types, IScreenplayNaming naming)
+    {
+        var operations = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? []).ToList();
+        var invocations = operations.SelectMany(operation => operation.ExecuteInvocations.Concat(operation.CompensateInvocations)).ToList();
+        return operations.Select(operation => operation.System).Concat(invocations.Select(invocation => invocation.System))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
+            .Select(system => new SystemSyntax(system, null, SourceLocation.Start)
+            {
+                Abilities = invocations.Where(invocation => invocation.System == system).GroupBy(invocation => invocation.Ability, StringComparer.Ordinal)
+                    .OrderBy(group => group.Key, StringComparer.Ordinal)
+                    .Select(group => new AbilitySyntax(
+                        group.Key,
+                        null,
+                        group.First().Parameters.Select(input => new PropertySyntax(naming.ToPropertyName(input.Name), types.Convert(input.Type), SourceLocation.Start)).ToList(),
+                        [],
+                        [],
+                        SourceLocation.Start)).ToList()
+            }).ToList();
+    }
+
+    static ApplicationModel WithGeneratedUses(ApplicationModel model, HashSet<string> generatedConcepts) => model with
+    {
+        Concepts = model.Concepts.Select(concept => concept with { HasGeneratedUses = concept.HasGeneratedUses || generatedConcepts.Contains(concept.Name) }).ToList()
+    };
+
+    AdmittedModel Admit(ApplicationModel model, ScreenplayOptions options)
+    {
+        model = new UnnameableProperties(diagnostics).Apply(model);
+        model = Analysis.DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
+        model = Analysis.UuidComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
+        model = Analysis.ProtectedReads.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
+        var generatedConcepts = GeneratedConceptsOf(model);
+        model = WithGeneratedUses(model, generatedConcepts);
+        model = ProductionRouteAdmission.Apply(model, diagnostics, options.MaximumExecutableModelVersion);
+        var eventRoutes = options.AuthoringOnlyConstructs || AtLeast(options, SemanticVersion.V8);
+        model = ResolveAuthoring(model, options, eventRoutes);
+        model = new ExecutableValidationRules(diagnostics).Apply(model, generatedConcepts, options.MaximumExecutableModelVersion);
+
+        return new(model, eventRoutes);
+    }
+
+    ApplicationModel ResolveAuthoring(ApplicationModel model, ScreenplayOptions options, bool eventRoutes)
+    {
+        if (options.AuthoringOnlyConstructs)
+        {
+            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion, authoringOnlyConstructs: true));
+
+            return AuthoringDeclarations.Resolve(model, diagnostics, options.AuthoringOnlyConstructs);
+        }
+
+        if (eventRoutes)
+        {
+            model = AuthoringDeclarations.Resolve(model, diagnostics, authoringOnlyConstructs: false);
+        }
+
+        return AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion));
+    }
+
+    void ReportRetainedConceptDiagnostics(ApplicationSyntax application, ScreenplayDiagnostics conceptDiagnostics)
+    {
         var retainedPii = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Pii)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
         var retainedSecrets = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Sensitive)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
         diagnostics.AddRange(conceptDiagnostics.All.Where(diagnostic =>
             (diagnostic.Code != ScreenplayDiagnosticCodes.ConceptPiiPromotion || retainedPii.Contains(naming.ToDeclarationName(diagnostic.Location!))) &&
             (diagnostic.Code != ScreenplayDiagnosticCodes.EncryptionScopeNotRepresentable || retainedSecrets.Contains(naming.ToDeclarationName(diagnostic.Location!)))));
-
-        return application;
     }
 
     /// <summary>
@@ -160,20 +206,16 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <summary>
     /// Builds the modules holding every slice that declares something.
     /// </summary>
-    /// <param name="model">The model to build from.</param>
-    /// <param name="options">The options to build with, already resolved.</param>
-    /// <param name="domain">The name of the domain, which a slice with no namespace left is gathered under.</param>
-    /// <param name="declaredReadModels">The read models the document declares.</param>
-    /// <param name="omittedReferenceSlices">The slices whose read-model dependents were withheld.</param>
-    /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
+    /// <param name="context">The model, options and shared decisions to build from.</param>
     /// <returns>The modules.</returns>
-    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlySet<ReadModelModel> declaredReadModels, HashSet<(string Namespace, string Name)> omittedReferenceSlices, ICollection<SpecificationStateModel> routedOccurrences)
+    IEnumerable<ModuleSyntax> BuildModules(ModuleContext context)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options, declaredReadModels, routedOccurrences);
+        var model = context.Model;
+        var options = context.Options;
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), context);
         sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? [])
             .Where(read => options.AuthoringOnlyConstructs || read.Protected).ToList();
         var placed = new List<PlacedSlice>();
-        var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
         foreach (var slice in model.Slices
             .OrderBy(_ => _.Namespace, StringComparer.Ordinal)
@@ -182,20 +224,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             var built = sliceBuilder.Build(slice);
             if (SliceContent.IsEmpty(built))
             {
-                if (slice.OmittedReadModels.Any() || !slice.ReadModels.All(declaredReadModels.Contains) || omittedReferenceSlices.Contains((slice.Namespace, slice.Name)))
-                {
-                    diagnostics.Information(
-                        ScreenplayDiagnosticCodes.EmptySlice,
-                        $"The slice '{slice.Name}' became empty because its read-model dependents were withheld and was left out",
-                        slice.Namespace);
-                }
-                else
-                {
-                    diagnostics.Warning(
-                        ScreenplayDiagnosticCodes.EmptySlice,
-                        $"The slice '{slice.Name}' declares nothing that can be expressed and was left out",
-                        slice.Namespace);
-                }
+                ReportEmptySlice(slice, context);
                 continue;
             }
 
@@ -203,51 +232,84 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         }
 
         var builder = new SliceTreeBuilder(naming) { Diagnostics = diagnostics };
+        var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
         return options.ModulesFromNamespaceRoots
-            ? builder.BuildPerNamespaceRoot(placed, domain, segmentsToSkip)
+            ? builder.BuildPerNamespaceRoot(placed, context.Domain, segmentsToSkip)
             : builder.Build(placed, ToName(model.Module, options.Module), segmentsToSkip);
+    }
+
+    void ReportEmptySlice(SliceModel slice, ModuleContext context)
+    {
+        if (slice.OmittedReadModels.Count > 0 || !slice.ReadModels.All(context.DeclaredReadModels.Contains) || context.OmittedReferenceSlices.Contains((slice.Namespace, slice.Name)))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.EmptySlice,
+                $"The slice '{slice.Name}' became empty because its read-model dependents were withheld and was left out",
+                slice.Namespace);
+        }
+        else
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.EmptySlice,
+                $"The slice '{slice.Name}' declares nothing that can be expressed and was left out",
+                slice.Namespace);
+        }
     }
 
     /// <summary>
     /// Composes the builder that turns one slice into its declaration.
     /// </summary>
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
-    /// <param name="model">The full application used to type specification destinations.</param>
-    /// <param name="options">The construct admission options.</param>
-    /// <param name="declaredReadModels">The read models the document declares.</param>
-    /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
+    /// <param name="context">The model, options and shared decisions to build from.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, ScreenplayOptions options, IReadOnlySet<ReadModelModel> declaredReadModels, ICollection<SpecificationStateModel> routedOccurrences) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ModuleContext context) =>
         new(
             naming,
             _types,
-            new CommandSyntaxBuilder(
-                naming,
-                _types,
-                _authorize,
-                _validations,
-                new ProducesSyntaxBuilder(naming, _names)
-                {
-                    InlineEvents = inlineEvents,
-                    Events = new EventSyntaxBuilder(naming, _types, _names),
-                    Diagnostics = diagnostics
-                },
-                new ConcurrencySyntaxBuilder(naming, diagnostics) { ExecutableRoutes = options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8) },
-                _names)
-            {
-                AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
-            },
+            CreateCommandBuilder(inlineEvents, context.Options),
             new EventSyntaxBuilder(naming, _types, _names),
-            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = options.MaximumExecutableModelVersion },
+            new QuerySyntaxBuilder(naming, _types, _authorize) { Availability = _availability, AuthoringOnlyConstructs = context.Options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = context.Options.MaximumExecutableModelVersion },
             new ConstraintSyntaxBuilder(naming),
-            new ReactorSyntaxBuilder(naming, diagnostics) { Application = model, MetadataEnabled = options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10), RefusalsEnabled = options.MaximumExecutableModelVersion is not { } refusalCap || refusalCap.IsAtLeast(SemanticVersion.V19), AtomicBatchesEnabled = options.MaximumExecutableModelVersion is not { } atomicCap || atomicCap.IsAtLeast(SemanticVersion.V22) },
+            new ReactorSyntaxBuilder(naming, diagnostics) { Application = context.Model, MetadataEnabled = AtLeast(context.Options, SemanticVersion.V10), RefusalsEnabled = AtLeast(context.Options, SemanticVersion.V19), AtomicBatchesEnabled = AtLeast(context.Options, SemanticVersion.V22) },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ReactionMetadataEnabled = options.MaximumExecutableModelVersion is not { } reactionCap || reactionCap.IsAtLeast(SemanticVersion.V10), ReactionRefusalsEnabled = options.MaximumExecutableModelVersion is not { } branchCap || branchCap.IsAtLeast(SemanticVersion.V19), ReactionAtomicBatchesEnabled = options.MaximumExecutableModelVersion is not { } atomicReactionCap || atomicReactionCap.IsAtLeast(SemanticVersion.V22), ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
+            CreateSpecificationBuilder(context))
         {
             InlineEvents = inlineEvents,
-            DeclaredReadModels = declaredReadModels
+            DeclaredReadModels = context.DeclaredReadModels
+        };
+
+    CommandSyntaxBuilder CreateCommandBuilder(InlineEvents inlineEvents, ScreenplayOptions options) =>
+        new(
+            naming,
+            _types,
+            _authorize,
+            _validations,
+            new ProducesSyntaxBuilder(naming, _names)
+            {
+                InlineEvents = inlineEvents,
+                Events = new EventSyntaxBuilder(naming, _types, _names),
+                Diagnostics = diagnostics
+            },
+            new ConcurrencySyntaxBuilder(naming, diagnostics) { ExecutableRoutes = AtLeast(options, SemanticVersion.V8) },
+            _names)
+        {
+            Availability = _availability,
+            AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
+        };
+
+    SpecificationSyntaxBuilder CreateSpecificationBuilder(ModuleContext context) =>
+        new(naming)
+        {
+            Application = context.Model,
+            Diagnostics = diagnostics,
+            AuthoringOnlyConstructs = context.Options.AuthoringOnlyConstructs,
+            ReactionMetadataEnabled = AtLeast(context.Options, SemanticVersion.V10),
+            ReactionRefusalsEnabled = AtLeast(context.Options, SemanticVersion.V19),
+            ReactionAtomicBatchesEnabled = AtLeast(context.Options, SemanticVersion.V22),
+            ExecutableRoutes = AtLeast(context.Options, SemanticVersion.V8),
+            RoutedOccurrences = context.RoutedOccurrences
         };
 
     /// <summary>
@@ -262,4 +324,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
 
         return name.Length > 1 ? name : naming.ToDeclarationName(fallback ?? ScreenplayOptions.DefaultName);
     }
+
+    sealed record AdmittedModel(ApplicationModel Model, bool EventRoutes);
+
+    sealed record ModuleContext(
+        ApplicationModel Model,
+        ScreenplayOptions Options,
+        string Domain,
+        IReadOnlySet<ReadModelModel> DeclaredReadModels,
+        HashSet<(string Namespace, string Name)> OmittedReferenceSlices,
+        ICollection<SpecificationStateModel> RoutedOccurrences);
 }

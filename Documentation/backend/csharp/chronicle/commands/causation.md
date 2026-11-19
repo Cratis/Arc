@@ -3,7 +3,7 @@ title: Cratis Arc command causation
 description: Cratis Arc records command names and values in event causation. Use PII and NotAudited annotations to keep sensitive values out of that audit record.
 ---
 
-Cratis Arc records the command's name and values in the causation chain of every event it appends. That chain explains what led to the event, so you can trace a purchase order back to the command invocation that raised it.
+Cratis Arc records the command's name and values in the causation chain of every event it appends. That chain explains what led to the event, so you can trace a purchase order back to the command invocation that raised it. That includes a fact appended while the command is handled by a response value handler, or by work the command defers until its transaction commits.
 
 Before adding a command property, decide whether its value belongs in that audit record. Use `[PII]` for personal data or `[NotAudited]` for other values you need to exclude.
 

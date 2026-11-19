@@ -29,7 +29,7 @@ public class when_adding_cratis_arc_with_multiple_properties_overridden : Specif
 
     void Because()
     {
-        var configurationPath = ConfigurationPath.Combine(HostBuilderExtensions.DefaultArcSectionPaths);
+        var configurationPath = ConfigurationPath.Combine(Cratis.Arc.HostBuilderExtensions.DefaultSectionPaths);
         var configurationValues = new Dictionary<string, string?>
         {
             [$"{configurationPath}:CorrelationId:HttpHeader"] = _configuredHttpHeader,

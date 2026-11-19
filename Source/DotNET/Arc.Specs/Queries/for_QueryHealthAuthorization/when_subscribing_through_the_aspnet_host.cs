@@ -222,7 +222,7 @@ public class when_subscribing_through_the_aspnet_host
     {
         protected override Task<AuthenticateResult> HandleAuthenticateAsync() => Task.FromResult(
             Request.Headers["X-Test-Role"].FirstOrDefault() is { } role
-                ? AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "Test")), "Test"))
+                ? AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "health-spec-caller"), new Claim(ClaimTypes.Role, role)], "Test")), "Test"))
                 : AuthenticateResult.NoResult());
     }
 }

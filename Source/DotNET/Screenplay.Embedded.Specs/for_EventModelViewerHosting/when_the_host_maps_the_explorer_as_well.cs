@@ -25,7 +25,8 @@ public class when_the_host_maps_the_explorer_as_well : an_automatically_hosted_a
         _hierarchy = await _client.GetAsync(Url("/hierarchy"));
         _source = await _client.GetAsync(Url($"/documents/{an_embedded_application.ProjectId}/{an_embedded_application.ApplicationDocumentId}/source"));
         _sourceText = await _source.Content.ReadAsStringAsync();
-        _projects = JsonDocument.Parse(await _hierarchy.Content.ReadAsStringAsync()).RootElement;
+        using var document = JsonDocument.Parse(await _hierarchy.Content.ReadAsStringAsync());
+        _projects = document.RootElement.Clone();
     }
 
     [Fact] void should_answer_rather_than_find_the_route_ambiguous() => _hierarchy.StatusCode.ShouldEqual(HttpStatusCode.OK);

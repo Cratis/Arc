@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Serialization;
+using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 
 namespace Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
 
@@ -20,4 +21,11 @@ public record EventModelDocument(
     string Namespace,
     EventModelDocumentKind Kind,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ParentId,
-    string ResourceName);
+    string ResourceName)
+{
+    /// <summary>
+    /// Gets the origin of the document, defaulting to an authored document when not declared.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public EventModelOrigin Origin { get; init; } = EventModelOrigin.Embedded;
+}

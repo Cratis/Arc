@@ -134,7 +134,11 @@ internal sealed class CommandOperationExecution
             _outcomes.Add(new(index, invocation.Operation.GetType(), false, CommandOperationCompensation.NotNeeded));
             try
             {
-                await invocation.Invoker.Execute(invocation.Operation, invocation.ExecuteArguments);
+                using (CommandOperationPhaseScope.Enter(invocation.Operation.GetType(), index, CommandOperationPhase.Execute))
+                {
+                    await invocation.Invoker.Execute(invocation.Operation, invocation.ExecuteArguments);
+                }
+
                 _outcomes[index] = _outcomes[index] with { ExecutionCompleted = true };
             }
             catch (Exception)
@@ -219,7 +223,11 @@ internal sealed class CommandOperationExecution
                 var previousNestedAttempts = _frame.NestedCommandAttempts;
                 try
                 {
-                    await invocation.Invoker.Compensate(invocation.Operation, invocation.CompensateArguments);
+                    using (CommandOperationPhaseScope.Enter(invocation.Operation.GetType(), index, CommandOperationPhase.Compensate))
+                    {
+                        await invocation.Invoker.Compensate(invocation.Operation, invocation.CompensateArguments);
+                    }
+
                     _frame.ValidateNoNewNestedCommands(previousNestedAttempts);
                     _outcomes[index] = outcome with { Compensation = CommandOperationCompensation.Completed };
                 }

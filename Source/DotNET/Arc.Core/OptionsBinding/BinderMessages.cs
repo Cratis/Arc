@@ -4,8 +4,7 @@
 namespace Cratis.Arc.OptionsBinding;
 
 /// <summary>
-/// The messages of the Microsoft configuration binder, formatted exactly as the binder of the same major version does:
-/// 10 on net10.0 and 9 on net8.0 and net9.0.
+/// The messages of the Microsoft configuration binder, formatted exactly as the 10.x binder does.
 /// </summary>
 internal static class BinderMessages
 {
@@ -19,11 +18,7 @@ internal static class BinderMessages
     /// <param name="type">The target type.</param>
     /// <returns>The message.</returns>
     internal static string FailedBinding(string? value, string? path, Type type) =>
-#if NET10_0_OR_GREATER
         Format("Error_FailedBinding", "Failed to convert configuration value '{0}' at '{1}' to type '{2}'.", value, path, type);
-#else
-        Format("Error_FailedBinding", "Failed to convert configuration value at '{0}' to type '{1}'.", path, type);
-#endif
 
     /// <summary>
     /// Formats the message for an abstract type or interface that can not be created.

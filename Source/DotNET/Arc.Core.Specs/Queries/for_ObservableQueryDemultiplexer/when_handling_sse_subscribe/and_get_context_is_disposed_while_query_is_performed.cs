@@ -12,7 +12,7 @@ namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_
 
 public class and_get_context_is_disposed_while_query_is_performed : given.a_guarded_connection
 {
-    readonly ClaimsPrincipal _postPrincipal = new(new ClaimsIdentity([new Claim(ClaimTypes.Name, "fresh-caller")], "test"));
+    readonly ClaimsPrincipal _postPrincipal = new(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "the-caller"), new Claim(ClaimTypes.Name, "fresh-caller")], "test"));
     readonly ConcurrentQueue<string> _messages = [];
     readonly TaskCompletionSource<QueryResult> _performCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource _performStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -52,7 +52,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
             _getUserReads++;
             ObjectDisposedException.ThrowIf(_getContextDisposed, _connectionContext);
 
-            return new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "stale-caller")], "test"));
+            return new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "the-caller"), new Claim(ClaimTypes.Name, "stale-caller")], "test"));
         });
         _connectionContext.When(_ => _.User = Arg.Any<ClaimsPrincipal>())
             .Do(_ =>

@@ -88,6 +88,7 @@ public class CommandReader(
             EventSourceReader.Read(type, Models))
         {
             Identifier = identifier,
+            Availability = AvailabilityReader.Read(type),
             Authoring = authoring,
             HasNoFactBehavior = Authoring?.HasNoFactBehavior(handlers, authoring) == true,
             HasAuthoringRoute = type.HasAttribute(WellKnownTypeNames.EventSourceTypeAttribute) || type.HasAttribute(WellKnownTypeNames.EventStreamTypeAttribute)

@@ -26,6 +26,8 @@ public class a_guarded_client_observable : Specification
     protected ClientObservable<string> _observable;
     protected IWebSocketConnectionHandler _webSocketConnectionHandler;
     protected ILogger<ClientObservable<string>> _logger;
+    protected IReadModelInterceptors _readModelInterceptors;
+    protected ArcOptions _arcOptions;
 
     /// <summary>
     /// The verdict for an emission. Assign in a spec's own Establish — it is read when the emission happens.
@@ -52,7 +54,7 @@ public class a_guarded_client_observable : Specification
         _context = Substitute.For<IHttpRequestContext>();
         _context.WebSockets.Returns(webSocketContext);
         _context.RequestServices.Returns(Substitute.For<IServiceProvider>());
-        _context.RequestServices.GetService(typeof(IOptions<ArcOptions>)).Returns(Options.Create(new ArcOptions { ExposeExceptionDetails = true }));
+        _context.RequestServices.GetService(typeof(IOptions<ArcOptions>)).Returns(Options.Create(_arcOptions = new ArcOptions { ExposeExceptionDetails = true }));
         _context.User.Returns(_principal);
 
         _webSocketConnectionHandler = Substitute.For<IWebSocketConnectionHandler, IWebSocketMessageSender>();
@@ -80,8 +82,8 @@ public class a_guarded_client_observable : Specification
                 return Task.FromResult<Exception?>(null);
             });
 
-        var readModelInterceptors = Substitute.For<IReadModelInterceptors>();
-        readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
+        _readModelInterceptors = Substitute.For<IReadModelInterceptors>();
+        _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
 
         _emissionGuards = Substitute.For<IObservableQueryEmissionGuards>();
@@ -102,7 +104,7 @@ public class a_guarded_client_observable : Specification
         _observable = new ClientObservable<string>(
             _queryContext,
             _subject,
-            readModelInterceptors,
+            _readModelInterceptors,
             Substitute.For<IHttpRequestContextAccessor>(),
             _webSocketConnectionHandler,
             hostApplicationLifetime,

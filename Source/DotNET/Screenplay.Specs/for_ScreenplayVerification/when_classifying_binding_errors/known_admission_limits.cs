@@ -34,6 +34,8 @@ public class known_admission_limits : Specification
 
     [Theory]
     [InlineData("Operations and systems are not admitted by any supported executable model (ESM) version yet (#301).")]
+    [InlineData("Operations are not admitted by any supported executable model (ESM) version yet (#301); a system executes only when the model declares an ability on it (#1250).")]
+    [InlineData("Ability invocations from operations, approvals that answer through an ability (via) and $trigger values are not admitted by any supported executable model (ESM) version yet (#1252).")]
     [InlineData("Stream id mapping 'address.month' on command 'Register' reads a property path; only direct command inputs are admitted by event routes.")]
     void should_accept_additional_authoring_constructs_only_when_requested(string message)
     {

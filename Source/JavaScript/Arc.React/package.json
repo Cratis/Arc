@@ -106,6 +106,16 @@
                 "default": "./dist/cjs/messaging/index.js"
             }
         },
+        "./availability": {
+            "import": {
+                "types": "./dist/esm/availability/index.d.ts",
+                "default": "./dist/esm/availability/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/availability/index.d.ts",
+                "default": "./dist/cjs/availability/index.js"
+            }
+        },
         "./identity": {
             "import": {
                 "types": "./dist/esm/identity/index.d.ts",

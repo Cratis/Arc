@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
 using Microsoft.Extensions.DependencyInjection;
@@ -256,6 +257,8 @@ public partial class ObservableQueryDemultiplexer(
 
         var interceptionScope = serviceProvider.CreateScope();
         var lifetime = new StreamingQuerySubscription(token, logger.SubscriptionCleanupFailed);
+        var backlogCapacity = arcOptions.Value.Query.MaxQueuedEmissionsPerSubscription;
+        var backlog = new EmissionBacklog(backlogCapacity);
         AddOwnedResources(lifetime, emissionGate, interceptionScope);
 
         var subscriptionToken = lifetime.Token;
@@ -288,39 +291,20 @@ public partial class ObservableQueryDemultiplexer(
                 return;
             }
 
+            if (!backlog.TryAdmit())
+            {
+                lifetime.Exit();
+                TerminateOnBacklogOverflow();
+                return;
+            }
+
             var gateAcquired = false;
             var previousContext = httpRequestContextAccessor.Current;
             try
             {
                 await emissionGate.WaitAsync(subscriptionToken);
                 gateAcquired = true;
-
-                // An emission that was already queued behind the gate when a guard terminated the subscription must
-                // not still be written — the client has been told it is no longer authorized.
-                if (state.IsTerminated)
-                {
-                    return;
-                }
-
-                // Restore the subscribing connection's context — this callback runs on the subject's own
-                // producer thread, where the AsyncLocal tenant context set up when the subscription was
-                // created does not flow (see the class remarks).
-                using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                    context, interceptionScope.ServiceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
-                var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, interceptionScope.ServiceProvider);
-                subscriptionToken.ThrowIfCancellationRequested();
-
-                if (!await AdmitSubjectEmission(state, interceptionScope.ServiceProvider, onUnauthorized, subscriptionToken))
-                {
-                    return;
-                }
-
-                var changes = ComputeEmissionChanges(state, data, interceptedData);
-                var result = CreateSubjectResult(state, interceptedData, changes);
-
-                subscriptionToken.ThrowIfCancellationRequested();
-                await onNext(result, subscriptionToken);
-                state.HasDeliveredEmission = true;
+                await DeliverEmission(data);
             }
             catch (Exception error) when (IsDisconnect(error, subscriptionToken))
             {
@@ -341,8 +325,80 @@ public partial class ObservableQueryDemultiplexer(
                 {
                     emissionGate.Release();
                 }
+
+                backlog.Release();
                 lifetime.Exit();
             }
+        }
+
+        // The consumer cannot keep up: detach from the producer so nothing more queues, then tell the client why.
+        // The notice is best effort and must not hold the producer's thread, so it runs detached on the connection token.
+        void TerminateOnBacklogOverflow()
+        {
+            if (!backlog.TryMarkOverflowed())
+            {
+                return;
+            }
+
+            logger.EmissionBacklogExceeded(queryId, backlogCapacity);
+            lifetime.Dispose();
+            _ = NotifyOverflow();
+        }
+
+        async Task NotifyOverflow()
+        {
+            // The error is started first because the hub only delivers it while the subscription is still current, but
+            // it is not awaited before completing: a stalled socket holds the write lock, and the subscription must
+            // still be released.
+            Task notice;
+            try
+            {
+                notice = onError(queryId, "The subscription was closed because the client fell too far behind. Subscribe again to receive a fresh result.", token);
+            }
+            catch (Exception error) when (!IsFatal(error))
+            {
+                notice = Task.CompletedTask;
+            }
+
+            try
+            {
+                onCompleted();
+                await notice;
+            }
+            catch (Exception error) when (!IsFatal(error))
+            {
+                logger.EmissionAfterDisconnect(queryId);
+            }
+        }
+
+        async Task DeliverEmission(T data)
+        {
+            // An emission that was already queued behind the gate when a guard terminated the subscription must
+            // not still be written — the client has been told it is no longer authorized.
+            if (state.IsTerminated)
+            {
+                return;
+            }
+
+            // Restore the subscribing connection's context — this callback runs on the subject's own
+            // producer thread, where the AsyncLocal tenant context set up when the subscription was
+            // created does not flow (see the class remarks).
+            using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                context, interceptionScope.ServiceProvider, identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(context), identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, interceptionScope.ServiceProvider);
+            subscriptionToken.ThrowIfCancellationRequested();
+
+            if (!await AdmitSubjectEmission(state, interceptionScope.ServiceProvider, onUnauthorized, subscriptionToken))
+            {
+                return;
+            }
+
+            var changes = ComputeEmissionChanges(state, data, interceptedData);
+            var result = CreateSubjectResult(state, interceptedData, changes);
+
+            subscriptionToken.ThrowIfCancellationRequested();
+            await onNext(result, subscriptionToken);
+            state.HasDeliveredEmission = true;
         }
 
         async void OnSubscriptionError(Exception error)
@@ -356,7 +412,7 @@ public partial class ObservableQueryDemultiplexer(
             try
             {
                 using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                    context, interceptionScope.ServiceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+                    context, interceptionScope.ServiceProvider, identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(context), identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
                 if (subscriptionToken.IsCancellationRequested)
                 {
                     return;
@@ -430,33 +486,10 @@ public partial class ObservableQueryDemultiplexer(
             using var emissionIdentity = BeginEnumerableEmissionIdentity(context, identity, emissionServices);
             await foreach (var item in enumerable.WithCancellation(token))
             {
-                if (token.IsCancellationRequested)
+                if (token.IsCancellationRequested || await DeliverItem(item, emissionServices))
                 {
                     break;
                 }
-
-                var intercepted = await readModelInterceptors.InterceptEmission(typeof(T), item, emissionServices);
-                token.ThrowIfCancellationRequested();
-                var outcome = await EvaluateGuard(
-                    new GuardRequest(queryId, identity, correlationId, emissionGuards.HasGuards ? guardServiceProvider : null, !hasDeliveredEmission),
-                    onUnauthorized,
-                    token);
-                if (outcome == GuardOutcome.Stop)
-                {
-                    return;
-                }
-
-                if (outcome == GuardOutcome.Skip)
-                {
-                    continue;
-                }
-
-                var result = CreateDeliverableResult(correlationId, intercepted, paging);
-
-                token.ThrowIfCancellationRequested();
-                await onNext(result, token);
-                token.ThrowIfCancellationRequested();
-                hasDeliveredEmission = true;
             }
         }
         catch (Exception ex) when (IsDisconnect(ex, token))
@@ -472,6 +505,29 @@ public partial class ObservableQueryDemultiplexer(
         {
             httpRequestContextAccessor.Current = previousContext;
         }
+
+        // Returns true when the stream must stop.
+        async Task<bool> DeliverItem(T item, IServiceProvider emissionServices)
+        {
+            var intercepted = await readModelInterceptors.InterceptEmission(typeof(T), item, emissionServices);
+            token.ThrowIfCancellationRequested();
+            var outcome = await EvaluateGuard(
+                new GuardRequest(queryId, identity, correlationId, emissionGuards.HasGuards ? guardServiceProvider : null, !hasDeliveredEmission),
+                onUnauthorized,
+                token);
+            if (outcome != GuardOutcome.Deliver)
+            {
+                return outcome == GuardOutcome.Stop;
+            }
+
+            var result = CreateDeliverableResult(correlationId, intercepted, paging);
+
+            token.ThrowIfCancellationRequested();
+            await onNext(result, token);
+            token.ThrowIfCancellationRequested();
+            hasDeliveredEmission = true;
+            return false;
+        }
     }
 
     IDisposable BeginEnumerableEmissionIdentity(
@@ -479,7 +535,7 @@ public partial class ObservableQueryDemultiplexer(
         ObservableQuerySubscriptionIdentity identity,
         IServiceProvider emissionServices) =>
         ObservableEmissionIdentity.Begin(
-            context, emissionServices, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            context, emissionServices, identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(context), identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
 
     void ReleaseWriteLock(SemaphoreSlim writeLock, CancellationToken token)
     {

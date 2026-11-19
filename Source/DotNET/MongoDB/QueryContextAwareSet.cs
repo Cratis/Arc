@@ -4,9 +4,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-#if NET9_0_OR_GREATER
 using System.Runtime.CompilerServices;
-#endif
 using Cratis.Arc.MongoDB;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
@@ -173,24 +171,20 @@ internal sealed class QueryContextAwareSet<[DynamicallyAccessedMembers(DocumentT
 
     static IEqualityComparer IdEqualityComparerFor(Type idType)
     {
-#if NET9_0_OR_GREATER
         if (!RuntimeFeature.IsDynamicCodeSupported)
         {
             return QueryableKeyTypes.For(typeof(TDocument), idType).EqualityComparer;
         }
-#endif
 
         return IdEqualityComparerThroughReflection(idType);
     }
 
     static IComparer SortingFieldComparerFor(Type sortingFieldType)
     {
-#if NET9_0_OR_GREATER
         if (!RuntimeFeature.IsDynamicCodeSupported)
         {
             return QueryableKeyTypes.For(typeof(TDocument), sortingFieldType).Comparer;
         }
-#endif
 
         return SortingFieldComparerThroughReflection(sortingFieldType);
     }

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Neo4j.Chronicle</AssemblyName>
+        <RootNamespace>Cratis.Arc.Neo4j.Chronicle</RootNamespace>
+        <Description>Typed Chronicle graph views over Neo4j for Cratis Arc: inject IGraph into model-bound queries and read nested, strongly typed records through the tenant-aware graph session, translated to parameterized Cypher.</Description>
+        <PackageTags>cratis;arc;chronicle;neo4j;graph;graph-views;cypher;cqrs;queries;aspnetcore</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <InternalsVisibleTo Include="Cratis.Arc.Neo4j.Chronicle.Specs" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Cratis.Chronicle" />
+        <PackageReference Include="Microsoft.Extensions.Logging" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Neo4j/Neo4j.csproj" />
+    </ItemGroup>
+</Project>

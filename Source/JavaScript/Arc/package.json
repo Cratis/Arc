@@ -45,6 +45,16 @@
                 "default": "./dist/cjs/index.js"
             }
         },
+        "./availability": {
+            "import": {
+                "types": "./dist/esm/availability/index.d.ts",
+                "default": "./dist/esm/availability/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/availability/index.d.ts",
+                "default": "./dist/cjs/availability/index.js"
+            }
+        },
         "./commands": {
             "import": {
                 "types": "./dist/esm/commands/index.d.ts",

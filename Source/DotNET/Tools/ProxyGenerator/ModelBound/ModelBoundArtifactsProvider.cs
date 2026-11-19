@@ -32,7 +32,7 @@ public class ModelBoundArtifactsProvider : IArtifactsProvider
     {
         message($"  Discover model based commands and queries from {TypeExtensions.Assemblies.Count()} assemblies");
 
-        var commands = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsCommand()).ToArray();
+        var commands = TypeExtensions.Assemblies.SelectMany(_ => _.DefinedTypes).Where(__ => __.IsCommand() && !__.IsProtocolOnly()).ToArray();
         Commands = commands.Where(_ => _.IsInEndpointGroup(endpointGroup)).Select(_ => _.ToCommandDescriptor(outputPath, segmentsToSkip, skipCommandNameInRoute, apiPrefix, commands)).ToArray();
 
         using var attributes = new MetadataQueryAttributes();

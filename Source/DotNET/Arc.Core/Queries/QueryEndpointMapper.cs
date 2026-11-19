@@ -3,6 +3,7 @@
 
 using System.Net;
 using System.Net.WebSockets;
+using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
@@ -81,7 +82,7 @@ public static class QueryEndpointMapper
 
             foreach (var reader in readers)
             {
-                MapForReader(mapper, reader, performer, new(url, locationForTag, endpointGroup), serviceProvider);
+                MapForReader(mapper, new(reader, performer, new(url, locationForTag, endpointGroup)), serviceProvider);
             }
         }
     }
@@ -100,147 +101,177 @@ public static class QueryEndpointMapper
         logger.InternalQueryRouteCollision(skipped.FullyQualifiedName, url, mapped.FullyQualifiedName);
     }
 
-    static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, QueryEndpointPlacement placement, IServiceProvider services)
+    static void MapForReader(IEndpointMapper mapper, QueryEndpointTarget target, IServiceProvider services)
     {
-        var (url, locationForTag, endpointGroup) = placement;
-        var endpointName = $"{reader.EndpointNamePrefix}{performer.FullyQualifiedName}";
-        if (mapper.EndpointExists(endpointName))
+        var (reader, performer, placement) = target;
+        if (mapper.EndpointExists(EndpointNameFor(reader, performer)))
         {
             return;
         }
 
-        var metadata = new EndpointMetadata(
-            endpointName,
+        mapper.MapMethod(
+            reader.HttpMethod,
+            placement.Url,
+            context => HandleRequest(context, reader, performer),
+            BuildMetadata(target, services));
+    }
+
+    static string EndpointNameFor(IQueryRequestReader reader, IQueryPerformer performer) =>
+        $"{reader.EndpointNamePrefix}{performer.FullyQualifiedName}";
+
+    static EndpointMetadata BuildMetadata(QueryEndpointTarget target, IServiceProvider services)
+    {
+        var (reader, performer, placement) = target;
+        return new EndpointMetadata(
+            EndpointNameFor(reader, performer),
             $"{reader.EndpointNamePrefix} {performer.Name} query",
-            [.. new[] { string.Join('.', locationForTag) }.Where(tag => !string.IsNullOrEmpty(tag))],
+            [.. new[] { string.Join('.', placement.LocationForTag) }.Where(tag => !string.IsNullOrEmpty(tag))],
             QueryEndpointAccess.AllowsAnonymous(performer, services),
             RequestBodyType: reader.RequestBodyType,
             ResponseType: typeof(QueryResult),
-            ExcludeFromApiDescription: endpointGroup is not null || !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery())
+            ExcludeFromApiDescription: placement.EndpointGroup is not null || !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery())
         {
-            EndpointGroup = endpointGroup
+            EndpointGroup = placement.EndpointGroup
         };
+    }
 
-        mapper.MapMethod(
-            reader.HttpMethod,
-            url,
-            async context =>
-            {
-                using var receipt = OperationContextScope.Begin(context.RequestServices);
-                var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
-                var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
+    static ILogger GetLogger(IHttpRequestContext context) =>
+        context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
 
-                context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
+    static async Task HandleRequest(IHttpRequestContext context, IQueryRequestReader reader, IQueryPerformer performer)
+    {
+        using var receipt = OperationContextScope.Begin(context.RequestServices);
+        var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
+        var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
 
-                if (reader.ResponseCacheControl is { } cacheControl)
-                {
-                    context.SetResponseHeader("Cache-Control", cacheControl);
-                }
+        context.HandleCorrelationId(correlationIdAccessor, arcOptions.CorrelationId);
 
-                QueryRequest request;
-                try
-                {
-                    request = await reader.Read(context, performer);
-                }
-                catch (Exception ex)
-                {
-                    // A reader rejecting the request as invalid client input carries its own validation result, which
-                    // is what names the reason on the wire. Everything else stays an exception result.
-                    var errorResult = QueryResult.FromException(correlationIdAccessor.Current, ex);
-                    ExceptionDetailRedactor.Redact(errorResult, arcOptions.ExposeExceptionDetails, logger);
-                    if (await TryWriteValidationRejection(context, errorResult, arcOptions))
-                    {
-                        return;
-                    }
+        if (reader.ResponseCacheControl is { } cacheControl)
+        {
+            context.SetResponseHeader("Cache-Control", cacheControl);
+        }
 
-                    context.SetStatusCode((int)(UnauthorizedCause.IsCauseOf(ex) ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest));
-                    await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
-                    return;
-                }
+        QueryRequest request;
+        try
+        {
+            request = await reader.Read(context, performer);
+        }
+        catch (Exception ex)
+        {
+            await WriteReadFailure(context, ex);
+            return;
+        }
 
-                await ProcessQuery(context, performer, request);
-            },
-            metadata);
+        await ProcessQuery(context, performer, request);
+    }
+
+    static async Task WriteReadFailure(IHttpRequestContext context, Exception ex)
+    {
+        // A reader rejecting the request as invalid client input carries its own validation result, which
+        // is what names the reason on the wire. Everything else stays an exception result.
+        var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
+        var correlationId = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current;
+        var errorResult = QueryResult.FromException(correlationId, ex);
+        ExceptionDetailRedactor.Redact(errorResult, arcOptions.ExposeExceptionDetails, GetLogger(context));
+        if (await TryWriteValidationRejection(context, errorResult, arcOptions))
+        {
+            return;
+        }
+
+        context.SetStatusCode((int)(UnauthorizedCause.IsCauseOf(ex) ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest));
+        await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
+    }
+
+    static async Task<QueryResult> PerformQuery(IHttpRequestContext context, IQueryPerformer performer, QueryRequest request)
+    {
+        var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
+        if (queryPipeline is QueryPipeline builtInPipeline)
+        {
+            return await builtInPipeline.PerformHosted(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
+        }
+
+        if (!CanPerformWithCustomPipeline(context, performer, GetLogger(context)))
+        {
+            return QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
+        }
+
+        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
+        return await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
     }
 
     static async Task ProcessQuery(IHttpRequestContext context, IQueryPerformer performer, QueryRequest request)
     {
-        var queryPipeline = context.RequestServices.GetRequiredService<IQueryPipeline>();
         var observableQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
         var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
-        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
             .CaptureLiveRequest(context.RequestServices);
 
-        QueryResult queryResult;
-        if (queryPipeline is QueryPipeline builtInPipeline)
-        {
-            queryResult = await builtInPipeline.PerformHosted(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
-        }
-        else if (!CanPerformWithCustomPipeline(context, performer, logger))
-        {
-            queryResult = QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
-        }
-        else
-        {
-            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
-            queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
-        }
-
+        var queryResult = await PerformQuery(context, performer, request);
         using var ownedScope = queryResult.OwnedScope;
 
         // Check if the result data is a streaming result (Subject or AsyncEnumerable)
         if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))
         {
-            // The pipeline has restored the outer request identity. A direct stream lives beyond that lease,
-            // so keep its subscriber identity, selected tenant and owned provider until the transport finishes.
-            TenantId tenant;
-            try
-            {
-                tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
-            }
-            catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
-            {
-                context.SetStatusCode((int)HttpStatusCode.Forbidden);
-                await context.WriteResponseAsJson(QueryResult.Unauthorized(queryResult.CorrelationId), typeof(QueryResult), context.RequestAborted);
-                return;
-            }
-            var manager = context.RequestServices.GetRequiredService<IQueryContextManager>();
-            var previousQueryContext = manager.Current;
-            var queryContext = queryResult.AuthorizedQueryContext ?? previousQueryContext;
-            if (queryContext != QueryContext.NotSet)
-            {
-                queryContext.EmissionTenant = tenant;
-                queryContext.NativeEmissionRequest = nativeRequest;
-                manager.Set(queryContext);
-            }
-
-            try
-            {
-                // No-scheme requests retain their original context, including any custom request implementation and
-                // principal subclass. Only a selected identity needs a durable context with the owned B provider.
-                if (queryResult.AuthorizedPrincipal is { } principal)
-                {
-                    var selected = new ObservableQuerySubscriptionHttpRequestContext(
-                        context, context, queryResult.OwnedScope?.ServiceProvider ?? context.RequestServices, context.RequestAborted);
-                    selected.ConfigureEmission(tenant, nativeRequest);
-                    selected.SelectAuthorizedPrincipal(principal, queryResult.OwnedScope?.ServiceProvider);
-                    await observableQueryHandler.HandleStreamingResult(selected, performer.Name, queryResult.Data);
-                }
-                else
-                {
-                    await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
-                }
-            }
-            finally
-            {
-                manager.Set(previousQueryContext);
-            }
+            await StreamResult(context, performer, queryResult, nativeRequest);
             return;
         }
 
-        await WriteQueryResponse(context, queryResult, arcOptions, logger);
+        await WriteQueryResponse(context, queryResult, arcOptions, GetLogger(context));
+    }
+
+    static async Task StreamResult(IHttpRequestContext context, IQueryPerformer performer, QueryResult queryResult, Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? nativeRequest)
+    {
+        // The pipeline has restored the outer request identity. A direct stream lives beyond that lease,
+        // so keep its subscriber identity, selected tenant and owned provider until the transport finishes.
+        TenantId tenant;
+        try
+        {
+            tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
+        }
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
+        {
+            context.SetStatusCode((int)HttpStatusCode.Forbidden);
+            await context.WriteResponseAsJson(QueryResult.Unauthorized(queryResult.CorrelationId), typeof(QueryResult), context.RequestAborted);
+            return;
+        }
+
+        var manager = context.RequestServices.GetRequiredService<IQueryContextManager>();
+        var previousQueryContext = manager.Current;
+        var queryContext = queryResult.AuthorizedQueryContext ?? previousQueryContext;
+        if (queryContext != QueryContext.NotSet)
+        {
+            queryContext.EmissionTenant = tenant;
+            queryContext.NativeEmissionRequest = nativeRequest;
+            manager.Set(queryContext);
+        }
+
+        try
+        {
+            await HandleStreaming(context, performer, queryResult, new(tenant, nativeRequest));
+        }
+        finally
+        {
+            manager.Set(previousQueryContext);
+        }
+    }
+
+    static async Task HandleStreaming(IHttpRequestContext context, IQueryPerformer performer, QueryResult queryResult, StreamEmission emission)
+    {
+        var handler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
+
+        // No-scheme requests retain their original context, including any custom request implementation and
+        // principal subclass. Only a selected identity needs a durable context with the owned B provider.
+        if (queryResult.AuthorizedPrincipal is not { } principal)
+        {
+            await handler.HandleStreamingResult(context, performer.Name, queryResult.Data);
+            return;
+        }
+
+        var selected = new ObservableQuerySubscriptionHttpRequestContext(
+            context, context, queryResult.OwnedScope?.ServiceProvider ?? context.RequestServices, context.RequestAborted);
+        selected.ConfigureEmission(emission.Tenant, emission.NativeRequest);
+        selected.SelectAuthorizedPrincipal(principal, queryResult.OwnedScope?.ServiceProvider);
+        await handler.HandleStreamingResult(selected, performer.Name, queryResult.Data);
     }
 
     static async Task WriteQueryResponse(IHttpRequestContext context, QueryResult queryResult, ArcOptions arcOptions, ILogger logger)
@@ -251,7 +282,7 @@ public static class QueryEndpointMapper
             return;
         }
 
-        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady);
+        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady, queryResult.IsRetryable);
         context.SetStatusCode(statusCode);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }
@@ -315,4 +346,8 @@ public static class QueryEndpointMapper
     static bool IsGet(IQueryRequestReader reader) => reader.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase);
 
     readonly record struct QueryEndpointPlacement(string Url, IEnumerable<string> LocationForTag, string? EndpointGroup);
+
+    readonly record struct QueryEndpointTarget(IQueryRequestReader Reader, IQueryPerformer Performer, QueryEndpointPlacement Placement);
+
+    readonly record struct StreamEmission(TenantId Tenant, Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? NativeRequest);
 }

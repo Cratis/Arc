@@ -40,11 +40,7 @@ internal sealed class Member<TOwner, TValue> : Member
 
         // ConfigurationBinder.BindProperty: the value is assigned back when it is present or newly produced, which is what
         // makes a setter with side effects observable even when no configuration key addressed the member.
-#if NET10_0_OR_GREATER
         var assign = !point.IsReadOnly && (point.Value is not null || point.HasNewValue);
-#else
-        var assign = !point.IsReadOnly && point.Value is not null;
-#endif
         if (assign)
         {
             // A null assigned through a property call on a non-nullable value type stores its default, so do the same.

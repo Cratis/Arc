@@ -39,6 +39,8 @@ For an ordinary scenario, seed log history with `EventScenario.Given` and inject
 | `EventLog` | `IEventLog` | Append events or assert stored history in either mode |
 | `EventSequence` | `IEventSequence` | Use Chronicle's event-sequence assertion helpers in either mode |
 | `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | Captured appends; ordinary mode includes log setup, while decision mode captures successful command appends |
+| `CompletedStreams` | `IReadOnlyList<(EventStreamType, EventStreamId)>` | Successful stream completions recorded by the scenario event log, including idempotent ones |
+| `EventRoutes` | `IEventRoutes` | Resolves a route from the discovered event source definitions, for seeding with `OnRoute(...)` |
 
 The first example checks a successful registration with no prior history:
 
@@ -121,7 +123,7 @@ Under `On`, validators with read-model parameters run as in production, includin
 
 The selected in-process log is shared by seeded events, protected reads and command commits. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in this setup, not seeded events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see all stored events.
 
-Use `Given.ForEventSource(...).Events(...)` to seed the shared history. `scenario.EventScenario` throws in decision mode because there is no separate event scenario over that store. Selection happens during construction, before any seeds exist. Ordinary scenarios retain their separate `EventScenario` and cumulative append capture.
+Use `Given.ForEventSource(...).Events(...)` to seed the shared history. `scenario.EventScenario` throws in decision mode because there is no separate event scenario over that store. Selection happens during construction, before any seeds exist. For an untyped `CommandScenario<object>` that will execute protected commands, call `EnableDecisionReads()` before seeding or the first `Execute` or `Validate`; the shared log then supports every command executed by that scenario. Ordinary scenarios retain their separate `EventScenario` and cumulative append capture.
 
 Do not invent sequence numbers or decision tokens in the spec. Chronicle obtains those tokens from the real read to check the decision at commit.
 
@@ -265,6 +267,15 @@ In ordinary mode, capture starts at scenario construction, not at each `Execute`
 | `ShouldHaveAppendedEvent<TCommand, TEvent>(eventSourceId)` | At least one event of type `TEvent` was appended for the given `EventSourceId` |
 | `ShouldHaveAppendedEvent<TCommand, TEvent>(eventSourceId, predicate)` | Same, and the event also satisfies the predicate |
 | `ShouldHaveTailSequenceNumber<TCommand>(expected)` | The highest sequence number among all captured events equals `expected` |
+
+These helpers check only the successful appends of the last `Execute`, so seeded events and earlier executions cannot satisfy them. They compare event types and public property values, ignoring event metadata, and throw when no command has been executed yet:
+
+| Method | Asserts that... |
+| ------ | --------------- |
+| `ShouldNotHaveAppendedEvents()` | The command appended no events to any event source |
+| `ShouldNotHaveAppendedEvents(eventSourceId)` | The command appended no events to that event source |
+| `ShouldHaveAppendedEventsInOrder(params object[] events)` | The command appended exactly these events, in this order |
+| `ShouldHaveAppendedEventsInAnyOrder(params object[] events)` | The command appended exactly these events in any order, with duplicates counted |
 
 ### Example: Single cross-source event
 
@@ -436,5 +447,7 @@ The extension properties expose that setup without a different scenario base cla
 | `EventLog` | `IEventLog` | Accesses the selected log for appending and stored-history assertions |
 | `EventSequence` | `IEventSequence` | Accesses the selected sequence for Chronicle assertions |
 | `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | Supplies capture assertions; includes log setup in ordinary mode, successful command appends only in decision mode |
+| `CompletedStreams` | `IReadOnlyList<(EventStreamType, EventStreamId)>` | Lists successful stream completions, including idempotent ones |
+| `EventRoutes` | `IEventRoutes` | Resolves routes from discovered event source definitions before seeding |
 
 For a complete test that combines returned events and external work, continue to [operation recovery after a Chronicle rejection](./command-operations-with-chronicle.md). For read-model query behavior after a command, use [observable query scenarios](./query-scenario.md#observe-chronicle-read-models).

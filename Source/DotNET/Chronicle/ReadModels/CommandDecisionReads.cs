@@ -153,24 +153,21 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     async Task<DecisionRead<T>> Get<T>(ReadModelKey key, StreamScope? streamScope, IUnitOfWork? requestedUnit, CancellationToken cancellationToken)
         where T : class
     {
-        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
-        {
-            ProtectedReadModelKeys.ValidateWireText(typeof(T), key.Value, key.Value);
-        }
+        ValidateProtectedKey<T>(key);
         ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, streamScope?.EventStreamType, streamScope?.EventStreamId, streamScope?.EventSourceType);
         try
         {
             return await GetForInvocation<T>(key, streamScope, requestedUnit, cancellationToken);
         }
-        catch (DecisionReadRefused exception) when (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && exception.Reason == DecisionReadRefusalReason.InvalidKey)
+        catch (DecisionReadRefused exception) when (IsProtectedRefusal(exception, DecisionReadRefusalReason.InvalidKey))
         {
             throw new ProtectedReadModelDoesNotExist(typeof(T), key.Value);
         }
-        catch (DecisionReadRefused exception) when (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && exception.Reason == DecisionReadRefusalReason.FoldIncomplete)
+        catch (DecisionReadRefused exception) when (IsProtectedRefusal(exception, DecisionReadRefusalReason.FoldIncomplete))
         {
             throw new ReadIncomplete(typeof(T), key);
         }
-        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On && ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired))
+        catch (Exception ex) when (IsUnexpectedProtectedFailure(ex))
         {
             throw new DecisionReadCouldNotBeAcquired(ex);
         }
@@ -185,30 +182,16 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
         if (!CommandDecisionPolicy.IsActive)
         {
             // Outside a command, preserve Chronicle's ambient unit-of-work contract.
-            return requestedUnit is null
-                ? await ReadAmbient<T>(key, streamScope, cancellationToken)
-                : await ReadEnrolled<T>(requestedUnit, key, streamScope, cancellationToken);
+            return await ReadOutsideCommand<T>(key, streamScope, requestedUnit, cancellationToken);
         }
 
-        var mode = CommandDecisionPolicy.Mode == CommandDecisionMode.Unprotected ? ReadMode.Unprotected :
-            validation is not null ? ReadMode.Validation : ReadMode.Protected;
+        var mode = ModeFor(validation is not null);
         var unitOfWork = UnitOfWorkFor(mode);
-        if (unitOfWork is { IsCompleted: true } && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
-        {
-            throw new ReadAfterProtectedCommit(typeof(T).Name);
-        }
-        if (requestedUnit is not null && unitOfWork is not null && !ReferenceEquals(requestedUnit, unitOfWork))
-        {
-            throw new ReadProtectionUnitMismatch();
-        }
+        VerifyUnitOfWork(typeof(T), requestedUnit, unitOfWork);
 
         // Include the target and stream: supplied providers and sibling streams must not share a cached fold.
         var cacheKey = (typeof(T), (string)key, mode, (string)eventStore.Name, (string)eventStore.Namespace, streamScope);
-        async Task<object> CreateRead() => mode == ReadMode.Unprotected
-            ? await ReadAdvisory<T>(key, streamScope, cancellationToken)
-            : mode == ReadMode.Protected && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On
-                ? await ReadEnrolled<T>(unitOfWork!, key, streamScope, cancellationToken)
-                : await ReadDetached<T>(key, streamScope, cancellationToken);
+        Task<object> CreateRead() => ReadForMode<T>(mode, unitOfWork, key, streamScope, cancellationToken);
         var task = CacheFor(invocation!, unitOfWork).Reads.GetOrAdd(
             cacheKey,
             static (_, readFactory) => new Lazy<Task<object>>(readFactory, LazyThreadSafetyMode.ExecutionAndPublication),

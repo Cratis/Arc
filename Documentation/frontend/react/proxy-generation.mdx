@@ -53,6 +53,8 @@ An ordinary `Guid`/`UUID` response remains a supported response and maps to Fund
 
 The command hook returns `[command, setValues, clearValues]`. Set required content explicitly, as the example does for `name` and `initialBalance`. The setter edits properties; it does not reset the change-tracking baseline. The button above demonstrates execution, not a complete form: add pending state and feedback for unsuccessful results before using it for account entry. See [data binding](./commands/data-binding.md) and [command results](../core/commands/command-result.md).
 
+Command results expose `isMissingHandler` when no server handler was registered, so execution or validation could not run. The result still carries exceptions and HTTP 500; older servers that omit the flag are read as `false`.
+
 ## Queries follow the backend result shape
 
 Both [controller-based](../../backend/csharp/queries/controller-based/index.md) and [model-bound](../../backend/csharp/queries/model-bound/index.md) C# endpoints generate proxies; the JVM generates from model-bound `@ReadModel` query methods only — it has no controller-based discovery. TypeScript's source generator reads `@readModel()` classes with static `@query()` methods; see its [proxy generation overview](/arc/backend/typescript/proxy-generation/) for supported output. Parameterized queries emit a `NameParameters` interface. Query hooks return tuples, not model objects; read the first tuple element's `.data`.

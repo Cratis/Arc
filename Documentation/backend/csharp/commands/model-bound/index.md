@@ -121,6 +121,25 @@ Use a tuple alternative when success needs both a caller response and a server-s
 
 To use this pattern, follow the [complete command and custom handler example](../response-value-handlers.md#creating-custom-value-handlers). Read [how tuple alternatives are processed](../response-value-handlers.md#result-with-tuple-alternatives) when choosing which value should reach the caller.
 
+## Protocol-only commands
+
+Add `[ProtocolOnly]` alongside `[Command]` when a command is invoked through a protocol adapter or in-process with `ICommandPipeline`, rather than through generated HTTP endpoints. Both attributes are in `Cratis.Arc.Commands.ModelBound`.
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+
+[Command]
+[ProtocolOnly]
+public record ReadProtocolStatus
+{
+    public string Handle() => "Ready";
+}
+```
+
+The command remains discoverable by command handler providers and runs through the normal pipeline, including validation, authorization, filters, dependencies, and response handling. Arc does not generate its HTTP execution or `/validate` route, list it in `/.cratis/commands` or OpenAPI, or generate a TypeScript command proxy. An explicit `[Path]` does not expose it, and it does not affect route-name disambiguation for HTTP commands in the same namespace.
+
+`[ProtocolOnly]` applies only to the decorated type; derived commands must opt in separately. It is not an authorization bypass, an endpoint-group selector, or an assembly opt-in. Unlike `[ExcludeFromDiscovery]`, which hides descriptions but leaves endpoints callable, it removes the generated HTTP surface. Keep the same command pipeline authorization at the protocol boundary.
+
 ## Dependencies and provided data
 
 In the cart example, Arc resolves `ICartService` from the command's service scope. When a decision needs data first, add a `Provide()` method to fetch it after filters succeed and pass it to `Handle()`. This separates fetching from the decision and can make the handler easier to test. You can keep service calls in `Handle()`, as above, or return [command operations](../operations/index.md) to describe work that Arc then performs.

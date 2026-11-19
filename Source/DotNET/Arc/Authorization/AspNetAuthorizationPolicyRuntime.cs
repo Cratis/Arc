@@ -52,7 +52,7 @@ public class AspNetAuthorizationPolicyRuntime(
         foreach (var name in _anonymousPolicyNames)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(name) || !seen.Add(name) || native.HasPolicyIgnoringCase(name))
+            if (IsInvalidOrAmbiguousAnonymousPolicyName(name, seen))
             {
                 throw new InvalidAuthorizationConfiguration($"Anonymous ASP.NET Core authorization policy '{name}' is invalid or ambiguous.");
             }
@@ -79,57 +79,26 @@ public class AspNetAuthorizationPolicyRuntime(
     public async Task<IAuthorizationPolicyResolution> Resolve(IReadOnlyList<AuthorizationRequirement> requirements, IServiceProvider services, CancellationToken cancellationToken)
     {
         var provider = services.GetService<IAuthorizationPolicyProvider>();
-        var schemes = new List<string>();
-        var nativeRequirements = new List<AuthorizationRequirement>();
-        var aspPolicies = new List<AuthorizationPolicy>();
-        var aspPoliciesEvaluateAnonymous = true;
+        var collected = new CollectedRequirements();
         foreach (var requirement in requirements)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            schemes.AddRange(requirement.AuthenticationSchemes);
+            collected.Schemes.AddRange(requirement.AuthenticationSchemes);
             if (string.IsNullOrWhiteSpace(requirement.Policy))
             {
                 continue;
             }
 
-            var nativePolicy = native.HasPolicy(requirement.Policy);
-            var aspPolicy = provider is null ? null : await provider.GetPolicyAsync(requirement.Policy);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (nativePolicy == (aspPolicy is not null))
-            {
-                throw new InvalidAuthorizationConfiguration($"Authorization policy '{requirement.Policy}' is unknown or ambiguous.");
-            }
-
-            if (nativePolicy)
-            {
-                nativeRequirements.Add(requirement with { AuthenticationSchemes = [] });
-            }
-            else
-            {
-                aspPolicies.Add(aspPolicy!);
-                aspPoliciesEvaluateAnonymous &= _anonymousPolicyNames.Contains(requirement.Policy, StringComparer.Ordinal) &&
-                    !aspPolicy!.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any();
-                schemes.AddRange(aspPolicy.AuthenticationSchemes);
-            }
+            await CollectPolicy(collected, requirement, provider, cancellationToken);
         }
 
-        var selectedSchemes = schemes.Distinct(StringComparer.Ordinal).ToArray();
-        var schemeProvider = services.GetService<IAuthenticationSchemeProvider>();
-        foreach (var scheme in selectedSchemes)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (schemeProvider is null || await schemeProvider.GetSchemeAsync(scheme) is null)
-            {
-                throw new InvalidAuthorizationConfiguration($"Unknown authentication scheme '{scheme}'.");
-            }
-        }
+        var selectedSchemes = collected.Schemes.Distinct(StringComparer.Ordinal).ToArray();
+        await EnsureSchemesAreKnown(selectedSchemes, services.GetService<IAuthenticationSchemeProvider>(), cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var nativeResolution = await native.Resolve(nativeRequirements, services, cancellationToken);
-        var evaluatesAnonymous = requirements.Count > 0 && selectedSchemes.Length == 0 && aspPoliciesEvaluateAnonymous &&
-            requirements.All(requirement => requirement.AnyOfRoles.Count == 0 && !string.IsNullOrWhiteSpace(requirement.Policy)) &&
-            (nativeRequirements.Count == 0 || nativeResolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true });
-        return new AspNetResolution(nativeResolution, aspPolicies.ToArray(), selectedSchemes, evaluatesAnonymous);
+        var nativeResolution = await native.Resolve(collected.NativeRequirements, services, cancellationToken);
+        var evaluatesAnonymous = EvaluatesAnonymous(requirements, selectedSchemes, collected, nativeResolution);
+        return new AspNetResolution(nativeResolution, collected.AspPolicies.ToArray(), selectedSchemes, evaluatesAnonymous);
     }
 
     /// <inheritdoc/>
@@ -167,6 +136,69 @@ public class AspNetAuthorizationPolicyRuntime(
         return (principal, provider) => isolated.Begin(principal, provider, context);
     }
 
+    static async Task EnsureSchemesAreKnown(string[] selectedSchemes, IAuthenticationSchemeProvider? schemeProvider, CancellationToken cancellationToken)
+    {
+        foreach (var scheme in selectedSchemes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (schemeProvider is null || await schemeProvider.GetSchemeAsync(scheme) is null)
+            {
+                throw new InvalidAuthorizationConfiguration($"Unknown authentication scheme '{scheme}'.");
+            }
+        }
+    }
+
+    static bool EvaluatesAnonymous(
+        IReadOnlyList<AuthorizationRequirement> requirements,
+        string[] selectedSchemes,
+        CollectedRequirements collected,
+        IAuthorizationPolicyResolution nativeResolution) =>
+        requirements.Count > 0 && selectedSchemes.Length == 0 && collected.PoliciesEvaluateAnonymous &&
+        requirements.All(requirement => requirement.AnyOfRoles.Count == 0 && !string.IsNullOrWhiteSpace(requirement.Policy)) &&
+        (collected.NativeRequirements.Count == 0 || nativeResolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true });
+
+    bool IsInvalidOrAmbiguousAnonymousPolicyName(string name, HashSet<string> seen) =>
+        string.IsNullOrWhiteSpace(name) || !seen.Add(name) || native.HasPolicyIgnoringCase(name);
+
+    async Task CollectPolicy(CollectedRequirements collected, AuthorizationRequirement requirement, IAuthorizationPolicyProvider? provider, CancellationToken cancellationToken)
+    {
+        var policyName = requirement.Policy!;
+        var nativePolicy = native.HasPolicy(policyName);
+        var aspPolicy = provider is null ? null : await provider.GetPolicyAsync(policyName);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (nativePolicy == (aspPolicy is not null))
+        {
+            throw new InvalidAuthorizationConfiguration($"Authorization policy '{policyName}' is unknown or ambiguous.");
+        }
+
+        if (nativePolicy)
+        {
+            collected.NativeRequirements.Add(requirement with { AuthenticationSchemes = [] });
+            return;
+        }
+
+        collected.AddAspPolicy(aspPolicy!, _anonymousPolicyNames.Contains(policyName, StringComparer.Ordinal));
+    }
+
+    sealed class CollectedRequirements
+    {
+        public List<string> Schemes { get; } = [];
+
+        public List<AuthorizationRequirement> NativeRequirements { get; } = [];
+
+        public List<AuthorizationPolicy> AspPolicies { get; } = [];
+
+        public bool PoliciesEvaluateAnonymous { get; private set; } = true;
+
+        public void AddAspPolicy(AuthorizationPolicy policy, bool optedIntoAnonymous)
+        {
+            AspPolicies.Add(policy);
+            PoliciesEvaluateAnonymous &= optedIntoAnonymous &&
+                !policy.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any();
+            Schemes.AddRange(policy.AuthenticationSchemes);
+        }
+    }
+
     sealed class AspNetResolution(
         IAuthorizationPolicyResolution nativeResolution,
         AuthorizationPolicy[] aspPolicies,
@@ -199,13 +231,7 @@ public class AspNetAuthorizationPolicyRuntime(
             var identities = new List<ClaimsIdentity>();
             foreach (var scheme in selectedSchemes)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await authentication.AuthenticateAsync(httpContext, scheme);
-                cancellationToken.ThrowIfCancellationRequested();
-                if (result.Succeeded && result.Principal is not null)
-                {
-                    identities.AddRange(result.Principal.Identities.Where(identity => identity.IsAuthenticated));
-                }
+                identities.AddRange(await AuthenticateScheme(authentication, httpContext, scheme, cancellationToken));
             }
 
             return identities.Count > 0 ? new ClaimsPrincipal(identities) : null;
@@ -222,21 +248,10 @@ public class AspNetAuthorizationPolicyRuntime(
                 return false;
             }
 
-            IAuthorizationService? service = null;
             foreach (var policy in aspPolicies)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var checkpoint = new AuthorizationPolicyIdentityCheckpoint(context, services);
-                service ??= services.GetRequiredService<IAuthorizationService>();
-                if (!checkpoint.IsUnchanged())
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    return false;
-                }
-
-                var allowed = (await service.AuthorizeAsync(context.Principal, context.Resource, policy)).Succeeded;
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!checkpoint.IsUnchanged() || !allowed)
+                if (!await IsAllowedByPolicy(policy, context, services, cancellationToken))
                 {
                     return false;
                 }
@@ -244,6 +259,31 @@ public class AspNetAuthorizationPolicyRuntime(
 
             cancellationToken.ThrowIfCancellationRequested();
             return true;
+        }
+
+        static async Task<IEnumerable<ClaimsIdentity>> AuthenticateScheme(IAuthenticationService authentication, HttpContext httpContext, string scheme, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await authentication.AuthenticateAsync(httpContext, scheme);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result.Succeeded && result.Principal is not null
+                ? result.Principal.Identities.Where(identity => identity.IsAuthenticated)
+                : [];
+        }
+
+        static async Task<bool> IsAllowedByPolicy(AuthorizationPolicy policy, AuthorizationPolicyContext context, IServiceProvider services, CancellationToken cancellationToken)
+        {
+            var checkpoint = new AuthorizationPolicyIdentityCheckpoint(context, services);
+            var service = services.GetRequiredService<IAuthorizationService>();
+            if (!checkpoint.IsUnchanged())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return false;
+            }
+
+            var allowed = (await service.AuthorizeAsync(context.Principal, context.Resource, policy)).Succeeded;
+            cancellationToken.ThrowIfCancellationRequested();
+            return checkpoint.IsUnchanged() && allowed;
         }
     }
 }

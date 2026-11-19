@@ -42,70 +42,7 @@ public class QueryActionFilter(
         if (context.HttpContext.Request.Method == HttpMethod.Get.Method &&
             context.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
         {
-            context.HttpContext.HandleWebSocketHeadersForMultipleProxies();
-            if (new AspNetCoreHttpRequestContext(context.HttpContext).RejectsUntrustedWebSocketOrigin())
-            {
-                context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
-                return;
-            }
-
-            using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
-            var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", controllerActionDescriptor.ControllerTypeInfo, queryContextManager);
-            var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
-            var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
-            var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
-            using var span = activitySource.OnQuery(routeTemplate);
-            span.Activity?.SetTag(WellKnownTelemetryNames.HttpRoute, routeTemplate);
-
-            var callResult = await CallNextAndHandleValidationAndExceptions(context, next);
-            if (callResult.MembershipDenied)
-            {
-                var denied = QueryResult.Unauthorized(queryContext.CorrelationId);
-                context.HttpContext.Response.SetResponseStatusCode(denied);
-                SetMvcResult(context, callResult.Result, new ObjectResult(denied));
-                return;
-            }
-            if (context.IsAspNetResult()) return;
-
-            if (callResult.Result?.Result is ObjectResult objectResult && objectResult.IsStreamingResult())
-            {
-                if (!AdmitTenant(context.HttpContext.RequestServices))
-                {
-                    var denied = QueryResult.Unauthorized(queryContext.CorrelationId);
-                    context.HttpContext.Response.SetResponseStatusCode(denied);
-                    SetMvcResult(context, callResult.Result, new ObjectResult(denied));
-                    return;
-                }
-
-                // Handle streaming results - both WebSocket and HTTP JSON streaming
-                await controllerAdapter.HandleControllerStreamingResult(context, callResult.Result, objectResult);
-                return; // Early return to avoid processing as regular query result
-            }
-
-            logger.NonClientObservableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
-            var validationResults = context.ModelState.SelectMany(_ => _.Value!.Errors.Select(p => p.ToValidationResult(_.Key.ToCamelCase()))).ToList();
-            var filteredValidationResults = FilterValidationResults(validationResults, treatWarningsAsErrors, ignoreWarnings);
-            var queryResult = await CreateQueryResult(
-                callResult.Response,
-                queryContext.Name,
-                queryContext,
-                callResult.ExceptionMessages,
-                callResult.ExceptionStackTrace ?? string.Empty,
-                filteredValidationResults,
-                queryProviders,
-                context.HttpContext.RequestServices);
-
-            ExceptionDetailRedactor.Redact(queryResult, ExceptionDetailRedactor.ExposeFor(context.HttpContext.RequestServices), logger);
-
-            if (await ControllerQueryValidationRejection.TryWrite(context.HttpContext, queryResult))
-            {
-                SetMvcResult(context, callResult.Result, new EmptyResult());
-                return;
-            }
-
-            context.HttpContext.Response.SetResponseStatusCode(queryResult);
-
-            SetMvcResult(context, callResult.Result, new ObjectResult(queryResult));
+            await ExecuteControllerQuery(context, next, controllerActionDescriptor);
         }
         else
         {
@@ -127,6 +64,34 @@ public class QueryActionFilter(
         {
             return false;
         }
+    }
+
+    static void DenyQuery(ActionExecutingContext context, ActionExecutedContext? executed, QueryContext queryContext)
+    {
+        var denied = QueryResult.Unauthorized(queryContext.CorrelationId);
+        context.HttpContext.Response.SetResponseStatusCode(denied);
+        SetMvcResult(context, executed, new ObjectResult(denied));
+    }
+
+    static (List<string> Messages, string StackTrace) CollectExceptionDetails(ActionExecutedContext result)
+    {
+        var messages = new List<string>();
+        var exception = result.Exception;
+        if (exception is null)
+        {
+            return (messages, string.Empty);
+        }
+
+        var stackTrace = exception.StackTrace ?? string.Empty;
+        do
+        {
+            messages.Add(exception.Message);
+            exception = exception.InnerException;
+        }
+        while (exception is not null);
+
+        result.Exception = null;
+        return (messages, stackTrace);
     }
 
     static bool GetIgnoreWarningsFromRequest(ActionExecutingContext context)
@@ -194,6 +159,71 @@ public class QueryActionFilter(
         return responseType;
     }
 
+    async Task ExecuteControllerQuery(ActionExecutingContext context, ActionExecutionDelegate next, ControllerActionDescriptor controllerActionDescriptor)
+    {
+        context.HttpContext.HandleWebSocketHeadersForMultipleProxies();
+        if (new AspNetCoreHttpRequestContext(context.HttpContext).RejectsUntrustedWebSocketOrigin())
+        {
+            context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
+            return;
+        }
+
+        using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
+        var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", controllerActionDescriptor.ControllerTypeInfo, queryContextManager);
+        var warnings = new WarningHandling(context.ShouldTreatWarningsAsErrors(), GetIgnoreWarningsFromRequest(context));
+        var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
+        using var span = activitySource.OnQuery(routeTemplate);
+        span.Activity?.SetTag(WellKnownTelemetryNames.HttpRoute, routeTemplate);
+
+        var callResult = await CallNextAndHandleValidationAndExceptions(context, next);
+        await WriteResult(context, controllerActionDescriptor, queryContext, callResult, warnings);
+    }
+
+    async Task WriteResult(ActionExecutingContext context, ControllerActionDescriptor controllerActionDescriptor, QueryContext queryContext, QueryCall callResult, WarningHandling warnings)
+    {
+        if (callResult.MembershipDenied)
+        {
+            DenyQuery(context, callResult.Result, queryContext);
+            return;
+        }
+        if (context.IsAspNetResult()) return;
+
+        if (callResult.Result?.Result is ObjectResult objectResult && objectResult.IsStreamingResult())
+        {
+            await HandleStreaming(context, callResult.Result, objectResult, queryContext);
+            return;
+        }
+
+        logger.NonClientObservableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
+        var validationResults = context.ModelState.SelectMany(_ => _.Value!.Errors.Select(p => p.ToValidationResult(_.Key.ToCamelCase()))).ToList();
+        var filteredValidationResults = FilterValidationResults(validationResults, warnings.TreatWarningsAsErrors, warnings.IgnoreWarnings);
+        var queryResult = await CreateQueryResult(callResult, queryContext, filteredValidationResults, context.HttpContext.RequestServices);
+
+        ExceptionDetailRedactor.Redact(queryResult, ExceptionDetailRedactor.ExposeFor(context.HttpContext.RequestServices), logger);
+
+        if (await ControllerQueryValidationRejection.TryWrite(context.HttpContext, queryResult))
+        {
+            SetMvcResult(context, callResult.Result, new EmptyResult());
+            return;
+        }
+
+        context.HttpContext.Response.SetResponseStatusCode(queryResult);
+
+        SetMvcResult(context, callResult.Result, new ObjectResult(queryResult));
+    }
+
+    async Task HandleStreaming(ActionExecutingContext context, ActionExecutedContext executed, ObjectResult objectResult, QueryContext queryContext)
+    {
+        if (!AdmitTenant(context.HttpContext.RequestServices))
+        {
+            DenyQuery(context, executed, queryContext);
+            return;
+        }
+
+        // Handle streaming results - both WebSocket and HTTP JSON streaming
+        await controllerAdapter.HandleControllerStreamingResult(context, executed, objectResult);
+    }
+
     QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, Type? controllerType, IQueryContextManager queryContextManager)
     {
         var sorting = httpContext.GetSortingInfo();
@@ -210,16 +240,13 @@ public class QueryActionFilter(
     }
 
     async Task<QueryResult> CreateQueryResult(
-        object? response,
-        FullyQualifiedQueryName queryName,
+        QueryCall call,
         QueryContext queryContext,
-        IEnumerable<string> exceptionMessages,
-        string exceptionStackTrace,
         IEnumerable<ValidationResult> validationResults,
-        IQueryRenderers queryProviders,
         IServiceProvider serviceProvider)
     {
-        var rendererResult = response is not null ? queryProviders.Render(queryName, response, serviceProvider) : new QueryRendererResult(0, default!);
+        var response = call.Response;
+        var rendererResult = response is not null ? queryProviders.Render(queryContext.Name, response, serviceProvider) : new QueryRendererResult(0, default!);
 
         var interceptedData = rendererResult.Data;
         if (rendererResult.Data is not null)
@@ -236,8 +263,8 @@ public class QueryActionFilter(
                 rendererResult.TotalItems),
             CorrelationId = queryContext.CorrelationId,
             ValidationResults = validationResults,
-            ExceptionMessages = exceptionMessages,
-            ExceptionStackTrace = exceptionStackTrace,
+            ExceptionMessages = call.ExceptionMessages,
+            ExceptionStackTrace = call.ExceptionStackTrace ?? string.Empty,
             Data = interceptedData!
         };
 
@@ -265,56 +292,45 @@ public class QueryActionFilter(
         return intercepted.First();
     }
 
-    async Task<(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response, bool MembershipDenied)> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)
+    async Task<QueryCall> CallNextAndHandleValidationAndExceptions(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        var exceptionMessages = new List<string>();
-        var exceptionStackTrace = string.Empty;
-        object? response = null;
-        ActionExecutedContext? result = null;
-
-        if (context.ModelState.IsValid || context.ShouldIgnoreValidation())
+        if (!context.ModelState.IsValid && !context.ShouldIgnoreValidation())
         {
-            try
-            {
-                result = await next();
-            }
-            catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
-            {
-                return (null, exceptionMessages, exceptionStackTrace, null, true);
-            }
-
-            if (UnauthorizedCause.IsCauseOf(result.Exception))
-            {
-                result.Exception = null;
-                return (result, exceptionMessages, exceptionStackTrace, null, true);
-            }
-
-            if (context.IsAspNetResult())
-            {
-                return (null, exceptionMessages, exceptionStackTrace, response, false);
-            }
-
-            if (result.Exception is not null)
-            {
-                var exception = result.Exception;
-                exceptionStackTrace = exception.StackTrace;
-
-                do
-                {
-                    exceptionMessages.Add(exception.Message);
-                    exception = exception.InnerException;
-                }
-                while (exception is not null);
-
-                result.Exception = null;
-            }
-
-            if (result.Result is ObjectResult objectResult)
-            {
-                response = objectResult.Value;
-            }
+            return QueryCall.Empty(null);
         }
 
-        return (result, exceptionMessages, exceptionStackTrace, response, false);
+        ActionExecutedContext result;
+        try
+        {
+            result = await next();
+        }
+        catch (Exception exception) when (UnauthorizedCause.IsCauseOf(exception))
+        {
+            return QueryCall.Denied(null);
+        }
+
+        if (UnauthorizedCause.IsCauseOf(result.Exception))
+        {
+            result.Exception = null;
+            return QueryCall.Denied(result);
+        }
+
+        if (context.IsAspNetResult())
+        {
+            return QueryCall.Empty(null);
+        }
+
+        var (exceptionMessages, exceptionStackTrace) = CollectExceptionDetails(result);
+        var response = (result.Result as ObjectResult)?.Value;
+        return new QueryCall(result, exceptionMessages, exceptionStackTrace, response, false);
+    }
+
+    readonly record struct WarningHandling(bool TreatWarningsAsErrors, bool IgnoreWarnings);
+
+    readonly record struct QueryCall(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response, bool MembershipDenied)
+    {
+        public static QueryCall Empty(ActionExecutedContext? result) => new(result, [], string.Empty, null, false);
+
+        public static QueryCall Denied(ActionExecutedContext? result) => new(result, [], string.Empty, null, true);
     }
 }

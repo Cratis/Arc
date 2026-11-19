@@ -30,7 +30,13 @@ In your host's `appsettings.json`, add:
 }
 ```
 
-`Server` and `Database` are required. Keep production credentials in your host's secret configuration, not source control. `DirectConnection` is optional: when unset, the connection string's setting is preserved. Direct connection does not turn a standalone MongoDB server into a replica set.
+### Required settings, and the error when they are missing
+
+`Server` and `Database` have no defaults and are both required. They are read from the `Cratis:MongoDB` section. As environment variables they are `Cratis__MongoDB__Server` and `Cratis__MongoDB__Database`. The section name is fixed unless you pass a different `mongoDBConfigSectionPath` to `WithMongoDB()`.
+
+When either is missing or empty, the host fails at startup with an options validation error, for example `MongoDB Server is not configured. Set Cratis:MongoDB:Server (environment variable Cratis__MongoDB__Server), for example …`. The message names the configuration key and environment variable to set; check that they reach the host, including from environment variables or user secrets.
+
+Keep production credentials in your host's secret configuration, not source control. `DirectConnection` is optional: when unset, the connection string's setting is preserved. Direct connection does not turn a standalone MongoDB server into a replica set.
 
 ## Enable the integration
 

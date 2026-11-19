@@ -49,7 +49,12 @@ public class when_a_string_concept_receives_a_json_number : Specification
     }
 
     [Fact] void should_respond_with_bad_request() => _status.ShouldEqual(StatusCodes.Status400BadRequest);
-    [Fact] void should_report_a_malformed_command_body() => JsonDocument.Parse(_body).RootElement.GetProperty("isValid").GetBoolean().ShouldBeFalse();
+    [Fact]
+    void should_report_a_malformed_command_body()
+    {
+        using var document = JsonDocument.Parse(_body);
+        document.RootElement.GetProperty("isValid").GetBoolean().ShouldBeFalse();
+    }
 
     public record Email(string Value) : ConceptAs<string>(Value);
 

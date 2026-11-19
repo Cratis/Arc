@@ -2,7 +2,7 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Samples.ArcCore.Specs</AssemblyName>
         <RootNamespace>Samples.ArcCore.Specs</RootNamespace>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <TargetFrameworks></TargetFrameworks>
         <OutputType>Exe</OutputType>
         <IsTestProject>true</IsTestProject>

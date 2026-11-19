@@ -3,7 +3,9 @@
 
 using System.Net;
 using System.Net.Http.Headers;
+#if !NET11_0_OR_GREATER // System.Net.Http.Json is implicitly imported on net11.0.
 using System.Net.Http.Json;
+#endif
 using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Connections;

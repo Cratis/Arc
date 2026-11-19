@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.ValidationProjectionFixture</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.for_ValidationProjection</RootNamespace>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <GenerateDependencyFile>true</GenerateDependencyFile>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
+        <Compile Include="../../for_ValidationProjection/ProjectionCommand.cs" Link="ProjectionCommand.cs" />
+        <Compile Include="../../for_ValidationProjection/ProjectionCommandValidator.cs" Link="ProjectionCommandValidator.cs" />
+        <Compile Include="../../for_ValidationProjection/ProjectionReadModel.cs" Link="ProjectionReadModel.cs" />
+    </ItemGroup>
+</Project>

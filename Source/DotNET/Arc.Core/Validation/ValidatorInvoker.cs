@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Tenancy;
 using Cratis.DependencyInjection;
 using Cratis.Strings;
@@ -45,6 +46,8 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             if (OperationSnapshot.Current is { } snapshot)
             {
                 validationContext.RootContextData[OperationSnapshot.ContextKey] = snapshot;
+                validationContext.RootContextData[ValidationContextValuesExtensions.ContextKey] =
+                    ContextValues.For(snapshot.Services, () => instance.GetType(), cancellationToken);
             }
 
             switch (kind)
@@ -67,7 +70,7 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             return validationResult.Errors.Select(_ =>
                 new ValidationResult(ToSeverity(_.Severity), _.ErrorMessage, [MemberFor(path, _.PropertyName, isConcept)], _.CustomState ?? null!)).ToArray();
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired) &&
+        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired or ContextValueUnavailableException or RequiredContextValueAbsentException) &&
             !OperationSnapshotUnavailable.IsCauseOf(ex) &&
             !(TenantMembershipDenied.IsCauseOf(ex) && OperationSnapshot.Current is { } denied && (denied.StrictMembership || denied.MembershipDenied)))
         {

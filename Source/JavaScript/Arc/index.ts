@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import '@cratis/fundamentals/reflection';
+import * as availability from './availability/index.js';
 import * as commands from './commands/index.js';
 import * as identity from './identity/index.js';
 import * as messaging from './messaging/index.js';
@@ -16,6 +17,7 @@ export * from './GetHttpHeaders.js';
 export * from './EventSourceFactory.js';
 
 export {
+    availability,
     commands,
     identity,
     messaging,

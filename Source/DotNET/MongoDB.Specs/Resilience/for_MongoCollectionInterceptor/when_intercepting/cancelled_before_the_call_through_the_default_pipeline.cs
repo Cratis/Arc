@@ -21,7 +21,7 @@ public class cancelled_before_the_call_through_the_default_pipeline : given.an_i
     async Task Because()
     {
         // A deadline, not a sleep: a task that never completes turns into a failure instead of a hang.
-        _completedInTime = await Task.WhenAny(Intercept(), Task.Delay(TimeSpan.FromSeconds(10))) == _returnValue;
+        _completedInTime = await SpecTasks.CompletesWithin(Intercept(), TimeSpan.FromSeconds(10));
     }
 
     Task Intercept()

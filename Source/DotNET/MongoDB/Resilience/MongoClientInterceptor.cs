@@ -21,16 +21,21 @@ public class MongoClientInterceptor(
     ResiliencePipeline resiliencePipeline,
     IMongoClient mongoClient) : IInterceptor
 {
+    /// <summary>
+    /// Gets the <see cref="ProxyGenerator"/> the interceptor was created with.
+    /// </summary>
+    /// <remarks>Databases and collections are decorated without generating proxy types; the generator is kept for compatibility.</remarks>
+    public ProxyGenerator ProxyGenerator => proxyGenerator;
+
+    /// <summary>
+    /// Gets the <see cref="ResiliencePipeline"/> the interceptor was created with.
+    /// </summary>
+    public ResiliencePipeline ResiliencePipeline => resiliencePipeline;
+
     /// <inheritdoc/>
     public void Intercept(IInvocation invocation)
     {
         invocation.Proceed();
-
-        invocation.ReturnValue = proxyGenerator.CreateInterfaceProxyWithTarget(
-            (invocation.ReturnValue as IMongoDatabase)!,
-            new ProxyGenerationOptions
-            {
-                Selector = new MongoDatabaseInterceptorSelector(proxyGenerator, resiliencePipeline, mongoClient)
-            });
+        invocation.ReturnValue = new ResilientMongoDatabase((invocation.ReturnValue as IMongoDatabase)!, mongoClient.Settings.MaxConnectionPoolSize / 2);
     }
 }

@@ -1,6 +1,6 @@
 ---
 title: Personal access token adapters
-description: Supply a trusted personal access token store, recovery authority, and current policy, register them, and run the refusal suite to prove unsafe cases fail.
+description: Supply a trusted personal access token store, recovery authority and current policy, register them, and run the refusal suite to prove unsafe cases fail.
 ---
 
 Personal access token (PAT) adapters supply persistence, recovery evidence, and current policy to `Cratis.Arc.PersonalAccessTokens`. Use the public `IPatAuthority`, `IPatRecoveryEpoch`, and `IPatPolicy` ports when the host owns those services. Without an adapter, the module refuses issuance and verification.

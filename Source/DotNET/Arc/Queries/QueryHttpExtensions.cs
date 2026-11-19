@@ -149,6 +149,10 @@ public static class QueryHttpExtensions
         {
             response.StatusCode = (int)HttpStatusCode.BadRequest;
         }
+        else if (queryResult.IsRetryable)
+        {
+            response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+        }
         else if (queryResult.HasExceptions)
         {
             response.StatusCode = (int)HttpStatusCode.InternalServerError;

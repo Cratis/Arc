@@ -124,29 +124,7 @@ export abstract class ObservableQueryFor<
             this._connection.disconnect();
         }
 
-        const clientValidationErrors =
-            this.validation?.validate((args as object) || {}) || [];
-        if (clientValidationErrors.length > 0) {
-            // Serve the failure through the connection rather than throwing, so a subscriber sees an invalid result
-            // on its normal callback path instead of the empty result an unestablished connection would emit.
-            this._connection = new NullObservableQueryConnection(
-                this.defaultValue,
-                QueryResult.validationFailed(clientValidationErrors, this),
-            );
-        } else if (this.validateArguments(args)) {
-            this._connection = createObservableQueryConnection({
-                route: this.route,
-                queryName: this.queryName ?? this.constructor.name,
-                origin: this._origin,
-                apiBasePath: this._apiBasePath,
-                microservice: this._microservice,
-                args: args as object,
-                httpHeadersCallback: this._httpHeadersCallback,
-                pollingOptions: this._pollingOptions,
-            });
-        } else {
-            this._connection = new NullObservableQueryConnection(this.defaultValue);
-        }
+        this._connection = this.createConnection(args);
 
         // Descriptor-backed instance properties provide defaults; fresh args passed to subscribe()
         // must take precedence over any stale instance property values. Spread parameterValues
@@ -185,6 +163,47 @@ export abstract class ObservableQueryFor<
         return subscriber;
     }
 
+    private createConnection(args?: TParameters): IObservableQueryConnection<TDataType> {
+        const clientValidationErrors =
+            this.validation?.validate((args as object) || {}) || [];
+        if (clientValidationErrors.length > 0) {
+            // Serve the failure through the connection rather than throwing, so a subscriber sees an invalid result
+            // on its normal callback path instead of the empty result an unestablished connection would emit.
+            return new NullObservableQueryConnection(
+                this.defaultValue,
+                QueryResult.validationFailed(clientValidationErrors, this),
+            );
+        }
+
+        if (!this.validateArguments(args)) {
+            return new NullObservableQueryConnection(this.defaultValue);
+        }
+
+        return createObservableQueryConnection({
+            route: this.route,
+            queryName: this.queryName ?? this.constructor.name,
+            origin: this._origin,
+            apiBasePath: this._apiBasePath,
+            microservice: this._microservice,
+            args: args as object,
+            httpHeadersCallback: this._httpHeadersCallback,
+            pollingOptions: this._pollingOptions,
+        });
+    }
+
+    private buildRequestHeaders(): Record<string, any> {
+        const headers: Record<string, any> = {
+            ...(this._httpHeadersCallback?.() || {}),
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+        };
+
+        if (this._microservice?.length > 0) {
+            headers[Globals.microserviceHttpHeader] = this._microservice;
+        }
+        return headers;
+    }
+
     /** @inheritdoc */
     async perform(args?: TParameters): Promise<QueryResult<TDataType>> {
         const noSuccess = {
@@ -207,15 +226,7 @@ export abstract class ObservableQueryFor<
         // Collect parameter values from parameterDescriptors that are set
         const parameterValues = ParametersHelper.collectParameterValues(this);
 
-        const headers = {
-            ...(this._httpHeadersCallback?.() || {}),
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-        };
-
-        if (this._microservice?.length > 0) {
-            headers[Globals.microserviceHttpHeader] = this._microservice;
-        }
+        const headers = this.buildRequestHeaders();
 
         const response = await executeQueryHttpRequest(this._httpMethod, {
             route: this.route,

@@ -4,9 +4,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using Cratis.Concepts;
-#if NET10_0_OR_GREATER
 using Microsoft.EntityFrameworkCore.Query;
-#endif
 
 namespace Cratis.Arc.EntityFrameworkCore.Concepts;
 
@@ -184,17 +182,11 @@ public class ConceptAsParameterEvaluator : ExpressionVisitor
 
     /// <summary>
     /// Check if the expression is a QueryParameterExpression (EF Core internal type).
-    /// Uses the actual type on .NET 10+, falls back to reflection-based type name check for earlier versions.
     /// </summary>
     /// <param name="expression">The expression to check.</param>
     /// <returns>True if this is a QueryParameterExpression, false otherwise.</returns>
-#if NET10_0_OR_GREATER
     static bool IsQueryParameterExpression(Expression? expression) =>
         expression is QueryParameterExpression;
-#else
-    static bool IsQueryParameterExpression(Expression? expression) =>
-        expression?.GetType().Name == "QueryParameterExpression";
-#endif
 
     void CollectQueryParameterValues(Expression expression)
     {

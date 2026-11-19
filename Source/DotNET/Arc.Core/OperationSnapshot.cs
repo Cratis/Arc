@@ -50,9 +50,11 @@ internal sealed class OperationSnapshot : IDisposable
         TenantIdAccessor? accessor,
         ITenantIdAccessor? genericAccessor,
         ITenantIdResolver? resolver,
-        bool strictMembership)
+        bool strictMembership,
+        IServiceProvider services)
     {
         _previous = previous;
+        Services = services;
         StrictMembership = strictMembership;
         _principal = new(() => SelectPrincipal(authorizedPrincipal, principalAtBegin, capturedPrincipal), LazyThreadSafetyMode.ExecutionAndPublication);
         _causedBy = new(() => CausingIdentity.From(_principal.Value), LazyThreadSafetyMode.ExecutionAndPublication);
@@ -113,6 +115,11 @@ internal sealed class OperationSnapshot : IDisposable
     internal bool StrictMembership { get; }
 
     /// <summary>
+    /// Gets the services of the operation, from which a validator reads the request-scoped context values.
+    /// </summary>
+    internal IServiceProvider Services { get; }
+
+    /// <summary>
     /// Gets a value indicating whether this snapshot has completed.
     /// </summary>
     internal bool Completed { get; private set; }
@@ -154,7 +161,8 @@ internal sealed class OperationSnapshot : IDisposable
             accessor,
             genericAccessor,
             services.GetService<ITenantIdResolver>(),
-            strict);
+            strict,
+            services);
     }
 
     /// <inheritdoc/>

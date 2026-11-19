@@ -35,6 +35,7 @@ public class when_checking_binding_table_coverage : Specification
         [typeof(Commands.CommandOptions)] = CommandOptionsBinding.Bound,
         [typeof(Queries.QueryOptions)] = QueryOptionsBinding.Bound,
         [typeof(Queries.QueryHealthOptions)] = QueryHealthOptionsBinding.Bound,
+        [typeof(Commands.ReadProtectionOptions)] = ReadProtectionOptionsBinding.Bound,
         [typeof(HostingOptions)] = HostingOptionsBinding.Bound,
         [typeof(EndpointGroups.EndpointGroupsOptions)] = EndpointGroupsOptionsBinding.Bound,
         [typeof(System.Text.Json.JsonSerializerOptions)] = JsonSerializerOptionsBinding.Bound

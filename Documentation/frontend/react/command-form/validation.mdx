@@ -105,6 +105,14 @@ export function ProfileForm() {
 
 The summary can show the full result array. For a single input, `getFieldError('email')` returns the first matching message, giving custom errors precedence, just like the built-in field display.
 
+To place one field's message yourself, render `ValidationMessage` from `@cratis/arc.react/commands` inside the form. It takes the same property accessor as the fields, reads `getFieldError` for that property, and renders nothing when there is no message:
+
+```tsx
+<ValidationMessage<UpdateProfile> value={c => c.email} />
+```
+
+The message renders in a `<small>` element colored with the `--color-error` CSS variable.
+
 Keep rule messages safe for end users. The summary replaces messages whose `reason` is not `rule` with application wording. Client-side required-property checks also use `reason: 'rule'`, with `reasonDetail: 'Required'`; map that detail to your own copy too, as described in [validation results](../../core/validation/results.md). Translation in the summary does not change messages rendered independently by custom fields.
 
 Form `isValid` uses the latest applied silent result's `isValid` flag and also requires that no nonempty custom field errors remain. It does not read the displayed `commandResult.isValid` or require an empty message array: non-blocking messages follow the command's severity policy. The form's `isAuthorized` checks the client identity's roles, not server authorization.
@@ -182,9 +190,26 @@ Preflight can still stop at local validation and never grants permission to exec
 | `validationResults` | Array of `{ severity, message, members, state, reason, reasonDetail? }`. |
 | `exceptionMessages`, `exceptionStackTrace` | Exception diagnostics. |
 | `authorizationFailureReason` | Authorization failure detail. |
+| `isMissingHandler` | No server handler was registered, so execution or validation could not run. Defaults to `false` with older servers. |
 | `correlationId`, `response` | Correlation identifier and optional typed response. |
 
 For exact field matching outside CommandForm, filter `validationResults` by member name and map to messages. Account for casing/nested paths in your own renderer; within the form prefer `getFieldError()` for its field-matching behavior.
+
+## Validation metadata
+
+`CommandFormState` (the `onStateChange` argument), the context and the `formRef` handle expose an optional `validation` snapshot with a `client` and a `server` channel. It describes what validation concluded and how fresh that is; `isValid` and submission are unchanged.
+
+| Member | Meaning |
+| --- | --- |
+| `pending` | A validation is in flight or, for the server, waiting behind `autoServerValidateThrottle`. |
+| `freshness` | `unvalidated`, `stale` (the verdict describes earlier values) or `current`. |
+| `verdict` | `unknown`, `valid`, `invalid` or `error` (the attempt failed - exception, `validatorFailed`, `dependencyUnavailable`, `malformedRequest`, `frameworkFailure`). A command without a server handler reports `unknown`. |
+| `validatedVersion` | The revision of the form values the verdict describes. |
+| `notRunReason` | `unauthorized` when the server refused before any rule ran, `missingHandler` when no server handler was registered, `serverValidationDisabled` when `autoServerValidate` is off. |
+
+A missing handler leaves the server channel `unvalidated`, with no `validatedVersion`, just like an unauthorized attempt. The result's exception diagnostics and HTTP status are unchanged.
+
+A `current`, `valid` verdict is a preflight: it never guarantees the command will execute successfully. A result is attributed to the server channel only when the server could have produced it; when client rules reject, `Command.validate()` answers locally and that result is recorded as the client's.
 
 ## See also
 

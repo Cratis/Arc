@@ -250,6 +250,8 @@ export class QueryInstanceCache {
             next.isPerforming,
             next.changeSet,
             next.isReady,
+            next.authorizationFailureReason,
+            next.isRetryable,
         );
     }
 
@@ -258,6 +260,8 @@ export class QueryInstanceCache {
             && result.isSuccess === previous.isSuccess
             && result.isReady === previous.isReady
             && result.isAuthorized === previous.isAuthorized
+            && result.authorizationFailureReason === previous.authorizationFailureReason
+            && result.isRetryable === previous.isRetryable
             && result.isValid === previous.isValid
             && result.hasExceptions === previous.hasExceptions
             && result.exceptionStackTrace === previous.exceptionStackTrace
@@ -368,7 +372,7 @@ export class QueryInstanceCache {
 
     /**
      * Tears down all active subscriptions and marks every entry as not subscribed,
-     * but preserves entries, subscriber counts, and listeners. This allows
+     * but preserves entries, subscriber counts, listeners, and pending eviction timers. This allows
      * hooks whose effects re-run afterward to detect that the entry is no longer
      * subscribed and re-establish a fresh connection.
      *
@@ -378,15 +382,14 @@ export class QueryInstanceCache {
      */
     teardownAllSubscriptions(): void {
         for (const [, entry] of this._entries) {
-            if (entry.pendingCleanup !== undefined) {
-                clearTimeout(entry.pendingCleanup);
-                entry.pendingCleanup = undefined;
-            }
-
-            entry.subscribed = false;
-            entry.teardown?.();
-            entry.teardown = undefined;
+            this.teardownEntry(entry);
         }
+    }
+
+    private teardownEntry(entry: QueryCacheEntry<unknown>): void {
+        entry.subscribed = false;
+        entry.teardown?.();
+        entry.teardown = undefined;
     }
 
     /**
@@ -395,17 +398,12 @@ export class QueryInstanceCache {
      * unmounts permanently so that all query connections are closed synchronously.
      */
     dispose(): void {
-        for (const [, entry] of this._entries) {
+        this.teardownAllSubscriptions();
+        for (const entry of this._entries.values()) {
             if (entry.pendingCleanup !== undefined) {
                 clearTimeout(entry.pendingCleanup);
-                entry.pendingCleanup = undefined;
             }
-
-            entry.subscribed = false;
-            entry.teardown?.();
-            entry.teardown = undefined;
         }
-
         this._entries.clear();
     }
 

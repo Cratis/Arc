@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Screenplay.Analysis.Aggregates;
-using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -18,7 +16,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="paths">The portable source paths.</param>
 /// <param name="diagnostics">Where unreadable shapes are reported.</param>
 /// <param name="enabled">Whether authoring-only constructs are enabled.</param>
-public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, SourcePaths paths, ScreenplayDiagnostics diagnostics, bool enabled)
+public partial class CommandAuthoringReader(SemanticModels models, TypeRegistry types, SourcePaths paths, ScreenplayDiagnostics diagnostics, bool enabled)
 {
     readonly ScreenplayNaming _naming = new();
 
@@ -78,157 +76,17 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         parameters.ReadStrategies(handlers, location);
         result = result with { GeneratedParameters = parameters.HasParameters, UnavailableGenerated = parameters.Unavailable };
 
-        if (!enabled)
-        {
-            if (ProvisionStaysInCode(command, readsReader))
-            {
-                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The provisioning behavior of command '{command.Name}' is not represented in default output; generated values and responses were left in code", location);
-                return result;
-            }
-
-            if (handlers.Any(handler => ContainsOperation(handler.ReturnType)))
-            {
-                Report(ScreenplayDiagnosticCodes.UnreadableCommandOperation, "Returned operations are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable operations", location);
-            }
-        }
-
-        if (handlers is not [var handler] || HandlerBodies.Of(handler).ToArray() is not [var body] || models.For(body.SyntaxTree) is not { } model)
+        if (ReportsDefaultOutputLimits(command, handlers, readsReader, location))
         {
             return result;
         }
 
-        var returned = ReturnedBy(body);
-        var straight = IsStraight(body, model);
-        parameters.Bind(command, body, model);
-        var generated = parameters.Generated.ToList();
-        var validatedGenerated = parameters.Validated.ToList();
-        result = result with
-        {
-            GeneratedParameters = parameters.HasParameters,
-            UnavailableGenerated = parameters.Unavailable
-        };
-        foreach (var variable in parameters.LegacyLocals(body))
-        {
-            if (variable.Initializer?.Value is not { } value || model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
-            {
-                continue;
-            }
-
-            if (CreatesGeneratableConcept(value, local.Type, model))
-            {
-                if (!IsUnchanged(local, body, model))
-                {
-                    Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' is written after its initializer or passed by reference; its generation and dependent claims were left in code", location);
-                    continue;
-                }
-
-                if (returned is null || !straight)
-                {
-                    continue;
-                }
-
-                if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
-                    .Any(name => _naming.ToPropertyName(name) == _naming.ToPropertyName(local.Name)))
-                {
-                    Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' collides with an emitted command property; generation and dependent claims were left in code", location);
-                    Sources = new();
-                    return result;
-                }
-
-                // Roslyn annotates inferred reference locals as nullable even when their initializer is required.
-                // Keep explicit local annotations, but resolve var from the proven generation expression instead.
-                var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
-                    ? model.GetTypeInfo(value).Type ?? local.Type
-                    : local.Type;
-                generated.Add(new(local.Name, types.ResolveGenerated(generatedType)));
-                if (ValidatedTypes.Contains(local.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
-                {
-                    validatedGenerated.Add(local.Name);
-                }
-                Sources.AddGenerated(local, local.Name);
-            }
-        }
-
-        if (returned is null || !straight)
-        {
-            if (HandlerBodies.YieldsEventSourceId(handler.ReturnType))
-            {
-                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The returned response or operations depend on control flow and were left in code", location);
-            }
-
-            return result;
-        }
-
-        result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
-        if (parameters.WrapperIdentifier(returned, body, model, generated) is { } wrapperIdentity)
-        {
-            return result with { Identifier = wrapperIdentity };
-        }
-        if (ResponseValueType(handler.ReturnType) is null)
+        if (SingleHandlerBody(handlers) is not { } single)
         {
             return result;
         }
 
-        var parts = ReadReturnedParts(command, returned, model, location);
-        var responses = parts.Responses;
-        result = result with { Operations = parts.Operations, Identifier = parameters.TupleWrapperIdentifier(returned, body, model, generated) };
-        if (responses.Count > 1)
-        {
-            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "Several response values are returned without a response record; no response was inferred", location);
-            return result;
-        }
-
-        if (responses is not [var response])
-        {
-            return result;
-        }
-
-        if (Sources.UnavailableIn(response, model) is { } unavailable)
-        {
-            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The response depends on unavailable generated input '{unavailable.Name}' ({unavailable.Failure}) and was left in code", location);
-            return result;
-        }
-
-        var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
-        if (CreatesLegacyGeneratableConcept(response, responseType, model, parameters.HasParameters))
-        {
-            var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
-            if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
-                .Any(property => _naming.ToPropertyName(property) == _naming.ToPropertyName(name)))
-            {
-                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated response '{name}' collides with an emitted command property; generation and dependent claims were left in code", location);
-                Sources = new();
-                return result with { Generated = [], GeneratedWithValidators = [], Operations = [] };
-            }
-
-            generated.Add(new(name, types.ResolveGenerated(responseType)));
-            if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
-            {
-                validatedGenerated.Add(name);
-            }
-            Sources.AddExpression(response, name);
-        }
-
-        result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
-        var source = SourceOf(response, model, command);
-        if (source?.Contains('.', StringComparison.Ordinal) == false && responseType is not null && SupportsResponse(responseType) &&
-            IsDirectResponse(response, responseType, model))
-        {
-            var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType) &&
-                !AggregateRootBehaviors.ReachedFrom(body, model).Any();
-            return result with { Response = source, Identifier = generatedIdentifier ? source : result.Identifier, ResponseType = ResponseTypes.NameOf(responseType) };
-        }
-
-        if (response is BaseObjectCreationExpressionSyntax creation && model.GetTypeInfo(creation).Type is INamedTypeSymbol { IsRecord: true } record &&
-            record.FindBase(WellKnownTypeNames.ConceptAs) is null && HasIdentityType(creation, record, model) &&
-            (response != returned || SymbolEqualityComparer.Default.Equals(record, ResponseValueType(handler.ReturnType))) &&
-            ReadRecord(creation, record, model, command) is { } fields)
-        {
-            return result with { ResponseFields = fields, ResponseType = ResponseTypes.NameOf(record) };
-        }
-
-        Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The response is not a direct command property, generated concept, or fully readable response record and was left in code", location);
-        return result;
+        return ReadHandlerBody(new(command, single, location, parameters), result);
     }
 
     /// <summary>Determines whether a type supplies an event source identity.</summary>
@@ -237,264 +95,179 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     public bool IsEventSourceIdentity(ITypeSymbol? type) => type is not null &&
         (type.Is("Cratis.Chronicle.Events.EventSourceId") || type.FindBase("Cratis.Chronicle.Events.EventSourceId`1") is not null);
 
-    /// <summary>Proves that a handler has no fact-recording or external effects.</summary>
-    /// <param name="handlers">The handlers of the command.</param>
-    /// <param name="authoring">The recovered pure response.</param>
-    /// <returns>Whether the command has no provisioning method and every body is empty or consists only of the recovered response and generated values.</returns>
-    public bool HasNoFactBehavior(IReadOnlyList<IMethodSymbol> handlers, CommandAuthoringModel? authoring) => handlers.Count > 0 && handlers.All(handler =>
-    {
-        if (HasProvide(handler.ContainingType) ||
-            HandlerBodies.Of(handler).ToArray() is not [var body])
-        {
-            return false;
-        }
-
-        if (body is BlockSyntax { Statements.Count: 0 })
-        {
-            return true;
-        }
-
-        if (ContainsOperation(handler.ReturnType) || authoring is not { Response: not null } and not { ResponseFields.Count: > 0 } ||
-            MayCarryEvent(handler.ReturnType, new(SymbolEqualityComparer.Default)) ||
-            models.For(body.SyntaxTree) is not { } bodyModel ||
-            body.DescendantNodesAndSelf().OfType<ExpressionSyntax>().Any(expression =>
-                bodyModel.GetTypeInfo(expression).Type is { } type && MayCarryEvent(type, new(SymbolEqualityComparer.Default), allowOpen: true)))
-        {
-            return false;
-        }
-
-        if (body is ExpressionSyntax)
-        {
-            return true;
-        }
-
-        return body is BlockSyntax block && block.Statements.LastOrDefault() is ReturnStatementSyntax &&
-            block.Statements.All(statement => statement is ReturnStatementSyntax or LocalDeclarationStatementSyntax) &&
-            block.Statements.OfType<ReturnStatementSyntax>().Count() == 1 &&
-            block.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).All(variable =>
-                models.For(variable.SyntaxTree) is { } model && model.GetDeclaredSymbol(variable) is ILocalSymbol local &&
-                authoring.Generated.Any(property => property.Name == local.Name));
-    });
-
-    /// <summary>
-    /// Determines whether a value of a type can be, or can carry, an event the pipeline appends.
-    /// </summary>
-    /// <param name="type">The type to check.</param>
-    /// <param name="visited">The types already checked.</param>
-    /// <param name="allowOpen">Whether open types such as <see cref="object"/> and interfaces are accepted, for subexpressions.</param>
-    /// <returns>True for events, tuples, collections, results and unions with an event, and for types that could hold one at runtime.</returns>
-    /// <remarks>
-    /// A handler appends whatever event its returned value holds, whether directly, in a tuple, in a collection, or
-    /// in a <c>Result</c> or <c>OneOf</c> branch. A returned <see cref="object"/>, <see langword="dynamic"/>, interface or type
-    /// parameter can hold an event at runtime and is not proven free of one.
-    /// </remarks>
-    static bool MayCarryEvent(ITypeSymbol type, HashSet<ITypeSymbol> visited, bool allowOpen = false)
-    {
-        if (!visited.Add(type))
-        {
-            return false;
-        }
-
-        if (EventReader.IsEvent(type))
-        {
-            return true;
-        }
-
-        if (!allowOpen && (type.SpecialType == SpecialType.System_Object || type.TypeKind is TypeKind.Dynamic or TypeKind.Interface or TypeKind.TypeParameter or TypeKind.Error))
-        {
-            return true;
-        }
-
-        return type switch
-        {
-            IArrayTypeSymbol array => MayCarryEvent(array.ElementType, visited, allowOpen),
-            INamedTypeSymbol { IsTupleType: true } tuple => tuple.TupleElements.Any(element => MayCarryEvent(element.Type, visited, allowOpen)),
-            INamedTypeSymbol named => named.TypeArguments.Any(argument => MayCarryEvent(argument, visited, allowOpen)),
-            _ => false
-        };
-    }
-
-    static ExpressionSyntax? ReturnedBy(SyntaxNode body) => body switch
-    {
-        BlockSyntax block => (block.Statements.LastOrDefault() as ReturnStatementSyntax)?.Expression,
-        ExpressionSyntax expression => expression,
-        _ => null
-    };
-
-    static ExpressionSyntax[] ReturnedExpressions(ExpressionSyntax returned) => returned is TupleExpressionSyntax tuple
-        ? tuple.Arguments.Select(argument => argument.Expression).ToArray()
-        : [returned];
-
-    static bool IsReturnedOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations");
-
-    static bool IsStraight(SyntaxNode body, SemanticModel model) => ReturnedEventList.Read(body, model) is not null || body is not BlockSyntax block ||
-        (block.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) && block.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
-
     static bool ProvisionStaysInCode(INamedTypeSymbol command, CommandReadsReader reads) => HasProvide(command) && !reads.ProvisionStatesReadsOnly;
 
-    static bool HasProvide(INamedTypeSymbol command)
+    bool ReportsDefaultOutputLimits(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, CommandReadsReader readsReader, string location)
     {
-        for (var current = command; current is not null; current = current.BaseType)
+        if (enabled)
         {
-            // Runtime discovery includes instance methods, but not private methods inherited from a base type.
-            if (current.GetMembers("Provide").OfType<IMethodSymbol>().Any(method => !method.IsStatic &&
-                (SymbolEqualityComparer.Default.Equals(current, command) || method.DeclaredAccessibility != Accessibility.Private)))
-            {
-                return true;
-            }
+            return false;
+        }
+
+        if (ProvisionStaysInCode(command, readsReader))
+        {
+            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The provisioning behavior of command '{command.Name}' is not represented in default output; generated values and responses were left in code", location);
+            return true;
+        }
+
+        if (handlers.Any(handler => ContainsOperation(handler.ReturnType)))
+        {
+            Report(ScreenplayDiagnosticCodes.UnreadableCommandOperation, "Returned operations are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable operations", location);
         }
 
         return false;
     }
 
-    static bool IsDirectResponse(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
+    HandlerBody? SingleHandlerBody(IReadOnlyList<IMethodSymbol> handlers)
     {
-        if (expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) ||
-            !HasIdentityType(expression, type, model))
-        {
-            return false;
-        }
-
-        var sourceType = model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol switch
-        {
-            IPropertySymbol property => property.Type,
-            ILocalSymbol local => local.Type,
-            IParameterSymbol parameter => parameter.Type,
-            _ => model.GetTypeInfo(expression).Type
-        };
-
-        return SymbolEqualityComparer.Default.Equals(sourceType, type);
-    }
-
-    static bool HasIdentityType(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
-    {
-        var info = model.GetTypeInfo(expression);
-
-        // Target-typed new has no natural Type and uses Roslyn's object-creation conversion,
-        // not an identity conversion. Its bound constructor still proves the constructed type.
-        var actual = expression is ImplicitObjectCreationExpressionSyntax && model.GetSymbolInfo(expression).Symbol is IMethodSymbol constructor
-            ? constructor.ContainingType : info.Type;
-
-        return SymbolEqualityComparer.Default.Equals(actual, type) &&
-            (info.ConvertedType is null || SymbolEqualityComparer.Default.Equals(info.ConvertedType, type));
-    }
-
-    static bool OnlyEvents(ExpressionSyntax expression, SemanticModel model)
-    {
-        var unwrapped = MappingSourceReader.Unwrap(expression);
-        var type = ResponseValueType(model.GetTypeInfo(unwrapped).Type ?? model.GetTypeInfo(unwrapped).ConvertedType);
-        var optional = false;
-        var collectionType = false;
-        var underlying = type is null ? null : UnderlyingTypes.Of(type, ref optional, ref collectionType);
-        return IsAppendedEvent(underlying) ||
-            (unwrapped is ConditionalExpressionSyntax conditional && OnlyEvents(conditional.WhenTrue, model) && OnlyEvents(conditional.WhenFalse, model)) ||
-            (unwrapped is CollectionExpressionSyntax collection && collection.Elements.All(element => element is ExpressionElementSyntax item && OnlyEvents(item.Expression, model))) ||
-            (unwrapped is ArrayCreationExpressionSyntax { Initializer: { } initializer } && initializer.Expressions.All(item => OnlyEvents(item, model))) ||
-            (unwrapped is ImplicitArrayCreationExpressionSyntax array && array.Initializer.Expressions.All(item => OnlyEvents(item, model)));
-    }
-
-    static bool IsAppendedEvent(ITypeSymbol? type) => type is not null && (EventReader.IsEvent(type) || type.Is(EventWrapperType.MetadataName));
-
-    static ITypeSymbol? ResponseValueType(ITypeSymbol? type)
-    {
-        while (type is INamedTypeSymbol named && (named.Is("System.Threading.Tasks.Task`1") || named.Is("System.Threading.Tasks.ValueTask`1")))
-        {
-            type = named.TypeArguments[0];
-        }
-
-        return type is null || type.SpecialType == SpecialType.System_Void ||
-            type.Is("System.Threading.Tasks.Task") || type.Is("System.Threading.Tasks.ValueTask") ||
-            type.Is("Cratis.Chronicle.EventSequences.IAppendResult") || type.Is("Cratis.Chronicle.EventSequences.AppendResult") ||
-            type.AllInterfaces.Any(contract => contract.Is("Cratis.Chronicle.EventSequences.IAppendResult")) ? null : type;
-    }
-
-    static IEnumerable<ExpressionSyntax> ResponseExpressions(ExpressionSyntax returned, SemanticModel model)
-    {
-        if (ReturnedProductionShape.TupleOf(returned, model) is not { } tuple)
-        {
-            return ReturnedExpressions(returned);
-        }
-
-        return tuple.Arguments.Select(argument => argument.Expression)
-            .Where(expression => !ReturnedProductionShape.IsEffect(model.GetTypeInfo(expression).ConvertedType ?? model.GetTypeInfo(expression).Type));
-    }
-
-    bool SupportsResponse(ITypeSymbol type)
-    {
-        var optional = false;
-        var collection = false;
-        var underlying = UnderlyingTypes.Of(type, ref optional, ref collection);
-
-        return !collection && !underlying.HasAttribute(WellKnownTypeNames.ReadModelAttribute);
-    }
-
-    ReturnedParts ReadReturnedParts(INamedTypeSymbol command, ExpressionSyntax returned, SemanticModel model, string location)
-    {
-        var responses = new List<ExpressionSyntax>();
-        var operations = new List<OperationModel>();
-        var operationReader = new CommandOperationReader(types, paths, diagnostics);
-        var parts = ResponseExpressions(returned, model)
-            .Select(part => (Part: part, Type: ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType)))
-            .Where(_ => _.Type is not null && !OnlyEvents(_.Part, model))
-            .ToList();
-        responses.AddRange(parts.Where(_ => !IsReturnedOperation(_.Type!)).Select(_ => _.Part));
-        var returnedOperations = parts.Where(_ => enabled && IsReturnedOperation(_.Type!));
-        operations.AddRange(returnedOperations.SelectMany(_ => operationReader.Read(_.Part, model, command, Sources, location)));
-
-        return new(responses, operations);
-    }
-
-    bool ContainsOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations") ||
-        (type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsOperation));
-
-    string? SourceOf(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command) =>
-        MappingSourceReader.ReadPath(expression, model, command) ??
-        (model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol is ILocalSymbol or IParameterSymbol || expression is BaseObjectCreationExpressionSyntax or InvocationExpressionSyntax
-            ? Sources.ReadPath(expression, model) : null);
-
-    List<PropertyMappingModel>? ReadRecord(BaseObjectCreationExpressionSyntax creation, INamedTypeSymbol record, SemanticModel model, INamedTypeSymbol command)
-    {
-        if (creation.Initializer is not null || !InlineProductionShape.IsSupported(creation, model) || model.GetSymbolInfo(creation).Symbol is not IMethodSymbol constructor || creation.ArgumentList is not { } arguments)
+        if (handlers is not [var handler] || HandlerBodies.Of(handler).ToArray() is not [var body])
         {
             return null;
         }
 
-        var fields = new List<PropertyMappingModel>();
-        for (var index = 0; index < arguments.Arguments.Count; index++)
-        {
-            var argument = arguments.Arguments[index];
-            var parameter = argument.NameColon is { } named ? constructor.Parameters.FirstOrDefault(parameter => parameter.Name == named.Name.Identifier.ValueText) : constructor.Parameters.ElementAtOrDefault(index);
-            var property = record.DeclaredProperties().FirstOrDefault(property => property.Name == parameter?.Name);
-            var source = SourceOf(argument.Expression, model, command);
-            if (property?.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is ParameterSyntax) != true ||
-                property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is PropertyDeclarationSyntax) || !SupportsResponse(property.Type) || source?.Contains('.', StringComparison.Ordinal) != false ||
-                !IsDirectResponse(argument.Expression, property.Type, model))
-            {
-                return null;
-            }
-
-            fields.Add(new(property.Name, new PropertyPathSource(source)));
-        }
-
-        return fields.Count > 0 && fields.Count == record.DeclaredProperties().Count() ? fields : null;
+        return models.For(body.SyntaxTree) is { } model ? new(handler, body, model) : null;
     }
 
-    bool CreatesLegacyGeneratableConcept(ExpressionSyntax expression, ITypeSymbol? type, SemanticModel model, bool explicitGeneration)
+    CommandAuthoringModel ReadHandlerBody(ReadContext context, CommandAuthoringModel result)
     {
-        if (explicitGeneration)
+        var parameters = context.Parameters;
+        parameters.Bind(context.Command, context.Body, context.Model);
+        context.Generated.AddRange(parameters.Generated);
+        context.ValidatedGenerated.AddRange(parameters.Validated);
+        result = result with
         {
+            GeneratedParameters = parameters.HasParameters,
+            UnavailableGenerated = parameters.Unavailable
+        };
+        if (!AddLegacyLocals(context))
+        {
+            return result;
+        }
+
+        if (!context.ReadsStraightReturn)
+        {
+            return ReportControlFlow(context, result);
+        }
+
+        result = result with { Generated = context.Generated, GeneratedWithValidators = context.ValidatedGenerated };
+        if (parameters.WrapperIdentifier(context.Returned!, context.Body, context.Model, context.Generated) is { } wrapperIdentity)
+        {
+            return result with { Identifier = wrapperIdentity };
+        }
+
+        return ResponseValueType(context.Handler.ReturnType) is null ? result : ReadResponse(context, result);
+    }
+
+    CommandAuthoringModel ReportControlFlow(ReadContext context, CommandAuthoringModel result)
+    {
+        if (HandlerBodies.YieldsEventSourceId(context.Handler.ReturnType))
+        {
+            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The returned response or operations depend on control flow and were left in code", context.Location);
+        }
+
+        return result;
+    }
+
+    bool AddLegacyLocals(ReadContext context)
+    {
+        foreach (var variable in context.Parameters.LegacyLocals(context.Body))
+        {
+            if (!AddLegacyLocal(context, variable))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool AddLegacyLocal(ReadContext context, VariableDeclaratorSyntax variable)
+    {
+        if (GeneratableLocal(context, variable) is not var (value, local))
+        {
+            return true;
+        }
+
+        if (!IsUnchanged(local, context.Body, context.Model))
+        {
+            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' is written after its initializer or passed by reference; its generation and dependent claims were left in code", context.Location);
+            return true;
+        }
+
+        if (!context.ReadsStraightReturn)
+        {
+            return true;
+        }
+
+        if (CollidesWithProperty(context, local.Name))
+        {
+            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' collides with an emitted command property; generation and dependent claims were left in code", context.Location);
+            Sources = new();
             return false;
         }
 
-        return type is not null && CreatesGeneratableConcept(expression, type, model);
+        AddGeneratedLocal(context, variable, value, local);
+        return true;
     }
 
-    bool CreatesGeneratableConcept(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model) =>
-        type is INamedTypeSymbol concept && HasIdentityType(expression, type, model) &&
-        !expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) &&
-        new GenerationStrategyReader(models).ReadLocal(MappingSourceReader.Unwrap(expression), concept, model);
+    (ExpressionSyntax Value, ILocalSymbol Local)? GeneratableLocal(ReadContext context, VariableDeclaratorSyntax variable)
+    {
+        if (variable.Initializer?.Value is not { } value || context.Model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
+        {
+            return null;
+        }
+
+        return CreatesGeneratableConcept(value, local.Type, context.Model) ? (value, local) : null;
+    }
+
+    void AddGeneratedLocal(ReadContext context, VariableDeclaratorSyntax variable, ExpressionSyntax value, ILocalSymbol local)
+    {
+        // Roslyn annotates inferred reference locals as nullable even when their initializer is required.
+        // Keep explicit local annotations, but resolve var from the proven generation expression instead.
+        var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
+            ? context.Model.GetTypeInfo(value).Type ?? local.Type
+            : local.Type;
+        AddGenerated(context, local.Name, generatedType, local.Type);
+        Sources.AddGenerated(local, local.Name);
+    }
+
+    void AddGenerated(ReadContext context, string name, ITypeSymbol resolvedType, ITypeSymbol validatedType)
+    {
+        context.Generated.Add(new(name, types.ResolveGenerated(resolvedType)));
+        if (ValidatedTypes.Contains(validatedType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
+        {
+            context.ValidatedGenerated.Add(name);
+        }
+    }
+
+    bool CollidesWithProperty(ReadContext context, string name) =>
+        context.Command.DeclaredProperties().Select(property => property.Name).Concat(context.Generated.Select(property => property.Name))
+            .Any(existing => _naming.ToPropertyName(existing) == _naming.ToPropertyName(name));
 
     void Report(string code, string message, string location) => diagnostics.Information(code, message, location);
 
-    sealed record ReturnedParts(IReadOnlyList<ExpressionSyntax> Responses, IReadOnlyList<OperationModel> Operations);
+    sealed record HandlerBody(IMethodSymbol Handler, SyntaxNode Body, SemanticModel Model);
+
+    sealed class ReadContext(INamedTypeSymbol command, HandlerBody handlerBody, string location, GeneratedParameterReader parameters)
+    {
+        public INamedTypeSymbol Command { get; } = command;
+
+        public IMethodSymbol Handler { get; } = handlerBody.Handler;
+
+        public SyntaxNode Body { get; } = handlerBody.Body;
+
+        public SemanticModel Model { get; } = handlerBody.Model;
+
+        public string Location { get; } = location;
+
+        public GeneratedParameterReader Parameters { get; } = parameters;
+
+        public ExpressionSyntax? Returned { get; } = ReturnedBy(handlerBody.Body);
+
+        public bool ReadsStraightReturn { get; } = ReturnedBy(handlerBody.Body) is not null && IsStraight(handlerBody.Body, handlerBody.Model);
+
+        public List<PropertyModel> Generated { get; } = [];
+
+        public List<string> ValidatedGenerated { get; } = [];
+    }
 }

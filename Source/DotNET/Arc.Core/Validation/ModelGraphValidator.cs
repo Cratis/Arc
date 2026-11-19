@@ -41,7 +41,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         await using var activation = new ProtectedValidatorActivationFrame();
         var results = new List<ValidationResult>();
         var spans = ValidatorSpans.For(request.ServiceProvider?.GetService<IActivitySource<ModelGraphValidator>>());
-        await Validate(request, request.Instance, request.RootPath, new HashSet<object>(ReferenceEqualityComparer.Instance), results, spans, cancellationToken);
+        var traversal = new Traversal(request, new HashSet<object>(ReferenceEqualityComparer.Instance), results, spans);
+        await Validate(traversal, new Node(request.Instance, request.RootPath), cancellationToken);
         return results;
     }
 
@@ -124,9 +125,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// <summary>
     /// Runs a validator through the invoker, using the kind-aware overload only when the request carries a kind.
     /// </summary>
-    /// <param name="instance">The instance to validate.</param>
+    /// <param name="node">The instance to validate and its member path from the graph root.</param>
     /// <param name="validator">The <see cref="IValidator"/> to run.</param>
-    /// <param name="path">The member path from the graph root.</param>
     /// <param name="kind">What the graph is validated for, or null when not known.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> for cancelling the validation.</param>
     /// <returns>The <see cref="ValidationResult"/> collection describing the outcome.</returns>
@@ -134,22 +134,23 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// A request without a kind keeps the original call, so an invoker written before the overload existed is never
     /// asked something it does not know.
     /// </remarks>
-    Task<IEnumerable<ValidationResult>> InvokeValidator(object instance, IValidator validator, string path, ValidationTargetKind? kind, CancellationToken cancellationToken) =>
+    Task<IEnumerable<ValidationResult>> InvokeValidator(Node node, IValidator validator, ValidationTargetKind? kind, CancellationToken cancellationToken) =>
         kind is null
-            ? validatorInvoker.Invoke(instance, validator, path, cancellationToken)
-            : validatorInvoker.Invoke(instance, validator, path, kind, cancellationToken);
+            ? validatorInvoker.Invoke(node.Instance, validator, node.Path, cancellationToken)
+            : validatorInvoker.Invoke(node.Instance, validator, node.Path, kind, cancellationToken);
 
-    async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidationTargetKind? kind, ValidatorSpans? spans, CancellationToken cancellationToken)
+    async Task<IEnumerable<ValidationResult>> Invoke(Traversal traversal, Node node, IValidator validator, CancellationToken cancellationToken)
     {
-        using var activity = spans?.Start(validator.GetType());
+        var kind = traversal.Request.Kind;
+        using var activity = traversal.Spans?.Start(validator.GetType());
         if (activity is null)
         {
-            return await InvokeValidator(instance, validator, path, kind, cancellationToken);
+            return await InvokeValidator(node, validator, kind, cancellationToken);
         }
 
         try
         {
-            var results = (await InvokeValidator(instance, validator, path, kind, cancellationToken)).ToArray();
+            var results = (await InvokeValidator(node, validator, kind, cancellationToken)).ToArray();
             if (activity.IsAllDataRequested)
             {
                 activity.SetTag(WellKnownTelemetryNames.ValidationResultCount, results.Length);
@@ -164,16 +165,9 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         }
     }
 
-    async Task Validate(
-        ModelGraphValidationRequest request,
-        object instance,
-        string path,
-        HashSet<object> visited,
-        List<ValidationResult> results,
-        ValidatorSpans? spans,
-        CancellationToken cancellationToken,
-        bool skipOwnValidator = false)
+    async Task Validate(Traversal traversal, Node node, CancellationToken cancellationToken, bool skipOwnValidator = false)
     {
+        var instance = node.Instance;
         var instanceType = instance.GetType();
 
         // Guard against cycles in arbitrary object graphs. Some types — notably
@@ -182,28 +176,14 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         // types can participate in a cycle; value types are boxed afresh on each access, so tracking them
         // would never dedupe and would only add overhead. ReferenceEqualityComparer keys on identity, so
         // distinct-but-equal instances (e.g. two equal concept values in a list) are still each validated.
-        if (!instanceType.IsValueType && !visited.Add(instance))
+        if (!instanceType.IsValueType && !traversal.Visited.Add(instance))
         {
             return;
         }
 
-        IReadOnlySet<string>? ignoredConceptRuleMembers = null;
-        if (!skipOwnValidator && TryGetValidator(request.ServiceProvider, instanceType, out var validator))
-        {
-            CertifiedProtectedValidatorConstruction.VerifyInvocation(validator, request.ServiceProvider);
-            results.AddRange(await Invoke(instance, validator, path, request.Kind, spans, cancellationToken));
-
-            // A validator can suppress a cross-cutting concept validator for one of its own properties (see
-            // BaseValidator<T>.RuleFor(...).IgnoreConceptRules()) — typically because that property names an
-            // entity the model itself is creating, rather than referencing one that must already exist. The
-            // exclusion only ever applies to this validator's own direct properties, captured fresh at this
-            // level and never inherited by grandchildren, so a sibling property or an unrelated model carrying
-            // the same concept type is unaffected.
-            if (validator is IHasIgnoredConceptRuleMembers hasIgnoredConceptRuleMembers)
-            {
-                ignoredConceptRuleMembers = hasIgnoredConceptRuleMembers.IgnoredConceptRuleMembers;
-            }
-        }
+        var ignoredConceptRuleMembers = skipOwnValidator
+            ? null
+            : await ValidateOwn(traversal, node, cancellationToken);
 
         if (IsLeaf(instanceType))
         {
@@ -212,22 +192,51 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
 
         if (instanceType.IsArray || typeof(IEnumerable).IsAssignableFrom(instanceType))
         {
-            foreach (var element in (IEnumerable)instance)
-            {
-                if (element is null) continue;
-                await Validate(request, element, path, visited, results, spans, cancellationToken);
-            }
-
+            await ValidateElements(traversal, node, cancellationToken);
             return;
         }
 
-        foreach (var member in GetWalkableProperties(instanceType))
+        await ValidateMembers(traversal, node, ignoredConceptRuleMembers, cancellationToken);
+    }
+
+    async Task<IReadOnlySet<string>?> ValidateOwn(Traversal traversal, Node node, CancellationToken cancellationToken)
+    {
+        var request = traversal.Request;
+        if (!TryGetValidator(request.ServiceProvider, node.Instance.GetType(), out var validator))
         {
-            var memberValue = member.Read(instance);
+            return null;
+        }
+
+        CertifiedProtectedValidatorConstruction.VerifyInvocation(validator, request.ServiceProvider);
+        traversal.Results.AddRange(await Invoke(traversal, node, validator, cancellationToken));
+
+        // A validator can suppress a cross-cutting concept validator for one of its own properties (see
+        // BaseValidator<T>.RuleFor(...).IgnoreConceptRules()) — typically because that property names an
+        // entity the model itself is creating, rather than referencing one that must already exist. The
+        // exclusion only ever applies to this validator's own direct properties, captured fresh at this
+        // level and never inherited by grandchildren, so a sibling property or an unrelated model carrying
+        // the same concept type is unaffected.
+        return (validator as IHasIgnoredConceptRuleMembers)?.IgnoredConceptRuleMembers;
+    }
+
+    async Task ValidateElements(Traversal traversal, Node node, CancellationToken cancellationToken)
+    {
+        foreach (var element in (IEnumerable)node.Instance)
+        {
+            if (element is null) continue;
+            await Validate(traversal, node with { Instance = element }, cancellationToken);
+        }
+    }
+
+    async Task ValidateMembers(Traversal traversal, Node node, IReadOnlySet<string>? ignoredConceptRuleMembers, CancellationToken cancellationToken)
+    {
+        foreach (var member in GetWalkableProperties(node.Instance.GetType()))
+        {
+            var memberValue = member.Read(node.Instance);
             if (memberValue is not null)
             {
                 var skipMemberOwnValidator = ignoredConceptRuleMembers?.Contains(member.Name) ?? false;
-                await Validate(request, memberValue, Extend(path, member), visited, results, spans, cancellationToken, skipMemberOwnValidator);
+                await Validate(traversal, new Node(memberValue, Extend(node.Path, member)), cancellationToken, skipMemberOwnValidator);
             }
         }
     }
@@ -244,4 +253,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         serviceProvider is { } provider
             ? discoverableValidators.TryGet(modelType, provider, out validator)
             : discoverableValidators.TryGet(modelType, out validator);
+
+    sealed record Node(object Instance, string Path);
+
+    sealed record Traversal(ModelGraphValidationRequest Request, HashSet<object> Visited, List<ValidationResult> Results, ValidatorSpans? Spans);
 }

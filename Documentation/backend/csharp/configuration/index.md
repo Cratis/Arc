@@ -5,6 +5,8 @@ description: Configure Arc through ArcOptions from appsettings, environment vari
 
 Arc reads all of its settings from a single `ArcOptions` object. Wherever Arc runs — an ASP.NET Core web app, an Arc.Core console or worker, or the full Cratis stack — you configure it the same way: bind `ArcOptions` from configuration, then optionally override it in code. This page covers the hosting models, the three configuration mechanisms, and commonly used `ArcOptions` settings.
 
+For a complete starting point, choose [minimal Arc without an event store](minimal-arc.md) or [minimal Arc with Chronicle](minimal-arc-chronicle.md). The [configuration keys reference](keys.md) lists defaults and configuration paths.
+
 ## The three hosting models
 
 | Host | Bootstrap | Activate | Use it for |
@@ -77,6 +79,7 @@ builder.AddCratisArc(options =>
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
 | `GeneratedApis.IncludeQueryNameInRoute` | `bool` | `true` | Append the query name as the last route segment. |
 | `GeneratedApis.EnableQueryHttpMethod` | `bool` | `true` | Expose generated queries over HTTP `QUERY` with JSON arguments in addition to `GET`. Disable when infrastructure rejects that method. |
+| `Query.MaxQueuedEmissionsPerSubscription` | `int` | `256` | Most emissions that may be pending for one observable query subscription, counting the one being sent. A client that falls further behind has its subscription ended (the hub sends an error first) or its connection closed, and receives a fresh result when it reconnects. Must be at least 1. |
 | `Query.AllowedWebSocketOrigins` | `IList<string>?` | not set | Origins allowed to open observable query WebSocket connections from a browser. Not set accepts any origin; once set, even to an empty list in code, only the app's own origin, no-`Origin` clients and the listed origins are accepted (`*` accepts any). |
 | `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Idle keep-alive cadence for observable query hub connections; zero or negative disables keep-alive. |
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |

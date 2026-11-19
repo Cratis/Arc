@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// These specs cover the obsolete DevelopmentTenantId alias until it is removed in a major version.
+#pragma warning disable CS0618
+
 namespace Cratis.Arc.Tenancy.for_DevelopmentTenantIdResolver.when_resolving;
 
 public class and_custom_development_tenant_id_is_configured : given.a_development_tenant_id_resolver

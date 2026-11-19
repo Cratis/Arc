@@ -15,4 +15,10 @@ public record OperationModel(string Name, string System, string? Description, IR
 {
     /// <summary>Gets the exact interface identity, used to reject ambiguous system names.</summary>
     public string SystemTypeIdentity { get; init; } = System;
+
+    /// <summary>Gets the ability invocations Execute makes, in order. Empty when the phase is not ability-backed.</summary>
+    public IReadOnlyList<AbilityInvocationModel> ExecuteInvocations { get; init; } = [];
+
+    /// <summary>Gets the ability invocations Compensate makes, in order. Empty when the phase is not ability-backed.</summary>
+    public IReadOnlyList<AbilityInvocationModel> CompensateInvocations { get; init; } = [];
 }

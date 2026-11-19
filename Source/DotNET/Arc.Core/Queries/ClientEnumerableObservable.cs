@@ -1,7 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net.WebSockets;
+using System.Security.Claims;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Observability;
 using Microsoft.Extensions.Logging;
 
@@ -33,82 +36,15 @@ public class ClientEnumerableObservable<T>(
         using var cts = new CancellationTokenSource();
         using var writeLock = new SemaphoreSlim(1, 1);
         var tsc = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var queryResult = new QueryResult();
-        var hasDeliveredEmission = false;
         using var telemetry = new ObservableQueryTelemetry(context.RequestServices, queryContext.Name.Value, WellKnownTelemetryNames.WebSocketTransport);
         telemetry.Start();
+        var connection = new Connection(context, webSocket, cts, writeLock, telemetry, ObservableQuerySubscriptionHttpRequestContext.CaptureEmissionPrincipal(context, queryContext.AuthorizedPrincipal));
 
         _ = Task.Run(async () =>
         {
             try
             {
-                using var emissionIdentity = context is ObservableQuerySubscriptionHttpRequestContext subscription
-                    ? subscription.BeginEmission()
-                    : queryContext.EmissionTenant is not null || queryContext.NativeEmissionRequest is not null
-                        ? ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, queryContext.EmissionTenant, queryContext.NativeEmissionRequest)
-                        : null;
-                await foreach (var item in enumerable.WithCancellation(cts.Token))
-                {
-                    if (item is null)
-                    {
-                        logger.ObservableReceivedNullItem();
-                        continue;
-                    }
-
-                    // Resolve through the connection's own request-scoped provider — captured here via closure —
-                    // rather than the root, so the interceptor releases compliance/PII data under this
-                    // subscription's tenant instead of whichever tenant happened to resolve first.
-                    queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), item, context.RequestServices);
-
-                    if (emissionGuards.HasGuards)
-                    {
-                        var verdict = await emissionGuards.Guard(new ObservableQueryEmissionContext(
-                            queryContext.Name,
-                            queryContext.Arguments ?? QueryArguments.Empty,
-                            context.User,
-                            queryContext.CorrelationId,
-                            context.RequestServices,
-                            !hasDeliveredEmission,
-                            cts.Token)
-                        {
-                            SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
-                        });
-
-                        if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
-                        {
-                            logger.ObservableEmissionDenied();
-
-                            // Send the terminal unauthorized result before the stream goes away — a client that only
-                            // sees the socket close reads it as a transport hiccup and reconnects into the same denial.
-                            await webSocketConnectionHandler.SendMessage(webSocket, QueryResult.Unauthorized(queryContext.CorrelationId), writeLock, cts.Token);
-                            break;
-                        }
-
-                        if (verdict == ObservableQueryEmissionVerdict.Suppress)
-                        {
-                            logger.ObservableEmissionSuppressed();
-                            continue;
-                        }
-                    }
-
-                    using var push = telemetry.BeginPush();
-                    var result = await WebSocketSends.Send(webSocketConnectionHandler, webSocket, queryResult, writeLock, cts.Token);
-                    if (result.Status == WebSocketSendStatus.Sent)
-                    {
-                        push.Delivered();
-                        hasDeliveredEmission = true;
-                        continue;
-                    }
-                    if (result.Error is null)
-                    {
-                        continue;
-                    }
-                    if (cts.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                    logger.EnumerableObservableSkip();
-                }
+                await Stream(connection);
                 await cts.CancelAsync();
             }
             catch (Exception ex)
@@ -130,5 +66,125 @@ public class ClientEnumerableObservable<T>(
         await webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, cts.Token);
         await cts.CancelAsync();
         await tsc.Task;
+    }
+
+    IDisposable? BeginEmissionIdentity(Connection connection) =>
+        connection.Context is ObservableQuerySubscriptionHttpRequestContext subscription
+            ? subscription.BeginEmission()
+            : HasEmissionIdentity(connection)
+                ? ObservableEmissionIdentity.Begin(connection.Context, connection.Context.RequestServices, connection.Principal, queryContext.EmissionTenant, queryContext.NativeEmissionRequest)
+                : null;
+
+    bool HasEmissionIdentity(Connection connection) =>
+        queryContext.EmissionTenant is not null || queryContext.NativeEmissionRequest is not null || queryContext.AuthorizedPrincipal is not null ||
+        connection.HasAdmittedPrincipal;
+
+    async Task Stream(Connection connection)
+    {
+        using var emissionIdentity = BeginEmissionIdentity(connection);
+        await foreach (var item in enumerable.WithCancellation(connection.Cancellation.Token))
+        {
+            if (!await Deliver(connection, item))
+            {
+                break;
+            }
+        }
+    }
+
+    async Task<bool> Deliver(Connection connection, T item)
+    {
+        if (item is null)
+        {
+            logger.ObservableReceivedNullItem();
+            return true;
+        }
+
+        // Resolve through the connection's own request-scoped provider — captured here via closure —
+        // rather than the root, so the interceptor releases compliance/PII data under this
+        // subscription's tenant instead of whichever tenant happened to resolve first.
+        connection.Result.Data = await readModelInterceptors.InterceptEmission(typeof(T), item, connection.Context.RequestServices);
+
+        if (emissionGuards.HasGuards)
+        {
+            var verdict = await GuardEmission(connection);
+            if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
+            {
+                logger.ObservableEmissionDenied();
+
+                // Send the terminal unauthorized result before the stream goes away — a client that only
+                // sees the socket close reads it as a transport hiccup and reconnects into the same denial.
+                await webSocketConnectionHandler.SendMessage(connection.WebSocket, QueryResult.Unauthorized(queryContext.CorrelationId), connection.WriteLock, connection.Cancellation.Token);
+                return false;
+            }
+
+            if (verdict == ObservableQueryEmissionVerdict.Suppress)
+            {
+                logger.ObservableEmissionSuppressed();
+                return true;
+            }
+        }
+
+        return await Push(connection);
+    }
+
+    Task<ObservableQueryEmissionVerdict> GuardEmission(Connection connection) =>
+        emissionGuards.Guard(new ObservableQueryEmissionContext(
+            queryContext.Name,
+            queryContext.Arguments ?? QueryArguments.Empty,
+            connection.Principal,
+            queryContext.CorrelationId,
+            connection.Context.RequestServices,
+            !connection.HasDeliveredEmission,
+            connection.Cancellation.Token)
+        {
+            SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
+        });
+
+    async Task<bool> Push(Connection connection)
+    {
+        using var push = connection.Telemetry.BeginPush();
+        var result = await WebSocketSends.Send(webSocketConnectionHandler, connection.WebSocket, connection.Result, connection.WriteLock, connection.Cancellation.Token);
+        if (result.Status == WebSocketSendStatus.Sent)
+        {
+            push.Delivered();
+            connection.HasDeliveredEmission = true;
+            return true;
+        }
+
+        if (result.Status != WebSocketSendStatus.Failed)
+        {
+            return true;
+        }
+
+        if (connection.Cancellation.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        logger.EnumerableObservableError(result.Error!);
+        await connection.Cancellation.CancelAsync();
+        await connection.WebSocket.Close(WebSocketCloseStatus.InternalServerError, null, CancellationToken.None);
+        return false;
+    }
+
+    sealed class Connection(IHttpRequestContext context, IWebSocket webSocket, CancellationTokenSource cancellation, SemaphoreSlim writeLock, ObservableQueryTelemetry telemetry, ClaimsPrincipal principal)
+    {
+        public IHttpRequestContext Context { get; } = context;
+
+        public ClaimsPrincipal Principal { get; } = principal;
+
+        public bool HasAdmittedPrincipal { get; } = VerifiedCallerPrincipal.From(context) is not null || principal?.Identities.OfType<VerifiedCallerIdentity>().Any() == true;
+
+        public IWebSocket WebSocket { get; } = webSocket;
+
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+
+        public SemaphoreSlim WriteLock { get; } = writeLock;
+
+        public ObservableQueryTelemetry Telemetry { get; } = telemetry;
+
+        public QueryResult Result { get; } = new();
+
+        public bool HasDeliveredEmission { get; set; }
     }
 }

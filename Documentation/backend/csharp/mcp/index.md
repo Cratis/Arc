@@ -1,6 +1,6 @@
 ---
 title: "Cratis Arc MCP: commands and queries as agent tools"
-description: Cratis Arc MCP turns the commands and queries you already wrote into Model Context Protocol tools that keep Arc's validation, authorization and tenancy.
+description: Cratis Arc MCP turns the commands and queries you already wrote into Model Context Protocol tools that keep Arc validation, authorization and tenancy intact.
 ---
 
 Cratis Arc MCP is the `Cratis.Arc.Mcp` package. It serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint from your Arc application, so an AI agent can call the commands and queries you choose as tools.

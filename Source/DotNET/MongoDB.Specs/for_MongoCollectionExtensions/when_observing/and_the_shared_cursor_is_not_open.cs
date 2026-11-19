@@ -17,7 +17,7 @@ public class and_the_shared_cursor_is_not_open : given.an_observation_with_an_op
         await _watchRequested.Task.WaitAsync(Deadline);
 
         // The cursor is deliberately slow: keep it unopened while checking for a premature query.
-        await Task.WhenAny(initial, Task.Delay(200));
+        await SpecTasks.CompletesWithin(initial, TimeSpan.FromMilliseconds(200));
         _emittedBeforeOpen = initial.IsCompleted;
         _countedBeforeOpen = _collection.ReceivedCalls().Any(call => call.GetMethodInfo().Name == "CountDocumentsAsync");
         _queriedBeforeOpen = _collection.ReceivedCalls().Any(call => call.GetMethodInfo().Name == "FindAsync");

@@ -20,6 +20,9 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
 {
     readonly object _openGate = new();
     TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    TimeSpan _delay = TimeSpan.FromSeconds(1);
+    BsonDocument? _resumeToken;
+    bool _resynchronize;
 
     /// <summary>
     /// Gets the watched database.
@@ -65,10 +68,6 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
     /// <returns>The lifetime of the watch.</returns>
     internal async Task Run(string databaseName)
     {
-        var delay = TimeSpan.FromSeconds(1);
-        BsonDocument? resumeToken = null;
-        var resynchronize = false;
-
         try
         {
             while (!token.IsCancellationRequested)
@@ -78,7 +77,7 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
                     var options = new ChangeStreamOptions
                     {
                         FullDocument = ChangeStreamFullDocumentOption.UpdateLookup,
-                        ResumeAfter = resumeToken
+                        ResumeAfter = _resumeToken
                     };
                     var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
                     using var cursor = await Database.WatchAsync(pipeline, options, token);
@@ -87,37 +86,25 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
                         _opened.TrySetResult();
                     }
                     logger.StartedWatchingDatabase(databaseName);
-                    if (resynchronize)
+                    if (_resynchronize)
                     {
                         // Reopen before asking for snapshots, so writes during the queries remain in the stream.
                         Publish(new ChangeStreamDocument<BsonDocument>(new BsonDocument("operationType", "invalidate"), BsonDocumentSerializer.Instance));
-                        resynchronize = false;
+                        _resynchronize = false;
                     }
 
-                    var invalidated = false;
-                    while (!invalidated && await cursor.MoveNextAsync(token))
-                    {
-                        foreach (var change in cursor.Current)
-                        {
-                            if (change.OperationType == ChangeStreamOperationType.Invalidate)
-                            {
-                                resumeToken = null;
-                                resynchronize = true;
-                                invalidated = true;
-                                break;
-                            }
-
-                            resumeToken = change.ResumeToken;
-                            Publish(change);
-                            delay = TimeSpan.FromSeconds(1);
-                        }
-                    }
+                    await ReadChanges(cursor);
 
                     logger.DatabaseWatchCompleted(databaseName);
 
                     // Invalidation and exhaustion both back off, so repeated invalidations cannot spin.
                     // An exhausted cursor is also a reconnect, not a reason to spin opening empty cursors.
-                    resynchronize = true;
+                    _resynchronize = true;
+                }
+                catch (MongoCommandException ex) when (MongoDBChangeStreamSupport.IsMissing(ex))
+                {
+                    FailUnsupportedWatch(ex);
+                    return;
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
@@ -126,31 +113,22 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
                 }
                 catch (Exception ex)
                 {
-                    if (HasInvalidResumeToken(ex))
-                    {
-                        resumeToken = null;
-                        resynchronize = true;
-                        logger.DatabaseWatchResumeTokenReset(databaseName);
-                    }
-
-                    // Without a token, reopening cannot replay writes committed while disconnected.
-                    resynchronize |= resumeToken is null;
-                    logger.UnexpectedError(ex);
+                    HandleRetry(ex, databaseName);
                 }
                 finally
                 {
                     lock (_openGate)
                     {
-                        if (_opened.Task.IsCompleted)
+                        if (_opened.Task.IsCompletedSuccessfully)
                         {
                             _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
                         }
                     }
                 }
 
-                logger.DatabaseWatchReconnecting(databaseName, delay.TotalSeconds);
-                await Task.Delay(delay, token);
-                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
+                logger.DatabaseWatchReconnecting(databaseName, _delay.TotalSeconds);
+                await Task.Delay(_delay, token);
+                _delay = TimeSpan.FromSeconds(Math.Min(_delay.TotalSeconds * 2, 60));
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -165,6 +143,53 @@ internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<Mong
             }
             Changes.OnCompleted();
         }
+    }
+
+    async Task ReadChanges(IChangeStreamCursor<ChangeStreamDocument<BsonDocument>> cursor)
+    {
+        while (await cursor.MoveNextAsync(token))
+        {
+            foreach (var change in cursor.Current)
+            {
+                if (change.OperationType == ChangeStreamOperationType.Invalidate)
+                {
+                    _resumeToken = null;
+                    return;
+                }
+
+                _resumeToken = change.ResumeToken;
+                Publish(change);
+                _delay = TimeSpan.FromSeconds(1);
+            }
+        }
+    }
+
+    void HandleRetry(Exception error, string databaseName)
+    {
+        if (HasInvalidResumeToken(error))
+        {
+            _resumeToken = null;
+            _resynchronize = true;
+            logger.DatabaseWatchResumeTokenReset(databaseName);
+        }
+
+        // Without a token, reopening cannot replay writes committed while disconnected.
+        _resynchronize |= _resumeToken is null;
+        logger.UnexpectedError(error);
+    }
+
+    void FailUnsupportedWatch(MongoCommandException error)
+    {
+        var failure = new MongoDBChangeStreamsNotSupported(error);
+        lock (_openGate)
+        {
+            if (_opened.Task.IsCompleted)
+            {
+                _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            _opened.TrySetException(failure);
+        }
+        Changes.OnError(failure);
     }
 
     void Publish(ChangeStreamDocument<BsonDocument> change)

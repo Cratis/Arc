@@ -64,12 +64,10 @@ internal static class QueryableKeyTypes
             return keyTypeRegistration;
         }
 
-#if NET9_0_OR_GREATER
         if (!keyType.IsValueType)
         {
             return _keyTypes.GetOrAdd(keyType, CreateForReferenceType);
         }
-#endif
 
         throw new MissingQueryableSortKey(elementType, keyType);
     }
@@ -81,7 +79,6 @@ internal static class QueryableKeyTypes
         Register<TKey?>();
     }
 
-#if NET9_0_OR_GREATER
     static QueryableKeyType CreateForReferenceType(Type keyType) =>
         (QueryableKeyType)typeof(QueryableKeyTypes)
             .GetMethod(nameof(CreateForReferenceTypeOf), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
@@ -90,5 +87,4 @@ internal static class QueryableKeyTypes
 
     static QueryableKeyTypeFor<TKey> CreateForReferenceTypeOf<TKey>()
         where TKey : class => new();
-#endif
 }

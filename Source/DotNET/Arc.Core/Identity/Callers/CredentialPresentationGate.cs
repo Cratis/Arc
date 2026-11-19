@@ -49,7 +49,7 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         {
             return CallerRefusal.MultipleCredentials;
         }
-        if (presented.SessionCookiePresent && (HasBearerWithoutEnvelope(presented) || HasNonV2Envelope(presented)))
+        if (HasSeparateSessionCookie(presented))
         {
             return CallerRefusal.MultipleCredentials;
         }
@@ -86,7 +86,12 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         }
         var sessionCookieNames = _fixedSessionCookies.Concat(_additionalSessionCookieNames?.Names ?? []).Where(name => !string.IsNullOrWhiteSpace(name)).ToArray();
         var sessionCookie = raw.GetHeaderValues("Cookie").Any(header => HasSessionCookie(header, sessionCookieNames));
-        return Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase), sessionCookiePresent: sessionCookie));
+        var presented = Classify(new(authorization, envelope.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase), sessionCookiePresent: sessionCookie));
+        if (presented.Shape == PresentedCredentialShape.OAuthBearer && ExpectedCredentialShape.Read(request)?.Shape == PresentedCredentialShape.ServiceAccount)
+        {
+            return new(presented.Authorization, presented.Envelope, shape: PresentedCredentialShape.ServiceAccount);
+        }
+        return presented;
     }
 
     static bool TryReadRawRequest(IHttpRequestContext request, out ICanReadForwardedIdentityRequest raw)
@@ -94,6 +99,8 @@ internal sealed class CredentialPresentationGate(ReservedCredentialPrefixes? res
         raw = (request as ICanReadForwardedIdentityRequest)!;
         return raw is not null && request is ICanPreserveCallerCredentialHeaders { PreservesDuplicateCredentialHeaders: true } && !string.IsNullOrEmpty(raw.RawTarget);
     }
+
+    static bool HasSeparateSessionCookie(CredentialPresentation presented) => presented.SessionCookiePresent && (HasBearerWithoutEnvelope(presented) || HasNonV2Envelope(presented));
 
     static bool HasRepeatedCredentialFields(CredentialPresentation presented) => presented.Authorization.Count > 1 || presented.Envelope.Values.Any(values => values.Count != 1);
 

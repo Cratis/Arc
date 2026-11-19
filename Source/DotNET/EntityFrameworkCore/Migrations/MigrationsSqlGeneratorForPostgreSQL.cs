@@ -12,6 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Migrations;
 
 namespace Cratis.Arc.EntityFrameworkCore;
 
+// TODO: when the EF stack moves to 11.0.0 for net11.0, restore the Npgsql 11 base constructor that takes an IQuerySqlGeneratorFactory.
+
 /// <summary>
 /// PostgreSQL specific migrations SQL generator.
 /// </summary>
@@ -54,7 +56,7 @@ public class MigrationsSqlGeneratorForPostgreSQL(
         foreach (var rune in identifier.EnumerateRunes())
         {
             if (bytes + rune.Utf8SequenceLength > maxBytes - hash.Length - 1) break;
-            prefix.Append(rune.ToString());
+            prefix.Append(rune);
             bytes += rune.Utf8SequenceLength;
         }
 

@@ -3,6 +3,7 @@
 
 export * from './asCommandFormField.js';
 export * from './commandFormMarkers.js';
+export * from './commandFormValidationState.js';
 export * from './CommandForm.js';
 export * from './CommandFormContext.js';
 export * from './CommandFormField.js';

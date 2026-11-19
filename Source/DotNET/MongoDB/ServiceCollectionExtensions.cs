@@ -117,6 +117,8 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddReadModelSinks();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDBOptions>>(new MongoDBOptionsValidation(
+            string.IsNullOrWhiteSpace(mongoDBConfigSectionPath) ? ConfigurationPath.Combine(DefaultSectionPaths) : mongoDBConfigSectionPath)));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDBOptions>, MongoDBSinksOptionsValidation>());
         services.AddSingleton<IMongoDBSinks, MongoDBSinks>();
         services.AddScoped<IMongoDBReadModelDatabases, MongoDBReadModelDatabases>();

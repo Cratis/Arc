@@ -3,6 +3,7 @@
 
 namespace Cratis.Arc.Queries.for_QueryStringQueryRequestReader.when_reading;
 
+[PerFactSpecificationLifecycle]
 public class with_a_recognized_sort_direction : given.a_query_string_query_request_reader
 {
     async Task<SortDirection> DirectionFor(string sortDirection)

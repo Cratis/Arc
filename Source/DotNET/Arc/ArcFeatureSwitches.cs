@@ -1,9 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#if NET9_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
-#endif
 
 namespace Cratis.Arc;
 
@@ -30,16 +28,10 @@ static class ArcFeatureSwitches
     /// guards. It is an auto-property on purpose; the analyzers check the body of a feature guard with a getter
     /// body and cannot prove that an <see cref="AppContext"/> read guards unreferenced or dynamic code.
     /// </para>
-    /// <para>
-    /// The trimmer only recognizes the switch from .NET 9 on. On .NET 8 an embedded <c>ILLink.Substitutions.xml</c>
-    /// declares the same substitution.
-    /// </para>
     /// </remarks>
-#if NET9_0_OR_GREATER
     [FeatureSwitchDefinition(ControllersSupportName)]
     [FeatureGuard(typeof(RequiresUnreferencedCodeAttribute))]
     [FeatureGuard(typeof(RequiresDynamicCodeAttribute))]
-#endif
     internal static bool ControllersAreSupported { get; } = ControllersSupportIsOn;
 
     /// <summary>

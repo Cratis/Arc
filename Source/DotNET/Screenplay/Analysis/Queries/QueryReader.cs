@@ -132,6 +132,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         {
             ReturnTypeFullName = FullNameOfWhatItReturns(method),
             Description = Documentation.SummaryOf(method),
+            Availability = AvailabilityReader.Read(declaring),
             PerformerFile = new QueryImplementationReader(Paths, diagnostics).Read(method, location)
         };
     }
@@ -156,6 +157,14 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     static bool IsPrimitiveKeyType(ITypeSymbol? type) => type?.SpecialType == SpecialType.System_String || type.Is("System.Guid");
 
     /// <summary>
+    /// Determines whether an input parameter carries a non-null default value.
+    /// </summary>
+    /// <param name="parameter">The parameter to inspect.</param>
+    /// <returns>True when the parameter is an input with a non-null explicit default.</returns>
+    static bool HasNonNullDefaultInput(IParameterSymbol parameter) =>
+        IsInput(parameter) && parameter.HasExplicitDefaultValue && parameter.ExplicitDefaultValue is not null;
+
+    /// <summary>
     /// Reports what a query says about how it is served, which the document does not describe.
     /// </summary>
     /// <param name="method">The method exposing the query.</param>
@@ -168,6 +177,17 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// says it means to be served that way even though Arc fills neither in.
     /// </remarks>
     void ReportHowItIsServed(IMethodSymbol method, string location)
+    {
+        ReportHostDependencies(method, location);
+        ReportServingParameters(method, location);
+    }
+
+    /// <summary>
+    /// Reports the host dependencies and omittable defaults of a query's signature.
+    /// </summary>
+    /// <param name="method">The method exposing the query.</param>
+    /// <param name="location">Where the query lives.</param>
+    void ReportHostDependencies(IMethodSymbol method, string location)
     {
         if (QueryReturnTypes.IsPagedByTheHost(method.ReturnType))
         {
@@ -185,14 +205,22 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
                 location);
         }
 
-        foreach (var parameter in method.Parameters.Where(parameter => IsInput(parameter) && parameter.HasExplicitDefaultValue && parameter.ExplicitDefaultValue is not null))
+        foreach (var parameter in method.Parameters.Where(HasNonNullDefaultInput))
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableQuery,
                 $"The query '{method.Name}' allows '{parameter.Name}' to be omitted; its non-null default value has no equivalent optional equality filter, so the parameter was left out",
                 location);
         }
+    }
 
+    /// <summary>
+    /// Reports the paging, sorting and routing a query is served with.
+    /// </summary>
+    /// <param name="method">The method exposing the query.</param>
+    /// <param name="location">Where the query lives.</param>
+    void ReportServingParameters(IMethodSymbol method, string location)
+    {
         foreach (var served in method.Parameters
             .Where(_ => _.Type.Is(WellKnownTypeNames.Paging) || _.Type.Is(WellKnownTypeNames.Sorting))
             .Select(_ => _.Type.Name)

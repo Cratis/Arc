@@ -3,9 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-#if NET9_0_OR_GREATER
 using System.Runtime.CompilerServices;
-#endif
 using Cratis.Arc.Queries.ModelBound;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -19,11 +17,7 @@ namespace Cratis.Arc.MongoDB;
 /// </summary>
 public static class MongoDBDefaults
 {
-#if NET9_0
-    static readonly Lock _lock = new();
-#else
     static readonly object _lock = new();
-#endif
 
     static bool _initialized;
 
@@ -112,7 +106,6 @@ public static class MongoDBDefaults
         }
     }
 
-#if NET9_0_OR_GREATER
     /// <summary>
     /// Registers a class map without closing a generic method through reflection over dynamic code.
     /// </summary>
@@ -123,7 +116,6 @@ public static class MongoDBDefaults
             .GetMethod(nameof(RegisterReferenceClassMap), BindingFlags.Static | BindingFlags.NonPublic)!
             .MakeGenericMethod(mappedType)
             .Invoke(null, [classMapProvider]);
-#endif
 
     static void RegisterDerivedTypeDiscriminatorConventions()
     {
@@ -165,13 +157,11 @@ public static class MongoDBDefaults
 
     static void RegisterClassMap(Type mappedType, object? classMapProvider)
     {
-#if NET9_0_OR_GREATER
         if (!RuntimeFeature.IsDynamicCodeSupported)
         {
             RegisterClassMapWithoutDynamicCode(mappedType, classMapProvider);
             return;
         }
-#endif
 
         RegisterClassMapThroughReflection(mappedType, classMapProvider);
     }
@@ -184,10 +174,8 @@ public static class MongoDBDefaults
         genericMethod.Invoke(null, [classMapProvider]);
     }
 
-#if NET9_0_OR_GREATER
     static void RegisterReferenceClassMap<T>(object? classMapProvider)
         where T : class => Register((IBsonClassMapFor<T>)classMapProvider!);
-#endif
 
     static void Register<T>(IBsonClassMapFor<T> classMapProvider)
     {

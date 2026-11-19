@@ -79,6 +79,10 @@ Choose a different mechanism when the work needs another boundary:
 
 Do not replace durable email delivery, payment workflows, or retriable webhooks with inline operations merely to shorten a handler. Choose the delivery and reconciliation guarantees first. [Reactor-returned commands](../../chronicle/reactors/command-side-effects.md) are a separate composition mechanism; a reactor retry can execute its command operations again.
 
+## Operations backed by Screenplay abilities
+
+An operation can call the abilities of a system declared in a Screenplay model. Arc runs them before commit, compensates when the command does not commit, and lets specifications substitute them. See [invoke Screenplay abilities](abilities.md).
+
 ## What to test
 
 Start by calling `Handle()` directly to check the returned operation data and order. Then call the operation's `Execute()` and `Compensate()` methods with a substitute provider to check the requests they make.

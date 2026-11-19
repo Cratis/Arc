@@ -25,7 +25,7 @@ public class cancelled_before_the_call : given.an_interceptor
     async Task Because()
     {
         // A deadline, not a sleep: without the fix the task never completes and this turns a hang into a failure.
-        _completedInTime = await Task.WhenAny(Intercept(), Task.Delay(TimeSpan.FromSeconds(10))) == _returnValue;
+        _completedInTime = await SpecTasks.CompletesWithin(Intercept(), TimeSpan.FromSeconds(10));
     }
 
     Task Intercept()

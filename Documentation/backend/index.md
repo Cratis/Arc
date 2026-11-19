@@ -21,8 +21,8 @@ code.
 - [TypeScript](/arc/backend/typescript/) — Node.js, on its own HTTP host or in
   Express, Fastify, or Hono, with MongoDB and Drizzle SQL integrations, a
   Chronicle integration with a documented subset of capabilities, ESLint rules,
-  and TypeScript proxies generated from your source. No package is published
-  to npm, and it does not claim full parity with the C# implementation. Its
+  and TypeScript proxies generated from your source. The server packages are published
+  on npm (`@cratis/arc.core`; meta package `@cratis/platform`), and it does not claim full parity with the C# implementation. Its
   [capability reference](/arc/backend/typescript/reference/capabilities/)
   gives the status of each capability.
 - [Go](/arc/go/) — an HTTP host with explicit metadata, typed Go

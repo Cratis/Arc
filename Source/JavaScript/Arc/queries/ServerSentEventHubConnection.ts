@@ -31,6 +31,19 @@ interface ActiveSubscription {
  */
 const IDLE_THRESHOLD_FACTOR = 2;
 
+/** Maximum number of subscribe retries before falling back to a full SSE reconnect. */
+const SUBSCRIBE_MAX_RETRIES = 3;
+
+/** Base delay between subscribe retries; multiplied by the attempt number. */
+const SUBSCRIBE_RETRY_DELAY_MS = 200;
+
+interface SubscribeTarget {
+    queryId: string;
+    subscription: ActiveSubscription;
+    connectionId: string;
+    attempt: number;
+}
+
 /**
  * A multiplexed SSE hub connection that uses EventSource for server→client streaming
  * and fetch POST requests for client→server subscribe/unsubscribe commands.
@@ -225,11 +238,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         }
 
         this._policy.cancel();
-        let url = this._sseUrl;
-        if (this._microservice?.length > 0) {
-            const param = `${Globals.microserviceWSQueryArgument}=${encodeURIComponent(this._microservice)}`;
-            url += (url.includes('?') ? '&' : '?') + param;
-        }
+        const url = this.buildEventSourceUrl();
 
         this._connectionId = undefined;
         this._supportsSubscriptionRevisions = false;
@@ -239,41 +248,57 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         this._eventSource = eventSource;
 
         eventSource.onopen = () => {
-            if (this._disconnected || this._eventSource !== eventSource) return;
+            if (!this.isActiveSource(eventSource)) return;
             console.log('SSE hub connection established', url);
             this._policy.reset();
             this._keepAlive.start();
-
-            // If the server does not send a Connected message within the timeout, the
-            // connection is broken. Close and retry via the reconnect policy.
-            this.clearConnectTimeout();
-            this._connectTimeoutTimer = setTimeout(() => {
-                if (
-                    !this._disconnected &&
-                    this._eventSource === eventSource &&
-                    !this._connectionId
-                ) {
-                    console.warn(
-                        'SSE hub: no Connected message within timeout; retrying',
-                        this._connectTimeoutMs,
-                        url,
-                    );
-                    this.reconnect();
-                }
-            }, this._connectTimeoutMs);
+            this.startConnectTimeout(eventSource, url);
         };
 
         eventSource.onmessage = (event: MessageEvent) => {
-            if (this._disconnected || this._eventSource !== eventSource) return;
+            if (!this.isActiveSource(eventSource)) return;
             this._keepAlive.recordActivity();
             this.handleMessage(event.data as string);
         };
 
         eventSource.onerror = () => {
-            if (this._disconnected || this._eventSource !== eventSource) return;
+            if (!this.isActiveSource(eventSource)) return;
             console.warn('SSE hub connection error', url);
             this.reconnect();
         };
+    }
+
+    private buildEventSourceUrl(): string {
+        let url = this._sseUrl;
+        if (this._microservice?.length > 0) {
+            const param = `${Globals.microserviceWSQueryArgument}=${encodeURIComponent(this._microservice)}`;
+            url += (url.includes('?') ? '&' : '?') + param;
+        }
+        return url;
+    }
+
+    private isActiveSource(eventSource: EventSource): boolean {
+        return !this._disconnected && this._eventSource === eventSource;
+    }
+
+    /**
+     * If the server does not send a Connected message within the timeout, the
+     * connection is broken. Close and retry via the reconnect policy.
+     * @param {EventSource} eventSource The source the timeout guards.
+     * @param {string} url The URL used for diagnostics.
+     */
+    private startConnectTimeout(eventSource: EventSource, url: string): void {
+        this.clearConnectTimeout();
+        this._connectTimeoutTimer = setTimeout(() => {
+            if (this.isActiveSource(eventSource) && !this._connectionId) {
+                console.warn(
+                    'SSE hub: no Connected message within timeout; retrying',
+                    this._connectTimeoutMs,
+                    url,
+                );
+                this.reconnect();
+            }
+        }, this._connectTimeoutMs);
     }
 
     private reconnect(): void {
@@ -321,25 +346,27 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                     // Server-sent keep-alive ping — activity already recorded in onmessage.
                     break;
                 case HubMessageType.Unauthorized:
-                    if (this.isMessageForCurrentSubscription(message)) {
-                        console.warn('SSE hub: query unauthorized', message.queryId);
-                        this.handleUnauthorized(message);
-                    }
+                    this.handleUnauthorizedMessage(message);
                     break;
                 case HubMessageType.Error:
-                    if (this.isMessageForCurrentSubscription(message)) {
-                        console.error(
-                            'SSE hub: query error',
-                            message.queryId,
-                            message.payload,
-                        );
-                        this.handleError(message);
-                    }
+                    this.handleErrorMessage(message);
                     break;
             }
         } catch (error) {
             console.error('SSE hub: error parsing message', error);
         }
+    }
+
+    private handleUnauthorizedMessage(message: HubMessage): void {
+        if (!this.isMessageForCurrentSubscription(message)) return;
+        console.warn('SSE hub: query unauthorized', message.queryId);
+        this.handleUnauthorized(message);
+    }
+
+    private handleErrorMessage(message: HubMessage): void {
+        if (!this.isMessageForCurrentSubscription(message)) return;
+        console.error('SSE hub: query error', message.queryId, message.payload);
+        this.handleError(message);
     }
 
     private handleConnected(message: HubMessage): void {
@@ -458,15 +485,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         }
 
         const customHeaders = Globals.httpHeadersCallback?.() ?? {};
-
-        // Maximum number of subscribe retries before falling back to a full SSE reconnect.
-        // In a round-robin load-balanced deployment the subscribe POST may land on a different
-        // backend instance than the one holding the SSE connection.  Retrying gives the load
-        // balancer the chance to route a subsequent attempt to the correct instance without
-        // tearing down the SSE connection unnecessarily.  With N backend instances at most
-        // N-1 retries are needed, so 3 retries covers deployments with up to 4 replicas.
-        const maxRetries = 3;
-        const retryDelayMs = 200;
+        const target: SubscribeTarget = { queryId, subscription, connectionId, attempt };
 
         fetch(this._subscribeUrl, {
             method: 'POST',
@@ -475,76 +494,64 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
         })
             .then((response) => {
                 if (!response.ok) {
-                    if (
-                        !this.isCurrentSubscription(queryId, subscription, connectionId)
-                    ) {
-                        console.warn(
-                            'SSE hub: subscribe POST returned a failure for an obsolete connection or subscription; ignoring',
-                            queryId,
-                            response.status,
-                        );
-                    } else if (attempt < maxRetries) {
-                        setTimeout(
-                            () => {
-                                if (
-                                    this.isCurrentSubscription(
-                                        queryId,
-                                        subscription,
-                                        connectionId,
-                                    )
-                                ) {
-                                    this.sendSubscribe(
-                                        queryId,
-                                        subscription,
-                                        attempt + 1,
-                                    );
-                                }
-                            },
-                            retryDelayMs * (attempt + 1),
-                        );
-                    } else {
-                        console.warn(
-                            'SSE hub: subscribe POST failed after retries; reconnecting',
-                            queryId,
-                            response.status,
-                            attempt + 1,
-                        );
-                        this.reconnect();
-                    }
+                    this.handleSubscribeFailure(target, console.warn, response.status);
                 }
             })
             .catch((error) => {
-                if (!this.isCurrentSubscription(queryId, subscription, connectionId)) {
-                    console.warn(
-                        'SSE hub: subscribe POST failed for an obsolete connection or subscription; ignoring',
-                        queryId,
-                        error,
-                    );
-                } else if (attempt < maxRetries) {
-                    setTimeout(
-                        () => {
-                            if (
-                                this.isCurrentSubscription(
-                                    queryId,
-                                    subscription,
-                                    connectionId,
-                                )
-                            ) {
-                                this.sendSubscribe(queryId, subscription, attempt + 1);
-                            }
-                        },
-                        retryDelayMs * (attempt + 1),
-                    );
-                } else {
-                    console.error(
-                        'SSE hub: subscribe POST failed after retries; reconnecting',
-                        queryId,
-                        attempt + 1,
-                        error,
-                    );
-                    this.reconnect();
-                }
+                this.handleSubscribeFailure(target, console.error, undefined, error);
             });
+    }
+
+    /**
+     * Decide what to do after a failed subscribe POST: ignore it when obsolete, retry with back-off,
+     * or fall back to a full reconnect once the retries are exhausted.
+     *
+     * The retry limit exists because in a round-robin load-balanced deployment the subscribe POST may
+     * land on a different backend instance than the one holding the SSE connection. Retrying gives
+     * the load balancer the chance to route a subsequent attempt to the correct instance without
+     * tearing down the SSE connection unnecessarily. With N backend instances at most N-1 retries
+     * are needed, so 3 retries covers deployments with up to 4 replicas.
+     * @param {SubscribeTarget} target The subscribe attempt that failed.
+     * @param {Function} exhaustedLog The logger used when the retries are exhausted.
+     * @param {number | undefined} status The HTTP status, when the server responded.
+     * @param {unknown} error The thrown error, when the request itself failed.
+     */
+    private handleSubscribeFailure(
+        target: SubscribeTarget,
+        exhaustedLog: (...data: unknown[]) => void,
+        status?: number,
+        error?: unknown,
+    ): void {
+        const { queryId, subscription, connectionId, attempt } = target;
+        const detail = error === undefined ? [status] : [error];
+
+        if (!this.isCurrentSubscription(queryId, subscription, connectionId)) {
+            const reason = error === undefined ? 'returned a failure' : 'failed';
+            console.warn(
+                `SSE hub: subscribe POST ${reason} for an obsolete connection or subscription; ignoring`,
+                queryId,
+                ...detail,
+            );
+        } else if (attempt < SUBSCRIBE_MAX_RETRIES) {
+            this.scheduleSubscribeRetry(target);
+        } else {
+            const tail = error === undefined ? [status, attempt + 1] : [attempt + 1, error];
+            exhaustedLog(
+                'SSE hub: subscribe POST failed after retries; reconnecting',
+                queryId,
+                ...tail,
+            );
+            this.reconnect();
+        }
+    }
+
+    private scheduleSubscribeRetry(target: SubscribeTarget): void {
+        const { queryId, subscription, connectionId, attempt } = target;
+        setTimeout(() => {
+            if (this.isCurrentSubscription(queryId, subscription, connectionId)) {
+                this.sendSubscribe(queryId, subscription, attempt + 1);
+            }
+        }, SUBSCRIBE_RETRY_DELAY_MS * (attempt + 1));
     }
 
     private isMessageForCurrentSubscription(message: HubMessage): boolean {

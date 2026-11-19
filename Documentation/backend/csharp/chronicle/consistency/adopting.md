@@ -122,6 +122,8 @@ Under `On`, a missing required protected read-model parameter now returns the or
 
 Operations can lower the mode without a build. The cap only lowers. It never raises a mode that was not compiled in.
 
+The cap is read from `Cratis:Arc:ReadProtection:MaximumMode` or from the original root key `ReadProtection:MaximumMode`. The namespaced key wins when both are set. As environment variables these are `Cratis__Arc__ReadProtection__MaximumMode` and `ReadProtection__MaximumMode`. The ceiling defaults to `On`, so setting it to `On` changes nothing, and no configuration key can raise a project above the mode its build sets. To turn protection on, set `<CratisReadProtection>On</CratisReadProtection>` in the project, or put `[ReadProtection(ReadProtectionMode.On)]` on a command, and rebuild. All `ReadProtection` keys are listed in [Configuration keys](../../configuration/keys.md#read-protection).
+
 ```json
 {
   "ReadProtection": {

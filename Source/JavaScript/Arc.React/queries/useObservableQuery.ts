@@ -3,14 +3,12 @@
 
 import {
     QueryResultWithState,
-    type QueryResult,
     type IObservableQueryFor,
+    type QueryInstanceCache,
     Sorting,
     Paging,
-    type ChangeSet,
-    isPrimitiveModelType,
 } from '@cratis/arc/queries';
-import { type Constructor, JsonSerializer } from '@cratis/fundamentals';
+import type { Constructor } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import type { SetSorting } from './SetSorting.js';
 import type { SetPage } from './SetPage.js';
@@ -23,187 +21,20 @@ import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
 import { buildQueryKey } from './buildQueryKey.js';
 import { useResultForKey } from './useResultForKey.js';
+import { hasAllRequiredArguments } from './hasAllRequiredArguments.js';
+import { startObservableSubscription } from './startObservableSubscription.js';
 
-/**
- * Applies a server-provided {@link ChangeSet} to a snapshot array, producing the new state.
- *
- * Items are matched by the conventional `id` property when present (same strategy as the
- * server-side {@code ChangeSetComputor}). Without an identity property, JSON-string equality
- * is used as a fallback (additions and removals only — no replacements).
- */
-type ItemIdentity =
-    | string
-    | number
-    | boolean
-    | bigint
-    | symbol
-    | object
-    | null
-    | undefined;
-
-function applyChangeSet<T>(previous: T[], changeSet: ChangeSet<unknown>): T[] {
-    const getId = (item: unknown): ItemIdentity =>
-        (item as Record<string, ItemIdentity>)?.id;
-    const toIdentityValue = (id: ItemIdentity): ItemIdentity => {
-        if (id === null || id === undefined) {
-            return id;
-        }
-
-        if (typeof id === 'object') {
-            const stringValue = id.toString();
-            if (stringValue !== '[object Object]') {
-                return stringValue;
-            }
-            return JSON.stringify(id);
-        }
-
-        return id;
-    };
-
-    const idsEqual = (left: ItemIdentity, right: ItemIdentity): boolean => {
-        if (left === right) {
-            return true;
-        }
-
-        if (
-            left === null ||
-            left === undefined ||
-            right === null ||
-            right === undefined
-        ) {
-            return false;
-        }
-
-        const leftWithEquals = left as { equals?: (other: unknown) => boolean };
-        if (typeof leftWithEquals.equals === 'function') {
-            return leftWithEquals.equals(right);
-        }
-
-        const rightWithEquals = right as { equals?: (other: unknown) => boolean };
-        if (typeof rightWithEquals.equals === 'function') {
-            return rightWithEquals.equals(left);
-        }
-
-        return toIdentityValue(left) === toIdentityValue(right);
-    };
-
-    const useIdentity =
-        changeSet.removed.length > 0
-            ? getId(changeSet.removed[0]) !== undefined
-            : changeSet.replaced.length > 0;
-
-    let result: unknown[];
-
-    if (useIdentity) {
-        const removedIds = changeSet.removed.map(getId);
-        result = (previous as unknown[]).filter(
-            (item) => !removedIds.some((removedId) => idsEqual(getId(item), removedId)),
-        );
-
-        result = result.map((item) => {
-            const replacement = changeSet.replaced.find((candidate) =>
-                idsEqual(getId(candidate), getId(item)),
-            );
-            return replacement === undefined ? item : replacement;
-        });
-    } else {
-        const removedJsons = new Set(
-            changeSet.removed.map((item) => JSON.stringify(item)),
-        );
-        result = (previous as unknown[]).filter(
-            (item) => !removedJsons.has(JSON.stringify(item)),
-        );
-    }
-
-    return [...result, ...changeSet.added] as T[];
-}
-
-/**
- * Deserializes a payload collection into its model type, passing primitives through untouched.
- *
- * A query whose backend returns a primitive collection - `IEnumerable<string>`, `IEnumerable<int>` -
- * generates a proxy with `String`, `Number` or `Boolean` as its model type, and
- * {@link JsonSerializer.deserializeArrayFromInstance} is destructive for those: it constructs
- * `new String()` per item and copies declared fields onto it, discarding the value and leaving an
- * empty wrapper object behind.
- *
- * Only the primitive check itself is shared with `@cratis/arc` - the deserialization must run
- * through this package's own {@link JsonSerializer}, whose converter registry is module state and
- * therefore only knows the `Guid`, `Date` and concept types registered in this package's copy.
- * @param {Constructor} modelType The instance type of the items to deserialize into.
- * @param {unknown[]} items The items to deserialize.
- * @returns {unknown[]} The deserialized items, or the items unchanged for primitive model types.
- */
-function deserializeItems(modelType: Constructor | null, items: unknown[]): unknown[] {
-    if (!modelType || modelType === Object || isPrimitiveModelType(modelType)) {
-        return Array.from(items);
-    }
-
-    return JsonSerializer.deserializeArrayFromInstance(modelType, items);
-}
-
-function deserializeChangeSet(
-    changeSet: ChangeSet<unknown>,
-    modelType: Constructor,
-): ChangeSet<unknown> {
-    return {
-        added: deserializeItems(modelType, changeSet.added ?? []),
-        replaced: deserializeItems(modelType, changeSet.replaced ?? []),
-        removed: deserializeItems(modelType, changeSet.removed ?? []),
-    };
-}
-
-function hasAllRequiredArguments(
-    requiredRequestParameters: string[],
-    args?: Record<string, unknown>,
-): boolean {
-    if (requiredRequestParameters.length === 0) {
-        return true;
-    }
-
-    return requiredRequestParameters.every((requiredRequestParameter) => {
-        const value = args?.[requiredRequestParameter];
-        return value !== undefined && value !== null && value !== '';
-    });
-}
-
-function useObservableQueryInternal<
-    TDataType,
-    TQuery extends IObservableQueryFor<TDataType>,
-    TArguments = object,
->(
+function useObservableQueryInstance<TDataType, TQuery extends IObservableQueryFor<TDataType>>(
     query: Constructor<TQuery>,
-    sorting?: Sorting,
-    paging?: Paging,
-    args?: TArguments,
-    isEnabled?: boolean,
-    owner?: string,
-): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize];
-function useObservableQueryInternal<
-    TDataType,
-    TQuery extends IObservableQueryFor<TDataType>,
-    TArguments = object,
->(
-    query: Constructor<TQuery>,
-    sorting?: Sorting,
-    paging?: Paging,
-    args?: TArguments,
-    isEnabled?: boolean,
-    owner?: string,
-): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
-    const [currentSorting, setCurrentSorting] = useState<Sorting>(
-        sorting ?? Sorting.none,
-    );
+    currentPaging: Paging,
+    currentSorting: Sorting,
+    args: object | undefined,
+): [TQuery, string] {
     const arc = useContext(ArcContext);
-    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const queryCache = useContext(QueryInstanceCacheContext);
-    const queryScope = useQueryScope();
-    const ownerRef = useRef<string | undefined>(owner);
-    ownerRef.current = owner;
-    const argsDependency = serializeArgsForDependency(args as object | undefined);
+    const argsDependency = serializeArgsForDependency(args);
 
-    const [queryInstance, cacheKey] = useMemo(() => {
+    return useMemo(() => {
         // Create the instance first to read queryName, which is a hardcoded fully-qualified
         // string in generated proxies and survives minification. constructor.name is unstable
         // under minification and must not be used as a cache key.
@@ -216,10 +47,10 @@ function useObservableQueryInternal<
 
         const typeName =
             (freshInstance as { queryName?: string }).queryName ?? query.name;
-        const key = buildQueryKey(queryCache, typeName, args as object | undefined, { paging: currentPaging, sorting: currentSorting });
+        const key = buildQueryKey(queryCache, typeName, args, { paging: currentPaging, sorting: currentSorting });
         const { instance } = queryCache.getOrCreate(key, () => freshInstance);
 
-        return [instance as TQuery, key] as const;
+        return [instance as TQuery, key] as [TQuery, string];
     }, [
         query,
         currentPaging,
@@ -229,6 +60,41 @@ function useObservableQueryInternal<
         arc.origin,
         argsDependency,
     ]);
+}
+
+// If the cached result already exists (another subscriber already received data),
+// immediately apply it to this component's state.
+function applyExistingResult<TDataType>(
+    queryCache: QueryInstanceCache,
+    key: string,
+    setResult: (result: QueryResultWithState<TDataType>) => void,
+): void {
+    const existing = queryCache.getLastResult<TDataType>(key);
+    if (existing) {
+        setResult(existing);
+    }
+}
+
+type ObservableSubscriptionOptions<TQuery> = {
+    queryInstance: TQuery;
+    cacheKey: string;
+    args: object | undefined;
+    isEnabled?: boolean;
+    owner?: string;
+    paging: Paging;
+    sorting: Sorting;
+};
+
+function useObservableSubscription<TDataType, TQuery extends IObservableQueryFor<TDataType>>(
+    options: ObservableSubscriptionOptions<TQuery>,
+): QueryResultWithState<TDataType> {
+    const { queryInstance, cacheKey, args, isEnabled, owner, paging, sorting } = options;
+    const arc = useContext(ArcContext);
+    const queryCache = useContext(QueryInstanceCacheContext);
+    const queryScope = useQueryScope();
+    const ownerRef = useRef<string | undefined>(owner);
+    ownerRef.current = owner;
+    const argsDependency = serializeArgsForDependency(args);
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
@@ -253,8 +119,8 @@ function useObservableQueryInternal<
     const effectDeps = [
         cacheKey,
         argsDependency,
-        currentPaging,
-        currentSorting,
+        paging,
+        sorting,
         isEnabled,
         hasAllRequiredArgumentsSet,
         arc.microservice,
@@ -277,98 +143,11 @@ function useObservableQueryInternal<
 
         // Register this component's listener so it receives broadcasts from setLastResult.
         queryCache.addListener(key, listener);
-
-        // If the cached result already exists (another subscriber already received data),
-        // immediately apply it to this component's state.
-        const existing = queryCache.getLastResult<TDataType>(key);
-        if (existing) {
-            setResult(existing);
-        }
+        applyExistingResult(queryCache, key, setResult);
 
         // Only start a subscription if one does not already exist for this cache key.
         if (!queryCache.isSubscribed(key)) {
-            let receivedFirstResult = false;
-            queryScope.notifyPerformingStarted();
-
-            const subscription = queryInstance.subscribe((response) => {
-                let withState: QueryResultWithState<TDataType>;
-                // SAFETY: Observable query implementations expose this runtime metadata even though the interface omits it.
-                const queryMetadata = queryInstance as unknown as {
-                    modelType?: Constructor;
-                    enumerable: boolean;
-                    queryName?: string;
-                };
-                const modelType = queryMetadata.modelType ?? null;
-
-                const responseData: unknown = response.data;
-                const isDataArray = Array.isArray(responseData);
-                const isEnumerable = queryMetadata.enumerable;
-                if (
-                    isEnumerable &&
-                    !isDataArray &&
-                    responseData !== null &&
-                    responseData !== undefined
-                ) {
-                    const responseDataConstructor =
-                        typeof responseData === 'object'
-                            ? (responseData as { constructor?: { name?: string } })
-                                  .constructor?.name
-                            : undefined;
-                    console.error(
-                        `[useObservableQuery] NON-ARRAY data received for key="${key}" queryName="${queryMetadata.queryName}" data type=${typeof responseData} constructor=${responseDataConstructor}`,
-                        responseData,
-                    );
-                }
-
-                if (
-                    response.changeSet &&
-                    Array.isArray(response.data) &&
-                    response.data.length === 0
-                ) {
-                    // Delta mode subsequent push: the server omits `data` (serialised as null → []).
-                    // Reconstruct the full collection by applying the ChangeSet to the previous state.
-                    const previousResult = queryCache.getLastResult<TDataType>(key);
-                    if (previousResult && Array.isArray(previousResult.data)) {
-                        const deserializedChangeSet = deserializeChangeSet(
-                            response.changeSet,
-                            modelType ?? Object,
-                        );
-                        const reconstructed = applyChangeSet(
-                            previousResult.data as unknown[],
-                            deserializedChangeSet,
-                        ) as TDataType;
-                        withState = QueryResultWithState.fromQueryResult(
-                            {
-                                ...response,
-                                data: reconstructed,
-                                changeSet: deserializedChangeSet,
-                            } as QueryResult<TDataType>,
-                            false,
-                        );
-                    } else {
-                        // Fallback if there's no previous result. ObservableQueryFor has already deserialized response.data.
-                        withState = QueryResultWithState.fromQueryResult(response, false);
-                    }
-                } else {
-                    // ObservableQueryFor deserializes initial and full response data before invoking this callback.
-                    withState = QueryResultWithState.fromQueryResult(response, false);
-                }
-
-                if (!receivedFirstResult) {
-                    receivedFirstResult = true;
-                    queryScope.notifyPerformingCompleted();
-                }
-
-                queryCache.setLastResult(key, withState);
-            }, args as object);
-
-            queryCache.setTeardown(key, () => {
-                subscription.unsubscribe();
-                if (!receivedFirstResult) {
-                    receivedFirstResult = true;
-                    queryScope.notifyPerformingCompleted();
-                }
-            });
+            startObservableSubscription<TDataType>(queryInstance, key, queryCache, queryScope, args);
         }
 
         arc.observableQueryDiagnostics?.beginTracking(key, ownerRef.current ?? '');
@@ -379,10 +158,53 @@ function useObservableQueryInternal<
         };
     }, effectDeps);
 
+    return isEnabled === false
+        ? QueryResultWithState.empty(queryInstance.defaultValue)
+        : result;
+}
+
+type ObservableQueryHookOptions<TQuery, TArguments> = {
+    query: Constructor<TQuery>;
+    sorting?: Sorting;
+    paging?: Paging;
+    args?: TArguments;
+    isEnabled?: boolean;
+    owner?: string;
+};
+
+function useObservableQueryInternal<
+    TDataType,
+    TQuery extends IObservableQueryFor<TDataType>,
+    TArguments = object,
+>(
+    options: ObservableQueryHookOptions<TQuery, TArguments>,
+): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
+    const { query, sorting, paging, args, isEnabled, owner } = options;
+    const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
+    const [currentSorting, setCurrentSorting] = useState<Sorting>(
+        sorting ?? Sorting.none,
+    );
+    useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
+
+    const [queryInstance, cacheKey] = useObservableQueryInstance<TDataType, TQuery>(
+        query,
+        currentPaging,
+        currentSorting,
+        args as object | undefined,
+    );
+
+    const result = useObservableSubscription<TDataType, TQuery>({
+        queryInstance,
+        cacheKey,
+        args: args as object | undefined,
+        isEnabled,
+        owner,
+        paging: currentPaging,
+        sorting: currentSorting,
+    });
+
     return [
-        isEnabled === false
-            ? QueryResultWithState.empty(queryInstance.defaultValue)
-            : result,
+        result,
         async (sorting: Sorting) => {
             setCurrentSorting(sorting);
         },
@@ -431,7 +253,7 @@ export function useObservableQuery<
         TDataType,
         TQuery,
         TArguments
-    >(query, sorting, Paging.noPaging, args, isEnabled, owner);
+    >({ query, sorting, paging: Paging.noPaging, args, isEnabled, owner });
     return [result, setSorting];
 }
 
@@ -470,12 +292,12 @@ export function useObservableQueryWithPaging<
     isEnabled?: boolean,
     owner?: string,
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
-    return useObservableQueryInternal<TDataType, TQuery, TArguments>(
+    return useObservableQueryInternal<TDataType, TQuery, TArguments>({
         query,
         sorting,
         paging,
         args,
         isEnabled,
         owner,
-    );
+    });
 }

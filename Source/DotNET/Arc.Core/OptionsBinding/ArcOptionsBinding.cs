@@ -33,6 +33,7 @@ internal static class ArcOptionsBinding
         Member.Of<ArcOptions, Queries.QueryHealthOptions>("QueryHealth", QueryHealthOptionsBinding.Bound, static _ => _.QueryHealth, static (o, v) => o.QueryHealth = v),
         Member.Of<ArcOptions, HostingOptions>("Hosting", HostingOptionsBinding.Bound, static _ => _.Hosting, static (o, v) => o.Hosting = v),
         Member.Of<ArcOptions, EndpointGroups.EndpointGroupsOptions>("EndpointGroups", EndpointGroupsOptionsBinding.Bound, static _ => _.EndpointGroups, static (o, v) => o.EndpointGroups = v),
-        Member.Of<ArcOptions, bool>("ExposeExceptionDetails", Leaves.Bool, static _ => _.ExposeExceptionDetails, static (o, v) => o.ExposeExceptionDetails = v)
+        Member.Of<ArcOptions, bool>("ExposeExceptionDetails", Leaves.Bool, static _ => _.ExposeExceptionDetails, static (o, v) => o.ExposeExceptionDetails = v),
+        Member.Of<ArcOptions, Commands.ReadProtectionOptions>("ReadProtection", ReadProtectionOptionsBinding.Bound, static _ => _.ReadProtection, static (o, v) => o.ReadProtection = v)
     ];
 }

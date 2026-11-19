@@ -7,6 +7,7 @@ using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Queries.for_QueryEndpointMapper.when_handling_a_query;
 
+[PerFactSpecificationLifecycle]
 public class with_invalid_collection : given.a_query_request
 {
     void Establish() => _performer.Parameters.Returns(new QueryParameters(

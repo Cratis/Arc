@@ -72,7 +72,9 @@ console.log(`Hello '${identity.name}' from '${department}'`);
 > // The constructor argument is what deserializes - not just the <IdentityDetails> type parameter.
 > const identity = await IdentityProvider.getCurrent(IdentityDetails);
 >
-> console.log(identity.details.userId.toString());
+> if (identity.isSet && identity.details?.userId) {
+>     console.log(identity.details.userId.toString());
+> }
 > ```
 >
 > Add an `@field` decorator to every property you want populated. If the class has no decorated properties, Arc warns and leaves the raw payload unchanged.

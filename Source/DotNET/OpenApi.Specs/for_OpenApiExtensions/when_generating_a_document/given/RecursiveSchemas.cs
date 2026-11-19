@@ -17,57 +17,8 @@ namespace Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.gi
 
 public static class RecursiveSchemas
 {
-    public static Task<JsonNode?> Generate(bool polymorphic) => Task.Run(() => GenerateDocument(polymorphic)).WaitAsync(TimeSpan.FromSeconds(10));
-
-    public static Task<JsonNode?> GenerateDictionary<TValue>() => Task.Run(() => GenerateDictionaryDocument<TValue>()).WaitAsync(TimeSpan.FromSeconds(10));
-
-    public static Task<JsonNode?> GeneratePolymorphicCollection(bool nested) => Task.Run(() => GeneratePolymorphicCollectionDocument(nested)).WaitAsync(TimeSpan.FromSeconds(10));
-
-    static async Task<JsonNode?> GeneratePolymorphicCollectionDocument(bool nested)
+    public static Task<JsonNode?> Generate(bool polymorphic) => GenerateDocument(app =>
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.AddCratisArc();
-        ConfigureDerivedTypes(builder);
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Services.AddOpenApi(options => options.AddConcepts());
-        await using var app = builder.Build();
-        if (nested)
-        {
-            app.MapGet("/nodes", () => TypedResults.Ok<IListNode>(new ListNode([])));
-        }
-        else
-        {
-            app.MapGet("/nodes", () => TypedResults.Ok<IEnumerable<IListNode>>([]));
-        }
-        await app.StartAsync();
-        var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
-        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
-        return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
-    }
-
-    static async Task<JsonNode?> GenerateDictionaryDocument<TValue>()
-    {
-        var builder = WebApplication.CreateBuilder();
-        builder.AddCratisArc();
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Services.AddOpenApi(options => options.AddConcepts());
-        ConfigureDerivedTypes(builder);
-        await using var app = builder.Build();
-        app.MapGet("/dictionary", () => TypedResults.Ok(new Dictionary<SomeConcept, TValue>()));
-        await app.StartAsync();
-        var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
-        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
-        return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
-    }
-
-    static async Task<JsonNode?> GenerateDocument(bool polymorphic)
-    {
-        var builder = WebApplication.CreateBuilder();
-        builder.AddCratisArc();
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Services.AddOpenApi(options => options.AddConcepts());
-        ConfigureDerivedTypes(builder);
-        await using var app = builder.Build();
         if (polymorphic)
         {
             app.MapGet("/node", () => TypedResults.Ok<INode>(new DerivedNode(null, [])));
@@ -76,10 +27,37 @@ public static class RecursiveSchemas
         {
             app.MapGet("/node", () => TypedResults.Ok(new Node([])));
         }
+    });
 
+    public static Task<JsonNode?> GenerateDictionary<TValue>() =>
+        GenerateDocument(app => app.MapGet("/dictionary", () => TypedResults.Ok(new Dictionary<SomeConcept, TValue>())));
+
+    public static Task<JsonNode?> GeneratePolymorphicCollection(bool nested) => GenerateDocument(app =>
+    {
+        if (nested)
+        {
+            app.MapGet("/nodes", () => TypedResults.Ok<IListNode>(new ListNode([])));
+        }
+        else
+        {
+            app.MapGet("/nodes", () => TypedResults.Ok<IEnumerable<IListNode>>([]));
+        }
+    });
+
+    static async Task<JsonNode?> GenerateDocument(Action<WebApplication> mapEndpoints)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddCratisArc();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddOpenApi(options => options.AddConcepts());
+        ConfigureDerivedTypes(builder);
+        await using var app = builder.Build();
+        mapEndpoints(app);
         await app.StartAsync();
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
-        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
+
+        // Guard synchronous schema recursion without timing host startup under parallel load.
+        var document = await Task.Run(() => provider.GetOpenApiDocumentAsync(CancellationToken.None)).WaitAsync(TimeSpan.FromSeconds(30));
         return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
     }
 
@@ -91,36 +69,17 @@ public static class RecursiveSchemas
         reference.StartsWith("#/components/schemas/", StringComparison.Ordinal) &&
         document["components"]?["schemas"]?[reference["#/components/schemas/".Length..]] is not null);
 
-    static IEnumerable<string> References(JsonNode? node)
+    static IEnumerable<string> References(JsonNode? node) => node switch
     {
-        if (node is JsonObject properties)
-        {
-            foreach (var property in properties)
-            {
-                if (property.Key == "$ref" && property.Value is not null)
-                {
-                    yield return property.Value.ToString();
-                }
-                else
-                {
-                    foreach (var reference in References(property.Value))
-                    {
-                        yield return reference;
-                    }
-                }
-            }
-        }
-        else if (node is JsonArray items)
-        {
-            foreach (var item in items)
-            {
-                foreach (var reference in References(item))
-                {
-                    yield return reference;
-                }
-            }
-        }
-    }
+        JsonObject properties => properties.SelectMany(References),
+        JsonArray items => items.SelectMany(References),
+        _ => []
+    };
+
+    static IEnumerable<string> References(KeyValuePair<string, JsonNode?> property) =>
+        property.Key == "$ref" && property.Value is not null
+            ? [property.Value.ToString()]
+            : References(property.Value);
 
     public interface INode
     {

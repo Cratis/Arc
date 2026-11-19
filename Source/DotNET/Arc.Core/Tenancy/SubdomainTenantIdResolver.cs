@@ -49,7 +49,7 @@ public class SubdomainTenantIdResolver(IHttpRequestContextAccessor httpRequestCo
             return string.Empty;
         }
 
-        return context.Headers.TryGetValue(tenancy.HttpHeader, out var fallbackTenantId) ? fallbackTenantId : string.Empty;
+        return TenantHeader.Resolve(context.Headers, tenancy.HttpHeader);
     }
 
     /// <summary>

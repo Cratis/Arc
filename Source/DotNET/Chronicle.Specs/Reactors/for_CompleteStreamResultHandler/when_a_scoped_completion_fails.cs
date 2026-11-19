@@ -8,6 +8,7 @@ using Cratis.Monads;
 
 namespace Cratis.Arc.Chronicle.Reactors.for_CompleteStreamResultHandler;
 
+[PerFactSpecificationLifecycle]
 public class when_a_scoped_completion_fails : given.a_stream_completion
 {
     [Theory]

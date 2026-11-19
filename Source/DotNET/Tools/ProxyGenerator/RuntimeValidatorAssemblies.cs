@@ -27,8 +27,7 @@ public static class RuntimeValidatorAssemblies
     static readonly Dictionary<string, Exception> _loadFailuresByLocation = [];
 
     /// <summary>
-    /// Guards the cache. Deliberately an <see cref="object"/> rather than <c>System.Threading.Lock</c>, which the
-    /// net8.0 target this also compiles for does not have.
+    /// Guards the cache. Deliberately an <see cref="object"/> rather than <c>System.Threading.Lock</c>.
     /// </summary>
     static readonly object _lock = new();
 

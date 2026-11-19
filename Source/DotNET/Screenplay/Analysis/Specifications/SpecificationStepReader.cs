@@ -44,49 +44,17 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             ? CallsIn(steps, SpecificationMembers.EstablishMethod).Concat(CallsIn(steps, SpecificationMembers.BecauseMethod))
             : CallsIn(steps, SpecificationMembers.EstablishMethod);
 
-        foreach (var (invocation, method, semanticModel, always) in calls)
+        foreach (var step in calls)
         {
-            var seeding = SpecificationCalls.IsSeedingTheEventLog(method);
-            if (!seeding && !SpecificationCalls.IsGivenEvents(method) && !SpecificationCalls.IsGivenReadModel(method))
+            var admission = AdmitGiven(steps, step, draft);
+            if (admission == StepAdmission.Stop)
             {
-                continue;
-            }
-
-            if (seeding && (!SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps)) &&
-                !SpecificationCalls.IsReachedThroughACommandScenario(invocation, semanticModel))
-            {
-                if (SpecificationMembers.HoldsAScenario(steps))
-                {
-                    draft.CannotRead("it seeds an event log that this cannot tell the command it issues runs against");
-                    return;
-                }
-
-                continue;
-            }
-
-            if (!always)
-            {
-                draft.CannotRead("what it starts from only happens under a condition, and a scenario says what happened");
                 return;
             }
 
-            var kind = SpecificationCalls.IsGivenReadModel(method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
-            var route = kind == SpecificationStateKind.Event ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null;
-            var source = kind == SpecificationStateKind.Event && (draft.When is not null || SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps))
-                ? draft.EventSources.Read(invocation, method, semanticModel, draft, requireLiteral: route is { Source: not null })
-                : null;
-
-            foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
+            if (admission == StepAdmission.Read)
             {
-                Add(
-                    stated,
-                    kind,
-                    semanticModel,
-                    draft,
-                    name,
-                    location,
-                    source,
-                    route);
+                ReadGivenStep(steps, step, new(step.SemanticModel, draft, name, location));
             }
         }
     }
@@ -100,74 +68,57 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     /// <param name="location">Where the specification lives, for use in diagnostics.</param>
     public void ReadWhen(INamedTypeSymbol steps, SpecificationDraft draft, string name, string location)
     {
-        foreach (var (invocation, method, semanticModel, always) in CallsIn(steps, SpecificationMembers.BecauseMethod))
+        foreach (var step in CallsIn(steps, SpecificationMembers.BecauseMethod))
         {
-            var append = SpecificationMembers.HoldsAnEventScenario(steps) && SpecificationCalls.IsAppendAction(invocation, method, semanticModel);
-            if (!append && !SpecificationCalls.IsExecution(method))
+            var append = SpecificationMembers.HoldsAnEventScenario(steps) && SpecificationCalls.IsAppendAction(step.Invocation, step.Method, step.SemanticModel);
+            if (!append && !SpecificationCalls.IsExecution(step.Method))
             {
                 continue;
             }
 
-            if (!always)
+            var scope = new SpecificationStepScope(step.SemanticModel, draft, name, location);
+            if (ReadAction(step, append, scope) == StepAdmission.Stop)
             {
-                draft.CannotRead(append
-                    ? "the event it appends is only appended under a condition, and a scenario says what happened"
-                    : "the command it issues is only issued under a condition, and a scenario says what happened");
                 return;
             }
-
-            if (draft.When is not null)
-            {
-                draft.CannotRead("it performs more than one action, and a scenario is about one");
-                return;
-            }
-
-            var stated = CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty).ToList();
-            if (stated is not [var issued] ||
-                _held.ConstructionOf(issued, semanticModel) is not { } construction ||
-                construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol command)
-            {
-                draft.CannotRead(append
-                    ? "the event it appends is put together somewhere this cannot read"
-                    : "the command it issues is put together somewhere this cannot read");
-                return;
-            }
-
-            if (append && CallArguments.For(invocation, method, "additionalEvents").Any())
-            {
-                draft.CannotRead("it appends several events as its action, and a scenario holds one append");
-                return;
-            }
-
-            if (append ? !EventReader.IsEvent(command) : !CommandReader.IsCommand(command))
-            {
-                draft.CannotRead($"'{command.Name}' is not a {(append ? "event" : "command")} the document declares");
-                return;
-            }
-
-            if (!append)
-            {
-                draft.EventSources.ReadCommand(
-                    command,
-                    construction.Creation,
-                    construction.SemanticModel,
-                    models,
-                    semanticModel.GetSymbolInfo(MappingSourceReader.Unwrap(issued)).Symbol,
-                    semanticModel.Compilation);
-            }
-
-            var route = append ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null;
-            var state = new SpecificationStateModel(
-                command.Name,
-                append ? SpecificationStateKind.Event : SpecificationStateKind.Command,
-                values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft))
-            {
-                For = append ? draft.EventSources.Read(invocation, method, semanticModel, draft, requireLiteral: route is { Source: not null }) : null,
-                Route = route
-            };
-            draft.SetWhen(state, command, invocation.GetLocation());
         }
     }
+
+    static StepAdmission AdmitGiven(INamedTypeSymbol steps, Step step, SpecificationDraft draft)
+    {
+        var seeding = SpecificationCalls.IsSeedingTheEventLog(step.Method);
+        if (!seeding && !IsGivenStep(step.Method))
+        {
+            return StepAdmission.Skip;
+        }
+
+        if (seeding && IsUnreachedSeeding(steps, step))
+        {
+            if (!SpecificationMembers.HoldsAScenario(steps))
+            {
+                return StepAdmission.Skip;
+            }
+
+            draft.CannotRead("it seeds an event log that this cannot tell the command it issues runs against");
+            return StepAdmission.Stop;
+        }
+
+        if (step.Always)
+        {
+            return StepAdmission.Read;
+        }
+
+        draft.CannotRead("what it starts from only happens under a condition, and a scenario says what happened");
+        return StepAdmission.Stop;
+    }
+
+    static bool IsGivenStep(IMethodSymbol method) => SpecificationCalls.IsGivenEvents(method) || SpecificationCalls.IsGivenReadModel(method);
+
+    static bool IsUnreachedSeeding(INamedTypeSymbol steps, Step step) =>
+        (!SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps)) &&
+        !SpecificationCalls.IsReachedThroughACommandScenario(step.Invocation, step.SemanticModel);
+
+    static bool HoldsAnyScenario(INamedTypeSymbol steps) => SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps);
 
     /// <summary>
     /// Gets every call a body makes that resolves to a method.
@@ -181,6 +132,111 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             .Select(invocation => (invocation, Method: semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol, semanticModel, body))
             .Where(call => call.Method is not null)
             .Select(call => new Step(call.invocation, call.Method!, call.semanticModel, StepsTaken.Always(call.invocation, call.body)));
+
+    static string UnreadableActionMessage(bool append) => append
+        ? "the event it appends is put together somewhere this cannot read"
+        : "the command it issues is put together somewhere this cannot read";
+
+    static string? ActionFailure(SpecificationActionStep action)
+    {
+        if (!action.Step.Always)
+        {
+            return action.Append
+                ? "the event it appends is only appended under a condition, and a scenario says what happened"
+                : "the command it issues is only issued under a condition, and a scenario says what happened";
+        }
+
+        return action.Scope.Draft.When is not null ? "it performs more than one action, and a scenario is about one" : null;
+    }
+
+    static string? ActionTypeFailure(SpecificationActionStep action, INamedTypeSymbol command)
+    {
+        var append = action.Append;
+        if (append && CallArguments.For(action.Step.Invocation, action.Step.Method, "additionalEvents").Any())
+        {
+            return "it appends several events as its action, and a scenario holds one append";
+        }
+
+        return (append ? !EventReader.IsEvent(command) : !CommandReader.IsCommand(command))
+            ? $"'{command.Name}' is not a {(append ? "event" : "command")} the document declares"
+            : null;
+    }
+
+    SpecificationIssuedCommand? ConstructedCommand(SpecificationActionStep action)
+    {
+        var step = action.Step;
+        var stated = CallArguments.For(step.Invocation, step.Method, SpecificationCalls.PayloadParameterOf(step.Method) ?? string.Empty).ToList();
+        if (stated is not [var issued] || _held.ConstructionOf(issued, action.Scope.SemanticModel) is not { } construction)
+        {
+            return null;
+        }
+
+        return construction.SemanticModel.GetTypeInfo(construction.Creation).Type is INamedTypeSymbol command
+            ? new SpecificationIssuedCommand(issued, construction, command)
+            : null;
+    }
+
+    void ReadCommandSources(SpecificationIssuedCommand issued, SpecificationStepScope scope) =>
+        scope.Draft.EventSources.ReadCommand(
+            issued.Command,
+            issued.Construction.Creation,
+            issued.Construction.SemanticModel,
+            models,
+            scope.SemanticModel.GetSymbolInfo(MappingSourceReader.Unwrap(issued.Issued)).Symbol,
+            scope.SemanticModel.Compilation);
+
+    void SetWhen(SpecificationActionStep action, SpecificationIssuedCommand issued)
+    {
+        var (step, append, scope) = action;
+        var draft = scope.Draft;
+        var route = append ? SpecificationEventRoutes.Read(step.Invocation, step.Method, scope.SemanticModel, draft) : null;
+        var state = new SpecificationStateModel(
+            issued.Command.Name,
+            append ? SpecificationStateKind.Event : SpecificationStateKind.Command,
+            values.Read(issued.Construction.Creation, issued.Construction.SemanticModel, issued.Command, scope.Name, scope.Location, draft))
+        {
+            For = append ? draft.EventSources.Read(step.Invocation, step.Method, scope.SemanticModel, draft, requireLiteral: route is { Source: not null }) : null,
+            Route = route
+        };
+        draft.SetWhen(state, issued.Command, step.Invocation.GetLocation());
+    }
+
+    void ReadGivenStep(INamedTypeSymbol steps, Step step, SpecificationStepScope scope)
+    {
+        var draft = scope.Draft;
+        var kind = SpecificationCalls.IsGivenReadModel(step.Method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
+        var route = kind == SpecificationStateKind.Event ? SpecificationEventRoutes.Read(step.Invocation, step.Method, scope.SemanticModel, draft) : null;
+        var source = kind == SpecificationStateKind.Event && (draft.When is not null || HoldsAnyScenario(steps))
+            ? draft.EventSources.Read(step.Invocation, step.Method, scope.SemanticModel, draft, requireLiteral: route is { Source: not null })
+            : null;
+
+        foreach (var stated in CallArguments.For(step.Invocation, step.Method, SpecificationCalls.PayloadParameterOf(step.Method) ?? string.Empty))
+        {
+            Add(stated, scope, new(kind, source, route));
+        }
+    }
+
+    StepAdmission ReadAction(Step step, bool append, SpecificationStepScope scope)
+    {
+        var action = new SpecificationActionStep(step, append, scope);
+        var draft = scope.Draft;
+        var failure = ActionFailure(action);
+        var issued = failure is null ? ConstructedCommand(action) : null;
+        failure ??= issued is null ? UnreadableActionMessage(append) : ActionTypeFailure(action, issued.Command);
+        if (failure is not null)
+        {
+            draft.CannotRead(failure);
+            return StepAdmission.Stop;
+        }
+
+        if (!append)
+        {
+            ReadCommandSources(issued!, scope);
+        }
+
+        SetWhen(action, issued!);
+        return StepAdmission.Read;
+    }
 
     /// <summary>
     /// Gets every call a method of a chain makes, with the model the tree it lives in is read through.
@@ -199,23 +255,12 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     /// Adds one state a specification starts from, or records that it cannot be read.
     /// </summary>
     /// <param name="stated">The expression stating it.</param>
-    /// <param name="kind">What the state is.</param>
-    /// <param name="semanticModel">The semantic model of the tree the expression lives in.</param>
-    /// <param name="draft">The scenario collected so far.</param>
-    /// <param name="name">The name of the specification.</param>
-    /// <param name="location">Where the specification lives.</param>
-    /// <param name="source">The concrete occurrence source, when stated.</param>
-    /// <param name="route">The proven occurrence route, when stated.</param>
-    void Add(
-        ExpressionSyntax stated,
-        SpecificationStateKind kind,
-        SemanticModel semanticModel,
-        SpecificationDraft draft,
-        string name,
-        string location,
-        LiteralSource? source,
-        SpecificationEventRouteModel? route)
+    /// <param name="scope">What the call stating it is read against.</param>
+    /// <param name="given">What the state is.</param>
+    void Add(ExpressionSyntax stated, SpecificationStepScope scope, SpecificationGivenState given)
     {
+        var (semanticModel, draft, name, location) = scope;
+        var (kind, source, route) = given;
         if (_held.ConstructionOf(stated, semanticModel) is not { } construction ||
             construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol type)
         {

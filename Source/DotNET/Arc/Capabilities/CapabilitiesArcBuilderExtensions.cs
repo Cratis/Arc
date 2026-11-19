@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Capabilities;
+using Cratis.Arc.Identity.Callers;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
@@ -22,6 +23,7 @@ public static class CapabilitiesArcBuilderExtensions
     {
         builder.Services.Configure(configure ?? (_ => { }));
         builder.Services.TryAddSingleton(new CapabilityHostingRegistration());
+        builder.Services.TryAddSingleton(new WorkloadCapabilityHosting());
         builder.Services.TryAddSingleton<CapabilityEndpointSelection>();
         builder.Services.TryAddTransient<CapabilityGateMiddleware>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, CapabilitiesStartupValidation>());
