@@ -10,7 +10,9 @@ public static partial class Generator
         if (producedFiles is null) return;
         foreach (var path in generatedFiles.Keys) producedFiles.Add(path);
         if (skipIndexGeneration || !Directory.Exists(outputPath)) return;
-        foreach (var path in Directory.EnumerateFiles(outputPath, "index.ts", SearchOption.AllDirectories))
+        var indexPaths = generatedFiles.Keys.Select(Path.GetDirectoryName).OfType<string>()
+            .Distinct(StringComparer.Ordinal).Select(directory => Path.Combine(directory, "index.ts"));
+        foreach (var path in indexPaths.Where(File.Exists))
         {
             producedFiles.Add(Path.GetFullPath(path));
         }

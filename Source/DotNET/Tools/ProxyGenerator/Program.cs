@@ -165,6 +165,7 @@ var fingerprint = stateFile is null ? null : GenerationFingerprint.Compute(
     assemblyFile,
     args.Where(arg => !arg.StartsWith("--state-file=", StringComparison.Ordinal)),
     fileHeaderTemplate);
+var previousFiles = GenerationStateReader.ReadProducedFiles(stateFile);
 if (stateFile is not null)
 {
     if (fingerprint is not null && GenerationState.IsUpToDate(stateFile, fingerprint))
@@ -212,7 +213,8 @@ try
         producedFiles,
         endpointGroup,
         framework,
-        checkingOutput);
+        checkingOutput,
+        previousFiles);
     if (mode.Check || mode.ReportsValidation)
     {
         return result && !hadErrors ? await mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;

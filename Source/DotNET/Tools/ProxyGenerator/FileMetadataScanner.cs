@@ -56,15 +56,21 @@ public static class FileMetadataScanner
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <returns>The number of files removed.</returns>
     public static int RemoveOrphanedFiles(string outputPath, IEnumerable<string> orphanedFiles, Action<string> message)
-        => RemoveOrphanedFiles(outputPath, orphanedFiles, message, new FileSystemGeneratedOutput());
+        => RemoveOrphanedFiles(orphanedFiles, new GeneratedOutputScope(outputPath, message, new FileSystemGeneratedOutput()));
+
+    /// <summary>Finds orphaned proxies owned by the previous generation.</summary>
+    /// <param name="outputPath">The output root.</param>
+    /// <param name="generatedFiles">The files generated in this run.</param>
+    /// <param name="scope">The output settings and recorded ownership.</param>
+    /// <returns>The previously produced proxies that are now orphaned.</returns>
+    internal static List<string> FindOrphanedFiles(string outputPath, IDictionary<string, GeneratedFileMetadata> generatedFiles, GeneratedOutputScope scope) =>
+        scope.PreviousFiles?.Count == 0 ? [] : FindOrphanedFiles(outputPath, generatedFiles).Where(scope.Owns).ToList();
 
     /// <summary>Removes orphaned artifacts through the selected output boundary.</summary>
-    /// <param name="outputPath">The output root.</param>
     /// <param name="orphanedFiles">The orphaned artifact paths.</param>
-    /// <param name="message">The progress logger.</param>
-    /// <param name="output">The artifact output boundary.</param>
+    /// <param name="scope">The output settings and recorded ownership.</param>
     /// <returns>The number of orphaned artifacts.</returns>
-    internal static int RemoveOrphanedFiles(string outputPath, IEnumerable<string> orphanedFiles, Action<string> message, IGeneratedOutput output)
+    internal static int RemoveOrphanedFiles(IEnumerable<string> orphanedFiles, GeneratedOutputScope scope)
     {
         var orphanedFilesList = orphanedFiles.ToList();
         if (orphanedFilesList.Count == 0)
@@ -72,84 +78,74 @@ public static class FileMetadataScanner
             return 0;
         }
 
-        message($"  Cleaning up {orphanedFilesList.Count} orphaned file(s)");
+        scope.Message($"  Cleaning up {orphanedFilesList.Count} orphaned file(s)");
 
         var affectedDirectories = new HashSet<string>();
-
-        foreach (var filePath in orphanedFilesList)
+        foreach (var filePath in orphanedFilesList.Where(File.Exists))
         {
-            if (File.Exists(filePath))
-            {
-                output.DeleteFile(filePath);
-                var relativePath = Path.GetRelativePath(outputPath, filePath).Replace(Path.DirectorySeparatorChar, '/');
-                message($"    Deleted orphaned: {relativePath}");
-
-                var directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory))
-                {
-                    affectedDirectories.Add(directory);
-                }
-            }
+            DeleteOrphanedFile(filePath, scope, affectedDirectories);
         }
 
-        // Process affected directories from deepest to shallowest
-        var sortedDirectories = affectedDirectories
-            .OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar))
-            .ToList();
-
-        foreach (var directory in sortedDirectories.Where(_ => !output.ComparesBytes))
-        {
-            if (!Directory.Exists(directory))
-            {
-                continue;
-            }
-
-            CleanupDirectory(directory, outputPath, message, output);
-        }
-
+        CleanupDirectories(affectedDirectories, scope);
         return orphanedFilesList.Count;
     }
 
-    static void CleanupDirectory(string directory, string outputPath, Action<string> message, IGeneratedOutput output)
+    static void DeleteOrphanedFile(string filePath, GeneratedOutputScope scope, HashSet<string> affectedDirectories)
+    {
+        scope.Output.DeleteFile(filePath);
+        scope.Message($"    Deleted orphaned: {scope.RelativePath(filePath)}");
+        var directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(directory)) affectedDirectories.Add(directory);
+    }
+
+    static void CleanupDirectories(IEnumerable<string> directories, GeneratedOutputScope scope)
+    {
+        if (scope.Output.ComparesBytes) return;
+
+        // Process affected directories from deepest to shallowest
+        var sortedDirectories = directories.OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar)).ToList();
+        foreach (var directory in sortedDirectories.Where(Directory.Exists))
+        {
+            CleanupDirectory(directory, scope);
+        }
+    }
+
+    static void CleanupDirectory(string directory, GeneratedOutputScope scope)
     {
         // Don't process directories outside the output path
-        if (!directory.StartsWith(outputPath, StringComparison.OrdinalIgnoreCase))
+        if (!directory.StartsWith(scope.OutputPath, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        var files = Directory.GetFiles(directory)
-            .Where(f =>
-            {
-                var ext = Path.GetExtension(f);
-                return (string.Equals(ext, ".ts", StringComparison.Ordinal) || string.Equals(ext, ".tsx", StringComparison.Ordinal)) && Path.GetFileName(f) != "index.ts";
-            })
-            .ToList();
+        if (HasTypeScriptFiles(directory) || Directory.GetDirectories(directory).Length != 0) return;
+        if (!RemoveOwnedIndex(directory, scope)) return;
 
-        var subdirectories = Directory.GetDirectories(directory);
+        // Remove the empty directory
+        scope.Output.DeleteDirectoryIfEmpty(directory);
+        scope.Message($"    Removed empty directory: {scope.RelativePath(directory)}");
 
-        if (files.Count == 0 && subdirectories.Length == 0)
+        // Process parent directory
+        var parent = Path.GetDirectoryName(directory);
+        if (!string.IsNullOrEmpty(parent) && parent != scope.OutputPath)
         {
-            // Remove index.ts if it exists
-            var indexPath = Path.Combine(directory, "index.ts");
-            if (File.Exists(indexPath))
-            {
-                output.DeleteFile(indexPath);
-                var relativePath = Path.GetRelativePath(outputPath, indexPath).Replace(Path.DirectorySeparatorChar, '/');
-                message($"    Deleted index: {relativePath}");
-            }
-
-            // Remove the empty directory
-            output.DeleteDirectoryIfEmpty(directory);
-            var relativeDir = Path.GetRelativePath(outputPath, directory).Replace(Path.DirectorySeparatorChar, '/');
-            message($"    Removed empty directory: {relativeDir}");
-
-            // Process parent directory
-            var parent = Path.GetDirectoryName(directory);
-            if (!string.IsNullOrEmpty(parent) && parent != outputPath)
-            {
-                CleanupDirectory(parent, outputPath, message, output);
-            }
+            CleanupDirectory(parent, scope);
         }
+    }
+
+    static bool HasTypeScriptFiles(string directory) => Directory.GetFiles(directory).Any(file =>
+    {
+        var extension = Path.GetExtension(file);
+        return (string.Equals(extension, ".ts", StringComparison.Ordinal) || string.Equals(extension, ".tsx", StringComparison.Ordinal)) && Path.GetFileName(file) != "index.ts";
+    });
+
+    static bool RemoveOwnedIndex(string directory, GeneratedOutputScope scope)
+    {
+        var indexPath = Path.Combine(directory, "index.ts");
+        if (!File.Exists(indexPath)) return true;
+        if (!scope.Owns(indexPath)) return false;
+        scope.Output.DeleteFile(indexPath);
+        scope.Message($"    Deleted index: {scope.RelativePath(indexPath)}");
+        return true;
     }
 }

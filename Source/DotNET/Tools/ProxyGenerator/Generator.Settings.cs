@@ -31,6 +31,7 @@ public static partial class Generator
     /// <param name="EndpointGroup">Optional endpoint group.</param>
     /// <param name="Framework">The framework to generate for.</param>
     /// <param name="Output">The artifact output boundary.</param>
+    /// <param name="PreviousFiles">The outputs owned by the previous successful generation.</param>
     sealed record GenerationSettings(
         string FileHeaderTemplate,
         string OutputPath,
@@ -54,5 +55,6 @@ public static partial class Generator
         ICollection<string>? ProducedFiles,
         string? EndpointGroup,
         ProxyFramework Framework,
-        IGeneratedOutput Output);
+        IGeneratedOutput Output,
+        IReadOnlyCollection<string> PreviousFiles);
 }
