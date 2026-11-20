@@ -41,27 +41,41 @@ public static partial class IndexFileManager
         UpdateDirectoryIndex(new IndexLocation(directory, generatedFiles), GroupByDirectory(generatedFiles, orphanedFiles), new IndexOutput(fileHeaderTemplate, message, outputPath));
 
     /// <inheritdoc cref="UpdateAllIndexFiles"/>
-    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath, IGeneratedOutput? generatedOutput = null)
+    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath, IGeneratedOutput? generatedOutput = null) =>
+        UpdateScopedIndexFiles(new IndexGeneration(fileHeaderTemplate, directories, generatedFiles, orphanedFiles), new GeneratedOutputScope(outputPath, message, generatedOutput ?? new FileSystemGeneratedOutput()));
+
+    /// <summary>Updates index files within a generation's output scope.</summary>
+    /// <param name="generation">The files and header for this generation.</param>
+    /// <param name="scope">The output settings and recorded ownership.</param>
+    /// <returns>The number of written and skipped index files.</returns>
+    internal static (int WrittenCount, int SkippedCount) UpdateScopedIndexFiles(IndexGeneration generation, GeneratedOutputScope scope)
     {
         // Combine explicitly tracked directories with any directory under outputPath
         // that has an existing index.ts file, to catch stale exports from previous runs.
-        var allDirectories = new HashSet<string>(directories, StringComparer.Ordinal);
+        var allDirectories = new HashSet<string>(generation.Directories, StringComparer.Ordinal);
 
-        if (Directory.Exists(outputPath))
-        {
-            foreach (var dir in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories).Select(Path.GetDirectoryName).OfType<string>())
-            {
-                allDirectories.Add(dir);
-            }
-        }
+        allDirectories.UnionWith(GetPreviousIndexDirectories(scope));
 
         // Grouping once keeps this linear in the number of files, rather than a scan of every file per directory.
-        var byDirectory = GroupByDirectory(generatedFiles, orphanedFiles);
+        var byDirectory = GroupByDirectory(generation.GeneratedFiles, generation.OrphanedFiles);
 
-        var output = new IndexOutput(fileHeaderTemplate, message, outputPath, generatedOutput);
-        var writtenCount = allDirectories.Count(_ => UpdateDirectoryIndex(new IndexLocation(_, generatedFiles), byDirectory, output));
+        var output = new IndexOutput(generation.FileHeaderTemplate, scope.Message, scope.OutputPath, scope.Output);
+        var writtenCount = allDirectories.Count(_ => UpdateDirectoryIndex(new IndexLocation(_, generation.GeneratedFiles), byDirectory, output));
         return (writtenCount, allDirectories.Count - writtenCount);
     }
+
+    static IEnumerable<string> GetPreviousIndexDirectories(GeneratedOutputScope scope)
+    {
+        if (!Directory.Exists(scope.OutputPath)) return [];
+        var indexPaths = scope.PreviousFiles is null
+            ? Directory.GetFiles(scope.OutputPath, "index.ts", SearchOption.AllDirectories)
+            : scope.PreviousFiles.Where(path => IsPreviousIndex(path, scope));
+        return indexPaths.Select(Path.GetDirectoryName).OfType<string>();
+    }
+
+    static bool IsPreviousIndex(string path, GeneratedOutputScope scope) =>
+        Path.GetFileName(path) == "index.ts" && File.Exists(path) &&
+        Path.GetFullPath(path).StartsWith(Path.GetFullPath(scope.OutputPath) + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 
     /// <summary>
     /// Updates the index.ts file of one directory from files already grouped by directory.
@@ -358,6 +372,13 @@ public static partial class IndexFileManager
 
         return files;
     }
+
+    /// <summary>Groups the artifacts and header used to update a run's index files.</summary>
+    /// <param name="FileHeaderTemplate">The header for newly created index files.</param>
+    /// <param name="Directories">The current generated directories.</param>
+    /// <param name="GeneratedFiles">The current generated artifacts.</param>
+    /// <param name="OrphanedFiles">The owned artifacts removed in this run.</param>
+    internal sealed record IndexGeneration(string FileHeaderTemplate, IEnumerable<string> Directories, IDictionary<string, GeneratedFileMetadata> GeneratedFiles, IEnumerable<string> OrphanedFiles);
 
     /// <summary>
     /// Represents the generated and orphaned files of one directory.
