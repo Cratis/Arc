@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc configuration keys
-description: Look up every configuration key a C# Arc application reads, with its environment variable form, default and when to change it.
+description: Look up ArcOptions and proxy-generator MSBuild properties, with defaults, configuration keys and when to change them.
 ---
 
 Use this page to find the key for a setting, its environment variable and its default. Arc reads configuration from four sections plus one root-level group:
@@ -31,7 +31,27 @@ Some settings exist under two names or in two forms. Both work today. Use the na
 
 ## `Cratis:Arc`
 
-The first table covers keys already described in [The ArcOptions tree](index.md#the-arcoptions-tree). It lists only key, default and a one-line purpose, so follow the links for detail.
+The tables cover properties described in [The ArcOptions tree](index.md#the-arcoptions-tree). They list the key, default and a one-line purpose, so follow the links for detail. Unless marked code-only or computed, keys are relative to `Cratis:Arc`.
+
+Each options group starts as a new, non-null instance with the child defaults listed below:
+
+| `ArcOptions` property | Default instance |
+| --- | --- |
+| `CorrelationId` | `CorrelationIdOptions` |
+| `Tenancy` | `TenancyOptions` |
+| `ConnectionResolution` | `ConnectionResolutionOptions` |
+| `GeneratedApis` | `ApiEndpointOptions` |
+| `Introspection` | `IntrospectionOptions` |
+| `OnBehalfOf` | `OnBehalfOfOptions` |
+| `ForwardedIdentity` | `ForwardedIdentityOptions` |
+| `Calendar` | `CalendarOptions` |
+| `Command` | `CommandOptions` |
+| `Query` | `QueryOptions` |
+| `QueryHealth` | `QueryHealthOptions` |
+| `Hosting` | `HostingOptions` |
+| `EndpointGroups` | `EndpointGroupsOptions` |
+| `Artifacts` | `ArtifactsOptions` (code only) |
+| `ReadProtection` | `ReadProtectionOptions` (configuration mirror) |
 
 ### Core
 
@@ -70,6 +90,7 @@ The first table covers keys already described in [The ArcOptions tree](index.md#
 | `GeneratedApis:EnableQueryHttpMethod` | `true` | Set `false` when infrastructure rejects the HTTP `QUERY` method. |
 | `EndpointGroups:Ports`, `EndpointGroups:RoutePrefixes` | empty | Serve groups of endpoints on separate ports or prefixes. See [Endpoint groups](../endpoint-groups.md). |
 | `EndpointGroups:ServeDefaultGroupOnGroupPorts` | `false` | Also serve the default group on group ports. |
+| `EndpointGroups.HasGroups` | `false` with no assigned ports | Computed, not a configuration key: whether any group has ports. |
 
 ### Identity, tenancy and discovery
 
@@ -79,13 +100,15 @@ The first table covers keys already described in [The ArcOptions tree](index.md#
 | `Introspection:Enabled` | `true` | Set `false` on deployed hosts that need no catalogs. |
 | `Introspection:IdentityDiscovery` | `true` | Set `false` on deployed hosts that need no user and tenant lists. |
 | `Introspection:RequireAuthentication` | unset: anonymous in Development, authenticated elsewhere | Leave unset unless you must change it. See [Introspection production access](../introspection/index.md#production-access). |
-| `Introspection:Roles` | not set | Restrict discovery to these roles. |
+| `Introspection:Roles` | not set | Restrict discovery to these comma-separated roles. |
+| `Introspection:TrustForwardedIdentityHeaders` | `false` | Obsolete alias; prefer the host-wide `TrustForwardedIdentityHeaders`. |
 | `Tenancy:ResolverType` | `Header` | How the tenant is resolved. |
 | `Tenancy:HttpHeader` | `x-cratis-tenant-id` | Tenant header name. |
 | `Tenancy:BaseDomain` | empty | Required when `ResolverType` is `Subdomain`. |
 | `Tenancy:QueryParameter` | `tenantId` | Query parameter for the `Query` resolver. |
 | `Tenancy:ClaimType` | `tenant_id` | Claim for the `Claim` resolver. |
 | `Tenancy:FixedTenantId` | `development` | Tenant for `Fixed` and `Development`. Prefer this name. |
+| `Tenancy:DevelopmentTenantId` | `development` | Alias of `FixedTenantId`; both properties read and write the same value. |
 | `Tenancy:IngressValidatesTenant` | `false` | Assert that a trusted ingress validates caller-to-tenant membership. It only silences a startup diagnostic. See [Tenancy configuration](../tenancy/configuration.md). |
 | `Tenancy:StrictValidatorMembership` | `false` | Recommended `true` for new applications. |
 | `Tenancy:RequireDuplicateHeaderPreservation` | `false` | Refuse HttpListener startup with a resolver that reads the tenant header. See [Tenant resolvers](../tenancy/resolvers.md). |
@@ -96,10 +119,13 @@ The first table covers keys already described in [The ArcOptions tree](index.md#
 | `ForwardedIdentity:Enabled` | `false` | Require signed forwarded identity. |
 | `ForwardedIdentity:Audience` | empty string | Integration audience. |
 | `ForwardedIdentity:Keys` | empty list | Each key has `KeyId` and `SecretBase64`, both empty by default. Provision secrets through a secret provider. |
+| `ForwardedIdentity:ClientCertificate` | new `ForwardedIdentityClientCertificateOptions` | Holds the peer admission settings below. |
 | `ForwardedIdentity:ClientCertificate:Required` | `false` | Require an admitted immediate forwarding peer. |
 | `ForwardedIdentity:ClientCertificate:TrustedCertificateAuthoritiesPath` | not set | PEM authority bundle path. |
 | `ForwardedIdentity:ClientCertificate:AllowedDnsNames` | empty list | Admitted peer DNS SAN names. |
 | `ForwardedIdentity:ClientCertificate:ReloadInterval` | `00:01:00` | Authority bundle reload interval. |
+
+`Introspection.RequireAuthentication` and `QueryHealth.RequireAuthentication` both return `false` from a new options instance. Their unset state is tracked separately: the runtime applies the environment-dependent defaults in the tables until you assign a value explicitly.
 
 Both forwarding modes also require `TrustForwardedIdentityHeaders`. See [acting on behalf of a user](../asp-net-core/acting-on-behalf-of.md) and [signed forwarded identity](../asp-net-core/signed-forwarded-identity.md) for validation requirements.
 
@@ -109,7 +135,11 @@ These keys are relative to `Cratis:Arc:ConnectionResolution`. The same tree exis
 
 | Key | Default | Purpose |
 | --- | --- | --- |
+| `Connection`, `Identity` | new `ConnectionResolverOptions` instances | Resolver slots with the child defaults below. |
 | `CacheDuration` | `00:05:00` | In-memory resolved-connection lifetime. |
+| `<slot>:Template` | new `TemplateConnectionResolverOptions` | Holds optional connection templates. |
+| `<slot>:Http` | new `HttpConnectionResolverOptions` | Holds HTTP resolution settings. |
+| `<slot>:Http:Authentication` | new `HttpConnectionResolverAuthenticationOptions` | Holds token acquisition settings. |
 | `<slot>:Resolver` | `Default` | Configured connection, template, HTTP, or custom resolver. |
 | `<slot>:Template:ConnectionString`, `<slot>:Template:Database`, `<slot>:Template:Schema` | not set | Optional templates; unset parts retain configured values. |
 | `<slot>:Http:Endpoint` | not set | Resolution endpoint. |
@@ -123,7 +153,7 @@ These keys are relative to `Cratis:Arc:ConnectionResolution`. The same tree exis
 | `<slot>:Http:Authentication:RefreshMargin` | `00:05:00` | Token renewal margin. |
 | `<slot>:CustomType` | not set | Resolver type; **code only**. |
 
-`IsConfigured` is computed, not a configuration key.
+`IsConfigured` is computed, not a configuration key. It is `false` by default, when both slots use the `Default` resolver.
 
 ### Capabilities
 
@@ -186,7 +216,7 @@ Missing `Server` or `Database` fails host startup. See [Required settings](../mo
 
 ## Read protection
 
-The runtime, measurement, and startup-admission keys below accept both `Cratis:Arc:ReadProtection:<key>` and the original root `ReadProtection:<key>`. The namespaced key wins when both are set. For example, use `Cratis__Arc__ReadProtection__MaximumMode` as an environment variable. `ArcOptions.ReadProtection` mirrors the configuration; assigning its properties in an options callback does not change runtime policy.
+The runtime, measurement, and startup-admission keys below accept both `Cratis:Arc:ReadProtection:<key>` and the original root `ReadProtection:<key>`. The namespaced key wins when both are set. For example, use `Cratis__Arc__ReadProtection__MaximumMode` as an environment variable. `ArcOptions.ReadProtection` mirrors the configuration; assigning its properties in an options callback does not change runtime policy. All seven `ReadProtectionOptions` properties start as `null` (unset strings); the tables below show the effective runtime defaults, not initial property values.
 
 | Key (relative to either section) | Default | Purpose |
 | --- | --- | --- |
@@ -204,6 +234,46 @@ Chronicle's measurement and startup-admission settings also accept both sections
 | `ReadProtection:MeasureScanLimit` | `500` | Events per scan, 1 to 500. |
 
 `<CratisReadProtection>` is the build-time mode declaration. Arc 23 defaults to `On`; runtime configuration can only cap the mode through `MaximumMode`; it cannot raise it. See [read protection](../chronicle/consistency/index.md).
+
+## Proxy-generator MSBuild properties
+
+Set these in your project file or `Directory.Build.props`, not `appsettings.json`. Defaults below are those shipped in `Cratis.Arc.ProxyGenerator.Build`'s `.props` and `.targets`; unset Boolean switches only take effect when set to `true`. See [proxy generation](../proxy-generation/index.md) for setup.
+
+| Property | Default | Purpose |
+| --- | --- | --- |
+| `CratisProxiesOutputPath` | empty; generation off | Directory for generated TypeScript proxies. An unset path emits an informational message, not a warning or error. |
+| `CratisProxiesSuppressOutputPathMessage` | unset (not suppressed) | Set `true` to silence the unset-output-path message. |
+| `CratisProxiesSkip` | unset (generation allowed) | Set `true` to skip generation even with an output path. Does not suppress the unset-output-path message. |
+| `DisableProxyGenerator` | unset (generation allowed) | Also skips generation when `true`. |
+| `CratisProxiesSegmentsToSkip` | empty (generator uses `0`) | Namespace segments to omit from generated routes and paths. |
+| `CratisProxiesLibraryMode` | `false` | Generate types for a reusable proxy library. |
+| `CratisProxiesFramework` | `react` | Framework helpers to emit: `react` or `none`. |
+| `CratisProxiesIncremental` | `true` | Use the state file to avoid unchanged generation; set `false` to disable it. |
+| `CratisProxiesSkipOutputDeletion` | `true` | Preserve existing output instead of deleting the output directory before generation. |
+| `CratisProxiesSkipCommandNameInRoute` | `false` | Omit the command name from routes; inverse of `GeneratedApis:IncludeCommandNameInRoute`. |
+| `CratisProxiesSkipQueryNameInRoute` | `false` | Omit the query name from routes; inverse of `GeneratedApis:IncludeQueryNameInRoute`. |
+| `CratisProxiesApiPrefix` | `api` | Route prefix; must match `GeneratedApis:RoutePrefix`. |
+| `CratisProxiesEndpointGroup` | unset (default group) | Select the endpoint group whose proxies are generated. |
+| `CratisProxiesSkipFileIndexTracking` | `false` | Pass `--skip-file-index-tracking` to the generator when `true`. |
+| `CratisProxiesSkipIndexGeneration` | unset (indexes generated) | Set `true` to skip index files. |
+| `CratisProxiesUseSourceFileAsOutputFile` | unset (disabled) | Set `true` to derive output file names from C# source files. |
+| `CratisProxiesEmitInterfaces` | unset (disabled) | Set `true` to emit TypeScript interfaces for data types. |
+| `CratisProxiesUseProxyFileSuffix` | unset (disabled) | Set `true` to add `.proxy` to generated file names. |
+| `CratisProxiesFileHeader` | unset | Header template; when unset, reads the project's EditorConfig `file_header_template`, or adds no application header if none is found. Set `none` to disable the fallback. |
+| `CratisProxyGeneratorRollForward` | `true` for consumer frameworks compatible with `net11.0`; otherwise unset | Run the `net10.0` generator on the newer consumer runtime. |
+| `CratisProxyGeneratorHostArguments` | `--roll-forward LatestMajor` when roll-forward is `true`; otherwise unset | Arguments passed to the `dotnet` host. A nonempty explicit value is retained. |
+| `CratisProxyGeneratorEnvironmentVariables` | `DOTNET_ROLL_FORWARD_TO_PRERELEASE=1` when roll-forward is `true`; otherwise unset | Environment passed to the generator process. A nonempty explicit value is retained. |
+
+The targets also compute these implementation properties. They are not application configuration switches:
+
+| Property | Computed value |
+| --- | --- |
+| `CratisProxyDevAssemblyDirectory` | `$(MSBuildThisFileDirectory)../../ProxyGenerator.Build/bin/$(Configuration)/net10.0` |
+| `CratisProxyPackedAssemblyDirectory` | `$(MSBuildThisFileDirectory)../tasks/net10.0` |
+| `CratisProxyGeneratorAssemblyDirectory` | Packed assembly directory when it exists, otherwise the development assembly directory. |
+| `CratisProxyGeneratorAssembly` | `Cratis.Arc.ProxyGenerator.Build.dll` |
+| `CratisProxiesEncodedFileHeader` | Unset unless `CratisProxiesFileHeader` is nonempty; then its Base64 encoding, computed during generation. |
+| `_CratisProxiesStateFile` | Normalized `$(MSBuildProjectDirectory)/$(IntermediateOutputPath)/cratis-proxies.state.json`. |
 
 ## Environment variables Arc reads
 
