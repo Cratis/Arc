@@ -104,6 +104,8 @@ jobs:
   test-shard-policy:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
       spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
@@ -117,7 +119,7 @@ jobs:
       - name: Extract base tools outside the head tree
         working-directory: ${{ runner.temp }}
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GUARD_SCRIPTS: scripts/ci-test-shards.py
           GUARD_FILES: .github/test-shards.json
@@ -134,23 +136,29 @@ jobs:
               if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$1:$tool" 2>/dev/null; then return 1; fi
             done
           }
-          if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$BASE_SHA^{commit}"; then
-            git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$BASE_SHA"
-          fi
-          revision="$BASE_SHA"
-          if ! tools_present "$revision"; then
-            git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "refs/heads/$DEFAULT_BRANCH"
-            revision=$(git -C "$GITHUB_WORKSPACE" rev-parse FETCH_HEAD)
-            if ! tools_present "$revision"; then
+          missing="${GUARD_SCRIPTS%% *}"
+          revision=''
+          if [[ "$BASE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] &&
+             { git -C "$GITHUB_WORKSPACE" cat-file -e "$BASE_SHA^{commit}" 2>/dev/null ||
+               git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$BASE_SHA"; } &&
+             tools_present "$BASE_SHA"; then
+            revision="$BASE_SHA"
+            echo "::notice::Selected base revision $revision."
+          else
+            remote=$(git -C "$GITHUB_WORKSPACE" remote get-url origin)
+            revision=$(git -c credential.helper= -c http.extraheader= ls-remote --refs "$remote" "refs/heads/$DEFAULT_BRANCH" |
+              awk -v ref="refs/heads/$DEFAULT_BRANCH" '$2 == ref { print $1 }') || revision=''
+            if ! [[ "$revision" =~ ^[0-9a-fA-F]{40}$ ]] ||
+               ! git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$revision" ||
+               ! tools_present "$revision"; then
               echo "::error::Neither base nor default branch provides required gate tool: $missing"
               exit 1
             fi
             echo "::notice::Selected default branch $DEFAULT_BRANCH revision $revision."
-          else
-            echo "::notice::Selected base revision $revision."
           fi
-          mkdir "$RUNNER_TEMP/gate-tools"
-          git -C "$GITHUB_WORKSPACE" archive "$revision" scripts .github/test-shards.json | tar -x -C "$RUNNER_TEMP/gate-tools"
+          tools=$(mktemp -d "$RUNNER_TEMP/gate-tools.XXXXXX")
+          git -C "$GITHUB_WORKSPACE" archive "$revision" scripts .github/test-shards.json | tar -x -C "$tools"
+          echo "GATE_TOOLS=$tools" >> "$GITHUB_ENV"
           echo "::notice::Running shard guards and policy from $revision."
 
       # The assignment must cover every current namespace and spec project exactly once.
@@ -159,10 +167,10 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          script="$RUNNER_TEMP/gate-tools/scripts/ci-test-shards.py"
+          script="$GATE_TOOLS/scripts/ci-test-shards.py"
           data="$RUNNER_TEMP/shard-data"
           mkdir -p "$data/.github"
-          cp "$RUNNER_TEMP/gate-tools/.github/test-shards.json" "$data/.github/test-shards.json"
+          cp "$GATE_TOOLS/.github/test-shards.json" "$data/.github/test-shards.json"
           ln -s "$GITHUB_WORKSPACE/Source" "$data/Source"
           ln -s "$GITHUB_WORKSPACE/Samples" "$data/Samples"
           python3 -I "$script" check --root "$data"
