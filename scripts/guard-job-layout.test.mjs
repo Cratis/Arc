@@ -28,6 +28,11 @@ test('shard selection is separate from head script tests and supplies both matri
     assert.doesNotMatch(policy, /--self-test|yarn|npm|dotnet /);
     assert.match(policy, /python3 -I "\$script" check/);
     assert.match(policy, /python3 -I "\$script" matrix/);
+    const decision = stepScript(policy, 'Verify the test shard assignment');
+    assert.match(decision, /script="\$GATE_TOOLS\/scripts\/ci-test-shards.py"/);
+    assert.match(decision, /git -C "\$GITHUB_WORKSPACE" show "\$HEAD_SHA:.github\/test-shards.json" > "\$data\/.github\/test-shards.json"/);
+    assert.doesNotMatch(decision, /\$GITHUB_WORKSPACE\/scripts|\$HEAD_SHA:scripts|\$GATE_TOOLS\/.github/);
+    assert.match(policy, /HEAD_SHA: \$\{\{ github.event_name == 'pull_request' && github.event.pull_request.head.sha \|\| github.sha \}\}/);
     assert.match(job('dotnet-build.yml', 'dotnet-build'), /scripts\/ci-test-shards.py --self-test/);
     for (const [name, output] of [['specs', 'spec-shards'], ['proxy-specs', 'proxy-shards']]) {
         const consumer = job('dotnet-build.yml', name);
@@ -40,6 +45,7 @@ test('shard selection is separate from head script tests and supplies both matri
 test('declaration evaluation uses an artifact and tooling installed and invoked in the trusted tree', () => {
     const build = job('javascript-build.yml', 'build');
     const guards = job('javascript-build.yml', 'declaration-guards');
+    assert.match(build, /permissions:\n      contents: read/);
     assert.match(build, /name: Upload declaration inputs/);
     assert.doesNotMatch(build, /name: Verify declarations with base guards/);
     assert.match(guards, /needs: build/);
@@ -116,14 +122,21 @@ function archiveFixture(baseHasTools = true, defaultHasTools = true) {
         fs.mkdirSync(path.dirname(path.join(head, file)), { recursive: true });
         fs.writeFileSync(path.join(head, file), 'head fixture is not a trusted guard\n');
     }
-    fs.writeFileSync(path.join(head, '.github/test-shards.json'), 'head policy is not selected\n');
+    const headShards = JSON.parse(fs.readFileSync(path.join(head, '.github/test-shards.json'), 'utf8'));
+    for (const shards of [headShards.proxyShards, headShards.specShards]) {
+        for (const shard of shards) shard.name = `head-${shard.name}`;
+    }
+    fs.writeFileSync(path.join(head, '.github/test-shards.json'), JSON.stringify(headShards));
     fs.symlinkSync('.', path.join(head, 'gate-tools'));
-    commitFixture(head, 'Head fixture');
+    const headSha = commitFixture(head, 'Head fixture');
+    // The workflow must read the committed JSON blob, not follow a checkout symlink.
+    fs.rmSync(path.join(head, '.github/test-shards.json'));
+    fs.symlinkSync(path.join(root, '.github/test-shards.json'), path.join(head, '.github/test-shards.json'));
     command('git', ['remote', 'add', 'origin', head], head);
     fs.rmSync(path.join(head, 'Source'), { recursive: true });
     fs.symlinkSync(path.join(root, 'Source'), path.join(head, 'Source'));
     fs.symlinkSync(path.join(root, 'Samples'), path.join(head, 'Samples'));
-    return { fixture, head, base, trusted };
+    return { fixture, head, headSha, headShards, base, trusted };
 }
 function selectionRun(fixture, file, name, overrides) {
     const temp = path.join(fixture.fixture, name);
@@ -131,7 +144,8 @@ function selectionRun(fixture, file, name, overrides) {
     const env = { ...process.env, GITHUB_WORKSPACE: fixture.head, RUNNER_TEMP: temp, BASE_SHA: fixture.base,
         DEFAULT_BRANCH: 'main', GITHUB_OUTPUT: path.join(temp, 'output.txt'), GITHUB_ENV: path.join(temp, 'env.txt'),
         GUARD_SCRIPTS: name === 'test-shard-policy' ? guardScripts[0] : guardScripts.slice(1).join(' '),
-        GUARD_FILES: name === 'test-shard-policy' ? guardFiles[0] : guardFiles.slice(1).join(' '), ...overrides };
+        GUARD_FILES: name === 'test-shard-policy' ? '' : guardFiles.slice(1).join(' '),
+        HEAD_SHA: fixture.headSha, ...overrides };
     const result = spawnSync('bash', ['-c', stepScript(job(file, name), 'Extract base tools outside the head tree')], {
         cwd: temp, env, encoding: 'utf8'
     });
@@ -155,7 +169,13 @@ function checkTrustedSelection(fixture, expected, overrides = {}) {
         const tools = checkExtractedTools(fixture, name, run);
         if (name === 'test-shard-policy') {
             command('bash', ['-c', stepScript(job(file, name), 'Verify the test shard assignment')], run.temp, { ...run.env, GATE_TOOLS: tools });
-            assert.match(fs.readFileSync(run.env.GITHUB_OUTPUT, 'utf8'), /proxy-shards=/);
+            const outputs = fs.readFileSync(run.env.GITHUB_OUTPUT, 'utf8').trim().split('\n');
+            const expectedMatrices = [fixture.headShards.proxyShards, fixture.headShards.specShards];
+            for (const [index, key] of ['proxy-shards', 'spec-shards'].entries()) {
+                const output = outputs.find(line => line.startsWith(`${key}=`)).slice(key.length + 1);
+                assert.deepEqual(JSON.parse(output), expectedMatrices[index].map(shard => shard.name));
+            }
+            assert.deepEqual(JSON.parse(fs.readFileSync(path.join(run.temp, 'shard-data/.github/test-shards.json'), 'utf8')), fixture.headShards);
         } else {
             const workspace = path.join(tools, 'Source/JavaScript/Arc');
             assert.equal(fs.realpathSync(workspace), workspace);
@@ -172,11 +192,11 @@ function checkClosedSelection(fixture, overrides = {}) {
     }
 }
 
-test('a committed head gate-tools symlink cannot redirect either base extraction', () => {
+test('a committed head gate-tools symlink cannot redirect trusted tools while both matrices use head shard JSON', () => {
     checkTrustedSelection(archiveFixture(), 'base revision');
 });
 
-test('a base without tools uses default-branch tools, never head tools or head policy', () => {
+test('a base without tools uses default-branch tools with only head shard JSON as decision data', () => {
     checkTrustedSelection(archiveFixture(false, true), 'default branch main revision');
 });
 
