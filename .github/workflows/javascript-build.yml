@@ -31,17 +31,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # Run guard checks from the base revision so a pull request cannot change the check that judges it.
-      # Check out the guards before dependency installation or any other PR code runs.
-      - name: Checkout gate tools
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: gate-tools
-          sparse-checkout: scripts
-          persist-credentials: false
-
       - name: Setup node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -74,34 +63,104 @@ jobs:
           yarn ci
           node --test scripts/rollup-node-externals.test.mjs
           yarn node scripts/check-declaration-imports.cjs --self-test
-          node --test scripts/declaration-guard-roots.test.cjs
+          node --test scripts/declaration-guard-roots.test.cjs scripts/guard-job-layout.test.mjs
 
-      - name: Verify declarations with base guards
+      - name: Upload declaration inputs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: declaration-inputs
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            Source/JavaScript/Arc/package.json
+            Source/JavaScript/Arc/dist/**
+            Source/JavaScript/Arc.React/package.json
+            Source/JavaScript/Arc.React/dist/**
+            Source/JavaScript/Arc.React.MVVM/package.json
+            Source/JavaScript/Arc.React.MVVM/dist/**
+            Source/JavaScript/Arc.Vite/package.json
+            Source/JavaScript/Arc.Vite/dist/**
+
+  # Run guard checks from the base revision so a pull request cannot change the check that judges it.
+  # Builds run elsewhere; this job only reads their output with base-installed tooling.
+  declaration-guards:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout head data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Extract base tools outside the head tree
+        working-directory: ${{ runner.temp }}
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GUARD_SCRIPTS: scripts/check-declaration-imports.cjs scripts/check-declaration-consumers.cjs
+          GUARD_FILES: scripts/fixtures/declaration-consumer/consumer.mts scripts/fixtures/declaration-consumer/consumer.cts package.json yarn.lock .yarnrc.yml
         run: |
           set -euo pipefail
-          for guard in check-declaration-imports.cjs check-declaration-consumers.cjs; do
-            script="scripts/$guard"
-            root_args=()
-            if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-              if [ -f "gate-tools/$script" ]; then
-                echo "::notice::Running $guard from base revision $(git -C gate-tools rev-parse HEAD)."
-                if grep -q -- '--repo-root' "gate-tools/$script"; then
-                  script="gate-tools/$script"
-                  root_args=(--repo-root "$GITHUB_WORKSPACE")
-                else
-                  # Older guards resolve inputs from __dirname; keep the base source, but use the PR input location.
-                  echo "::notice::Bootstrap: base guard has no --repo-root; running its source beside PR inputs."
-                  cp "gate-tools/$script" "scripts/.base-$guard"
-                  if [ "$guard" = check-declaration-consumers.cjs ]; then
-                    cp gate-tools/scripts/fixtures/declaration-consumer/consumer.{mts,cts} scripts/fixtures/declaration-consumer/
-                  fi
-                  script="scripts/.base-$guard"
-                fi
-              else
-                echo "::notice::Bootstrap: base has no $guard; using event revision $(git rev-parse HEAD)."
-              fi
-            else
-              echo "::notice::Running $guard from event revision $(git rev-parse HEAD)."
+          tools_present() {
+            for tool in $GUARD_SCRIPTS; do
+              missing="$tool (--root)"
+              if ! git -C "$GITHUB_WORKSPACE" show "$1:$tool" > "$RUNNER_TEMP/guard-candidate" 2>/dev/null; then return 1; fi
+              if ! grep -q -- '--root' "$RUNNER_TEMP/guard-candidate"; then return 1; fi
+            done
+            for tool in $GUARD_FILES; do
+              missing="$tool"
+              if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$1:$tool" 2>/dev/null; then return 1; fi
+            done
+          }
+          if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$BASE_SHA^{commit}"; then
+            git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$BASE_SHA"
+          fi
+          revision="$BASE_SHA"
+          if ! tools_present "$revision"; then
+            git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "refs/heads/$DEFAULT_BRANCH"
+            revision=$(git -C "$GITHUB_WORKSPACE" rev-parse FETCH_HEAD)
+            if ! tools_present "$revision"; then
+              echo "::error::Neither base nor default branch provides required gate tool: $missing"
+              exit 1
             fi
-            yarn node "$script" "${root_args[@]}"
-          done
+            echo "::notice::Selected default branch $DEFAULT_BRANCH revision $revision."
+          else
+            echo "::notice::Selected base revision $revision."
+          fi
+          mkdir "$RUNNER_TEMP/gate-tools"
+          git -C "$GITHUB_WORKSPACE" archive "$revision" | tar -x -C "$RUNNER_TEMP/gate-tools"
+          echo "::notice::Running declaration guards and tooling from $revision."
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable corepack
+        working-directory: ${{ runner.temp }}
+        run: corepack enable
+
+      - name: Install base tooling
+        working-directory: ${{ runner.temp }}/gate-tools
+        run: yarn install --immutable --mode=skip-build
+
+      - name: Download declaration inputs as data
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: declaration-inputs
+          # Upload preserves paths relative to the common Source/JavaScript ancestor.
+          path: ${{ runner.temp }}/declaration-data/Source/JavaScript
+
+      - name: Verify declarations with base guards
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/gate-tools/scripts"
+          node "$tools/check-declaration-imports.cjs" --root "$RUNNER_TEMP/declaration-data"
+          node "$tools/check-declaration-consumers.cjs" --root "$RUNNER_TEMP/declaration-data"

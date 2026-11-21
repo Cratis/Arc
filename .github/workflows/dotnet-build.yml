@@ -99,6 +99,75 @@ jobs:
           npm run build
           node --test ../../../scripts/viewer-bundle.test.mjs
 
+  # Run guard checks from the base revision so a pull request cannot change the check that judges it.
+  # This job only reads the head checkout as data; script self-tests and builds run in other jobs.
+  test-shard-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
+      spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
+    steps:
+      - name: Checkout head data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Extract base tools outside the head tree
+        working-directory: ${{ runner.temp }}
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GUARD_SCRIPTS: scripts/ci-test-shards.py
+          GUARD_FILES: .github/test-shards.json
+        run: |
+          set -euo pipefail
+          tools_present() {
+            for tool in $GUARD_SCRIPTS; do
+              missing="$tool (--root)"
+              if ! git -C "$GITHUB_WORKSPACE" show "$1:$tool" > "$RUNNER_TEMP/guard-candidate" 2>/dev/null; then return 1; fi
+              if ! grep -q -- '--root' "$RUNNER_TEMP/guard-candidate"; then return 1; fi
+            done
+            for tool in $GUARD_FILES; do
+              missing="$tool"
+              if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$1:$tool" 2>/dev/null; then return 1; fi
+            done
+          }
+          if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$BASE_SHA^{commit}"; then
+            git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$BASE_SHA"
+          fi
+          revision="$BASE_SHA"
+          if ! tools_present "$revision"; then
+            git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "refs/heads/$DEFAULT_BRANCH"
+            revision=$(git -C "$GITHUB_WORKSPACE" rev-parse FETCH_HEAD)
+            if ! tools_present "$revision"; then
+              echo "::error::Neither base nor default branch provides required gate tool: $missing"
+              exit 1
+            fi
+            echo "::notice::Selected default branch $DEFAULT_BRANCH revision $revision."
+          else
+            echo "::notice::Selected base revision $revision."
+          fi
+          mkdir "$RUNNER_TEMP/gate-tools"
+          git -C "$GITHUB_WORKSPACE" archive "$revision" scripts .github/test-shards.json | tar -x -C "$RUNNER_TEMP/gate-tools"
+          echo "::notice::Running shard guards and policy from $revision."
+
+      # The assignment must cover every current namespace and spec project exactly once.
+      - name: Verify the test shard assignment
+        id: test-shards
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          script="$RUNNER_TEMP/gate-tools/scripts/ci-test-shards.py"
+          data="$RUNNER_TEMP/shard-data"
+          mkdir -p "$data/.github"
+          cp "$RUNNER_TEMP/gate-tools/.github/test-shards.json" "$data/.github/test-shards.json"
+          ln -s "$GITHUB_WORKSPACE/Source" "$data/Source"
+          ln -s "$GITHUB_WORKSPACE/Samples" "$data/Samples"
+          python3 -I "$script" check --root "$data"
+          python3 -I "$script" matrix --root "$data" >> "$GITHUB_OUTPUT"
+
   # Two legs: the spec projects compile for, and the specs run on, net11.0 and net10.0 (the two frameworks the libraries
   # ship for). Both legs build the libraries for both frameworks, so the shipped packages are checked on every leg.
   dotnet-build:
@@ -108,9 +177,6 @@ jobs:
       fail-fast: false
       matrix:
         spec-framework: [net11.0, net10.0]
-    outputs:
-      proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
-      spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
 
     steps:
       - name: Checkout code
@@ -119,45 +185,8 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # Run guard checks from the base revision so a pull request cannot change the check that judges it.
-      - name: Checkout gate tools
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: gate-tools
-          sparse-checkout: scripts
-          persist-credentials: false
-
-      # The specs run in a few shards rather than one job per ProxyGenerator.Specs 'for_' namespace and per spec
-      # project; the per-job setup and artifact download cost several times what the tests did. The assignment lives
-      # in .github/test-shards.json, balanced by measured test time (the runs it came from are recorded there).
-      # This fails before the build when a namespace or spec project is in no shard, in two, or no longer exists, so
-      # a new one cannot silently drop out of the run.
-      - name: Verify the test shard assignment
-        id: test-shards
-        run: |
-          set -euo pipefail
-          script=scripts/ci-test-shards.py
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if [ -f gate-tools/"$script" ]; then
-              script=gate-tools/"$script"
-              echo "::notice::Running shard guards from base revision $(git -C gate-tools rev-parse HEAD)."
-            else
-              echo "::notice::Bootstrap: base has no shard guard; using event revision $(git rev-parse HEAD)."
-            fi
-          else
-            echo "::notice::Running shard guards from event revision $(git rev-parse HEAD)."
-          fi
-          root_args=()
-          if grep -q -- '--root' "$script"; then
-            root_args=(--root "$GITHUB_WORKSPACE")
-          else
-            echo "::notice::Bootstrap: base guard reads the PR tree from the working directory until it supports --root."
-          fi
-          python3 scripts/ci-test-shards.py --self-test
-          python3 -E -s "$script" check "${root_args[@]}"
-          python3 -E -s "$script" matrix "${root_args[@]}" >> "$GITHUB_OUTPUT"
+      - name: Test the head shard script
+        run: python3 scripts/ci-test-shards.py --self-test
 
       # The 10.0 SDK is installed alongside the 11.0 SDK so the libraries build for net10.0 as well.
       - name: Setup .Net 10
@@ -361,13 +390,13 @@ jobs:
 
   specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
-    needs: [dotnet-build]
+    needs: [dotnet-build, test-shard-policy]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJson(needs.dotnet-build.outputs.spec-shards) }}
+        shard: ${{ fromJson(needs.test-shard-policy.outputs.spec-shards) }}
         framework: [net11.0, net10.0]
 
     steps:
@@ -375,16 +404,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      # Keep the base guard checkout ahead of artifact extraction and test execution.
-      - name: Checkout gate tools
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: gate-tools
-          sparse-checkout: scripts
           persist-credentials: false
 
       # Both legs install both SDKs: global.json pins the 11.0 SDK for every dotnet command, and the net11.0-only
@@ -416,30 +435,12 @@ jobs:
         run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --framework ${{ matrix.framework }} --results "$RUNNER_TEMP/test-results"
 
       # Retain per-project population reporting in addition to the executable runner's strict TRX validation.
+      # This checks completeness of the run, not trust.
       - name: Verify every project ran tests
         if: ${{ !cancelled() }}
         env:
           SHARD: ${{ matrix.shard }}
-        run: |
-          set -euo pipefail
-          script=scripts/ci-test-shards.py
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if [ -f gate-tools/"$script" ]; then
-              script=gate-tools/"$script"
-              echo "::notice::Running TRX guard from base revision $(git -C gate-tools rev-parse HEAD)."
-            else
-              echo "::notice::Bootstrap: base has no shard guard; using event revision $(git rev-parse HEAD)."
-            fi
-          else
-            echo "::notice::Running TRX guard from event revision $(git rev-parse HEAD)."
-          fi
-          root_args=()
-          if grep -q -- '--root' "$script"; then
-            root_args=(--root "$GITHUB_WORKSPACE")
-          else
-            echo "::notice::Bootstrap: base guard reads the PR tree from the working directory until it supports --root."
-          fi
-          python3 -E -s "$script" verify-trx "${root_args[@]}" --shard "$SHARD" --results "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py verify-trx --shard "$SHARD" --results "$RUNNER_TEMP/test-results"
 
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -609,13 +610,13 @@ jobs:
 
   proxy-specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
-    needs: [dotnet-build]
+    needs: [dotnet-build, test-shard-policy]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJson(needs.dotnet-build.outputs.proxy-shards) }}
+        shard: ${{ fromJson(needs.test-shard-policy.outputs.proxy-shards) }}
         framework: [net11.0, net10.0]
 
     steps:
@@ -623,16 +624,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      # Keep the base guard checkout ahead of dependency installation, artifact extraction and tests.
-      - name: Checkout gate tools
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: gate-tools
-          sparse-checkout: scripts
           persist-credentials: false
 
       # Both legs install both SDKs: global.json pins the 11.0 SDK for every dotnet command, including the ones the
@@ -681,30 +672,12 @@ jobs:
 
       # A filter that matches nothing can pass the runner; this fails the shard when any of its namespaces ran no
       # tests and prints each namespace's count.
+      # This checks completeness of the run, not trust.
       - name: Verify every namespace ran tests
         if: ${{ !cancelled() }}
         env:
           SHARD: ${{ matrix.shard }}
-        run: |
-          set -euo pipefail
-          script=scripts/ci-test-shards.py
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if [ -f gate-tools/"$script" ]; then
-              script=gate-tools/"$script"
-              echo "::notice::Running TRX guard from base revision $(git -C gate-tools rev-parse HEAD)."
-            else
-              echo "::notice::Bootstrap: base has no shard guard; using event revision $(git rev-parse HEAD)."
-            fi
-          else
-            echo "::notice::Running TRX guard from event revision $(git rev-parse HEAD)."
-          fi
-          root_args=()
-          if grep -q -- '--root' "$script"; then
-            root_args=(--root "$GITHUB_WORKSPACE")
-          else
-            echo "::notice::Bootstrap: base guard reads the PR tree from the working directory until it supports --root."
-          fi
-          python3 -E -s "$script" verify-trx "${root_args[@]}" --shard "$SHARD" --results "$RUNNER_TEMP/test-results"
+        run: python3 scripts/ci-test-shards.py verify-trx --shard "$SHARD" --results "$RUNNER_TEMP/test-results"
 
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -718,7 +691,7 @@ jobs:
   # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
-    needs: [embedded-viewer, dotnet-build, analyzers, specs, neo4j-live, screenplay-end-to-end, proxy-specs]
+    needs: [test-shard-policy, embedded-viewer, dotnet-build, analyzers, specs, neo4j-live, screenplay-end-to-end, proxy-specs]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -2,14 +2,38 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
-if (process.argv.length > 2 && !(process.argv[2] === '--repo-root' && process.argv.length === 4)) {
-    console.error('Usage: node scripts/check-declaration-consumers.cjs [--repo-root <path>]');
+const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4;
+if (process.argv.length > 2 && !rootOption) {
+    console.error('Usage: node scripts/check-declaration-consumers.cjs [--root <path> | --repo-root <path>]');
     process.exit(2);
 }
-const root = process.argv[2] === '--repo-root' ? path.resolve(process.argv[3]) : path.resolve(__dirname, '..');
-const fixtures = path.join(__dirname, 'fixtures/declaration-consumer');
+const toolsRoot = path.resolve(__dirname, '..');
+const root = rootOption ? path.resolve(process.argv[3]) : toolsRoot;
+const work = path.join(toolsRoot, '.ai-work');
+fs.mkdirSync(work, { recursive: true });
+const fixtures = fs.mkdtempSync(path.join(work, 'declaration-consumers-'));
+const modules = path.join(fixtures, 'node_modules');
+fs.mkdirSync(path.join(modules, '@cratis'), { recursive: true });
+
+// Resolve third-party types from base tooling, and only the four built packages from the data tree.
+for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules'))) {
+    if (name !== '@cratis') fs.symlinkSync(path.join(toolsRoot, 'node_modules', name), path.join(modules, name));
+}
+for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules/@cratis'))) {
+    fs.symlinkSync(path.join(toolsRoot, 'node_modules/@cratis', name), path.join(modules, '@cratis', name));
+}
+for (const name of ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']) {
+    const target = path.join(modules, '@cratis', name.toLowerCase());
+    // Replace only the links just created in this fresh directory, never files in the data tree.
+    if (fs.lstatSync(target, { throwIfNoEntry: false })) fs.unlinkSync(target);
+    fs.symlinkSync(path.join(root, 'Source/JavaScript', name), target);
+}
+for (const fixture of ['consumer.mts', 'consumer.cts']) {
+    fs.copyFileSync(path.join(__dirname, 'fixtures/declaration-consumer', fixture), path.join(fixtures, fixture));
+}
 const configurations = [
     ['Node16 ESM', 'node16', 'node16', 'consumer.mts'],
     ['Node16 CommonJS', 'node16', 'node16', 'consumer.cts'],
@@ -19,10 +43,11 @@ const configurations = [
 ];
 
 for (const [label, module, resolution, fixture] of configurations) {
-    const result = spawnSync('yarn', ['tsc', '--ignoreConfig', '--noEmit', '--skipLibCheck', '--target', 'es2022',
+    const result = spawnSync(process.execPath, [path.join(toolsRoot, 'node_modules/typescript/bin/tsc'),
+        '--preserveSymlinks', '--ignoreConfig', '--noEmit', '--skipLibCheck', '--target', 'es2022',
         '--jsx', 'react-jsx', '--esModuleInterop', '--module', module,
         '--moduleResolution', resolution, path.join(fixtures, fixture)], {
-        cwd: root,
+        cwd: fixtures,
         stdio: 'inherit'
     });
     if (result.error) throw result.error;

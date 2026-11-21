@@ -99,6 +99,8 @@ jobs:
               - "scripts/fixtures/workspace-runner.cjs"
               - "scripts/check-declaration-imports.cjs"
               - "scripts/check-declaration-consumers.cjs"
+              - "scripts/declaration-guard-roots.test.cjs"
+              - "scripts/guard-job-layout.test.mjs"
               - "scripts/fixtures/declaration-consumer/**"
               - ".github/workflows/javascript-build.yml"
               - ".github/workflows/pull-requests.yml"
