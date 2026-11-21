@@ -66,6 +66,14 @@ Generate the proxies for your backend. For C#, build in Debug with [proxy genera
 
 Use `validate()` for a preflight check without running the command handler. On the C# backend, preflight also skips handler-argument resolution but still runs pipeline filters and validators. Keep those checks free of unintended side effects and sensitive diagnostic output. A preflight that stops at client validation has not checked server authorization. See [backend command validation](../../../backend/csharp/commands/command-validation.md).
 
+## Form-level validation feedback
+
+Displayed validation results with no members, or with members that do not match any mounted field, appear automatically in an alert before the fields. For example, a server's memberless `Quota exceeded` failure is announced rather than lost. A result matching any registered field stays with that field, including dotted paths such as `email.Value`; field rendering still shows its first matching message. Conditional and nested custom-layout fields are classified using committed registrations.
+
+The summary follows the displayed command result, not silent validity checks. A custom blocked submission temporarily replaces native feedback; clearing its custom errors restores the retained native feedback. Replacing the result clears stale messages. Duplicate messages appear once, empty messages do not produce an empty alert, and messages render as text.
+
+`showErrors={false}` hides automatic field, summary, and exception feedback; it does not suppress consumer-authored markup. Use [`validationSummaryComponent`](./customization.md#validation-summary) to replace or suppress only the summary, including when an application already renders a manual summary below. Validation callbacks, severity handling, validity, and safe exception feedback are unchanged.
+
 ## Accessing validation state
 
 To build a summary, read `commandResult.validationResults` from a child of CommandForm. The complete component below includes results with no field member, which cannot appear beside a particular input.

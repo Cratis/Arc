@@ -35,6 +35,8 @@ import {
 import { withoutUndefinedValues } from './withoutUndefinedValues.js';
 import type { CommandFormSettings } from './CommandFormSettings.js';
 import { useCommandFormDefaults } from './CommandFormDefaults.js';
+import { ValidationSummary } from './ValidationSummary.js';
+import { unattributedValidationResults } from './unattributedValidationResults.js';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext.js';
@@ -204,7 +206,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     );
     const populatedSource = queryPopulatedSource ?? observableQueryPopulatedSource;
 
-    const { fieldRegistration, initialValuesFromFields, populatedValues } =
+    const { fieldRegistration, registeredFieldNames, initialValuesFromFields, populatedValues } =
         useCommandFormFieldRegistry<TCommand>(populatedSource);
 
     // Extract matching properties from currentValues
@@ -640,12 +642,18 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         iconAddonClassName: props.iconAddonClassName,
     };
 
+    const summaryResults = unattributedValidationResults(commandResult?.validationResults ?? [], registeredFieldNames);
+    const Summary = props.validationSummaryComponent ?? ValidationSummary;
+
     return (
         <CommandFormFieldRegistrationContext.Provider value={fieldRegistration}>
             <CommandFormContext.Provider
                 value={contextValue as CommandFormContextValue<unknown>}
             >
                 <form onSubmit={handleFormSubmit} noValidate>
+                    {(props.showErrors ?? true) && summaryResults.some(result => result.message.trim().length > 0) && (
+                        <Summary validationResults={summaryResults} />
+                    )}
                     <CommandFormNativeResultContext.Provider value={nativeResultContext}>
                         <CommandFormFields orderedChildren={orderedChildren} />
                     </CommandFormNativeResultContext.Provider>

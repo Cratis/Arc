@@ -72,6 +72,20 @@ export function FormDefaults({ children }: { children: ReactNode }) {
 
 `CommandFormSettings` includes presentation components, class names, safe exception feedback, and validation settings. Commands, values, queries, callbacks, children, and refs remain instance-only. For example, `showTitles={true}` on one form overrides this provider without changing other forms.
 
+## Validation summary
+
+By default, a summary before the fields announces displayed validation failures that do not match any mounted field. `validationSummaryComponent` replaces this summary without changing field errors or exception feedback. It receives only unmatched `validationResults`, not the command result or exception diagnostics. A visible replacement owns its markup and must provide `role="alert"`; return `null` to suppress automatic summaries. `showErrors={false}` prevents the summary renderer from being invoked.
+
+```tsx
+import type { ValidationSummaryProps } from '@cratis/arc.react/commands';
+
+export function ValidationSummary({ validationResults }: ValidationSummaryProps) {
+    return <aside role="alert">{validationResults.map(result => result.message).join(' ')}</aside>;
+}
+```
+
+Set `validationSummaryComponent={ValidationSummary}` on a form or through `CommandFormDefaults`. `errorDisplayComponent` remains field-only. If your application already renders a manual summary, use `validationSummaryComponent={() => null}` to avoid duplicate messages.
+
 ## Custom field container
 
 A container receives exactly these props:

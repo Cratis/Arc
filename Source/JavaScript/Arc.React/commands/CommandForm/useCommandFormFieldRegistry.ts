@@ -153,5 +153,5 @@ export function useCommandFormFieldRegistry<TCommand>(populatedSource: object | 
         );
     }, [registeredFieldsVersion, populatedSource]);
 
-    return { fieldRegistration, initialValuesFromFields, populatedValues };
+    return { fieldRegistration, registeredFieldNames: registeredFields.map(field => field.propertyName), initialValuesFromFields, populatedValues };
 }

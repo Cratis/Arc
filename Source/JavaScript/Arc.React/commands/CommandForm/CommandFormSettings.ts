@@ -4,6 +4,7 @@
 import type React from 'react';
 import type { FieldContainerProps, FieldDecoratorProps, ErrorDisplayProps, TooltipWrapperProps } from './CommandFormContext.js';
 import type { ExceptionDisplayProps } from './ExceptionDisplayProps.js';
+import type { ValidationSummaryProps } from './ValidationSummary.js';
 
 /** Optional presentation and validation defaults shared by forms in a provider scope. */
 export interface CommandFormSettings {
@@ -16,6 +17,8 @@ export interface CommandFormSettings {
      * Never pass raw exception diagnostics as this message.
      */
     exceptionMessage?: string;
+    /** Replaces unmatched validation feedback. A visible replacement must provide role='alert'; return null to suppress it. */
+    validationSummaryComponent?: React.ComponentType<ValidationSummaryProps>;
     /**
      * Replaces the default exception panel and receives only the safe message.
      * Not rendered when showErrors is false; independent of the field errorDisplayComponent.
