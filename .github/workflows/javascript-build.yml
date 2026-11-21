@@ -55,6 +55,9 @@ jobs:
       - name: Verify npm visibility polling
         run: node --test scripts/wait-for-npm-visibility.test.cjs
 
+      - name: Verify declaration guard roots
+        run: node --test scripts/declaration-guard-roots.test.cjs
+
       - name: Build JS/TS
         run: |
           export NODE_OPTIONS="--max-old-space-size=4096"
