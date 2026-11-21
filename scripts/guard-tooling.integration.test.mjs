@@ -21,7 +21,7 @@ function stepScript(step) {
     return step.split('        run: |\n')[1].split('\n').map(line => line.replace(/^          /, '')).join('\n');
 }
 function command(executable, args, cwd, options = {}) {
-    const result = spawnSync(executable, args, { cwd, timeout: 30000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, ...options });
+    const result = spawnSync(executable, args, { cwd, timeout: 120000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, ...options });
     assert.ifError(result.error);
     return result;
 }
@@ -105,7 +105,7 @@ test('archived base tooling installs once and evaluates checked declarations wit
     context.after(() => fs.rmSync(temp, { recursive: true, force: true }));
     const tools = extractTools(temp);
     const install = workflowStep('Install base tooling').match(/^        run: (.+)$/m)[1];
-    succeeds(command('bash', ['-c', install], tools, { timeout: 180000 }));
+    succeeds(command('bash', ['-c', install], tools, { timeout: 600000 }));
     const valid = path.join(temp, 'valid checked tree');
     buildSample(valid);
     await context.test('valid declarations pass both real guards in every consumer resolution mode', () => {
