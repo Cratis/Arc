@@ -26,10 +26,21 @@ public class an_application_parameter_resolver : Specification
             .AddReadModels(Substitute.For<IClientArtifactsProvider>());
     }
 
-    protected async Task Resolve()
+    protected void BuildScope()
     {
         _root = _services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         _scope = _root.CreateScope();
+    }
+
+    protected object? ResolveSynchronously()
+    {
+        BuildScope();
+        return ParameterDependencyResolver.Resolve(_scope.ServiceProvider, typeof(Handler).GetMethod(nameof(Handler.Handle))!.GetParameters()[0], _ => new InvalidOperationException());
+    }
+
+    protected async Task Resolve()
+    {
+        BuildScope();
         var handler = Substitute.For<ICommandHandler>();
         handler.Parameters.Returns(typeof(Handler).GetMethod(nameof(Handler.Handle))!.GetParameters());
         var context = new CommandContext(CorrelationId.New(), typeof(Handler), new Handler(), [], new());

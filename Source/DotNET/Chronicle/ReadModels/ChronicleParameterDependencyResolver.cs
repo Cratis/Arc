@@ -33,9 +33,15 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
     {
         dependency = null;
         var binding = Plan(serviceProvider, parameter);
-        if (binding is null || binding.Kind == BindingKind.Token)
+        if (binding is null)
         {
             return false;
+        }
+        if (binding.Kind == BindingKind.Token)
+        {
+            // Keep synchronous callers on the framework's blocking factory, without consulting application resolvers.
+            dependency = serviceProvider.GetRequiredService(parameter.ParameterType);
+            return true;
         }
 
         using var allowance = binding.AllowReads();
