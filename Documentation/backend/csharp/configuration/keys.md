@@ -188,7 +188,7 @@ Arc adds one setting of its own: `WithChronicle()` on ASP.NET Core sets `EventSt
 
 Everything else, including the event store name and the connection string, is a Chronicle option. See the [ChronicleOptions reference](/chronicle/configuration/chronicle-options/).
 
-`ProtectedReadModelKeyOptions.Strict` (default `false`) has no configuration key. Set it with `services.Configure<ProtectedReadModelKeyOptions>(...)`. See [protected key accessors](../chronicle/protected-key-accessors.md).
+`ProtectedReadModelKeyOptions.Strict` (default `true`) has no configuration key. Relaxing it to `false` is an explicit opt-in. Set it with `services.Configure<ProtectedReadModelKeyOptions>(...)`. See [protected key accessors](../chronicle/protected-key-accessors.md).
 
 ## `Cratis:MongoDB`
 
