@@ -237,7 +237,7 @@ Chronicle's measurement and startup-admission settings also accept both sections
 
 ## Proxy-generator MSBuild properties
 
-Set these in your project file or `Directory.Build.props`, not `appsettings.json`. Defaults below are those shipped in `Cratis.Arc.ProxyGenerator.Build`'s `.props` and `.targets`; unset Boolean switches only take effect when set to `true`. See [proxy generation](../proxy-generation/index.md) for setup.
+Set these in your project file or `Directory.Build.targets`, not `Directory.Build.props` or `appsettings.json`. The package's `.props` assigns most of these defaults without a condition and is imported after `Directory.Build.props`, so a value set there is overwritten. Defaults below are those shipped in `Cratis.Arc.ProxyGenerator.Build`'s `.props` and `.targets`; unset Boolean switches only take effect when set to `true`. See [proxy generation](../proxy-generation/index.md) for setup.
 
 | Property | Default | Purpose |
 | --- | --- | --- |
