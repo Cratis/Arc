@@ -99,6 +99,8 @@ jobs:
               - "scripts/fixtures/workspace-runner.cjs"
               - "scripts/check-declaration-imports.cjs"
               - "scripts/check-declaration-consumers.cjs"
+              - "scripts/declaration-guard-roots.test.cjs"
+              - "scripts/guard-job-layout.test.mjs"
               - "scripts/fixtures/declaration-consumer/**"
               - ".github/workflows/javascript-build.yml"
               - ".github/workflows/pull-requests.yml"
@@ -229,6 +231,6 @@ jobs:
       # Label and edit runs build nothing, so they pass only when the head commit's latest code run did.
       - name: Head commit's code run passed
         if: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
-        uses: Cratis/Workflows/.github/actions/pr-code-run-gate@main
+        uses: Cratis/Workflows/.github/actions/pr-code-run-gate@7bf4d8cb8b5bdf73e652464419a1e7d431319b66 # main 2026-11-18
         with:
           head-sha: ${{ github.event.pull_request.head.sha }}

@@ -99,6 +99,90 @@ jobs:
           npm run build
           node --test ../../../scripts/viewer-bundle.test.mjs
 
+  # Run guard checks from the base revision so a pull request cannot change the check that judges it.
+  # This job only reads the head checkout as data; script self-tests and builds run in other jobs.
+  test-shard-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
+      spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
+    steps:
+      - name: Checkout head data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Extract base tools outside the head tree
+        working-directory: ${{ runner.temp }}
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GUARD_SCRIPTS: scripts/ci-test-shards.py
+          GUARD_FILES: ''
+        run: |
+          set -euo pipefail
+          tools_present() {
+            for tool in $GUARD_SCRIPTS; do
+              missing="$tool (--root)"
+              if ! git -C "$GITHUB_WORKSPACE" show "$1:$tool" > "$RUNNER_TEMP/guard-candidate" 2>/dev/null; then return 1; fi
+              if ! grep -q -- '--root' "$RUNNER_TEMP/guard-candidate"; then return 1; fi
+            done
+            for tool in $GUARD_FILES; do
+              missing="$tool"
+              if ! git -C "$GITHUB_WORKSPACE" cat-file -e "$1:$tool" 2>/dev/null; then return 1; fi
+            done
+          }
+          missing="${GUARD_SCRIPTS%% *}"
+          revision=''
+          if [[ "$BASE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] &&
+             { git -C "$GITHUB_WORKSPACE" cat-file -e "$BASE_SHA^{commit}" 2>/dev/null ||
+               git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$BASE_SHA"; } &&
+             tools_present "$BASE_SHA"; then
+            revision="$BASE_SHA"
+            echo "::notice::Selected base revision $revision."
+          else
+            remote=$(git -C "$GITHUB_WORKSPACE" remote get-url origin)
+            revision=$(git -c credential.helper= -c http.extraheader= ls-remote --refs "$remote" "refs/heads/$DEFAULT_BRANCH" |
+              awk -v ref="refs/heads/$DEFAULT_BRANCH" '$2 == ref { print $1 }') || revision=''
+            if ! [[ "$revision" =~ ^[0-9a-fA-F]{40}$ ]] ||
+               ! git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$revision" ||
+               ! tools_present "$revision"; then
+              echo "::error::Neither base nor default branch provides required gate tool: $missing"
+              exit 1
+            fi
+            echo "::notice::Selected default branch $DEFAULT_BRANCH revision $revision."
+          fi
+          tools=$(mktemp -d "$RUNNER_TEMP/gate-tools.XXXXXX")
+          git -C "$GITHUB_WORKSPACE" archive "$revision" scripts | tar -x -C "$tools"
+          echo "GATE_TOOLS=$tools" >> "$GITHUB_ENV"
+          echo "::notice::Running shard guards from $revision."
+
+      # The assignment must cover every current namespace and spec project exactly once.
+      - name: Verify the test shard assignment
+        id: test-shards
+        working-directory: ${{ runner.temp }}
+        env:
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          script="$GATE_TOOLS/scripts/ci-test-shards.py"
+          data="$RUNNER_TEMP/shard-data"
+          mkdir -p "$data/.github"
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Invalid head revision for test shard data."
+            exit 1
+          fi
+          # The PR's assignment is JSON data; only the trusted verifier is executed.
+          git -C "$GITHUB_WORKSPACE" show "$HEAD_SHA:.github/test-shards.json" > "$data/.github/test-shards.json"
+          ln -s "$GITHUB_WORKSPACE/Source" "$data/Source"
+          ln -s "$GITHUB_WORKSPACE/Samples" "$data/Samples"
+          python3 -I "$script" check --root "$data"
+          python3 -I "$script" matrix --root "$data" >> "$GITHUB_OUTPUT"
+
   # Two legs: the spec projects compile for, and the specs run on, net11.0 and net10.0 (the two frameworks the libraries
   # ship for). Both legs build the libraries for both frameworks, so the shipped packages are checked on every leg.
   dotnet-build:
@@ -108,9 +192,6 @@ jobs:
       fail-fast: false
       matrix:
         spec-framework: [net11.0, net10.0]
-    outputs:
-      proxy-shards: ${{ steps.test-shards.outputs.proxy-shards }}
-      spec-shards: ${{ steps.test-shards.outputs.spec-shards }}
 
     steps:
       - name: Checkout code
@@ -119,18 +200,8 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      # The specs run in a few shards rather than one job per ProxyGenerator.Specs 'for_' namespace and per spec
-      # project; the per-job setup and artifact download cost several times what the tests did. The assignment lives
-      # in .github/test-shards.json, balanced by measured test time (the runs it came from are recorded there).
-      # This fails before the build when a namespace or spec project is in no shard, in two, or no longer exists, so
-      # a new one cannot silently drop out of the run.
-      - name: Verify the test shard assignment
-        id: test-shards
-        run: |
-          set -euo pipefail
-          python3 scripts/ci-test-shards.py --self-test
-          python3 scripts/ci-test-shards.py check
-          python3 scripts/ci-test-shards.py matrix >> "$GITHUB_OUTPUT"
+      - name: Test the head shard script
+        run: python3 scripts/ci-test-shards.py --self-test
 
       # The 10.0 SDK is installed alongside the 11.0 SDK so the libraries build for net10.0 as well.
       - name: Setup .Net 10
@@ -334,13 +405,13 @@ jobs:
 
   specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
-    needs: [dotnet-build]
+    needs: [dotnet-build, test-shard-policy]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJson(needs.dotnet-build.outputs.spec-shards) }}
+        shard: ${{ fromJson(needs.test-shard-policy.outputs.spec-shards) }}
         framework: [net11.0, net10.0]
 
     steps:
@@ -379,6 +450,7 @@ jobs:
         run: python3 scripts/ci-test-shards.py run --shard "$SHARD" --configuration Release --framework ${{ matrix.framework }} --results "$RUNNER_TEMP/test-results"
 
       # Retain per-project population reporting in addition to the executable runner's strict TRX validation.
+      # This checks completeness of the run, not trust.
       - name: Verify every project ran tests
         if: ${{ !cancelled() }}
         env:
@@ -553,13 +625,13 @@ jobs:
 
   proxy-specs:
     name: ${{ matrix.shard }} (${{ matrix.framework }})
-    needs: [dotnet-build]
+    needs: [dotnet-build, test-shard-policy]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJson(needs.dotnet-build.outputs.proxy-shards) }}
+        shard: ${{ fromJson(needs.test-shard-policy.outputs.proxy-shards) }}
         framework: [net11.0, net10.0]
 
     steps:
@@ -615,6 +687,7 @@ jobs:
 
       # A filter that matches nothing can pass the runner; this fails the shard when any of its namespaces ran no
       # tests and prints each namespace's count.
+      # This checks completeness of the run, not trust.
       - name: Verify every namespace ran tests
         if: ${{ !cancelled() }}
         env:
@@ -633,7 +706,7 @@ jobs:
   # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
   # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
   report-main:
-    needs: [embedded-viewer, dotnet-build, analyzers, specs, neo4j-live, screenplay-end-to-end, proxy-specs]
+    needs: [test-shard-policy, embedded-viewer, dotnet-build, analyzers, specs, neo4j-live, screenplay-end-to-end, proxy-specs]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
