@@ -1,0 +1,14 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+# Third-party actions must be pinned to a full commit SHA. Cratis-owned actions and
+# reusable workflows (either owner spelling) intentionally track their maintained refs
+# so organization-wide CI fixes reach this repository.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "Cratis/*": ref-pin
+        "cratis/*": ref-pin
+        "actions/*": hash-pin
+        "*": hash-pin
