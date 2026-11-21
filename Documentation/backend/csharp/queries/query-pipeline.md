@@ -89,7 +89,7 @@ Custom renderers implement `IQueryRendererFor<T>` with `QueryRendererResult Exec
 
 ## Query filters
 
-Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return `Task<QueryResult>`. Implement `IAuthorizationQueryFilter` for access decisions that must precede ordinary validation filters. Discovered filters are resolved from the operation's service provider and run in three ordered groups: **availability filters (`IAvailabilityQueryFilter`) first, then authorization filters, then other filters**, preserving discovery order within each group. This is not a registration-order guarantee. `IAvailabilityQueryFilter` extends `IAuthorizationQueryFilter`, so availability runs as part of the authorization stage.
+Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return `Task<QueryResult>`. Implement `IAuthorizationQueryFilter` for access decisions that must precede ordinary validation filters. Discovered filters are resolved from the operation's service provider and run in three ordered groups: **availability filters (`IAvailabilityQueryFilter`) first, then authorization filters, then other filters**, ordered within each group by the filter type's full name (ordinal comparison). This is not a registration-order guarantee. Execution stops at the first blocking result, so a refusal may not include the errors of every filter. `IAvailabilityQueryFilter` extends `IAuthorizationQueryFilter`, so availability runs as part of the authorization stage.
 
 | Built-in filter | Current behavior |
 | --- | --- |
