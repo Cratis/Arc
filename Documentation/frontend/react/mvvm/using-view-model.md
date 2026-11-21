@@ -133,7 +133,7 @@ only when a child must read view model observables itself.
 
 ## Committed prop changes
 
-Implement `IPropsChanged<TProps>` to opt into `propsChanged(nextProps, previousProps)` after changed props commit. It is not called on initial mount or for deeply equal props (using Arc's existing `deepEqual` comparison). Abandoned renders do not notify or advance the previous-props baseline; StrictMode effect replay does not duplicate notifications.
+Implement `IPropsChanged<TProps>` to opt into `propsChanged(nextProps, previousProps)` after changed props commit. It is not called on initial mount. Comparison is shallow identity: own enumerable keys must match and each value is compared using `Object.is`. Adding or removing a key (even one whose value is `undefined`), replacing an equal-content object or array, or passing a new handler function notifies. Reusing the same value references does not; unchanged `NaN` does not notify, but `+0` to `-0` does. The previous props are a shallow committed snapshot, preserving nested value identities rather than cloning them. Abandoned renders do not notify or advance that baseline; StrictMode effect replay does not duplicate notifications.
 
 ```ts
 import type { IPropsChanged } from '@cratis/arc.react.mvvm';
@@ -151,7 +151,7 @@ export class SearchViewModel implements IPropsChanged<SearchProps> {
 }
 ```
 
-This is additive: constructor-injected props and `IHandleProps.handleProps` keep their existing initial/update timing. Route and query parameters, observation, dialogs, and disposal are unchanged. If a model implements both interfaces, legacy handling still runs as before and the new callback runs after the changed render commits. Callers without `propsChanged` need no changes. Initialize any required initial state through the existing constructor/legacy path rather than expecting this callback on mount.
+This is additive: constructor-injected props and `IHandleProps.handleProps` keep their existing initial/update timing and deep-equality comparison, unlike the new shallow-identity callback. Route and query parameters, observation, dialogs, and disposal are unchanged. If a model implements both interfaces, legacy handling still runs as before and the new callback runs after the changed render commits. This does not make the legacy render-time `handleProps` path concurrent-safe. Callers without `propsChanged` need no changes. Initialize any required initial state through the existing constructor/legacy path rather than expecting this callback on mount, and release subscriptions through `detached()`.
 
 ## Props
 

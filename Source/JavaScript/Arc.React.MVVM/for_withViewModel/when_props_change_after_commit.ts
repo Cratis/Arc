@@ -42,11 +42,15 @@ describe('when props change after commit', () => {
                 const result = render(tree(initial, strict, development));
                 calls.length.should.equal(0);
                 legacy.length.should.equal(1);
-                result.rerender(tree({ value: { label: 'initial' } }, strict, development));
-                calls.length.should.equal(0);
+                const equalContents: Props = { value: { label: 'initial' } };
+                result.rerender(tree(equalContents, strict, development));
+                calls.should.deep.equal([{ next: equalContents, previous: initial, text: 'initial' }]);
                 legacy.length.should.equal(1);
                 result.rerender(tree(changed, strict, development));
-                calls.should.deep.equal([{ next: changed, previous: initial, text: 'changed' }]);
+                calls.should.deep.equal([
+                    { next: equalContents, previous: initial, text: 'initial' },
+                    { next: changed, previous: equalContents, text: 'changed' },
+                ]);
                 // Legacy render-phase handling still repeats under StrictMode.
                 legacy.should.deep.equal(strict ? [initial, changed, changed] : [initial, changed]);
                 constructed.should.equal(1);
@@ -85,5 +89,66 @@ describe('when props change after commit', () => {
         notifications.length.should.equal(0);
         result.rerender({ props: { value: { label: 'committed' } }, suspend: false });
         notifications[0][1].should.deep.equal(initial);
+    });
+});
+
+describe('when comparing committed prop identities', () => {
+    const sharedObject = { label: 'same' };
+    const sharedArray = ['same'];
+    const sharedHandler = () => 'same';
+    const symbolKey = Symbol('prop');
+    const cases: { name: string; previous: object; next: object; notifications: number }[] = [
+        { name: 'unchanged NaN', previous: { value: NaN }, next: { value: NaN }, notifications: 0 },
+        { name: 'positive to negative zero', previous: { value: +0 }, next: { value: -0 }, notifications: 1 },
+        { name: 'an added undefined key', previous: { value: 'same' }, next: { value: 'same', extra: undefined }, notifications: 1 },
+        { name: 'a removed undefined key', previous: { value: 'same', extra: undefined }, next: { value: 'same' }, notifications: 1 },
+        { name: 'a replaced undefined key', previous: { first: undefined }, next: { second: undefined }, notifications: 1 },
+        { name: 'a new handler function', previous: { handler: () => 'same' }, next: { handler: () => 'same' }, notifications: 1 },
+        {
+            name: 'the same object array and handler references',
+            previous: { object: sharedObject, array: sharedArray, handler: sharedHandler },
+            next: { object: sharedObject, array: sharedArray, handler: sharedHandler },
+            notifications: 0,
+        },
+        { name: 'a new equal-content array', previous: { value: ['same'] }, next: { value: ['same'] }, notifications: 1 },
+        { name: 'a changed enumerable symbol key', previous: { [symbolKey]: 1 }, next: { [symbolKey]: 2 }, notifications: 1 },
+    ];
+    afterEach(() => cleanup());
+
+    for (const scenario of cases) {
+        describe(`with ${scenario.name}`, () => {
+            let count: number;
+            beforeEach(() => {
+                count = 0;
+                const viewModel = { propsChanged: () => { count++; } };
+                const result = renderHook((props: object) => usePropsChanged(viewModel, props), { initialProps: scenario.previous });
+                result.rerender(scenario.next);
+            });
+            it('should notify only for a shallow identity change', () => count.should.equal(scenario.notifications));
+        });
+    }
+
+    describe('with a mutated props object reused on a later commit', () => {
+        let previousProps: { value: object; label: string };
+        let nextProps: { value: object; label: string };
+        let count: number;
+        beforeEach(() => {
+            count = 0;
+            const props = { value: sharedObject, label: 'before' };
+            const viewModel = {
+                propsChanged(next: typeof props, previous: typeof props) {
+                    count++;
+                    nextProps = next;
+                    previousProps = previous;
+                },
+            };
+            const result = renderHook((props: typeof nextProps) => usePropsChanged(viewModel, props), { initialProps: props });
+            props.label = 'after';
+            result.rerender(props);
+        });
+        it('should compare against a committed shallow snapshot', () => previousProps.label.should.equal('before'));
+        it('should preserve nested value identities in the snapshot', () => previousProps.value.should.equal(sharedObject));
+        it('should provide the newly committed value', () => nextProps.label.should.equal('after'));
+        it('should notify once even when the props object reference is unchanged', () => count.should.equal(1));
     });
 });
