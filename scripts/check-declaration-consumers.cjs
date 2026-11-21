@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { checkDeclarationPackages } = require('./declaration-guard-paths.cjs');
 
 const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4 && process.argv[3] !== '';
 if (process.argv.length > 2 && !rootOption) {
@@ -13,53 +14,14 @@ if (process.argv.length > 2 && !rootOption) {
 }
 const toolsRoot = path.resolve(__dirname, '..');
 const root = rootOption ? path.resolve(process.argv[3]) : toolsRoot;
-let realRoot;
+let checked;
 try {
-    const stat = fs.lstatSync(root);
-    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('root must be a real directory, not a symlink');
-    realRoot = fs.realpathSync(root);
+    checked = checkDeclarationPackages(root, ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']);
 } catch (error) {
-    console.error(`Invalid checked root ${root}: ${error.message}`);
+    console.error(error.message);
     process.exit(2);
 }
-
-function checkedPath(file) {
-    try {
-        const relative = path.relative(root, file);
-        if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('path escapes checked root');
-        let current = root;
-        for (const part of relative.split(path.sep).filter(Boolean)) {
-            current = path.join(current, part);
-            if (fs.lstatSync(current).isSymbolicLink()) throw new Error(`symlink is not allowed: ${current}`);
-        }
-        const resolved = path.relative(realRoot, fs.realpathSync(file));
-        if (resolved === '..' || resolved.startsWith(`..${path.sep}`) || path.isAbsolute(resolved)) throw new Error('real path escapes checked root');
-        return file;
-    } catch (error) {
-        console.error(`Invalid checked path ${file}: ${error.message}`);
-        process.exit(2);
-    }
-}
-
-function checkPackage(name) {
-    const folder = checkedPath(path.join(root, 'Source/JavaScript', name));
-    const manifest = checkedPath(path.join(folder, 'package.json'));
-    try {
-        JSON.parse(fs.readFileSync(manifest, 'utf8'));
-    } catch (error) {
-        console.error(`Invalid package manifest ${manifest}: ${error.message}`);
-        process.exit(2);
-    }
-    function checkTree(dir) {
-        for (const entry of fs.readdirSync(checkedPath(dir), { withFileTypes: true })) {
-            const file = checkedPath(path.join(dir, entry.name));
-            if (entry.isDirectory()) checkTree(file);
-        }
-    }
-    checkTree(path.join(folder, 'dist'));
-}
-
-for (const name of ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']) checkPackage(name);
+const { checkedPath } = checked;
 
 const fixtures = fs.mkdtempSync(path.join(os.tmpdir(), 'declaration-consumers-'));
 const cleanup = () => fs.rmSync(fixtures, { recursive: true, force: true });
@@ -73,18 +35,27 @@ for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) {
 const modules = path.join(fixtures, 'node_modules');
 fs.mkdirSync(path.join(modules, '@cratis'), { recursive: true });
 
-// Resolve third-party types from base tooling, and only the four built packages from the data tree.
+// Resolve third-party types from the tools' own dependencies, never the checked packages' node_modules.
 for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules'))) {
     if (name !== '@cratis') fs.symlinkSync(path.join(toolsRoot, 'node_modules', name), path.join(modules, name));
 }
 for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules/@cratis'))) {
     fs.symlinkSync(path.join(toolsRoot, 'node_modules/@cratis', name), path.join(modules, '@cratis', name));
 }
-for (const name of ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']) {
-    const target = path.join(modules, '@cratis', name.toLowerCase());
+for (const { folder } of checked.packages) {
+    const target = path.join(modules, '@cratis', path.basename(folder).toLowerCase());
     // Replace only the links just created in this fresh directory, never files in the data tree.
     if (fs.lstatSync(target, { throwIfNoEntry: false })) fs.unlinkSync(target);
-    fs.symlinkSync(path.join(root, 'Source/JavaScript', name), target);
+    try {
+        fs.cpSync(folder, target, {
+            recursive: true,
+            dereference: false,
+            filter: source => path.basename(source) !== 'node_modules' && Boolean(checkedPath(source))
+        });
+    } catch (error) {
+        console.error(`Cannot copy checked package ${folder}: ${error.message}`);
+        process.exit(2);
+    }
 }
 for (const fixture of ['consumer.mts', 'consumer.cts']) {
     fs.copyFileSync(path.join(__dirname, 'fixtures/declaration-consumer', fixture), path.join(fixtures, fixture));
