@@ -1,0 +1,18 @@
+{
+    "Arc": {
+        "declaration": "export declare function joinPaths(...paths: string[]): string;\n",
+        "subpaths": ["commands", "identity", "messaging", "queries", "validation", "reflection"]
+    },
+    "Arc.React": {
+        "declaration": "import type { ReactNode } from 'react';\nexport declare function Arc(props: { children?: ReactNode }): ReactNode;\n",
+        "subpaths": ["commands", "queries", "dialogs", "messaging", "identity", "stories"]
+    },
+    "Arc.React.MVVM": {
+        "declaration": "export declare function observer<T>(component: T): T;\n",
+        "subpaths": ["browser", "messaging", "dialogs"]
+    },
+    "Arc.Vite": {
+        "declaration": "export declare class EmitMetadataPlugin {}\n",
+        "subpaths": []
+    }
+}

@@ -62,6 +62,9 @@ jobs:
       - name: Verify declaration guard roots
         run: node --test scripts/declaration-guard-roots.test.cjs
 
+      - name: Verify extracted declaration guard tooling
+        run: node --test scripts/guard-tooling.integration.test.mjs
+
       - name: Build JS/TS
         run: |
           export NODE_OPTIONS="--max-old-space-size=4096"
