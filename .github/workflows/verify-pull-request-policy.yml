@@ -1,14 +1,13 @@
 name: Verify Pull Request Policy
 
-# Called from pull-requests.yml; the PR triggers and path filters live there.
 on:
-  workflow_call:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled, ready_for_review]
   push:
     branches: [main]
 
 concurrency:
-  # Per caller run: a label-only run must not cancel the policy check of the code run on the same pull request.
-  group: verify-pull-request-policy-${{ github.event.pull_request.number && format('{0}-{1}', github.event.pull_request.number, github.run_id) || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -16,15 +15,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  dependabot-labels:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main'
-    uses: Cratis/Workflows/.github/workflows/normalize-dependabot-labels.yml@main
-    permissions:
-      pull-requests: write
-
   policy:
-    needs: dependabot-labels
-    if: ${{ !cancelled() }}
     uses: Cratis/Workflows/.github/workflows/verify-pull-request-policy.yml@main
     with:
       runs-on: ${{ vars.RUNNER_GATE || 'ubuntu-latest' }}
