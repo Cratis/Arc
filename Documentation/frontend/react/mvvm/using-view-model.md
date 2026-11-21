@@ -131,6 +131,28 @@ every component — that adds render-tracking overhead everywhere and obscures w
 depend on view model state. Prefer the plain-props pattern above, and drop down to a leaf `observer()`
 only when a child must read view model observables itself.
 
+## Committed prop changes
+
+Implement `IPropsChanged<TProps>` to opt into `propsChanged(nextProps, previousProps)` after changed props commit. It is not called on initial mount or for deeply equal props (using Arc's existing `deepEqual` comparison). Abandoned renders do not notify or advance the previous-props baseline; StrictMode effect replay does not duplicate notifications.
+
+```ts
+import type { IPropsChanged } from '@cratis/arc.react.mvvm';
+
+type SearchProps = { filter: string };
+
+export class SearchViewModel implements IPropsChanged<SearchProps> {
+    filter = '';
+
+    propsChanged(nextProps: SearchProps, previousProps: SearchProps): void {
+        if (nextProps.filter !== previousProps.filter) {
+            this.filter = nextProps.filter;
+        }
+    }
+}
+```
+
+This is additive: constructor-injected props and `IHandleProps.handleProps` keep their existing initial/update timing. Route and query parameters, observation, dialogs, and disposal are unchanged. If a model implements both interfaces, legacy handling still runs as before and the new callback runs after the changed render commits. Callers without `propsChanged` need no changes. Initialize any required initial state through the existing constructor/legacy path rather than expecting this callback on mount.
+
 ## Props
 
 Components can have props associated with them. The `withViewModel` supports specifying props type and

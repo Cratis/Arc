@@ -33,6 +33,7 @@ import { IQueryScope, useQueryScope } from '@cratis/arc.react/queries';
 import { IMessenger } from '@cratis/arc/messaging';
 import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocations } from './useRegisterSliceLocations.js';
+import { usePropsChanged } from './usePropsChanged.js';
 
 interface IViewModel extends IViewModelDetached {
     __childContainer: DependencyContainer;
@@ -191,6 +192,8 @@ export function withViewModel<TViewModel extends object, TProps extends object =
 
             return () => cleanup(viewModel);
         }, []);
+
+        usePropsChanged(currentViewModel.current, props);
 
         if (currentViewModel.current === null) return null;
 
