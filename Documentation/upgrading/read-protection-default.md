@@ -43,6 +43,22 @@ read with `[Unprotected("why")]` on the parameter, the read-model type or the me
 2. Fix what the measurement reports. See [Adopting read protection](/arc/backend/csharp/chronicle/consistency/adopting/).
 3. Remove the property, or set it to `On`, to take the new default.
 
+## Update command scenario state setup
+
+With read protection `On` by default since v23.0.0, replacing or substituting `IReadModels` no longer supplies
+state to protected decision reads in a `CommandScenario`. This includes readers from a separate
+`ReadModelScenario` and mocks. A model supplied only through that replacement can remain `null` in the command.
+
+Arrange state through the command scenario's own `Given` instead. For a plain read-model parameter, pin the
+instance with `_scenario.Given.ForEventSource(id).ReadModel(instance)`, or seed its history with
+`_scenario.Given.ForEventSource(id).Events(...)`. Chronicle admits and enrolls the protected read first, then
+uses the scenario's pin or the state derived from its seeded events; it does not use the replacement reader's
+lookup result. Pins supply state without replacing admission or conflict detection.
+
+Follow the [before/after command scenario setup](../backend/csharp/testing/chronicle.md#testing-commands-that-take-read-model-dependencies)
+and the [protected read-model setup](../backend/csharp/testing/chronicle.md#give-a-protected-read-model-its-state)
+for a complete spec and the cases that require events rather than pins.
+
 ## Check the result
 
 Build with the analyzers enabled and run the specs of every command that injects a read model. A command that
