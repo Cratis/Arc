@@ -1,6 +1,6 @@
 ---
 title: Cratis Arc configuration keys
-description: Look up ArcOptions and proxy-generator MSBuild properties, with defaults, configuration keys and when to change them.
+description: Look up ArcOptions and proxy-generator MSBuild properties, with defaults, configuration keys, environment variables and guidance on when to change each one.
 ---
 
 Use this page to find the key for a setting, its environment variable and its default. Arc reads configuration from four sections plus one root-level group:
