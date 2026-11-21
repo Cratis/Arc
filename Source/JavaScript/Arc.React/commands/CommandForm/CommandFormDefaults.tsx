@@ -24,12 +24,13 @@ const inheritSettings = <TSettings extends CommandFormSettings>(parent: CommandF
 
 /** Supplies defaults to descendant forms; defined inner settings override outer settings. */
 export function CommandFormDefaults({ value, children }: CommandFormDefaultsProps) {
-    const resolved = useCommandFormDefaults(value);
+    const parent = useContext(DefaultsContext);
+    const resolved = useMemo(() => inheritSettings(parent, value), [parent, value]);
     return <DefaultsContext.Provider value={resolved}>{children}</DefaultsContext.Provider>;
 }
 
 /** Resolves scoped defaults without altering non-settings properties or nested command values. */
 export function useCommandFormDefaults<TSettings extends CommandFormSettings>(settings: TSettings): TSettings {
     const parent = useContext(DefaultsContext);
-    return useMemo(() => inheritSettings(parent, settings), [parent, settings]);
+    return inheritSettings(parent, settings);
 }
