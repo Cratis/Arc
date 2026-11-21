@@ -5,7 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript-for-eslint');
 
-const root = path.resolve(__dirname, '..');
+const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4;
+const root = rootOption
+    ? path.resolve(process.argv[3]) : path.resolve(__dirname, '..');
 const packages = ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite'];
 
 function specifiers(file, source, validateTargets = false) {
@@ -42,8 +44,8 @@ if (process.argv[2] === '--self-test') {
     console.log('Declaration import self-test passed (3 injected violations detected, including declare module ./X)');
     process.exit(0);
 }
-if (process.argv.length > 2) {
-    console.error('Usage: node scripts/check-declaration-imports.cjs [--self-test]');
+if (process.argv.length > 2 && !rootOption) {
+    console.error('Usage: node scripts/check-declaration-imports.cjs [--self-test | --root <path> | --repo-root <path>]');
     process.exit(2);
 }
 
