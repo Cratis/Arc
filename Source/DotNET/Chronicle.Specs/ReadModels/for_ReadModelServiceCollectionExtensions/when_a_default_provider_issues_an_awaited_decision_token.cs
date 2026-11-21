@@ -16,6 +16,7 @@ public class when_a_default_provider_issues_an_awaited_decision_token : for_Chro
     bool _completedBeforeRelease;
     object? _token;
     Exception _failure;
+    IAsyncParameterDependencyResolver _applicationResolver;
 
     void Establish()
     {
@@ -23,7 +24,11 @@ public class when_a_default_provider_issues_an_awaited_decision_token : for_Chro
         artifacts.ModelBoundProjections.Returns([typeof(Balance)]);
         var accessor = Substitute.For<ICommandContextAccessor>();
         accessor.Current.Returns(_ => _context);
+        _applicationResolver = Substitute.For<IAsyncParameterDependencyResolver>();
+        _applicationResolver.Resolve(Arg.Any<IServiceProvider>(), Arg.Any<System.Reflection.ParameterInfo>())
+            .Returns(ParameterDependencyResolution.Resolved(new object()));
         _defaultProvider = new ServiceCollection()
+            .AddSingleton<ICanResolveParameterDependency>(_applicationResolver)
             .AddSingleton(accessor)
             .AddReadModels(artifacts)
             .AddSingleton(_services.GetRequiredService<IDecisionReads>())
@@ -68,6 +73,7 @@ public class when_a_default_provider_issues_an_awaited_decision_token : for_Chro
     [Fact] void should_not_block_the_scheduler() => _failure.ShouldBeNull();
     [Fact] void should_yield_until_acquisition_finishes() => _completedBeforeRelease.ShouldBeFalse();
     [Fact] void should_issue_the_command_token() => ((DecisionRead<Balance>)_token!).IsProtected.ShouldBeTrue();
+    [Fact] void should_not_let_an_application_resolver_replace_the_framework_token() => _applicationResolver.DidNotReceive().Resolve(Arg.Any<IServiceProvider>(), Arg.Any<System.Reflection.ParameterInfo>());
 
     void Destroy() => _defaultProvider.Dispose();
 
