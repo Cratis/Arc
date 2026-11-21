@@ -380,6 +380,10 @@ public partial class ObservableQueryDemultiplexer(
                 return;
             }
 
+            // A successful gate wait does not prove the subscription is still open: the gate can be released at the
+            // same moment the subscription is cancelled and admit a queued waiter. Never enter interceptors for it.
+            subscriptionToken.ThrowIfCancellationRequested();
+
             // Restore the subscribing connection's context — this callback runs on the subject's own
             // producer thread, where the AsyncLocal tenant context set up when the subscription was
             // created does not flow (see the class remarks).
