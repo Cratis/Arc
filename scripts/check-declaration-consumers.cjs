@@ -4,7 +4,11 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
-const root = path.resolve(__dirname, '..');
+if (process.argv.length > 2 && !(process.argv[2] === '--repo-root' && process.argv.length === 4)) {
+    console.error('Usage: node scripts/check-declaration-consumers.cjs [--repo-root <path>]');
+    process.exit(2);
+}
+const root = process.argv[2] === '--repo-root' ? path.resolve(process.argv[3]) : path.resolve(__dirname, '..');
 const fixtures = path.join(__dirname, 'fixtures/declaration-consumer');
 const configurations = [
     ['Node16 ESM', 'node16', 'node16', 'consumer.mts'],

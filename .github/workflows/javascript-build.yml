@@ -28,6 +28,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Run guard checks from the base revision so a pull request cannot change the check that judges it.
+      # Check out the guards before dependency installation or any other PR code runs.
+      - name: Checkout gate tools
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: gate-tools
+          sparse-checkout: scripts
+          persist-credentials: false
 
       - name: Setup node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -61,5 +74,34 @@ jobs:
           yarn ci
           node --test scripts/rollup-node-externals.test.mjs
           yarn node scripts/check-declaration-imports.cjs --self-test
-          yarn node scripts/check-declaration-imports.cjs
-          yarn node scripts/check-declaration-consumers.cjs
+          node --test scripts/declaration-guard-roots.test.cjs
+
+      - name: Verify declarations with base guards
+        run: |
+          set -euo pipefail
+          for guard in check-declaration-imports.cjs check-declaration-consumers.cjs; do
+            script="scripts/$guard"
+            root_args=()
+            if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+              if [ -f "gate-tools/$script" ]; then
+                echo "::notice::Running $guard from base revision $(git -C gate-tools rev-parse HEAD)."
+                if grep -q -- '--repo-root' "gate-tools/$script"; then
+                  script="gate-tools/$script"
+                  root_args=(--repo-root "$GITHUB_WORKSPACE")
+                else
+                  # Older guards resolve inputs from __dirname; keep the base source, but use the PR input location.
+                  echo "::notice::Bootstrap: base guard has no --repo-root; running its source beside PR inputs."
+                  cp "gate-tools/$script" "scripts/.base-$guard"
+                  if [ "$guard" = check-declaration-consumers.cjs ]; then
+                    cp gate-tools/scripts/fixtures/declaration-consumer/consumer.{mts,cts} scripts/fixtures/declaration-consumer/
+                  fi
+                  script="scripts/.base-$guard"
+                fi
+              else
+                echo "::notice::Bootstrap: base has no $guard; using event revision $(git rev-parse HEAD)."
+              fi
+            else
+              echo "::notice::Running $guard from event revision $(git rev-parse HEAD)."
+            fi
+            yarn node "$script" "${root_args[@]}"
+          done
