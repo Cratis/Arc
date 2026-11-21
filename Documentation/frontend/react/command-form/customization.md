@@ -51,6 +51,27 @@ Read messages from `commandResult.validationResults`, or call `getFieldError('em
 
 This summary covers validation, not exceptions. If you hide automatic feedback, also provide [safe exception feedback](#safe-exception-feedback). Rule messages should be suitable for users; send raw diagnostics only to trusted handling.
 
+## Application defaults
+
+Wrap a subtree in `CommandFormDefaults` to share optional presentation and validation settings. An instance's defined setting wins over its nearest provider, which inherits undefined or missing settings from outer providers. Explicit `false`, `0`, and empty strings are overrides. Without a provider, all built-in defaults are unchanged. Updating the provider updates mounted forms; sibling scopes remain independent.
+
+This wrapper can surround your application's forms:
+
+```tsx
+import type { ReactNode } from 'react';
+import { CommandFormDefaults } from '@cratis/arc.react/commands';
+
+export function FormDefaults({ children }: { children: ReactNode }) {
+    return (
+        <CommandFormDefaults value={{ showTitles: false, validateOn: 'change', autoServerValidateThrottle: 300 }}>
+            {children}
+        </CommandFormDefaults>
+    );
+}
+```
+
+`CommandFormSettings` includes presentation components, class names, safe exception feedback, and validation settings. Commands, values, queries, callbacks, children, and refs remain instance-only. For example, `showTitles={true}` on one form overrides this provider without changing other forms.
+
 ## Custom field container
 
 A container receives exactly these props:

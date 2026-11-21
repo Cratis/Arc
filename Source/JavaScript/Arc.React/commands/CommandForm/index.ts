@@ -5,6 +5,8 @@ export * from './asCommandFormField.js';
 export * from './commandFormMarkers.js';
 export * from './commandFormValidationState.js';
 export * from './CommandForm.js';
+export { CommandFormDefaults, type CommandFormDefaultsProps } from './CommandFormDefaults.js';
+export * from './CommandFormSettings.js';
 export * from './CommandFormContext.js';
 export * from './CommandFormField.js';
 export * from './CommandFormFields.js';

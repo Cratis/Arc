@@ -10,10 +10,6 @@ import {
     type CommandFormHandle,
     type CommandFormState,
     type FieldValidationInfo,
-    type FieldContainerProps,
-    type FieldDecoratorProps,
-    type ErrorDisplayProps,
-    type TooltipWrapperProps,
 } from './CommandFormContext.js';
 import type { Constructor } from '@cratis/fundamentals';
 import { useCommand, type SetCommandValues } from '../useCommand.js';
@@ -37,12 +33,13 @@ import {
     usePopulateFromQuery,
 } from './usePopulateFromQuery.js';
 import { withoutUndefinedValues } from './withoutUndefinedValues.js';
-import type { ExceptionDisplayProps } from './ExceptionDisplayProps.js';
+import type { CommandFormSettings } from './CommandFormSettings.js';
+import { useCommandFormDefaults } from './CommandFormDefaults.js';
 
 // Re-export for backwards compatibility
 export { useCommandFormContext } from './CommandFormContext.js';
 
-export interface CommandFormProps<TCommand extends object, TResponse = object> {
+export interface CommandFormProps<TCommand extends object, TResponse = object> extends CommandFormSettings {
     command: Constructor<TCommand>;
 
     /**
@@ -112,38 +109,6 @@ export interface CommandFormProps<TCommand extends object, TResponse = object> {
     onException?: (messages: string[], stackTrace: string) => void;
     onUnauthorized?: () => void;
     onValidationFailure?: (validationResults: ValidationResult[]) => void;
-    showTitles?: boolean;
-    /** Whether to display field errors and form-level exception feedback. Defaults to true. */
-    showErrors?: boolean;
-    /**
-     * Safe, user-facing exception text. Defaults to 'An unexpected error occurred. Please try again.'
-     * Supply localized text as needed; an explicitly empty string is preserved.
-     * Never pass raw exception diagnostics as this message.
-     */
-    exceptionMessage?: string;
-    /**
-     * Replaces the default exception panel and receives only the safe message.
-     * Not rendered when showErrors is false; independent of the field errorDisplayComponent.
-     */
-    exceptionDisplayComponent?: React.ComponentType<ExceptionDisplayProps>;
-    validateOn?: 'blur' | 'change' | 'both';
-    validateAllFieldsOnChange?: boolean;
-    validateOnInit?: boolean;
-    /**
-     * Whether silent/eager validation (on init, on change, on blur) should be performed against the
-     * server. Defaults to false — silent validation only runs client-side rules and never contacts the
-     * server. Executing the command still performs full server-side validation regardless of this flag;
-     * enable this only to surface server-only rules (e.g. uniqueness checks) before submission.
-     */
-    autoServerValidate?: boolean;
-    autoServerValidateThrottle?: number;
-    fieldContainerComponent?: React.ComponentType<FieldContainerProps>;
-    fieldDecoratorComponent?: React.ComponentType<FieldDecoratorProps>;
-    errorDisplayComponent?: React.ComponentType<ErrorDisplayProps>;
-    tooltipComponent?: React.ComponentType<TooltipWrapperProps>;
-    errorClassName?: string;
-    iconAddonClassName?: string;
-
     /**
      * Receives the imperative handle for the form, letting a parent outside the form execute it and
      * read its state. Named rather than taken through `forwardRef`, because forwarding erases the
@@ -727,7 +692,8 @@ markAsCommandFormColumn(CommandFormColumnComponent);
 export function CommandForm<TCommand extends object = object, TResponse = object>(
     props: CommandFormProps<TCommand, TResponse>,
 ): React.ReactElement {
-    return <CommandFormComponent<TCommand, TResponse> {...props} />;
+    const resolvedProps = useCommandFormDefaults(props);
+    return <CommandFormComponent<TCommand, TResponse> {...resolvedProps} />;
 }
 
 // Attach static members
