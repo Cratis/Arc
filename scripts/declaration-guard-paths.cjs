@@ -4,6 +4,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const distributionModules = { esm: 'module', cjs: 'commonjs' };
+
 function contains(parent, file) {
     const relative = path.relative(parent, file);
     return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
@@ -79,6 +81,20 @@ function validateDeclarationReferences(file, dist, source) {
     visit(ast);
 }
 
+function validateDistributionManifest(file, dist) {
+    const format = Object.keys(distributionModules).find(name => path.relative(dist, file) === path.join(name, 'package.json'));
+    if (!format) throw new Error(`Nested package.json is not allowed in dist: ${file}`);
+    try {
+        if (!fs.lstatSync(file).isFile()) throw new Error('manifest must be a regular file');
+        const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (!manifest || Array.isArray(manifest) || Object.keys(manifest).length !== 1 || manifest.type !== distributionModules[format]) {
+            throw new Error(`expected exactly ${JSON.stringify({ type: distributionModules[format] })}`);
+        }
+    } catch (error) {
+        throw new Error(`Invalid distribution manifest ${file}: ${error.message}`);
+    }
+}
+
 function checkDeclarationPackages(root, names) {
     let realRoot;
     try {
@@ -106,12 +122,12 @@ function checkDeclarationPackages(root, names) {
         }
     }
 
-    function walk(folder, onFile) {
+    function walk(folder, onEntry) {
         for (const entry of fs.readdirSync(checkedPath(folder), { withFileTypes: true })) {
             if (entry.name === 'node_modules') continue;
             const file = checkedPath(path.join(folder, entry.name));
-            if (entry.isDirectory()) walk(file, onFile);
-            else if (onFile) onFile(file);
+            if (onEntry) onEntry(file, entry.isDirectory());
+            if (entry.isDirectory()) walk(file, onEntry);
         }
     }
 
@@ -127,6 +143,7 @@ function checkDeclarationPackages(root, names) {
         } catch (error) {
             throw new Error(`Invalid package manifest ${manifestPath}: ${error.message}`);
         }
+        if (Object.hasOwn(manifest, 'typesVersions')) throw new Error(`typesVersions is not allowed in ${manifestPath}`);
         const dist = checkedPath(path.join(folder, 'dist'));
         if (!fs.lstatSync(dist).isDirectory()) throw new Error(`Invalid declaration output directory: ${dist}`);
 
@@ -149,7 +166,12 @@ function checkDeclarationPackages(root, names) {
         for (const field of ['types', 'typings']) {
             if (Object.hasOwn(manifest, field)) entrypoint(manifest[field]);
         }
-        if (typeof manifest.main === 'string' && /\.d\.(ts|mts|cts)$/.test(manifest.main)) entrypoint(manifest.main);
+        if (Object.hasOwn(manifest, 'main')) {
+            if (typeof manifest.main !== 'string' || !/\.(?:js|cjs|mjs|d\.ts)$/.test(manifest.main)) {
+                throw new Error(`Invalid main entrypoint in ${manifestPath}: expected .js, .cjs, .mjs or .d.ts under package dist`);
+            }
+            entrypoint(manifest.main);
+        }
         if (Object.hasOwn(manifest, 'exports')) {
             if (manifest.exports && typeof manifest.exports === 'object' && !Array.isArray(manifest.exports)) {
                 for (const [subpath, target] of Object.entries(manifest.exports)) {
@@ -160,13 +182,21 @@ function checkDeclarationPackages(root, names) {
             } else exportTargets(manifest.exports);
         }
         const realDist = fs.realpathSync(dist);
-        walk(dist, file => {
-            if (/\.d\.(ts|mts|cts)$/.test(file)) validateDeclarationReferences(file, realDist, fs.readFileSync(file, 'utf8'));
+        const declarations = [];
+        walk(dist, (file, directory) => {
+            if (path.basename(file).toLowerCase() === 'package.json') validateDistributionManifest(file, dist);
+            if (directory) return;
+            const declaration = /\.d\.(ts|mts|cts)$/.test(file);
+            if (/\.(ts|tsx|mts|cts)$/i.test(file) && !declaration) throw new Error(`Only declaration TypeScript files are allowed in dist: ${file}`);
+            if (declaration) {
+                validateDeclarationReferences(file, realDist, fs.readFileSync(file, 'utf8'));
+                declarations.push(file);
+            }
         });
-        return { folder, manifest };
+        return { folder, manifest, declarations };
     }
 
     return { checkedPath, packages: names.map(checkPackage) };
 }
 
-module.exports = { checkDeclarationPackages };
+module.exports = { checkDeclarationPackages, distributionModules };

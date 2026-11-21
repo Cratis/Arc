@@ -50,6 +50,19 @@ function assertPackageCopy(copy, source) {
     for (const file of ['package.json', 'dist/esm/index.d.ts', 'dist/cjs/index.d.ts']) {
         assert.equal(fs.readFileSync(path.join(copy, file), 'utf8'), fs.readFileSync(path.join(source, file), 'utf8'));
     }
+    const manifests = new Map([
+        [path.join('dist', 'esm', 'package.json'), { type: 'module' }],
+        [path.join('dist', 'cjs', 'package.json'), { type: 'commonjs' }]
+    ]);
+    for (const [file, manifest] of manifests) {
+        assert.deepEqual(JSON.parse(fs.readFileSync(path.join(copy, file), 'utf8')), manifest);
+    }
+    for (const file of fs.readdirSync(copy, { recursive: true })) {
+        const stat = fs.lstatSync(path.join(copy, file));
+        assert.equal(stat.isSymbolicLink(), false);
+        if (stat.isDirectory() || file === 'package.json' || manifests.has(file)) continue;
+        assert.ok(file.startsWith(`dist${path.sep}`) && /\.d\.(ts|mts|cts)$/.test(file), `Unexpected consumer input: ${file}`);
+    }
 }
 
 test('consumer guard defaults to built packages in its own repository', () => {
@@ -115,10 +128,12 @@ function buildPackages(repository) {
             fs.mkdirSync(dist, { recursive: true });
             fs.writeFileSync(path.join(dist, 'index.d.ts'), 'export interface Thing {}\n');
             fs.writeFileSync(path.join(dist, 'index.js'), '');
+            fs.writeFileSync(path.join(dist, 'package.json'), JSON.stringify({ type: format === 'esm' ? 'module' : 'commonjs' }, null, 2));
             exports[branch] = { types: `./dist/${format}/index.d.ts`, default: `./dist/${format}/index.js` };
         }
         fs.writeFileSync(path.join(folder, 'package.json'), JSON.stringify({
             name,
+            main: './dist/cjs/index.js',
             types: './dist/esm/index.d.ts',
             exports: { './package.json': './package.json', '.': exports }
         }));
@@ -311,6 +326,100 @@ for (const kind of ['directory', 'symlink']) {
         assert.equal(fs.existsSync(path.join(arc, 'node_modules')), true);
     });
 }
+
+for (const file of ['plain.ts', 'plain.tsx', 'plain.mts', 'plain.cts', 'x.d.json.ts', 'x.d.tsx', 'nested/plain.ts', 'UPPER.TS']) {
+    test(`both guards refuse non-declaration TypeScript in dist: ${file}`, () => {
+        const { guard, head } = declarationFixture();
+        const target = path.join(head, 'Source/JavaScript/Arc/dist/esm', file);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, 'export * from "../../outside.js";\n');
+        assertBothRefuse(guard, head, /Only declaration TypeScript files are allowed in dist/);
+    });
+}
+
+for (const file of ['package.json', 'nested/package.json', 'esm/nested/package.json', 'cjs/nested/package.json']) {
+    test(`both guards refuse an unapproved distribution manifest at ${file}`, () => {
+        const { guard, head } = declarationFixture();
+        const target = path.join(head, 'Source/JavaScript/Arc/dist', file);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, JSON.stringify({ types: '/tmp/outside.d.ts' }));
+        assertBothRefuse(guard, head, /Nested package.json is not allowed in dist/);
+    });
+}
+
+for (const format of ['esm', 'cjs']) {
+    for (const [label, contents] of [
+        ['extra types key', { type: format === 'esm' ? 'module' : 'commonjs', types: '/tmp/outside.d.ts' }],
+        ['wrong module type', { type: format === 'esm' ? 'commonjs' : 'module' }],
+        ['empty manifest', {}],
+        ['non-object manifest', null]
+    ]) {
+        test(`both guards refuse ${label} in the ${format} distribution manifest`, () => {
+            const { guard, head } = declarationFixture();
+            const target = path.join(head, 'Source/JavaScript/Arc/dist', format, 'package.json');
+            fs.writeFileSync(target, JSON.stringify(contents));
+            assertBothRefuse(guard, head, /Invalid distribution manifest/);
+        });
+    }
+    test(`both guards require a regular ${format} distribution manifest`, () => {
+        const { guard, head } = declarationFixture();
+        const target = path.join(head, 'Source/JavaScript/Arc/dist', format, 'package.json');
+        fs.unlinkSync(target);
+        fs.mkdirSync(target);
+        assertBothRefuse(guard, head, /manifest must be a regular file/);
+    });
+}
+
+for (const value of [{}, null, { '*': { '*': ['../../outside.d.ts'] } }]) {
+    test(`both guards refuse typesVersions even when ${JSON.stringify(value)}`, () => {
+        const { guard, head } = declarationFixture();
+        changeManifest(head, manifest => { manifest.typesVersions = value; });
+        assertBothRefuse(guard, head, /typesVersions is not allowed/);
+    });
+}
+
+for (const extension of ['js', 'cjs', 'mjs', 'd.ts']) {
+    test(`both guards require a ${extension} main to remain under dist`, () => {
+        const { guard, head } = declarationFixture();
+        fs.writeFileSync(path.join(head, `Source/JavaScript/Arc/outside.${extension}`), '');
+        changeManifest(head, manifest => { manifest.main = `./outside.${extension}`; });
+        assertBothRefuse(guard, head, /under package dist/);
+    });
+}
+
+for (const main of ['./dist/esm/index.css', './dist/esm/plain.ts', '', null, 7]) {
+    test(`both guards refuse an unsupported main: ${JSON.stringify(main)}`, () => {
+        const { guard, head } = declarationFixture();
+        changeManifest(head, manifest => { manifest.main = main; });
+        assertBothRefuse(guard, head, /Invalid main entrypoint/);
+    });
+}
+
+test('consumer copies contain only validated declarations and manifests synthesized from constants', () => {
+    const { guard, head } = declarationFixture();
+    const arc = path.join(head, 'Source/JavaScript/Arc');
+    for (const format of ['esm', 'cjs']) {
+        const directory = path.join(arc, 'dist', format);
+        const type = format === 'esm' ? 'module' : 'commonjs';
+        fs.writeFileSync(path.join(directory, 'package.json'), ` { "type": ${JSON.stringify(type)} } \n`);
+        for (const file of ['runtime.js', 'runtime.js.map', 'index.d.ts.map', 'style.css', 'data.json']) {
+            fs.writeFileSync(path.join(directory, file), '{}');
+        }
+        for (const extension of ['d.mts', 'd.cts']) {
+            fs.writeFileSync(path.join(directory, `extra.${extension}`), 'export interface Extra {}\n');
+        }
+    }
+    const { calls } = assertBothPass(guard, head);
+    for (const [, , options] of calls) {
+        const copy = path.join(options.cwd, 'node_modules/@cratis/arc');
+        assertPackageCopy(copy, arc);
+        for (const [format, type] of [['esm', 'module'], ['cjs', 'commonjs']]) {
+            const directory = path.join(copy, 'dist', format);
+            assert.equal(fs.readFileSync(path.join(directory, 'package.json'), 'utf8'), JSON.stringify({ type }));
+            assert.deepEqual(fs.readdirSync(directory).sort(), ['extra.d.cts', 'extra.d.mts', 'index.d.ts', 'package.json']);
+        }
+    }
+});
 
 for (const [label, declaration] of [
     ['relative import escape', 'import { Outside } from "../../outside.js";'],

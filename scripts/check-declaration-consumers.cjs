@@ -5,7 +5,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { checkDeclarationPackages } = require('./declaration-guard-paths.cjs');
+const { checkDeclarationPackages, distributionModules } = require('./declaration-guard-paths.cjs');
 
 const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4 && process.argv[3] !== '';
 if (process.argv.length > 2 && !rootOption) {
@@ -42,18 +42,24 @@ for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules'))) {
 for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules/@cratis'))) {
     fs.symlinkSync(path.join(toolsRoot, 'node_modules/@cratis', name), path.join(modules, '@cratis', name));
 }
-for (const { folder } of checked.packages) {
+for (const { folder, declarations } of checked.packages) {
     const target = path.join(modules, '@cratis', path.basename(folder).toLowerCase());
     // Replace only the links just created in this fresh directory, never files in the data tree.
     if (fs.lstatSync(target, { throwIfNoEntry: false })) fs.unlinkSync(target);
     try {
         fs.mkdirSync(target);
-        for (const name of ['package.json', 'dist']) {
-            fs.cpSync(path.join(folder, name), path.join(target, name), {
-                recursive: true,
+        for (const file of [path.join(folder, 'package.json'), ...declarations]) {
+            const destination = path.join(target, path.relative(folder, file));
+            fs.mkdirSync(path.dirname(destination), { recursive: true });
+            fs.cpSync(file, destination, {
                 dereference: false,
-                filter: source => path.basename(source) !== 'node_modules' && Boolean(checkedPath(source))
+                filter: source => Boolean(checkedPath(source))
             });
+        }
+        for (const [format, type] of Object.entries(distributionModules)) {
+            const directory = path.join(target, 'dist', format);
+            fs.mkdirSync(directory, { recursive: true });
+            fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({ type }));
         }
     } catch (error) {
         console.error(`Cannot copy checked package ${folder}: ${error.message}`);
