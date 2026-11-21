@@ -54,8 +54,9 @@ public class QueryFilters(IInstancesOf<IQueryFilter> filters, IActivitySource<Qu
         // Evaluate authorization filters before ordinary filters, independent of the order IInstancesOf yields them.
         // Without this the short-circuit below could return on a validation failure before the authorization filter
         // runs — turning what should be a 403 for a forbidden caller into a 400 depending on undefined discovery order.
-        // OrderBy is a stable sort, so filters within the same group keep their discovery order.
-        foreach (var filter in selectedFilters.OrderBy(filter => filter is IAvailabilityQueryFilter ? 0 : filter is IAuthorizationQueryFilter ? 1 : 2))
+        // Within a group filters are ordered by full type name (ordinal), not discovery order, so which blocking filter
+        // short-circuits the chain, and hence the refusal the caller sees, does not depend on undefined discovery order.
+        foreach (var filter in selectedFilters.OrderBy(filter => filter is IAvailabilityQueryFilter ? 0 : filter is IAuthorizationQueryFilter ? 1 : 2).ThenBy(filter => filter.GetType().FullName, StringComparer.Ordinal))
         {
             try
             {

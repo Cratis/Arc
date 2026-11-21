@@ -3,33 +3,68 @@
 
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { checkDeclarationPackages, distributionModules } = require('./declaration-guard-paths.cjs');
 
-const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4;
+const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4 && process.argv[3] !== '';
 if (process.argv.length > 2 && !rootOption) {
     console.error('Usage: node scripts/check-declaration-consumers.cjs [--root <path> | --repo-root <path>]');
     process.exit(2);
 }
 const toolsRoot = path.resolve(__dirname, '..');
 const root = rootOption ? path.resolve(process.argv[3]) : toolsRoot;
-const work = path.join(toolsRoot, '.ai-work');
-fs.mkdirSync(work, { recursive: true });
-const fixtures = fs.mkdtempSync(path.join(work, 'declaration-consumers-'));
+let checked;
+try {
+    checked = checkDeclarationPackages(root, ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']);
+} catch (error) {
+    console.error(error.message);
+    process.exit(2);
+}
+const { checkedPath } = checked;
+
+const fixtures = fs.mkdtempSync(path.join(os.tmpdir(), 'declaration-consumers-'));
+const cleanup = () => fs.rmSync(fixtures, { recursive: true, force: true });
+process.on('exit', cleanup);
+for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+    process.on(signal, () => {
+        cleanup();
+        process.exit(status);
+    });
+}
 const modules = path.join(fixtures, 'node_modules');
 fs.mkdirSync(path.join(modules, '@cratis'), { recursive: true });
 
-// Resolve third-party types from base tooling, and only the four built packages from the data tree.
+// Resolve third-party types from the tools' own dependencies, never the checked packages' node_modules.
 for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules'))) {
     if (name !== '@cratis') fs.symlinkSync(path.join(toolsRoot, 'node_modules', name), path.join(modules, name));
 }
 for (const name of fs.readdirSync(path.join(toolsRoot, 'node_modules/@cratis'))) {
     fs.symlinkSync(path.join(toolsRoot, 'node_modules/@cratis', name), path.join(modules, '@cratis', name));
 }
-for (const name of ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']) {
-    const target = path.join(modules, '@cratis', name.toLowerCase());
+for (const { folder, declarations } of checked.packages) {
+    const target = path.join(modules, '@cratis', path.basename(folder).toLowerCase());
     // Replace only the links just created in this fresh directory, never files in the data tree.
     if (fs.lstatSync(target, { throwIfNoEntry: false })) fs.unlinkSync(target);
-    fs.symlinkSync(path.join(root, 'Source/JavaScript', name), target);
+    try {
+        fs.mkdirSync(target);
+        for (const file of [path.join(folder, 'package.json'), ...declarations]) {
+            const destination = path.join(target, path.relative(folder, file));
+            fs.mkdirSync(path.dirname(destination), { recursive: true });
+            fs.cpSync(file, destination, {
+                dereference: false,
+                filter: source => Boolean(checkedPath(source))
+            });
+        }
+        for (const [format, type] of Object.entries(distributionModules)) {
+            const directory = path.join(target, 'dist', format);
+            fs.mkdirSync(directory, { recursive: true });
+            fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({ type }));
+        }
+    } catch (error) {
+        console.error(`Cannot copy checked package ${folder}: ${error.message}`);
+        process.exit(2);
+    }
 }
 for (const fixture of ['consumer.mts', 'consumer.cts']) {
     fs.copyFileSync(path.join(__dirname, 'fixtures/declaration-consumer', fixture), path.join(fixtures, fixture));

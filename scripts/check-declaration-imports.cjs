@@ -3,14 +3,15 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const ts = require('typescript-for-eslint');
+const { checkDeclarationPackages } = require('./declaration-guard-paths.cjs');
 
-const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4;
+const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4 && process.argv[3] !== '';
 const root = rootOption
     ? path.resolve(process.argv[3]) : path.resolve(__dirname, '..');
 const packages = ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite'];
 
 function specifiers(file, source, validateTargets = false) {
+    const ts = require('typescript-for-eslint');
     const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
     const found = [];
     function visit(node) {
@@ -49,12 +50,29 @@ if (process.argv.length > 2 && !rootOption) {
     process.exit(2);
 }
 
+let checked;
+try {
+    checked = checkDeclarationPackages(root, packages);
+} catch (error) {
+    console.error(error.message);
+    process.exit(2);
+}
+const { checkedPath } = checked;
+
 let count = 0;
 const violations = [];
-for (const name of packages) {
-    const manifest = require(path.join(root, 'Source/JavaScript', name, 'package.json'));
-    for (const [subpath, branches] of Object.entries(manifest.exports)) {
-        if (typeof branches === 'string') continue; // package.json and CSS assets
+for (const { folder, manifest } of checked.packages) {
+    for (const [subpath, branches] of Object.entries(manifest.exports ?? {})) {
+        // Retain the dual-format contract for the existing flat import/require condition shape.
+        // Other legal export shapes already had every target checked by the shared validator.
+        if (!branches || typeof branches !== 'object' || Array.isArray(branches)) continue;
+        if (!['import', 'require'].some(branch => Object.hasOwn(branches, branch))) {
+            console.error(`${manifest.name} ${subpath}: missing import declaration or runtime condition`);
+            process.exit(1);
+        }
+        const conditions = [branches.import, branches.require].filter(Boolean);
+        if (!conditions.every(condition => typeof condition === 'object' && !Array.isArray(condition) &&
+            Object.values(condition).every(target => typeof target === 'string'))) continue;
         for (const branch of ['import', 'require']) {
             const condition = branches[branch];
             const expected = branch === 'import' ? 'esm' : 'cjs';
@@ -63,19 +81,22 @@ for (const name of packages) {
                 process.exit(1);
             }
             for (const target of [condition.types, condition.default]) {
-                if (!fs.existsSync(path.join(root, 'Source/JavaScript', name, target))) {
+                const targetPath = path.join(folder, target);
+                if (!fs.existsSync(targetPath)) {
                     console.error(`${manifest.name} ${subpath}: missing ${branch} target ${target}`);
                     process.exit(1);
                 }
+                checkedPath(targetPath);
             }
         }
     }
     for (const format of ['esm', 'cjs']) {
-        const dist = path.join(root, 'Source/JavaScript', name, 'dist', format);
+        const dist = path.join(folder, 'dist', format);
         let packageCount = 0;
         function scan(dir) {
-            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                const file = path.join(dir, entry.name);
+            for (const entry of fs.readdirSync(checkedPath(dir), { withFileTypes: true })) {
+                if (entry.name === 'node_modules') continue;
+                const file = checkedPath(path.join(dir, entry.name));
                 if (entry.isDirectory()) scan(file);
                 else if (entry.name.endsWith('.d.ts')) {
                     packageCount++;
