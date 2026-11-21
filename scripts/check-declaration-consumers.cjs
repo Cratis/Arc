@@ -6,15 +6,70 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4;
+const rootOption = ['--root', '--repo-root'].includes(process.argv[2]) && process.argv.length === 4 && process.argv[3] !== '';
 if (process.argv.length > 2 && !rootOption) {
     console.error('Usage: node scripts/check-declaration-consumers.cjs [--root <path> | --repo-root <path>]');
     process.exit(2);
 }
 const toolsRoot = path.resolve(__dirname, '..');
 const root = rootOption ? path.resolve(process.argv[3]) : toolsRoot;
+let realRoot;
+try {
+    const stat = fs.lstatSync(root);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('root must be a real directory, not a symlink');
+    realRoot = fs.realpathSync(root);
+} catch (error) {
+    console.error(`Invalid checked root ${root}: ${error.message}`);
+    process.exit(2);
+}
+
+function checkedPath(file) {
+    try {
+        const relative = path.relative(root, file);
+        if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('path escapes checked root');
+        let current = root;
+        for (const part of relative.split(path.sep).filter(Boolean)) {
+            current = path.join(current, part);
+            if (fs.lstatSync(current).isSymbolicLink()) throw new Error(`symlink is not allowed: ${current}`);
+        }
+        const resolved = path.relative(realRoot, fs.realpathSync(file));
+        if (resolved === '..' || resolved.startsWith(`..${path.sep}`) || path.isAbsolute(resolved)) throw new Error('real path escapes checked root');
+        return file;
+    } catch (error) {
+        console.error(`Invalid checked path ${file}: ${error.message}`);
+        process.exit(2);
+    }
+}
+
+function checkPackage(name) {
+    const folder = checkedPath(path.join(root, 'Source/JavaScript', name));
+    const manifest = checkedPath(path.join(folder, 'package.json'));
+    try {
+        JSON.parse(fs.readFileSync(manifest, 'utf8'));
+    } catch (error) {
+        console.error(`Invalid package manifest ${manifest}: ${error.message}`);
+        process.exit(2);
+    }
+    function checkTree(dir) {
+        for (const entry of fs.readdirSync(checkedPath(dir), { withFileTypes: true })) {
+            const file = checkedPath(path.join(dir, entry.name));
+            if (entry.isDirectory()) checkTree(file);
+        }
+    }
+    checkTree(path.join(folder, 'dist'));
+}
+
+for (const name of ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']) checkPackage(name);
+
 const fixtures = fs.mkdtempSync(path.join(os.tmpdir(), 'declaration-consumers-'));
-process.on('exit', () => fs.rmSync(fixtures, { recursive: true, force: true }));
+const cleanup = () => fs.rmSync(fixtures, { recursive: true, force: true });
+process.on('exit', cleanup);
+for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+    process.on(signal, () => {
+        cleanup();
+        process.exit(status);
+    });
+}
 const modules = path.join(fixtures, 'node_modules');
 fs.mkdirSync(path.join(modules, '@cratis'), { recursive: true });
 

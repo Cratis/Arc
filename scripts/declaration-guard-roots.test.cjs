@@ -11,40 +11,49 @@ const vm = require('node:vm');
 const root = os.tmpdir();
 const consumers = fs.readFileSync(path.join(__dirname, 'check-declaration-consumers.cjs'), 'utf8');
 
-function consumerRuns(args) {
+function consumerRuns(args, expectedExit) {
     const toolsRoot = fs.mkdtempSync(path.join(root, 'consumer-tools-'));
     after(() => fs.rmSync(toolsRoot, { recursive: true, force: true }));
     const baseScripts = path.join(toolsRoot, 'scripts');
     fs.mkdirSync(path.join(toolsRoot, 'node_modules/@cratis/fundamentals'), { recursive: true });
     fs.mkdirSync(path.join(toolsRoot, 'node_modules/typescript'), { recursive: true });
     fs.cpSync(path.join(__dirname, 'fixtures'), path.join(baseScripts, 'fixtures'), { recursive: true });
+    buildPackages(toolsRoot);
     const calls = [];
-    vm.runInNewContext(consumers, {
+    const handlers = new Map();
+    const messages = [];
+    const run = () => vm.runInNewContext(consumers, {
         __dirname: baseScripts,
         process: {
             execPath: process.execPath,
             argv: ['node', 'guard.cjs', ...args],
-            on: (_event, cleanup) => after(cleanup),
+            on: (event, handler) => {
+                handlers.set(event, handler);
+                if (event === 'exit') after(handler);
+            },
             exit: code => { throw new Error(`exit ${code}`); }
         },
-        console: { error: () => {}, log: () => {} },
+        console: { error: message => messages.push(message), log: () => {} },
         require: name => name === 'node:child_process'
             ? { spawnSync: (...call) => { calls.push(call); return { status: 0 }; } }
             : require(name)
     });
-    return { calls, toolsRoot };
+    if (expectedExit === undefined) run();
+    else assert.throws(run, new RegExp(`exit ${expectedExit}$`));
+    return { calls, toolsRoot, handlers, messages };
 }
 
 test('consumer guard defaults to built packages in its own repository', () => {
     const { calls, toolsRoot } = consumerRuns([]);
+    assert.equal(calls.length, 5);
     for (const [, , options] of calls) {
         const arc = path.join(options.cwd, 'node_modules/@cratis/arc');
         assert.equal(fs.readlinkSync(arc), path.join(toolsRoot, 'Source/JavaScript/Arc'));
     }
 });
 
-test('consumer guard uses base compiler and types with head built packages', () => {
-    const head = path.join(root, 'head with spaces');
+test('consumer guard uses the tools compiler and types with checked built packages', () => {
+    const { head } = declarationFixture();
     const { calls, toolsRoot } = consumerRuns(['--root', head]);
     assert.equal(calls.length, 5);
     for (const [command, args, options] of calls) {
@@ -61,7 +70,7 @@ test('consumer guard uses base compiler and types with head built packages', () 
 });
 
 test('consumer guard retains the repo-root alias', () => {
-    const head = path.join(root, 'head with spaces');
+    const { head } = declarationFixture();
     const { calls } = consumerRuns(['--repo-root', head]);
     assert.equal(fs.readlinkSync(path.join(calls[0][2].cwd, 'node_modules/@cratis/arc')), path.join(head, 'Source/JavaScript/Arc'));
 });
@@ -79,8 +88,13 @@ function declarationFixture() {
     fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(fixture, 'base', 'node_modules'));
     const guard = path.join(scripts, 'check-declaration-imports.cjs');
     fs.copyFileSync(path.join(__dirname, 'check-declaration-imports.cjs'), guard);
+    buildPackages(head);
+    return { guard, head };
+}
+
+function buildPackages(repository) {
     for (const name of ['Arc', 'Arc.React', 'Arc.React.MVVM', 'Arc.Vite']) {
-        const folder = path.join(head, 'Source', 'JavaScript', name);
+        const folder = path.join(repository, 'Source', 'JavaScript', name);
         const exports = {};
         for (const [branch, format] of [['import', 'esm'], ['require', 'cjs']]) {
             const dist = path.join(folder, 'dist', format);
@@ -91,7 +105,6 @@ function declarationFixture() {
         }
         fs.writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name, exports: { '.': exports } }));
     }
-    return { guard, head };
 }
 
 test('import guard reads explicit head output rather than base output', () => {
@@ -101,9 +114,77 @@ test('import guard reads explicit head output rather than base output', () => {
     const aliasResult = spawnSync(process.execPath, [guard, '--repo-root', head], { encoding: 'utf8' });
     assert.equal(aliasResult.status, 0, aliasResult.stdout + aliasResult.stderr);
     const defaultResult = spawnSync(process.execPath, [guard], { encoding: 'utf8' });
-    assert.equal(defaultResult.status, 1);
-    assert.match(defaultResult.stderr, /Cannot find module/);
+    assert.equal(defaultResult.status, 2);
+    assert.match(defaultResult.stderr, /Invalid checked path/);
 });
+
+for (const option of ['--root', '--repo-root']) {
+    for (const [label, value] of [
+        ['missing', () => undefined],
+        ['empty', () => ''],
+        ['nonexistent', head => path.join(head, 'missing')],
+        ['file', head => path.join(head, 'Source/JavaScript/Arc/package.json')],
+        ['symlinked', head => {
+            const link = path.join(head, '..', 'linked-root');
+            fs.symlinkSync(head, link);
+            return link;
+        }]
+    ]) {
+        test(`both guards refuse a ${label} ${option}`, () => {
+            const { guard, head } = declarationFixture();
+            const selected = value(head);
+            const args = selected === undefined ? [option] : [option, selected];
+            const result = spawnSync(process.execPath, [guard, ...args], { encoding: 'utf8' });
+            assert.equal(result.status, 2, result.stdout + result.stderr);
+            assert.match(result.stderr, /Usage:|Invalid checked root/);
+            const { calls, messages } = consumerRuns(args, 2);
+            assert.equal(calls.length, 0);
+            assert.match(messages.join('\n'), /Usage:|Invalid checked root/);
+        });
+    }
+}
+
+test('both guards refuse a symlinked manifest without executing its JavaScript target', () => {
+    const { guard, head } = declarationFixture();
+    const marker = path.join(head, 'executed');
+    const payload = path.join(head, 'payload.js');
+    fs.writeFileSync(payload, `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran'); module.exports = {};\n`);
+    const manifest = path.join(head, 'Source/JavaScript/Arc/package.json');
+    fs.unlinkSync(manifest);
+    fs.symlinkSync(payload, manifest);
+    const result = spawnSync(process.execPath, [guard, '--root', head], { encoding: 'utf8' });
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.match(result.stderr, /symlink is not allowed/);
+    assert.equal(fs.existsSync(marker), false);
+    const { calls, messages } = consumerRuns(['--root', head], 2);
+    assert.equal(calls.length, 0);
+    assert.match(messages.join('\n'), /symlink is not allowed/);
+    assert.equal(fs.existsSync(marker), false);
+});
+
+test('both guards refuse declaration directories linked outside the checked root', () => {
+    const { guard, head } = declarationFixture();
+    const dist = path.join(head, 'Source/JavaScript/Arc/dist');
+    const outside = path.join(head, '..', 'outside-dist');
+    fs.renameSync(dist, outside);
+    fs.symlinkSync(outside, dist);
+    const result = spawnSync(process.execPath, [guard, '--root', head], { encoding: 'utf8' });
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.match(result.stderr, /symlink is not allowed/);
+    const { calls, messages } = consumerRuns(['--root', head], 2);
+    assert.equal(calls.length, 0);
+    assert.match(messages.join('\n'), /symlink is not allowed/);
+});
+
+for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+    test(`consumer guard cleans its fixture directory on ${signal}`, () => {
+        const { calls, handlers } = consumerRuns([]);
+        const fixtures = calls[0][2].cwd;
+        assert.equal(fs.existsSync(fixtures), true);
+        assert.throws(() => handlers.get(signal)(), new RegExp(`exit ${status}$`));
+        assert.equal(fs.existsSync(fixtures), false);
+    });
+}
 
 test('import guard still rejects invalid declarations in the head tree', () => {
     const { guard, head } = declarationFixture();
