@@ -46,6 +46,7 @@ function consumerRuns(args, expectedExit) {
 function assertPackageCopy(copy, source) {
     assert.equal(fs.lstatSync(copy).isDirectory(), true);
     assert.equal(fs.lstatSync(copy).isSymbolicLink(), false);
+    assert.deepEqual(fs.readdirSync(copy).sort(), ['dist', 'package.json']);
     for (const file of ['package.json', 'dist/esm/index.d.ts', 'dist/cjs/index.d.ts']) {
         assert.equal(fs.readFileSync(path.join(copy, file), 'utf8'), fs.readFileSync(path.join(source, file), 'utf8'));
     }
@@ -62,7 +63,8 @@ test('consumer guard defaults to built packages in its own repository', () => {
 
 test('consumer guard uses the tools compiler and types with checked built packages', () => {
     const { head } = declarationFixture();
-    fs.writeFileSync(path.join(head, 'Source/JavaScript/Arc/checked-marker'), 'checked tree');
+    fs.writeFileSync(path.join(head, 'Source/JavaScript/Arc/checked-marker'), 'must not be copied');
+    fs.appendFileSync(path.join(head, 'Source/JavaScript/Arc/dist/esm/index.d.ts'), 'export interface CheckedTree {}\n');
     const { calls, toolsRoot } = consumerRuns(['--root', head]);
     assert.equal(calls.length, 5);
     for (const [command, args, options] of calls) {
@@ -73,7 +75,7 @@ test('consumer guard uses the tools compiler and types with checked built packag
         assert.ok(options.cwd.startsWith(path.join(os.tmpdir(), 'declaration-consumers-')));
         const arc = path.join(options.cwd, 'node_modules/@cratis/arc');
         assertPackageCopy(arc, path.join(head, 'Source/JavaScript/Arc'));
-        assert.equal(fs.readFileSync(path.join(arc, 'checked-marker'), 'utf8'), 'checked tree');
+        assert.equal(fs.existsSync(path.join(arc, 'checked-marker')), false);
         assert.equal(fs.readlinkSync(path.join(options.cwd, 'node_modules/typescript')), path.join(toolsRoot, 'node_modules/typescript'));
         assert.equal(fs.readlinkSync(path.join(options.cwd, 'node_modules/@cratis/fundamentals')), path.join(toolsRoot, 'node_modules/@cratis/fundamentals'));
         assert.equal(fs.readFileSync(args.at(-1), 'utf8'), fs.readFileSync(path.join(__dirname, 'fixtures/declaration-consumer', path.basename(args.at(-1))), 'utf8'));
@@ -260,7 +262,10 @@ for (const location of ['unreferenced-link', 'src/deep/unreferenced-link', 'dist
 for (const [label, exports] of [
     ['string', { '.': './dist/esm/index.d.ts' }],
     ['root string', './dist/esm/index.d.ts'],
-    ['root array', [null, { types: './dist/esm/index.d.ts' }, './dist/esm/index.js']],
+    ['root array', [null, {
+        import: { types: './dist/esm/index.d.ts', default: './dist/esm/index.js' },
+        require: { types: './dist/cjs/index.d.ts', default: './dist/cjs/index.js' }
+    }, './dist/esm/index.js']],
     ['nested conditions and arrays', {
         './package.json': './package.json',
         '.': {
@@ -306,6 +311,85 @@ for (const kind of ['directory', 'symlink']) {
         assert.equal(fs.existsSync(path.join(arc, 'node_modules')), true);
     });
 }
+
+for (const [label, declaration] of [
+    ['relative import escape', 'import { Outside } from "../../outside.js";'],
+    ['relative export escape', 'export * from "../../outside.js";'],
+    ['absolute import', 'import { Outside } from "/tmp/outside.js";'],
+    ['absolute export', 'export * from "/tmp/outside.js";'],
+    ['import type escape', 'export type Outside = import("../../outside.js").Outside;'],
+    ['absolute import type', 'export type Outside = import("/tmp/outside.js").Outside;'],
+    ['require escape', 'export const outside = require("../../outside.js");'],
+    ['require template escape', 'export const outside = require(`../../outside.js`);'],
+    ['import equals escape', 'import Outside = require("../../outside.js");'],
+    ['ambient module escape', 'declare module "../../outside.js" {}'],
+    ['absolute ambient module', 'declare module "/tmp/outside.js" {}'],
+    ['reference path escape', '/// <reference path="../../outside.d.ts" />'],
+    ['absolute reference path', '/// <reference path="/tmp/outside.d.ts" />'],
+    ['reference types escape', '/// <reference types="../../outside" />'],
+    ['absolute reference types', '/// <reference types="/tmp/outside" />'],
+    ['relative reference types', '/// <reference types="./local" />'],
+    ['reference lib escape', '/// <reference lib="../../outside" />'],
+    ['combined reference attributes', '/// <reference types="react" path="../../outside.d.ts" />'],
+    ['combined no-default-lib reference', '/// <reference no-default-lib="true" path="../../outside.d.ts" />'],
+    ['invalid no-default-lib reference', '/// <reference no-default-lib="/tmp/outside" />'],
+    ['URL import', 'export * from "https://example.invalid/outside.js";'],
+    ['file URL import', 'export * from "file:///tmp/outside.js";'],
+    ['drive letter import', 'export * from "C:/outside.js";'],
+    ['backslash import', String.raw`export * from "..\\..\\outside.js";`],
+    ['UNC import', 'export * from "//server/outside.js";'],
+    ['encoded absolute import', String.raw`export * from "\u002ftmp/outside.js";`],
+    ['bare package traversal', 'export * from "package/../../../outside.js";'],
+    ['computed require', 'export const outside = require("./" + name);'],
+    ['malformed declaration', 'export interface {']
+]) {
+    test(`both guards refuse ${label} with a file and line diagnostic`, () => {
+        const { guard, head } = declarationFixture();
+        const file = path.join(head, 'Source/JavaScript/Arc/dist/esm/escape.d.ts');
+        fs.writeFileSync(file, `// declaration under review\n${declaration}\n`);
+        assertBothRefuse(guard, head, /escape\.d\.ts:2:/);
+    });
+}
+
+for (const extension of ['d.mts', 'd.cts']) {
+    test(`both guards validate references in every ${extension} file, including unexported files`, () => {
+        const { guard, head } = declarationFixture();
+        fs.writeFileSync(path.join(head, `Source/JavaScript/Arc/dist/esm/escape.${extension}`), 'export * from "../../outside.js";\n');
+        assertBothRefuse(guard, head, /escape\.d\.(mts|cts):1: Invalid declaration reference/);
+    });
+}
+
+test('both guards accept bare packages, in-dist relative references, and standard directives', () => {
+    const { guard, head } = declarationFixture();
+    const dist = path.join(head, 'Source/JavaScript/Arc/dist/esm');
+    fs.writeFileSync(path.join(dist, 'local.d.ts'), 'export interface Local {}\n');
+    fs.writeFileSync(path.join(dist, 'local.js'), '');
+    fs.writeFileSync(path.join(dist, 'references.d.mts'), [
+        '/// <reference no-default-lib="true" />',
+        '/// <reference lib="es2022" />',
+        '/// <reference types="react" />',
+        '/// <reference path="local.d.ts" />',
+        '/// <reference path="../cjs/index.d.ts" />',
+        'import type { ReactNode } from "react";',
+        'import Local = require("./local.js");',
+        'export * from "./local.js";',
+        'export type Scoped = import("@scope/package/subpath").Scoped;',
+        'export type Relative = import("./local.js").Local;',
+        'declare module "bare-augmentation" {}',
+        'declare module "./local.js" {}'
+    ].join('\n'));
+    assertBothPass(guard, head);
+});
+
+test('import guard rejects object exports without import and require conditions', () => {
+    const { guard, head } = declarationFixture();
+    changeManifest(head, manifest => {
+        manifest.exports['.'] = { types: './dist/esm/index.d.ts', default: './dist/esm/index.js' };
+    });
+    const result = spawnSync(process.execPath, [guard, '--root', head], { encoding: 'utf8' });
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /missing import declaration or runtime condition/);
+});
 
 for (const [signal, status] of [['SIGINT', 130], ['SIGTERM', 143]]) {
     test(`consumer guard cleans its fixture directory on ${signal}`, () => {

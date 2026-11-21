@@ -47,11 +47,14 @@ for (const { folder } of checked.packages) {
     // Replace only the links just created in this fresh directory, never files in the data tree.
     if (fs.lstatSync(target, { throwIfNoEntry: false })) fs.unlinkSync(target);
     try {
-        fs.cpSync(folder, target, {
-            recursive: true,
-            dereference: false,
-            filter: source => path.basename(source) !== 'node_modules' && Boolean(checkedPath(source))
-        });
+        fs.mkdirSync(target);
+        for (const name of ['package.json', 'dist']) {
+            fs.cpSync(path.join(folder, name), path.join(target, name), {
+                recursive: true,
+                dereference: false,
+                filter: source => path.basename(source) !== 'node_modules' && Boolean(checkedPath(source))
+            });
+        }
     } catch (error) {
         console.error(`Cannot copy checked package ${folder}: ${error.message}`);
         process.exit(2);

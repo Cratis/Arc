@@ -65,8 +65,11 @@ for (const { folder, manifest } of checked.packages) {
     for (const [subpath, branches] of Object.entries(manifest.exports ?? {})) {
         // Retain the dual-format contract for the existing flat import/require condition shape.
         // Other legal export shapes already had every target checked by the shared validator.
-        if (!branches || typeof branches !== 'object' || Array.isArray(branches) ||
-            !['import', 'require'].some(branch => Object.hasOwn(branches, branch))) continue;
+        if (!branches || typeof branches !== 'object' || Array.isArray(branches)) continue;
+        if (!['import', 'require'].some(branch => Object.hasOwn(branches, branch))) {
+            console.error(`${manifest.name} ${subpath}: missing import declaration or runtime condition`);
+            process.exit(1);
+        }
         const conditions = [branches.import, branches.require].filter(Boolean);
         if (!conditions.every(condition => typeof condition === 'object' && !Array.isArray(condition) &&
             Object.values(condition).every(target => typeof target === 'string'))) continue;
