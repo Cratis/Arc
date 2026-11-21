@@ -355,7 +355,27 @@ void should_have_exactly_two_events() =>
 
 When a handler, `Provide` method, or `CommandValidator<T>` takes a read model, arrange the state that parameter should receive. A read model is state derived from events through a projection or reducer. Arc resolves it for the command's event source id using `IProjectionFor<T>`, `IReducerFor<T>`, or a model-bound projection; [use current state in a command](/arc/scenarios/use-current-state-in-a-command/) explains the application pattern.
 
-Use `_scenario.Given.ForEventSource(id)` rather than mocking `IReadModels`. Supply events when their history matters to the case, or pin an instance when the case only needs a known value. The examples below use ordinary mode; [protected decision scenarios](#protected-decision-scenarios) use a shared log instead of separate read-model seeds.
+Use `_scenario.Given.ForEventSource(id)` rather than mocking `IReadModels`. Supply events when their history matters to the case, or pin an instance when the case only needs a known value.
+
+Replacing or substituting `IReadModels`, including with the reader from a separate `ReadModelScenario`, does not supply state to protected decision reads in a `CommandScenario`. With read protection `On` (the default since v23.0.0), Chronicle admits and enrolls the protected read first. It then uses an instance pinned through that command scenario's `Given`, or derives the state from its seeded events. A replacement reader's lookup result is not used, so a model supplied only through that reader can remain `null` in the command.
+
+These before/after setup excerpts assume an existing `_scenario`, an `EventSourceId id`, and an admitted plain read-model `instance`. The before excerpt uses an `IReadModels readModels` replacement, with `Cratis.Chronicle.ReadModels` and `Microsoft.Extensions.DependencyInjection` imported; the after excerpt uses `Cratis.Arc.Chronicle.Testing.Commands`.
+
+Before: registering a replacement reader does not arrange the protected read's state:
+
+```csharp
+_scenario.Services.AddSingleton<IReadModels>(readModels);
+```
+
+After: give the instance to the command scenario itself:
+
+```csharp
+_scenario.Given.ForEventSource(id).ReadModel(instance);
+```
+
+This changes the supplied state, not admission or conflict detection. See [give a protected read model its state](#give-a-protected-read-model-its-state) for a complete spec and the cases that require events rather than pins.
+
+The examples below use ordinary mode; [protected decision scenarios](#protected-decision-scenarios) use a shared log instead of separate read-model seeds.
 
 ### Seeding read model state from events
 
