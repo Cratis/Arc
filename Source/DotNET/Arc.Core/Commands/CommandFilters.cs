@@ -35,8 +35,9 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
         // Evaluate authorization filters before ordinary filters, independent of the order IInstancesOf yields them.
         // Without this the short-circuit below could return on a validation failure before the authorization filter
         // runs, leaving the authorization verdict at its default (authorized) and reporting a forbidden caller as
-        // authorized. OrderBy is a stable sort, so filters within the same group keep their discovery order.
-        foreach (var filter in discoveredFilters.OrderBy(filter => filter is IAvailabilityCommandFilter ? 0 : filter is IAuthorizationCommandFilter ? 1 : 2))
+        // authorized. Within a group filters are ordered by full type name (ordinal), not discovery order, so which blocking filter
+        // short-circuits the chain, and hence the refusal the caller sees, does not depend on undefined discovery order.
+        foreach (var filter in discoveredFilters.OrderBy(filter => filter is IAvailabilityCommandFilter ? 0 : filter is IAuthorizationCommandFilter ? 1 : 2).ThenBy(filter => filter.GetType().FullName, StringComparer.Ordinal))
         {
             using var authorizationSpan = filter is IAuthorizationCommandFilter
                 ? OperationActivity.StartCommandChild(activitySource.ActualSource, WellKnownTelemetryNames.CommandAuthorizeSpan, context.Type)
