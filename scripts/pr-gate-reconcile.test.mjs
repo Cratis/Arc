@@ -83,6 +83,22 @@ test('duplicate completion deliveries do not rerun a queued attempt again', asyn
     assert.equal(state.posts.length, 1);
 });
 
+test('a gate that always fails code lookup stops being rerun at the attempt cap', async () => {
+    const state = fixture();
+    const results = [];
+    for (const attempt of [1, 2, 3, 4]) {
+        state.meta.run_attempt = attempt;
+        state.meta.status = 'completed';
+        state.gate.run_attempt = attempt;
+        results.push(await execute(state));
+    }
+    assert.deepEqual(state.posts, ['/actions/jobs/200/rerun', '/actions/jobs/200/rerun']);
+    assert.match(results[0], /Re-ran/);
+    assert.match(results[1], /Re-ran/);
+    assert.match(results[2], /Skipped metadata run 20 attempt 3: reached the rerun attempt cap of 3/);
+    assert.match(results[3], /Skipped metadata run 20 attempt 4: reached the rerun attempt cap of 3/);
+});
+
 test('the latest metadata revision supersedes earlier failed metadata', async () => {
     const state = fixture();
     const older = { ...state.meta, id: 15, created_at: '2026-11-22T12:00:30Z' };
@@ -91,14 +107,33 @@ test('the latest metadata revision supersedes earlier failed metadata', async ()
     assert.deepEqual(state.posts, ['/actions/jobs/200/rerun']);
 });
 
-test('a delayed superseded metadata event does not repair an obsolete run', async () => {
-    const state = fixture();
-    const older = { ...state.meta, id: 15, created_at: '2026-11-22T12:00:30Z' };
-    state.runs.push(older);
-    state.event.workflow_run = older;
-    await execute(state);
-    assert.equal(state.posts.length, 0);
-});
+for (const kind of ['code', 'meta']) {
+    test(`a delayed superseded ${kind} event repairs only the latest ready pair`, async () => {
+        const state = fixture();
+        const older = { ...state[kind], id: 5, created_at: '2026-11-22T11:59:00Z' };
+        state.runs.push(older);
+        state.event.workflow_run = older;
+        assert.match(await execute(state), /metadata run 20 attempt 1; code run 10 attempt 1 succeeded/);
+        assert.deepEqual(state.posts, ['/actions/jobs/200/rerun']);
+        assert.ok(state.reads.includes('/actions/runs/20/attempts/1/jobs'));
+    });
+}
+
+for (const change of [
+    state => { state.code.status = 'in_progress'; state.code.conclusion = null; },
+    state => { state.code.conclusion = 'failure'; },
+    state => { state.meta.status = 'in_progress'; }
+]) {
+    test('a delayed superseded completion does nothing when the latest pair is not ready', async () => {
+        const state = fixture();
+        const older = { ...state.meta, id: 15, created_at: '2026-11-22T12:00:30Z' };
+        state.runs.push(older);
+        state.event.workflow_run = older;
+        change(state);
+        assert.equal(await execute(state), 'Current code/metadata attempts are not ready.');
+        assert.equal(state.posts.length, 0);
+    });
+}
 
 for (const change of [
     state => { state.pulls[0].head.sha = 'b'.repeat(40); },

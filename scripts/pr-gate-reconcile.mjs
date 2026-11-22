@@ -8,6 +8,7 @@ import {
     latestCodeRun, latestMetaRun, runsForHead, workflow
 } from './pr-gate-context.mjs';
 
+const MAX_META_ATTEMPTS = 3;
 const sameAttempt = (left, right) => left?.id === right?.id && left?.run_attempt === right?.run_attempt;
 const successful = run => isCodeRun(run) && run.status === 'completed' && run.conclusion === 'success';
 
@@ -65,26 +66,28 @@ function unchanged(before, after) {
     return sameAttempt(before.code, after.code) && sameAttempt(before.meta, after.meta);
 }
 
-export async function reconcile(api, repository, event) {
-    const { id: workflowId } = await workflow(api);
-    const expected = { repository, sha: event.workflow_run?.head_sha, workflowId };
-    const source = await completedSource(api, repository, event, expected);
-    if (!source) return 'Ignored stale, unfinished or unsuccessful completion.';
-    const pair = await currentPair(api, expected);
-    if (!ready(pair)) return 'Current code/metadata attempts are not ready.';
-    const selectedSource = isCodeRun(source) ? pair.code : pair.meta;
-    if (!sameAttempt(selectedSource, source)) return 'Ignored superseded completion.';
-    if (!await hasCurrentPullRequest(api, pair.code)) return 'No open pull request still uses this head.';
-    const jobs = await api.pages(`/actions/runs/${pair.meta.id}/attempts/${pair.meta.run_attempt}/jobs`, 'jobs');
-    const gate = failedCodeLookup(jobs, pair.meta);
-    if (!gate) return 'Latest metadata gate does not need a code-lookup rerun.';
-
-    // A newer metadata revision, head or rerun supersedes this event. Never poll or fall back.
+async function rerunGate(api, expected, pair, gate) {
+    // A newer metadata revision, head or rerun supersedes the selected pair. Never poll or fall back.
     const fresh = await currentPair(api, expected);
     if (!unchanged(pair, fresh)) return 'Inputs changed before rerun.';
     if (!await hasCurrentPullRequest(api, fresh.code)) return 'Pull request head changed before rerun.';
     await api.post(`/actions/jobs/${gate.id}/rerun`);
     return `Re-ran gate job ${gate.id} for metadata run ${pair.meta.id} attempt ${pair.meta.run_attempt}; code run ${pair.code.id} attempt ${pair.code.run_attempt} succeeded for ${expected.sha}.`;
+}
+
+export async function reconcile(api, repository, event) {
+    const { id: workflowId } = await workflow(api);
+    const expected = { repository, sha: event.workflow_run?.head_sha, workflowId };
+    if (!await completedSource(api, repository, event, expected)) return 'Ignored stale, unfinished or unsuccessful completion.';
+    // Completion events are wake-ups: coalescing can retain an older run's event.
+    const pair = await currentPair(api, expected);
+    if (!ready(pair)) return 'Current code/metadata attempts are not ready.';
+    if (pair.meta.run_attempt >= MAX_META_ATTEMPTS) return `Skipped metadata run ${pair.meta.id} attempt ${pair.meta.run_attempt}: reached the rerun attempt cap of ${MAX_META_ATTEMPTS}.`;
+    if (!await hasCurrentPullRequest(api, pair.code)) return 'No open pull request still uses this head.';
+    const jobs = await api.pages(`/actions/runs/${pair.meta.id}/attempts/${pair.meta.run_attempt}/jobs`, 'jobs');
+    const gate = failedCodeLookup(jobs, pair.meta);
+    if (!gate) return 'Latest metadata gate does not need a code-lookup rerun.';
+    return rerunGate(api, expected, pair, gate);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
