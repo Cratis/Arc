@@ -1,0 +1,99 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import {
+    AGGREGATE_STEP, CODE_STEP, assertRun, createApi, currentRun, isCodeRun, isMetaRun,
+    latestCodeRun, latestMetaRun, runsForHead, workflow
+} from './pr-gate-context.mjs';
+
+const sameAttempt = (left, right) => left?.id === right?.id && left?.run_attempt === right?.run_attempt;
+const successful = run => isCodeRun(run) && run.status === 'completed' && run.conclusion === 'success';
+
+function matchesHead(pull, run) {
+    return [pull.state === 'open', pull.head?.sha === run.head_sha, pull.head?.repo?.full_name === run.head_repository.full_name].every(Boolean);
+}
+
+async function hasCurrentPullRequest(api, run) {
+    const repository = run.head_repository?.full_name;
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repository) || !run.head_branch) throw new Error('Invalid head repository/branch.');
+    // workflow_run.pull_requests may be empty, including for forks. Read current PR heads instead.
+    const head = encodeURIComponent(`${repository.split('/')[0]}:${run.head_branch}`);
+    const pulls = await api.pages(`/pulls?state=open&head=${head}`);
+    return pulls.some(pull => matchesHead(pull, run));
+}
+
+function failedCodeLookup(jobs, meta) {
+    const gates = jobs.filter(job => job.name === 'gate');
+    if (gates.length > 1) throw new Error('Multiple gate jobs in the current attempt.');
+    const gate = gates[0];
+    if (!gate) return undefined;
+    const currentFailure = [gate.run_id === meta.id, gate.run_attempt === meta.run_attempt, gate.status === 'completed', gate.conclusion === 'failure'].every(Boolean);
+    if (!currentFailure) return undefined;
+    const stepHas = (name, conclusion) => gate.steps?.some(step => step.name === name && step.conclusion === conclusion);
+    return stepHas(AGGREGATE_STEP, 'success') && stepHas(CODE_STEP, 'failure') ? gate : undefined;
+}
+
+async function completedSource(api, repository, event, expected) {
+    if (event.repository?.full_name !== repository) throw new Error('Unexpected event repository.');
+    const hint = assertRun(event.workflow_run, expected);
+    const source = await currentRun(api, hint, expected);
+    if (!sameAttempt(source, hint) || source.status !== 'completed') return undefined;
+    if (isMetaRun(source) || successful(source)) return source;
+    return undefined;
+}
+
+async function currentPair(api, expected) {
+    const { repository, sha, workflowId } = expected;
+    const runs = await runsForHead(api, repository, sha, workflowId);
+    const candidates = [latestCodeRun(runs), latestMetaRun(runs)];
+    if (candidates.some(run => !run)) return undefined;
+    // Copy attempt identities: later API reads must not silently move the selected attempts.
+    const pair = await Promise.all(candidates.map(async run => ({ ...await currentRun(api, run, expected) })));
+    if (!pair.every((run, index) => sameAttempt(run, candidates[index]))) return undefined;
+    return { code: pair[0], meta: pair[1] };
+}
+
+function ready(pair) {
+    if (!pair) return false;
+    return successful(pair.code) && pair.meta.status === 'completed';
+}
+
+function unchanged(before, after) {
+    if (!ready(after)) return false;
+    return sameAttempt(before.code, after.code) && sameAttempt(before.meta, after.meta);
+}
+
+export async function reconcile(api, repository, event) {
+    const { id: workflowId } = await workflow(api);
+    const expected = { repository, sha: event.workflow_run?.head_sha, workflowId };
+    const source = await completedSource(api, repository, event, expected);
+    if (!source) return 'Ignored stale, unfinished or unsuccessful completion.';
+    const pair = await currentPair(api, expected);
+    if (!ready(pair)) return 'Current code/metadata attempts are not ready.';
+    const selectedSource = isCodeRun(source) ? pair.code : pair.meta;
+    if (!sameAttempt(selectedSource, source)) return 'Ignored superseded completion.';
+    if (!await hasCurrentPullRequest(api, pair.code)) return 'No open pull request still uses this head.';
+    const jobs = await api.pages(`/actions/runs/${pair.meta.id}/attempts/${pair.meta.run_attempt}/jobs`, 'jobs');
+    const gate = failedCodeLookup(jobs, pair.meta);
+    if (!gate) return 'Latest metadata gate does not need a code-lookup rerun.';
+
+    // A newer metadata revision, head or rerun supersedes this event. Never poll or fall back.
+    const fresh = await currentPair(api, expected);
+    if (!unchanged(pair, fresh)) return 'Inputs changed before rerun.';
+    if (!await hasCurrentPullRequest(api, fresh.code)) return 'Pull request head changed before rerun.';
+    await api.post(`/actions/jobs/${gate.id}/rerun`);
+    return `Re-ran gate job ${gate.id} for metadata run ${pair.meta.id} attempt ${pair.meta.run_attempt}; code run ${pair.code.id} attempt ${pair.code.run_attempt} succeeded for ${expected.sha}.`;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    try {
+        if (process.env.GITHUB_EVENT_NAME !== 'workflow_run') throw new Error('Expected a workflow_run event.');
+        const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+        console.log(await reconcile(createApi({ repository: process.env.GITHUB_REPOSITORY, token: process.env.GH_TOKEN }), process.env.GITHUB_REPOSITORY, event));
+    } catch (error) {
+        console.error(error.message);
+        process.exitCode = 1;
+    }
+}
