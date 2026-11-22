@@ -64,6 +64,12 @@ public class DiscoverableModelValidator : IModelValidator
         return failures;
     }
 
+    static bool IsCommandMethod(string method) =>
+        HttpMethods.IsPost(method) ||
+        HttpMethods.IsPut(method) ||
+        HttpMethods.IsPatch(method) ||
+        HttpMethods.IsDelete(method);
+
     IValidator ResolveValidator(ModelValidationContext context)
     {
         try
@@ -83,7 +89,7 @@ public class DiscoverableModelValidator : IModelValidator
 
     void SetValidationType(ModelValidationContext context, IValidationContext validationContext)
     {
-        if (context.ActionContext.HttpContext.Request.Method == HttpMethod.Post.Method)
+        if (IsCommandMethod(context.ActionContext.HttpContext.Request.Method))
         {
             validationContext.SetCommand();
         }
