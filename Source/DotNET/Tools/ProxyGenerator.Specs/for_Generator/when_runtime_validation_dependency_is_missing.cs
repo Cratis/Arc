@@ -11,7 +11,7 @@ public class when_runtime_validation_dependency_is_missing : given.a_validator_r
 
     [Fact] void should_not_save_success_state() => File.Exists(StatePath).ShouldBeFalse();
     [Fact] void should_fail() => ExitCode.ShouldNotEqual(0);
-    [Fact] void should_report_validation_discovery_failure() => Output.ShouldContain("Could not load all validator types");
+    [Fact] void should_report_validation_discovery_failure() => Output.ShouldContain("Could not extract validation rules");
     [Fact] void should_identify_the_dependency() => Output.ShouldContain("ValidatorRuntimeDependency");
     [Fact] void should_not_write_the_incomplete_command() => Directory.GetFiles(OutputPath, "CreateApplication.ts", SearchOption.AllDirectories).Length.ShouldEqual(0);
     [Fact] void should_not_update_indexes() => File.ReadAllText(Path.Combine(OutputPath, "index.ts")).ShouldEqual("unchanged index");

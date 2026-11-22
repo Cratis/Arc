@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator;
+using TypeExtensions = Cratis.Arc.ProxyGenerator.TypeExtensions;
 
 namespace ValidatorRuntimeHarness;
 

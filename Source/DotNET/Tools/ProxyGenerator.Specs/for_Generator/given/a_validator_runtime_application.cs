@@ -44,7 +44,12 @@ public class a_validator_runtime_application : Specification
     }
 
     protected Task GenerateInFreshProcess(string excludedCommand = "NoPublicConstructorCommand") => RunInFreshProcess(
-        typeof(Generator).Assembly.Location, ApplicationPath, OutputPath, "0", "--skip-output-deletion", $"--state-file={StatePath}",
+        typeof(Generator).Assembly.Location,
+        ApplicationPath,
+        OutputPath,
+        "0",
+        "--skip-output-deletion",
+        $"--state-file={StatePath}",
         $"--exclude-type=ValidatorRuntimeApplication.{excludedCommand}");
 
     protected async Task RunInFreshProcess(string assemblyPath, params string[] arguments)
