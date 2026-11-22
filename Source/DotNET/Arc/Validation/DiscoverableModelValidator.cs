@@ -37,6 +37,7 @@ public class DiscoverableModelValidator : IModelValidator
     }
 
     /// <inheritdoc/>
+    /// <exception cref="DiscoverableModelValidatorNotFound">The validator is no longer available during validation.</exception>
     public IEnumerable<ModelValidationResult> Validate(ModelValidationContext context)
     {
         var failures = new List<ModelValidationResult>();
@@ -46,7 +47,7 @@ public class DiscoverableModelValidator : IModelValidator
         }
 
         var validator = _validator ?? ResolveValidator(context);
-        if (validator is null || ShouldSkipConceptValidation(context, validator))
+        if (ShouldSkipConceptValidation(context, validator))
         {
             return failures;
         }
@@ -63,13 +64,13 @@ public class DiscoverableModelValidator : IModelValidator
         return failures;
     }
 
-    IValidator? ResolveValidator(ModelValidationContext context)
+    IValidator ResolveValidator(ModelValidationContext context)
     {
         try
         {
             return _discoverableValidators!.TryGet(_modelType!, context.ActionContext.HttpContext.RequestServices, out var validator)
                 ? validator
-                : null;
+                : throw new DiscoverableModelValidatorNotFound(_modelType!);
         }
         catch (NoCommandContextAvailable exception)
         {

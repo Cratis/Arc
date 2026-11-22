@@ -16,6 +16,10 @@ public interface IDiscoverableValidators
     /// </summary>
     /// <param name="modelType">Type of model to look up.</param>
     /// <returns>True if a validator is available, false otherwise.</returns>
+    /// <remarks>
+    /// Implementations should override this member with a construction-free availability check. The default
+    /// implementation calls <c>TryGet</c>, which constructs the validator from the process-wide service provider.
+    /// </remarks>
     bool HasValidatorFor(Type modelType) => TryGet(modelType, out _);
 
     /// <summary>

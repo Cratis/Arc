@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace Cratis.Arc.Validation;
@@ -12,16 +13,24 @@ namespace Cratis.Arc.Validation;
 public class DiscoverableModelValidatorProvider(IDiscoverableValidators discoverableValidators) : IModelValidatorProvider
 {
     /// <inheritdoc/>
+    /// <exception cref="ReadModelValidatorRequiresCommandPipeline">Checking validator availability requires a command context.</exception>
     public void CreateValidators(ModelValidatorProviderContext context)
     {
         var modelType = context.ModelMetadata.ModelType;
-        if (discoverableValidators.HasValidatorFor(modelType))
+        try
         {
-            context.Results.Add(new ValidatorItem
+            if (discoverableValidators.HasValidatorFor(modelType))
             {
-                IsReusable = false,
-                Validator = new DiscoverableModelValidator(modelType, discoverableValidators)
-            });
+                context.Results.Add(new ValidatorItem
+                {
+                    IsReusable = false,
+                    Validator = new DiscoverableModelValidator(modelType, discoverableValidators)
+                });
+            }
+        }
+        catch (NoCommandContextAvailable exception)
+        {
+            throw new ReadModelValidatorRequiresCommandPipeline(modelType, exception);
         }
     }
 }

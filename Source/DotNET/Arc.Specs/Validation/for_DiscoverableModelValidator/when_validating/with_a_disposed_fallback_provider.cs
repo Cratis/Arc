@@ -19,7 +19,7 @@ public class with_a_disposed_fallback_provider : given.a_discoverable_model_vali
     {
         _fallbackProvider = new ServiceCollection().BuildServiceProvider();
         _fallbackProvider.Dispose();
-        _requestProvider = new ServiceCollection().AddScoped(_ => new RequestDependency(true)).BuildServiceProvider();
+        _requestProvider = new ServiceCollection().AddScoped(_ => new RequestDependency(false)).BuildServiceProvider();
         _requestScope = _requestProvider.CreateScope();
         _actionContext.HttpContext.RequestServices = _requestScope.ServiceProvider;
 
@@ -40,7 +40,7 @@ public class with_a_disposed_fallback_provider : given.a_discoverable_model_vali
         _requestProvider.Dispose();
     }
 
-    [Fact] void should_validate_with_the_live_request_dependency() => _result.ShouldBeEmpty();
+    [Fact] void should_validate_with_the_live_request_dependency() => _result.Count().ShouldEqual(1);
 
     public record RequestDependency(bool IsAllowed);
 
