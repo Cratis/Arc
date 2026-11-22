@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
@@ -9,34 +10,74 @@ namespace Cratis.Arc.Validation;
 /// <summary>
 /// Represents a <see cref="IModelValidator"/> for <see cref="BaseValidator{T}"/>.
 /// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="DiscoverableModelValidator"/> class.
-/// </remarks>
-/// <param name="validator">The <see cref="IValidator"/> to use.</param>
-public class DiscoverableModelValidator(IValidator validator) : IModelValidator
+public class DiscoverableModelValidator : IModelValidator
 {
+    readonly IValidator? _validator;
+    readonly Type? _modelType;
+    readonly IDiscoverableValidators? _discoverableValidators;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscoverableModelValidator"/> class.
+    /// </summary>
+    /// <param name="validator">The <see cref="IValidator"/> to use.</param>
+    public DiscoverableModelValidator(IValidator validator)
+    {
+        _validator = validator;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiscoverableModelValidator"/> class that resolves from the request's services.
+    /// </summary>
+    /// <param name="modelType">Type of model to get a validator for.</param>
+    /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> to use for looking up validators.</param>
+    public DiscoverableModelValidator(Type modelType, IDiscoverableValidators discoverableValidators)
+    {
+        _modelType = modelType;
+        _discoverableValidators = discoverableValidators;
+    }
+
     /// <inheritdoc/>
     public IEnumerable<ModelValidationResult> Validate(ModelValidationContext context)
     {
         var failures = new List<ModelValidationResult>();
-        if (context.Model is not null)
+        if (context.Model is null)
         {
-            if (ShouldSkipConceptValidation(context))
-            {
-                return failures;
-            }
-
-            // A ValidationContext<object> is enough: AbstractValidator<T>.ValidateAsync rebuilds a ValidationContext<T>
-            // from any non-generic context whose instance is a T, keeping its root context data (command or query).
-            // Building ValidationContext<T> through MakeGenericType is not something NativeAOT or trimming can preserve.
-            var validationContext = new ValidationContext<object>(context.Model);
-
-            SetValidationType(context, validationContext);
-
-            var result = validator.ValidateAsync(validationContext).GetAwaiter().GetResult();
-            failures.AddRange(result.Errors.Select(x => new ModelValidationResult(x.PropertyName, x.ErrorMessage)));
+            return failures;
         }
+
+        var validator = _validator ?? ResolveValidator(context);
+        if (validator is null || ShouldSkipConceptValidation(context, validator))
+        {
+            return failures;
+        }
+
+        // A ValidationContext<object> is enough: AbstractValidator<T>.ValidateAsync rebuilds a ValidationContext<T>
+        // from any non-generic context whose instance is a T, keeping its root context data (command or query).
+        // Building ValidationContext<T> through MakeGenericType is not something NativeAOT or trimming can preserve.
+        var validationContext = new ValidationContext<object>(context.Model);
+
+        SetValidationType(context, validationContext);
+
+        var result = validator.ValidateAsync(validationContext).GetAwaiter().GetResult();
+        failures.AddRange(result.Errors.Select(x => new ModelValidationResult(x.PropertyName, x.ErrorMessage)));
         return failures;
+    }
+
+    IValidator? ResolveValidator(ModelValidationContext context)
+    {
+        try
+        {
+            return _discoverableValidators!.TryGet(_modelType!, context.ActionContext.HttpContext.RequestServices, out var validator)
+                ? validator
+                : null;
+        }
+        catch (NoCommandContextAvailable exception)
+        {
+            // MVC model validation runs during model binding, before the command context is established, so a
+            // validator that depends on a command-scoped read model cannot be constructed here. Surface an
+            // actionable error instead of the opaque dependency-resolution failure.
+            throw new ReadModelValidatorRequiresCommandPipeline(_modelType!, exception);
+        }
     }
 
     void SetValidationType(ModelValidationContext context, IValidationContext validationContext)
@@ -51,7 +92,7 @@ public class DiscoverableModelValidator(IValidator validator) : IModelValidator
         }
     }
 
-    bool ShouldSkipConceptValidation(ModelValidationContext context)
+    bool ShouldSkipConceptValidation(ModelValidationContext context, IValidator validator)
     {
         var hasAspNetResult = context.ActionContext.ActionDescriptor.FilterDescriptors
             .Any(_ => _.Filter is AspNetResultAttribute);
