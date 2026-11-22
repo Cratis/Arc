@@ -24,7 +24,7 @@ public class with_a_disposed_fallback_provider : given.a_discoverable_model_vali
         _actionContext.HttpContext.RequestServices = _requestScope.ServiceProvider;
 
         var types = Substitute.For<ITypes>();
-        types.FindMultiple(typeof(IValidator)).Returns([typeof(TestValidator)]);
+        types.FindMultiple(typeof(IDiscoverableValidator<>)).Returns([typeof(TestValidator)]);
         var validators = new DiscoverableValidators(types, () => _fallbackProvider);
         var provider = new DiscoverableModelValidatorProvider(validators);
         var providerContext = new ModelValidatorProviderContext(_validationContext.ModelMetadata, []);

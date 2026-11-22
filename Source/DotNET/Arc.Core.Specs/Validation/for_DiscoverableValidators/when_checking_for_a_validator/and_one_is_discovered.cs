@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Types;
-using FluentValidation;
 
 namespace Cratis.Arc.Validation.for_DiscoverableValidators.when_checking_for_a_validator;
 
@@ -15,7 +14,7 @@ public class and_one_is_discovered : Specification
     void Establish()
     {
         var types = Substitute.For<ITypes>();
-        types.FindMultiple(typeof(IValidator)).Returns([typeof(CommandWithDependencyValidator)]);
+        types.FindMultiple(typeof(IDiscoverableValidator<>)).Returns([typeof(CommandWithDependencyValidator)]);
         _serviceProviderAccessor = Substitute.For<Func<IServiceProvider>>();
         _validators = new DiscoverableValidators(types, _serviceProviderAccessor);
     }

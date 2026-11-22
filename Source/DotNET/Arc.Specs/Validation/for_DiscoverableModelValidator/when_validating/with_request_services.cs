@@ -12,7 +12,7 @@ public class with_request_services : given.a_lazy_discoverable_model_validator
     IEnumerable<ModelValidationResult> _result;
 
     void Establish() => _validator.ValidateAsync(Arg.Any<IValidationContext>(), Arg.Any<CancellationToken>())
-        .Returns(new ValidationResult([new ValidationFailure(nameof(TestModel.Value), "Invalid value")]));
+        .Returns(new FluentValidation.Results.ValidationResult([new ValidationFailure(nameof(TestModel.Value), "Invalid value")]));
 
     void Because() => _result = _modelValidator.Validate(_validationContext);
 
