@@ -37,7 +37,7 @@ A read is protected only when Chronicle can guard the facts it supplies to the c
 | `IDecisionReads.GetDetached<T>` | **Refused** unless inside an advisory method |
 | `IReadModels`, raw `IEventStore`, `IEventLog` or `IEventSequence` reads, including inside a command filter | **Refused** at the call |
 | A read model injected into the constructor of a command filter or a service | **Refused** with `ReadModelInjectedOutsideDecision`, unless the read-model type is `[Unprotected("why")]`. Move the rule into `Handle()` or a validator. A model declared for one event stream is bound to the command's route, as for a parameter |
-| `IMongoCollection<T>` of a Chronicle-backed model | **Refused** when the parameter is resolved |
+| `IMongoCollection<T>` of a Chronicle-backed model | **Refused** when the parameter is resolved, unless the parameter or read-model type is `[Unprotected("why")]` |
 | `IEventLog.Append` (an immediate append), anywhere in the invocation | **Refused**. `IEventLog.Transactional.Append` stages the event and is allowed |
 | An aggregate and a plain read of the same source | **Refused**. A plain read of a different source is fine |
 | A service, another database, HTTP | **Unknown** |
@@ -72,6 +72,8 @@ Use `[Unprotected("why")]` for context the command may accept as stale, not for 
 | A read-model type | Every parameter of that type, in every command, and the type injected into a command filter or a service | Use for reference data you accept as stale |
 | A `Handle()` or `Provide()` method | **The method body only**: calls to `IReadModels` and other raw reads inside it | It does not cover the method's parameters. [ARCCHR0034](../code-analysis/ARCCHR0034.md) reports a method-level declaration beside read-model parameters |
 | A command | The whole command runs as `Off` | Use it for one command you cannot move yet |
+
+For `IMongoCollection<T>` of a Chronicle-backed model under `On`, put `[Unprotected("why")]` on the collection parameter or on `T` to declare the read advisory. The collection resolves normally through dependency injection and records `advisory_read` with the declared reason. Its query results are not protected; inject the keyed read-model type instead when the command needs a protected read.
 
 ```csharp
 using Cratis.Arc.Chronicle.ReadModels;
