@@ -23,7 +23,7 @@ public sealed class PostgreSqlChangeNotifier(string connectionString, ILogger<Po
     /// </summary>
     static readonly TimeSpan _reconnectDelay = TimeSpan.FromSeconds(5);
 
-    readonly object _lock = new();
+    readonly Lock _lock = new();
 
     NpgsqlConnection? _connection;
     CancellationTokenSource? _listenerCts;

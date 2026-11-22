@@ -16,7 +16,7 @@ internal sealed class DevelopmentPatAuthority : IPatAuthority
 {
     readonly IHostEnvironment _environment;
     readonly TimeProvider _clock;
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly Dictionary<CredentialId, (PatRecord Record, PatIssuedIntent Intent)> _records = [];
     readonly Dictionary<(string Resource, string Verifier), CredentialId> _verifiers = [];
 

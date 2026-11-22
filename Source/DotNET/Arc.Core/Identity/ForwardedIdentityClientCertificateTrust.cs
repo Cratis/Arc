@@ -17,7 +17,7 @@ internal sealed class ForwardedIdentityClientCertificateTrust(string path, TimeP
 {
     const int MaximumBundleBytes = 1024 * 1024;
     static readonly ConcurrentDictionary<string, ForwardedIdentityClientCertificateTrust> _stores = new(StringComparer.Ordinal);
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly Dictionary<(string Fingerprint, long Generation), (bool Trusted, DateTime Expires)> _chains = [];
     X509Certificate2Collection _authorities = [];
     DateTimeOffset _nextReload;

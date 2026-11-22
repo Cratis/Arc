@@ -46,7 +46,7 @@ public class MongoDBWatcher(
 {
     readonly ConcurrentDictionary<WatchKey, Lazy<MongoDBDatabaseWatch>> _watches = new();
     readonly CancellationTokenSource _cts = new();
-    readonly object _lifetimeGate = new();
+    readonly Lock _lifetimeGate = new();
     readonly List<Task> _workers = [];
     readonly IReadModelSinks? _readModelSinks;
     readonly IMongoDBSinks? _sinks;

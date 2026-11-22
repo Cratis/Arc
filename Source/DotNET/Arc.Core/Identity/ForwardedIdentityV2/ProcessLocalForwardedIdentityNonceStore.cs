@@ -10,7 +10,7 @@ namespace Cratis.Arc.Identity.ForwardedIdentityV2;
 /// <param name="capacity">The maximum live reservation count.</param>
 internal sealed class ProcessLocalForwardedIdentityNonceStore(int capacity = 100000) : IForwardedIdentityNonceStore
 {
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly HashSet<(string Audience, string KeyId, string Nonce)> _entries = [];
     readonly Dictionary<decimal, List<(string Audience, string KeyId, string Nonce)>> _expirations = [];
     readonly PriorityQueue<decimal, decimal> _expiryOrder = new();

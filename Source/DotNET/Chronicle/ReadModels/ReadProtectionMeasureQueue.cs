@@ -20,7 +20,7 @@ internal sealed class ReadProtectionMeasureQueue : IHostedService, IDisposable
         },
         dropped => ReadProtectionTelemetry.Record(dropped.Command, "measurement_unavailable", reason: "Scan queue dropped the oldest observation", logger: dropped.Logger));
     readonly CancellationTokenSource _stop = new();
-    readonly object _lifetime = new();
+    readonly Lock _lifetime = new();
     Task? _worker;
     bool _disposed;
 

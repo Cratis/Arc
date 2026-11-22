@@ -18,7 +18,7 @@ namespace Cratis.Arc.MongoDB;
 internal sealed class MongoDBDatabaseWatch(IMongoDatabase database, ILogger<MongoDBWatcher> logger, CancellationToken token)
     : IObservable<ChangeStreamDocument<BsonDocument>>
 {
-    readonly object _openGate = new();
+    readonly Lock _openGate = new();
     TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
     TimeSpan _delay = TimeSpan.FromSeconds(1);
     BsonDocument? _resumeToken;
