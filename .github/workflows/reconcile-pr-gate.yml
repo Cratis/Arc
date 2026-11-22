@@ -1,0 +1,46 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+name: Reconcile PR Gate
+
+# workflow_run is safe here: the job checks out only this repository's trusted default-branch
+# revision (github.workflow_sha), consumes no artifacts or code from the triggering run, and only
+# reads run metadata to rerun an existing gate job.
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [Pull Requests]
+    types: [completed]
+
+permissions: {}
+
+# Serialize rerun requests for a head. Do not cancel a writer midway through its API request.
+# Coalescing pending events is safe: each invocation reads the latest code and metadata runs.
+concurrency:
+  group: pr-gate-reconcile-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      # workflow_sha identifies this handler's trusted default-branch revision, never the PR head.
+      - name: Checkout trusted gate helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+      # Metadata completions also close the race where code finishes just before the gate fails.
+      # A repaired/successful metadata gate is a no-op, preventing a rerun loop.
+      - name: Reconcile latest metadata gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pr-gate-reconcile.mjs
