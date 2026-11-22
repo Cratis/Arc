@@ -5,7 +5,9 @@ using FluentValidation;
 
 namespace Cratis.Arc.Validation.for_DiscoverableModelValidator.given;
 
-// NSubstitute's class proxy supports the default interface members through these abstract implementations.
+/// <summary>
+/// Supports substituting default interface members through abstract implementations for NSubstitute's class proxy.
+/// </summary>
 public abstract class DiscoverableValidatorsSubstitute : IDiscoverableValidators
 {
     public abstract bool HasValidatorFor(Type modelType);
