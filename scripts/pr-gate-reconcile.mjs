@@ -16,33 +16,48 @@ function matchesHead(pull, run) {
     return [pull.state === 'open', pull.head?.sha === run.head_sha, pull.head?.repo?.full_name === run.head_repository.full_name].every(Boolean);
 }
 
+const isValidRepository = repository => /^[\w.-]+\/[\w.-]+$/.test(repository);
+
+function assertHeadReference(run) {
+    if (!isValidRepository(run.head_repository?.full_name) || !run.head_branch) throw new Error('Invalid head repository/branch.');
+}
+
 async function hasCurrentPullRequest(api, run) {
-    const repository = run.head_repository?.full_name;
-    if (!/^[\w.-]+\/[\w.-]+$/.test(repository) || !run.head_branch) throw new Error('Invalid head repository/branch.');
+    assertHeadReference(run);
+    const repository = run.head_repository.full_name;
     // workflow_run.pull_requests may be empty, including for forks. Read current PR heads instead.
     const head = encodeURIComponent(`${repository.split('/')[0]}:${run.head_branch}`);
     const pulls = await api.pages(`/pulls?state=open&head=${head}`);
     return pulls.some(pull => matchesHead(pull, run));
 }
 
-function failedCodeLookup(jobs, meta) {
+function singleGate(jobs) {
     const gates = jobs.filter(job => job.name === 'gate');
     if (gates.length > 1) throw new Error('Multiple gate jobs in the current attempt.');
-    const gate = gates[0];
-    if (!gate) return undefined;
-    const currentFailure = [gate.run_id === meta.id, gate.run_attempt === meta.run_attempt, gate.status === 'completed', gate.conclusion === 'failure'].every(Boolean);
-    if (!currentFailure) return undefined;
-    const stepHas = (name, conclusion) => gate.steps?.some(step => step.name === name && step.conclusion === conclusion);
-    return stepHas(AGGREGATE_STEP, 'success') && stepHas(CODE_STEP, 'failure') ? gate : undefined;
+    return gates[0];
 }
+
+const isCurrentFailure = (gate, meta) =>
+    [gate.run_id === meta.id, gate.run_attempt === meta.run_attempt, gate.status === 'completed', gate.conclusion === 'failure'].every(Boolean);
+
+const stepHas = (gate, name, conclusion) => gate.steps?.some(step => step.name === name && step.conclusion === conclusion);
+
+const failedAtCodeLookup = gate => stepHas(gate, AGGREGATE_STEP, 'success') && stepHas(gate, CODE_STEP, 'failure');
+
+function failedCodeLookup(jobs, meta) {
+    const gate = singleGate(jobs);
+    if (!gate || !isCurrentFailure(gate, meta)) return undefined;
+    return failedAtCodeLookup(gate) ? gate : undefined;
+}
+
+const isUsableSource = (source, hint) =>
+    sameAttempt(source, hint) && source.status === 'completed' && (isMetaRun(source) || successful(source));
 
 async function completedSource(api, repository, event, expected) {
     if (event.repository?.full_name !== repository) throw new Error('Unexpected event repository.');
     const hint = assertRun(event.workflow_run, expected);
     const source = await currentRun(api, hint, expected);
-    if (!sameAttempt(source, hint) || source.status !== 'completed') return undefined;
-    if (isMetaRun(source) || successful(source)) return source;
-    return undefined;
+    return isUsableSource(source, hint) ? source : undefined;
 }
 
 async function currentPair(api, expected) {
