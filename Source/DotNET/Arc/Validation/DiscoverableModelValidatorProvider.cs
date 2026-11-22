@@ -13,26 +13,24 @@ namespace Cratis.Arc.Validation;
 public class DiscoverableModelValidatorProvider(IDiscoverableValidators discoverableValidators) : IModelValidatorProvider
 {
     /// <inheritdoc/>
+    /// <exception cref="ReadModelValidatorRequiresCommandPipeline">Checking validator availability requires a command context.</exception>
     public void CreateValidators(ModelValidatorProviderContext context)
     {
+        var modelType = context.ModelMetadata.ModelType;
         try
         {
-            if (discoverableValidators.TryGet(context.ModelMetadata.ModelType, out var validator))
+            if (discoverableValidators.HasValidatorFor(modelType))
             {
-                var modelValidator = new DiscoverableModelValidator(validator);
                 context.Results.Add(new ValidatorItem
                 {
                     IsReusable = false,
-                    Validator = modelValidator
+                    Validator = new DiscoverableModelValidator(modelType, discoverableValidators)
                 });
             }
         }
         catch (NoCommandContextAvailable exception)
         {
-            // MVC model validation runs during model binding, before the command context is established, so a
-            // validator that depends on a command-scoped read model cannot be constructed here. Surface an
-            // actionable error instead of the opaque dependency-resolution failure.
-            throw new ReadModelValidatorRequiresCommandPipeline(context.ModelMetadata.ModelType, exception);
+            throw new ReadModelValidatorRequiresCommandPipeline(modelType, exception);
         }
     }
 }

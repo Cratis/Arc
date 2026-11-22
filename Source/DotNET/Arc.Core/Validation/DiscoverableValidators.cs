@@ -49,6 +49,9 @@ public class DiscoverableValidators : IDiscoverableValidators
     }
 
     /// <inheritdoc/>
+    public bool HasValidatorFor(Type modelType) => _validatorTypesByModelType.ContainsKey(modelType);
+
+    /// <inheritdoc/>
     public bool TryGet(Type modelType, [MaybeNullWhen(false)] out IValidator validator) =>
         TryGet(modelType, _serviceProviderAccessor(), out validator);
 

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Validation.for_DiscoverableModelValidator.given;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
@@ -14,7 +15,7 @@ public class a_discoverable_model_validator_provider : Specification
 
     void Establish()
     {
-        _discoverableValidators = Substitute.For<IDiscoverableValidators>();
+        _discoverableValidators = Substitute.For<DiscoverableValidatorsSubstitute>();
         _provider = new DiscoverableModelValidatorProvider(_discoverableValidators);
 
         var modelMetadataProvider = new EmptyModelMetadataProvider();
