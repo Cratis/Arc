@@ -28,5 +28,5 @@ jobs:
         with:
           package-manager-cache: false
           node-version: 23.x
-      - name: Check Chronicle inputs
-        run: node --test scripts/chronicle-published-inputs.test.mjs scripts/raise-central-cratis-pins.test.mjs
+      - name: Check workflow helpers
+        run: node --test scripts/chronicle-published-inputs.test.mjs scripts/raise-central-cratis-pins.test.mjs scripts/pr-gate-context.test.mjs scripts/pr-gate-reconcile.test.mjs scripts/pr-gate-workflows.test.mjs
