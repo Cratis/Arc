@@ -19,8 +19,9 @@ public class when_query_validation_has_an_explicit_bound_invocation : given.an_e
             _value = await call.Arg<IValidationContext>().ProvidedValues().GetAsync("value");
             return new FluentValidation.Results.ValidationResult();
         });
-        using var snapshot = OperationSnapshot.Begin(_services, () => null);
         await new Queries.Filters.AvailabilityFilter(_performers).OnPerform(_query);
+        using var snapshot = OperationSnapshot.Begin(_services, () => null);
+        InvocationContextValues.Attach(snapshot, _query.ProvidedValues);
         await new ValidatorInvoker(NullLogger<ValidatorInvoker>.Instance).Invoke(42, validator, "count");
     }
 

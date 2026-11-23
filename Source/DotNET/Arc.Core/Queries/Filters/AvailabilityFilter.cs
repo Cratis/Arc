@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Availability;
-using Cratis.Arc.Contexts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -23,11 +22,6 @@ public class AvailabilityFilter(IQueryPerformerProviders queryPerformerProviders
     public async Task<QueryResult> OnPerform(QueryContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
-        if (OperationSnapshot.Current is { } snapshot)
-        {
-            InvocationContextValues.Attach(snapshot, context.ProvidedValues);
-        }
-
         var gate = context.ServiceProvider?.GetService<IAvailabilityGate>();
         if (gate is null ||
             context.ServiceProvider is null ||
