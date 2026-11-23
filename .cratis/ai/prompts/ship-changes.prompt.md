@@ -83,8 +83,15 @@ cost real disk and accumulate across sessions. After the merge succeeds:
    It fetches, checks out nothing, and removes only worktrees and local branches whose work is
    verifiably on the default branch; it never forces and reports what it kept and why. Worktrees holding
    non-empty `.ai-work/` directories are kept by default. Preserve any needed records before a manual
-   `--include-work-records` opt-in; automatic hooks never opt in. Use `git worktree lock <path>` to pin a
-   long-lived worktree; locked worktrees remain kept even with opt-in.
+   `--include-work-records=<path>` opt-in (repeatable, exact worktree only; bare flag exits 2).
+   This permits clean tracked records, never ignored/untracked files: archive or remove those first,
+   including `.ai-work/`. Automatic hooks never opt in. Use `git worktree lock <path>` to pin a
+   long-lived worktree; locked and live-held worktrees remain kept even with opt-in. Holder checks
+   prefer validated `pi-holders --json` with `jq`, otherwise one process-wide `lsof` name listing per
+   candidate (not `+D`, up to three attempts on incomplete/error results). Only the script/descendants
+   are excluded; ancestor shells/sessions still count. Unrelated absolute-path FD-info diagnostics do
+   not block cleanup; missing tools, unresolved errors, incomplete target/unknown paths and shared-inode
+   ambiguity keep it. Status is rechecked after holders, immediately before removal.
 3. `git switch main && git pull --ff-only` in the main checkout so it matches the merged result.
 
 Claude Code and Pi also run the script from a hook after `gh pr merge` and at session start; running it
