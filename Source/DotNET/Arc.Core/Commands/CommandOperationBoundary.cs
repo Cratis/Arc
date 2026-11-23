@@ -2,6 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+#if NET11_0_OR_GREATER
+using System.Runtime.CompilerServices;
+#endif
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -75,19 +78,46 @@ public static class CommandOperationBoundary
         type.GetInterfaces().Append(type).Any(contract => contract.IsGenericType &&
             contract.GetGenericTypeDefinition() == typeof(IEnumerable<>) && MayContainOperations(contract.GetGenericArguments()[0]));
 
-    static bool MayContainOperations(Type type)
+    static bool MayContainOperations(Type type) => MayContainOperations(type, []);
+
+    static bool MayContainOperations(Type type, HashSet<Type> visited)
     {
+        if (!visited.Add(type))
+        {
+            return false;
+        }
+
         if (type == typeof(CommandOperations) || typeof(ICommandOperation).IsAssignableFrom(type))
         {
             return true;
         }
 
-        if (type.IsGenericType && (type.Namespace == "System.Threading.Tasks" || type.FullName!.StartsWith("System.ValueTuple", StringComparison.Ordinal) ||
-            typeof(IOneOf).IsAssignableFrom(type) || type.GetGenericTypeDefinition() == typeof(Nullable<>)))
+#if NET11_0_OR_GREATER
+        if (typeof(IUnion).IsAssignableFrom(type))
         {
-            return type.GetGenericArguments().Any(MayContainOperations);
+            return UnionCaseConvention.CaseTypes(type).Any(caseType => MayContainOperations(caseType, visited));
+        }
+#endif
+        if (IsOperationContainer(type))
+        {
+            return type.GetGenericArguments().Any(argument => MayContainOperations(argument, visited));
         }
 
         return false;
+    }
+
+    static bool IsOperationContainer(Type type)
+    {
+        if (!type.IsGenericType)
+        {
+            return false;
+        }
+
+        if (type.Namespace == "System.Threading.Tasks" || type.FullName!.StartsWith("System.ValueTuple", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return typeof(IOneOf).IsAssignableFrom(type) || type.GetGenericTypeDefinition() == typeof(Nullable<>);
     }
 }

@@ -43,54 +43,82 @@ internal static class CommandResponseTypes
             return;
         }
 
-        if (type is INamedTypeSymbol named)
+        if (type is not INamedTypeSymbol named)
         {
-            var definition = named.OriginalDefinition.ToDisplayString();
+            types.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
+            return;
+        }
 
-            // A non-generic Task or ValueTask is awaited and never becomes a response.
-            if (string.Equals(definition, "System.Threading.Tasks.Task", StringComparison.Ordinal) || string.Equals(definition, "System.Threading.Tasks.ValueTask", StringComparison.Ordinal))
+        // A non-generic Task or ValueTask is awaited and never becomes a response.
+        if (IsAwaitable(named, false))
+        {
+            return;
+        }
+
+        if (HasSingleWrappedValue(named))
+        {
+            Collect(named.TypeArguments[0], types, depth + 1, insideTuple);
+            return;
+        }
+
+        if (TupleElements(named) is { IsDefault: false } elements)
+        {
+            // A nested tuple itself may be the response, while operation flattening can expose its elements instead.
+            if (insideTuple)
             {
-                return;
+                types.Add(named.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
             }
 
-            if (named.IsGenericType && (definition == "System.Threading.Tasks.Task<TResult>" || definition == "System.Threading.Tasks.ValueTask<TResult>" ||
-                named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
-            {
-                Collect(named.TypeArguments[0], types, depth + 1, insideTuple);
-                return;
-            }
+            CollectEach(elements, types, depth + 1, true);
+            return;
+        }
 
-            if (TupleElements(named) is { IsDefault: false } elements)
-            {
-                // The pipeline takes the elements of a returned tuple as the response candidates. A tuple that is itself
-                // an element is the response when not every value in it is handled by a value handler, and its own
-                // elements are the candidates when the response is flattened for operations, so both can be the response.
-                if (insideTuple)
-                {
-                    types.Add(named.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
-                }
-
-                foreach (var element in elements)
-                {
-                    Collect(element, types, depth + 1, true);
-                }
-
-                return;
-            }
-
-            if (OneOfArguments(named) is { IsDefault: false } arms)
-            {
-                foreach (var arm in arms)
-                {
-                    Collect(arm, types, depth + 1, insideTuple);
-                }
-
-                return;
-            }
+        if (UnionCases(named) is { IsDefault: false } arms)
+        {
+            CollectEach(arms, types, depth + 1, insideTuple);
+            return;
         }
 
         types.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
     }
+
+    static bool HasSingleWrappedValue(INamedTypeSymbol type) => type.IsGenericType &&
+        (type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T || IsAwaitable(type, true));
+
+    static bool IsAwaitable(INamedTypeSymbol type, bool generic)
+    {
+        var definition = type.OriginalDefinition.ToDisplayString();
+        var task = generic ? "System.Threading.Tasks.Task<TResult>" : "System.Threading.Tasks.Task";
+        var valueTask = generic ? "System.Threading.Tasks.ValueTask<TResult>" : "System.Threading.Tasks.ValueTask";
+        return string.Equals(definition, task, StringComparison.Ordinal) || string.Equals(definition, valueTask, StringComparison.Ordinal);
+    }
+
+    static void CollectEach(ImmutableArray<ITypeSymbol> elements, List<ITypeSymbol> types, int depth, bool insideTuple)
+    {
+        foreach (var element in elements)
+        {
+            Collect(element, types, depth, insideTuple);
+        }
+    }
+
+    static ImmutableArray<ITypeSymbol> UnionCases(INamedTypeSymbol type)
+    {
+        // Use metadata names so the generator remains loadable by hosts without the .NET 11 contracts.
+        if (type.AllInterfaces.Any(contract => contract.ToDisplayString() == "System.Runtime.CompilerServices.IUnion"))
+        {
+            return [.. type.InstanceConstructors
+                .Where(IsUnionCaseConstructor)
+                .Select(constructor => constructor.Parameters[0].Type)];
+        }
+
+        return OneOfArguments(type);
+    }
+
+    static bool IsUnionCaseConstructor(IMethodSymbol constructor) => constructor.DeclaredAccessibility == Accessibility.Public &&
+        UnionCaseConvention.IsCaseConstructor(IsCompilerGenerated(constructor), constructor.Parameters.Length);
+
+    static bool IsCompilerGenerated(IMethodSymbol constructor) => constructor.IsImplicitlyDeclared ||
+        constructor.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == UnionCaseConvention.CompilerGeneratedAttributeName);
 
     /// <summary>
     /// Gets the element types of a value tuple or System.Tuple, which the pipeline both treats as ITuple.

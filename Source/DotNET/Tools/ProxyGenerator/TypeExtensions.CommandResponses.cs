@@ -57,21 +57,7 @@ public static partial class TypeExtensions
     /// </summary>
     /// <param name="type">The declared return shape.</param>
     /// <returns>Whether the explicit CommandOperations wrapper is required.</returns>
-    public static bool ContainsBareCommandOperationCollection(this Type type)
-    {
-        if (type.FullName == "Cratis.Arc.Commands.CommandOperations" && IsCommandOperationContract(type))
-        {
-            return false;
-        }
-
-        var contracts = type.GetInterfaces().Append(type);
-        if (contracts.Any(IsEnumerableOfCommandOperationValue))
-        {
-            return true;
-        }
-
-        return type.IsGenericType && type.GetGenericArguments().Any(ContainsBareCommandOperationCollection);
-    }
+    public static bool ContainsBareCommandOperationCollection(this Type type) => ContainsBareCommandOperationCollection(type, []);
 
     /// <summary>
     /// Get the best type from a tuple by selecting either a ConceptAs implementation or a primitive type.
@@ -129,12 +115,12 @@ public static partial class TypeExtensions
     /// <returns>The selected response candidate, or null if none remains.</returns>
     internal static Type? GetBestOneOfResponseType(this Type type, bool appliesResponseValueHandlers)
     {
-        if (!type.IsOneOf())
+        if (!type.IsOneOf() && !type.IsNativeUnion())
         {
             return null;
         }
 
-        var genericArguments = type.GetGenericArguments();
+        var genericArguments = type.IsNativeUnion() ? type.NativeUnionCases() : type.GetGenericArguments();
         var candidateTypes = new List<Type>();
 
         foreach (var arg in genericArguments)
@@ -222,6 +208,43 @@ public static partial class TypeExtensions
             .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
             .Where(_ => _ is not null)
             .Cast<string>();
+    }
+
+    /// <summary>
+    /// Determines whether a type implements the native union contract, including metadata-only types.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <returns>Whether the type is a native union.</returns>
+    internal static bool IsNativeUnion(this Type type) => type.GetInterfaces()
+        .Any(contract => contract.FullName == "System.Runtime.CompilerServices.IUnion");
+
+    /// <summary>
+    /// Gets declared cases from compiler-generated case constructors, excluding user-defined constructors.
+    /// </summary>
+    /// <param name="type">The union type to inspect.</param>
+    /// <returns>The declared case types.</returns>
+    internal static IEnumerable<Type> NativeUnionCases(this Type type) => UnionCaseConvention.CaseTypes(type);
+
+    static bool ContainsBareCommandOperationCollection(Type type, HashSet<Type> visited)
+    {
+        if (!visited.Add(type))
+        {
+            return false;
+        }
+
+        if (type.FullName == "Cratis.Arc.Commands.CommandOperations" && IsCommandOperationContract(type))
+        {
+            return false;
+        }
+
+        var contracts = type.GetInterfaces().Append(type);
+        if (contracts.Any(IsEnumerableOfCommandOperationValue))
+        {
+            return true;
+        }
+
+        var candidates = type.IsNativeUnion() ? type.NativeUnionCases() : type.GetGenericArguments();
+        return candidates.Any(candidate => ContainsBareCommandOperationCollection(candidate, visited));
     }
 
     static bool HasServerHandledAttribute(Type type, HashSet<string> handledAttributeIdentities)
@@ -348,7 +371,7 @@ public static partial class TypeExtensions
             return type.GetBestTupleType(appliesResponseValueHandlers);
         }
 
-        if (type.IsOneOf())
+        if (type.IsOneOf() || type.IsNativeUnion())
         {
             return type.GetBestOneOfResponseType(appliesResponseValueHandlers);
         }
