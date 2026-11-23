@@ -10,6 +10,7 @@ using Cratis.Arc.Validation;
 using Cratis.Strings;
 using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
@@ -48,6 +49,35 @@ public class QueryActionFilter(
         {
             await next();
         }
+    }
+
+    static QueryArguments GetCallerArguments(ActionExecutingContext context)
+    {
+        var services = context.HttpContext.RequestServices.GetService<IServiceProviderIsService>();
+        var arguments = new QueryArguments();
+        foreach (var parameter in context.ActionDescriptor.Parameters.Where(parameter => IsCallerBound(parameter, services)))
+        {
+            if (context.ActionArguments.TryGetValue(parameter.Name, out var value))
+            {
+                arguments[parameter.Name] = value!;
+            }
+        }
+        return arguments;
+    }
+
+    static bool IsCallerBound(ParameterDescriptor parameter, IServiceProviderIsService? services)
+    {
+        if (parameter.ParameterType == typeof(CancellationToken) || parameter.BindingInfo?.ServiceKey is not null)
+        {
+            return false;
+        }
+        if (parameter is ControllerParameterDescriptor controllerParameter &&
+            controllerParameter.ParameterInfo.IsDefined(typeof(FromKeyedServicesAttribute), inherit: true))
+        {
+            return false;
+        }
+
+        return parameter.BindingInfo?.BindingSource?.IsFromRequest ?? (services?.IsService(parameter.ParameterType) != true);
     }
 
     static bool AdmitTenant(IServiceProvider services)
@@ -228,11 +258,7 @@ public class QueryActionFilter(
     {
         var httpContext = context.HttpContext;
         var queryName = context.ActionDescriptor.DisplayName ?? "[NotSet]";
-        var arguments = new QueryArguments();
-        foreach (var argument in context.ActionArguments)
-        {
-            arguments[argument.Key] = argument.Value!;
-        }
+        var arguments = GetCallerArguments(context);
         var sorting = httpContext.GetSortingInfo();
         var paging = httpContext.GetPagingInfo();
         var correlationId = httpContext.GetCorrelationId();

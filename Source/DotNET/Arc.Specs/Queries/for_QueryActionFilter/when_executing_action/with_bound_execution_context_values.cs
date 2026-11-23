@@ -5,6 +5,7 @@ using System.Reflection;
 using Cratis.Arc.Availability;
 using Cratis.Arc.Contexts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +32,12 @@ public class with_bound_execution_context_values : given.a_query_action_filter
         _services = new ServiceCollection().AddSingleton<IContextValueSource>(source).AddSingleton(clock).BuildServiceProvider();
         _httpContext.RequestServices = _services;
         _actionContext.ActionArguments["count"] = 42;
+        _actionContext.ActionDescriptor.Parameters = [new ParameterDescriptor
+        {
+            Name = "count",
+            ParameterType = typeof(int),
+            BindingInfo = new() { BindingSource = Microsoft.AspNetCore.Mvc.ModelBinding.BindingSource.Query }
+        }];
         ((ControllerActionDescriptor)_actionContext.ActionDescriptor).ControllerTypeInfo = typeof(TestReadModel).GetTypeInfo();
         _queryContextManager.When(manager => manager.Set(Arg.Any<QueryContext>())).Do(call => _context = call.Arg<QueryContext>());
     }
