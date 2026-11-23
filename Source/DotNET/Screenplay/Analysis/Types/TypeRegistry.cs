@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -181,16 +182,29 @@ public class TypeRegistry
         !CarriedTypes.IsRecord(type);
 
     /// <summary>
-    /// Registers unused public top-level concepts without taking a name already owned by an artifact use.
+    /// Registers unused declarations against the completed document's namespace.
+    /// </summary>
+    /// <param name="types">The locally declared types eligible for recovery.</param>
+    /// <param name="model">The completed application before unused declaration recovery.</param>
+    /// <param name="options">The namespace layout used by the emitter.</param>
+    internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types, ApplicationModel model, ScreenplayOptions options) =>
+        RegisterDeclarations(types, DeclarationNames.In(model, options.SegmentsToSkip ?? 0));
+
+    /// <summary>
+    /// Registers unused public top-level concepts without taking a normalized name owned by the document.
     /// </summary>
     /// <param name="types">The types declared by the analyzed compilations.</param>
-    internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types)
+    /// <param name="declaredNames">Every declaration the completed application already owns.</param>
+    internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types, IEnumerable<string> declaredNames)
     {
+        var naming = new ScreenplayNaming();
+        var occupied = declaredNames.Concat(Names).Select(naming.ToDeclarationName).ToHashSet(StringComparer.Ordinal);
         foreach (var type in types.Where(type => type.ContainingType is null && type.DeclaredAccessibility == Accessibility.Public))
         {
-            if (!Names.Contains(type.Name))
+            var name = naming.ToDeclarationName(type.Name);
+            if (!occupied.Contains(name) && _concepts.TryRegister(type))
             {
-                _concepts.TryRegister(type);
+                occupied.Add(name);
             }
         }
     }
