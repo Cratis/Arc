@@ -24,6 +24,18 @@ Multiple unhandled tuple values cause `MultipleUnhandledTupleValues` internally.
 
 The built-in handler consumes **one `Cratis.Arc.Validation.ValidationResult`**. It does not consume `ValidationResult[]` or `IEnumerable<ValidationResult>` returned by `Handle()`. On this ordinary response path, an unhandled collection becomes response data, or conflicts with another unhandled tuple value. The distinction applies only there: when the returned values include an `ICommandOperation` or `CommandOperations`, the pipeline classifies the values separately, treats a validation collection as a control value rather than a response candidate, and never returns it as response data. A declared union alone does not select that path; it applies only when the active runtime value contains an operation. Neither path makes `Handle()` collection validation a supported contract, so return a single `ValidationResult` (or a `Result` with a `ValidationResult` error) to report a failure. `Provide()` has a [different control-result contract](../../../scenarios/provide-data-to-a-command.mdx) that does recognize validation collections.
 
+## Native C# union returns (.NET 11)
+
+On .NET 11, `Handle()` can return a native C# union directly, through `Task<T>`, or through `ValueTask<T>`. For example, declare `public readonly union AllocationOutcome(Guid, AllocationLog, ValidationResult);` using the handled value defined below. Arc processes only the active case, just as it does for `Result` and `OneOf`. Native unions can also contain tuple alternatives or be nested inside the existing wrappers and tuples. Operations in the active case follow the existing command-operation rules; a bare operation collection still requires `CommandOperations`.
+
+A default union has no active non-null case. Arc rejects it before executing operations or response-value handlers, even when it occurs in a later tuple element. Do not use a default union to mean a successful command with nothing to record; return a `ValidationResult` rejection when a rule does not hold.
+
+The JSON response is the active client-visible value, not a union wrapper, `Value` property, or discriminator. This support is for command **return values only**: it does not add union request deserialization, query unions, or `Provide()` unions. Object-case unions are not automatically round-trippable without a System.Text.Json classifier.
+
+Generated TypeScript proxies retain the existing best-response selection, not an `A | B` contract. For model-bound commands they exclude server-handled cases, recursively inspect wrappers and tuples, prefer a concept, then a primitive, then the first remaining candidate. If no client candidate remains, the command has no typed response. Multiple client-visible cases therefore are not fully represented by the generated proxy. Controller outputs retain their existing classification without model-bound handler exclusions.
+
+Analyzers enforcing CA1815 flag union declarations because the compiler-generated struct has no value equality; `readonly union` avoids IDE0250. Chronicle analyzer recognition of native union alternatives is separate from this runtime support.
+
 ## Result with tuple alternatives
 
 A `Result` can use a tuple as an alternative. In `Result<(Guid, AllocationLog), ValidationResult>`, the active success alternative supplies both the caller's `Guid` response and an `AllocationLog` for server-side handling. If the active alternative is instead a `ValidationResult` error, Arc's built-in handler records a validation failure; the success tuple is not processed.

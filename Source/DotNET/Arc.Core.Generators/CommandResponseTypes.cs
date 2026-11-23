@@ -78,7 +78,7 @@ internal static class CommandResponseTypes
                 return;
             }
 
-            if (OneOfArguments(named) is { IsDefault: false } arms)
+            if (UnionCases(named) is { IsDefault: false } arms)
             {
                 foreach (var arm in arms)
                 {
@@ -90,6 +90,21 @@ internal static class CommandResponseTypes
         }
 
         types.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
+    }
+
+    static ImmutableArray<ITypeSymbol> UnionCases(INamedTypeSymbol type)
+    {
+        // Use metadata names so the generator remains loadable by hosts without the .NET 11 contracts.
+        if (type.AllInterfaces.Any(contract => contract.ToDisplayString() == "System.Runtime.CompilerServices.IUnion"))
+        {
+            return [.. type.InstanceConstructors
+                .Where(constructor => constructor.DeclaredAccessibility == Accessibility.Public)
+                .SelectMany(constructor => constructor.Parameters)
+                .Where(parameter => !parameter.IsOptional)
+                .Select(parameter => parameter.Type)];
+        }
+
+        return OneOfArguments(type);
     }
 
     /// <summary>
