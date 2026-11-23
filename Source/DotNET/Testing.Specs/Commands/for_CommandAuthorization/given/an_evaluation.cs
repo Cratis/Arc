@@ -40,7 +40,7 @@ public class an_evaluation : Specification
         Services = new ServiceCollection().AddLogging().AddOptions();
         Services.AddCratisArcCore();
         var types = Substitute.For<ITypes>();
-        types.All.Returns([typeof(RoleCommand), typeof(ResourceCommand), typeof(UnrestrictedCommand), typeof(NestedEvaluationCommand), typeof(ResourceValidator)]);
+        types.All.Returns([typeof(RoleCommand), typeof(ResourceCommand), typeof(UnrestrictedCommand), typeof(NestedEvaluationCommand), typeof(ResourceValidator), typeof(ApprovalCommand)]);
         types.FindMultiple(typeof(IDiscoverableValidator<>)).Returns([typeof(ResourceValidator)]);
         Services.AddSingleton(types);
         Services.AddTransient<ResourceValidator>();

@@ -12,6 +12,9 @@ namespace Cratis.Arc.Testing.Commands;
 /// Use a dedicated application-configured scope. Policies and lazy context providers may execute application code.
 /// Hosted authentication, pipeline binding and tenant-membership verification are not reproduced.
 /// In particular, this helper does not reproduce read-model key-resolution refusals during binding.
+/// Commands requiring approval are Unsupported (approval-required), even when an approval flow is registered.
+/// Gated commands using Arc's availability filter are Unsupported (availability-gate); ungated built-in filters are supported.
+/// Custom command filters, including ordinary filters, are Unsupported (custom-filter).
 /// Authorized means declared authorization passed; it does not imply the command will run.
 /// </remarks>
 public static class CommandAuthorization

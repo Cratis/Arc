@@ -98,6 +98,12 @@ The explicit principal is temporarily installed and restored, including on rejec
 
 Recognized caller refusals, including `UnauthorizedCause` during preparation, produce Denied. Escaping `ReadModelKeyResolutionDenied` (also when wrapped) produces Unsupported with `read-model-key-resolution`. The helper does not reproduce key-resolution refusals during pipeline binding. It likewise does not reproduce tenant-membership verification.
 
+Commands marked `[RequiresApproval]`, including inherited requirements, are Unsupported with `approval-required`. This applies both with and without an approval flow: a registered flow is arbitrary application behavior, and without one both pipeline execution and validation refuse the command. Use a command scenario to exercise that boundary.
+
+Custom command filters are Unsupported with `custom-filter`, including ordinary `ICommandFilter` implementations that do not implement an authorization marker interface. They can still refuse a command. The helper recognizes audited built-in filters by exact type, not by an authorization marker or namespace. Arc's built-in authorization filter is reproduced by the helper; its built-in validation filters (including Chronicle's required-concept filter) are not executed. Do not infer that validation will pass from an Authorized result.
+
+Arc's real built-in `AvailabilityFilter` is supported when no gate is registered or `IAvailabilityGate.IsGated(commandType)` is false. A gated command is Unsupported with `availability-gate`. The helper only checks `IsGated`; it does not call `Decide` or run the availability filter. Thus an application using the standard built-in filters can evaluate an ungated command without removing registrations.
+
 Unsupported results expose a stable reason code and a safe explanation, without principal claims, resource contents or exception messages:
 
 | Reason code | Next step |
@@ -111,7 +117,9 @@ Unsupported results expose a stable reason code and a safe explanation, without 
 | `context-invalid` | Supply a matching, unevaluated context owned by this provider. |
 | `invalid-configuration` | Correct the declaration or policy registration. |
 | `async-runtime-required` | Use an asynchronous authorization runtime. |
-| `custom-filter` | Use a scenario for authorization or availability filters other than Arc's authorization filter. |
+| `approval-required` | Use a command scenario for a command requiring approval, with or without a registered flow. |
+| `availability-gate` | Use a command scenario to evaluate a gated command's availability. |
+| `custom-filter` | Use a command scenario for any custom command filter, including ordinary filters. |
 | `tenant-membership` | Use a hosted scenario for tenant membership and operation snapshots. |
 | `read-model-key-resolution` | Use a command scenario to exercise binding and caller-derived lookups. |
 

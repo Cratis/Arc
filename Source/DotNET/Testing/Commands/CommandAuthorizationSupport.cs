@@ -3,8 +3,8 @@
 
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
-using Cratis.Arc.Commands.Filters;
 using Cratis.Arc.Http;
+using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Tenancy;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +32,16 @@ static class CommandAuthorizationSupport
             return CommandAuthorizationResult.Unsupported(type, "context-invalid", "Supply a matching command and an unevaluated context owned by this provider.");
         }
 
+        if (ApprovalGate.RequiresApproval(type))
+        {
+            return CommandAuthorizationResult.Unsupported(type, "approval-required", "Use a command scenario for commands requiring approval, whether or not a flow is registered.");
+        }
+
+        return InspectServices(type, services) ?? InspectPipeline(type, services);
+    }
+
+    static CommandAuthorizationResult? InspectServices(Type type, IServiceProvider services)
+    {
         if (services.GetService<IHttpRequestContextAccessor>()?.Current is not null)
         {
             return CommandAuthorizationResult.Unsupported(type, "host-required", "Use a hosted scenario for an active HTTP request.");
@@ -48,19 +58,19 @@ static class CommandAuthorizationSupport
             return CommandAuthorizationResult.Unsupported(type, "runtime-unsupported", "Use a hosted scenario for host or custom authorization runtimes.");
         }
 
+        return null;
+    }
+
+    static CommandAuthorizationResult? InspectPipeline(Type type, IServiceProvider services)
+    {
+        var probe = services.GetRequiredService<IServiceProviderIsService>();
         var memberships = services.GetService<IInstancesOf<ITenantMembership>>();
         if (probe.IsService(typeof(ITenantMembership)) || memberships?.Any() == true)
         {
             return CommandAuthorizationResult.Unsupported(type, "tenant-membership", "Use a hosted scenario to verify tenant membership and operation snapshots.");
         }
 
-        var filters = services.GetService<IInstancesOf<ICommandFilter>>();
-        if (filters?.Any(filter => filter is IAuthorizationCommandFilter && filter.GetType() != typeof(AuthorizationFilter)) == true)
-        {
-            return CommandAuthorizationResult.Unsupported(type, "custom-filter", "Use a command scenario to evaluate custom command filters.");
-        }
-
-        return null;
+        return CommandAuthorizationFilters.Inspect(type, services);
     }
 
     static bool InvalidFixture(Type type, IServiceProvider services, CommandContext fixture) =>
