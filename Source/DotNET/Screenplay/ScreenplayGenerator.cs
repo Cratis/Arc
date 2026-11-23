@@ -43,7 +43,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
 
     /// <inheritdoc/>
     public ScreenplayGenerationResult Generate(DotNetProjectCompilation project, ScreenplayOptions options) =>
-        Generate(project.Compilation, options);
+        Generate([project], options);
 
     /// <inheritdoc/>
     /// <remarks>
@@ -74,7 +74,11 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
 
     /// <inheritdoc/>
     public ScreenplayGenerationResult Generate(IReadOnlyList<DotNetProjectCompilation> projects, ScreenplayOptions options) =>
-        Generate([.. projects.Select(_ => _.Compilation)], options);
+        Generate([.. projects.Select(_ => _.Compilation)], options with
+        {
+            DeclarationCompilations = projects.Where(project => project.Role == DotNetProjectRole.Application)
+                .Select(project => project.Compilation).ToHashSet()
+        });
 
     /// <summary>
     /// Reads the printed document back and reports syntax and unexpected semantic binding errors.

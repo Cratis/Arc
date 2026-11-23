@@ -60,16 +60,10 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var diagnostics = whole.Diagnostics;
 
         var catalogs = ordered.Select(ArtifactCatalog.From).ToList();
-        whole.Types.RegisterDeclarations(catalogs.SelectMany(catalog => catalog.Types));
         var paths = SourceRoots.Across(ordered, catalogs, diagnostics, domain);
         var projects = ordered
             .Select((compilation, index) => CompilationAnalysis.Of(compilation, catalogs[index], paths[index], whole))
             .ToList();
-
-        foreach (var project in projects)
-        {
-            project.LinkConceptValidations();
-        }
 
         whole.AggregateRoots.Report(diagnostics);
         var retained = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
@@ -81,6 +75,13 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             whole.Types,
             new ScreenplayNaming(),
             diagnostics);
+        whole.Types.RegisterDeclarations(catalogs
+            .Where((_, index) => options.IncludesDeclarationsFrom(ordered[index]))
+            .SelectMany(catalog => catalog.Types));
+        foreach (var project in projects)
+        {
+            project.LinkConceptValidations();
+        }
 
         // Placing a read model reads what it holds, which can reach a type the document cannot name, so what cannot
         // be named is reported once every read model is in.

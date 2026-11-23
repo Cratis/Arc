@@ -181,16 +181,26 @@ public class TypeRegistry
         !CarriedTypes.IsRecord(type);
 
     /// <summary>
-    /// Registers local concept declarations independently of their use by an artifact.
+    /// Registers unused public top-level concepts without taking a name already owned by an artifact use.
     /// </summary>
     /// <param name="types">The types declared by the analyzed compilations.</param>
     internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types)
     {
-        foreach (var type in types)
+        foreach (var type in types.Where(type => type.ContainingType is null && type.DeclaredAccessibility == Accessibility.Public))
         {
-            _concepts.TryRegister(type);
+            if (!Names.Contains(type.Name))
+            {
+                _concepts.TryRegister(type);
+            }
         }
     }
+
+    /// <summary>
+    /// Determines whether this declaration contributed a concept.
+    /// </summary>
+    /// <param name="type">The concept declaration, from source or metadata.</param>
+    /// <returns>True when its declared-type identity was registered.</returns>
+    internal bool IsRegisteredConcept(INamedTypeSymbol type) => _concepts.IsRegistered(type);
 
     /// <summary>
     /// Resolves a command-generated type while preserving its generation use through admission failure.

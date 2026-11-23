@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Screenplay.Semantics;
+using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay;
 
@@ -80,6 +81,11 @@ public record ScreenplayOptions
     public SemanticVersion? MaximumExecutableModelVersion { get; init; }
 
     /// <summary>
+    /// Gets the application projects allowed to contribute unused local declarations when project roles are known.
+    /// </summary>
+    internal IReadOnlySet<Compilation>? DeclarationCompilations { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether every value has been filled in already.
     /// </summary>
     /// <remarks>
@@ -121,6 +127,13 @@ public record ScreenplayOptions
             Resolved = true
         };
     }
+
+    /// <summary>
+    /// Determines whether a project may contribute unused local declarations.
+    /// </summary>
+    /// <param name="compilation">The project being considered for declaration recovery.</param>
+    /// <returns>True for application projects, or when the caller supplied no project roles.</returns>
+    internal bool IncludesDeclarationsFrom(Compilation compilation) => DeclarationCompilations?.Contains(compilation) ?? true;
 
     /// <summary>
     /// Gets the first of two values that carries content.

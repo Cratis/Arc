@@ -12,9 +12,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 /// Collects the concepts an application declares or refers to, keeping one declaration per name.
 /// </summary>
 /// <remarks>
-/// A concept is declared once at the top of the document and referenced by its simple name from there on. Local
-/// declarations are registered up front so unused concepts survive, and type resolution adds any further concepts
-/// the application refers to.
+/// A concept is declared once at the top of the document and referenced by its simple name from there on. Type
+/// resolution owns the names it refers to; unused local declarations are added afterward only where a name is free.
 /// <para>
 /// What a concept says about itself arrives from more than one place and at different moments - the values of an
 /// enumeration come from the type, the mark saying it carries personal data comes from the property referring to it,
@@ -26,6 +25,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 public class ConceptRegistry
 {
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
+    readonly HashSet<ITypeSymbol> _registeredTypes = new(SymbolEqualityComparer.Default);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
     readonly HashSet<string> _incompleteValidation = new(StringComparer.Ordinal);
@@ -94,6 +94,7 @@ public class ConceptRegistry
         }
 
         Register(type, concept);
+        _registeredTypes.Add(type);
 
         return true;
     }
@@ -166,6 +167,14 @@ public class ConceptRegistry
 
         return backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive) ? primitive : null;
     }
+
+    /// <summary>
+    /// Determines whether a declaration contributed a concept rather than merely sharing its simple name.
+    /// </summary>
+    /// <param name="type">The declaration to check.</param>
+    /// <returns>True when the same declared type was registered from source or metadata.</returns>
+    internal bool IsRegistered(INamedTypeSymbol type) =>
+        _registeredTypes.OfType<INamedTypeSymbol>().Any(registered => DeclaredTypeIdentity.IsSame(registered, type));
 
     /// <summary>
     /// Records that generation cannot rely on the concept's recovered validation.
@@ -311,6 +320,7 @@ public class ConceptRegistry
     /// <returns>The <see cref="ConceptModel"/>, or <see langword="null"/> when the type is not a concept.</returns>
     ConceptModel? ModelOf(ITypeSymbol type)
     {
+        type = type is INamedTypeSymbol named ? Models.SourceOf(named) : type;
         if (type.TypeKind == TypeKind.Enum)
         {
             return Enumeration(type.Name, type, false);

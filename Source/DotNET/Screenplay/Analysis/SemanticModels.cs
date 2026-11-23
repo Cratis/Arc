@@ -65,4 +65,22 @@ public class SemanticModels(IReadOnlyList<Compilation> compilations)
                 candidate.DeclaringSyntaxReferences.Length > 0 &&
                 candidate.ContainingAssembly.Identity.Equals(method.ContainingAssembly.Identity));
     }
+
+    /// <summary>
+    /// Resolves a metadata type to its authored declaration when that assembly is being analyzed too.
+    /// </summary>
+    /// <param name="type">The source or metadata type.</param>
+    /// <returns>The matching source declaration, or the original type when its source is unavailable.</returns>
+    internal INamedTypeSymbol SourceOf(INamedTypeSymbol type)
+    {
+        if (type.DeclaringSyntaxReferences.Length > 0 || type.OriginalDefinition.GetDocumentationCommentId() is not { } identity)
+        {
+            return type;
+        }
+
+        return compilations.Where(compilation => compilation.Assembly.Identity.Equals(type.ContainingAssembly.Identity))
+            .SelectMany(compilation => DocumentationCommentId.GetSymbolsForDeclarationId(identity, compilation))
+            .OfType<INamedTypeSymbol>().FirstOrDefault(candidate =>
+                candidate.DeclaringSyntaxReferences.Length > 0 && DeclaredTypeIdentity.IsSame(candidate, type)) ?? type;
+    }
 }
