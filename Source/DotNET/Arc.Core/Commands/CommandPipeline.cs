@@ -560,7 +560,7 @@ public class CommandPipeline(
         {
             frame = CommandOperationBoundary.Enter(command.GetType(), scopeFactory);
         }
-        catch (InvalidCommandOperation exception)
+        catch (Exception exception) when (exception is InvalidCommandOperation or MissingCommandUnionMetadata)
         {
             OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(correlationId, exception);
