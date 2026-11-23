@@ -9,13 +9,12 @@ using Microsoft.CodeAnalysis;
 namespace Cratis.Arc.Screenplay.Analysis.Types;
 
 /// <summary>
-/// Collects the concepts an application refers to, keeping one declaration per name.
+/// Collects the concepts an application declares or refers to, keeping one declaration per name.
 /// </summary>
 /// <remarks>
-/// A concept is declared once at the top of the document and referenced by its simple name from there on, so which
-/// concepts a document declares has nothing to do with which ones the application defines and everything to do with
-/// which ones were reached while a type was being resolved. They are gathered as they are encountered rather than
-/// found up front, which keeps the document to what the application actually uses.
+/// A concept is declared once at the top of the document and referenced by its simple name from there on. Local
+/// declarations are registered up front so unused concepts survive, and type resolution adds any further concepts
+/// the application refers to.
 /// <para>
 /// What a concept says about itself arrives from more than one place and at different moments - the values of an
 /// enumeration come from the type, the mark saying it carries personal data comes from the property referring to it,
@@ -48,7 +47,7 @@ public class ConceptRegistry
     public IEnumerable<string> Ambiguous => _ambiguous.Order(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets every concept referenced by the application, ordered by name.
+    /// Gets every concept declared or referenced by the application, ordered by name.
     /// </summary>
     public IEnumerable<ConceptModel> Concepts =>
     [

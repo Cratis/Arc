@@ -53,7 +53,7 @@ public class TypeRegistry
     public IEnumerable<string> Ambiguous => _concepts.Ambiguous;
 
     /// <summary>
-    /// Gets every concept referenced by the application, ordered by name.
+    /// Gets every concept declared or referenced by the application, ordered by name.
     /// </summary>
     public IEnumerable<ConceptModel> Concepts => _concepts.Concepts.Select(concept => concept with
     {
@@ -179,6 +179,18 @@ public class TypeRegistry
         !(type is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out _)) &&
         type.TypeKind != TypeKind.Enum && type.FindBase(WellKnownTypeNames.ConceptAs) is null &&
         !CarriedTypes.IsRecord(type);
+
+    /// <summary>
+    /// Registers local concept declarations independently of their use by an artifact.
+    /// </summary>
+    /// <param name="types">The types declared by the analyzed compilations.</param>
+    internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types)
+    {
+        foreach (var type in types)
+        {
+            _concepts.TryRegister(type);
+        }
+    }
 
     /// <summary>
     /// Resolves a command-generated type while preserving its generation use through admission failure.

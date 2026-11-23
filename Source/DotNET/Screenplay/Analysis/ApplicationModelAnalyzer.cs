@@ -60,6 +60,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var diagnostics = whole.Diagnostics;
 
         var catalogs = ordered.Select(ArtifactCatalog.From).ToList();
+        whole.Types.RegisterDeclarations(catalogs.SelectMany(catalog => catalog.Types));
         var paths = SourceRoots.Across(ordered, catalogs, diagnostics, domain);
         var projects = ordered
             .Select((compilation, index) => CompilationAnalysis.Of(compilation, catalogs[index], paths[index], whole))
