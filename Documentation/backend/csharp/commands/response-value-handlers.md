@@ -28,6 +28,8 @@ The built-in handler consumes **one `Cratis.Arc.Validation.ValidationResult`**. 
 
 On .NET 11, `Handle()` can return a native C# union directly, through `Task<T>`, or through `ValueTask<T>`. For example, declare `public readonly union AllocationOutcome(Guid, AllocationLog, ValidationResult);` using the handled value defined below. Arc processes only the active case, just as it does for `Result` and `OneOf`. Native unions can also contain tuple alternatives or be nested inside the existing wrappers and tuples. Operations in the active case follow the existing command-operation rules; a bare operation collection still requires `CommandOperations`.
 
+Native-union command returns are not trim or NativeAOT compatible. Before executing a command, the operation boundary inspects compiler-generated union case constructors through reflection to detect declared operation alternatives, including inactive cases. Trimming those constructors can prevent that check from finding an operation.
+
 A default union has no active non-null case. Arc rejects it before executing operations or response-value handlers, even when it occurs in a later tuple element. Do not use a default union to mean a successful command with nothing to record; return a `ValidationResult` rejection when a rule does not hold.
 
 The JSON response is the active client-visible value, not a union wrapper, `Value` property, or discriminator. This support is for command **return values only**: it does not add union request deserialization, query unions, or `Provide()` unions. Object-case unions are not automatically round-trippable without a System.Text.Json classifier.
