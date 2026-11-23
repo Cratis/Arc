@@ -24,6 +24,7 @@ public class when_selecting_metadata_loaded_native_union_cases : Specification
     void Destroy() => _owner.Dispose();
 
     [Fact] void should_suppress_handled_cases_without_runtime_assignability() => _methods.GetMethod("Event")!.GetResponseModel().HasResponse.ShouldBeFalse();
+    [Fact] void should_ignore_user_constructor_parameters() => _methods.GetMethod("Reply")!.ReturnType.NativeUnionCases().Select(type => type.FullName).ShouldEqual(["System.String", "Cratis.Arc.Validation.ValidationResult"]);
     [Fact] void should_select_the_client_case() => _methods.GetMethod("Reply")!.GetResponseModel().ResponseModel.Type.FullName.ShouldEqual("System.String");
     [Fact] void should_select_closed_generic_cases() => _methods.GetMethod("ClosedGeneric")!.GetResponseModel().ResponseModel.Type.FullName.ShouldEqual("System.String");
     [Fact] void should_select_tuple_elements() => _methods.GetMethod("Tuple")!.GetResponseModel().ResponseModel.Type.FullName.ShouldEqual("System.Guid");

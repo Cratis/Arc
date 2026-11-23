@@ -95,9 +95,7 @@ public static class CommandOperationBoundary
 #if NET11_0_OR_GREATER
         if (typeof(IUnion).IsAssignableFrom(type))
         {
-            return type.GetConstructors()
-                .SelectMany(constructor => constructor.GetParameters())
-                .Any(parameter => !parameter.IsOptional && MayContainOperations(parameter.ParameterType, visited));
+            return UnionCaseConvention.CaseTypes(type).Any(caseType => MayContainOperations(caseType, visited));
         }
 #endif
         if (IsOperationContainer(type))

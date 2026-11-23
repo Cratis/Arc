@@ -14,7 +14,11 @@ public class when_selecting_native_union_responses : Specification
     // Compiler-generated union structs; equality is not meaningful for a handler return.
 #pragma warning disable CA1815
     public readonly union EventOrValidation(ProjectRegistered, ValidationResult);
-    public readonly union ReplyOrValidation(string, ValidationResult);
+    public readonly union ReplyOrValidation(string, ValidationResult)
+    {
+        public ReplyOrValidation(int number, bool flag) : this("receipt") { }
+        internal ReplyOrValidation(decimal number) : this("receipt") { }
+    }
     public readonly union OperationOrValidation(CommandOperations, ValidationResult);
     public readonly union TupleOrValidation((Guid, ProjectRegistered), ValidationResult);
     public readonly union Generic<T>(T, ValidationResult);
@@ -39,6 +43,7 @@ public class when_selecting_native_union_responses : Specification
 
     [Fact] void should_suppress_all_server_handled_cases() => Response(nameof(Event)).HasResponse.ShouldBeFalse();
     [Fact] void should_suppress_operation_cases() => Response(nameof(Operations)).HasResponse.ShouldBeFalse();
+    [Fact] void should_ignore_user_constructor_parameters() => typeof(ReplyOrValidation).NativeUnionCases().ShouldEqual([typeof(string), typeof(ValidationResult)]);
     [Fact] void should_select_the_client_case() => Response(nameof(Reply)).ResponseModel.Type.ShouldEqual(typeof(string));
     [Fact] void should_select_a_tuple_response_after_awaiting() => Response(nameof(Tuple)).ResponseModel.Type.ShouldEqual(typeof(Guid));
     [Fact] void should_select_the_substituted_generic_case() => Response(nameof(ClosedGeneric)).ResponseModel.Type.ShouldEqual(typeof(string));

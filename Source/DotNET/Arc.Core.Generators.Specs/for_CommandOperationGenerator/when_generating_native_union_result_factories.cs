@@ -31,7 +31,11 @@ public class when_generating_native_union_result_factories : Specification
                 public record Recorded(string Name);
                 // Compiler-generated union structs; equality is not meaningful for a handler return.
                 #pragma warning disable CA1815
-                public readonly union Answer(Receipt, int);
+                public readonly union Answer(Receipt, int)
+                {
+                    public Answer(char number, sbyte flag) : this(new Receipt("custom")) { }
+                    internal Answer(float number) : this(42) { }
+                }
                 public readonly union Generic<T>(T, bool);
                 public readonly union Nested(Answer, (Guid, Recorded));
                 #pragma warning restore CA1815
@@ -65,6 +69,9 @@ public class when_generating_native_union_result_factories : Specification
     [Fact] void should_register_the_primitive_case() => _source.ShouldContain("typeof(int)");
     [Fact] void should_register_the_tuple_elements() => _source.ShouldContain("typeof(global::NativeResults.Recorded)");
     [Fact] void should_register_closed_generic_union_cases() => _source.ShouldContain("typeof(decimal)");
+    [Fact] void should_not_register_the_custom_constructor_number() => _source.ShouldNotContain("typeof(char)");
+    [Fact] void should_not_register_the_custom_constructor_flag() => _source.ShouldNotContain("typeof(sbyte)");
+    [Fact] void should_not_register_a_nonpublic_single_parameter_constructor() => _source.ShouldNotContain("typeof(float)");
     [Fact] void should_not_register_the_named_union_wrapper() => _source.ShouldNotContain("typeof(global::NativeResults.Answer)");
     [Fact] void should_not_register_the_nested_union_wrapper() => _source.ShouldNotContain("typeof(global::NativeResults.Nested)");
     [Fact] void should_not_register_the_generic_union_wrapper() => _source.ShouldNotContain("typeof(global::NativeResults.Generic");

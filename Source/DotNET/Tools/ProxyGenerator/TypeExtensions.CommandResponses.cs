@@ -219,15 +219,11 @@ public static partial class TypeExtensions
         .Any(contract => contract.FullName == "System.Runtime.CompilerServices.IUnion");
 
     /// <summary>
-    /// Gets the declared cases using public constructors rather than generic type arguments.
+    /// Gets declared cases from compiler-generated case constructors, excluding user-defined constructors.
     /// </summary>
     /// <param name="type">The union type to inspect.</param>
-    /// <returns>The required constructor parameter types.</returns>
-    internal static IEnumerable<Type> NativeUnionCases(this Type type) => type.GetConstructors()
-        .SelectMany(constructor => constructor.GetParameters())
-        .Where(parameter => !parameter.IsOptional)
-        .Select(parameter => parameter.ParameterType)
-        .Distinct();
+    /// <returns>The declared case types.</returns>
+    internal static IEnumerable<Type> NativeUnionCases(this Type type) => UnionCaseConvention.CaseTypes(type);
 
     static bool ContainsBareCommandOperationCollection(Type type, HashSet<Type> visited)
     {
