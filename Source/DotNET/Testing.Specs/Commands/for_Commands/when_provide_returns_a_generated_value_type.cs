@@ -3,8 +3,8 @@
 
 namespace Cratis.Arc.Testing.Commands.for_Commands;
 
-public class when_provide_may_replace_generated_values : given.a_wiring_check
+public class when_provide_returns_a_generated_value_type : given.a_wiring_check
 {
     void Because() => Problems = CommandWiring.FindWiringProblems(Provider, [typeof(given.handle_bindings.ProvidedGeneratedCommand)]);
-    [Fact] void should_not_approve_a_possible_runtime_refusal_without_invocation_evidence() => Problems.Single().Category.ShouldEqual("context-required");
+    [Fact] void should_accept_context_free_generation_without_executing_provide_or_the_factory() => Problems.ShouldBeEmpty();
 }

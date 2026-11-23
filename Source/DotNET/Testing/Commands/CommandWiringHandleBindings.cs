@@ -73,20 +73,14 @@ sealed class CommandWiringHandleBindings(Type command)
 
     static bool IsOpaqueComposite(Type type) => typeof(ITuple).IsAssignableFrom(type) || typeof(IOneOf).IsAssignableFrom(type);
 
+    static CommandWiringVerdict InspectGenerated(Type dependency) =>
+        GeneratedValueParameters.IsGeneratableInContext(dependency)
+            ? new(true, "context-required", "Context-dependent generation requires the command's receipt time and tenant; check it in a command scenario.")
+            : CommandWiringVerdict.Supported;
+
     bool CouldProvide(Type dependency)
     {
         var provide = command.GetProvideMethod();
         return provide is not null && Candidates(provide.ReturnType).Any(type => CouldBind(type, dependency));
-    }
-
-    CommandWiringVerdict InspectGenerated(Type dependency)
-    {
-        if (CouldProvide(dependency))
-        {
-            return new(true, "context-required", "Provide may return a generated argument, which runtime refuses; verify the actual result in a command scenario.");
-        }
-        return GeneratedValueParameters.IsGeneratableInContext(dependency)
-            ? new(true, "context-required", "Context-dependent generation requires the command's receipt time and tenant; check it in a command scenario.")
-            : CommandWiringVerdict.Supported;
     }
 }
