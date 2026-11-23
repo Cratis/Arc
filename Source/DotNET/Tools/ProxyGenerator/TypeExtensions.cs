@@ -97,7 +97,7 @@ public static partial class TypeExtensions
     ];
 
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
-    static readonly object _derivativeCandidatesLock = new();
+    static readonly Lock _derivativeCandidatesLock = new();
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
     static Dictionary<string, TargetType> _typeMappings = [];

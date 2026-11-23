@@ -8,7 +8,7 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 internal sealed class ObservableQuerySubscriptionState : IDisposable
 {
-    readonly object _sync = new();
+    readonly Lock _sync = new();
     ObservableQuerySubscriptionOperation? _operation;
     long? _revision;
     bool _isRevisionAware;

@@ -53,8 +53,8 @@ internal sealed class GeneratedMetadataRegistration(
     Func<IEnumerable<string>> getDependencyContextProjectNames,
     Func<Assembly?> getEntryAssembly)
 {
-    readonly object _lock = new();
-    readonly object _runLock = new();
+    readonly Lock _lock = new();
+    readonly Lock _runLock = new();
     readonly Queue<GeneratedProjectReferenceModules> _pending = [];
     readonly HashSet<Assembly> _registeringAssemblies = [];
     readonly List<SkippedProjectAssembly> _skipped = [];

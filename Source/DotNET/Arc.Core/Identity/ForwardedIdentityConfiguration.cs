@@ -16,7 +16,7 @@ namespace Cratis.Arc.Identity;
 internal sealed record ForwardedIdentityConfiguration(IReadOnlyDictionary<string, byte[]> Keys, string Snapshot)
 {
     static readonly ConditionalWeakTable<ArcOptions, Entry> _cache = new();
-    static readonly object _refreshLock = new();
+    static readonly Lock _refreshLock = new();
 
     /// <summary>
     /// Validates opt-in configuration, failing closed on any malformed key entry. The result is cached per
