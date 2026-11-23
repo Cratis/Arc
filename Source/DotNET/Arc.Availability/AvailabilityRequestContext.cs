@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using Cratis.Choreography.Availability.Audiences;
 using Cratis.Choreography.Availability.Context;
 
@@ -17,7 +18,9 @@ public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceRe
 {
     readonly Dictionary<string, ContextValueResolver> _resolvers = [];
     readonly Lock _lock = new();
+    readonly ConditionalWeakTable<AvailabilityInvocation, AvailabilityRequestContext> _invocations = new();
     Task<EffectiveAudiences>? _audiences;
+    AvailabilityInvocation? _invocation;
     AudienceSubject? _subject;
 
     AudienceSubject Subject => _subject ??= subjectProvider.GetSubject();
@@ -58,14 +61,30 @@ public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceRe
         }
     }
 
+    /// <summary>Gets the isolated resolver owner for one explicitly bound invocation.</summary>
+    /// <param name="invocation">The identity shared by that invocation's gate and value readers.</param>
+    /// <returns>An execution context that does not share metadata or another invocation's resolved values.</returns>
+    internal AvailabilityRequestContext ForInvocation(AvailabilityInvocation invocation) =>
+        _invocations.GetValue(invocation, key => new(catalog, audienceResolver, subjectProvider) { _invocation = key });
+
     Dictionary<string, object?> CreateAmbientValues()
     {
         var subject = Subject;
-        return new()
+        var ambient = new Dictionary<string, object?>
         {
             ["tenant"] = subject.Tenant,
             ["identity"] = new Dictionary<string, object?> { ["user"] = subject.User, ["isSystem"] = subject.IsSystem }
         };
+        if (_invocation is { } invocation)
+        {
+            ambient["receivedAt"] = invocation.ReceivedAt;
+            if (invocation.Arguments is { } arguments)
+            {
+                ambient["arguments"] = arguments;
+            }
+        }
+
+        return ambient;
     }
 
     Task<EffectiveAudiences> ResolveAudiences(CancellationToken cancellationToken)
@@ -73,7 +92,7 @@ public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceRe
         lock (_lock)
         {
             // A cancelled first caller must not poison the resolution for the rest of the request.
-            if (_audiences?.IsCanceled ?? true)
+            if (_audiences is not { IsCanceled: false, IsFaulted: false })
             {
                 _audiences = audienceResolver.Resolve(Subject, cancellationToken).AsTask();
             }

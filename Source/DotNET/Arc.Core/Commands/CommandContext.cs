@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability;
 using Cratis.Arc.Contexts;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
@@ -34,6 +35,7 @@ public record CommandContext(
     IServiceProvider? ServiceProvider = default,
     CancellationToken CancellationToken = default)
 {
+    readonly AvailabilityInvocationIdentity _invocations = new();
     readonly SliceLocation? _sliceLocation;
     ClaimsPrincipal? _authorizedPrincipal;
 
@@ -76,7 +78,7 @@ public record CommandContext(
     /// pipeline, so the provided values are named differently here to keep that contract unchanged. Cast to <see langword="dynamic"/> to read
     /// them by name, such as <c>context.ProvidedValues.Vessel</c>, or use <see cref="ValuesAs{T}"/>.
     /// </remarks>
-    public ContextValues ProvidedValues => ContextValues.For(ServiceProvider, () => Type, CancellationToken);
+    public ContextValues ProvidedValues => ContextValues.ForExecution(ServiceProvider, () => Type, () => AvailabilityInvocation, CancellationToken);
 
     /// <summary>
     /// Gets the <see cref="Slices.SliceLocation"/> of the command, resolved from the same namespace mapping as its generated proxy.
@@ -109,6 +111,9 @@ public record CommandContext(
             AuthorizedPrincipalSnapshot = value is null ? null : AuthorizationPrincipalIdentity.Capture(value);
         }
     }
+
+    /// <summary>Gets the invocation identity shared by this command's gate and value readers.</summary>
+    internal AvailabilityInvocation AvailabilityInvocation => _invocations.For(Type, Command, ReceivedAt);
 
     /// <summary>
     /// Gets the identity of <see cref="AuthorizedPrincipal"/> as it was when authorization selected it.

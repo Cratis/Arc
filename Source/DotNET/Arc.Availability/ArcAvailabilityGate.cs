@@ -16,7 +16,7 @@ namespace Cratis.Arc.Availability;
 /// <param name="evaluator">The <see cref="IAvailabilityEvaluator"/>.</param>
 /// <param name="audienceSource">The <see cref="IAudienceSource"/> whose changes are announced.</param>
 /// <param name="types">The <see cref="ITypes"/> used to find the parts that declare a gate with attributes.</param>
-public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types) : IAvailabilityGate
+public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types) : IAvailabilityExecutionGate
 {
     readonly ConcurrentDictionary<Type, IReadOnlyList<AvailabilityExpression>> _paths = new();
     readonly Lazy<IReadOnlyCollection<Type>> _gatedParts = new(() => FindGatedParts(options, types));
@@ -28,23 +28,16 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     public bool IsGated(Type part) => PathOf(part).Count > 0;
 
     /// <inheritdoc/>
-    public async ValueTask<AvailabilityDecision> Decide(Type part, IServiceProvider services, CancellationToken cancellationToken)
-    {
-        var path = PathOf(part);
-        if (path.Count == 0)
-        {
-            return AvailabilityDecision.Available;
-        }
+    public ValueTask<AvailabilityDecision> Decide(Type part, IServiceProvider services, CancellationToken cancellationToken) =>
+        IsGated(part)
+            ? Decide(part, services.GetRequiredService<AvailabilityRequestContext>(), cancellationToken)
+            : ValueTask.FromResult(AvailabilityDecision.Available);
 
-        var resolver = services.GetRequiredService<AvailabilityRequestContext>().ResolverFor(options.ScopeFor(part));
-        var result = await evaluator.EvaluatePath(path, resolver, cancellationToken);
-        return result.Outcome switch
-        {
-            AvailabilityOutcome.Available => AvailabilityDecision.Available,
-            AvailabilityOutcome.Unavailable => new AvailabilityDecision(AvailabilityVerdict.Unavailable, result.Causes),
-            _ => new AvailabilityDecision(AvailabilityVerdict.Unknown, result.Causes)
-        };
-    }
+    /// <inheritdoc/>
+    public ValueTask<AvailabilityDecision> Decide(AvailabilityInvocation invocation, IServiceProvider services, CancellationToken cancellationToken) =>
+        IsGated(invocation.Part)
+            ? Decide(invocation.Part, services.GetRequiredService<AvailabilityRequestContext>().ForInvocation(invocation), cancellationToken)
+            : ValueTask.FromResult(AvailabilityDecision.Available);
 
     /// <inheritdoc/>
     public IDisposable OnChanged(Func<ValueTask> handler) => audienceSource.OnChanged(_ => handler());
@@ -61,6 +54,37 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
 
     static bool InNamespace(Type type, string @namespace) =>
         type.Namespace is { } typeNamespace && (typeNamespace == @namespace || typeNamespace.StartsWith(@namespace + ".", StringComparison.Ordinal));
+
+    async ValueTask<AvailabilityDecision> Decide(Type part, AvailabilityRequestContext request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await Evaluate(part, request, cancellationToken);
+        }
+        catch
+        {
+            request.Reset();
+            throw;
+        }
+    }
+
+    async ValueTask<AvailabilityDecision> Evaluate(Type part, AvailabilityRequestContext request, CancellationToken cancellationToken)
+    {
+        var path = PathOf(part);
+        if (path.Count == 0)
+        {
+            return AvailabilityDecision.Available;
+        }
+
+        var resolver = request.ResolverFor(options.ScopeFor(part));
+        var result = await evaluator.EvaluatePath(path, resolver, cancellationToken);
+        return result.Outcome switch
+        {
+            AvailabilityOutcome.Available => AvailabilityDecision.Available,
+            AvailabilityOutcome.Unavailable => new AvailabilityDecision(AvailabilityVerdict.Unavailable, result.Causes),
+            _ => new AvailabilityDecision(AvailabilityVerdict.Unknown, result.Causes)
+        };
+    }
 
     IReadOnlyList<AvailabilityExpression> PathOf(Type part) => _paths.GetOrAdd(part, BuildPath);
 

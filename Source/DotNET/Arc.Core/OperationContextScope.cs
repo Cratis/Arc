@@ -8,21 +8,23 @@ namespace Cratis.Arc;
 /// </summary>
 public static class OperationContextScope
 {
-    static readonly AsyncLocal<DateTimeOffset?> _receivedAt = new();
+    static readonly AsyncLocal<Operation?> _operation = new();
     static readonly AsyncLocal<ForwardingState?> _forwardTransportReceipt = new();
     static readonly AsyncLocal<bool> _insidePipelineEntry = new();
 
+    /// <summary>Gets an opaque lifetime key for the active dispatch, or null outside a dispatch.</summary>
+    /// <remarks>Equal receipt times do not imply equal operations. This key is never a caller identity or a grant.</remarks>
+    public static object? Identity => _operation.Value;
+
     /// <summary>Gets the receipt time for the active operation.</summary>
-    internal static DateTimeOffset? Current => _receivedAt.Value;
+    internal static DateTimeOffset? Current => _operation.Value?.ReceivedAt;
 
     /// <summary>Starts a new operation with the configured clock and restores the previous one on disposal.</summary>
     /// <param name="services">The provider containing the operation's clock.</param>
     /// <returns>The operation lease.</returns>
     public static IDisposable Begin(IServiceProvider? services)
     {
-        var previous = _receivedAt.Value;
-        _receivedAt.Value = (services?.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System).GetUtcNow();
-        return new Restore(previous);
+        return BeginAt((services?.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System).GetUtcNow());
     }
 
     /// <summary>Preserves a receipt already captured by the transport, or starts a direct operation.</summary>
@@ -46,14 +48,19 @@ public static class OperationContextScope
     internal static IDisposable BeginPipeline(IServiceProvider? services)
     {
         var insidePipelineEntry = _insidePipelineEntry.Value;
-        IDisposable? receipt = null;
-        if (_forwardTransportReceipt.Value is not { IsEnded: false } || insidePipelineEntry || Current is null)
-        {
-            receipt = Begin(services);
-        }
+        var receipt = _forwardTransportReceipt.Value is { IsEnded: false } && !insidePipelineEntry && Current is { } forwarded
+            ? BeginAt(forwarded)
+            : Begin(services);
 
         _insidePipelineEntry.Value = true;
         return new RestorePipeline(insidePipelineEntry, receipt);
+    }
+
+    static Restore BeginAt(DateTimeOffset receivedAt)
+    {
+        var previous = _operation.Value;
+        _operation.Value = new(receivedAt);
+        return new Restore(previous);
     }
 
     sealed class ForwardingState
@@ -83,8 +90,13 @@ public static class OperationContextScope
         }
     }
 
-    sealed class Restore(DateTimeOffset? previous) : IDisposable
+    sealed class Operation(DateTimeOffset receivedAt)
     {
-        public void Dispose() => _receivedAt.Value = previous;
+        internal DateTimeOffset ReceivedAt => receivedAt;
+    }
+
+    sealed class Restore(Operation? previous) : IDisposable
+    {
+        public void Dispose() => _operation.Value = previous;
     }
 }

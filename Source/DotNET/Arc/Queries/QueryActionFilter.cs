@@ -169,7 +169,7 @@ public class QueryActionFilter(
         }
 
         using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
-        var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", controllerActionDescriptor.ControllerTypeInfo, queryContextManager);
+        var queryContext = EstablishQueryContext(context, controllerActionDescriptor.ControllerTypeInfo);
         var warnings = new WarningHandling(context.ShouldTreatWarningsAsErrors(), GetIgnoreWarningsFromRequest(context));
         var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
         using var span = activitySource.OnQuery(routeTemplate);
@@ -224,17 +224,29 @@ public class QueryActionFilter(
         await controllerAdapter.HandleControllerStreamingResult(context, executed, objectResult);
     }
 
-    QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, Type? controllerType, IQueryContextManager queryContextManager)
+    QueryContext EstablishQueryContext(ActionExecutingContext context, Type? controllerType)
     {
+        var httpContext = context.HttpContext;
+        var queryName = context.ActionDescriptor.DisplayName ?? "[NotSet]";
+        var arguments = new QueryArguments();
+        foreach (var argument in context.ActionArguments)
+        {
+            arguments[argument.Key] = argument.Value!;
+        }
         var sorting = httpContext.GetSortingInfo();
         var paging = httpContext.GetPagingInfo();
         var correlationId = httpContext.GetCorrelationId();
 
-        var queryContext = new QueryContext(queryName, correlationId, paging, sorting)
+        var queryContext = new QueryContext(queryName, correlationId, paging, sorting, arguments, ServiceProvider: httpContext.RequestServices, CancellationToken: httpContext.RequestAborted)
         {
             ReceivedAt = OperationContextScope.Current ?? default,
             SliceLocation = controllerType is null ? SliceLocation.NotSet : SliceLocation.For(controllerType)
         };
+        if (controllerType is not null)
+        {
+            queryContext.InvocationFor(controllerType);
+        }
+
         queryContextManager.Set(queryContext);
         return queryContext;
     }
