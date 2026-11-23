@@ -22,23 +22,12 @@ sealed class CommandWiringDependencies(Type command, IServiceProvider services, 
     {
         try
         {
-            var context = new CommandWiringParameter(command, parameter, services, isValidator, CommandDecisionPolicy.IsProtected, CommandDecisionPolicy.ReadProtection);
-            var verdict = options.Rules.Select(rule => rule.Inspect(context)).FirstOrDefault(_ => _.IsApplicable);
-            if (verdict?.Category is { } category)
+            var binding = isValidator ? CommandWiringVerdict.NotApplicable : new CommandWiringHandleBindings(command).Inspect(parameter);
+            if (binding.IsApplicable)
             {
-                Add(parameter, category, verdict.Guidance!, verdict.Cause);
-                return false;
+                return InspectHandleBinding(parameter, binding);
             }
-            if (verdict is not null && !isValidator)
-            {
-                if (CommandDecisionPolicy.IsProtected)
-                {
-                    Add(parameter, "unsupported", "Protected contextual bindings require invocation state; check them in a command scenario.");
-                    return false;
-                }
-                return true;
-            }
-            return InspectService(parameter, isValidator && verdict is not null);
+            return InspectDependency(parameter, isValidator);
         }
         catch (Exception failure)
         {
@@ -49,6 +38,37 @@ sealed class CommandWiringDependencies(Type command, IServiceProvider services, 
 
     static bool IsAvailable(ParameterInfo parameter, object? value, bool contextual) =>
         value is not null || (!contextual && new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable);
+
+    bool InspectDependency(ParameterInfo parameter, bool isValidator)
+    {
+        var context = new CommandWiringParameter(command, parameter, services, isValidator, CommandDecisionPolicy.IsProtected, CommandDecisionPolicy.ReadProtection);
+        var verdict = options.Rules.Select(rule => rule.Inspect(context)).FirstOrDefault(_ => _.IsApplicable);
+        if (verdict?.Category is { } category)
+        {
+            Add(parameter, category, verdict.Guidance!, verdict.Cause);
+            return false;
+        }
+        if (verdict is not null && !isValidator)
+        {
+            if (CommandDecisionPolicy.IsProtected)
+            {
+                Add(parameter, "unsupported", "Protected contextual bindings require invocation state; check them in a command scenario.");
+                return false;
+            }
+            return true;
+        }
+        return InspectService(parameter, isValidator && verdict is not null);
+    }
+
+    bool InspectHandleBinding(ParameterInfo parameter, CommandWiringVerdict binding)
+    {
+        if (binding.Category is null)
+        {
+            return true;
+        }
+        Add(parameter, binding.Category, binding.Guidance!, binding.Cause);
+        return false;
+    }
 
     bool InspectService(ParameterInfo parameter, bool contextual)
     {

@@ -14,6 +14,8 @@ CommandWiring.ShouldBeExecutableIn(scope.ServiceProvider, typeof(SubmitOrder).As
 
 The checker discovers concrete, closed `[Command]` types and uses Arc's instance `Handle()` discovery, including non-public methods. It does not construct command objects or execute `Handle()`, `Provide()`, authorization, or validation rules. Dependency factories and discoverable-validator constructors **do execute**: use test registrations for services whose activation has external effects. The caller owns and disposes the provider and scope; the checker never creates a scope or host for you.
 
+Handle bindings follow runtime precedence: validated `[GeneratedValue]` declarations, the invocation's `CancellationToken`, potential `Provide()` results, extension parameter resolvers, then DI. Cancellation tokens and context-free generated values do not require DI registrations, and no generated factory is invoked. Context-dependent generation and potential `Provide()` results report `context-required`: their invocation values cannot be proved without executing command code. Awaited tuple and union return declarations are inspected without invoking `Provide()`. Opaque tuple/union results and possible attempts to supply generated arguments also require invocation evidence rather than receiving a guessed pass. The command object, context and same-named command properties are not implicit Handle bindings; they require a real runtime source like any other dependency. Handle-only bindings do not apply to validator constructor parameters.
+
 A nullable ordinary dependency may be absent, as at runtime. A registered dependency whose factory throws still fails, even when the parameter is nullable. Validator discovery uses the application's `ITypes` universe and only `IDiscoverableValidator<T>` implementations. An ordinary `IValidator<T>` registration does not become discoverable merely because the checker is running. Duplicate discoverable validators and missing discovery infrastructure fail explicitly.
 
 ## Build a small provider in a plain spec
@@ -98,6 +100,8 @@ ChronicleCommandWiring.ShouldBeExecutableIn(
 ```
 
 Register the application's `IClientArtifactsProvider` as well as `ITypes`. Its projections, model-bound projections and reducers identify Chronicle-backed models; `[ReadModel]` alone is not evidence of backing storage. The wrapper adds the Chronicle metadata rule automatically. It checks explicit lookup properties, implicit-key ambiguity in read-protection On mode, and caller-provider declaration shape. It never constructs or executes caller-key providers, reads command properties, acquires models, or asks Chronicle to admit a decision read. Default event-source lookups are checked without manufacturing an identity or invoking identifier generation.
+
+A Chronicle-backed `IMongoCollection<T>` is refused when the effective read-protection mode is On, unless its parameter or model explicitly declares `[Unprotected]`, matching the runtime advisory boundary. Off and Measure modes use ordinary DI. The application's operational cap is applied before this check. Backing `IQueryable<T>` activation remains explicitly unsupported rather than constructing a query provider to guess its safety.
 
 A discoverable validator that consumes a contextual model needs an **explicit model fixture registration**. Without one the checker reports `context-required` rather than invoking the read resolver. A fixture lets the validator constructor run; it does not prove that a production read returns that model.
 

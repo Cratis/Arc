@@ -35,7 +35,11 @@ public sealed class ChronicleCommandWiringRule(IClientArtifactsProvider artifact
             {
                 return InspectStream(parameter);
             }
-            if (IsModelQuery(dependency))
+            if (IsModelBacking(dependency, "MongoDB.Driver.IMongoCollection`1"))
+            {
+                return InspectCollection(parameter, dependency.GenericTypeArguments[0]);
+            }
+            if (IsModelBacking(dependency, "System.Linq.IQueryable`1"))
             {
                 return new(true, "unsupported", "Queryable provider activation requires a provider-backed scenario; no model query will be created.");
             }
@@ -45,6 +49,18 @@ public sealed class ChronicleCommandWiringRule(IClientArtifactsProvider artifact
         {
             return new(true, "lookup", "Verify the Chronicle lookup declaration and generated key metadata; inspect Cause for the exception type.", failure);
         }
+    }
+
+    static CommandWiringVerdict InspectCollection(CommandWiringParameter parameter, Type model)
+    {
+        if (parameter.ReadProtection != ReadProtectionMode.On)
+        {
+            return CommandWiringVerdict.NotApplicable;
+        }
+        var advisory = parameter.Parameter.GetCustomAttribute<UnprotectedAttribute>() ?? model.GetCustomAttribute<UnprotectedAttribute>();
+        return advisory is not null
+            ? CommandWiringVerdict.NotApplicable
+            : new(true, "refused", $"Chronicle cannot protect {model.FullName} through IMongoCollection; inject the read model or declare an explicit advisory read.");
     }
 
     static CommandWiringVerdict InspectToken(CommandWiringParameter parameter) =>
@@ -85,6 +101,6 @@ public sealed class ChronicleCommandWiringRule(IClientArtifactsProvider artifact
             : CommandWiringVerdict.Supported;
     }
 
-    bool IsModelQuery(Type dependency) => dependency.IsGenericType &&
-        dependency.GetGenericTypeDefinition() == typeof(IQueryable<>) && _models.Contains(dependency.GenericTypeArguments[0]);
+    bool IsModelBacking(Type dependency, string definition) => dependency.IsGenericType &&
+        dependency.GetGenericTypeDefinition().FullName == definition && _models.Contains(dependency.GenericTypeArguments[0]);
 }

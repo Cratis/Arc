@@ -44,6 +44,8 @@ sealed class CommandWiringInspection(IServiceProvider services, CommandWiringOpt
         return _problems;
     }
 
+    static bool IsInspectable(Type command) => !command.IsAbstract && !command.ContainsGenericParameters && command.IsCommand();
+
     void InspectResolvers(ITypes types)
     {
         try
@@ -82,7 +84,7 @@ sealed class CommandWiringInspection(IServiceProvider services, CommandWiringOpt
     {
         try
         {
-            if (command.IsAbstract || command.ContainsGenericParameters || !command.IsCommand())
+            if (!IsInspectable(command))
             {
                 _problems.Add(new(command, "Handle", string.Empty, "discovery", "Supply a concrete closed [Command] type with one instance Handle method."));
                 return;
@@ -94,7 +96,7 @@ sealed class CommandWiringInspection(IServiceProvider services, CommandWiringOpt
                 return;
             }
             var parameters = new CommandWiringDependencies(command, services, options, _problems);
-            foreach (var parameter in command.GetHandleMethod().GetParameters())
+            foreach (var parameter in GeneratedValueParameters.Describe(command, command.GetHandleMethod()))
             {
                 parameters.Inspect(parameter, isValidator: false);
             }
