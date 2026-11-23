@@ -8,5 +8,10 @@ on:
 jobs:
   update:
     uses: Cratis/Workflows/.github/workflows/update-packages.yml@main
+    with:
+      # Keep OpenAPI on 2.x until #3796: Swashbuckle 11 pulls 3.x through
+      # Swagger/SwaggerGen; Microsoft.AspNetCore.OpenApi 11 also requires 3.x.
+      # This input replaces the default, so retain the StyleCop exclusion.
+      nuget-package-exclusions: StyleCop.Analyzers,Microsoft.OpenApi,Microsoft.AspNetCore.OpenApi,Swashbuckle.AspNetCore
     secrets:
       PAT_WORKFLOWS: ${{ secrets.PAT_WORKFLOWS }}
