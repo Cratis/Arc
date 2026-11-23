@@ -24,10 +24,6 @@ namespace Cratis.Arc.MongoDB;
 /// </remarks>
 public class MongoDBReadModelForCommandResolver(IEnumerable<Type> readModelTypes) : ICanResolveReadModelForCommand
 {
-    static readonly MethodInfo _findByIdAsyncMethod = typeof(MongoCollectionExtensions).GetMethod(
-        nameof(MongoCollectionExtensions.FindByIdAsync),
-        BindingFlags.Static | BindingFlags.Public)!;
-
     /// <inheritdoc/>
     public IEnumerable<Type> ReadModelTypes { get; } = [.. readModelTypes];
 
@@ -74,12 +70,14 @@ public class MongoDBReadModelForCommandResolver(IEnumerable<Type> readModelTypes
 
         // A never-materialized read model resolves to null; command-side code can inject a nullable read model and
         // treat null as "does not exist", while a non-nullable dependency is surfaced as a validation failure (HTTP 400).
-        var find = (Task)_findByIdAsyncMethod
+        var find = (Task<object?>)typeof(MongoDBReadModelForCommandResolver)
+            .GetMethod(nameof(FindByIdAsync), BindingFlags.Static | BindingFlags.NonPublic)!
             .MakeGenericMethod(readModelType, idMemberMap.MemberType)
             .Invoke(null, [collection, key])!;
 
-        await find;
-
-        return find.GetType().GetProperty(nameof(Task<object>.Result))!.GetValue(find);
+        return await find;
     }
+
+    static async Task<object?> FindByIdAsync<TDocument, TKey>(object collection, object key) =>
+        await ((IMongoCollection<TDocument>)collection).FindByIdAsync((TKey)key);
 }

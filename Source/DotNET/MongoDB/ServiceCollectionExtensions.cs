@@ -86,7 +86,7 @@ public static class ServiceCollectionExtensions
             optionsBuilder.BindConfiguration(mongoDBConfigSectionPath);
         }
 
-        services.AddKeyedSingleton<Meter>(WellKnownMongoDBDiagnostics.MeterName, (_, _) => new Meter(WellKnownMongoDBDiagnostics.MeterName));
+        services.AddKeyedSingleton(WellKnownMongoDBDiagnostics.MeterName, (_, _) => new Meter(WellKnownMongoDBDiagnostics.MeterName));
         services.AddSingleton<IMeter<MongoDBClientFactory>>(sp => new Meter<MongoDBClientFactory>(sp.GetRequiredKeyedService<Meter>(WellKnownMongoDBDiagnostics.MeterName)));
 
         services.AddKeyedSingleton<IMeter<IMongoClient>>(Internals.MeterName, (sp, key) =>
@@ -161,10 +161,10 @@ public static class ServiceCollectionExtensions
 
     static OptionsBuilder<MongoDBOptions> AddOptions(IServiceCollection services, Action<MongoDBOptions>? configureOptions = default)
     {
+        services.AddSingleton<IValidateOptions<MongoDBOptions>, DefaultMongoDBOptionsValidation>();
         var builder = services
             .AddOptions<MongoDBOptions>()
-            .ValidateOnStart()
-            .ValidateDataAnnotations();
+            .ValidateOnStart();
 
         if (configureOptions is not null)
         {
