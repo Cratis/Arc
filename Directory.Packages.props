@@ -45,7 +45,8 @@
     <!-- Keep Orleans Reminders aligned with the server pulled in by Chronicle.Testing. -->
     <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.2" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
-    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
+    <!-- Held at 2.3.0: 2.4.0 changes JSON-RPC member casing handling, so the McpEndpoint spec "should not dispatch a write through a second name" fails; Arc.Mcp also pins the SDK in its dependency-graph spec. Moving up needs the endpoint hardening reviewed. -->
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.3.0" />
     <!-- Held at 18.9.6 (with Microsoft.Build.Utilities.Core and Microsoft.NET.StringTools): 18.12.x fails the net10.0 MSBuild task projects with a "does not support net10.0" build error. -->
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.9.6" />
@@ -61,7 +62,8 @@
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.2.0" />
-    <PackageVersion Include="MongoDB.Driver" Version="3.14.1" />
+    <!-- Held at 3.13.0: with 3.14.1 the MongoDBWatcher spec "should watch each deployment on a stream of its own" times out; 3.13.0 passes. -->
+    <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
     <PackageVersion Include="Neo4j.Driver" Version="6.5.1" />
     <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
