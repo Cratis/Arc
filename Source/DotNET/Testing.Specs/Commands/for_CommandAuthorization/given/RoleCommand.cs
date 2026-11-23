@@ -1,0 +1,14 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands.ModelBound;
+
+namespace Cratis.Arc.Testing.Commands.for_CommandAuthorization.given;
+
+[Command]
+[Authorize(Roles = "Writer,Admin")]
+public record RoleCommand
+{
+    public void Handle(PolicyBehavior behavior) => behavior.HandlerCalls++;
+}

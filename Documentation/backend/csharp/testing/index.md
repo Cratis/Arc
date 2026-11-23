@@ -103,7 +103,7 @@ The scenario builds its service provider lazily on the first `Execute` or `Valid
 
 Use `Validate` to run the pipeline filters without calling `Provide()` or `Handle()`. It does not generate values.
 
-Continue with [command scenarios](./command-scenario.md) for validation, authorization, assertion contracts, and disposal.
+Continue with [command scenarios](./command-scenario.md) for validation, authorization, assertion contracts, and disposal. To evaluate an explicit principal without executing a command, use the [standalone authorization helper](./command-authorization.md).
 
 <a id="3-add-chronicle-assertions-when-the-command-appends-events"></a>
 
