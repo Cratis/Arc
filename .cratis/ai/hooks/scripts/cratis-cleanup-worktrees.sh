@@ -12,15 +12,23 @@
 #      default branch's first-parent history, which is where a brand-new, empty branch sits), or
 #   2. its tip is merged into origin/<default> and its upstream is gone (the PR branch was deleted), or
 #   3. GitHub reports a merged pull request whose head commit is exactly this tip.
-# Anything else is KEPT and reported with the reason. Nothing is ever forced: a dirty, locked or
-# current worktree is kept, as is one holding .ai-work/ records unless explicitly opted in.
+# Anything else is KEPT and reported with the reason. Nothing is ever forced: a dirty, locked,
+# current or live-held worktree is kept. Ignored/untracked files must be archived or removed first,
+# including .ai-work/. A non-empty .ai-work/ is also preserved when tracked, unless opted in below.
+# Holder checks prefer validated pi-holders --json with jq, otherwise per-process lsof names (never
+# +D): one process-wide listing per candidate, up to three attempts on errors/incomplete results.
+# Only this script and its descendants are excluded; ancestor sessions still count as holders.
+# Missing, failed, unparseable or ambiguous checks keep the worktree (including shared-inode names).
 # `git worktree remove` is never given --force.
 #
 # Usage:
-#   cratis-cleanup-worktrees.sh [--dry-run] [--quiet] [--no-fetch] [--include-work-records]
+#   cratis-cleanup-worktrees.sh [--dry-run] [--quiet] [--no-fetch] [--include-work-records=<path>]...
 #                                                                 run in the repository (any worktree)
-#   --include-work-records                                       allow deletion of .ai-work/ records
-#                                                                 by hand only; ignored in hook mode
+#   --include-work-records=<path>                                bypass record preservation for this
+#                                                                 exact worktree only; repeatable, manual
+#                                                                 only, ignored in hook mode. It permits
+#                                                                 clean tracked records, never ignored or
+#                                                                 untracked files. Bare flag exits 2.
 #   cratis-cleanup-worktrees.sh --hook                                Claude hook mode: reads the hook JSON
 #                                                                     on stdin, acts only when relevant
 #   cratis-cleanup-worktrees.sh --self-test                           plants cases and fails if any is wrong
@@ -30,12 +38,17 @@
 # shellcheck disable=SC2016  # the self-test checks are single-quoted on purpose: they are eval-ed later
 set -uo pipefail
 
-DRY=0; QUIET=0; FETCH=1; HOOK=0; SELFTEST=0; INCLUDE_WORK_RECORDS=0
+DRY=0; QUIET=0; FETCH=1; HOOK=0; SELFTEST=0; WORK_RECORD_PATHS=()
 for a in "$@"; do
     case "$a" in
         --dry-run) DRY=1 ;; --quiet) QUIET=1 ;; --no-fetch) FETCH=0 ;;
         --hook) HOOK=1; QUIET=1 ;; --self-test) SELFTEST=1 ;;
-        --include-work-records) INCLUDE_WORK_RECORDS=1 ;;
+        --include-work-records|--include-work-records=)
+            echo "cratis-cleanup-worktrees: --include-work-records requires an explicit worktree path (--include-work-records=<path>)" >&2; exit 2 ;;
+        --include-work-records=*)
+            record_path=${a#*=}
+            record_path=$(cd "$record_path" 2>/dev/null && pwd -P) || { echo "cratis-cleanup-worktrees: cannot resolve worktree path '${a#*=}'" >&2; exit 2; }
+            WORK_RECORD_PATHS+=("$record_path") ;;
         *) echo "cratis-cleanup-worktrees: unknown argument '$a'" >&2; exit 2 ;;
     esac
 done
@@ -43,7 +56,7 @@ done
 # ── Hook mode: decide whether this event is worth a sweep ─────────────────────
 EVENT="PostToolUse"
 if [ "$HOOK" = 1 ]; then
-    INCLUDE_WORK_RECORDS=0
+    WORK_RECORD_PATHS=()
     payload=''; IFS= read -r -d '' payload || true
     [ "${CRATIS_HOOKS_SKIP_CLEANUP:-}" = 1 ] && exit 0
     case "$payload" in *'"SessionStart"'*) EVENT="SessionStart" ;; esac
@@ -63,24 +76,34 @@ fi
 # ── Self-test ─────────────────────────────────────────────────────────────────
 if [ "$SELFTEST" = 1 ]; then
     self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
-    t=$(mktemp -d "${TMPDIR:-/tmp}/cleanup-selftest.XXXXXX"); trap 'rm -rf "$t"' EXIT
+    t=$(mktemp -d "${TMPDIR:-/tmp}/cleanup-selftest.XXXXXX"); holder=''
+    trap '[ -z "$holder" ] || { kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null; }; rm -rf "$t"' EXIT
     t=$(cd "$t" && pwd -P)
     export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t CRATIS_CLEANUP_NO_GH=1
     git init -q --bare -b main "$t/origin.git"
     git clone -q "$t/origin.git" "$t/repo" 2>/dev/null; cd "$t/repo" || exit 2
+    git config core.excludesFile /dev/null
     git checkout -q -b main 2>/dev/null; echo a > a; git add a; git commit -qm base; git push -q origin main
-    mk() { git worktree add -q -b "$1" "$t/wt-$1" main; }
+    base=$(git rev-parse main)
+    mk() { git worktree add -q -b "$1" "$t/wt-$1" "$base"; }
     mk delivered;  (cd "$t/wt-delivered" && echo d > d && git add d && git commit -qm d)
     mk dirty;      (cd "$t/wt-dirty" && echo x > x && git add x && git commit -qm x)
     mk unmerged;   (cd "$t/wt-unmerged" && echo u > u && git add u && git commit -qm u)
     mk fresh                                    # brand new, no commits: must survive
-    for b in records empty-records locked locked-detached; do
+    for b in records empty-records locked locked-detached tracked-records scoped-records ignored live-holder; do
         mk "$b"; (cd "$t/wt-$b" && echo "$b" > "$b" && git add "$b" && git commit -qm "$b")
+        case "$b" in
+            tracked-records|scoped-records)
+                mkdir "$t/wt-$b/.ai-work"; echo handoff > "$t/wt-$b/.ai-work/.handoff"
+                git -C "$t/wt-$b" add .ai-work; git -C "$t/wt-$b" commit -qm records ;;
+        esac
         git merge -q --no-ff "$b" -m "merge $b"
     done
     mkdir "$t/wt-records/.ai-work" "$t/wt-empty-records/.ai-work"
-    echo '.ai-work/' >> "$t/repo/.git/info/exclude"
+    printf '.ai-work/\nignored-output\n' >> "$t/repo/.git/info/exclude"
     echo handoff > "$t/wt-records/.ai-work/.handoff"
+    echo build > "$t/wt-ignored/ignored-output"
+    (cd "$t/wt-live-holder" && exec sleep 120) & holder=$!
     git -C "$t/wt-locked-detached" checkout -q --detach
     git worktree lock "$t/wt-locked"
     git worktree lock --reason pinned "$t/wt-locked-detached"
@@ -89,7 +112,7 @@ if [ "$SELFTEST" = 1 ]; then
     git push -q origin main
     echo junk > "$t/wt-dirty/untracked"          # makes the merged worktree dirty
     out=$("$self" --no-fetch 2>&1) || { echo "FAIL: exit $?"; echo "$out"; exit 1; }
-    fail=0; chk() { if ! eval "$2"; then echo "FAIL: $1"; fail=1; fi; }
+    fail=0; checks=0; chk() { checks=$((checks + 1)); if ! eval "$2"; then echo "FAIL: $1"; fail=1; fi; }
     chk "delivered worktree removed"   '[ ! -d "$t/wt-delivered" ]'
     chk "delivered branch removed"     '! git rev-parse -q --verify refs/heads/delivered >/dev/null'
     chk "loose merged branch removed"  '! git rev-parse -q --verify refs/heads/loose-delivered >/dev/null'
@@ -102,21 +125,32 @@ if [ "$SELFTEST" = 1 ]; then
     chk "report names the removal"     'grep -q "removed worktree" <<<"$out"'
     chk "work records kept"            '[ -f "$t/wt-records/.ai-work/.handoff" ]'
     chk "work records branch kept"     'git rev-parse -q --verify refs/heads/records >/dev/null'
-    chk "work records reason reported" 'grep -Fq "has untracked work records (.ai-work/)" <<<"$out"'
+    chk "work records reason reported" 'grep -Fq "has work records (.ai-work/)" <<<"$out"'
     chk "empty work records removed"   '[ ! -d "$t/wt-empty-records" ]'
     chk "locked worktree kept"         '[ -d "$t/wt-locked" ]'
     chk "locked branch kept"           'git rev-parse -q --verify refs/heads/locked >/dev/null'
     chk "locked reason reported"       'grep -Fq "worktree $t/wt-locked (locked): locked" <<<"$out"'
     chk "locked detached kept"         '[ -d "$t/wt-locked-detached" ]'
     chk "locked detached reported"     'grep -Fq "worktree $t/wt-locked-detached (detached): locked" <<<"$out"'
-    out=$(printf '%s' '{"hook_event_name":"SessionStart"}' | "$self" --no-fetch --include-work-records --hook 2>&1) || { echo "FAIL: hook exit $?"; echo "$out"; exit 1; }
-    chk "hook ignores opt-in"          '[ -f "$t/wt-records/.ai-work/.handoff" ]'
-    out=$("$self" --no-fetch --include-work-records 2>&1) || { echo "FAIL: opt-in exit $?"; echo "$out"; exit 1; }
-    chk "opt-in removes work records"  '[ ! -d "$t/wt-records" ]'
-    chk "opt-in removes branch"        '! git rev-parse -q --verify refs/heads/records >/dev/null'
+    chk "live holder kept"             '[ -d "$t/wt-live-holder" ]'
+    chk "live holder reason reported"  'grep -F "worktree $t/wt-live-holder (live-holder):" <<<"$out" | grep -E ": (live holder|live process)" >/dev/null'
+    chk "ignored file kept"            '[ -f "$t/wt-ignored/ignored-output" ]'
+    chk "ignored file reason"          'grep -Fq "has ignored/untracked files; archive or remove them first" <<<"$out"'
+    out=$("$self" --no-fetch --dry-run 2>&1) || { echo "FAIL: dry-run exit $?"; echo "$out"; exit 1; }
+    chk "dry-run reports live holder"  'grep -F "kept    worktree $t/wt-live-holder (live-holder):" <<<"$out" | grep -E ": (live holder|live process)" >/dev/null'
+    out=$(printf '%s' '{"hook_event_name":"SessionStart"}' | "$self" --no-fetch "--include-work-records=$t/wt-tracked-records" --hook 2>&1) || { echo "FAIL: hook exit $?"; echo "$out"; exit 1; }
+    chk "hook ignores opt-in"          '[ -f "$t/wt-tracked-records/.ai-work/.handoff" ]'
+    out=$("$self" --no-fetch "--include-work-records=$t/wt-records" "--include-work-records=$t/wt-tracked-records" 2>&1) || { echo "FAIL: opt-in exit $?"; echo "$out"; exit 1; }
+    chk "opt-in keeps ignored records" '[ -f "$t/wt-records/.ai-work/.handoff" ]'
+    chk "opt-in removes tracked records" '[ ! -d "$t/wt-tracked-records" ]'
+    chk "opt-in removes branch"        '! git rev-parse -q --verify refs/heads/tracked-records >/dev/null'
+    chk "opt-in scope preserves others" '[ -f "$t/wt-scoped-records/.ai-work/.handoff" ]'
     chk "opt-in keeps locked"          '[ -d "$t/wt-locked" ]'
     chk "opt-in keeps locked detached" '[ -d "$t/wt-locked-detached" ]'
-    [ "$fail" = 0 ] && echo "cratis-cleanup-worktrees self-test: 24 checks passed" && exit 0
+    out=$("$self" --include-work-records 2>&1); code=$?
+    chk "bare opt-in rejected"         "[ '$code' = 2 ]"
+    chk "bare opt-in guidance"         'grep -Fq "requires an explicit worktree path" <<<"$out"'
+    [ "$fail" = 0 ] && echo "cratis-cleanup-worktrees self-test: $checks checks passed" && exit 0
     echo "$out"; exit 1
 fi
 
@@ -258,19 +292,180 @@ process_worktree() {
     case "$here/" in "$wt"/*) note_kept "worktree $wt ($name): it is the current directory - run the sweep from the main checkout"; return 0 ;; esac
     plan_item worktree "$wt" "$sha" "$br"
 }
+# $$ remains the script's root PID in Bash subshells, including Bash 3.2 without BASHPID.
+# Ancestors are deliberately not excluded: their cwd or open files may hold another worktree.
+check_pi_holders() {
+    local target="$1" processes="$2" report code own
+    report=$(pi-holders --json "$target" 2>/dev/null); code=$?
+    if [ "$code" -gt 1 ]; then HOLDER_REASON="live holder or failed holder check (pi-holders)"; return 1; fi
+    command -v jq >/dev/null 2>&1 || { HOLDER_REASON="holder check unavailable (pi-holders JSON requires jq)"; return 1; }
+    own=$(awk -v root="$$" '
+        { parent[$1] = $2 }
+        END {
+            for (pid in parent) {
+                ancestor = pid
+                while (ancestor > 0 && ancestor != root) ancestor = parent[ancestor]
+                if (ancestor == root) print pid
+            }
+        }
+    ' <<< "$processes") || { HOLDER_REASON="holder check failed (process inspection)"; return 1; }
+    if ! jq -s -e --arg target "$target" --arg own "$own" --argjson code "$code" '
+        def positive_pid: tostring | test("^[1-9][0-9]*$");
+        def holder:
+            type == "object" and (.pid | positive_pid) and (.command | type == "string") and
+            (.kind == "cwd" or .kind == "open") and
+            (.name | type == "string" and (. == $target or startswith($target + "/")));
+        ($own | split("\n")) as $excluded |
+        length == 1 and (.[0] |
+            type == "object" and (.status == "clear" or .status == "held") and
+            ($code == (if .status == "held" then 1 else 0 end)) and
+            (.paths | type == "array" and length == 1) and
+            (.paths[0] |
+                .path == $target and .resolved == $target and (.held | type == "boolean") and
+                (.holders | type == "array" and all(.[]; holder)) and
+                (.held == (.holders | length > 0)) and .ambiguous == 0) and
+            (.paths[0].held == (.status == "held")) and
+            all(.paths[0].holders[]; (.pid | tostring) as $pid | $excluded | index($pid) != null)
+        )
+    ' <<< "$report" >/dev/null 2>&1; then
+        HOLDER_REASON="live holder or invalid/ambiguous holder check (pi-holders)"; return 1
+    fi
+    return 0
+}
+# Parse names, not inode traversal. Incomplete names inside the target (or without any path) are
+# unsafe; incomplete records naming other absolute paths cannot hide a target name in that record.
+# This avoids unrelated FD-info errors from process churn poisoning every candidate.
+lsof_matches() {
+    local target="$1" processes="$2" listing="$3"
+    awk -v root="$$" -v target="$target" '
+        function under_target(path) { return path == target || index(path, target "/") == 1 }
+        function unsafe(detail) { if (!bad) first_bad = detail; bad = 1 }
+        NR == FNR { parent[$1] = $2; next }
+        /^p[1-9][0-9]*$/ {
+            pid = substr($0, 2); ignored = 0; ancestor = pid; kind = ""; type = ""; seen_pid = 1
+            while (ancestor > 0 && !ignored) {
+                if (ancestor == root) ignored = 1
+                ancestor = parent[ancestor]
+            }
+            next
+        }
+        /^f./ { kind = substr($0, 2); type = ""; next }
+        /^t./ { type = substr($0, 2); next }
+        /^n/ {
+            seen_name = 1; path = substr($0, 2)
+            if (ignored || path == "(revoked)") next
+            # A diagnostic suffix can follow the target directory itself, not just a child path.
+            sub(/ (\(stat:|\(FD info error:|FD info error:).*/, "", path)
+            if (under_target(path)) {
+                if (!seen_pid || kind == "" || type == "") unsafe("incomplete " kind " " type " " path)
+                else print kind "|" path
+            } else if (path !~ /^\//) {
+                # Kernel/network object names are not filesystem paths. Unix sockets may have paths,
+                # so only their non-path addresses are exempt; unknown names may hide a target file.
+                if (kind != "" && kind != "cwd" && type ~ /^(rte|ndrv)$/) next
+                if (kind != "cwd" && type ~ /^(PIPE|NPOLICY|NEXUS|KQUEUE|IPv4|IPv6|systm|CHAN)$/) next
+                if (kind != "cwd" && type == "unix" && path ~ /^(->0x[[:xdigit:]]+|->\(none\)|@.*|[[:alnum:]_.-]*)$/) next
+                # Linux anonymous objects have typed pseudo-names, not filesystem paths.
+                # Require a descriptor and a known type/name pair; cwd and incomplete records stay unsafe.
+                if (kind != "" && kind != "cwd") {
+                    if (type == "FIFO" && path ~ /^pipe(:\[[0-9]+\])?$/) next
+                    if (type == "sock" && path ~ /^(socket:\[[0-9]+\]|protocol: [[:alnum:]_-]+)$/) next
+                    # Anonymous-inode names are kernel objects whatever the reported type (for example a
+                    # memory-mapped `anon_inode:[io_uring]` is type REG), so the name alone exempts them.
+                    if (path ~ /^(anon_inode:)?\[[[:alnum:]_]+(:[0-9]+(,[0-9]+)*)?\]$/) next
+                    # lsof truncates long names, leaving a digit/comma list ending in `...` with no closing bracket.
+                    if (path ~ /^(anon_inode:)?\[[[:alnum:]_]+:[0-9,]*\.\.\.$/) next
+                    if (type == "a_inode" && path ~ /^(anon_inode:)?[[:alnum:]_]+$/) next
+                    if (type == "unix" && path ~ /^type=[[:upper:]]+( \([[:upper:]]+\))?$/) next
+                    if (type == "netlink" && path ~ /^[[:upper:]_]+$/) next
+                }
+                unsafe("unrecognised " kind " " type " " path)
+            }
+            next
+        }
+        { if (!ignored) unsafe("unexpected record " $0) }
+        END {
+            if (!seen_pid || !seen_name) unsafe("empty listing")
+            if (bad) { print "!" first_bad; exit 1 }
+        }
+    ' <(printf '%s\n' "$processes") <(printf '%s\n' "$listing")
+}
+# One process-wide listing per candidate, retried at most three times before failing closed.
+check_lsof_holders() {
+    local target="$1" processes="$2" listing matches detail kind path links attempt
+    for attempt in 1 2 3; do
+        if ! listing=$(lsof -nP -w -F pfnt 2>/dev/null); then
+            HOLDER_REASON="holder check failed (lsof)"; continue
+        fi
+        if matches=$(lsof_matches "$target" "$processes" "$listing"); then HOLDER_REASON=''; break; fi
+        # The first unsafe record is the last output line; builtins only (PATH may be minimal).
+        detail=${matches##*$'\n'}
+        HOLDER_REASON="holder check failed (path inspection: ${detail#!})"
+    done
+    [ "$attempt" != 3 ] || [ -z "${HOLDER_REASON:-}" ] || return 1
+    while IFS='|' read -r kind path; do
+        [ -n "$path" ] || continue
+        # Shared hard-link names cannot identify which worktree the process actually holds.
+        if [ "$kind" != cwd ] && [ -f "$path" ]; then
+            links=$(stat -c '%h' "$path" 2>/dev/null || stat -f '%l' "$path" 2>/dev/null) || links=0
+            if ! [[ "$links" =~ ^[0-9]+$ ]] || [ "$links" != 1 ]; then
+                HOLDER_REASON="ambiguous holder check (shared or unknown inode: $path)"; return 1
+            fi
+        fi
+        HOLDER_REASON="live process holds worktree ($kind: $path)"; return 1
+    done <<< "$matches"
+    return 0
+}
+check_holders() {
+    local target processes use_pi=0
+    HOLDER_REASON=''
+    target=$(cd "$1" 2>/dev/null && pwd -P) || { HOLDER_REASON="could not resolve worktree for holder check"; return 1; }
+    if command -v pi-holders >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then use_pi=1
+    elif ! command -v lsof >/dev/null 2>&1; then
+        HOLDER_REASON="no holder check tool available (pi-holders+jq/lsof)"; return 1
+    fi
+    processes=$(ps -axo pid=,ppid= 2>/dev/null) || { HOLDER_REASON="holder check failed (ps)"; return 1; }
+    if ! awk -v root="$$" '$1 == root { found = 1 } END { exit !found }' <<< "$processes"; then
+        HOLDER_REASON="holder check incomplete (ps)"; return 1
+    fi
+    if [ "$use_pi" = 1 ]; then check_pi_holders "$target" "$processes"
+    else check_lsof_holders "$target" "$processes"; fi
+}
+include_work_records() {
+    [ "$HOOK" = 0 ] || return 1
+    local path target
+    target=$(cd "$1" 2>/dev/null && pwd -P) || return 1
+    for path in "${WORK_RECORD_PATHS[@]+"${WORK_RECORD_PATHS[@]}"}"; do
+        [ "$path" != "$target" ] || return 0
+    done
+    return 1
+}
+worktree_clean() {
+    local status
+    if ! status=$(git -C "$wt" status --porcelain --ignored 2>/dev/null); then
+        note_kept "worktree $wt ($name): could not inspect worktree status"; return 1
+    fi
+    if [[ "$status" == '?? '* || "$status" == '!! '* || "$status" == *$'\n?? '* || "$status" == *$'\n!! '* ]]; then
+        note_kept "worktree $wt ($name): has ignored/untracked files; archive or remove them first"; return 1
+    fi
+    if [ -n "$status" ]; then note_kept "worktree $wt ($name): delivered but has uncommitted changes"; return 1; fi
+    return 0
+}
 execute_worktree() {
     local name="${br:-detached}" ev="$1" current
     current=$(git -C "$wt" rev-parse HEAD 2>/dev/null) || return 0
     [ "$current" = "$sha" ] || { note_kept "worktree $wt ($name): tip changed since planning"; return 0; }
-    if [ "$INCLUDE_WORK_RECORDS" = 0 ] && [ -d "$wt/.ai-work" ]; then
+    if ! include_work_records "$wt" && [ -d "$wt/.ai-work" ]; then
         local records
         if ! records=$(find "$wt/.ai-work/." -mindepth 1 -maxdepth 1 -print -quit); then
             note_kept "worktree $wt ($name): could not inspect work records (.ai-work/)"; return 0
         fi
-        if [ -n "$records" ]; then note_kept "worktree $wt ($name): has untracked work records (.ai-work/)"; return 0; fi
+        if [ -n "$records" ]; then note_kept "worktree $wt ($name): has work records (.ai-work/)"; return 0; fi
     fi
-    if [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]; then note_kept "worktree $wt ($name): delivered but has uncommitted changes"; return 0; fi
+    worktree_clean || return 0
     local kb; kb=$(du -sk "$wt" 2>/dev/null | awk '{print $1}')
+    if ! check_holders "$wt"; then note_kept "worktree $wt ($name): $HOLDER_REASON"; return 0; fi
+    worktree_clean || return 0
     if [ "$DRY" = 1 ]; then note_removed "worktree $wt ($name): would remove, $ev"; return 0; fi
     if git worktree remove "$wt" >/dev/null 2>&1; then
         FREED_KB=$((FREED_KB + ${kb:-0})); note_removed "worktree $wt ($name): $ev"

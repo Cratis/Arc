@@ -1,6 +1,6 @@
 ---
 name: cratis-engineering-issue-hygiene
-description: Use when claiming an issue, maintaining its status block or deciding an authorized closure or necessary follow-up. Not for delivery grouping, review rounds or CI operations.
+description: Use when claiming an issue, posting a meaningful issue event or deciding an authorized closure or necessary follow-up. Not for delivery grouping, review rounds or CI operations.
 license: LICENSE
 compatibility: Requires git and the GitHub CLI (gh).
 ---
@@ -9,20 +9,25 @@ compatibility: Requires git and the GitHub CLI (gh).
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-# Leave fewer issues, with a truthful description
+# Leave fewer issues, with a truthful timeline
 
-An issue must make sense to a reader outside the session. Keep its present state
-in the description and meaningful events in the timeline. Before any mutation,
-read [capability-is-not-authority.md](../../rules/capability-is-not-authority.md).
+An issue must make sense to a reader outside the session. Issues are append-only:
+never edit an issue's title, description or any existing comment, including the
+agent's own comments. Leave legacy status blocks in issue bodies untouched.
+Labels, assignees, milestones and opening or closing issues remain allowed when
+authorized. PR descriptions stay editable: they are the release notes, governed
+by [pull-requests.md](../../rules/pull-requests.md).
+
+Before any mutation, read
+[capability-is-not-authority.md](../../rules/capability-is-not-authority.md).
 The request authorizes its named effects, not arbitrary filing or closing.
 
 ## One writer and a clear claim
 
-One person or session owns all body edits, comments and disposition for a named
-issue. Delegated workers report findings to that owner. An explicit handoff can
-transfer the named issue, but the previous writer must stop editing it. GitHub
-body edits are not conditional writes; a last-minute reread alone cannot prevent
-two writers from overwriting each other.
+One person or session owns public comments and disposition for a named issue.
+Delegated workers report findings to that owner. An explicit handoff can transfer
+the named issue, but the previous writer must stop publishing to it. Append-only
+comments preserve traceability and avoid concurrent overwrites of issue text.
 
 Before starting, read the issue, comments, assignees and any status block. Follow
 [issue-assignment.md](../../rules/issue-assignment.md) and this claiming procedure:
@@ -44,80 +49,43 @@ Assign each PR you open the same way: `gh pr create --assignee @me`, or
 
 The request to work on the issue authorizes this assignment only, not comments,
 labels or closure. If another writer is active, coordinate rather than starting
-a parallel edit. Delegated workers do not claim or mutate the issue.
+parallel publication. Delegated workers do not claim or mutate the issue.
 
-When the request covers maintaining the issue, set the status block to
-**In progress** before coding. Keep it true as work moves: **In review** for the
-open PR, **Blocked** with the dependency, **Paused** when no active work remains,
-and **Done** only when delivery is confirmed. Never leave In progress behind
-when the writer stops.
+## Append meaningful events, not progress chatter
 
-## Put the status block in the description
+When comments are authorized, post a NEW self-contained comment only at an event
+a reader needs:
 
-Preserve the original problem statement and all text outside the managed block.
-Append the block if absent. Stop for coordination if markers are malformed,
-duplicated or already managed by another active writer. A minimal template is:
+- **Started or claimed:** optional and minimal; prefer assignment instead.
+- **Pull request opened:** link the public PR and state what it delivers.
+- **Blocked or paused:** explain the reason, what remains and what must happen
+  before work can resume.
+- **Done or closing:** state what shipped, link the delivery and name any
+  necessary follow-ups. Pending release is not Done.
 
-```markdown
-<!-- agent-status:start -->
-## Status
-**State:** In progress
-**Scope:** Deliver the agreed behavior and its regression specification.
-**Approach:** Fix the shared decision and exercise it through the public API.
-**PR:** Not opened.
-**Delivered:** Nothing yet.
-**Remaining:** Implement, verify, review and deliver.
-**Follow-ups:** None.
-<!-- agent-status:end -->
-```
+Each comment stands alone: what happened, why it matters, what comes next.
+Correct outdated information with a new comment linking the earlier one, never
+by editing it. A design decision is a new comment; a changed decision is a new
+comment superseding the earlier one by link. There is no design-note exception;
+read **cratis-engineering-issue-design-note** for that format and trust checks.
+Do not post routine progress, repeated status, tool output, test counts, receipts
+or model/session chatter. Do not create, refresh or remove a status block.
 
-Replace the example with the real scope and remaining work. Use public PR or
-issue URLs when they exist. Summarize a local plan; never link its file path.
+Use absolute public URLs. Summarize a local plan; never link its file path.
 Do not put local paths, harness commands, credentials or private context in
 public issue or PR text. Never name a customer or a customer's customer in an
 issue, comment or PR; describe the situation generically ("a large enterprise
-tenant") and strip identifying products, systems and people. Read [secrets.md](../../rules/secrets.md) before handling
-output, and [local-work-artifacts.md](../../rules/local-work-artifacts.md) before
-creating the private working copy.
-
-For example, read the body into an ignored local working file:
-
-```bash
-gh issue view <n> --repo OWNER/REPO --json body --jq .body > .ai-work/issue-body.md
-```
-
-Edit only the managed block in that file. Immediately before writing, re-read
-both the issue and any linked PR. Read the remote body again:
+tenant") and strip identifying products, systems and people. Read
+[secrets.md](../../rules/secrets.md) before handling output, and
+[local-work-artifacts.md](../../rules/local-work-artifacts.md) before creating a
+private comment draft. For an authorized PR-opened event, for example:
 
 ```bash
-gh issue view <n> --repo OWNER/REPO --json body
+gh issue comment <n> --repo OWNER/REPO --body-file .ai-work/issue-comment.md
+gh issue view <n> --repo OWNER/REPO --comments
 ```
 
-Compare it with the body used to prepare the edit. If anything changed, preserve
-those changes and recompose from the fresh body. If concurrent edits continue,
-stop and coordinate with the other writer. Do not write a stale whole body.
-After a clean comparison, write the complete preserved body back, for example:
-
-```bash
-gh issue edit <n> --repo OWNER/REPO --body-file .ai-work/issue-body.md
-gh issue view <n> --repo OWNER/REPO --json body
-```
-
-Verify the block changed as intended and the surrounding content stayed intact.
-Do not paste the private working-file path into the issue.
-
-## Description versus comment
-
-Edit the status block for current scope, decisions, approach, checklist, linked
-PRs, dependencies and what remains. The description alone should explain the
-present state. Do not rewrite other people's text or replace the original report.
-The one design comment linked from the block is the edited-in-place exception; see **cratis-engineering-issue-design-note**.
-
-Comment only for an event worth notifying readers about: a decision or scope
-change with its reason, a human blocker, a delivery milestone or a closing
-summary. Each comment stands alone: what happened, why it matters, what comes
-next. Use absolute public URLs. Do not repeat the block as a comment or post
-"working on it", tool output, test counts, receipts or model/session chatter.
+Verify the new comment says what was intended; existing issue text stays intact.
 
 Re-read the issue and PR before every key step: starting, changing scope,
 updating public state, filing follow-ups, merging or disposing of the issue.
@@ -158,7 +126,8 @@ intent and repository workflow; a merged PR is not proof of a published release.
 - **Manual completion:** only for a `no-release` PR or a repository without
   release-action, and only when the request includes closing. Confirm all scope
   is delivered and no required PR is open, unmerged, reverted or failing. Set
-  Done and close with reason `completed` and a public delivery link.
+  Done in a new closing comment and close with reason `completed` and a public
+  delivery link.
 - **Duplicate or obsolete:** only with clear evidence and authority. Use reason
   `not planned`, explain why, and link the canonical issue or superseding work.
   If uncertain, leave it open and report the question.
@@ -184,23 +153,25 @@ Check merged PRs for completed work still open; distinguish pending release-acti
 closure from an authorized manual disposition. Verify closure through the issue's
 actual state, not an assumption about merging.
 
-Leave no issue In progress without an active writer. For unfinished work, set
-Paused or Blocked with what remains and what it waits for. Reconcile follow-ups
+Leave no issue appearing actively worked without an active writer. For unfinished
+work, post an authorized new Paused or Blocked comment with what remains and what
+it waits for; leave any legacy body status untouched. Reconcile follow-ups
 with existing issues. Perform only authorized mutations; otherwise report the
 proposed changes and the blocker. Summarize completed issues, pending release
 closures and unfinished scope without publishing local paths or harness details.
 
 ## How it is proven
 
-Read the final body and state, for example with
-`gh issue view <n> --repo OWNER/REPO --json body,state`. The original report is
-intact, the status block matches the actual PR and release, and any authorized
-closure is observable. Until release-action runs, pending closure is not Done.
+Read the final title, body, comments and state, for example with
+`gh issue view <n> --repo OWNER/REPO --json title,body,comments,state`. The title,
+description and pre-existing comments are unchanged; new comments match the
+actual PR and release, and any authorized closure is observable. Until
+release-action runs, pending closure is not Done.
 
 ## What breaks
 
-- Two body writers lose each other's updates even if both reread first.
-- A status comment buries current state and needlessly notifies subscribers.
+- Editing existing issue text loses traceability and risks concurrent overwrites.
+- Routine progress comments needlessly notify subscribers; meaningful events do not.
 - Manual closure before release bypasses release-action's delivery contract.
 - Filing every advisory grows the backlog without a necessary delivery.
-- Stale In progress blocks the next person without anyone doing the work.
+- Stopping without a paused or blocked event leaves readers expecting active work.
