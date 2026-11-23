@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Collections.Concurrent;
 using System.ComponentModel;
 
 namespace Cratis.Arc.Commands;
@@ -12,7 +11,7 @@ namespace Cratis.Arc.Commands;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class CommandUnionMetadata
 {
-    static readonly ConcurrentDictionary<Type, Declaration> _declarations = new();
+    static readonly CommandUnionMetadataRegistry _registry = new(GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered);
 
     /// <summary>
     /// Registers metadata for an exact, closed native union type. Repeated registrations are harmless.
@@ -21,22 +20,14 @@ public static class CommandUnionMetadata
     /// <param name="caseTypes">The compiler-declared case types, copied on registration.</param>
     /// <param name="activeValue">The typed accessor for the active case.</param>
     public static void Register(Type unionType, Type[] caseTypes, Func<object, object?> activeValue) =>
-        _declarations[unionType] = new(Array.AsReadOnly((Type[])caseTypes.Clone()), activeValue);
+        _registry.Register(unionType, caseTypes, activeValue);
 
     /// <summary>
     /// Resolves generated metadata after activating pending project modules.
     /// </summary>
     /// <param name="unionType">The exact union declaration.</param>
     /// <returns>The generated declaration, if registered.</returns>
-    internal static Declaration? For(Type unionType)
-    {
-        if (!_declarations.ContainsKey(unionType))
-        {
-            GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
-        }
-
-        return _declarations.TryGetValue(unionType, out var declaration) ? declaration : null;
-    }
+    internal static Declaration? For(Type unionType) => _registry.For(unionType);
 
     /// <summary>
     /// Gets all declared alternatives, falling back only in untrimmed JIT mode.

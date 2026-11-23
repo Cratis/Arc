@@ -6,7 +6,6 @@ namespace Cratis.Arc.Commands.for_CommandPipeline;
 
 public class when_union_metadata_is_missing_with_reflection_disabled : given.a_native_union_pipeline
 {
-    Exception _exception;
     Command _command;
 
     async Task Because()
@@ -17,17 +16,16 @@ public class when_union_metadata_is_missing_with_reflection_disabled : given.a_n
             return;
         }
         _command = new Command();
-        try { await Run(_command); }
-        catch (Exception exception) { _exception = exception; }
+        await Run(_command);
     }
 
     [Fact]
     void should_fail_clearly_before_handle_without_weakening_the_boundary()
     {
         if (CommandUnionFeatureSwitches.ReflectionIsSupported) return; // The isolated process runs the assertions.
-        _exception.ShouldBeOfExactType<MissingCommandUnionMetadata>();
-        _exception.Message.ShouldContain(typeof(Missing).ToString());
-        _exception.Message.ShouldContain("Arc source generator");
+        _result.IsSuccess.ShouldBeFalse();
+        _result.ExceptionMessages.ShouldContainOnly(new MissingCommandUnionMetadata(typeof(Missing)).Message);
+        _result.ExceptionStackTrace.ShouldContain(nameof(CommandUnionMetadata));
         _command.Calls.ShouldEqual(0);
     }
 

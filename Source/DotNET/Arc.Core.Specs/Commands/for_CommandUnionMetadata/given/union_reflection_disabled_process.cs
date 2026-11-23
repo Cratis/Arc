@@ -11,11 +11,21 @@ public static class union_reflection_disabled_process
 {
     public static async Task Run(Type specification)
     {
+        // The feature switch is cached at type initialization. A child avoids changing switch state in parallel specs.
+        var directory = Directory.CreateTempSubdirectory("cratis-arc-union-");
+        try
+        {
+            await RunIsolated(specification, directory.FullName);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    static async Task RunIsolated(Type specification, string directory)
+    {
         var assembly = specification.Assembly.Location;
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (!Directory.Exists(Path.Combine(root.FullName, ".git")) && !File.Exists(Path.Combine(root.FullName, ".git"))) root = root.Parent!;
-        var directory = Path.Combine(root.FullName, ".ai-work", "3954", "specs", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
         var config = JsonNode.Parse(await File.ReadAllTextAsync(Path.ChangeExtension(assembly, ".runtimeconfig.json")))!;
         var options = config["runtimeOptions"]!;
         options["configProperties"] ??= new JsonObject();
@@ -32,6 +42,7 @@ public static class union_reflection_disabled_process
         catch (OperationCanceledException)
         {
             process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(CancellationToken.None);
             throw;
         }
         if (process.ExitCode != 0) throw new InvalidOperationException($"Isolated switch-off spec failed: {await stdout}\n{await stderr}");
