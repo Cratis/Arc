@@ -19,28 +19,22 @@ static class NativeUnionReturnOperations
     /// <param name="compilation">The compilation containing the handler.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The event types carried by visibly empty unions.</returns>
-    internal static IEnumerable<ITypeSymbol> EmptyEvents(IMethodSymbol method, Compilation compilation, CancellationToken cancellationToken)
+    internal static IEnumerable<ITypeSymbol> EmptyEvents(IMethodSymbol method, Compilation compilation, CancellationToken cancellationToken) =>
+        method.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax(cancellationToken)).OfType<MethodDeclarationSyntax>()
+            .SelectMany(declaration => EmptyEvents(declaration, compilation, cancellationToken));
+
+    static IEnumerable<ITypeSymbol> EmptyEvents(MethodDeclarationSyntax declaration, Compilation compilation, CancellationToken cancellationToken)
     {
-        foreach (var reference in method.DeclaringSyntaxReferences)
-        {
-            if (reference.GetSyntax(cancellationToken) is not MethodDeclarationSyntax declaration)
-            {
-                continue;
-            }
-            var model = compilation.GetSemanticModel(declaration.SyntaxTree);
-            var expressions = declaration.ExpressionBody is { } expressionBody
-                ? [expressionBody.Expression]
-                : declaration.DescendantNodes(node => node is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax)
-                    .OfType<ReturnStatementSyntax>().Select(statement => statement.Expression).OfType<ExpressionSyntax>();
-            foreach (var expression in expressions)
-            {
-                foreach (var eventType in EmptyEvents(WithReturnConversion(model.GetOperation(expression, cancellationToken)), compilation, 0))
-                {
-                    yield return eventType;
-                }
-            }
-        }
+        var model = compilation.GetSemanticModel(declaration.SyntaxTree);
+        return ReturnExpressions(declaration).SelectMany(expression =>
+            EmptyEvents(WithReturnConversion(model.GetOperation(expression, cancellationToken)), compilation, 0));
     }
+
+    static IEnumerable<ExpressionSyntax> ReturnExpressions(MethodDeclarationSyntax declaration) =>
+        declaration.ExpressionBody is { } expressionBody
+            ? [expressionBody.Expression]
+            : declaration.DescendantNodes(node => node is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax)
+                .OfType<ReturnStatementSyntax>().Select(statement => statement.Expression).OfType<ExpressionSyntax>();
 
     static IOperation? WithReturnConversion(IOperation? operation)
     {
@@ -69,16 +63,28 @@ static class NativeUnionReturnOperations
 
     static IEnumerable<IOperation> ReturnValues(IOperation operation, Compilation compilation) => operation switch
     {
-        IConversionOperation conversion when IsTransparent(conversion, compilation) => [conversion.Operand],
+        IConversionOperation conversion => ConversionValues(conversion, compilation),
+        IObjectCreationOperation creation => CreationValues(creation, compilation),
+        IInvocationOperation invocation => InvocationValues(invocation, compilation),
+        _ => BranchValues(operation)
+    };
+
+    static IEnumerable<IOperation> BranchValues(IOperation operation) => operation switch
+    {
         ITupleOperation tuple => tuple.Elements,
         IConditionalOperation conditional => new[] { conditional.WhenTrue, conditional.WhenFalse }.OfType<IOperation>(),
         ISwitchExpressionOperation expression => expression.Arms.Select(arm => arm.Value),
-        IObjectCreationOperation creation when IsCaseOrAwaitableCreation(creation, compilation) =>
-            creation.Arguments.Select(argument => argument.Value),
-        IInvocationOperation invocation when IsFromResult(invocation, compilation) =>
-            invocation.Arguments.Select(argument => argument.Value),
         _ => []
     };
+
+    static IEnumerable<IOperation> ConversionValues(IConversionOperation conversion, Compilation compilation) =>
+        IsTransparent(conversion, compilation) ? [conversion.Operand] : [];
+
+    static IEnumerable<IOperation> CreationValues(IObjectCreationOperation creation, Compilation compilation) =>
+        IsCaseOrAwaitableCreation(creation, compilation) ? creation.Arguments.Select(argument => argument.Value) : [];
+
+    static IEnumerable<IOperation> InvocationValues(IInvocationOperation invocation, Compilation compilation) =>
+        IsFromResult(invocation, compilation) ? invocation.Arguments.Select(argument => argument.Value) : [];
 
     static bool IsTransparent(IConversionOperation conversion, Compilation compilation) =>
         !conversion.Conversion.IsUserDefined ||

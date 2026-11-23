@@ -197,13 +197,18 @@ internal static class ChronicleStateSymbols
         for (var current = command; current is not null; current = current.BaseType)
         {
             foreach (var method in current.GetMembers("Provide").OfType<IMethodSymbol>().Where(method =>
-                !method.IsStatic && method.MethodKind == MethodKind.Ordinary &&
-                (SymbolEqualityComparer.Default.Equals(current, command) || method.DeclaredAccessibility != Accessibility.Private)))
+                IsProviderMethod(method) && IsProviderVisible(method, current, command)))
             {
                 yield return method;
             }
         }
     }
+
+    static bool IsProviderMethod(IMethodSymbol method) =>
+        !method.IsStatic && method.MethodKind == MethodKind.Ordinary;
+
+    static bool IsProviderVisible(IMethodSymbol method, INamedTypeSymbol declaringType, INamedTypeSymbol command) =>
+        SymbolEqualityComparer.Default.Equals(declaringType, command) || method.DeclaredAccessibility != Accessibility.Private;
 
     static bool ProducesEvents(ITypeSymbol type, Compilation compilation, int depth = 0)
     {
@@ -218,21 +223,31 @@ internal static class ChronicleStateSymbols
             return tuple.TupleElements.Any(element => ProducesEvents(element.Type, compilation, depth + 1));
         }
         var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
-        if (branches.Length != 1 || !SymbolEqualityComparer.Default.Equals(branches[0], type))
+        if (HasResponseAlternatives(branches, type))
         {
             return branches.Any(branch => ProducesEvents(branch, compilation, depth + 1));
         }
-        if (RawGuidResponseAnalysis.HasEventTypeAttribute(type, compilation) ||
-            RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventForEventSourceId", compilation) ||
-            RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes", compilation))
-        {
-            return true;
-        }
-        var element = type is IArrayTypeSymbol { Rank: 1 } array ? array.ElementType :
-            type.AllInterfaces.Prepend(type).OfType<INamedTypeSymbol>().FirstOrDefault(candidate =>
-                RawGuidResponseAnalysis.IsType(candidate, "System.Collections.Generic.IEnumerable`1", compilation))?.TypeArguments[0];
+        return IsEventResponse(type, compilation) || ProducesCollectionEvents(type, compilation, depth);
+    }
+
+    static bool HasResponseAlternatives(ITypeSymbol[] branches, ITypeSymbol original) =>
+        branches.Length != 1 || !SymbolEqualityComparer.Default.Equals(branches[0], original);
+
+    static bool IsEventResponse(ITypeSymbol type, Compilation compilation) =>
+        RawGuidResponseAnalysis.HasEventTypeAttribute(type, compilation) ||
+        RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventForEventSourceId", compilation) ||
+        RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes", compilation);
+
+    static bool ProducesCollectionEvents(ITypeSymbol type, Compilation compilation, int depth)
+    {
+        var element = CollectionElement(type, compilation);
         return element is not null && (element.SpecialType == SpecialType.System_Object || ProducesEvents(element, compilation, depth + 1));
     }
+
+    static ITypeSymbol? CollectionElement(ITypeSymbol type, Compilation compilation) =>
+        type is IArrayTypeSymbol { Rank: 1 } array ? array.ElementType :
+            type.AllInterfaces.Prepend(type).OfType<INamedTypeSymbol>().FirstOrDefault(candidate =>
+                RawGuidResponseAnalysis.IsType(candidate, "System.Collections.Generic.IEnumerable`1", compilation))?.TypeArguments[0];
 
     static bool HasProjectionMetadata(INamedTypeSymbol type) =>
         HasProjectionAttribute(type.GetAttributes()) ||
@@ -247,12 +262,23 @@ internal static class ChronicleStateSymbols
     static bool IsSelfReducing(INamedTypeSymbol type, Compilation compilation) =>
         type is { TypeKind: TypeKind.Class, IsAbstract: false, IsGenericType: false } &&
         type.GetMembers("Reduce").OfType<IMethodSymbol>().Any(method =>
-            method is { IsStatic: true, DeclaredAccessibility: Accessibility.Public, IsGenericMethod: false } &&
-            method.Parameters.Length is 2 or 3 &&
-            method.Parameters.All(parameter => parameter.RefKind == RefKind.None && !parameter.IsOptional && !parameter.IsParams) &&
-            RawGuidResponseAnalysis.HasEventTypeAttribute(method.Parameters[0].Type, compilation) &&
-            SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, type) &&
-            method.Parameters[1].NullableAnnotation != NullableAnnotation.NotAnnotated &&
-            (method.Parameters.Length == 2 || RawGuidResponseAnalysis.IsType(method.Parameters[2].Type, "Cratis.Chronicle.Events.EventContext", compilation)) &&
-            SymbolEqualityComparer.Default.Equals(RawGuidResponseAnalysis.UnwrapAwaitable(method.ReturnType, compilation), type));
+            IsReducerMethod(method) && MatchesReducerSignature(method, type, compilation));
+
+    static bool IsReducerMethod(IMethodSymbol method) =>
+        method is { IsStatic: true, DeclaredAccessibility: Accessibility.Public, IsGenericMethod: false } &&
+        method.Parameters.Length is 2 or 3 && method.Parameters.All(IsReducerParameter);
+
+    static bool IsReducerParameter(IParameterSymbol parameter) =>
+        parameter.RefKind == RefKind.None && !parameter.IsOptional && !parameter.IsParams;
+
+    static bool MatchesReducerSignature(IMethodSymbol method, INamedTypeSymbol model, Compilation compilation) =>
+        RawGuidResponseAnalysis.HasEventTypeAttribute(method.Parameters[0].Type, compilation) &&
+        IsNullableModel(method.Parameters[1], model) && HasOptionalEventContext(method, compilation) &&
+        SymbolEqualityComparer.Default.Equals(RawGuidResponseAnalysis.UnwrapAwaitable(method.ReturnType, compilation), model);
+
+    static bool IsNullableModel(IParameterSymbol parameter, INamedTypeSymbol model) =>
+        SymbolEqualityComparer.Default.Equals(parameter.Type, model) && parameter.NullableAnnotation != NullableAnnotation.NotAnnotated;
+
+    static bool HasOptionalEventContext(IMethodSymbol method, Compilation compilation) =>
+        method.Parameters.Length == 2 || RawGuidResponseAnalysis.IsType(method.Parameters[2].Type, "Cratis.Chronicle.Events.EventContext", compilation);
 }
