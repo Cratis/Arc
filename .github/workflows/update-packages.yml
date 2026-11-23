@@ -11,7 +11,8 @@ jobs:
     with:
       # Keep OpenAPI on 2.x until #3796: Swashbuckle 11 pulls 3.x through
       # Swagger/SwaggerGen; Microsoft.AspNetCore.OpenApi 11 also requires 3.x.
+      # Also retain every documented dependency hold in Directory.Packages.props.
       # This input replaces the default, so retain the StyleCop exclusion.
-      nuget-package-exclusions: StyleCop.Analyzers,Microsoft.OpenApi,Microsoft.AspNetCore.OpenApi,Swashbuckle.AspNetCore
+      nuget-package-exclusions: StyleCop.Analyzers,Microsoft.OpenApi,Microsoft.AspNetCore.OpenApi,Swashbuckle.AspNetCore,Cratis.Screenplay,Cratis.Screenplay.Generation.Contracts,Cratis.Screenplay.Generation,Cratis.Screenplay.Generation.DotNet,ModelContextProtocol.AspNetCore,Microsoft.Build.Framework,Microsoft.Build.Utilities.Core,Microsoft.NET.StringTools,MongoDB.Driver,handlebars.net,Microsoft.CodeAnalysis.CSharp,Microsoft.CodeAnalysis.CSharp.Workspaces,Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit,Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.XUnit,Microsoft.CodeAnalysis.Workspaces.MSBuild,Microsoft.CodeAnalysis.Workspaces.Common,Meziantou.Analyzer,xunit.v3.mtp-off,xunit.v3.extensibility.core,NSubstitute
     secrets:
       PAT_WORKFLOWS: ${{ secrets.PAT_WORKFLOWS }}
