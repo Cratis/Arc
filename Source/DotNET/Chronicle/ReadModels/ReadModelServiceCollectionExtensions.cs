@@ -384,7 +384,7 @@ public static class ReadModelServiceCollectionExtensions
 
     sealed class ReadModelDiscovery
     {
-        readonly object _gate = new();
+        readonly Lock _gate = new();
         Type[] _projections = [];
         Type[] _modelBoundProjections = [];
         Type[] _reducers = [];

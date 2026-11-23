@@ -16,7 +16,7 @@ public class ServiceBrokerManager(ILogger<ServiceBrokerManager> logger) : IServi
     /// Track databases where we've already attempted to enable Service Broker (per server+database).
     /// </summary>
     static readonly HashSet<string> _enablementAttempted = [];
-    static readonly object _lock = new();
+    static readonly Lock _lock = new();
 
     /// <inheritdoc/>
     public async Task EnsureEnabled(string connectionString, CancellationToken cancellationToken = default)

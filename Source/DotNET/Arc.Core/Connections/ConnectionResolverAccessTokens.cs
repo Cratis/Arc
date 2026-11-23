@@ -19,7 +19,7 @@ sealed class ConnectionResolverAccessTokens(
     HttpConnectionResolverAuthenticationOptions options,
     TimeProvider timeProvider)
 {
-    readonly object _lock = new();
+    readonly Lock _lock = new();
     ConnectionResolverAccessToken? _current;
     Task<ConnectionResolverAccessToken>? _fetching;
 

@@ -33,7 +33,7 @@ internal sealed class PendingChanges(bool readsAgainOnEveryChange, int maximumDo
     /// </summary>
     internal const int MaximumDocuments = 512;
 
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly Dictionary<BsonValue, LinkedListNode<ChangeStreamDocument<BsonDocument>>> _byDocument = [];
     readonly LinkedList<ChangeStreamDocument<BsonDocument>> _inOrder = [];
     readonly Channel<bool> _ready = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)

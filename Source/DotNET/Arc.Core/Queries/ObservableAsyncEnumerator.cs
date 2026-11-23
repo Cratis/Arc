@@ -11,7 +11,7 @@ namespace Cratis.Arc.Queries;
 /// <typeparam name="T">Type the enumerator is for.</typeparam>
 public class ObservableAsyncEnumerator<T> : IAsyncEnumerator<T>
 {
-    readonly object _lock = new();
+    readonly Lock _lock = new();
     readonly IDisposable _subscriber;
     readonly CancellationToken _cancellationToken;
     readonly ConcurrentQueue<T> _items = new();

@@ -22,7 +22,7 @@ internal sealed class ReadProtectionMeasurement
 {
     static readonly AsyncLocal<ReadProtectionMeasurement?> _current = new();
     static readonly AsyncLocal<int> _committing = new();
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly List<MeasuredRead> _reads = [];
     readonly List<(EventSourceId Label, ConcurrencyScope Scope, string Reason)> _scopes = [];
     readonly HashSet<EventSequenceNumber> _ownPositions = [];

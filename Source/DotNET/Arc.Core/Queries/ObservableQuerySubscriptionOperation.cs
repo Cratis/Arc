@@ -12,7 +12,7 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 internal sealed class ObservableQuerySubscriptionOperation : IDisposable
 {
-    readonly object _sync = new();
+    readonly Lock _sync = new();
     readonly CancellationTokenSource _cancellationTokenSource;
     IDisposable? _subscription;
     Action? _unregister;
@@ -87,7 +87,7 @@ internal sealed class ObservableQuerySubscriptionOperation : IDisposable
     /// </summary>
     public void CompleteCreation()
     {
-        var disposeCancellation = false;
+        bool disposeCancellation;
         lock (_sync)
         {
             _creationCompleted = true;
@@ -105,7 +105,7 @@ internal sealed class ObservableQuerySubscriptionOperation : IDisposable
     {
         IDisposable? subscription;
         Action? unregister;
-        var disposeCancellation = false;
+        bool disposeCancellation;
 
         lock (_sync)
         {

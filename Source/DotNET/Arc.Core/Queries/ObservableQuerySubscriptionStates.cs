@@ -29,7 +29,7 @@ internal sealed class ObservableQuerySubscriptionStates(Func<DateTimeOffset>? ge
     internal static readonly TimeSpan TombstoneRetention = TimeSpan.FromMinutes(2);
 
     readonly ConcurrentDictionary<string, ObservableQuerySubscriptionState> _states = new();
-    readonly object _sync = new();
+    readonly Lock _sync = new();
     readonly Func<DateTimeOffset> _getUtcNow = getUtcNow ?? (() => DateTimeOffset.UtcNow);
 
     /// <summary>

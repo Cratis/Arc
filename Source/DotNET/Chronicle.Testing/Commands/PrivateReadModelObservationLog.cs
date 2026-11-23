@@ -15,7 +15,7 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// </summary>
 internal sealed class PrivateReadModelObservationLog : IDisposable
 {
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly Queue<EventForEventSourceId[]> _pending = new();
     readonly Subject<Unit> _failures = new();
     readonly IDisposable _appends;

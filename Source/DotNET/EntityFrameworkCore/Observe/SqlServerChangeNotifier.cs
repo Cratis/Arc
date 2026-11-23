@@ -24,7 +24,7 @@ public sealed class SqlServerChangeNotifier(string connectionString, IServiceBro
     /// </summary>
     static readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(50);
 
-    readonly object _lock = new();
+    readonly Lock _lock = new();
     readonly SemaphoreSlim _subscriptionSemaphore = new(1, 1);
 
     string? _normalizedConnectionString;
