@@ -101,7 +101,9 @@
     <!-- Analysis -->
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.342" />
+    <!-- Held at 3.0.235. Later releases add MA0147 (async void method for delegate), which flags the deliberate Rx callbacks in
+         ClientObservable, ClientObservableSSE and ObservableQueryDemultiplexer. Moving up needs those callbacks redesigned, not a version bump alone. -->
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.235" />
     <!-- Specifications -->
     <PackageVersion Include="Cratis.Specifications.XUnit.v3" Version="5.3.0" />
     <PackageVersion Include="xunit.v3.mtp-off" Version="4.0.3" />
