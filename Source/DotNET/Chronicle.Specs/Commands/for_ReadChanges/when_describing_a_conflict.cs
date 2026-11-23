@@ -25,7 +25,7 @@ public class when_describing_a_conflict : Specification
             ConflictingEventTypeId = hasEventType ? new("book-borrowed") : null,
             ConflictingEventSequenceNumber = hasSequenceNumber ? 1042ul : null
         };
-        var result = ReadChanges.For(conflict, typeof(BorrowBook), enforcing, services: null);
+        var result = ReadChanges.For(conflict, typeof(BorrowBook), enforcing);
         result.Message.ShouldEqual(enforcing
             ? "BookStock changed after BorrowBook read it. Nothing from this command was written; submit it again."
             : "BookStock changed after it was read. Read it again and resubmit.");

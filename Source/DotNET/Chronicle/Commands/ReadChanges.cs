@@ -22,12 +22,11 @@ internal static class ReadChanges
     /// <param name="conflict">The <see cref="DecisionConflict"/> Chronicle reported.</param>
     /// <param name="commandType">The command that read the model.</param>
     /// <param name="enforcing">Whether read protection was enforced for the command.</param>
-    /// <param name="services">The command's services, if available.</param>
     /// <returns>The <see cref="ValidationResult"/> describing the change.</returns>
     /// <remarks>
     /// The result identifies the read model without exposing its resolved key or the event that changed it.
     /// </remarks>
-    internal static ValidationResult For(DecisionConflict conflict, Type commandType, bool enforcing, IServiceProvider? services)
+    internal static ValidationResult For(DecisionConflict conflict, Type commandType, bool enforcing)
     {
         var message = enforcing
             ? $"{conflict.ReadModelType.Name} changed after {commandType.Name} read it. Nothing from this command was written; submit it again."
@@ -40,5 +39,4 @@ internal static class ReadChanges
             reason: ValidationResultReason.ConcurrencyViolation,
             reasonDetail: enforcing ? ReasonDetail : null);
     }
-
 }
