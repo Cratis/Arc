@@ -334,6 +334,26 @@ public class ReactorSideEffectHandlers(IInstancesOf<IReactorSideEffectHandler> h
 - Keep log messages in a separate `<ClassName>Logging.cs` partial static internal class.
 - Use `[LoggerMessage]` attribute (without `eventId`).
 
+## C# 14/15 Language Features
+
+Cratis .NET repos build with SDK 11 (C# 15); libraries target `net10.0;net11.0`.
+
+Use in new code:
+
+- Extension blocks (`extension(T x) { ... }`, C# 14) for new extension APIs; leave existing extension classes as they are.
+- The `field` keyword (C# 14) in property accessors instead of a hand-written backing field.
+- `System.Threading.Lock` for new lock objects instead of `object`.
+- Collection expression arguments `with(...)` (C# 15), e.g. to pass a comparer or capacity.
+- `closed` (C# 15) for new internal class hierarchies.
+
+Avoid:
+
+- Union types in public APIs of libraries that also target `net10.0` — consumers on C# 14 cannot use them.
+- Adding `closed` to existing public types — it is a breaking change.
+- Runtime-async — it is still preview.
+
+Keep `ConceptAs<T>` and the existing result envelopes unchanged.
+
 ## Async
 
 - Use `async`/`await` for asynchronous programming.
