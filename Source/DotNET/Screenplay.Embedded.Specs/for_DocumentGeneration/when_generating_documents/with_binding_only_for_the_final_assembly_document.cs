@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Embedded.Generation;
 using Cratis.Arc.Screenplay.Emission;
@@ -25,26 +26,27 @@ public class with_binding_only_for_the_final_assembly_document : Specification
 
     /// <summary>
     /// Records verification calls because Castle/NSubstitute cannot intercept the default interface method.
+    /// The generator verifies scopes concurrently, so the calls are recorded in thread-safe collections.
     /// </summary>
     sealed class recording_verifier : IScreenplayVerifier
     {
         readonly ScreenplayVerifier _verifier = new();
-        readonly List<string> _boundSources = [];
-        readonly List<string> _syntaxSources = [];
+        readonly ConcurrentQueue<string> _boundSources = new();
+        readonly ConcurrentQueue<string> _syntaxSources = new();
 
-        public IReadOnlyList<string> BoundSources => _boundSources;
-        public IReadOnlyList<string> SyntaxSources => _syntaxSources;
+        public IReadOnlyList<string> BoundSources => [.. _boundSources];
+        public IReadOnlyList<string> SyntaxSources => [.. _syntaxSources];
 
         public ScreenplayVerification Verify(string source)
         {
-            _boundSources.Add(source);
+            _boundSources.Enqueue(source);
 
             return _verifier.Verify(source);
         }
 
         public ScreenplayVerification VerifySyntax(string source)
         {
-            _syntaxSources.Add(source);
+            _syntaxSources.Enqueue(source);
 
             return _verifier.VerifySyntax(source);
         }
