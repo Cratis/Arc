@@ -423,7 +423,10 @@ public partial class ObservableQueryDemultiplexer(
                 }
 
                 logger.SubscriptionError(queryId, error);
-                await ReportErrorQuietly(subscription, error, subscriptionToken);
+                if (await ReportErrorQuietly(subscription, error, subscriptionToken))
+                {
+                    logger.EmissionAfterDisconnect(queryId);
+                }
             }
             catch (Exception callbackError) when (IsDisconnect(callbackError, subscriptionToken))
             {
