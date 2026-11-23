@@ -17,7 +17,7 @@ const TRANSIENT_HOSTS = new Set(['github.com', 'www.github.com']);
 
 const isTransientGitHubRefusal = link => {
     const status = Number(link.status);
-    if (status !== 429 && status < 500) {
+    if (status !== 429 && (status < 500 || status > 599)) {
         return false;
     }
     try {
@@ -40,7 +40,7 @@ try {
     process.exit(1);
 }
 
-const links = Array.isArray(report.links) ? report.links : [];
+const links = (Array.isArray(report.links) ? report.links : []).filter(link => link.state !== 'SKIPPED');
 if (links.length === 0) {
     console.log('✗ Link verification scanned zero links.');
     console.log('  Nothing was checked, so this run proves nothing about the links in Documentation.');

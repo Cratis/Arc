@@ -52,10 +52,10 @@ set +e
 # repository whose pages are all .md while every link in it is fine.
 #
 # Limit requests to 10 concurrent connections so shared hosts such as GitHub are
-# not hit in a burst. Retry 429 responses that carry a retry-after header, and
-# retry transient 5xx and network failures three times; linkinator's exponential
-# backoff plus 1000ms of random jitter gives an affected request up to four
-# attempts.
+# not hit in a burst. Retry transient failures three times; linkinator's
+# exponential backoff plus 1000ms of random jitter gives an affected request up
+# to four attempts. --retry is deliberately not used: it follows retry-after on
+# 429 without any bound, so persistent throttling would hang the check.
 #
 # The report is written as JSON and judged by verify-links-results.mjs, which
 # counts what was scanned and treats a github.com 429/5xx that survives the
@@ -67,7 +67,6 @@ NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
     --recurse \
     --directory-listing \
     --concurrency 10 \
-    --retry \
     --retry-errors \
     --retry-errors-count 3 \
     --retry-errors-jitter 1000 \
