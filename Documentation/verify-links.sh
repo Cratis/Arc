@@ -42,19 +42,26 @@ echo "Checking links in Documentation..."
 echo "This may take a few minutes to check all links..."
 echo ""
 
+REPORT=$(mktemp)
+LOG=$(mktemp)
+trap 'rm -f "$REPORT" "$LOG"' EXIT
+
 set +e
 # One glob covering both extensions rather than one per extension: linkinator
 # aborts on any glob that matches nothing, so a separate .mdx glob would fail a
 # repository whose pages are all .md while every link in it is fine.
 #
 # Limit requests to 10 concurrent connections so shared hosts such as GitHub are
-# not hit in a burst. Retry transient 5xx and network failures three times;
-# linkinator's exponential backoff plus 1000ms of random jitter gives an
-# affected request up to four attempts without masking its final failure.
+# not hit in a burst. Retry transient failures three times; linkinator's
+# exponential backoff plus 1000ms of random jitter gives an affected request up
+# to four attempts. --retry is deliberately not used: it follows retry-after on
+# 429 without any bound, so persistent throttling would hang the check.
 #
-# NO_COLOR keeps the scan summary free of escape codes, so the link count below
-# can be read out of it.
-OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
+# The report is written as JSON and judged by verify-links-results.mjs, which
+# counts what was scanned and treats a github.com 429/5xx that survives the
+# retries as a warning. linkinator's own exit code is not the verdict: it would
+# fail the run on GitHub throttling a burst of requests.
+NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
     "Documentation/**/*.{md,mdx}" \
     --markdown \
     --recurse \
@@ -63,47 +70,23 @@ OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
     --retry-errors \
     --retry-errors-count 3 \
     --retry-errors-jitter 1000 \
-    --verbosity error \
     --status-code "403:ok" \
-    --skip "$SITE_ABSOLUTE_LINKS" 2>&1)
+    --skip "$SITE_ABSOLUTE_LINKS" \
+    --format json > "$REPORT" 2> "$LOG"
 LINKINATOR_EXIT_CODE=$?
 set -e
 
-echo "$OUTPUT"
-
-# How many links were actually looked at. A check that scans nothing reports
-# success while verifying nothing, which reads exactly like a passing check.
-#
-# Matched mid-word on purpose: linkinator writes "Successfully scanned N links"
-# when every link resolved and "Scanned N links" when one did not, and the count
-# has to be read out of either.
-#
-# The color codes are stripped first. linkinator wraps the count in them whenever
-# it decides the output is a terminal, and FORCE_COLOR makes it decide that no
-# matter what NO_COLOR says - which would leave the count unreadable and report a
-# real link failure as "the globs matched nothing".
-ESC=$(printf '\033')
-SCANNED=$(echo "$OUTPUT" | sed -E "s/${ESC}\[[0-9;]*m//g" | grep -oE 'canned [0-9]+ link' | grep -oE '[0-9]+' | tail -1)
-
-echo ""
-
-if [ -z "$SCANNED" ]; then
-    echo "✗ Link verification could not determine how many links were scanned."
-    echo "  linkinator reported no scan summary - the file globs most likely matched nothing."
-    exit 1
-fi
-
-if [ "$SCANNED" -eq 0 ]; then
-    echo "✗ Link verification scanned zero links."
-    echo "  Nothing was checked, so this run proves nothing about the links in Documentation."
-    exit 1
-fi
-
-if [ $LINKINATOR_EXIT_CODE -ne 0 ]; then
-    echo "✗ Link verification failed - $SCANNED links scanned."
+# linkinator exits 1 when a link is broken; anything else means it did not run
+# to completion, and its diagnostics are what explains why.
+if [ $LINKINATOR_EXIT_CODE -ne 0 ] && [ $LINKINATOR_EXIT_CODE -ne 1 ]; then
+    cat "$LOG"
+    echo "✗ Link verification could not run - linkinator exited with $LINKINATOR_EXIT_CODE."
     exit $LINKINATOR_EXIT_CODE
 fi
 
-echo "✓ Link verification passed - $SCANNED links scanned."
+if ! node "$SCRIPT_DIR/verify-links-results.mjs" "$REPORT"; then
+    grep -v '^npm notice' "$LOG" || true
+    exit 1
+fi
 echo "  Site-absolute links (/arc/..., /chronicle/...) resolve only on the aggregated"
 echo "  documentation site and are verified when that site is built."
