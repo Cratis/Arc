@@ -13,7 +13,7 @@ namespace Cratis.Arc.ProxyGenerator;
 public static class XmlDocumentation
 {
     static readonly Dictionary<string, Dictionary<string, XElement>> _loadedDocuments = [];
-    static readonly object _loadedDocumentsLock = new();
+    static readonly Lock _loadedDocumentsLock = new();
 
     /// <summary>
     /// Get the XML documentation for a member.

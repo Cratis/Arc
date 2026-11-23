@@ -15,7 +15,7 @@ namespace Cratis.Arc.Identity.Workload;
 internal sealed class WorkloadVerificationCache(WorkloadCallerOptions options, TimeProvider clock)
 {
     readonly Dictionary<Key, Entry> _entries = [];
-    readonly object _lock = new();
+    readonly Lock _lock = new();
 
     /// <summary>Finds an unexpired, exact-target positive entry.</summary>
     /// <param name="token">The bearer to hash.</param>

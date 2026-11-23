@@ -11,7 +11,7 @@ namespace Cratis.Arc.Queries;
 /// <param name="cancellationSource">The connection cancellation source.</param>
 internal sealed class DirectObservableEmissionDrain(CancellationTokenSource cancellationSource)
 {
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly TaskCompletionSource _drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
     int _active;
     bool _stopped;
