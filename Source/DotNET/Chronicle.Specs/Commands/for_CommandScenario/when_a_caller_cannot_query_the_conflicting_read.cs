@@ -13,6 +13,7 @@ using Cratis.Arc.Testing.Commands;
 using Cratis.Arc.Testing.Queries;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.Keys;
 using Cratis.Chronicle.Projections.ModelBound;
 using Microsoft.Extensions.DependencyInjection;
 

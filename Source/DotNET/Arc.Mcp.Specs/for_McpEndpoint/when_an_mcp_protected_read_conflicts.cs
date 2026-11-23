@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Arc.Mcp.for_McpEndpoint.given;
 using Cratis.Arc.Validation;
 
@@ -22,9 +23,10 @@ public class when_an_mcp_protected_read_conflicts : a_protected_command_host
         Outcome().GetProperty("validationResults").EnumerateArray().Single().GetProperty("message").GetString().ShouldEqual(_decision.Result!.ValidationResults.Single().Message);
     [Fact] void should_omit_the_key_from_the_conflict_message() =>
         Outcome().GetProperty("validationResults").EnumerateArray().Single().GetProperty("message").GetString().ShouldNotContain(Stock.ToString());
-    [Fact] void should_only_identify_the_read_model_in_the_mcp_state()
+    [Fact] void should_omit_the_key_from_the_mcp_outcome() => Outcome().GetRawText().ShouldNotContain(Stock.ToString());
+    [Fact] void should_only_identify_the_read_model_in_the_conflict_state()
     {
-        var state = Outcome().GetProperty("validationResults").EnumerateArray().Single().GetProperty("state");
+        var state = JsonSerializer.SerializeToElement(_decision.Result!.ValidationResults.Single().State);
         state.EnumerateObject().Select(_ => _.Name).ShouldContainOnly("readModel");
         state.GetProperty("readModel").GetString().ShouldEqual(nameof(ProtectedStock));
     }
