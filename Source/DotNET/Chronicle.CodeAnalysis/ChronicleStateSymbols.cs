@@ -210,38 +210,36 @@ internal static class ChronicleStateSymbols
     static bool IsProviderVisible(IMethodSymbol method, INamedTypeSymbol declaringType, INamedTypeSymbol command) =>
         SymbolEqualityComparer.Default.Equals(declaringType, command) || method.DeclaredAccessibility != Accessibility.Private;
 
-    static bool ProducesEvents(ITypeSymbol type, Compilation compilation, int depth = 0)
+    static bool ProducesEvents(ITypeSymbol type, Compilation compilation) =>
+        ProducesEvents(type, compilation, new ResponseTypeTraversal(maximumDepth: 9));
+
+    static bool ProducesEvents(ITypeSymbol type, Compilation compilation, ResponseTypeTraversal traversal) =>
+        traversal.Visit(type, () => BranchProducesEvents(type, compilation, traversal), false);
+
+    static bool BranchProducesEvents(ITypeSymbol type, Compilation compilation, ResponseTypeTraversal traversal)
     {
-        // Recursive collection signatures need a bound even when they contain no event metadata.
-        if (depth > 8)
-        {
-            return false;
-        }
         type = RawGuidResponseAnalysis.UnwrapAwaitable(type, compilation);
         if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.Any(element => ProducesEvents(element.Type, compilation, depth + 1));
+            return tuple.TupleElements.Any(element => ProducesEvents(element.Type, compilation, traversal));
         }
-        var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
-        if (HasResponseAlternatives(branches, type))
+        var alternatives = RawGuidResponseAnalysis.UnionAlternatives(type, compilation);
+        if (!alternatives.IsDefault)
         {
-            return branches.Any(branch => ProducesEvents(branch, compilation, depth + 1));
+            return alternatives.Any(alternative => ProducesEvents(alternative, compilation, traversal));
         }
-        return IsEventResponse(type, compilation) || ProducesCollectionEvents(type, compilation, depth);
+        return IsEventResponse(type, compilation) || ProducesCollectionEvents(type, compilation, traversal);
     }
-
-    static bool HasResponseAlternatives(ITypeSymbol[] branches, ITypeSymbol original) =>
-        branches.Length != 1 || !SymbolEqualityComparer.Default.Equals(branches[0], original);
 
     static bool IsEventResponse(ITypeSymbol type, Compilation compilation) =>
         RawGuidResponseAnalysis.HasEventTypeAttribute(type, compilation) ||
         RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventForEventSourceId", compilation) ||
         RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes", compilation);
 
-    static bool ProducesCollectionEvents(ITypeSymbol type, Compilation compilation, int depth)
+    static bool ProducesCollectionEvents(ITypeSymbol type, Compilation compilation, ResponseTypeTraversal traversal)
     {
         var element = CollectionElement(type, compilation);
-        return element is not null && (element.SpecialType == SpecialType.System_Object || ProducesEvents(element, compilation, depth + 1));
+        return element is not null && (element.SpecialType == SpecialType.System_Object || ProducesEvents(element, compilation, traversal));
     }
 
     static ITypeSymbol? CollectionElement(ITypeSymbol type, Compilation compilation) =>

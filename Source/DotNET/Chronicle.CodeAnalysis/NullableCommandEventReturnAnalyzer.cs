@@ -43,27 +43,26 @@ public class NullableCommandEventReturnAnalyzer : DiagnosticAnalyzer
     /// <param name="nullableOnly">Whether only optional event leaves are wanted.</param>
     /// <returns>The event types without nullable annotations.</returns>
     internal static IEnumerable<ITypeSymbol> EventTypes(ITypeSymbol type, Compilation compilation, bool nullableOnly = false) =>
-        EventTypes(type, compilation, (nullableOnly, false), 0);
+        EventTypes(type, compilation, (nullableOnly, false), new ResponseTypeTraversal());
 
-    static IEnumerable<ITypeSymbol> EventTypes(ITypeSymbol type, Compilation compilation, (bool OnlyNullable, bool NullableContainer) filter, int depth)
+    static ITypeSymbol[] EventTypes(ITypeSymbol type, Compilation compilation, (bool OnlyNullable, bool NullableContainer) filter, ResponseTypeTraversal traversal) =>
+        traversal.Visit(type, () => EventBranches(type, compilation, filter, traversal).ToArray(), [], inheritedContext: filter.NullableContainer);
+
+    static IEnumerable<ITypeSymbol> EventBranches(ITypeSymbol type, Compilation compilation, (bool OnlyNullable, bool NullableContainer) filter, ResponseTypeTraversal traversal)
     {
-        if (depth >= NativeUnionSymbols.MaximumDepth)
-        {
-            return [];
-        }
         type = RawGuidResponseAnalysis.UnwrapAwaitable(type, compilation);
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
         {
-            return EventTypes(nullable.TypeArguments[0], compilation, (filter.OnlyNullable, true), depth + 1);
+            return EventTypes(nullable.TypeArguments[0], compilation, (filter.OnlyNullable, true), traversal);
         }
         if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.SelectMany(element => EventTypes(element.Type, compilation, filter, depth + 1));
+            return tuple.TupleElements.SelectMany(element => EventTypes(element.Type, compilation, filter, traversal));
         }
-        var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
-        if (branches.Length != 1 || !SymbolEqualityComparer.IncludeNullability.Equals(branches[0], type))
+        var alternatives = RawGuidResponseAnalysis.UnionAlternatives(type, compilation);
+        if (!alternatives.IsDefault)
         {
-            return branches.SelectMany(branch => EventTypes(branch, compilation, filter, depth + 1));
+            return alternatives.SelectMany(alternative => EventTypes(alternative, compilation, filter, traversal));
         }
         return IsEvent(type, compilation) && MatchesFilter(type, filter)
             ? [type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)]

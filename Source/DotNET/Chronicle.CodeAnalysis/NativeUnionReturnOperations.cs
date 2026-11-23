@@ -59,7 +59,11 @@ static class NativeUnionReturnOperations
     }
 
     static bool IsEmptyUnion(IOperation operation) => NativeUnionSymbols.IsUnion(operation.Type) &&
-        (operation is IDefaultValueOperation || operation is IObjectCreationOperation { Arguments.Length: 0 });
+        (operation is IDefaultValueOperation || IsImplicitEmptyCreation(operation));
+
+    static bool IsImplicitEmptyCreation(IOperation operation) =>
+        operation is IObjectCreationOperation { Arguments.Length: 0 } creation &&
+        creation.Constructor?.IsImplicitlyDeclared != false;
 
     static IEnumerable<IOperation> ReturnValues(IOperation operation, Compilation compilation) => operation switch
     {

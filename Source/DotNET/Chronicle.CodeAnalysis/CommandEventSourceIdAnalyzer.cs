@@ -187,21 +187,25 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
         return ProvidesExplicitEventSource(UnwrapResponse(method.ReturnType));
     }
 
-    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType) => ProvidesExplicitEventSource(returnType, 0);
+    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType) =>
+        ProvidesExplicitEventSource(returnType, new ResponseTypeTraversal());
 
-    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType, int depth)
+    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType, ResponseTypeTraversal traversal) =>
+        returnType is not null && traversal.Visit(returnType, () => BranchProvidesExplicitEventSource(returnType, traversal), false);
+
+    static bool BranchProvidesExplicitEventSource(ITypeSymbol returnType, ResponseTypeTraversal traversal)
     {
-        returnType = returnType is null ? null : UnwrapResponse(returnType);
-        if (returnType is null || depth >= NativeUnionSymbols.MaximumDepth)
+        var unwrapped = UnwrapResponse(returnType);
+        if (unwrapped is null)
         {
             return false;
         }
-
+        returnType = unwrapped;
         var alternatives = ResponseAlternatives(returnType);
         if (!alternatives.IsDefault)
         {
             // Every arm must either carry an explicit event source or be a validation failure, and at least one must carry it.
-            return AlternativesProvideExplicitEventSource(alternatives, depth);
+            return AlternativesProvideExplicitEventSource(alternatives, traversal);
         }
 
         if (IsEventForEventSourceId(returnType) || IsSequenceOfEventForEventSourceId(returnType))
@@ -209,7 +213,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             return true;
         }
 
-        return TupleProvidesExplicitEventSource(returnType, depth);
+        return TupleProvidesExplicitEventSource(returnType, traversal);
     }
 
     static ImmutableArray<ITypeSymbol> ResponseAlternatives(ITypeSymbol type)
@@ -222,11 +226,11 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
         return type is INamedTypeSymbol oneOf && IsOneOf(oneOf) ? oneOf.TypeArguments : default;
     }
 
-    static bool AlternativesProvideExplicitEventSource(IEnumerable<ITypeSymbol> alternatives, int depth)
+    static bool AlternativesProvideExplicitEventSource(IEnumerable<ITypeSymbol> alternatives, ResponseTypeTraversal traversal)
     {
         var arms = alternatives.Select(UnwrapResponse).ToArray();
-        return arms.Any(arm => ProvidesExplicitEventSource(arm, depth + 1)) &&
-            arms.All(arm => arm is not null && (ProvidesExplicitEventSource(arm, depth + 1) || IsValidationResult(arm)));
+        return arms.Any(arm => ProvidesExplicitEventSource(arm, traversal)) &&
+            arms.All(arm => arm is not null && (ProvidesExplicitEventSource(arm, traversal) || IsValidationResult(arm)));
     }
 
     static bool IsOneOf(INamedTypeSymbol type) =>
@@ -235,7 +239,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
     static bool IsValidationResult(ITypeSymbol type) =>
         type.Name == "ValidationResult" && type.ContainingNamespace?.ToDisplayString() == "Cratis.Arc.Validation";
 
-    static bool TupleProvidesExplicitEventSource(ITypeSymbol returnType, int depth)
+    static bool TupleProvidesExplicitEventSource(ITypeSymbol returnType, ResponseTypeTraversal traversal)
     {
         if (returnType is not INamedTypeSymbol { IsTupleType: true } tuple)
         {
@@ -246,7 +250,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
         // A returned or generated EventForEventSourceId (or a sequence of them) carries its own event source id,
         // regardless of which position it sits in the tuple.
-        if (elements.Any(element => ProvidesExplicitEventSource(element.Type, depth + 1)))
+        if (elements.Any(element => ProvidesExplicitEventSource(element.Type, traversal)))
         {
             return true;
         }

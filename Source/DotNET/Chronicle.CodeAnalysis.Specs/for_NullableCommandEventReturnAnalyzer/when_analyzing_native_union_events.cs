@@ -53,6 +53,11 @@ public class when_analyzing_native_union_events : Specification
         Imports + "[EventType] public record E; public union Other(E, int); public union Outcome(E, string) { public static implicit operator Outcome(Other value) => new(new E()); } " +
         "[Command] public record C { public Outcome Handle() => default(Other); }");
 
+    [Fact]
+    public Task should_not_treat_a_user_declared_parameterless_constructor_as_empty() => Verify<NullableCommandEventReturnAnalyzer>(
+        Imports + "[EventType] public record E; public union Outcome(E, string) { public Outcome() : this(new E()) {} } " +
+        "[Command] public record C { public Outcome Handle() => new Outcome(); }");
+
     static string Source(string signature, string expression) => Imports + "\n" + Events + "\n" +
         "public record Operation : Cratis.Arc.Commands.ICommandOperation; [Command] public record C { public {|#0:" + signature + "|} Handle() => " + expression +
         "; static Choice<E, Failure> Factory() => new E(); }";
