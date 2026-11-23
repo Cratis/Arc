@@ -19,7 +19,6 @@ public class CommandConcurrencyAttributeAnalyzer : DiagnosticAnalyzer
     /// </summary>
     internal const string ConcurrencyArgumentName = "concurrency";
 
-    const string ScopesTypeName = "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes";
     const string EventStreamIdAttributeName = "Cratis.Chronicle.Events.EventStreamIdAttribute";
 
     static readonly string[] _attributeNames =
@@ -76,20 +75,14 @@ public class CommandConcurrencyAttributeAnalyzer : DiagnosticAnalyzer
     static void AnalyzeCommand(SymbolAnalysisContext context)
     {
         var command = (INamedTypeSymbol)context.Symbol;
-        if (command.TypeKind != TypeKind.Class ||
-            !RawGuidResponseAnalysis.HasAttribute(command, "Cratis.Arc.Commands.ModelBound.CommandAttribute", context.Compilation) ||
-            !RawGuidResponseAnalysis.HandleMethods(command).Any(method => ReturnsScopes(method.ReturnType, context.Compilation)))
+        if (!IsScopeCommand(command, context.Compilation))
         {
             return;
         }
 
         foreach (var attribute in command.GetAttributes())
         {
-            if (!_attributeNames.Any(name => RawGuidResponseAnalysis.IsType(attribute.AttributeClass, name, context.Compilation)) ||
-                attribute.ConstructorArguments.Length < 2 ||
-                attribute.ConstructorArguments[1].Value is not true ||
-                attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken) is not AttributeSyntax syntax ||
-                FindConcurrencyArgument(syntax) is not { } argument)
+            if (ConcurrencyArgument(attribute, context.Compilation, context.CancellationToken) is not { } argument)
             {
                 continue;
             }
@@ -102,13 +95,21 @@ public class CommandConcurrencyAttributeAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    static bool ReturnsScopes(ITypeSymbol returnType, Compilation compilation) =>
-        RawGuidResponseAnalysis.UnionBranches(RawGuidResponseAnalysis.UnwrapAwaitable(returnType, compilation), compilation)
-            .Any(branch => IsScopes(branch, compilation) ||
-                (branch is INamedTypeSymbol { IsTupleType: true } tuple &&
-                 tuple.TupleElements.SelectMany(element => RawGuidResponseAnalysis.UnionBranches(element.Type, compilation))
-                     .Any(element => IsScopes(element, compilation))));
+    static bool IsScopeCommand(INamedTypeSymbol command, Compilation compilation) =>
+        command.TypeKind == TypeKind.Class &&
+        RawGuidResponseAnalysis.HasAttribute(command, "Cratis.Arc.Commands.ModelBound.CommandAttribute", compilation) &&
+        RawGuidResponseAnalysis.HandleMethods(command).Any(method => RawGuidResponseAnalysis.HasExactScopes(method.ReturnType, compilation));
 
-    static bool IsScopes(ITypeSymbol type, Compilation compilation) =>
-        RawGuidResponseAnalysis.IsType(type, ScopesTypeName, compilation);
+    static AttributeArgumentSyntax? ConcurrencyArgument(AttributeData attribute, Compilation compilation, CancellationToken cancellationToken)
+    {
+        if (!IsConcurrentStreamAttribute(attribute, compilation))
+        {
+            return null;
+        }
+        return attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken) is AttributeSyntax syntax ? FindConcurrencyArgument(syntax) : null;
+    }
+
+    static bool IsConcurrentStreamAttribute(AttributeData attribute, Compilation compilation) =>
+        _attributeNames.Any(name => RawGuidResponseAnalysis.IsType(attribute.AttributeClass, name, compilation)) &&
+        attribute.ConstructorArguments.Length >= 2 && attribute.ConstructorArguments[1].Value is true;
 }

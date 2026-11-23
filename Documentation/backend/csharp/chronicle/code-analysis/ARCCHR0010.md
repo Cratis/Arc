@@ -12,6 +12,8 @@ This rule reports a keyless `[Command]` whose `Handle()` method returns both:
 - a raw `Guid`; and
 - a statically identifiable untargeted `[EventType]` event (including supported typed event collections).
 
+The signature check follows native C# union cases as well as `Result<…>` and `OneOf<…>` branches, including supported awaitables and nested tuples. For example, a raw `Guid` beside a union containing a bare event still triggers the warning; a union containing only explicitly targeted `EventForEventSourceId` values does not.
+
 This rule belongs to the optional Arc–Chronicle analyzer package. It does not restrict ordinary standalone Arc command responses.
 
 Chronicle resolves a keyless command's fallback event source id before `Handle()` runs. If `Handle()` later returns `(Guid, event)`, the caller receives that `Guid`, but the event is appended under the earlier fallback id. Return `EventSourceId<Guid>` or, preferably, a domain identity derived from it when the response is meant to identify the new event source.
@@ -80,7 +82,7 @@ The returned `ExpenseId`, the appended event's `EventSourceId`, and the projecte
 
 **Use `EventSourceId<Guid>` for the response identity** changes exactly one raw Guid element in supported direct tuple return syntax. Eligible handlers are declared on the command itself, non-virtual/non-override/non-abstract, and return a direct tuple or an async `Task`/`ValueTask` of a tuple. The current project must compile before and after the edit.
 
-There is no Fix All. No fix is offered for aliases, inherited handlers, unsupported factory/Result/OneOf returns, multiple Guid elements, or a change that produces compilation errors. Analyzer coverage is broader than fix coverage. The fix does not rewrite arbitrary bodies or dependent projects, and compilation does not prove domain intent.
+There is no Fix All. No fix is offered for aliases, inherited handlers, unsupported factory/Result/OneOf/native union returns, multiple Guid elements, or a change that produces compilation errors. Analyzer coverage is broader than fix coverage. The fix does not rewrite arbitrary bodies or dependent projects, and compilation does not prove domain intent.
 
 Prefer a domain identity such as `ExpenseId : EventSourceId<Guid>` when appropriate; the tool cannot infer its name. **This edit changes persistence routing**, not just serialization or style.
 

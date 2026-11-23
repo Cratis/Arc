@@ -7,7 +7,7 @@ description: A stream-metadata attribute sets concurrency true on a command whos
 
 `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` take a `concurrency` flag that adds the attribute to the concurrency scope Arc derives for the command's events. When `Handle()` returns `EventsWithConcurrencyScopes`, the returned scopes are used exactly as they are and nothing is derived from the attributes, so `concurrency: true` does nothing.
 
-The rule fires on a model-bound `[Command]` whose public instance `Handle()` returns `EventsWithConcurrencyScopes` directly, in a `Task<>` or `ValueTask<>`, inside a `Result<>`/`OneOf<>` branch, or as an element of a tuple. It reports the `concurrency` argument whether it is passed positionally or by name. `concurrency: false` and a missing argument are not reported.
+The rule fires on a model-bound `[Command]` whose public instance `Handle()` returns `EventsWithConcurrencyScopes` directly, in a `Task<>` or `ValueTask<>`, inside a `Result<>`/`OneOf<>` or native C# union case, or as an element of a tuple. These shapes can be nested, including a native union with only one case. It reports the `concurrency` argument whether it is passed positionally or by name. `concurrency: false` and a missing argument are not reported.
 
 ## Severity
 

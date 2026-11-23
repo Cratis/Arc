@@ -60,7 +60,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             ReportRawGuidResponsesAlongsideEvents(context, namedTypeSymbol);
         }
 
-        if (providesEventSourceId || candidates.Length < 2 || HandleReturnsExplicitEventSource(namedTypeSymbol))
+        if (IsSourceUnambiguous(providesEventSourceId, candidates.Length, namedTypeSymbol))
         {
             return;
         }
@@ -71,6 +71,9 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             namedTypeSymbol.Name,
             string.Join(", ", candidates.Select(candidate => candidate.Name))));
     }
+
+    static bool IsSourceUnambiguous(bool providesEventSourceId, int candidateCount, INamedTypeSymbol command) =>
+        providesEventSourceId || candidateCount < 2 || HandleReturnsExplicitEventSource(command);
 
     static void ReportRawGuidResponsesAlongsideEvents(SymbolAnalysisContext context, INamedTypeSymbol command)
     {
@@ -184,18 +187,25 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
         return ProvidesExplicitEventSource(UnwrapResponse(method.ReturnType));
     }
 
-    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType)
+    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType) =>
+        ProvidesExplicitEventSource(returnType, new ResponseTypeTraversal());
+
+    static bool ProvidesExplicitEventSource(ITypeSymbol? returnType, ResponseTypeTraversal traversal) =>
+        returnType is not null && traversal.Visit(returnType, () => BranchProvidesExplicitEventSource(returnType, traversal), false);
+
+    static bool BranchProvidesExplicitEventSource(ITypeSymbol returnType, ResponseTypeTraversal traversal)
     {
-        if (returnType is null)
+        var unwrapped = UnwrapResponse(returnType);
+        if (unwrapped is null)
         {
             return false;
         }
-
-        if (returnType is INamedTypeSymbol oneOf && IsOneOf(oneOf))
+        returnType = unwrapped;
+        var alternatives = ResponseAlternatives(returnType);
+        if (!alternatives.IsDefault)
         {
             // Every arm must either carry an explicit event source or be a validation failure, and at least one must carry it.
-            var arms = oneOf.TypeArguments.Select(UnwrapResponse).ToArray();
-            return arms.Any(ProvidesExplicitEventSource) && arms.All(arm => arm is not null && (ProvidesExplicitEventSource(arm) || IsValidationResult(arm)));
+            return AlternativesProvideExplicitEventSource(alternatives, traversal);
         }
 
         if (IsEventForEventSourceId(returnType) || IsSequenceOfEventForEventSourceId(returnType))
@@ -203,7 +213,24 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
             return true;
         }
 
-        return TupleProvidesExplicitEventSource(returnType);
+        return TupleProvidesExplicitEventSource(returnType, traversal);
+    }
+
+    static ImmutableArray<ITypeSymbol> ResponseAlternatives(ITypeSymbol type)
+    {
+        var cases = NativeUnionSymbols.Cases(type);
+        if (!cases.IsDefault)
+        {
+            return cases;
+        }
+        return type is INamedTypeSymbol oneOf && IsOneOf(oneOf) ? oneOf.TypeArguments : default;
+    }
+
+    static bool AlternativesProvideExplicitEventSource(IEnumerable<ITypeSymbol> alternatives, ResponseTypeTraversal traversal)
+    {
+        var arms = alternatives.Select(UnwrapResponse).ToArray();
+        return arms.Any(arm => ProvidesExplicitEventSource(arm, traversal)) &&
+            arms.All(arm => arm is not null && (ProvidesExplicitEventSource(arm, traversal) || IsValidationResult(arm)));
     }
 
     static bool IsOneOf(INamedTypeSymbol type) =>
@@ -212,7 +239,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
     static bool IsValidationResult(ITypeSymbol type) =>
         type.Name == "ValidationResult" && type.ContainingNamespace?.ToDisplayString() == "Cratis.Arc.Validation";
 
-    static bool TupleProvidesExplicitEventSource(ITypeSymbol returnType)
+    static bool TupleProvidesExplicitEventSource(ITypeSymbol returnType, ResponseTypeTraversal traversal)
     {
         if (returnType is not INamedTypeSymbol { IsTupleType: true } tuple)
         {
@@ -223,7 +250,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
         // A returned or generated EventForEventSourceId (or a sequence of them) carries its own event source id,
         // regardless of which position it sits in the tuple.
-        if (elements.Any(element => IsEventForEventSourceId(element.Type) || IsSequenceOfEventForEventSourceId(element.Type)))
+        if (elements.Any(element => ProvidesExplicitEventSource(element.Type, traversal)))
         {
             return true;
         }
@@ -236,20 +263,22 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
     static ITypeSymbol? UnwrapResponse(ITypeSymbol returnType)
     {
-        if (returnType is INamedTypeSymbol namedType)
+        if (returnType is not INamedTypeSymbol namedType)
         {
-            if (namedType.Name == "Task" && namedType.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks")
-            {
-                return namedType.TypeArguments.Length == 1 ? UnwrapResponse(namedType.TypeArguments[0]) : null;
-            }
-            if (namedType.Name == "Result" && namedType.Arity == 2 && namedType.ContainingNamespace?.ToDisplayString() == "Cratis.Monads")
-            {
-                return UnwrapResponse(namedType.TypeArguments[0]);
-            }
+            return returnType;
         }
-
-        return returnType;
+        if (IsAwaitable(namedType))
+        {
+            return namedType.TypeArguments.Length == 1 ? UnwrapResponse(namedType.TypeArguments[0]) : null;
+        }
+        return IsResult(namedType) ? UnwrapResponse(namedType.TypeArguments[0]) : returnType;
     }
+
+    static bool IsAwaitable(INamedTypeSymbol type) =>
+        (type.Name == "Task" || type.Name == "ValueTask") && type.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks";
+
+    static bool IsResult(INamedTypeSymbol type) =>
+        type.Name == "Result" && type.Arity == 2 && type.ContainingNamespace?.ToDisplayString() == "Cratis.Monads";
 
     static bool IsEventForEventSourceId(ITypeSymbol type) =>
         type.Name == EventForEventSourceIdName &&

@@ -28,10 +28,20 @@ public static class AnalyzerVerifier<TAnalyzer>
     /// <param name="expected">The expected diagnostics.</param>
     /// <returns>A task representing the verification.</returns>
     /// <exception cref="SnippetDoesNotCompile">Thrown when the source does not compile.</exception>
-    public static async Task VerifyAnalyzerAsync(string source, params ExpectedDiagnostic[] expected)
+    public static Task VerifyAnalyzerAsync(string source, params ExpectedDiagnostic[] expected) =>
+        VerifyAnalyzerAsync(source, [], expected);
+
+    /// <summary>
+    /// Verifies diagnostics with additional metadata references.
+    /// </summary>
+    /// <param name="source">The C# source to analyze.</param>
+    /// <param name="references">Additional metadata references.</param>
+    /// <param name="expected">The expected diagnostics.</param>
+    /// <returns>A task representing the verification.</returns>
+    public static async Task VerifyAnalyzerAsync(string source, MetadataReference[] references, params ExpectedDiagnostic[] expected)
     {
         var markedSource = SourceMarker.Parse(source);
-        var project = TestProject.CreateProject(markedSource.Source);
+        var project = TestProject.CreateProject(markedSource.Source, references);
         var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
 
         VerifyItCompiles(compilation!);
