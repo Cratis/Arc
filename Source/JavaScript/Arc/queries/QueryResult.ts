@@ -22,6 +22,7 @@ type ServerQueryResult = {
     exceptionStackTrace: string;
     authorizationFailureReason?: string;
     isRetryable?: boolean;
+    errorCode?: string;
     paging: ServerPagingInfo;
     changeSet?: ServerChangeSet;
 };
@@ -204,6 +205,7 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
         this.isAuthorized = result.isAuthorized;
         this.authorizationFailureReason = result.authorizationFailureReason ?? '';
         this.isRetryable = result.isRetryable ?? false;
+        this.errorCode = result.errorCode;
         this.isValid = result.isValid;
         this.hasExceptions = result.hasExceptions;
         this.validationResults = result.validationResults.map(
@@ -270,6 +272,9 @@ export class QueryResult<TDataType = object> implements IQueryResult<TDataType> 
 
     /** @inheritdoc */
     readonly isRetryable?: boolean;
+
+    /** @inheritdoc */
+    readonly errorCode?: string;
 
     /** @inheritdoc */
     readonly isValid: boolean;

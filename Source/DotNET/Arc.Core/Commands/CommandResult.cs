@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Availability;
 using Cratis.Arc.Contexts;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -77,6 +78,12 @@ public class CommandResult
     public bool IsMissingHandler { get; set; }
 
     /// <summary>
+    /// Gets the stable public code for a mapped exception, if any.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ErrorCode { get; internal set; }
+
+    /// <summary>
     /// Gets the server-only recovery summary, when operation declarations participated. This is not an HTTP contract.
     /// </summary>
     [JsonIgnore]
@@ -97,6 +104,9 @@ public class CommandResult
     /// rather than because the caller was denied. Server-only; never serialized.
     /// </summary>
     internal bool AuthorizationConfigurationFailed { get; set; }
+
+    /// <summary>Gets or sets the server-only first exception and its response mapping.</summary>
+    internal ExceptionResponseCandidate? ExceptionResponseCandidate { get; set; }
 
     /// <summary>
     /// Gets the response value carried by this result, if any, boxed as an <see cref="object"/>. This lets a caller
@@ -171,7 +181,7 @@ public class CommandResult
             ? Unauthorized(correlationId)
             : exception is AvailabilityNotDecidedException or ContextValueUnavailableException
                 ? Retryable(correlationId, exception.Message)
-                : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
+                : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty, ExceptionResponseCandidate = exception is IValidationFailure ? null : new(exception) };
 
     /// <summary>
     /// Creates a new <see cref="CommandResult"/> from an exception.
@@ -207,6 +217,12 @@ public class CommandResult
         }
 
         ValidationResults = [.. ValidationResults, .. commandResults.SelectMany(r => r.ValidationResults)];
+        if (!HasExceptions)
+        {
+            var firstFailure = commandResults.FirstOrDefault(result => result.HasExceptions);
+            ExceptionResponseCandidate = firstFailure?.ExceptionResponseCandidate;
+            ErrorCode = firstFailure?.ErrorCode;
+        }
         ExceptionMessages = [.. ExceptionMessages, .. commandResults.SelectMany(r => r.ExceptionMessages)];
         ExceptionStackTrace = string.Join(Environment.NewLine, new[] { ExceptionStackTrace }.Concat(commandResults.Select(r => r.ExceptionStackTrace)));
         if (ExceptionStackTrace.StartsWith(Environment.NewLine))

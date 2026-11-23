@@ -7,6 +7,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
 using Cratis.Execution;
@@ -276,14 +277,19 @@ public static class QueryEndpointMapper
 
     static async Task WriteQueryResponse(IHttpRequestContext context, QueryResult queryResult, ArcOptions arcOptions, ILogger logger)
     {
+        ExceptionResponseMapping.Apply(queryResult, queryResult.OwnedScope?.ServiceProvider ?? context.RequestServices, logger);
         ExceptionDetailRedactor.Redact(queryResult, arcOptions.ExposeExceptionDetails, logger);
         if (await TryWriteValidationRejection(context, queryResult, arcOptions))
         {
             return;
         }
 
-        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady, queryResult.IsRetryable);
+        var statusCode = EndpointRouteHelper.GetStatusCode(queryResult);
         context.SetStatusCode(statusCode);
+        if (ExceptionResponseMapping.ResponseFor(queryResult) is { } response)
+        {
+            foreach (var header in response.Headers) context.SetResponseHeader(header.Key, header.Value);
+        }
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
     }
 

@@ -4,9 +4,12 @@
 using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Queries;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Mcp;
@@ -45,25 +48,29 @@ internal sealed class McpOperations(
         _ => ((IMcpToolSource)call.Tool.Operation!).Invoke(new McpToolInvocation(call.Tool, call.Caller, call.Arguments, call.Services, call.CancellationToken) { Request = call.Request })
     };
 
-    static object Outcome(CommandResult result) => new
+    static object Outcome(CommandResult result) => Outcome(
+        result.IsSuccess, result.IsAuthorized, result.AuthorizationFailureReason, result.IsRetryable, result.IsValid, result.ValidationResults, result.ErrorCode);
+
+    static object Outcome(QueryResult result) => Outcome(
+        result.IsSuccess, result.IsAuthorized, result.AuthorizationFailureReason, result.IsRetryable, result.IsValid, result.ValidationResults, result.ErrorCode);
+
+    static object Outcome(bool isSuccess, bool isAuthorized, string authorizationFailureReason, bool isRetryable, bool isValid, IEnumerable<Cratis.Arc.Validation.ValidationResult> results, string? errorCode)
     {
-        isSuccess = result.IsSuccess,
-        isAuthorized = result.IsAuthorized,
-        reason = string.IsNullOrEmpty(result.AuthorizationFailureReason) ? null : result.AuthorizationFailureReason,
-        isRetryable = result.IsRetryable,
-        isValid = result.IsValid,
-        validationResults = result.ValidationResults.Select(_ => new { severity = _.Severity.ToString(), message = _.Message, members = _.Members })
+        var reason = string.IsNullOrEmpty(authorizationFailureReason) ? null : authorizationFailureReason;
+        var validationResults = results.Select(_ => new { severity = _.Severity.ToString(), message = _.Message, members = _.Members });
+        return errorCode is null
+            ? new { isSuccess, isAuthorized, reason, isRetryable, isValid, validationResults }
+            : new { isSuccess, isAuthorized, reason, isRetryable, isValid, validationResults, errorCode };
+    }
+
+    static object QueryEnvelope(QueryResult result) => new
+    {
+        outcome = Outcome(result),
+        data = result.IsSuccess ? result.Data : null,
+        paging = result.IsSuccess ? result.Paging : null
     };
 
-    static object Outcome(QueryResult result) => new
-    {
-        isSuccess = result.IsSuccess,
-        isAuthorized = result.IsAuthorized,
-        reason = string.IsNullOrEmpty(result.AuthorizationFailureReason) ? null : result.AuthorizationFailureReason,
-        isRetryable = result.IsRetryable,
-        isValid = result.IsValid,
-        validationResults = result.ValidationResults.Select(_ => new { severity = _.Severity.ToString(), message = _.Message, members = _.Members })
-    };
+    static ILogger ResponseLogger(IServiceProvider services) => services.GetService<ILoggerFactory>()?.CreateLogger<McpOperations>() ?? NullLogger<McpOperations>.Instance;
 
     static void RejectUndeclared(McpOperationCall call)
     {
@@ -119,6 +126,7 @@ internal sealed class McpOperations(
         }
 
         var result = await hosted.ExecuteHosted(command, call.Services, null, call.CancellationToken);
+        ExceptionResponseMapping.Apply(result, call.Services, ResponseLogger(call.Services));
         var outcome = Outcome(result);
         return McpOperationResult.From(new { outcome, response = result.IsSuccess ? result.ResponsePayload : null }, !result.IsSuccess, arcOptions.Value.JsonSerializerOptions);
     }
@@ -148,11 +156,9 @@ internal sealed class McpOperations(
                 return McpToolResult.Error(Unsupported);
             }
 
-            var outcome = Outcome(result);
-            return McpOperationResult.From(
-                new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },
-                !result.IsSuccess,
-                arcOptions.Value.JsonSerializerOptions);
+            var services = result.OwnedScope?.ServiceProvider ?? call.Services;
+            ExceptionResponseMapping.Apply(result, services, ResponseLogger(services));
+            return McpOperationResult.From(QueryEnvelope(result), !result.IsSuccess, arcOptions.Value.JsonSerializerOptions);
         }
         finally
         {

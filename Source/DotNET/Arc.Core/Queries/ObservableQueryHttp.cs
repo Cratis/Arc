@@ -6,6 +6,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.Channels;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,7 +106,13 @@ public static class ObservableQueryHttp
                 new(queryContext, options, requestContext, requestContext.RequestAborted), streamingData);
         var services = requestContext.RequestServices;
         var exposeExceptionDetails = services.GetService<IOptions<ArcOptions>>()?.Value.ExposeExceptionDetails ?? false;
+        ExceptionResponseMapping.Apply(response.Result, services, GetLogger(services));
         ExceptionDetailRedactor.Redact(response.Result, exposeExceptionDetails, GetLogger(services));
+        if (ExceptionResponseMapping.ResponseFor(response.Result) is { } mapping)
+        {
+            foreach (var header in mapping.Headers) requestContext.SetResponseHeader(header.Key, header.Value);
+            return response with { StatusCode = mapping.StatusCode };
+        }
 
         return response;
     }

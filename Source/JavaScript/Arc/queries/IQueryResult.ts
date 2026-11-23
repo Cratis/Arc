@@ -51,6 +51,9 @@ export interface IQueryResult<TDataType> {
      */
     readonly isRetryable?: boolean;
 
+    /** Gets the stable public failure code, if the server mapped the exception. */
+    readonly errorCode?: string;
+
     /**
      * Gets whether or not the query is valid.
      */

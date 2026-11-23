@@ -55,6 +55,7 @@ type ServerCommandResult = {
     exceptionStackTrace: string;
     authorizationFailureReason: string;
     isRetryable?: boolean;
+    errorCode?: string;
     isMissingHandler?: boolean;
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -147,6 +148,9 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
     /** @inheritdoc */
     readonly isRetryable: boolean;
 
+    /** @inheritdoc */
+    readonly errorCode?: string;
+
     /** Whether no server handler was registered, so execution or validation did not run. */
     readonly isMissingHandler: boolean;
 
@@ -171,6 +175,7 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
         this.authorizationFailureReason = result.authorizationFailureReason;
         // Older servers do not report retryable failures; none of their results are.
         this.isRetryable = result.isRetryable ?? false;
+        this.errorCode = result.errorCode;
 
         // Older servers do not identify missing handlers.
         this.isMissingHandler = result.isMissingHandler ?? false;
