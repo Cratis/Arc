@@ -31,9 +31,16 @@ public class AvailabilityFilter(IQueryPerformerProviders queryPerformerProviders
             return QueryResult.Success(context.CorrelationId);
         }
 
+        return await Decide(context, gate, performer, context.ServiceProvider);
+    }
+
+    static async Task<QueryResult> Decide(QueryContext context, IAvailabilityGate gate, IQueryPerformer performer, IServiceProvider services)
+    {
         try
         {
-            var decision = await gate.Decide(performer.Type, context.ServiceProvider, context.CancellationToken);
+            var decision = gate is IAvailabilityExecutionGate executionGate
+                ? await executionGate.Decide(context.InvocationFor(performer.Type), services, context.CancellationToken)
+                : await gate.Decide(performer.Type, services, context.CancellationToken);
             return decision.IsAvailable
                 ? QueryResult.Success(context.CorrelationId)
                 : QueryResult.Unauthorized(context.CorrelationId, AvailabilityReason.NotAvailable);
@@ -44,7 +51,7 @@ public class AvailabilityFilter(IQueryPerformerProviders queryPerformerProviders
         }
         catch (Exception ex)
         {
-            context.ServiceProvider.GetService<ILogger<AvailabilityFilter>>()?.AvailabilityNotDecided(context.Name.Value, ex);
+            services.GetService<ILogger<AvailabilityFilter>>()?.AvailabilityNotDecided(context.Name.Value, ex);
             return QueryResult.FromException(context.CorrelationId, new AvailabilityNotDecidedException(ex));
         }
     }

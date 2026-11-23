@@ -15,24 +15,38 @@ namespace Cratis.Arc.Availability;
 /// </remarks>
 /// <param name="requestContext">The <see cref="AvailabilityRequestContext"/> of the request.</param>
 /// <param name="options">The <see cref="ArcAvailabilityOptions"/>, which decide the level a part is read in.</param>
-public class ChoreographyContextValueSource(AvailabilityRequestContext requestContext, ArcAvailabilityOptions options) : IContextValueSource
+public class ChoreographyContextValueSource(AvailabilityRequestContext requestContext, ArcAvailabilityOptions options) : IExecutionContextValueSource
 {
     /// <inheritdoc/>
-    public async ValueTask<ContextValueRead> Read(Type? part, string name, CancellationToken cancellationToken)
+    public ValueTask<ContextValueRead> Read(Type? part, string name, CancellationToken cancellationToken) =>
+        Read(requestContext, part, name, cancellationToken);
+
+    /// <inheritdoc/>
+    public ValueTask<ContextValueRead> ReadForExecution(AvailabilityInvocation invocation, string name, CancellationToken cancellationToken) =>
+        Read(requestContext.ForInvocation(invocation), invocation.Part, name, cancellationToken);
+
+    async ValueTask<ContextValueRead> Read(AvailabilityRequestContext request, Type? part, string name, CancellationToken cancellationToken)
     {
         var scope = part is null ? ContextScope.Application : options.ScopeFor(part);
         try
         {
-            var outcome = await requestContext.ResolverFor(scope).Resolve($"$context.{name}", cancellationToken);
+            var outcome = await request.ResolverFor(scope).Resolve($"$context.{name}", cancellationToken);
             return outcome.IsPresent ? ContextValueRead.Present(outcome.Value) : ContextValueRead.Absent;
         }
         catch (Choreography.Availability.Context.RequiredContextValueAbsentException ex)
         {
+            request.Reset();
             throw new Contexts.RequiredContextValueAbsentException(ex.Name, ex);
         }
         catch (ContextValueProviderFailedException ex)
         {
+            request.Reset();
             throw new ContextValueUnavailableException(ex.Name, ex);
+        }
+        catch (OperationCanceledException)
+        {
+            request.Reset();
+            throw;
         }
     }
 }

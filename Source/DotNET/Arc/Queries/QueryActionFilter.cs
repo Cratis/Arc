@@ -11,8 +11,10 @@ using Cratis.Arc.Validation;
 using Cratis.Strings;
 using Cratis.Traces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
@@ -50,6 +52,41 @@ public class QueryActionFilter(
             await next();
         }
     }
+
+    static QueryArguments GetCallerArguments(ActionExecutingContext context)
+    {
+        var metadataProvider = context.HttpContext.RequestServices.GetService<IModelMetadataProvider>();
+        var arguments = new QueryArguments();
+        foreach (var parameter in context.ActionDescriptor.Parameters.Where(parameter => IsCallerBound(parameter, metadataProvider)))
+        {
+            if (context.ActionArguments.TryGetValue(parameter.Name, out var value))
+            {
+                arguments[parameter.Name] = value!;
+            }
+        }
+        return arguments;
+    }
+
+    static bool IsCallerBound(ParameterDescriptor parameter, IModelMetadataProvider? metadataProvider)
+    {
+        if (parameter.BindingInfo?.ServiceKey is not null)
+        {
+            return false;
+        }
+        if (parameter is ControllerParameterDescriptor controllerParameter &&
+            controllerParameter.ParameterInfo.IsDefined(typeof(FromKeyedServicesAttribute), inherit: true))
+        {
+            return false;
+        }
+
+        return GetBindingSource(parameter, metadataProvider)?.IsFromRequest ?? true;
+    }
+
+    static BindingSource? GetBindingSource(ParameterDescriptor parameter, IModelMetadataProvider? metadataProvider) =>
+        parameter.BindingInfo?.BindingSource ??
+        (parameter is ControllerParameterDescriptor controllerParameter && metadataProvider is ModelMetadataProvider provider
+            ? provider.GetMetadataForParameter(controllerParameter.ParameterInfo)
+            : metadataProvider?.GetMetadataForType(parameter.ParameterType))?.BindingSource;
 
     static bool AdmitTenant(IServiceProvider services)
     {
@@ -170,7 +207,7 @@ public class QueryActionFilter(
         }
 
         using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
-        var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", controllerActionDescriptor.ControllerTypeInfo, queryContextManager);
+        var queryContext = EstablishQueryContext(context, controllerActionDescriptor.ControllerTypeInfo);
         var warnings = new WarningHandling(context.ShouldTreatWarningsAsErrors(), GetIgnoreWarningsFromRequest(context));
         var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template ?? context.ActionDescriptor.DisplayName ?? string.Empty;
         using var span = activitySource.OnQuery(routeTemplate);
@@ -226,17 +263,25 @@ public class QueryActionFilter(
         await controllerAdapter.HandleControllerStreamingResult(context, executed, objectResult);
     }
 
-    QueryContext EstablishQueryContext(HttpContext httpContext, FullyQualifiedQueryName queryName, Type? controllerType, IQueryContextManager queryContextManager)
+    QueryContext EstablishQueryContext(ActionExecutingContext context, Type? controllerType)
     {
+        var httpContext = context.HttpContext;
+        var queryName = context.ActionDescriptor.DisplayName ?? "[NotSet]";
+        var arguments = GetCallerArguments(context);
         var sorting = httpContext.GetSortingInfo();
         var paging = httpContext.GetPagingInfo();
         var correlationId = httpContext.GetCorrelationId();
 
-        var queryContext = new QueryContext(queryName, correlationId, paging, sorting)
+        var queryContext = new QueryContext(queryName, correlationId, paging, sorting, arguments, ServiceProvider: httpContext.RequestServices, CancellationToken: httpContext.RequestAborted)
         {
             ReceivedAt = OperationContextScope.Current ?? default,
             SliceLocation = controllerType is null ? SliceLocation.NotSet : SliceLocation.For(controllerType)
         };
+        if (controllerType is not null)
+        {
+            queryContext.InvocationFor(controllerType);
+        }
+
         queryContextManager.Set(queryContext);
         return queryContext;
     }

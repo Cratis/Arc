@@ -66,6 +66,35 @@ A failure, such as a store that is down or a context value provider that throws,
 
 `QueryResult` carries `AuthorizationFailureReason` and `IsRetryable` like `CommandResult` does. Observable queries are refused the same way when the subscription starts.
 
+## Bound invocation context
+
+`IAvailabilityGate` remains the type-only contract used by metadata and listing. A gate can also implement
+`IAvailabilityExecutionGate`. The command and query filters prefer this optional capability and pass an
+`AvailabilityInvocation`: the existing operation type, the bound command or coerced query arguments, and the
+server's pinned `ReceivedAt` receipt. Gates implementing only `IAvailabilityGate` continue to work unchanged.
+The query operation identity remains the performer's `Type`, not its `ReadModelType`.
+
+Choreography providers can resolve `arguments.<property>` and `receivedAt` through their resolver. Command
+properties and query argument names are case-insensitive. The receipt is a `DateTimeOffset`, fixed at the Arc
+entry boundary rather than read from the clock during evaluation. Manually constructed contexts keep their
+existing default receipt; the gate does not invent one. An explicit invocation with null arguments has no
+`arguments` value. Type-only calls have neither `arguments` nor `receivedAt`, including when a listing is
+requested during an execution. Conditions needing an absent argument stay unknown and never permit execution.
+
+Arguments remain untrusted input under the separate `arguments` root. They cannot replace the server's
+`tenant`, `identity`, audience grants, declared context values or receipt. No service provider or principal is
+exposed through the ambient bag. Host providers still use their own scoped collaborators to fetch domain data.
+
+Resolved values are isolated by invocation identity and DI scope, not type, argument equality or receipt time.
+The gate, handler and context-value readers of one invocation share its resolver, including after dependency
+binding. Metadata uses a separate cache. Nested and parallel operations do not inherit another operation's
+resolved values, even if their receipt times are identical. A provider failure or cancellation is propagated
+and the affected resolver is cleared so a later resolution can retry; neither becomes an availability grant.
+Do not reuse an `AvailabilityInvocation` instance for a different dispatch.
+
+Controller context-value readers also receive the MVC-bound command body or query arguments and transport
+receipt. This does not add availability filtering to controller actions or change authorization.
+
 ## Read availability on the client
 
 The `/.cratis/availability` observable query reports what is not available to the current context. It emits the current decision first and again each time it changes, so open sessions update without a reload. It re-emits only when the answer is different.
@@ -93,5 +122,5 @@ An MCP tool whose command or query is not available to the caller is omitted fro
 - Availability applies to model-bound commands and queries, including observable queries, on the Arc pipeline and MCP. Controller actions use ASP.NET Core authorization and are not gated.
 - Events, projections, observers and reactors are not touched. A reaction can produce into a part that is not available, and projections keep running, so switching a part on again needs no replay.
 - Clients decide per slice. A part gated alone inside a slice with other parts hides the whole slice from slice-based client checks, which is the safe direction; the server still enforces each part exactly.
-- A request lives in one context. The audiences and context values of a request are resolved once and shared by every gate in it, and by [the values your handlers read](context-values.md).
+- A bound invocation lives in one context. Its successfully resolved audiences and context values are shared by its gates and [the values its handlers read](context-values.md). Another invocation, even in the same service scope, resolves independently.
 - Availability is separate from Box Office module entitlements, which are unchanged.

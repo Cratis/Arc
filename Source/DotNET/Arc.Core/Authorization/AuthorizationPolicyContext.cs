@@ -4,7 +4,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security.Claims;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Contexts;
+using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.Authorization;
 
@@ -38,7 +40,7 @@ public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo T
     /// <summary>
     /// Gets the provided values with the asynchronous and typed reads of <see cref="ContextValues"/>.
     /// </summary>
-    public ContextValues ProvidedValues => ContextValues.For(Services, () => Target as Type ?? Target.DeclaringType, RequestCancellation);
+    public ContextValues ProvidedValues => CreateProvidedValues();
 
     /// <summary>
     /// Gets or sets the services scoped to the request being authorized.
@@ -80,4 +82,14 @@ public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo T
     /// <returns>The provided values as <typeparamref name="T"/>.</returns>
     /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
     public T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>() => ProvidedValues.ValuesAs<T>();
+
+    ContextValues CreateProvidedValues()
+    {
+        return Resource switch
+        {
+            CommandContext command => ContextValues.ForExecution(Services, () => Target as Type ?? Target.DeclaringType, () => command.AvailabilityInvocation, RequestCancellation),
+            QueryContext query => ContextValues.ForExecution(Services, () => Target as Type ?? Target.DeclaringType, query.FindInvocation, RequestCancellation),
+            _ => ContextValues.For(Services, () => Target as Type ?? Target.DeclaringType, RequestCancellation)
+        };
+    }
 }
