@@ -267,7 +267,7 @@ if (conflict) {
 }
 ```
 
-`ReadChanged` is retryable: a matching event arrived after the decision read. `ReadIncomplete` is also retryable: the read could not finish after the fold's retries. Keep the draft, re-read, and let the user review fresh state before resubmitting; do not clear the form or label the input invalid. Arc and Chronicle do not re-run the command. A `ReadChanged` result's `state` includes `{ readModel, key }`. When Chronicle reports the event that changed the read, the `state` also has `conflictingEventTypeId`, `conflictingEventType` and `conflictingEventSequenceNumber`. There is no TypeScript constant for these detail strings.
+`ReadChanged` is retryable: a matching event arrived after the decision read. `ReadIncomplete` is also retryable: the read could not finish after the fold's retries. Keep the draft, re-read, and let the user review fresh state before resubmitting; do not clear the form or label the input invalid. Arc and Chronicle do not re-run the command. A `ReadChanged` result's `state` includes only `{ readModel }`. Neither its message nor its state exposes resolved keys, conflicting event type identifiers, event type names or sequence numbers: authorization to execute the command does not grant access to those reads or events. There is no TypeScript constant for these detail strings.
 
 ### Telling one constraint from another
 

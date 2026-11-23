@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Text.Json;
 using Cratis.Arc.Mcp.for_McpEndpoint.given;
 using Cratis.Arc.Validation;
 
@@ -23,11 +22,11 @@ public class when_an_mcp_protected_read_conflicts : a_protected_command_host
         Outcome().GetProperty("validationResults").EnumerateArray().Single().GetProperty("message").GetString().ShouldEqual(_decision.Result!.ValidationResults.Single().Message);
     [Fact] void should_omit_the_key_from_the_conflict_message() =>
         Outcome().GetProperty("validationResults").EnumerateArray().Single().GetProperty("message").GetString().ShouldNotContain(Stock.ToString());
-    [Fact] void should_keep_the_read_identity_in_structured_state()
+    [Fact] void should_only_identify_the_read_model_in_the_mcp_state()
     {
-        var state = JsonSerializer.SerializeToElement(_decision.Result!.ValidationResults.Single().State);
+        var state = Outcome().GetProperty("validationResults").EnumerateArray().Single().GetProperty("state");
+        state.EnumerateObject().Select(_ => _.Name).ShouldContainOnly("readModel");
         state.GetProperty("readModel").GetString().ShouldEqual(nameof(ProtectedStock));
-        state.GetProperty("key").GetString().ShouldEqual(Stock.ToString());
     }
     [Fact] void should_execute_the_filter_once() => _decision.Filters.ShouldEqual(1);
     [Fact] void should_execute_the_handler_once_without_retry() => _decision.Handles.ShouldEqual(1);
