@@ -24,9 +24,11 @@
     <PackageVersion Include="Cratis.Fundamentals" Version="7.34.3" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.34.3" />
     <PackageVersion Include="Cratis.Screenplay" Version="6.38.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.25.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.25.0" />
-    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.25.0" />
+    <!-- Held at 0.21.2: Cratis.Screenplay.Generation.DotNet 0.22.0 and later require Microsoft.CodeAnalysis.CSharp 5.12.0,
+         above the Roslyn 5.9.0 load floor held below for SDK 10.0.400 (#3952). -->
+    <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.21.2" />
+    <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.21.2" />
+    <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.21.2" />
     <!-- MAUI -->
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.130" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.15" />
