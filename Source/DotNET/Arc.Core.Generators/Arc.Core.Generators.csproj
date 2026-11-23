@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <Compile Include="../Shared/UnionCaseConvention.cs" Link="UnionCaseConvention.cs" />
         <Compile Include="../Shared/CommandOperationConvention.cs" Link="CommandOperationConvention.cs" />
         <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
         <Compile Include="../Shared/ArcGeneratorDiagnostics.cs" Link="ArcGeneratorDiagnostics.cs" />

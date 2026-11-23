@@ -43,17 +43,13 @@ public sealed class ReadProtectionParameterAnalyzer : DiagnosticAnalyzer
     static void Analyze(SymbolAnalysisContext context, Lazy<ImmutableHashSet<INamedTypeSymbol>> backed, Lazy<INamedTypeSymbol[]> backings)
     {
         var parameter = (IParameterSymbol)context.Symbol;
-        if (parameter.ContainingSymbol is not IMethodSymbol method ||
-            (method.MethodKind != MethodKind.Ordinary && method.MethodKind != MethodKind.Constructor) || method.IsStatic ||
-            ReadProtectionSymbols.CommandFor(method) is not { } command ||
-            (SymbolEqualityComparer.Default.Equals(method.ContainingType, command) && !ChronicleStateSymbols.DependencyMethods(command).Contains(method, SymbolEqualityComparer.Default)) ||
-            (!SymbolEqualityComparer.Default.Equals(method.ContainingType, command) && method.MethodKind != MethodKind.Constructor) ||
-            parameter.Type is not INamedTypeSymbol model || !ChronicleStateSymbols.IsBacked(model, context.Compilation, backed))
+        if (!TryProtectedTarget(parameter, context.Compilation, backed, out var target))
         {
             return;
         }
+        var (method, command, model) = target;
         var mode = ReadProtectionSymbols.Mode(command);
-        if (mode == 0 || ReadProtectionSymbols.Advisory(parameter) || ChronicleStateSymbols.IsKeyedService(parameter, context.Compilation))
+        if (ShouldSkip(parameter, mode, context.Compilation))
         {
             return;
         }
@@ -70,32 +66,108 @@ public sealed class ReadProtectionParameterAnalyzer : DiagnosticAnalyzer
             Report(context, DiagnosticDescriptors.ARCCHR0024_ReadCannotBeProtected, parameter, command.Name, parameter.Name, model.Name, refusal.Reason, refusal.Fix);
             return;
         }
+        AnalyzeSameSource(context, parameter, target, mode);
+    }
+
+    static bool TryProtectedTarget(
+        IParameterSymbol parameter,
+        Compilation compilation,
+        Lazy<ImmutableHashSet<INamedTypeSymbol>> backed,
+        out (IMethodSymbol Method, INamedTypeSymbol Command, INamedTypeSymbol Model) target)
+    {
+        target = default;
+        if (parameter.ContainingSymbol is not IMethodSymbol method || !IsSupportedMethod(method))
+        {
+            return false;
+        }
+        var command = ReadProtectionSymbols.CommandFor(method);
+        if (command is null || !IsDependencyMethod(method, command))
+        {
+            return false;
+        }
+        if (parameter.Type is not INamedTypeSymbol model || !ChronicleStateSymbols.IsBacked(model, compilation, backed))
+        {
+            return false;
+        }
+        target = (method, command, model);
+        return true;
+    }
+
+    static bool IsSupportedMethod(IMethodSymbol method) =>
+        !method.IsStatic && method.MethodKind is MethodKind.Ordinary or MethodKind.Constructor;
+
+    static bool IsDependencyMethod(IMethodSymbol method, INamedTypeSymbol command) =>
+        SymbolEqualityComparer.Default.Equals(method.ContainingType, command)
+            ? ChronicleStateSymbols.DependencyMethods(command).Contains(method, SymbolEqualityComparer.Default)
+            : method.MethodKind == MethodKind.Constructor;
+
+    static bool ShouldSkip(IParameterSymbol parameter, int mode, Compilation compilation) =>
+        mode == 0 || ReadProtectionSymbols.Advisory(parameter) || ChronicleStateSymbols.IsKeyedService(parameter, compilation);
+
+    static void AnalyzeSameSource(
+        SymbolAnalysisContext context,
+        IParameterSymbol parameter,
+        (IMethodSymbol Method, INamedTypeSymbol Command, INamedTypeSymbol Model) target,
+        int mode)
+    {
+        var (_, command, _) = target;
         var key = ReadProtectionSymbols.Lookup(command, parameter, context.Compilation);
         var commandKey = ChronicleStateSymbols.HasProvider(command, context.Compilation) ? null :
             RawGuidResponseAnalysis.PublicProperties(command).FirstOrDefault(property => ChronicleStateSymbols.IsKey(property, context.Compilation));
-        if (key is null || commandKey is null || !SymbolEqualityComparer.Default.Equals(key, commandKey))
+        if (!SameSource(key, commandKey))
         {
             return;
         }
         var dependencies = ChronicleStateSymbols.DependencyMethods(command).ToArray();
-        var aggregate = dependencies.Where(dependency => !ChronicleStateSymbols.MayBeProvided(dependency, command))
-            .SelectMany(dependency => dependency.Parameters).FirstOrDefault(candidate =>
-                ReadProtectionSymbols.Is(candidate.Type, "Cratis.Arc.Chronicle.Aggregates.AggregateRoot", context.Compilation));
+        var aggregate = FindAggregate(dependencies, command, context.Compilation);
         if (mode == 2 && aggregate is not null)
         {
-            Report(context, DiagnosticDescriptors.ARCCHR0033_ReadAndAggregateOnSameSource, parameter, command.Name, aggregate.Name, parameter.Name, key.Name);
+            Report(context, DiagnosticDescriptors.ARCCHR0033_ReadAndAggregateOnSameSource, parameter, command.Name, aggregate.Name, parameter.Name, key!.Name);
         }
-        var streamModel = PerStreamReadModelSymbols.Declaration(model) is not null;
-        var streamDecision = dependencies.Any(dependency => dependency.Parameters.Any(candidate =>
-            ReadProtectionSymbols.Is(candidate.Type, "Cratis.Arc.Chronicle.Streams.StreamDecision", context.Compilation)) ||
-            ReadProtectionSymbols.Is(RawGuidResponseAnalysis.UnwrapAwaitable(dependency.ReturnType, context.Compilation), "Cratis.Arc.Chronicle.Streams.StreamDecision", context.Compilation));
-        if ((streamModel && streamDecision && method.MethodKind == MethodKind.Constructor) ||
-            (RawGuidResponseAnalysis.HandleMethods(command).Any(handler => HasExactScopes(handler.ReturnType, context.Compilation)) &&
-             !(streamModel && method.Name == "Handle" && HasCommandStreamDecision(dependencies, context.Compilation))))
+        if (NeedsCoverageAdvice(target, dependencies, context.Compilation))
         {
-            Report(context, DiagnosticDescriptors.ARCCHR0036_ExactScopeCoverageNotProven, parameter, command.Name, parameter.Name, key.Name);
+            Report(context, DiagnosticDescriptors.ARCCHR0036_ExactScopeCoverageNotProven, parameter, command.Name, parameter.Name, key!.Name);
         }
     }
+
+    static bool SameSource(IPropertySymbol? key, IPropertySymbol? commandKey) =>
+        key is not null && commandKey is not null && SymbolEqualityComparer.Default.Equals(key, commandKey);
+
+    static IParameterSymbol? FindAggregate(IEnumerable<IMethodSymbol> dependencies, INamedTypeSymbol command, Compilation compilation) =>
+        dependencies.Where(dependency => !ChronicleStateSymbols.MayBeProvided(dependency, command))
+            .SelectMany(dependency => dependency.Parameters).FirstOrDefault(candidate =>
+                ReadProtectionSymbols.Is(candidate.Type, "Cratis.Arc.Chronicle.Aggregates.AggregateRoot", compilation));
+
+    static bool NeedsCoverageAdvice(
+        (IMethodSymbol Method, INamedTypeSymbol Command, INamedTypeSymbol Model) target,
+        IMethodSymbol[] dependencies,
+        Compilation compilation) =>
+        IsConstructorStreamDecision(target, dependencies, compilation) || HasUnprovenExactScopes(target, dependencies, compilation);
+
+    static bool IsConstructorStreamDecision(
+        (IMethodSymbol Method, INamedTypeSymbol Command, INamedTypeSymbol Model) target,
+        IMethodSymbol[] dependencies,
+        Compilation compilation) =>
+        PerStreamReadModelSymbols.Declaration(target.Model) is not null && HasStreamDecision(dependencies, compilation) &&
+        target.Method.MethodKind == MethodKind.Constructor;
+
+    static bool HasStreamDecision(IEnumerable<IMethodSymbol> dependencies, Compilation compilation) =>
+        dependencies.Any(dependency => dependency.Parameters.Any(candidate =>
+            ReadProtectionSymbols.Is(candidate.Type, "Cratis.Arc.Chronicle.Streams.StreamDecision", compilation)) ||
+            ReadProtectionSymbols.Is(RawGuidResponseAnalysis.UnwrapAwaitable(dependency.ReturnType, compilation), "Cratis.Arc.Chronicle.Streams.StreamDecision", compilation));
+
+    static bool HasUnprovenExactScopes(
+        (IMethodSymbol Method, INamedTypeSymbol Command, INamedTypeSymbol Model) target,
+        IMethodSymbol[] dependencies,
+        Compilation compilation) =>
+        RawGuidResponseAnalysis.HandleMethods(target.Command).Any(handler => RawGuidResponseAnalysis.HasExactScopes(handler.ReturnType, compilation)) &&
+        !IsCommandStreamHandler(target, dependencies, compilation);
+
+    static bool IsCommandStreamHandler(
+        (IMethodSymbol Method, INamedTypeSymbol Command, INamedTypeSymbol Model) target,
+        IMethodSymbol[] dependencies,
+        Compilation compilation) =>
+        PerStreamReadModelSymbols.Declaration(target.Model) is not null && target.Method.Name == "Handle" && HasCommandStreamDecision(dependencies, compilation);
 
     static bool HasCommandStreamDecision(IEnumerable<IMethodSymbol> dependencies, Compilation compilation) => dependencies.Any(dependency =>
         dependency.Name == "Provide" && dependency.DeclaringSyntaxReferences.Any(reference =>
@@ -107,21 +179,6 @@ public sealed class ReadProtectionParameterAnalyzer : DiagnosticAnalyzer
                 }
             } && member.Name.Identifier.ValueText == "ForCommand" && dependency.Parameters.Any(parameter => parameter.Name == receiver.Identifier.ValueText &&
                 ReadProtectionSymbols.Is(parameter.Type, "Cratis.Arc.Chronicle.Streams.IStreamReads", compilation))));
-
-    static bool HasExactScopes(ITypeSymbol type, Compilation compilation)
-    {
-        type = RawGuidResponseAnalysis.UnwrapAwaitable(type, compilation);
-        if (RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes", compilation))
-        {
-            return true;
-        }
-        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
-        {
-            return tuple.TupleElements.Any(element => HasExactScopes(element.Type, compilation));
-        }
-        var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
-        return branches.Length > 1 && branches.Any(branch => HasExactScopes(branch, compilation));
-    }
 
     static void Report(SymbolAnalysisContext context, DiagnosticDescriptor descriptor, IParameterSymbol parameter, params object[] arguments) =>
         context.ReportDiagnostic(Diagnostic.Create(descriptor, parameter.Locations.FirstOrDefault(), arguments));

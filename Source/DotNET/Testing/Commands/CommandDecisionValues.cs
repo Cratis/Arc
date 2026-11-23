@@ -27,7 +27,14 @@ internal static class CommandDecisionValues
     /// </summary>
     /// <param name="value">The returned decision.</param>
     /// <returns>The active value.</returns>
-    internal static object? Unwrap(object? value) => value is IOneOf union ? Unwrap(union.Value) : value;
+    internal static object? Unwrap(object? value) => value switch
+    {
+#if NET11_0_OR_GREATER
+        IUnion union => Unwrap(union.Value),
+#endif
+        IOneOf union => Unwrap(union.Value),
+        _ => value
+    };
 
     /// <summary>
     /// Describes a value, retaining useful record formatting.
@@ -103,6 +110,10 @@ internal static class CommandDecisionValues
     {
         switch (value)
         {
+#if NET11_0_OR_GREATER
+            case IUnion union:
+                return Expand(union.Value);
+#endif
             case IOneOf union:
                 return Expand(union.Value);
             case ITuple tuple:

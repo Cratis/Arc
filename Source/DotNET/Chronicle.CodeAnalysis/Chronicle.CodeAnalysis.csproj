@@ -33,6 +33,7 @@
         <Compile Include="../Shared/QuerySelectionPolicy.cs" Link="QuerySelectionPolicy.cs" />
         <Compile Include="../Shared/AttributePrecedencePolicy.cs" Link="AttributePrecedencePolicy.cs" />
         <Compile Include="../Shared/CommandAttributeSymbols.cs" Link="CommandAttributeSymbols.cs" />
+        <Compile Include="../Shared/UnionCaseConvention.cs" Link="UnionCaseConvention.cs" />
     </ItemGroup>
 
     <ItemGroup>
