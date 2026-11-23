@@ -43,8 +43,10 @@ public static class CommandOperationBoundary
     internal static CommandOperationFrame Enter(Type commandType, object host)
     {
         var parent = _current.Value;
-        var mayParticipate = commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Any(method => method.Name == "Handle" && MayContainOperations(method.ReturnType));
+        var mayParticipate = MayContainOperations(
+            commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(method => method.Name == "Handle").Select(method => method.ReturnType),
+            []);
 
         // In-process transports can invoke another Arc host (for example Chronicle's kernel). That host owns an
         // independent command boundary, just as it would across HTTP; it must not join this host's operation journal.
@@ -75,10 +77,18 @@ public static class CommandOperationBoundary
     /// <param name="type">The runtime response type.</param>
     /// <returns>Whether an explicit batch is required.</returns>
     internal static bool IsBareCollection(Type type) => type != typeof(CommandOperations) &&
-        type.GetInterfaces().Append(type).Any(contract => contract.IsGenericType &&
-            contract.GetGenericTypeDefinition() == typeof(IEnumerable<>) && MayContainOperations(contract.GetGenericArguments()[0]));
+        MayContainOperations(CollectionElementTypes(type), []);
 
-    static bool MayContainOperations(Type type) => MayContainOperations(type, []);
+    static bool MayContainOperations(IEnumerable<Type> types, HashSet<Type> visited)
+    {
+        var mayContainOperations = false;
+        foreach (var type in types)
+        {
+            // Do not short-circuit: every declared union must have metadata before Handle can run.
+            mayContainOperations |= MayContainOperations(type, visited);
+        }
+        return mayContainOperations;
+    }
 
     static bool MayContainOperations(Type type, HashSet<Type> visited)
     {
@@ -95,16 +105,21 @@ public static class CommandOperationBoundary
 #if NET11_0_OR_GREATER
         if (typeof(IUnion).IsAssignableFrom(type))
         {
-            return UnionCaseConvention.CaseTypes(type).Any(caseType => MayContainOperations(caseType, visited));
+            return MayContainOperations(CommandUnionMetadata.CaseTypes(type), visited);
         }
 #endif
+        var mayContainOperations = MayContainOperations(CollectionElementTypes(type), visited);
         if (IsOperationContainer(type))
         {
-            return type.GetGenericArguments().Any(argument => MayContainOperations(argument, visited));
+            mayContainOperations |= MayContainOperations(type.GetGenericArguments(), visited);
         }
 
-        return false;
+        return mayContainOperations;
     }
+
+    static IEnumerable<Type> CollectionElementTypes(Type type) => type.GetInterfaces().Append(type)
+        .Where(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+        .Select(contract => contract.GetGenericArguments()[0]);
 
     static bool IsOperationContainer(Type type)
     {
