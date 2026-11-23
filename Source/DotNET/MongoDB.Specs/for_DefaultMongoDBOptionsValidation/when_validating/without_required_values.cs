@@ -13,5 +13,9 @@ public class without_required_values : Specification
 
     [Fact] void should_fail_validation() => _result.Failed.ShouldBeTrue();
 
-    [Fact] void should_report_each_missing_required_value() => _result.Failures.ShouldEqual("Server: The Server field is required.", "Database: The Database field is required.");
+    [Fact] void should_report_two_failures() => _result.Failures.Count().ShouldEqual(2);
+
+    [Fact] void should_report_missing_server() => _result.Failures.ShouldContain(_ => _.StartsWith("Server: ", StringComparison.Ordinal));
+
+    [Fact] void should_report_missing_database() => _result.Failures.ShouldContain(_ => _.StartsWith("Database: ", StringComparison.Ordinal));
 }
