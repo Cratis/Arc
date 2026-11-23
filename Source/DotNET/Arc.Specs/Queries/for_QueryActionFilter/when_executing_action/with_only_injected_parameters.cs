@@ -6,7 +6,7 @@ namespace Cratis.Arc.Queries.for_QueryActionFilter.when_executing_action;
 public class with_only_injected_parameters : given.a_query_with_injected_parameters
 {
     void Establish() => _actionContext.ActionDescriptor.Parameters = _actionContext.ActionDescriptor.Parameters
-        .Where(parameter => parameter.Name is not "count" and not "id").ToList();
+        .Where(parameter => parameter.Name is not "count" and not "id" and not "input").ToList();
 
     async Task Because() => await _filter.OnActionExecutionAsync(_actionContext, _next);
 

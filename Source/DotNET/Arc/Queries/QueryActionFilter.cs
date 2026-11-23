@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
@@ -53,9 +54,9 @@ public class QueryActionFilter(
 
     static QueryArguments GetCallerArguments(ActionExecutingContext context)
     {
-        var services = context.HttpContext.RequestServices.GetService<IServiceProviderIsService>();
+        var metadataProvider = context.HttpContext.RequestServices.GetService<IModelMetadataProvider>();
         var arguments = new QueryArguments();
-        foreach (var parameter in context.ActionDescriptor.Parameters.Where(parameter => IsCallerBound(parameter, services)))
+        foreach (var parameter in context.ActionDescriptor.Parameters.Where(parameter => IsCallerBound(parameter, metadataProvider)))
         {
             if (context.ActionArguments.TryGetValue(parameter.Name, out var value))
             {
@@ -65,9 +66,9 @@ public class QueryActionFilter(
         return arguments;
     }
 
-    static bool IsCallerBound(ParameterDescriptor parameter, IServiceProviderIsService? services)
+    static bool IsCallerBound(ParameterDescriptor parameter, IModelMetadataProvider? metadataProvider)
     {
-        if (parameter.ParameterType == typeof(CancellationToken) || parameter.BindingInfo?.ServiceKey is not null)
+        if (parameter.BindingInfo?.ServiceKey is not null)
         {
             return false;
         }
@@ -77,8 +78,14 @@ public class QueryActionFilter(
             return false;
         }
 
-        return parameter.BindingInfo?.BindingSource?.IsFromRequest ?? (services?.IsService(parameter.ParameterType) != true);
+        return GetBindingSource(parameter, metadataProvider)?.IsFromRequest ?? true;
     }
+
+    static BindingSource? GetBindingSource(ParameterDescriptor parameter, IModelMetadataProvider? metadataProvider) =>
+        parameter.BindingInfo?.BindingSource ??
+        (parameter is ControllerParameterDescriptor controllerParameter && metadataProvider is ModelMetadataProvider provider
+            ? provider.GetMetadataForParameter(controllerParameter.ParameterInfo)
+            : metadataProvider?.GetMetadataForType(parameter.ParameterType))?.BindingSource;
 
     static bool AdmitTenant(IServiceProvider services)
     {

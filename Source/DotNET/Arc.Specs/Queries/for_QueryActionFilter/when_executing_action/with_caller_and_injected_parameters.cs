@@ -12,7 +12,7 @@ public class with_caller_and_injected_parameters : given.a_query_with_injected_p
     [Fact] void should_exclude_the_from_services_value() => _context.Arguments.ContainsKey("renderer").ShouldBeFalse();
     [Fact] void should_exclude_the_keyed_service_value() => _context.Arguments.ContainsKey("keyed").ShouldBeFalse();
     [Fact] void should_exclude_the_cancellation_token() => _context.Arguments.ContainsKey("cancellationToken").ShouldBeFalse();
-    [Fact] void should_exclude_the_inferred_service_value() => _context.Arguments.ContainsKey("dependency").ShouldBeFalse();
+    [Fact] void should_keep_the_registered_request_model() => _context.Arguments["input"].ShouldBeSame(_input);
     [Fact] void should_exclude_the_special_value() => _context.Arguments.ContainsKey("special").ShouldBeFalse();
-    [Fact] void should_keep_only_caller_arguments() => _context.Arguments.Count.ShouldEqual(2);
+    [Fact] void should_keep_only_caller_arguments() => _context.Arguments.Count.ShouldEqual(3);
 }
