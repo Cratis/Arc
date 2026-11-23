@@ -1,9 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Serialization;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Availability;
 using Cratis.Arc.Contexts;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -68,6 +70,12 @@ public partial class QueryResult
     public bool IsRetryable { get; set; }
 
     /// <summary>
+    /// Gets the stable public code for a mapped exception, if any.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ErrorCode { get; internal set; }
+
+    /// <summary>
     /// Gets whether the query is valid.
     /// </summary>
     public bool IsValid => !ValidationResults.Any();
@@ -101,6 +109,9 @@ public partial class QueryResult
     /// as the complete current snapshot.
     /// </remarks>
     public ChangeSet? ChangeSet { get; set; }
+
+    /// <summary>Gets or sets the server-only first exception and its response mapping.</summary>
+    internal ExceptionResponseCandidate? ExceptionResponseCandidate { get; set; }
 
     /// <summary>
     /// Represents a successful command result.
@@ -188,7 +199,7 @@ public partial class QueryResult
             ? Unauthorized(correlationId)
             : exception is AvailabilityNotDecidedException or ContextValueUnavailableException
                 ? Retryable(correlationId, exception.Message)
-                : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty };
+                : new() { CorrelationId = correlationId, ExceptionMessages = [exception.Message], ExceptionStackTrace = exception.StackTrace ?? string.Empty, ExceptionResponseCandidate = exception is IValidationFailure ? null : new(exception) };
 
     /// <summary>
     /// Creates a new <see cref="QueryResult"/> from an exception.
@@ -223,6 +234,12 @@ public partial class QueryResult
         }
 
         ValidationResults = [.. ValidationResults, .. queryResults.SelectMany(r => r.ValidationResults)];
+        if (!HasExceptions)
+        {
+            var firstFailure = queryResults.FirstOrDefault(result => result.HasExceptions);
+            ExceptionResponseCandidate = firstFailure?.ExceptionResponseCandidate;
+            ErrorCode = firstFailure?.ErrorCode;
+        }
         ExceptionMessages = [.. ExceptionMessages, .. queryResults.SelectMany(r => r.ExceptionMessages)];
         ExceptionStackTrace = string.Join(Environment.NewLine, new[] { ExceptionStackTrace }.Concat(queryResults.Select(r => r.ExceptionStackTrace)));
         Data = queryResults.Select(r => r.Data).FirstOrDefault() ?? Data;

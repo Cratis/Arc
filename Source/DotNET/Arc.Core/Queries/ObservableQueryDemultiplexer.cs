@@ -313,7 +313,7 @@ public partial class ObservableQueryDemultiplexer(
             catch (Exception error) when (!IsFatal(error))
             {
                 logger.SubscriptionError(queryId, error);
-                if (await ReportErrorQuietly(queryId, error, onError, subscriptionToken))
+                if (await ReportErrorQuietly(subscription, error, subscriptionToken))
                 {
                     logger.EmissionAfterDisconnect(queryId);
                 }
@@ -423,7 +423,10 @@ public partial class ObservableQueryDemultiplexer(
                 }
 
                 logger.SubscriptionError(queryId, error);
-                await onError(queryId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails), subscriptionToken);
+                if (await ReportErrorQuietly(subscription, error, subscriptionToken))
+                {
+                    logger.EmissionAfterDisconnect(queryId);
+                }
             }
             catch (Exception callbackError) when (IsDisconnect(callbackError, subscriptionToken))
             {
@@ -503,7 +506,7 @@ public partial class ObservableQueryDemultiplexer(
         catch (Exception ex) when (!IsFatal(ex))
         {
             logger.SubscriptionError(queryId, ex);
-            await ReportErrorQuietly(queryId, ex, onError, token);
+            await ReportErrorQuietly(subscription, ex, token);
         }
         finally
         {

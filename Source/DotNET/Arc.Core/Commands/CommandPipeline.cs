@@ -144,6 +144,8 @@ public class CommandPipeline(
                 ValidationResults = result.ValidationResults,
                 ExceptionMessages = result.ExceptionMessages,
                 ExceptionStackTrace = result.ExceptionStackTrace,
+                ExceptionResponseCandidate = result.ExceptionResponseCandidate,
+                ErrorCode = result.ErrorCode,
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
                 AuthorizationConfigurationFailed = result.AuthorizationConfigurationFailed,
                 Recovery = result.Recovery,

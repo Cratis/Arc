@@ -2,6 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Exceptions;
+using Cratis.Arc.Queries;
 
 namespace Cratis.Arc.Http;
 
@@ -10,6 +13,22 @@ namespace Cratis.Arc.Http;
 /// </summary>
 public static class EndpointRouteHelper
 {
+    /// <summary>
+    /// Selects a command status, preserving built-in failures ahead of an exception response mapping.
+    /// </summary>
+    /// <param name="result">The command result.</param>
+    /// <returns>The HTTP status.</returns>
+    public static HttpStatusCode GetStatusCode(CommandResult result) =>
+        ExceptionResponseMapping.ResponseFor(result)?.StatusCode ?? GetStatusCode(result.IsSuccess, result.IsAuthorized, result.IsValid, isRetryable: result.IsRetryable);
+
+    /// <summary>
+    /// Selects a query status, preserving built-in failures ahead of an exception response mapping.
+    /// </summary>
+    /// <param name="result">The query result.</param>
+    /// <returns>The HTTP status.</returns>
+    public static HttpStatusCode GetStatusCode(QueryResult result) =>
+        ExceptionResponseMapping.ResponseFor(result)?.StatusCode ?? GetStatusCode(result.IsSuccess, result.IsAuthorized, result.IsValid, result.IsReady, result.IsRetryable);
+
     /// <summary>
     /// Builds a sanitized route URL from the given endpoint location and options.
     /// </summary>

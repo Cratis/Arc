@@ -4,6 +4,7 @@
 using System.Reactive.Subjects;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
@@ -294,7 +295,7 @@ public class ClientObservable<T>(
                 }
 
                 isTerminated = true;
-                var sendError = await webSocketConnectionHandler.SendMessage(webSocket, QueryResult.Error(queryContext.CorrelationId, ExceptionDetailRedactor.MessageFor(error, ExceptionDetailRedactor.ExposeFor(context.RequestServices))), writeLock, cts.Token);
+                var sendError = await webSocketConnectionHandler.SendMessage(webSocket, ExceptionResponseMapping.StreamError(queryContext.CorrelationId, error, context.RequestServices, logger, ExceptionDetailRedactor.ExposeFor(context.RequestServices)), writeLock, cts.Token);
                 if (sendError is not null)
                 {
                     logger.ObservableAnErrorOccurred(sendError);

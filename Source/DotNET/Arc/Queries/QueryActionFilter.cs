@@ -3,6 +3,7 @@
 
 using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
@@ -199,6 +200,7 @@ public class QueryActionFilter(
         var filteredValidationResults = FilterValidationResults(validationResults, warnings.TreatWarningsAsErrors, warnings.IgnoreWarnings);
         var queryResult = await CreateQueryResult(callResult, queryContext, filteredValidationResults, context.HttpContext.RequestServices);
 
+        ExceptionResponseMapping.Apply(queryResult, context.HttpContext.RequestServices, logger);
         ExceptionDetailRedactor.Redact(queryResult, ExceptionDetailRedactor.ExposeFor(context.HttpContext.RequestServices), logger);
 
         if (await ControllerQueryValidationRejection.TryWrite(context.HttpContext, queryResult))
@@ -264,6 +266,7 @@ public class QueryActionFilter(
             CorrelationId = queryContext.CorrelationId,
             ValidationResults = validationResults,
             ExceptionMessages = call.ExceptionMessages,
+            ExceptionResponseCandidate = call.ExceptionResponseCandidate,
             ExceptionStackTrace = call.ExceptionStackTrace ?? string.Empty,
             Data = interceptedData!
         };
@@ -320,15 +323,21 @@ public class QueryActionFilter(
             return QueryCall.Empty(null);
         }
 
+        var responseCandidate = result.Exception is { } actionException and not IValidationFailure ? new ExceptionResponseCandidate(actionException) : null;
         var (exceptionMessages, exceptionStackTrace) = CollectExceptionDetails(result);
         var response = (result.Result as ObjectResult)?.Value;
-        return new QueryCall(result, exceptionMessages, exceptionStackTrace, response, false);
+        return new QueryCall(result, exceptionMessages, exceptionStackTrace, response, false)
+        {
+            ExceptionResponseCandidate = responseCandidate
+        };
     }
 
     readonly record struct WarningHandling(bool TreatWarningsAsErrors, bool IgnoreWarnings);
 
     readonly record struct QueryCall(ActionExecutedContext? Result, IEnumerable<string> ExceptionMessages, string? ExceptionStackTrace, object? Response, bool MembershipDenied)
     {
+        public ExceptionResponseCandidate? ExceptionResponseCandidate { get; init; }
+
         public static QueryCall Empty(ActionExecutedContext? result) => new(result, [], string.Empty, null, false);
 
         public static QueryCall Denied(ActionExecutedContext? result) => new(result, [], string.Empty, null, true);

@@ -1,7 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net;
+using Cratis.Arc.Exceptions;
+using Cratis.Arc.Http;
 using Cratis.Strings;
 
 namespace Cratis.Arc.Queries;
@@ -109,26 +110,17 @@ public static class QueryHttpExtensions
 
         foreach (var kvp in httpContext.Request.Query)
         {
-            if (!excludedKeys.Contains(kvp.Key) && !string.IsNullOrEmpty(kvp.Value))
+            if (excludedKeys.Contains(kvp.Key) || string.IsNullOrEmpty(kvp.Value)) continue;
+            var stringValue = kvp.Value.ToString();
+            var parameter = performer.Parameters.FirstOrDefault(p =>
+                string.Equals(p.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
+            if (parameter is null)
             {
-                var stringValue = kvp.Value.ToString();
-
-                var parameter = performer.Parameters.FirstOrDefault(p =>
-                    string.Equals(p.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
-
-                if (parameter is not null)
-                {
-                    var convertedValue = stringValue.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
-                    if (convertedValue is not null)
-                    {
-                        arguments[kvp.Key] = convertedValue;
-                    }
-                }
-                else
-                {
-                    arguments[kvp.Key] = stringValue;
-                }
+                arguments[kvp.Key] = stringValue;
+                continue;
             }
+            var convertedValue = stringValue.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
+            if (convertedValue is not null) arguments[kvp.Key] = convertedValue;
         }
 
         return arguments;
@@ -141,23 +133,19 @@ public static class QueryHttpExtensions
     /// <param name="queryResult">The query result.</param>
     public static void SetResponseStatusCode(this HttpResponse response, QueryResult queryResult)
     {
-        if (!queryResult.IsAuthorized)
+        var mapping = ExceptionResponseMapping.ResponseFor(queryResult);
+        if (mapping is not null && response.HasStarted) return;
+        if (HasHttpFailure(queryResult))
         {
-            response.StatusCode = (int)HttpStatusCode.Forbidden;
+            response.StatusCode = (int)(mapping?.StatusCode ?? EndpointRouteHelper.GetStatusCode(false, queryResult.IsAuthorized, queryResult.IsValid, isRetryable: queryResult.IsRetryable));
         }
-        else if (!queryResult.IsValid)
+        if (mapping is not null)
         {
-            response.StatusCode = (int)HttpStatusCode.BadRequest;
-        }
-        else if (queryResult.IsRetryable)
-        {
-            response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
-        }
-        else if (queryResult.HasExceptions)
-        {
-            response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            foreach (var header in mapping.Headers) response.Headers[header.Key] = header.Value;
         }
 
         // else 200 OK (default)
     }
+
+    static bool HasHttpFailure(QueryResult result) => !result.IsAuthorized || !result.IsValid || result.IsRetryable || result.HasExceptions;
 }
