@@ -42,23 +42,7 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             // InstanceToValidate is a T. Constructing ValidationContext<object> directly keeps this statically
             // analyzable, unlike typeof(ValidationContext<>).MakeGenericType(...) + Activator.CreateInstance which
             // NativeAOT and trimming cannot preserve.
-            var validationContext = new ValidationContext<object>(instance);
-            if (OperationSnapshot.Current is { } snapshot)
-            {
-                validationContext.RootContextData[OperationSnapshot.ContextKey] = snapshot;
-                validationContext.RootContextData[ValidationContextValuesExtensions.ContextKey] =
-                    ContextValues.For(snapshot.Services, () => instance.GetType(), cancellationToken);
-            }
-
-            switch (kind)
-            {
-                case ValidationTargetKind.Command:
-                    validationContext.SetCommand();
-                    break;
-                case ValidationTargetKind.Query:
-                    validationContext.SetQuery();
-                    break;
-            }
+            var validationContext = CreateContext(instance, kind, cancellationToken);
 
             var validationResult = await validator.ValidateAsync(validationContext, cancellationToken);
             if (validationResult.IsValid)
@@ -70,9 +54,7 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             return validationResult.Errors.Select(_ =>
                 new ValidationResult(ToSeverity(_.Severity), _.ErrorMessage, [MemberFor(path, _.PropertyName, isConcept)], _.CustomState ?? null!)).ToArray();
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired or ContextValueUnavailableException or RequiredContextValueAbsentException) &&
-            !OperationSnapshotUnavailable.IsCauseOf(ex) &&
-            !(TenantMembershipDenied.IsCauseOf(ex) && OperationSnapshot.Current is { } denied && (denied.StrictMembership || denied.MembershipDenied)))
+        catch (Exception ex) when (CanReportValidatorFailure(ex))
         {
             // Failed decision acquisition must remain non-filterable, even with an allowed-severity override.
             // So must an operation snapshot that is unavailable, and a tenant membership denial when the snapshot's own read
@@ -91,6 +73,35 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             return [ValidationResult.Error(CouldNotValidateMessage, reason: ValidationResultReason.ValidatorFailed)];
         }
     }
+
+    static ValidationContext<object> CreateContext(object instance, ValidationTargetKind? kind, CancellationToken cancellationToken)
+    {
+        var context = new ValidationContext<object>(instance);
+        if (OperationSnapshot.Current is { } snapshot)
+        {
+            context.RootContextData[OperationSnapshot.ContextKey] = snapshot;
+            context.RootContextData[ValidationContextValuesExtensions.ContextKey] =
+                InvocationContextValues.For(snapshot)?.WithCancellation(cancellationToken) ??
+                ContextValues.For(snapshot.Services, () => instance.GetType(), cancellationToken);
+        }
+
+        switch (kind)
+        {
+            case ValidationTargetKind.Command:
+                context.SetCommand();
+                break;
+            case ValidationTargetKind.Query:
+                context.SetQuery();
+                break;
+        }
+
+        return context;
+    }
+
+    static bool CanReportValidatorFailure(Exception exception) =>
+        exception is not (OperationCanceledException or DecisionReadCouldNotBeAcquired or ContextValueUnavailableException or RequiredContextValueAbsentException) &&
+        !OperationSnapshotUnavailable.IsCauseOf(exception) &&
+        !(TenantMembershipDenied.IsCauseOf(exception) && OperationSnapshot.Current is { } denied && (denied.StrictMembership || denied.MembershipDenied));
 
     /// <summary>
     /// Builds the member a validation failure is attributed to.
