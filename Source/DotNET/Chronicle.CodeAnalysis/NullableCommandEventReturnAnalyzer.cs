@@ -33,20 +33,50 @@ public class NullableCommandEventReturnAnalyzer : DiagnosticAnalyzer
     /// <param name="compilation">The compilation containing framework identities.</param>
     /// <returns>The nullable event types, without their nullable annotation or wrapper.</returns>
     internal static IEnumerable<ITypeSymbol> NullableEvents(ITypeSymbol returnType, Compilation compilation)
+        => EventTypes(returnType, compilation, nullableOnly: true);
+
+    /// <summary>
+    /// Finds event leaves through supported response wrappers, preserving optional containers.
+    /// </summary>
+    /// <param name="type">The response type.</param>
+    /// <param name="compilation">The compilation containing framework identities.</param>
+    /// <param name="nullableOnly">Whether only optional event leaves are wanted.</param>
+    /// <returns>The event types without nullable annotations.</returns>
+    internal static IEnumerable<ITypeSymbol> EventTypes(ITypeSymbol type, Compilation compilation, bool nullableOnly = false) =>
+        EventTypes(type, compilation, (nullableOnly, false), 0);
+
+    static IEnumerable<ITypeSymbol> EventTypes(ITypeSymbol type, Compilation compilation, (bool OnlyNullable, bool NullableContainer) filter, int depth)
     {
-        foreach (var branch in RawGuidResponseAnalysis.UnionBranches(RawGuidResponseAnalysis.UnwrapAwaitable(returnType, compilation), compilation))
+        if (depth >= NativeUnionSymbols.MaximumDepth)
         {
-            var eventType = branch.NullableAnnotation == NullableAnnotation.Annotated && branch.IsReferenceType
-                ? branch.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-                : null;
-            if (eventType is not null && RawGuidResponseAnalysis.HasEventTypeAttribute(eventType, compilation) &&
-                eventType.ToDisplayString() != "Cratis.Arc.Commands.ICommandOperation" &&
-                !eventType.AllInterfaces.Any(type => type.ToDisplayString() == "Cratis.Arc.Commands.ICommandOperation"))
-            {
-                yield return eventType;
-            }
+            return [];
         }
+        type = RawGuidResponseAnalysis.UnwrapAwaitable(type, compilation);
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+        {
+            return EventTypes(nullable.TypeArguments[0], compilation, (filter.OnlyNullable, true), depth + 1);
+        }
+        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
+        {
+            return tuple.TupleElements.SelectMany(element => EventTypes(element.Type, compilation, filter, depth + 1));
+        }
+        var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
+        if (branches.Length != 1 || !SymbolEqualityComparer.IncludeNullability.Equals(branches[0], type))
+        {
+            return branches.SelectMany(branch => EventTypes(branch, compilation, filter, depth + 1));
+        }
+        return IsEvent(type, compilation) && MatchesFilter(type, filter)
+            ? [type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)]
+            : [];
     }
+
+    static bool MatchesFilter(ITypeSymbol type, (bool OnlyNullable, bool NullableContainer) filter) =>
+        !filter.OnlyNullable || filter.NullableContainer || type.NullableAnnotation == NullableAnnotation.Annotated;
+
+    static bool IsEvent(ITypeSymbol type, Compilation compilation) =>
+        RawGuidResponseAnalysis.HasEventTypeAttribute(type, compilation) &&
+        type.ToDisplayString() != "Cratis.Arc.Commands.ICommandOperation" &&
+        !type.AllInterfaces.Any(contract => contract.ToDisplayString() == "Cratis.Arc.Commands.ICommandOperation");
 
     static void AnalyzeCommand(SymbolAnalysisContext context)
     {
@@ -59,7 +89,9 @@ public class NullableCommandEventReturnAnalyzer : DiagnosticAnalyzer
 
         foreach (var method in RawGuidResponseAnalysis.HandleMethods(command))
         {
-            var events = NullableEvents(method.ReturnType, context.Compilation).Select(type => type.Name).Distinct().ToArray();
+            var events = NullableEvents(method.ReturnType, context.Compilation)
+                .Concat(NativeUnionReturnOperations.EmptyEvents(method, context.Compilation, context.CancellationToken))
+                .Select(type => type.Name).Distinct().ToArray();
             if (events.Length == 0)
             {
                 continue;

@@ -242,25 +242,38 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    static bool ProducesEvents(ITypeSymbol type)
+    static bool ProducesEvents(ITypeSymbol type) => ProducesEvents(type, 0);
+
+    static bool ProducesEvents(ITypeSymbol type, int depth)
     {
+        if (depth >= NativeUnionSymbols.MaximumDepth)
+        {
+            return false;
+        }
+
+        var cases = NativeUnionSymbols.Cases(type);
+        if (!cases.IsDefault)
+        {
+            return cases.Any(@case => ProducesEvents(@case, depth + 1));
+        }
+
         // The command pipeline awaits Task/ValueTask, then unwraps IOneOf branches (Result, OneOf) and tuple elements, so mirror
         // that nesting: Task<Result<EventsWithConcurrencyScopes, ValidationResult>> still produces events.
         if (type is INamedTypeSymbol { IsGenericType: true } named)
         {
             if (IsAwaitableOrNullable(named))
             {
-                return ProducesEvents(named.TypeArguments[0]);
+                return ProducesEvents(named.TypeArguments[0], depth + 1);
             }
 
             if (IsEventUnion(named))
             {
-                return named.TypeArguments.Any(ProducesEvents);
+                return named.TypeArguments.Any(argument => ProducesEvents(argument, depth + 1));
             }
         }
         if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.Any(_ => ProducesEvents(_.Type));
+            return tuple.TupleElements.Any(element => ProducesEvents(element.Type, depth + 1));
         }
         return IsEventValue(type);
     }

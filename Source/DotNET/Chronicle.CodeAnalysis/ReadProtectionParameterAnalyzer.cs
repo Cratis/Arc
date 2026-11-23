@@ -108,8 +108,12 @@ public sealed class ReadProtectionParameterAnalyzer : DiagnosticAnalyzer
             } && member.Name.Identifier.ValueText == "ForCommand" && dependency.Parameters.Any(parameter => parameter.Name == receiver.Identifier.ValueText &&
                 ReadProtectionSymbols.Is(parameter.Type, "Cratis.Arc.Chronicle.Streams.IStreamReads", compilation))));
 
-    static bool HasExactScopes(ITypeSymbol type, Compilation compilation)
+    static bool HasExactScopes(ITypeSymbol type, Compilation compilation, int depth = 0)
     {
+        if (depth >= NativeUnionSymbols.MaximumDepth)
+        {
+            return false;
+        }
         type = RawGuidResponseAnalysis.UnwrapAwaitable(type, compilation);
         if (RawGuidResponseAnalysis.IsType(type, "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes", compilation))
         {
@@ -117,10 +121,10 @@ public sealed class ReadProtectionParameterAnalyzer : DiagnosticAnalyzer
         }
         if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.Any(element => HasExactScopes(element.Type, compilation));
+            return tuple.TupleElements.Any(element => HasExactScopes(element.Type, compilation, depth + 1));
         }
         var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
-        return branches.Length > 1 && branches.Any(branch => HasExactScopes(branch, compilation));
+        return branches.Any(branch => !SymbolEqualityComparer.Default.Equals(branch, type) && HasExactScopes(branch, compilation, depth + 1));
     }
 
     static void Report(SymbolAnalysisContext context, DiagnosticDescriptor descriptor, IParameterSymbol parameter, params object[] arguments) =>

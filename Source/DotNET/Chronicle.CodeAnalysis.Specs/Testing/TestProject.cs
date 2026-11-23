@@ -16,8 +16,9 @@ public static class TestProject
     /// Create an in-memory project for the supplied source.
     /// </summary>
     /// <param name="source">The source to include.</param>
+    /// <param name="references">Additional metadata references.</param>
     /// <returns>The created project.</returns>
-    public static Project CreateProject(string source)
+    public static Project CreateProject(string source, params MetadataReference[] references)
     {
         var projectId = ProjectId.CreateNewId();
         var documentId = DocumentId.CreateNewId(projectId);
@@ -34,7 +35,7 @@ public static class TestProject
         var workspace = new AdhocWorkspace();
         var solution = workspace.CurrentSolution
             .AddProject(projectInfo)
-            .AddMetadataReferences(projectId, GetMetadataReferences())
+            .AddMetadataReferences(projectId, GetMetadataReferences().Concat(references))
             .AddDocument(documentId, "Test0.cs", SourceText.From(source));
 
         return solution.GetProject(projectId)!;

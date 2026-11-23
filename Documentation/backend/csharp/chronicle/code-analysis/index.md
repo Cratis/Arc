@@ -23,7 +23,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0012](./ARCCHR0012.md) | Info / Warning under On | Immediate appends beside protected decisions or under On. |
 | [ARCCHR0013](./ARCCHR0013.md) | Info | A command or aggregate root names an event source with `[EventSourceType]` and a definition with that name exists in the compilation. |
 | [ARCCHR0014](./ARCCHR0014.md) | Warning | A reactor or reducer is filtered with `[FromEventSource<T>(stream)]` to a stream the definition does not declare. |
-| [ARCCHR0015](./ARCCHR0015.md) | Warning | A model-bound command handler declares a nullable event, directly or in a supported awaitable/union branch. |
+| [ARCCHR0015](./ARCCHR0015.md) | Warning | A model-bound command handler declares an optional event or visibly returns an empty event-containing native union. |
 | [ARCCHR0016](./ARCCHR0016.md) | Warning | `concurrency: true` on a stream-metadata attribute of a command whose `Handle()` returns `EventsWithConcurrencyScopes`. |
 | [ARCCHR0017](./ARCCHR0017.md) | Error | An `[EventStreamId]` template on a command names an unusable property or has malformed braces. |
 | [ARCCHR0018](./ARCCHR0018.md) | Warning | An `[EventStreamId]` template on a reactor, where it is used literally. |
@@ -51,6 +51,12 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 ARCCHR0039 was removed and its ID is retired; it is never reused. A command's `Handle()` may take any dependency, including `IDecisionReads` and `DecisionRead<T>`. ARCCHR0040 offers Info-only guidance for those two direct parameters; it imposes no dependency restriction and can be suppressed with a reason for an acquisition gap.
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
+
+## Native C# union returns
+
+With C# 15 and .NET 11, native union cases participate in the same event-return checks as `Result<…>` and `OneOf<…>`. This includes command identity and raw-Guid routing, event-producing decision reads, exact concurrency scopes, and optional or visibly empty event results. Supported nesting includes tuples, awaitables, and other recognized unions. Ordinary constructors, conversion operators, and unrelated interfaces named `IUnion` do not add event alternatives.
+
+These checks inspect signatures and bounded visible return expressions; they do not execute factories or track values through arbitrary control flow. Existing routing and refusal-callback checks still apply to visible operations inside native-union handlers. Native-union diagnostic coverage does not expand the bounded quick fixes below.
 
 ## Quick fixes
 

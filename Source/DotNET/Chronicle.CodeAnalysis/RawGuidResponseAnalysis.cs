@@ -56,26 +56,8 @@ static class RawGuidResponseAnalysis
     /// <param name="returnType">The handler return type.</param>
     /// <param name="compilation">The compilation containing framework identities.</param>
     /// <returns>The statically identifiable event types that use the fallback target.</returns>
-    internal static IEnumerable<ITypeSymbol> UntargetedEventsBesideGuid(ITypeSymbol returnType, Compilation compilation)
-    {
-        returnType = UnwrapAwaitable(returnType, compilation);
-
-        foreach (var branch in UnionBranches(returnType, compilation))
-        {
-            if (branch is not INamedTypeSymbol { IsTupleType: true } tuple ||
-                !tuple.TupleElements.Any(element => IsGuid(element.Type, compilation)) ||
-                tuple.TupleElements.Any(element => IsEventSourceId(element.Type, compilation)))
-            {
-                continue;
-            }
-
-            // Explicit wrappers target only their own events, not bare events in sibling tuple elements.
-            foreach (var eventType in tuple.TupleElements.SelectMany(element => BareEvents(element.Type, compilation)))
-            {
-                yield return eventType;
-            }
-        }
-    }
+    internal static IEnumerable<ITypeSymbol> UntargetedEventsBesideGuid(ITypeSymbol returnType, Compilation compilation) =>
+        UntargetedEventsBesideGuid(returnType, compilation, 0);
 
     /// <summary>
     /// Unwraps the single Task or ValueTask awaited by the model-bound handler.
@@ -110,25 +92,12 @@ static class RawGuidResponseAnalysis
     }
 
     /// <summary>
-    /// Finds branches of the known Result and OneOf wrappers consumed by the pipeline.
+    /// Finds alternatives of native unions and the known Result and OneOf wrappers consumed by the pipeline.
     /// </summary>
     /// <param name="type">The response type.</param>
     /// <param name="compilation">The compilation containing framework identities.</param>
     /// <returns>The unwrapped branch types.</returns>
-    internal static IEnumerable<ITypeSymbol> UnionBranches(ITypeSymbol type, Compilation compilation)
-    {
-        // Result derives from OneOfBase and the pipeline consumes IOneOf.Value. Restrict to known wrapper definitions;
-        // a similarly named generic type (or arbitrary IOneOf implementation) need not expose its type arguments as branches.
-        if (type is INamedTypeSymbol named &&
-            (IsType(named, $"OneOf.OneOf`{named.Arity}", compilation) ||
-             IsType(named, "Cratis.Monads.Result`2", compilation)) &&
-            named.AllInterfaces.Any(@interface => IsType(@interface, "OneOf.IOneOf", compilation)))
-        {
-            return named.TypeArguments.SelectMany(argument => UnionBranches(argument, compilation));
-        }
-
-        return [type];
-    }
+    internal static IEnumerable<ITypeSymbol> UnionBranches(ITypeSymbol type, Compilation compilation) => UnionBranches(type, compilation, 0);
 
     /// <summary>
     /// Checks an attribute by its framework identity, not its short name.
@@ -181,6 +150,33 @@ static class RawGuidResponseAnalysis
         }
     }
 
+    static IEnumerable<ITypeSymbol> UnionBranches(ITypeSymbol type, Compilation compilation, int depth)
+    {
+        if (depth >= NativeUnionSymbols.MaximumDepth)
+        {
+            return [];
+        }
+
+        type = UnwrapAwaitable(type, compilation);
+        var cases = NativeUnionSymbols.Cases(type);
+        if (!cases.IsDefault)
+        {
+            return cases.SelectMany(@case => UnionBranches(@case, compilation, depth + 1));
+        }
+
+        // Result derives from OneOfBase and the pipeline consumes IOneOf.Value. Restrict to known wrapper definitions;
+        // a similarly named generic type (or arbitrary IOneOf implementation) need not expose its type arguments as branches.
+        if (type is INamedTypeSymbol named &&
+            (IsType(named, $"OneOf.OneOf`{named.Arity}", compilation) ||
+             IsType(named, "Cratis.Monads.Result`2", compilation)) &&
+            named.AllInterfaces.Any(@interface => IsType(@interface, "OneOf.IOneOf", compilation)))
+        {
+            return named.TypeArguments.SelectMany(argument => UnionBranches(argument, compilation, depth + 1));
+        }
+
+        return [type];
+    }
+
     static bool IsGuid(ITypeSymbol? type, Compilation compilation) => IsType(type, "System.Guid", compilation);
 
     static bool Overrides(IPropertySymbol derived, IPropertySymbol property)
@@ -213,8 +209,31 @@ static class RawGuidResponseAnalysis
         return false;
     }
 
-    static IEnumerable<ITypeSymbol> BareEvents(ITypeSymbol type, Compilation compilation)
+    static IEnumerable<ITypeSymbol> UntargetedEventsBesideGuid(ITypeSymbol type, Compilation compilation, int depth) =>
+        depth >= NativeUnionSymbols.MaximumDepth
+            ? []
+            : UnionBranches(type, compilation).OfType<INamedTypeSymbol>().Where(branch => branch.IsTupleType)
+                .SelectMany(tuple => TupleEventsBesideGuid(tuple, compilation, depth));
+
+    static IEnumerable<ITypeSymbol> TupleEventsBesideGuid(INamedTypeSymbol tuple, Compilation compilation, int depth)
     {
+        if (tuple.TupleElements.Any(element => IsGuid(element.Type, compilation)) &&
+            !tuple.TupleElements.Any(element => IsEventSourceId(element.Type, compilation)))
+        {
+            // Explicit wrappers target only their own events, not bare events in sibling tuple elements.
+            return tuple.TupleElements.SelectMany(element => BareEvents(element.Type, compilation));
+        }
+
+        return tuple.TupleElements.SelectMany(element => UntargetedEventsBesideGuid(element.Type, compilation, depth + 1));
+    }
+
+    static IEnumerable<ITypeSymbol> BareEvents(ITypeSymbol type, Compilation compilation, int depth = 0)
+    {
+        if (depth >= NativeUnionSymbols.MaximumDepth)
+        {
+            yield break;
+        }
+
         foreach (var branch in UnionBranches(type, compilation))
         {
             if (IsType(branch, "Cratis.Chronicle.EventSequences.EventForEventSourceId", compilation))
@@ -225,6 +244,15 @@ static class RawGuidResponseAnalysis
             if (HasEventTypeAttribute(branch, compilation))
             {
                 yield return branch;
+                continue;
+            }
+
+            if (branch is INamedTypeSymbol { IsTupleType: true } tuple)
+            {
+                foreach (var eventType in tuple.TupleElements.SelectMany(element => BareEvents(element.Type, compilation, depth + 1)))
+                {
+                    yield return eventType;
+                }
                 continue;
             }
 

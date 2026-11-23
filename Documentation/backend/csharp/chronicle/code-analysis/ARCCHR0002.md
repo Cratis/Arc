@@ -28,6 +28,8 @@ Without a decision, Arc uses the first matching property. That choice also decid
 
 The analyzer also recognizes a single wrapper or a sequence of wrappers in the success branch of `Result<TEvent, TError>`, including `Task<Result<TEvent, TError>>`. No `ICanProvideEventSourceId` is needed for those return values. An error branch carrying a wrapper does not give an untargeted success event a destination.
 
+For native C# unions and `OneOf<…>`, every arm must be an explicitly targeted event response or `ValidationResult`, and at least one arm must carry an explicit target. `Task<>` and `ValueTask<>` preserve that check. A bare event arm, or a union consisting only of validation results, does not resolve the command's identity ambiguity. Native union cases come from generated case constructors, not user-written constructors or conversions.
+
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;

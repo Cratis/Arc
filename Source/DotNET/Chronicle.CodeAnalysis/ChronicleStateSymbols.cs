@@ -218,7 +218,7 @@ internal static class ChronicleStateSymbols
             return tuple.TupleElements.Any(element => ProducesEvents(element.Type, compilation, depth + 1));
         }
         var branches = RawGuidResponseAnalysis.UnionBranches(type, compilation).ToArray();
-        if (branches.Length > 1)
+        if (branches.Length != 1 || !SymbolEqualityComparer.Default.Equals(branches[0], type))
         {
             return branches.Any(branch => ProducesEvents(branch, compilation, depth + 1));
         }

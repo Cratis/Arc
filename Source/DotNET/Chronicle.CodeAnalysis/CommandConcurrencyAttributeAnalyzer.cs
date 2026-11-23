@@ -102,12 +102,12 @@ public class CommandConcurrencyAttributeAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    static bool ReturnsScopes(ITypeSymbol returnType, Compilation compilation) =>
-        RawGuidResponseAnalysis.UnionBranches(RawGuidResponseAnalysis.UnwrapAwaitable(returnType, compilation), compilation)
+    static bool ReturnsScopes(ITypeSymbol returnType, Compilation compilation, int depth = 0) =>
+        depth < NativeUnionSymbols.MaximumDepth &&
+        RawGuidResponseAnalysis.UnionBranches(returnType, compilation)
             .Any(branch => IsScopes(branch, compilation) ||
                 (branch is INamedTypeSymbol { IsTupleType: true } tuple &&
-                 tuple.TupleElements.SelectMany(element => RawGuidResponseAnalysis.UnionBranches(element.Type, compilation))
-                     .Any(element => IsScopes(element, compilation))));
+                 tuple.TupleElements.Any(element => ReturnsScopes(element.Type, compilation, depth + 1))));
 
     static bool IsScopes(ITypeSymbol type, Compilation compilation) =>
         RawGuidResponseAnalysis.IsType(type, ScopesTypeName, compilation);
