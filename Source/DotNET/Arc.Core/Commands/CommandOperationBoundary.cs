@@ -75,8 +75,7 @@ public static class CommandOperationBoundary
     /// <param name="type">The runtime response type.</param>
     /// <returns>Whether an explicit batch is required.</returns>
     internal static bool IsBareCollection(Type type) => type != typeof(CommandOperations) &&
-        type.GetInterfaces().Append(type).Any(contract => contract.IsGenericType &&
-            contract.GetGenericTypeDefinition() == typeof(IEnumerable<>) && MayContainOperations(contract.GetGenericArguments()[0]));
+        CollectionElementTypes(type).Any(MayContainOperations);
 
     static bool MayContainOperations(Type type) => MayContainOperations(type, []);
 
@@ -95,9 +94,14 @@ public static class CommandOperationBoundary
 #if NET11_0_OR_GREATER
         if (typeof(IUnion).IsAssignableFrom(type))
         {
-            return UnionCaseConvention.CaseTypes(type).Any(caseType => MayContainOperations(caseType, visited));
+            return CommandUnionMetadata.CaseTypes(type).Any(caseType => MayContainOperations(caseType, visited));
         }
 #endif
+        if (CollectionElementTypes(type).Any(element => MayContainOperations(element, visited)))
+        {
+            return true;
+        }
+
         if (IsOperationContainer(type))
         {
             return type.GetGenericArguments().Any(argument => MayContainOperations(argument, visited));
@@ -105,6 +109,10 @@ public static class CommandOperationBoundary
 
         return false;
     }
+
+    static IEnumerable<Type> CollectionElementTypes(Type type) => type.GetInterfaces().Append(type)
+        .Where(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+        .Select(contract => contract.GetGenericArguments()[0]);
 
     static bool IsOperationContainer(Type type)
     {

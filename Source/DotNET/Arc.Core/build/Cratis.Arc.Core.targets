@@ -1,4 +1,15 @@
 <Project>
+    <!-- Native union reflection is a compatibility path for untrimmed JIT only. Never retain it in trim/AOT. -->
+    <PropertyGroup>
+        <CratisArcUnionReflectionSupport Condition="'$(PublishTrimmed)' == 'true' Or '$(PublishAot)' == 'true'">false</CratisArcUnionReflectionSupport>
+    </PropertyGroup>
+    <ItemGroup>
+        <RuntimeHostConfigurationOption Include="Cratis.Arc.Commands.UnionReflection.IsSupported"
+                                        Condition="'$(CratisArcUnionReflectionSupport)' != ''"
+                                        Value="$(CratisArcUnionReflectionSupport)"
+                                        Trim="true" />
+    </ItemGroup>
+
     <!-- Emits the assembly rollout declaration without changing command execution. -->
     <ItemGroup Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(CratisReadProtection)', '^(Off|Measure|On)$'))">
         <AssemblyAttribute Include="Cratis.Arc.Commands.ReadProtectionAttribute">

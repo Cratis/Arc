@@ -13,6 +13,7 @@
         <PackageReference Include="Microsoft.Extensions.Telemetry" />
         <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+        <ProjectReference Include="../Arc.Core.Generators/Arc.Core.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
         <ProjectReference Include="Fixtures/SliceLocationConsumer/SliceLocationConsumer.csproj" />
         <ProjectReference Include="Fixtures/VerifiedCallerConsumer/VerifiedCallerConsumer.csproj" />
     </ItemGroup>

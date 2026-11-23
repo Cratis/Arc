@@ -151,7 +151,6 @@
     "IL2070|Source/DotNET/MongoDB/ReadModelCollectionsNeverNullConvention.cs|net11.0": 1,
     "IL2070|Source/DotNET/Shared/QueryArgumentsModelConvention.cs|net10.0": 1,
     "IL2070|Source/DotNET/Shared/QueryArgumentsModelConvention.cs|net11.0": 1,
-    "IL2070|Source/DotNET/Shared/UnionCaseConvention.cs|net11.0": 1,
     "IL2072|Source/DotNET/Arc.Core/Identity/IdentityProviderServiceCollectionExtensions.cs|net10.0": 2,
     "IL2072|Source/DotNET/Arc.Core/Identity/IdentityProviderServiceCollectionExtensions.cs|net11.0": 2,
     "IL2072|Source/DotNET/Arc.Core/Queries/ObservableQueryEmissionGuards.cs|net10.0": 1,

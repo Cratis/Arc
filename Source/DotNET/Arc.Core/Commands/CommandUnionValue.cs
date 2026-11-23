@@ -17,6 +17,8 @@ internal static class CommandUnionValue
     /// <param name="value">The returned union.</param>
     /// <returns>The active case.</returns>
     /// <exception cref="InvalidCommandUnionValue">The union has no active non-null case.</exception>
-    internal static object Active(IUnion value) => value.Value ?? throw new InvalidCommandUnionValue();
+    internal static object Active(IUnion value) =>
+        (CommandUnionMetadata.For(value.GetType()) is { } declaration ? declaration.ActiveValue(value) : value.Value)
+        ?? throw new InvalidCommandUnionValue();
 }
 #endif
