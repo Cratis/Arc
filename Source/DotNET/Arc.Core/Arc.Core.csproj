@@ -10,6 +10,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc" />
+        <InternalsVisibleTo Include="Cratis.Arc.Mcp" />
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle" />
         <InternalsVisibleTo Include="Cratis.Arc.Mcp.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
@@ -71,8 +72,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="$(MSBuildThisFileDirectory)../Shared/UnionCaseConvention.cs" Link="Commands/UnionCaseConvention.cs"
-                 Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/ModelBoundQueryMethod.cs" Link="Queries/ModelBound/ModelBoundQueryMethod.cs" />

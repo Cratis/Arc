@@ -7,13 +7,27 @@ using Cratis.Arc.EntityFrameworkCore.Json;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+#if NET11_0_OR_GREATER
+using Microsoft.EntityFrameworkCore.Query;
+#endif
 using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.Internal;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Migrations;
 
 namespace Cratis.Arc.EntityFrameworkCore;
 
-// TODO: when the EF stack moves to 11.0.0 for net11.0, restore the Npgsql 11 base constructor that takes an IQuerySqlGeneratorFactory.
-
+#if NET11_0_OR_GREATER
+/// <summary>
+/// PostgreSQL specific migrations SQL generator.
+/// </summary>
+/// <param name="dependencies">The dependencies.</param>
+/// <param name="npgsqlSingletonOptions">The Npgsql singleton options.</param>
+/// <param name="querySqlGeneratorFactory">The query SQL generator factory, required by the Npgsql 11 base constructor.</param>
+public class MigrationsSqlGeneratorForPostgreSQL(
+        MigrationsSqlGeneratorDependencies dependencies,
+#pragma warning disable EF1001 // Internal EF Core API usage.
+        INpgsqlSingletonOptions npgsqlSingletonOptions,
+        IQuerySqlGeneratorFactory querySqlGeneratorFactory) : NpgsqlMigrationsSqlGenerator(dependencies, npgsqlSingletonOptions, querySqlGeneratorFactory)
+#else
 /// <summary>
 /// PostgreSQL specific migrations SQL generator.
 /// </summary>
@@ -23,6 +37,7 @@ public class MigrationsSqlGeneratorForPostgreSQL(
         MigrationsSqlGeneratorDependencies dependencies,
 #pragma warning disable EF1001 // Internal EF Core API usage.
         INpgsqlSingletonOptions npgsqlSingletonOptions) : NpgsqlMigrationsSqlGenerator(dependencies, npgsqlSingletonOptions)
+#endif
 #pragma warning restore EF1001 // Internal EF Core API usage.
 {
     /// <inheritdoc/>

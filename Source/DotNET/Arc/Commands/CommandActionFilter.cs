@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Validation;
@@ -106,6 +107,7 @@ public class CommandActionFilter(
 
             var logger = context.HttpContext.RequestServices?.GetService<ILoggerFactory>()?.CreateLogger<CommandActionFilter>()
                 ?? NullLogger<CommandActionFilter>.Instance;
+            ExceptionResponseMapping.Apply(commandResult, context.HttpContext.RequestServices, logger);
             ExceptionDetailRedactor.Redact(commandResult, ExceptionDetailRedactor.ExposeFor(context.HttpContext.RequestServices), logger);
             PublishResult(context, result, commandResult);
         }
@@ -165,6 +167,7 @@ public class CommandActionFilter(
         };
         if ((actionException ?? executed?.Exception) is { } exception)
         {
+            result.ExceptionResponseCandidate = exception is IValidationFailure ? null : new(exception);
             result.ExceptionStackTrace = exception.StackTrace ?? string.Empty;
             result.ExceptionMessages = CollectMessages(exception);
             ClearException(executed);

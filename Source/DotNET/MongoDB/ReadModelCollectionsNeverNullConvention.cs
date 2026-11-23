@@ -66,9 +66,7 @@ public class ReadModelCollectionsNeverNullConvention : ConventionBase, IMemberMa
     /// <param name="memberMap">The <see cref="BsonMemberMap"/> to apply to.</param>
     public void Apply(BsonMemberMap memberMap)
     {
-        if (memberMap.MemberInfo.IsDefined(typeof(BsonDefaultValueAttribute), true) ||
-            !IsDeclaredNonNullable(memberMap.MemberInfo) ||
-            !TryGetEmptyValueFactory(memberMap.MemberType, out var emptyValueFactory))
+        if (HasOwnDefaultOrAllowsNull(memberMap) || !TryGetEmptyValueFactory(memberMap.MemberType, out var emptyValueFactory))
         {
             return;
         }
@@ -79,6 +77,10 @@ public class ReadModelCollectionsNeverNullConvention : ConventionBase, IMemberMa
         var serializer = WrapWithNullToEmpty(memberMap.GetSerializer(), emptyValueFactory);
         memberMap.SetDefaultValue(emptyValueFactory).SetSerializer(serializer);
     }
+
+    static bool HasOwnDefaultOrAllowsNull(BsonMemberMap memberMap) =>
+        memberMap.MemberInfo.IsDefined(typeof(BsonDefaultValueAttribute), true) ||
+        !IsDeclaredNonNullable(memberMap.MemberInfo);
 
     static IBsonSerializer WrapWithNullToEmpty(IBsonSerializer serializer, Func<object> emptyValueFactory) =>
         (IBsonSerializer)Activator.CreateInstance(
@@ -105,15 +107,13 @@ public class ReadModelCollectionsNeverNullConvention : ConventionBase, IMemberMa
     {
         emptyValueFactory = null!;
 
-        // string is the classic trap here — it is an IEnumerable<char> and would otherwise be replaced with an empty
-        // list the member cannot even hold.
-        if (memberType == typeof(string) || !memberType.IsAssignableTo(typeof(IEnumerable)) || IsDictionary(memberType))
+        if (memberType.IsArray)
         {
-            return false;
-        }
+            if (memberType.GetArrayRank() != 1)
+            {
+                return false;
+            }
 
-        if (memberType.IsArray && memberType.GetArrayRank() == 1)
-        {
             var elementType = memberType.GetElementType()!;
             emptyValueFactory = () => Array.CreateInstance(elementType, 0);
             return true;
@@ -127,8 +127,7 @@ public class ReadModelCollectionsNeverNullConvention : ConventionBase, IMemberMa
         var definition = memberType.GetGenericTypeDefinition();
         var elementTypeArgument = memberType.GetGenericArguments()[0];
 
-        // Deliberately an allow list rather than "anything enumerable": the empty value is assigned straight into the
-        // member, so a shape we cannot construct something assignable for must be left as it is rather than guessed at.
+        // The allow lists exclude strings, dictionaries and custom collection shapes without inspecting interfaces.
         if (_setDefinitions.Contains(definition))
         {
             var setType = typeof(HashSet<>).MakeGenericType(elementTypeArgument);
@@ -145,23 +144,4 @@ public class ReadModelCollectionsNeverNullConvention : ConventionBase, IMemberMa
 
         return false;
     }
-
-    /// <summary>
-    /// Determines whether a type is a dictionary shape.
-    /// </summary>
-    /// <param name="type">The <see cref="Type"/> to check.</param>
-    /// <returns>True if the type is a dictionary; false otherwise.</returns>
-    /// <remarks>
-    /// The allow lists above already leave every dictionary shape alone, so this states the invariant rather than
-    /// carrying it: whatever those lists grow to hold, a map is never something this convention fills in.
-    /// </remarks>
-    static bool IsDictionary(Type type) =>
-        type.IsAssignableTo(typeof(IDictionary)) ||
-        IsDictionaryInterface(type) ||
-        Array.Exists(type.GetInterfaces(), IsDictionaryInterface);
-
-    static bool IsDictionaryInterface(Type type) =>
-        type.IsGenericType &&
-        (type.GetGenericTypeDefinition() == typeof(IDictionary<,>) ||
-         type.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>));
 }

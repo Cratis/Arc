@@ -23,7 +23,7 @@ public static class ConceptValidations
     {
         var declared = readers.Types.Concepts.ToDictionary(concept => concept.Name, StringComparer.Ordinal);
 
-        foreach (var type in catalog.Types.Where(_ => declared.ContainsKey(_.Name)))
+        foreach (var type in catalog.Types.Where(readers.Types.IsRegisteredConcept))
         {
             if (type.FindBase(WellKnownTypeNames.ConceptAs) is null)
             {

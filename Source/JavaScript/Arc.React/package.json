@@ -152,19 +152,19 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
-        "@cratis/fundamentals": "^7.32.0",
+        "@cratis/fundamentals": "^7.34.3",
         "tsyringe": "^4.10.0"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "7.32.0",
-        "@storybook/addon-links": "^10.6.5",
-        "@storybook/react": "^10.6.5",
-        "@storybook/react-vite": "^10.6.5",
-        "@vitejs/plugin-react": "^6.2.1",
+        "@cratis/fundamentals": "7.34.3",
+        "@storybook/addon-links": "^10.6.8",
+        "@storybook/react": "^10.6.8",
+        "@storybook/react-vite": "^10.6.8",
+        "@vitejs/plugin-react": "^6.3.0",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
-        "storybook": "^10.6.5",
-        "vite": "^8.3.5"
+        "storybook": "^10.6.8",
+        "vite": "^8.3.8"
     },
     "peerDependencies": {
         "react": "^18.0.0 || ^19.0.0"

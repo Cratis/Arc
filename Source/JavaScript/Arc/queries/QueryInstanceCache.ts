@@ -252,6 +252,7 @@ export class QueryInstanceCache {
             next.isReady,
             next.authorizationFailureReason,
             next.isRetryable,
+            next.errorCode,
         );
     }
 
@@ -262,6 +263,7 @@ export class QueryInstanceCache {
             && result.isAuthorized === previous.isAuthorized
             && result.authorizationFailureReason === previous.authorizationFailureReason
             && result.isRetryable === previous.isRetryable
+            && result.errorCode === previous.errorCode
             && result.isValid === previous.isValid
             && result.hasExceptions === previous.hasExceptions
             && result.exceptionStackTrace === previous.exceptionStackTrace

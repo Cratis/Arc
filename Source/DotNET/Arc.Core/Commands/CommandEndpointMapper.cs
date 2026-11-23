@@ -5,6 +5,7 @@ using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.EndpointGroups;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity.Approvals;
 using Cratis.Arc.Validation;
@@ -158,10 +159,15 @@ public static class CommandEndpointMapper
 
         var commandResult = await ProcessRequest(request);
 
+        ExceptionResponseMapping.Apply(commandResult, context.RequestServices, logger);
         ExceptionDetailRedactor.Redact(commandResult, arcOptions.ExposeExceptionDetails, logger);
 
-        var statusCode = EndpointRouteHelper.GetStatusCode(commandResult.IsSuccess, commandResult.IsAuthorized, commandResult.IsValid, isRetryable: commandResult.IsRetryable);
+        var statusCode = EndpointRouteHelper.GetStatusCode(commandResult);
         context.SetStatusCode(statusCode);
+        if (ExceptionResponseMapping.ResponseFor(commandResult) is { } response)
+        {
+            foreach (var header in response.Headers) context.SetResponseHeader(header.Key, header.Value);
+        }
         await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
     }
 

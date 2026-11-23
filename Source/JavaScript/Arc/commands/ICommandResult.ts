@@ -54,6 +54,9 @@ import { ValidationResult } from '../validation/ValidationResult.js';
       */
      readonly isRetryable?: boolean;
 
+     /** Gets the stable public failure code, if the server mapped the exception. */
+     readonly errorCode?: string;
+
     /** Gets whether the command has no registered server handler. Servers that do not report it are read as false. */
     readonly isMissingHandler?: boolean;
 

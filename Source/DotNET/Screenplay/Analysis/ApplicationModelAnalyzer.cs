@@ -65,11 +65,6 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             .Select((compilation, index) => CompilationAnalysis.Of(compilation, catalogs[index], paths[index], whole))
             .ToList();
 
-        foreach (var project in projects)
-        {
-            project.LinkConceptValidations();
-        }
-
         whole.AggregateRoots.Report(diagnostics);
         var retained = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
         whole.Elsewhere.ReadRoutes(userInterfaceFiles, ordered.Select((compilation, index) => SourcePaths.RootOf(compilation, catalogs[index])), retained, diagnostics);
@@ -80,10 +75,6 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             whole.Types,
             new ScreenplayNaming(),
             diagnostics);
-
-        // Placing a read model reads what it holds, which can reach a type the document cannot name, so what cannot
-        // be named is reported once every read model is in.
-        TypesTheDocumentCannotName.Report(whole.Types, diagnostics, domain);
         var imports = ExternalEvents.Resolve(ordered, slices, diagnostics);
         NamespacesWithoutStructure.Report(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
@@ -119,6 +110,19 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             ContextValues = ContextValueRegistrations.In(ordered, diagnostics),
             EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
         };
+
+        whole.Types.RegisterDeclarations(
+            catalogs.Where((_, index) => options.IncludesDeclarationsFrom(ordered[index])).SelectMany(catalog => catalog.Types),
+            model,
+            options);
+        foreach (var project in projects)
+        {
+            project.LinkConceptValidations();
+        }
+
+        // Complete both declaration and validation discovery before reporting or materializing their contracts.
+        TypesTheDocumentCannotName.Report(whole.Types, diagnostics, domain);
+        model = model with { Concepts = whole.Types.Concepts, Types = whole.Types.Types };
 
         return new(UuidComparisonVersionAdmission.Apply(DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics), options.MaximumExecutableModelVersion, diagnostics), diagnostics.All);
     }

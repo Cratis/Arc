@@ -144,6 +144,8 @@ public class CommandPipeline(
                 ValidationResults = result.ValidationResults,
                 ExceptionMessages = result.ExceptionMessages,
                 ExceptionStackTrace = result.ExceptionStackTrace,
+                ExceptionResponseCandidate = result.ExceptionResponseCandidate,
+                ErrorCode = result.ErrorCode,
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
                 AuthorizationConfigurationFailed = result.AuthorizationConfigurationFailed,
                 Recovery = result.Recovery,
@@ -560,7 +562,7 @@ public class CommandPipeline(
         {
             frame = CommandOperationBoundary.Enter(command.GetType(), scopeFactory);
         }
-        catch (InvalidCommandOperation exception)
+        catch (Exception exception) when (exception is InvalidCommandOperation or MissingCommandUnionMetadata)
         {
             OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(correlationId, exception);

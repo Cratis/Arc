@@ -4,6 +4,8 @@
   href: command-decisions.md
 - name: Command and validator assertions
   href: command-assertions.md
+- name: Check command wiring
+  href: command-wiring.md
 - name: Test command operations
   href: command-operations.md
 - name: Specify operation failure cases
