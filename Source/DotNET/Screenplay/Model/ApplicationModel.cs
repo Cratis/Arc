@@ -43,6 +43,21 @@ public record ApplicationModel(
     public IEnumerable<ContextValueModel> ContextValues { get; init; } = [];
 
     /// <summary>
+    /// Gets the audiences the code declares as types.
+    /// </summary>
+    public IEnumerable<AudienceModel> Audiences { get; init; } = [];
+
+    /// <summary>
+    /// Gets the availability blocks the code declares as types.
+    /// </summary>
+    public IEnumerable<AvailabilityBlockModel> Availabilities { get; init; } = [];
+
+    /// <summary>
+    /// Gets the gates that scope markers state for modules, features and slices.
+    /// </summary>
+    public IEnumerable<ScopeGateModel> ScopeGates { get; init; } = [];
+
+    /// <summary>
     /// Gets the application-wide producer census, retained when the model is scoped to one document.
     /// </summary>
     public IReadOnlyDictionary<string, int> EventProducerCounts { get; init; } = new Dictionary<string, int>();

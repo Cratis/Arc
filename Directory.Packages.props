@@ -22,10 +22,7 @@
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.184.3" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.34.4" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.34.4" />
-    <!-- Held at 6.30.0: from 6.31.0 the specification printer writes an empty tag list on a structured event payload as
-         `tag none`, which the parser then reads as a tag assertion on a given/when occurrence (PLAY1148), so the Chronicle
-         sample's generated documents no longer compile. Raise once Cratis.Screenplay prints such payloads correctly (https://github.com/Cratis/Screenplay/issues/1370). -->
-    <PackageVersion Include="Cratis.Screenplay" Version="6.30.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="6.43.0" />
     <!-- Held at 0.21.2: Cratis.Screenplay.Generation.DotNet 0.22.0 and later require Microsoft.CodeAnalysis.CSharp 5.12.0,
          above the Roslyn 5.9.0 load floor held below for SDK 10.0.400 (#3952). -->
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.21.2" />

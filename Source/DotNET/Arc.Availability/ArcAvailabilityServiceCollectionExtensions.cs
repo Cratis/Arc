@@ -3,8 +3,8 @@
 
 using Cratis.Arc.Availability;
 using Cratis.Arc.Availability.Audiences;
-using Cratis.Arc.Availability.Context;
 using Cratis.Arc.Contexts;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
@@ -36,9 +36,9 @@ public static class ArcAvailabilityServiceCollectionExtensions
         // and the configured instance is the one that must be resolved.
         services.Replace(ServiceDescriptor.Singleton(options));
         services.TryAddSingleton<IAudienceSource, InMemoryAudienceSource>();
-        services.TryAddSingleton<IDeclaredAudiences>(_ => new DeclaredAudiences());
-        services.TryAddSingleton<AvailabilityCatalog>();
-        services.TryAddSingleton<ContextValueCatalog>();
+        services.TryAddSingleton<IDeclaredAudiences>(_ => new DeclaredAudiences(TypedAvailability.Audiences(_.GetService<ITypes>())));
+        services.TryAddSingleton(TypedAvailability.CreateCatalog);
+        services.TryAddSingleton(TypedAvailability.CreateContextValues);
         services.TryAddSingleton<IAudienceResolver, AudienceResolver>();
         services.TryAddSingleton<IAvailabilityEvaluator, AvailabilityEvaluator>();
         return services;

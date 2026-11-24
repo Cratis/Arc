@@ -3,7 +3,9 @@ title: Evaluating availability gates
 description: Build and evaluate availability expressions with for, when and with parts, and read the three-valued result with its reason.
 ---
 
-A gate is an `AvailabilityExpression`. It has three kinds of part and two combinators.
+A gate is an `AvailabilityExpression`. It has three kinds of part, a negation of one audience and two combinators. You do not write the tree yourself: [declare availability with types](typed-declarations.md) and the engine builds it. The factories below are obsolete for authoring, and are what the engine evaluates.
+
+`AvailableNotAudience` is `not` over one audience. It is three-valued like the rest: when the audiences cannot be decided it is unknown, and unknown never opens a gate.
 
 | Part | Factory | Holds when |
 | --- | --- | --- |

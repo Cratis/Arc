@@ -2,6 +2,8 @@
   href: index.md
 - name: Evaluating gates
   href: evaluating-gates.md
+- name: Declaring availability with types
+  href: typed-declarations.md
 - name: Audiences
   href: audiences.md
 - name: Request-scoped context values

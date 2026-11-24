@@ -7,6 +7,8 @@ using Cratis.DependencyInjection;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 
+#pragma warning disable CS0618 // The string-based attributes are obsolete, and still honored until they are removed.
+
 namespace Cratis.Arc.Availability;
 
 /// <summary>
@@ -16,9 +18,12 @@ namespace Cratis.Arc.Availability;
 /// <param name="evaluator">The <see cref="IAvailabilityEvaluator"/>.</param>
 /// <param name="audienceSource">The <see cref="IAudienceSource"/> whose changes are announced.</param>
 /// <param name="types">The <see cref="ITypes"/> used to find the parts that declare a gate with attributes.</param>
+/// <param name="services">The services that create the conditions that are classes and inject what they need.</param>
 [IgnoreConvention]
-public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types) : IAvailabilityExecutionGate
+public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types, IServiceProvider? services = null) : IAvailabilityExecutionGate
 {
+    readonly Func<Type, IAvailabilityCondition> _conditions = TypedAvailability.ConditionFactory(services);
+    readonly Lazy<IReadOnlyList<(string Namespace, AvailabilityExpression Gate)>> _markers = new(() => TypedAvailability.Markers(types, TypedAvailability.ConditionFactory(services)));
     readonly ConcurrentDictionary<Type, IReadOnlyList<AvailabilityExpression>> _paths = new();
     readonly Lazy<IReadOnlyCollection<Type>> _gatedParts = new(() => FindGatedParts(options, types));
 
@@ -47,11 +52,14 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     {
         var declared = types.All.Where(type =>
             (type.IsClass || type.IsValueType) &&
-            (type.IsDefined(typeof(AvailableForAttribute), false) || type.IsDefined(typeof(AvailableWithAttribute), false)));
+            (type.IsDefined(typeof(AvailableForAttribute), false) || type.IsDefined(typeof(AvailableWithAttribute), false) || HasTypedGate(type)));
         var registered = options.Parts.Select(_ => _.Part);
-        var inNamespaces = types.All.Where(type => type.Namespace is not null && options.Namespaces.Any(_ => InNamespace(type, _.Namespace)));
+        var markers = TypedAvailability.MarkerNamespaces(types);
+        var inNamespaces = types.All.Where(type => type.Namespace is not null && (options.Namespaces.Any(_ => InNamespace(type, _.Namespace)) || markers.Any(_ => InNamespace(type, _))));
         return [.. declared.Concat(registered).Concat(inNamespaces).Distinct()];
     }
+
+    static bool HasTypedGate(Type type) => type.GetCustomAttributes(false).OfType<IAvailabilityAttribute>().Any();
 
     static bool InNamespace(Type type, string @namespace) =>
         type.Namespace is { } typeNamespace && (typeNamespace == @namespace || typeNamespace.StartsWith(@namespace + ".", StringComparison.Ordinal));
@@ -96,7 +104,12 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
             .Where(_ => InNamespace(part, _.Namespace))
             .OrderBy(_ => _.Namespace.Length)
             .Select(_ => _.Gate));
+        path.AddRange(_markers.Value
+            .Where(_ => InNamespace(part, _.Namespace))
+            .OrderBy(_ => _.Namespace.Length)
+            .Select(_ => _.Gate));
         path.AddRange(options.Parts.Where(_ => _.Part == part).Select(_ => _.Gate));
+        path.AddRange(TypedAvailability.Gates(part, _conditions));
         foreach (var attribute in part.GetCustomAttributes(false))
         {
             switch (attribute)
