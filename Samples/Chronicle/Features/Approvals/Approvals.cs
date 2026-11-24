@@ -52,14 +52,9 @@ public record ApprovalLabel(string Value) : ConceptAs<string>(Value)
 /// The event that occurs when an approval has been requested.
 /// </summary>
 /// <param name="Requester">Who asked for the approval.</param>
-/// <param name="Tag">What the request is classified by.</param>
-/// <remarks>
-/// <see cref="Tag"/> carries the name it does on purpose. The body of an event declaration reads an unescaped line
-/// starting with <c>tag</c> as a tag of its own, so generated Screenplay writes this property and its mapping with
-/// the <c>@</c> keyword escape.
-/// </remarks>
+/// <param name="Labels">What the request is classified by.</param>
 [EventType]
-public record ApprovalRequested(string Requester, IEnumerable<ApprovalLabel> Tag);
+public record ApprovalRequested(string Requester, IEnumerable<ApprovalLabel> Labels);
 
 /// <summary>
 /// The event that occurs when an approval has been decided.
@@ -74,15 +69,15 @@ public record ApprovalDecided(string Approver, ApprovalStatus Outcome);
 /// </summary>
 /// <param name="ApprovalId">The approval being asked for.</param>
 /// <param name="Requester">Who is asking.</param>
-/// <param name="Tag">What the request is classified by.</param>
+/// <param name="Labels">What the request is classified by.</param>
 [Command]
-public record RequestApproval(EventSourceId ApprovalId, string Requester, IEnumerable<ApprovalLabel> Tag)
+public record RequestApproval(EventSourceId ApprovalId, string Requester, IEnumerable<ApprovalLabel> Labels)
 {
     /// <summary>
     /// Handles the command by stating that the approval was asked for.
     /// </summary>
     /// <returns>The <see cref="ApprovalRequested"/> event.</returns>
-    public ApprovalRequested Handle() => new(Requester, Tag);
+    public ApprovalRequested Handle() => new(Requester, Labels);
 }
 
 /// <summary>
