@@ -12,3 +12,5 @@
   href: context-values.md
 - name: The availability manifest
   href: manifest.md
+- name: The availability manifest file
+  href: manifest-file.md

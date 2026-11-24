@@ -113,7 +113,38 @@ The `reason` is `NotAvailable`, or `Suspended` for a part an operator suspended.
 
 Audience changes reach open sessions because the gate subscribes to the `IAudienceSource`. Each change makes the session decide again from current state, not from what was resolved when it started.
 
-[React clients](../../frontend/react/availability.md) hide navigation, screens and parts from this query.
+### Ask about one part and the data it is about
+
+A gate can read the data a command or query is about, for example `arguments.vesselId`. Ask the same query for one part and give it those arguments, and the same gate that decides an execution answers:
+
+```http
+GET /.cratis/availability?part=Fleet.Vessels.Dock.DockVessel&arguments=%7B%22vesselId%22%3A%22v-17%22%7D
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `part` | The full name of the command type, or of the type that declares the query. Every part is decided when it is not given. |
+| `arguments` | The arguments as a JSON object, by property name. Names match without regard to case. |
+
+The answer lists the part when it is not available for those arguments, with the same `reason`, and is empty when it is available, or when the name is not a part of the application. The arguments feed the gate as `arguments`, the same way the bound command or query does; they never replace the tenant or the identity and never grant anything. There is no second rule to keep in step: the client sends data and the server decides.
+
+When the arguments are not a JSON object the query is refused. Read the answer from code with `IUnavailableParts.Get(PartQuestion)`.
+
+[React clients](../../frontend/react/availability.md) hide navigation, screens and parts from this query, and ask about one part for its data with `RequireAvailable` and `useIsAvailable`.
+
+## Generated proxies carry the part
+
+Every generated command and query proxy (a model-bound read model query is a query proxy) declares which part it is, next to the slice location it already declared:
+
+```typescript
+static readonly part: PartIdentity = new PartIdentity('Fleet.Vessels.Dock.DockVessel', 'Fleet', 'Vessels', 'Dock');
+```
+
+The name is the full name the availability engine knows the part by. The proxy never carries the gate: gates stay on the server, and a client asks. Generate the proxies again after updating, since a proxy generated before this carries no `part` and cannot be asked about.
+
+## The manifest file
+
+The manifest file describes the audiences, blocks, conditions, gates, context values, parts and suspendable parts in one format that every Arc implementation reads and writes, with test vectors any engine can run. See [The availability manifest file](availability-engine/manifest-file.md).
 
 ## MCP tools
 

@@ -22,10 +22,33 @@ public static class PartPaths
     /// <returns>The part path.</returns>
     public static string For(Type part)
     {
-        var location = SliceLocation.For(part).ToString();
-        var name = part.FullName ?? part.Name;
+        var location = SliceLocation.For(part);
+        return For(location.Module.Value, location.Feature.Value, location.Slice.Value, part.FullName ?? part.Name);
+    }
+
+    /// <summary>
+    /// Gets the path of a part from where it lives and what it is called.
+    /// </summary>
+    /// <param name="module">The module of its slice; empty when it has none.</param>
+    /// <param name="feature">The feature of its slice; empty when it has none.</param>
+    /// <param name="slice">Its slice; empty when it has none.</param>
+    /// <param name="name">The full name of the part.</param>
+    /// <returns>The part path.</returns>
+    public static string For(string module, string feature, string slice, string name)
+    {
+        var location = string.Join('/', new[] { module, feature, slice }.Where(_ => _.Length > 0));
         return location.Length == 0 ? name : $"{location}/{name}";
     }
+
+    /// <summary>
+    /// Determines whether a path covers a part, given its path and full name.
+    /// </summary>
+    /// <param name="path">The suspended module, feature, slice or part path.</param>
+    /// <param name="partPath">The path of the part.</param>
+    /// <param name="name">The full name of the part.</param>
+    /// <returns>True when the part is the path or is below it.</returns>
+    public static bool Covers(string path, string partPath, string name) =>
+        partPath == path || partPath.StartsWith(path + "/", StringComparison.Ordinal) || name == path;
 
     /// <summary>
     /// Determines whether a path covers a part.
@@ -35,7 +58,6 @@ public static class PartPaths
     /// <returns>True when the part is the path or is below it.</returns>
     public static bool Covers(string path, Type part)
     {
-        var partPath = For(part);
-        return partPath == path || partPath.StartsWith(path + "/", StringComparison.Ordinal) || part.FullName == path;
+        return Covers(path, For(part), part.FullName ?? part.Name);
     }
 }

@@ -42,6 +42,7 @@ public static partial class Generator
             if (!TryPrepareOutput(artifacts)) return false;
 
             await WriteArtifacts(artifacts);
+            await WriteAvailabilityManifest(artifacts);
             await WriteTypesAndEnums(artifacts.IdentityDetailsTypes);
 
             await FlushPendingContent();
@@ -176,6 +177,20 @@ public static partial class Generator
             await Write(artifacts.Queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList(), TemplateTypes.Query, "single model queries");
             await Write(artifacts.Queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList(), TemplateTypes.Query, "queries");
             await Write(artifacts.Queries.Where(_ => _.IsObservable).ToList(), TemplateTypes.ObservableQuery, "observable queries");
+        }
+
+        async Task WriteAvailabilityManifest(DiscoveredArtifacts artifacts)
+        {
+            if (string.IsNullOrEmpty(settings.AvailabilityManifestPath) || settings.Output.ComparesBytes)
+            {
+                return;
+            }
+
+            var manifestPath = Path.GetFullPath(settings.AvailabilityManifestPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+            var document = AvailabilityManifestWriter.Build(artifacts.Commands, artifacts.Queries, Path.GetFileName(settings.AvailabilityManifestPath));
+            await File.WriteAllTextAsync(manifestPath, document.ToJson() + Environment.NewLine);
+            settings.Message($"  Availability manifest: {manifestPath}");
         }
 
         bool ShouldDeleteOutput(string path) => !settings.Output.ComparesBytes && Directory.Exists(path) && !settings.SkipOutputDeletion;

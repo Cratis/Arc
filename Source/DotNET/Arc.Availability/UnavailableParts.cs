@@ -41,6 +41,28 @@ public class UnavailableParts(IAvailabilityGate gate, IServiceProvider services,
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<UnavailablePart>> Get(PartQuestion question, CancellationToken cancellationToken = default)
+    {
+        var part = gate.GatedParts.Concat(discovered?.All ?? []).FirstOrDefault(_ => (_.FullName ?? _.Name) == question.Part);
+        if (part is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var decision = gate is IAvailabilityExecutionGate execution
+                ? await execution.Decide(new AvailabilityInvocation(part, question.Arguments, DateTimeOffset.UtcNow), services, cancellationToken)
+                : await gate.Decide(part, services, cancellationToken);
+            return decision.IsAvailable ? [] : [UnavailablePart.For(part, decision.Reason)];
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or AvailabilityNotDecidedException))
+        {
+            throw new AvailabilityNotDecidedException(ex);
+        }
+    }
+
+    /// <inheritdoc/>
     public IDisposable OnChanged(Func<ValueTask> handler) =>
         gate.OnChanged(() =>
         {

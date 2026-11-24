@@ -5,6 +5,7 @@ import { Guid } from '@cratis/fundamentals';
 import { ICommandResult } from './ICommandResult.js';
 import { ValidationResult } from '../validation/ValidationResult.js';
 import { isNotAvailable } from '../availability/isNotAvailable.js';
+import { isSuspended } from '../availability/isSuspended.js';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 
 /**
@@ -245,6 +246,26 @@ export class CommandResult<TResponse = object> implements ICommandResult<TRespon
      */
     onNotAvailable(callback: OnNotAvailable): CommandResult<TResponse> {
         if (this.isNotAvailable) {
+            callback();
+        }
+        return this;
+    }
+
+    /**
+     * Gets whether the command was refused because an operator has suspended its part of the application.
+     * It is not the same as {@link isNotAvailable}: a suspended part comes back when the suspension is lifted.
+     */
+    get isSuspended(): boolean {
+        return isSuspended(this);
+    }
+
+    /**
+     * Set up a callback for when the command was refused because its part of the application is suspended.
+     * @param {OnNotAvailable} callback The callback to call when the part was suspended.
+     * @returns {CommandResult} The instance of the command result.
+     */
+    onSuspended(callback: OnNotAvailable): CommandResult<TResponse> {
+        if (this.isSuspended) {
             callback();
         }
         return this;

@@ -1,0 +1,105 @@
+{
+  "format": "cratis-availability-vectors",
+  "version": 1,
+  "name": "gates",
+  "description": "Audiences, conditions over arguments and tenant, blocks, scope gates, three-valued absence and suspension.",
+  "manifest": {
+    "format": "cratis-availability-manifest",
+    "version": 1,
+    "origin": "vectors/gates.json",
+    "audiences": [
+      { "name": "Plus", "description": "" },
+      { "name": "Preview", "description": "" },
+      { "name": "Beta", "description": "" },
+      { "name": "Admin", "description": "" }
+    ],
+    "blocks": [
+      { "name": "Paid", "description": "", "gate": { "kind": "any", "items": [ { "kind": "for", "audience": "Plus" }, { "kind": "for", "audience": "Admin" } ] } }
+    ],
+    "conditions": [],
+    "contextValues": [],
+    "scopes": [],
+    "parts": [
+      { "name": "App.Open", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Open", "gates": [] },
+      { "name": "App.PlusOnly", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "for", "audience": "Plus" } ] },
+      { "name": "App.PlusOrPreview", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "any", "items": [ { "kind": "for", "audience": "Plus" }, { "kind": "for", "audience": "Preview" } ] } ] },
+      { "name": "App.PlusAndBeta", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "all", "items": [ { "kind": "for", "audience": "Plus" }, { "kind": "for", "audience": "Beta" } ] } ] },
+      { "name": "App.NotBeta", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "not", "audience": "Beta" } ] },
+      { "name": "App.Paid", "kind": "readModel", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "with", "block": "Paid" } ] },
+      { "name": "App.ScopedPlus", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "for", "audience": "Preview" }, { "kind": "for", "audience": "Plus" } ] },
+      { "name": "App.VesselEqual", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "arguments.vesselId", "operator": "equal", "operands": [ "allowed" ] } } ] },
+      { "name": "App.VesselNotEqual", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "arguments.vesselId", "operator": "notEqual", "operands": [ "blocked" ] } } ] },
+      { "name": "App.VesselIn", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "arguments.vesselId", "operator": "in", "operands": [ "a", "b" ] } } ] },
+      { "name": "App.VesselNotIn", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "arguments.vesselId", "operator": "notIn", "operands": [ "a", "b" ] } } ] },
+      { "name": "App.Capacity", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "arguments.capacity", "operator": "greaterThan", "operands": [ 100 ] } } ] },
+      { "name": "App.Enabled", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "arguments.enabled", "operator": "isTrue", "operands": [] } } ] },
+      { "name": "App.TenantAcme", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "tenant", "operator": "equal", "operands": [ "acme" ] } } ] },
+      { "name": "App.UserAlice", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "identity.user", "operator": "equal", "operands": [ "alice" ] } } ] },
+      { "name": "App.AcmeVessel", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "all", "items": [ { "kind": "compare", "path": "tenant", "operator": "equal", "operands": [ "acme" ] }, { "kind": "compare", "path": "arguments.vesselId", "operator": "equal", "operands": [ "allowed" ] } ] } } ] },
+      { "name": "App.AcmeOrVessel", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "any", "items": [ { "kind": "compare", "path": "tenant", "operator": "equal", "operands": [ "acme" ] }, { "kind": "compare", "path": "arguments.vesselId", "operator": "equal", "operands": [ "allowed" ] } ] } } ] },
+      { "name": "App.ProvidedPackage", "kind": "command", "module": "Fleet", "feature": "Core", "slice": "Gated", "gates": [ { "kind": "when", "condition": { "kind": "compare", "path": "vessel.commercialPackage", "operator": "in", "operands": [ "Plus", "Pro" ] } } ] }
+    ],
+    "suspendable": []
+  },
+  "cases": [
+    { "name": "a part nothing gates is available", "part": "App.Open", "context": {}, "expect": { "available": true } },
+    { "name": "a part that is not in the manifest is available", "part": "App.Unknown", "context": {}, "expect": { "available": true } },
+
+    { "name": "for: audience held", "part": "App.PlusOnly", "context": { "audiences": [ "Plus" ] }, "expect": { "available": true } },
+    { "name": "for: audience not held", "part": "App.PlusOnly", "context": { "audiences": [ "Beta" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "for: no audiences", "part": "App.PlusOnly", "context": {}, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "any: the second audience is held", "part": "App.PlusOrPreview", "context": { "audiences": [ "Preview" ] }, "expect": { "available": true } },
+    { "name": "any: none held", "part": "App.PlusOrPreview", "context": { "audiences": [ "Beta" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "all: both held", "part": "App.PlusAndBeta", "context": { "audiences": [ "Plus", "Beta" ] }, "expect": { "available": true } },
+    { "name": "all: one held", "part": "App.PlusAndBeta", "context": { "audiences": [ "Plus" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "not: the audience is not held", "part": "App.NotBeta", "context": { "audiences": [ "Plus" ] }, "expect": { "available": true } },
+    { "name": "not: the audience is held", "part": "App.NotBeta", "context": { "audiences": [ "Beta" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "with: the block opens through its first alternative", "part": "App.Paid", "context": { "audiences": [ "Plus" ] }, "expect": { "available": true } },
+    { "name": "with: the block opens through its second alternative", "part": "App.Paid", "context": { "audiences": [ "Admin" ] }, "expect": { "available": true } },
+    { "name": "with: the block stays closed", "part": "App.Paid", "context": { "audiences": [ "Beta" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "path: every gate down the path must hold", "part": "App.ScopedPlus", "context": { "audiences": [ "Preview", "Plus" ] }, "expect": { "available": true } },
+    { "name": "path: the outer gate is closed", "part": "App.ScopedPlus", "context": { "audiences": [ "Plus" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "path: the inner gate is closed", "part": "App.ScopedPlus", "context": { "audiences": [ "Preview" ] }, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "arguments: equal to the allowed vessel", "part": "App.VesselEqual", "context": {}, "arguments": { "vesselId": "allowed" }, "expect": { "available": true } },
+    { "name": "arguments: another vessel", "part": "App.VesselEqual", "context": {}, "arguments": { "vesselId": "other" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: absent is unknown, and unknown denies", "part": "App.VesselEqual", "context": {}, "arguments": {}, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: none given is unknown, and unknown denies", "part": "App.VesselEqual", "context": {}, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: notEqual with another vessel", "part": "App.VesselNotEqual", "context": {}, "arguments": { "vesselId": "fine" }, "expect": { "available": true } },
+    { "name": "arguments: notEqual with the blocked vessel", "part": "App.VesselNotEqual", "context": {}, "arguments": { "vesselId": "blocked" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: notEqual with the value absent is still unknown", "part": "App.VesselNotEqual", "context": {}, "arguments": {}, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: in, a member", "part": "App.VesselIn", "context": {}, "arguments": { "vesselId": "b" }, "expect": { "available": true } },
+    { "name": "arguments: in, not a member", "part": "App.VesselIn", "context": {}, "arguments": { "vesselId": "c" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: notIn, not a member", "part": "App.VesselNotIn", "context": {}, "arguments": { "vesselId": "c" }, "expect": { "available": true } },
+    { "name": "arguments: notIn, a member", "part": "App.VesselNotIn", "context": {}, "arguments": { "vesselId": "a" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: greaterThan, above", "part": "App.Capacity", "context": {}, "arguments": { "capacity": 150 }, "expect": { "available": true } },
+    { "name": "arguments: greaterThan, equal is not greater", "part": "App.Capacity", "context": {}, "arguments": { "capacity": 100 }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments: isTrue, true", "part": "App.Enabled", "context": {}, "arguments": { "enabled": true }, "expect": { "available": true } },
+    { "name": "arguments: isTrue, false", "part": "App.Enabled", "context": {}, "arguments": { "enabled": false }, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "tenant: the tenant matches", "part": "App.TenantAcme", "context": { "tenant": "acme" }, "expect": { "available": true } },
+    { "name": "tenant: another tenant", "part": "App.TenantAcme", "context": { "tenant": "other" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "identity: the user matches", "part": "App.UserAlice", "context": { "user": "alice" }, "expect": { "available": true } },
+    { "name": "identity: another user", "part": "App.UserAlice", "context": { "user": "bob" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "arguments cannot replace the tenant", "part": "App.TenantAcme", "context": { "tenant": "other" }, "arguments": { "tenant": "acme" }, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "conditions: all hold", "part": "App.AcmeVessel", "context": { "tenant": "acme" }, "arguments": { "vesselId": "allowed" }, "expect": { "available": true } },
+    { "name": "conditions: one of all fails", "part": "App.AcmeVessel", "context": { "tenant": "acme" }, "arguments": { "vesselId": "other" }, "expect": { "available": false, "reason": "NotAvailable" } },
+    { "name": "conditions: any, the other decides when one value is unknown", "part": "App.AcmeOrVessel", "context": { "tenant": "acme" }, "arguments": {}, "expect": { "available": true } },
+    { "name": "conditions: any, none hold", "part": "App.AcmeOrVessel", "context": { "tenant": "other" }, "arguments": { "vesselId": "other" }, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "values: a value the context provides", "part": "App.ProvidedPackage", "context": { "values": { "vessel": { "commercialPackage": "Plus" } } }, "expect": { "available": true } },
+    { "name": "values: a value that is absent is unknown", "part": "App.ProvidedPackage", "context": {}, "expect": { "available": false, "reason": "NotAvailable" } },
+
+    { "name": "suspension: the part path", "part": "App.Open", "context": { "suspended": [ "Fleet/Core/Open/App.Open" ] }, "expect": { "available": false, "reason": "Suspended" } },
+    { "name": "suspension: the full name of the part", "part": "App.Open", "context": { "suspended": [ "App.Open" ] }, "expect": { "available": false, "reason": "Suspended" } },
+    { "name": "suspension: the slice covers its parts", "part": "App.Open", "context": { "suspended": [ "Fleet/Core/Open" ] }, "expect": { "available": false, "reason": "Suspended" } },
+    { "name": "suspension: the feature covers its slices", "part": "App.PlusOnly", "context": { "suspended": [ "Fleet/Core" ], "audiences": [ "Plus" ] }, "expect": { "available": false, "reason": "Suspended" } },
+    { "name": "suspension: the module covers everything beneath it", "part": "App.Open", "context": { "suspended": [ "Fleet" ] }, "expect": { "available": false, "reason": "Suspended" } },
+    { "name": "suspension: another slice is not covered", "part": "App.Open", "context": { "suspended": [ "Fleet/Core/Gated" ] }, "expect": { "available": true } },
+    { "name": "suspension: a path is whole segments, not a prefix", "part": "App.Open", "context": { "suspended": [ "Fleet/Co" ] }, "expect": { "available": true } },
+    { "name": "suspension: decided before any gate, so it wins over a closed gate", "part": "App.PlusOnly", "context": { "suspended": [ "Fleet/Core/Gated/App.PlusOnly" ] }, "expect": { "available": false, "reason": "Suspended" } }
+  ]
+}

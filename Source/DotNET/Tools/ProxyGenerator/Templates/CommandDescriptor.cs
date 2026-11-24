@@ -54,6 +54,11 @@ public record CommandDescriptor(
     public SliceLocationDescriptor SliceLocation { get; init; } = SliceLocationDescriptor.Empty;
 
     /// <summary>
+    /// Gets the full name of the part the availability engine knows this command as: the command type.
+    /// </summary>
+    public string PartName => Type.FullName ?? Type.Name;
+
+    /// <summary>
     /// Gets whether framework-specific imports and helpers should be omitted.
     /// </summary>
     public bool IsFrameworkNeutral { get; init; }

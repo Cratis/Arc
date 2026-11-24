@@ -32,6 +32,19 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     /// <inheritdoc/>
     public IReadOnlyCollection<Type> GatedParts => _gatedParts.Value;
 
+    /// <summary>
+    /// Gets the gates of the namespaces, which are the modules, features and slices that carry one.
+    /// </summary>
+    public IReadOnlyList<(string Namespace, AvailabilityExpression Gate)> Scopes =>
+        [.. options.Namespaces.Select(_ => (_.Namespace, _.Gate)).Concat(_markers.Value)];
+
+    /// <summary>
+    /// Gets the gates down the path of a part, outermost first. Every one must hold.
+    /// </summary>
+    /// <param name="part">The command type, or the type declaring the query.</param>
+    /// <returns>The gates; none when nothing gates the part.</returns>
+    public IReadOnlyList<AvailabilityExpression> GatesOf(Type part) => PathOf(part);
+
     /// <inheritdoc/>
     public bool IsGated(Type part) => suspensions is not null || PathOf(part).Count > 0;
 

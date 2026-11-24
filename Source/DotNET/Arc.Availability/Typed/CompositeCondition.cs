@@ -16,6 +16,21 @@ namespace Cratis.Arc.Availability;
 /// <param name="right">The second condition.</param>
 public class CompositeCondition(bool all, IAvailabilityCondition left, IAvailabilityCondition right) : IAvailabilityCondition
 {
+    /// <summary>
+    /// Gets whether both conditions must hold ('and'), or either may ('or').
+    /// </summary>
+    public bool All => all;
+
+    /// <summary>
+    /// Gets the first condition.
+    /// </summary>
+    public IAvailabilityCondition Left => left;
+
+    /// <summary>
+    /// Gets the second condition.
+    /// </summary>
+    public IAvailabilityCondition Right => right;
+
     /// <inheritdoc/>
     public string Description => $"({left.Description}) {(all ? "and" : "or")} ({right.Description})";
 

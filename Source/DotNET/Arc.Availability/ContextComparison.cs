@@ -14,6 +14,21 @@ namespace Cratis.Arc.Availability;
 /// <param name="operands">The literals to compare with. None for <see cref="ComparisonOperator.IsTrue"/>.</param>
 public class ContextComparison(string path, ComparisonOperator op, params object[] operands) : IAvailabilityCondition
 {
+    /// <summary>
+    /// Gets the context path that is read.
+    /// </summary>
+    public string Path => path;
+
+    /// <summary>
+    /// Gets the operator.
+    /// </summary>
+    public ComparisonOperator Operator => op;
+
+    /// <summary>
+    /// Gets the literals that are compared with.
+    /// </summary>
+    public IReadOnlyList<object> Operands => operands;
+
     /// <inheritdoc/>
     public string Description => op == ComparisonOperator.IsTrue ? path : $"{path} {op} {string.Join(", ", operands)}";
 
