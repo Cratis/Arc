@@ -32,9 +32,11 @@ public class GraphCatalog(TypeRegistry registry, EventReader events, ScreenplayD
             diagnostics.Warning(ScreenplayDiagnosticCodes.UnrecoverableGraph, $"The fluent graph projection '{fluent.Name}' is code; it cannot be recovered as an annotated graph", fluent.Namespace());
         }
 
-        return [.. declared.Where(type => type.HasAttribute(GraphNames.Node) || type.HasAttribute(GraphNames.Edge))
-            .GroupBy(GraphShapeReader.GraphOf).OrderBy(group => group.Key, StringComparer.Ordinal)
-            .Select(group => ReadGraph(group, slices)).OfType<GraphModel>()];
+        var groups = declared.Where(type => type.HasAttribute(GraphNames.Node) || type.HasAttribute(GraphNames.Edge))
+            .GroupBy(GraphShapeReader.GraphOf).OrderBy(group => group.Key, StringComparer.Ordinal).ToArray();
+        var declarations = new GraphProjectionDeclarationReader(declared, diagnostics);
+        declarations.ReportUnknownGraphs(groups.Select(group => group.Key));
+        return [.. groups.Select(group => ReadGraph(group, slices, declarations)).OfType<GraphModel>()];
     }
 
     static bool InvalidEvent(INamedTypeSymbol type) => type.TypeKind == TypeKind.Error || !EventReader.IsEvent(type);
@@ -52,12 +54,11 @@ public class GraphCatalog(TypeRegistry registry, EventReader events, ScreenplayD
         return created;
     }
 
-    GraphModel? ReadGraph(IGrouping<string, INamedTypeSymbol> group, IList<SliceModel> slices)
+    GraphModel? ReadGraph(IGrouping<string, INamedTypeSymbol> group, IList<SliceModel> slices, GraphProjectionDeclarationReader declarations)
     {
         var handlers = new GraphHandlerReader(diagnostics);
-        var shapes = new GraphShapeReader(registry, diagnostics);
-        var elements = group.OrderBy(type => type.ToDisplayString(), StringComparer.Ordinal)
-            .Select(type => handlers.Read(type) is { } behavior ? shapes.Read(type, behavior) : null).ToArray();
+        var records = group.OrderBy(type => type.ToDisplayString(), StringComparer.Ordinal).ToArray();
+        var elements = ReadElements(records, handlers);
         if (elements.Any(element => element is null) || !GraphTopology.Valid(group, elements.OfType<GraphElementModel>()))
         {
             diagnostics.Warning(ScreenplayDiagnosticCodes.UnrecoverableGraph, $"The graph '{group.Key}' has ambiguous elements or endpoints; it is withheld", group.First().Namespace());
@@ -73,9 +74,34 @@ public class GraphCatalog(TypeRegistry registry, EventReader events, ScreenplayD
         var owners = referenced.Where(type => type.DeclaringSyntaxReferences.Length > 0).Select(type => type.Namespace())
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         var placement = owners.FirstOrDefault() ?? group.Select(type => type.Namespace()).Order(StringComparer.Ordinal).First();
-        ReportPlacement(group.Key, placement, owners, referenced.Length);
+        var explicitDeclarations = declarations.HasDeclarations(group.Key);
+        IEqualityComparer<ISymbol> symbolComparer = SymbolEqualityComparer.Default;
+        var projections = explicitDeclarations
+            ? declarations.Read(group.Key, records.Zip(elements).ToDictionary(pair => pair.First, pair => pair.Second!, symbolComparer))
+            : [];
+        if (!explicitDeclarations)
+        {
+            ReportPlacement(group.Key, placement, owners, referenced.Length);
+        }
+
         EnsureSlice(slices, placement);
-        return new(group.Key, placement, [.. elements.OfType<GraphElementModel>()]) { HasProjectionPlacement = owners.Length > 0 };
+        foreach (var projection in projections)
+        {
+            EnsureSlice(slices, projection.Namespace);
+        }
+
+        return new(group.Key, placement, [.. elements.OfType<GraphElementModel>()])
+        {
+            HasProjectionPlacement = owners.Length > 0,
+            HasProjectionDeclarations = explicitDeclarations,
+            Projections = projections
+        };
+    }
+
+    GraphElementModel?[] ReadElements(IEnumerable<INamedTypeSymbol> records, GraphHandlerReader handlers)
+    {
+        var shapes = new GraphShapeReader(registry, diagnostics);
+        return records.Select(type => handlers.Read(type) is { } behavior ? shapes.Read(type, behavior) : null).ToArray();
     }
 
     void ReportPlacement(string graph, string placement, string[] owners, int eventCount)

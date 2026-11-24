@@ -42,12 +42,12 @@ public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
             return slice;
         }
 
-        var observed = _projectionNames.ForSlice(slice.Name, location, graphs);
+        var observed = _projectionNames.ForSlice(location, graphs);
 
         return slice with
         {
             Graphs = placed.Select(new GraphSyntaxBuilder(naming).Build).ToArray(),
-            GraphProjections = observed.Select(graph => new GraphProjectionSyntaxBuilder(naming, diagnostics).Build(graph, slice.Name)).OfType<Cratis.Screenplay.Syntax.Projections.GraphProjectionSyntax>().ToArray()
+            GraphProjections = observed.Select(candidate => new GraphProjectionSyntaxBuilder(naming, diagnostics).Build(candidate.Graph, candidate.Projection)).OfType<Cratis.Screenplay.Syntax.Projections.GraphProjectionSyntax>().ToArray()
         };
     }
 
