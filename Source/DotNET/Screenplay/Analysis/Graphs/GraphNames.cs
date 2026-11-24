@@ -6,6 +6,9 @@ namespace Cratis.Arc.Screenplay.Analysis.Graphs;
 /// <summary>The fully qualified Chronicle graph annotation names.</summary>
 public static class GraphNames
 {
+    /// <summary>The Arc projection declaration marker.</summary>
+    public const string ProjectionDeclaration = "Cratis.Arc.Slices.GraphProjectionDeclarationAttribute";
+
     /// <summary>The graph annotation namespace.</summary>
     public const string Namespace = "Cratis.Chronicle.Projections.Graphs";
 

@@ -34,7 +34,7 @@ public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
         var placed = graphs.Where(graph => graph.Namespace == location).ToArray();
         if (options.MaximumExecutableModelVersion is { } maximum && !maximum.IsAtLeast(SemanticVersion.V38))
         {
-            foreach (var graph in placed)
+            foreach (var graph in graphs.Where(graph => graph.Namespace == location || graph.Projections.Any(projection => projection.Namespace == location)))
             {
                 diagnostics.Warning(ScreenplayDiagnosticCodes.GraphRequiresV38, $"The graph '{graph.Name}' requires executable model V38 and is omitted by the version cap", graph.Namespace);
             }
@@ -42,12 +42,12 @@ public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
             return slice;
         }
 
-        var observed = _projectionNames.ForSlice(slice.Name, location, graphs);
+        var observed = _projectionNames.ForSlice(location, graphs);
 
         return slice with
         {
             Graphs = placed.Select(new GraphSyntaxBuilder(naming).Build).ToArray(),
-            GraphProjections = observed.Select(graph => new GraphProjectionSyntaxBuilder(naming, diagnostics).Build(graph, slice.Name)).OfType<Cratis.Screenplay.Syntax.Projections.GraphProjectionSyntax>().ToArray()
+            GraphProjections = observed.Select(candidate => new GraphProjectionSyntaxBuilder(naming, diagnostics).Build(candidate.Graph, candidate.Projection)).OfType<Cratis.Screenplay.Syntax.Projections.GraphProjectionSyntax>().ToArray()
         };
     }
 

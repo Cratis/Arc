@@ -680,4 +680,7 @@ public static class ScreenplayDiagnosticCodes
 
     /// <summary>A personal-data special category cannot be recovered as a known Screenplay token.</summary>
     public const string UnknownSpecialCategory = "SP0088";
+
+    /// <summary>Graph projection declaration metadata is invalid or has ambiguous ownership.</summary>
+    public const string InvalidGraphProjectionDeclaration = "SP0089";
 }

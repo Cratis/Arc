@@ -48,6 +48,26 @@ transported rather than what it is, so the query was left out (Library.Messaging
 
 Diagnostics come in three severities. **Information** describes a limitation without failing generation. **Warning** means something was left out. Standalone generation reports `SP0056` when it withholds a command's binding-invalid productions and leaves them in the C# handler; the returned document is verified again. Unexpected binding errors that cannot be withheld are `SP0056` Errors. Embedded generation reports `SP0056` as Information so a generator limitation cannot break your application's build. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
 
+## Preserve graph projection declarations
+
+Chronicle's node and edge annotations describe graph shape and handlers, but do not retain a projection's name, grouping, or declaring slice. Add a declaration marker when those identities matter to the recovered model. For existing annotated records in `Library.ReadModels.Graphs`, a marker can look like this:
+
+```csharp
+namespace Library.People.Directory;
+
+[global::Cratis.Arc.Slices.GraphProjectionDeclarationAttribute(
+    "PeopleDirectory", "People",
+    typeof(global::Library.ReadModels.Graphs.Person),
+    typeof(global::Library.ReadModels.Graphs.WORKS_AT))]
+public sealed class PeopleDirectoryDeclaration { }
+```
+
+`PeopleDirectory` is the exact projection name, independent of the marker's CLR name. `People` matches the records' Chronicle `[Graph("People")]` annotation. The marker's namespace places the projection in `Library.People.Directory`, even if that slice has no other artifacts and its events live elsewhere. Graph recovery requires Screenplay executable model V38 or later; a lower version cap omits both shape and projections with `SP0084`.
+
+Each listed type owns all handlers on that node or edge record. Use multiple markers with disjoint member lists to preserve multiple projections of the same graph, either in one slice or in different slices. Every handler-bearing record must have exactly one owner once a graph has declarations. Shape-only endpoint nodes may remain unowned: the generator still emits one complete shared graph shape. List the record type, not its edge label, when those names differ. This attribute is generation metadata only; it does not register services or change runtime graph execution.
+
+Fallback applies separately to each graph. Without markers, Arc keeps its existing reconstruction: a single projection named for the ordinal-first source-declared handler event slice, with `SP0083` explaining canonical placement when events span slices. Explicit metadata suppresses that fallback. Invalid names, unresolved or foreign members, duplicate ownership, and uncovered handler-bearing records produce `SP0089` and withhold the affected graph's entire projection set while retaining its recoverable shape and events. Unknown graph names also produce `SP0089`. Projection names must be unique across the application, including fallback projections; collisions produce `SP0082` and withhold the colliding projections rather than inventing names.
+
 ## What the generator expects of its host
 
 If you are using the CLI, it supplies the compilation. If you are building your own host, pass either a Roslyn `Compilation` or a Generation `DotNetProjectCompilation` to the compatibility generator. The generator does not open project files or load a workspace; the host must assemble the compilation with the inputs a real build would use.
