@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Context;
+using Cratis.Arc.Availability.Context;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
 
@@ -14,6 +14,7 @@ namespace Cratis.Arc.Availability;
 /// registered for the part itself, then the <see cref="AvailableForAttribute"/> and <see cref="AvailableWithAttribute"/>
 /// declared on it.
 /// </remarks>
+[IgnoreConvention]
 public class ArcAvailabilityOptions
 {
     readonly List<(string Namespace, AvailabilityExpression Gate)> _namespaces = [];

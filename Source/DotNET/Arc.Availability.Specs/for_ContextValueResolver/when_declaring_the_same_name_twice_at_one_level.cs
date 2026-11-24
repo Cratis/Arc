@@ -1,0 +1,19 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Availability.Context;
+using Cratis.Arc.Availability.Context.Providers;
+
+namespace Cratis.Arc.Availability.for_ContextValueResolver;
+
+public class when_declaring_the_same_name_twice_at_one_level : Specification
+{
+    Exception _error;
+
+    void Because() => _error = Catch.Exception(() =>
+        new ContextValueCatalog()
+            .Declare(new ContextValueDeclaration("vessel", new LiteralContextValueProvider(1), ContextScope.Of("Fleet")))
+            .Declare(new ContextValueDeclaration("vessel", new LiteralContextValueProvider(2), ContextScope.Of("Fleet"))));
+
+    [Fact] void should_refuse() => _error.ShouldBeOfExactType<InvalidOperationException>();
+}

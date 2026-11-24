@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
@@ -10,6 +11,7 @@ namespace Cratis.Arc.Availability;
 /// </summary>
 /// <param name="gate">The <see cref="IAvailabilityGate"/>.</param>
 /// <param name="services">The <see cref="IServiceProvider"/> of the request.</param>
+[IgnoreConvention]
 public class UnavailableParts(IAvailabilityGate gate, IServiceProvider services) : IUnavailableParts
 {
     /// <inheritdoc/>

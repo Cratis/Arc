@@ -61,7 +61,7 @@ public static class AvailabilitySources
     /// the full names of these types, so source declaring them under the same names is read the way the real ones are.
     /// </remarks>
     public const string HostLibraries = """
-        namespace Cratis.Choreography.Availability.Context
+        namespace Cratis.Arc.Availability.Context
         {
             public class ContextValueCatalog
             {
@@ -80,7 +80,7 @@ public static class AvailabilitySources
             }
         }
 
-        namespace Cratis.Choreography.Availability.Context.Providers
+        namespace Cratis.Arc.Availability.Context.Providers
         {
             public interface IReadModelQuery;
 

@@ -14,11 +14,11 @@ public class from_a_context_value_at_an_unknown_scope : a_generated_document
 
         public static class Composition
         {
-            public static void Configure(Cratis.Choreography.Availability.Context.ContextValueCatalog catalog) => catalog.Declare(
-                new Cratis.Choreography.Availability.Context.ContextValueDeclaration(
+            public static void Configure(Cratis.Arc.Availability.Context.ContextValueCatalog catalog) => catalog.Declare(
+                new Cratis.Arc.Availability.Context.ContextValueDeclaration(
                     "vessel",
-                    new Cratis.Choreography.Availability.Context.Providers.ReadModelContextValueProvider(null!, "VesselByKey", "arguments.vesselId"),
-                    Cratis.Choreography.Availability.Context.ContextScope.Of("Nowhere"),
+                    new Cratis.Arc.Availability.Context.Providers.ReadModelContextValueProvider(null!, "VesselByKey", "arguments.vesselId"),
+                    Cratis.Arc.Availability.Context.ContextScope.Of("Nowhere"),
                     false));
         }
         """;

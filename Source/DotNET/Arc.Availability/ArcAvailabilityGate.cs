@@ -2,20 +2,21 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Audiences;
+using Cratis.Arc.Availability.Audiences;
+using Cratis.DependencyInjection;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
 
 /// <summary>
-/// Represents the <see cref="IAvailabilityGate"/> that decides with the Choreography availability engine.
+/// Represents the <see cref="IAvailabilityGate"/> that decides with the availability engine.
 /// </summary>
 /// <param name="options">The <see cref="ArcAvailabilityOptions"/>.</param>
 /// <param name="evaluator">The <see cref="IAvailabilityEvaluator"/>.</param>
 /// <param name="audienceSource">The <see cref="IAudienceSource"/> whose changes are announced.</param>
 /// <param name="types">The <see cref="ITypes"/> used to find the parts that declare a gate with attributes.</param>
+[IgnoreConvention]
 public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types) : IAvailabilityExecutionGate
 {
     readonly ConcurrentDictionary<Type, IReadOnlyList<AvailabilityExpression>> _paths = new();
