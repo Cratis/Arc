@@ -17,8 +17,8 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 
 internal static class AnonymousPolicySources
 {
-    internal const string Unrepresentable = "SP0082";
-    internal const string Ambiguous = "SP0083";
+    internal const string Unrepresentable = "SP0085";
+    internal const string Ambiguous = "SP0086";
     internal const string Authorization = "[Authorize(Policy = \"Anyone\")]";
     internal const string Registration = "services.AddArcAuthorizationPolicy<AnyonePolicy>(\"Anyone\", evaluatesAnonymous: true);";
     internal const string Body = "=> ValueTask.FromResult(true);";

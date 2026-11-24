@@ -666,6 +666,15 @@ public static class ScreenplayDiagnosticCodes
     /// </remarks>
     public const string AvailabilityDefinitionNotRecovered = "SP0081";
 
+    /// <summary>A graph has behavior or shape that cannot be recovered faithfully.</summary>
+    public const string UnrecoverableGraph = "SP0082";
+
+    /// <summary>Graph events span slices and require Arc's canonical placement fallback.</summary>
+    public const string CanonicalGraphPlacement = "SP0083";
+
+    /// <summary>A graph was omitted because its executable model version was capped below V38.</summary>
+    public const string GraphRequiresV38 = "SP0084";
+
     /// <summary>
     /// A recovered anonymous policy is used in an authorization that cannot be represented faithfully.
     /// </summary>
@@ -673,7 +682,7 @@ public static class ScreenplayDiagnosticCodes
     /// An error. No executable document is emitted, and generation does not verify an empty refusal.
     /// Ordinary unrecovered policies retain their existing fallback diagnostics.
     /// </remarks>
-    public const string AnonymousAuthorizationNotRepresentable = "SP0082";
+    public const string AnonymousAuthorizationNotRepresentable = "SP0085";
 
     /// <summary>
     /// Anonymous policy registration or normalized declaration names are ambiguous.
@@ -681,5 +690,5 @@ public static class ScreenplayDiagnosticCodes
     /// <remarks>
     /// An error. The original recovered requirements are retained for inspection, but no executable document is emitted.
     /// </remarks>
-    public const string AmbiguousAnonymousPolicyRegistration = "SP0083";
+    public const string AmbiguousAnonymousPolicyRegistration = "SP0086";
 }

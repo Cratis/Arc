@@ -15,8 +15,8 @@ namespace Cratis.Arc.Screenplay.Embedded.for_DocumentGeneration.when_generating_
 
 public class from_refused_anonymous_policy_use : Specification
 {
-    const string Unrepresentable = "SP0082";
-    const string Ambiguous = "SP0083";
+    const string Unrepresentable = "SP0085";
+    const string Ambiguous = "SP0086";
 
     [Fact]
     public void should_keep_synthetic_refusals_empty_without_verifying_or_manufacturing_placeholder_documents()

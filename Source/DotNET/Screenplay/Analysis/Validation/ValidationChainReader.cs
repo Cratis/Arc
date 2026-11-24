@@ -253,9 +253,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
 
     ValidationRuleModel? ReadCustomRule(InvocationExpressionSyntax call, string property, SemanticModel model, bool conditional)
     {
-        var checksum = !conditional && property == "Value" ? ChecksumValidation.Read(call, model) : null;
-
-        return checksum is not null ? new(property, ValidationRuleKind.Checksum, checksum, null) : ReadNamedRule(call, property, model);
+        return (!conditional && property == "Value" ? ConceptLengthValidation.ReadRule(call, model) : null) ?? ReadNamedRule(call, property, model);
     }
 
     ValidationRuleModel? ReadNamedRule(InvocationExpressionSyntax call, string property, SemanticModel model)
