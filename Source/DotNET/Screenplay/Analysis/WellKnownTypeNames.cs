@@ -96,6 +96,9 @@ public static class WellKnownTypeNames
     /// <summary>The attribute marking a value as personally identifiable information.</summary>
     public const string PiiAttribute = "Cratis.Chronicle.Compliance.GDPR.PIIAttribute";
 
+    /// <summary>The enum classifying special categories of personal data.</summary>
+    public const string SpecialCategory = "Cratis.Chronicle.Compliance.GDPR.SpecialCategory";
+
     /// <summary>The attribute encrypting an operational secret.</summary>
     public const string EncryptedAttribute = "Cratis.Chronicle.ProtectedValues.EncryptedAttribute";
 

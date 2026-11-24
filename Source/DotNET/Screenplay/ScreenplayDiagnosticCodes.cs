@@ -674,4 +674,10 @@ public static class ScreenplayDiagnosticCodes
 
     /// <summary>A graph was omitted because its executable model version was capped below V38.</summary>
     public const string GraphRequiresV38 = "SP0084";
+
+    /// <summary>Chronicle rejects personal data combined with the legacy encryption attribute.</summary>
+    public const string LegacyPiiEncryption = "SP0087";
+
+    /// <summary>A personal-data special category cannot be recovered as a known Screenplay token.</summary>
+    public const string UnknownSpecialCategory = "SP0088";
 }

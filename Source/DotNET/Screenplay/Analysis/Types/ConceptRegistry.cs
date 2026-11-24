@@ -31,6 +31,8 @@ public class ConceptRegistry
     readonly HashSet<string> _incompleteValidation = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validatorSources = new(StringComparer.Ordinal);
     readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
+    readonly HashSet<string> _legacyPiiEncryption = new(StringComparer.Ordinal);
+    readonly HashSet<string> _unknownSpecialCategories = new(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
     readonly Dictionary<string, ITypeSymbol> _enumerations = new(StringComparer.Ordinal);
 
@@ -219,6 +221,29 @@ public class ConceptRegistry
     }
 
     /// <summary>
+    /// Reports unsupported personal-data classification and legacy encryption attributes.
+    /// </summary>
+    /// <param name="diagnostics">Where the findings are reported.</param>
+    internal void ReportCompliance(ScreenplayDiagnostics diagnostics)
+    {
+        foreach (var type in _legacyPiiEncryption.Order(StringComparer.Ordinal))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.LegacyPiiEncryption,
+                $"Concept '{type}' combines [PII] with [Encrypted], which Chronicle rejects; use PIIAttribute.OperationalSecret instead",
+                type);
+        }
+
+        foreach (var type in _unknownSpecialCategories.Order(StringComparer.Ordinal))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnknownSpecialCategory,
+                $"Concept '{type}' has an unknown PIIAttribute.SpecialCategory value; the special category is not stated",
+                type);
+        }
+    }
+
+    /// <summary>
     /// Determines whether two concepts sharing a name are declared the same way.
     /// </summary>
     /// <param name="existing">The concept already declared.</param>
@@ -231,6 +256,8 @@ public class ConceptRegistry
         existing.EnumNumbers.SequenceEqual(concept.EnumNumbers) &&
         existing.IsPii == concept.IsPii &&
         existing.IsSensitive == concept.IsSensitive &&
+        existing.SpecialCategory == concept.SpecialCategory &&
+        existing.IsCriminal == concept.IsCriminal &&
         StatedScopeOf(existing) == StatedScopeOf(concept);
 
     /// <summary>
@@ -264,6 +291,9 @@ public class ConceptRegistry
         _ => null
     };
 
+    static bool PersonalFlag(AttributeData? attribute, string name) =>
+        attribute?.NamedArguments.Any(argument => argument.Key == name && argument.Value.Value is true) == true;
+
     /// <summary>
     /// Builds an enumeration, preserving the compiler's resolved integer constants.
     /// </summary>
@@ -282,6 +312,36 @@ public class ConceptRegistry
         };
     }
 
+    string? SpecialCategoryOf(AttributeData? attribute, ITypeSymbol type)
+    {
+        var category = attribute?.NamedArguments.FirstOrDefault(argument => argument.Key == "SpecialCategory").Value ?? default;
+        if (category.Value is null)
+        {
+            return null;
+        }
+
+        var member = category.Type is INamedTypeSymbol enumeration && enumeration.FullMetadataName() == WellKnownTypeNames.SpecialCategory
+            ? EnumConstants.MemberOf(enumeration, category.Value) : null;
+        var token = member switch
+        {
+            "RacialOrEthnicOrigin" => "racialOrEthnicOrigin",
+            "PoliticalOpinions" => "politicalOpinions",
+            "ReligiousOrPhilosophicalBeliefs" => "religiousOrPhilosophicalBeliefs",
+            "TradeUnionMembership" => "tradeUnionMembership",
+            "Genetic" => "genetic",
+            "Biometric" => "biometric",
+            "Health" => "health",
+            "SexLifeOrSexualOrientation" => "sexLifeOrSexualOrientation",
+            _ => null
+        };
+        if (member != "None" && token is null)
+        {
+            _unknownSpecialCategories.Add(type.ToDisplayString());
+        }
+
+        return token;
+    }
+
     /// <summary>
     /// Builds the concept a type backed by <c>ConceptAs</c> declares.
     /// </summary>
@@ -290,15 +350,28 @@ public class ConceptRegistry
     /// <returns>The <see cref="ConceptModel"/>.</returns>
     ConceptModel ToConcept(ITypeSymbol type, ITypeSymbol backing)
     {
-        var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
-        var encrypted = type.HasAttribute(WellKnownTypeNames.EncryptedAttribute);
+        var personal = type.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.FullMetadataName() == WellKnownTypeNames.PiiAttribute);
+        var pii = personal is not null;
+        var encrypted = type.HasAttribute(WellKnownTypeNames.EncryptedAttribute) || PersonalFlag(personal, "OperationalSecret");
         var notAudited = type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute);
         var scope = ScopeOf(type);
+        var specialCategory = SpecialCategoryOf(personal, type);
+        var criminal = PersonalFlag(personal, "Criminal");
         MarkSecret(type, encrypted, notAudited);
+        if (pii && type.HasAttribute(WellKnownTypeNames.EncryptedAttribute))
+        {
+            _legacyPiiEncryption.Add(type.ToDisplayString());
+        }
 
         if (backing.TypeKind == TypeKind.Enum)
         {
-            return Enumeration(type.Name, backing, pii) with { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
+            return Enumeration(type.Name, backing, pii) with
+            {
+                IsSensitive = encrypted && notAudited,
+                EncryptionScope = scope,
+                SpecialCategory = specialCategory,
+                IsCriminal = criminal
+            };
         }
 
         var resolved = PrimitiveOf(backing) ?? ScreenplayPrimitive.String;
@@ -307,6 +380,8 @@ public class ConceptRegistry
         {
             IsSensitive = encrypted && notAudited,
             EncryptionScope = scope,
+            SpecialCategory = specialCategory,
+            IsCriminal = criminal,
             Generation = type is INamedTypeSymbol conceptType ? new GenerationStrategyReader(Models).Read(conceptType) : null,
             GenerationLocation = type.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation().GetLineSpan() is { } anchor
                 ? $"{anchor.Path}:{anchor.StartLinePosition.Line + 1}" : null
