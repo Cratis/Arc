@@ -6,3 +6,4 @@ export * from './AvailabilityProvider.js';
 export * from './RequireAvailable.js';
 export * from './useAvailability.js';
 export * from './useAvailableItems.js';
+export * from './useIsAvailable.js';

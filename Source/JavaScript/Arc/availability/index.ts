@@ -3,7 +3,10 @@
 
 export * from './AvailabilityReason.js';
 export * from './isNotAvailable.js';
+export * from './isSuspended.js';
 export * from './UnavailablePart.js';
 export * from './AvailableParts.js';
 export * from './ObserveAvailableParts.js';
+export * from './PartAvailability.js';
 export * from './Availability.js';
+export * from './askAvailability.js';
