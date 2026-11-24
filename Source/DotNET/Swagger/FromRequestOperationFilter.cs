@@ -36,7 +36,7 @@ public class FromRequestOperationFilter : IOperationFilter
             var schema = context.SchemaGenerator.GenerateSchema(parameter.Type, context.SchemaRepository);
             operation.RequestBody = new OpenApiRequestBody
             {
-                Content = new Dictionary<string, OpenApiMediaType>
+                Content = new Dictionary<string, IOpenApiMediaType>
                 {
                     ["application/json"] = new OpenApiMediaType
                     {
