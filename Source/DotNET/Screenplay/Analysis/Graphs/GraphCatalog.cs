@@ -70,15 +70,25 @@ public class GraphCatalog(TypeRegistry registry, EventReader events, ScreenplayD
             return null;
         }
 
-        var owners = referenced.Select(type => type.Namespace()).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        var owners = referenced.Where(type => type.DeclaringSyntaxReferences.Length > 0).Select(type => type.Namespace())
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         var placement = owners.FirstOrDefault() ?? group.Select(type => type.Namespace()).Order(StringComparer.Ordinal).First();
+        ReportPlacement(group.Key, placement, owners, referenced.Length);
+        EnsureSlice(slices, placement);
+        return new(group.Key, placement, [.. elements.OfType<GraphElementModel>()]) { HasProjectionPlacement = owners.Length > 0 };
+    }
+
+    void ReportPlacement(string graph, string placement, string[] owners, int eventCount)
+    {
         if (owners.Length > 1)
         {
-            diagnostics.Warning(ScreenplayDiagnosticCodes.CanonicalGraphPlacement, $"The graph '{group.Key}' observes events in several slices. Arc places its single canonical projection in '{placement}'; this is a fallback, not recovered Stage ownership", placement);
+            diagnostics.Warning(ScreenplayDiagnosticCodes.CanonicalGraphPlacement, $"The graph '{graph}' observes events in several slices. Arc places its single canonical projection in '{placement}'; this is a fallback, not recovered Stage ownership", placement);
         }
 
-        EnsureSlice(slices, placement);
-        return new(group.Key, placement, [.. elements.OfType<GraphElementModel>()]);
+        if (owners.Length == 0 && eventCount > 0)
+        {
+            diagnostics.Warning(ScreenplayDiagnosticCodes.UnrecoverableGraph, $"The graph '{graph}' has no source-declared handler event slice; its shape is retained but its projection is withheld rather than fabricating placement", placement);
+        }
     }
 
     bool RegisterEvents(INamedTypeSymbol[] referenced, IList<SliceModel> slices)

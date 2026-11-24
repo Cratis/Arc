@@ -38,6 +38,17 @@ public static class GraphSources
             [Key] string EmploymentId, [SetFrom<EmploymentStarted>(nameof(EmploymentStarted.Salary))] decimal Salary);
         """;
 
+    /// <summary>Chronicle selector expressions on node keys and identifying edge endpoints.</summary>
+    public static string ExpressionGraph => "using Cratis.Chronicle;\n" + Graph
+        .Replace("nameof(PersonRegistered.PersonId)", "WellKnownExpressions.EventSourceId", StringComparison.Ordinal)
+        .Replace("nameof(PersonRemoved.PersonId)", "WellKnownExpressions.EventSourceId", StringComparison.Ordinal)
+        .Replace("nameof(EmploymentStarted.PersonId)", "WellKnownExpressions.EventSourceId", StringComparison.Ordinal)
+        .Replace("nameof(EmploymentEnded.PersonId)", "WellKnownExpressions.EventSourceId", StringComparison.Ordinal)
+        .Replace("nameof(EmploymentStarted.CompanyId)", "WellKnownExpressions.EventContext + \"(CorrelationId)\"", StringComparison.Ordinal)
+        .Replace("nameof(EmploymentEnded.CompanyId)", "WellKnownExpressions.EventContext + \"(CorrelationId)\"", StringComparison.Ordinal)
+        .Replace("nameof(EmploymentStarted.EmploymentId)", "WellKnownExpressions.EventContext + \"(EventSourceId)\"", StringComparison.Ordinal)
+        .Replace("nameof(EmploymentEnded.EmploymentId)", "WellKnownExpressions.EventContext + \"(EventSourceId)\"", StringComparison.Ordinal);
+
     /// <summary>Source files, with no stub Chronicle annotations.</summary>
     /// <param name="graph">The graph annotations.</param>
     /// <param name="events">The declaring events.</param>

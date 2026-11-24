@@ -30,13 +30,16 @@ public class GraphHandlerReader(ScreenplayDiagnostics diagnostics)
         var location = type.ContainingNamespace.ToDisplayString();
         var mappings = ModelBoundPropertyMappings.From(type, diagnostics, location);
         var handlers = type.GetAttributes().Where(GraphAnnotations.IsHandler).Select(attribute => ReadHandler(type, attribute, mappings)).ToList();
-        if (type.HasAttribute(GraphNames.Node))
+        var unhandled = PropertyEvents(type).Where(eventType => !handlers.Exists(handler => Handles(handler, eventType))).ToArray();
+        if (!CanAddHandlers(type, unhandled))
         {
-            foreach (var eventType in PropertyEvents(type).Where(eventType => handlers.TrueForAll(handler => handler.Event != eventType.Name)))
-            {
-                _events.TryAdd(eventType.ToDisplayString(), eventType);
-                handlers.Add(new(eventType.Name, eventType.ContainingNamespace.ToDisplayString(), false, false, ProjectionExpressions.EventSourceId, null, null, null, Mappings(type, eventType, mappings)));
-            }
+            return null;
+        }
+
+        foreach (var eventType in unhandled.DistinctBy(eventType => eventType.ToDisplayString(), StringComparer.Ordinal))
+        {
+            _events.TryAdd(eventType.ToDisplayString(), eventType);
+            handlers.Add(new(eventType.Name, eventType.ContainingNamespace.ToDisplayString(), false, false, ProjectionExpressions.EventSourceId, null, null, null, Mappings(type, eventType, mappings)));
         }
 
         return [.. handlers.OrderBy(handler => handler.Event, StringComparer.Ordinal).ThenBy(handler => handler.Removes)];
@@ -45,7 +48,8 @@ public class GraphHandlerReader(ScreenplayDiagnostics diagnostics)
     static IEnumerable<INamedTypeSymbol> PropertyEvents(INamedTypeSymbol type) =>
         type.DeclaredProperties().SelectMany(MemberAttributes.Of).Where(GraphAnnotations.IsMapping).Select(attribute => attribute.AttributeClass?.TypeArguments.FirstOrDefault()).OfType<INamedTypeSymbol>();
 
-    static string Selector(object? value) => value is string path ? ProjectionPaths.Convert(path) ?? path : ProjectionExpressions.EventSourceId;
+    static bool Handles(GraphHandlerModel handler, INamedTypeSymbol eventType) =>
+        handler.Event == eventType.Name && handler.Namespace == eventType.ContainingNamespace.ToDisplayString();
 
     static Dictionary<string, string> Mappings(INamedTypeSymbol type, INamedTypeSymbol eventType, ModelBoundPropertyMappings mappings)
     {
@@ -66,23 +70,49 @@ public class GraphHandlerReader(ScreenplayDiagnostics diagnostics)
         return result;
     }
 
-    GraphHandlerModel ReadHandler(INamedTypeSymbol type, AttributeData attribute, ModelBoundPropertyMappings mappings)
+    static GraphHandlerModel ReadNodeHandler(INamedTypeSymbol type, INamedTypeSymbol eventType, AttributeData attribute, ModelBoundPropertyMappings mappings)
     {
-        var eventType = (INamedTypeSymbol)attribute.AttributeClass!.TypeArguments[0];
-        _events.TryAdd(eventType.ToDisplayString(), eventType);
-        var edge = type.HasAttribute(GraphNames.Edge);
-        var removes = attribute.AttributeClass.Is(ModelBoundNames.RemovedWith) || attribute.AttributeClass.Is(GraphNames.EdgeRemoved);
+        var removes = attribute.AttributeClass.Is(ModelBoundNames.RemovedWith);
         var detach = attribute.GetArgument(0) is true || attribute.GetNamedArgument("Detach") is true;
-        var key = attribute.GetNamedArgument("ConstantKey") is string constant ? ProjectionExpressions.Enumeration(constant) : Selector(attribute.GetArgument(0));
+        var key = attribute.GetNamedArgument("ConstantKey") is string constant ? ProjectionExpressions.Enumeration(constant) : GraphSelectors.Normalize(attribute.GetArgument(0));
+        return new(eventType.Name, eventType.ContainingNamespace.ToDisplayString(), removes, detach, key, null, null, null, HandlerMappings(type, eventType, mappings, removes));
+    }
+
+    static GraphHandlerModel ReadEdgeHandler(INamedTypeSymbol type, INamedTypeSymbol eventType, AttributeData attribute, ModelBoundPropertyMappings mappings)
+    {
+        var removes = attribute.AttributeClass.Is(GraphNames.EdgeRemoved);
         return new(
             eventType.Name,
             eventType.ContainingNamespace.ToDisplayString(),
             removes,
-            detach,
-            edge ? null : key,
-            edge ? Selector(attribute.GetArgument(0)) : null,
-            edge ? Selector(attribute.GetArgument(1)) : null,
-            edge && attribute.GetArgument(2) is string identity ? Selector(identity) : null,
-            removes ? new Dictionary<string, string>(StringComparer.Ordinal) : Mappings(type, eventType, mappings));
+            false,
+            null,
+            GraphSelectors.Normalize(attribute.GetArgument(0)),
+            GraphSelectors.Normalize(attribute.GetArgument(1)),
+            attribute.GetArgument(2) is string identity ? GraphSelectors.Normalize(identity) : null,
+            HandlerMappings(type, eventType, mappings, removes));
+    }
+
+    static Dictionary<string, string> HandlerMappings(INamedTypeSymbol type, INamedTypeSymbol eventType, ModelBoundPropertyMappings mappings, bool removes) =>
+        removes ? new(StringComparer.Ordinal) : Mappings(type, eventType, mappings);
+
+    bool CanAddHandlers(INamedTypeSymbol type, INamedTypeSymbol[] unhandled)
+    {
+        if (type.HasAttribute(GraphNames.Edge) && unhandled.Length > 0)
+        {
+            diagnostics.Warning(ScreenplayDiagnosticCodes.UnrecoverableGraph, $"The edge '{type.Name}' maps events without matching edge handlers; its graph is withheld", type.ContainingNamespace.ToDisplayString());
+            return false;
+        }
+
+        return true;
+    }
+
+    GraphHandlerModel ReadHandler(INamedTypeSymbol type, AttributeData attribute, ModelBoundPropertyMappings mappings)
+    {
+        var eventType = (INamedTypeSymbol)attribute.AttributeClass!.TypeArguments[0];
+        _events.TryAdd(eventType.ToDisplayString(), eventType);
+        return type.HasAttribute(GraphNames.Edge)
+            ? ReadEdgeHandler(type, eventType, attribute, mappings)
+            : ReadNodeHandler(type, eventType, attribute, mappings);
     }
 }

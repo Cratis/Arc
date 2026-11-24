@@ -216,7 +216,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? [])
             .Where(read => options.AuthoringOnlyConstructs || read.Protected).ToList();
         var placed = new List<PlacedSlice>();
-        var graphBuilder = new Graphs.GraphSliceSyntaxBuilder(naming, diagnostics);
+        var graphBuilder = new Graphs.GraphSliceSyntaxBuilder(naming, diagnostics, model.Slices);
 
         foreach (var slice in model.Slices
             .OrderBy(_ => _.Namespace, StringComparer.Ordinal)

@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Slices;
+using Cratis.Arc.Screenplay.Model;
 using Cratis.Arc.Screenplay.Model.Graphs;
 using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Syntax;
@@ -12,8 +13,11 @@ namespace Cratis.Arc.Screenplay.Emission.Graphs;
 /// <summary>Adds graph declarations to their canonical slice without relying on query or command content.</summary>
 /// <param name="naming">The naming policy.</param>
 /// <param name="diagnostics">Where version losses are reported.</param>
-public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
+/// <param name="slices">The application's declaring slices.</param>
+public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics, IEnumerable<SliceModel> slices)
 {
+    readonly GraphProjectionNames _projectionNames = new(naming, diagnostics, slices);
+
     /// <summary>Determines whether a slice has neither ordinary nor graph content.</summary>
     /// <param name="slice">The built slice.</param>
     /// <returns>Whether the slice can be omitted.</returns>
@@ -38,12 +42,7 @@ public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
             return slice;
         }
 
-        var observed = placed.Where(graph => graph.Elements.Any(element => element.Handlers.Count > 0)).ToArray();
-        if (observed.Length > 1)
-        {
-            diagnostics.Warning(ScreenplayDiagnosticCodes.UnrecoverableGraph, $"Several graphs require the canonical projection name '{slice.Name}'; their projections are withheld rather than inventing Stage names");
-            observed = [];
-        }
+        var observed = _projectionNames.ForSlice(slice.Name, location, graphs);
 
         return slice with
         {

@@ -13,4 +13,8 @@ namespace Cratis.Arc.Screenplay.Model.Graphs;
 /// One projection per graph, placed with its ordinal-first declaring event slice and named after that slice,
 /// is an Arc fallback. Chronicle's annotations do not retain Stage projection names or slice ownership.
 /// </remarks>
-public record GraphModel(string Name, string Namespace, IReadOnlyList<GraphElementModel> Elements);
+public record GraphModel(string Name, string Namespace, IReadOnlyList<GraphElementModel> Elements)
+{
+    /// <summary>Gets whether a source-declared event slice supports canonical projection placement.</summary>
+    public bool HasProjectionPlacement { get; init; } = true;
+}
