@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using Cratis.Arc.Availability.Audiences;
+using Cratis.Arc.Availability.Suspensions;
 using Cratis.DependencyInjection;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +20,9 @@ namespace Cratis.Arc.Availability;
 /// <param name="audienceSource">The <see cref="IAudienceSource"/> whose changes are announced.</param>
 /// <param name="types">The <see cref="ITypes"/> used to find the parts that declare a gate with attributes.</param>
 /// <param name="services">The services that create the conditions that are classes and inject what they need.</param>
+/// <param name="suspensions">The <see cref="ISuspensionSource"/> whose decisions are checked first. When there is none, nothing can be suspended.</param>
 [IgnoreConvention]
-public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types, IServiceProvider? services = null) : IAvailabilityExecutionGate
+public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types, IServiceProvider? services = null, ISuspensionSource? suspensions = null) : IAvailabilityExecutionGate
 {
     readonly Func<Type, IAvailabilityCondition> _conditions = TypedAvailability.ConditionFactory(services);
     readonly Lazy<IReadOnlyList<(string Namespace, AvailabilityExpression Gate)>> _markers = new(() => TypedAvailability.Markers(types, TypedAvailability.ConditionFactory(services)));
@@ -31,22 +33,31 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     public IReadOnlyCollection<Type> GatedParts => _gatedParts.Value;
 
     /// <inheritdoc/>
-    public bool IsGated(Type part) => PathOf(part).Count > 0;
+    public bool IsGated(Type part) => suspensions is not null || PathOf(part).Count > 0;
 
     /// <inheritdoc/>
     public ValueTask<AvailabilityDecision> Decide(Type part, IServiceProvider services, CancellationToken cancellationToken) =>
         IsGated(part)
-            ? Decide(part, services.GetRequiredService<AvailabilityRequestContext>(), cancellationToken)
+            ? Decide(part, services.GetRequiredService<AvailabilityRequestContext>(), null, cancellationToken)
             : ValueTask.FromResult(AvailabilityDecision.Available);
 
     /// <inheritdoc/>
     public ValueTask<AvailabilityDecision> Decide(AvailabilityInvocation invocation, IServiceProvider services, CancellationToken cancellationToken) =>
         IsGated(invocation.Part)
-            ? Decide(invocation.Part, services.GetRequiredService<AvailabilityRequestContext>().ForInvocation(invocation), cancellationToken)
+            ? Decide(invocation.Part, services.GetRequiredService<AvailabilityRequestContext>(), invocation, cancellationToken)
             : ValueTask.FromResult(AvailabilityDecision.Available);
 
     /// <inheritdoc/>
-    public IDisposable OnChanged(Func<ValueTask> handler) => audienceSource.OnChanged(_ => handler());
+    public IDisposable OnChanged(Func<ValueTask> handler)
+    {
+        var audiences = audienceSource.OnChanged(_ => handler());
+        var suspended = suspensions?.OnChanged(_ => handler());
+        return new Subscription(() =>
+        {
+            audiences.Dispose();
+            suspended?.Dispose();
+        });
+    }
 
     static IReadOnlyCollection<Type> FindGatedParts(ArcAvailabilityOptions options, ITypes types)
     {
@@ -64,15 +75,29 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     static bool InNamespace(Type type, string @namespace) =>
         type.Namespace is { } typeNamespace && (typeNamespace == @namespace || typeNamespace.StartsWith(@namespace + ".", StringComparison.Ordinal));
 
-    async ValueTask<AvailabilityDecision> Decide(Type part, AvailabilityRequestContext request, CancellationToken cancellationToken)
+    async ValueTask<AvailabilityDecision> Decide(Type part, AvailabilityRequestContext request, AvailabilityInvocation? invocation, CancellationToken cancellationToken)
     {
+        var context = request;
         try
         {
-            return await Evaluate(part, request, cancellationToken);
+            // A suspension is decided first: before any gate, so before the audiences and the context values are resolved.
+            if (suspensions is not null && (await request.Suspended(suspensions, cancellationToken)).Covers(part))
+            {
+                return new AvailabilityDecision(AvailabilityVerdict.Suspended, [AvailabilityReason.Suspended]);
+            }
+
+            if (PathOf(part).Count == 0)
+            {
+                return AvailabilityDecision.Available;
+            }
+
+            context = invocation is null ? request : request.ForInvocation(invocation);
+            return await Evaluate(part, context, cancellationToken);
         }
         catch
         {
             request.Reset();
+            context.Reset();
             throw;
         }
     }
@@ -124,5 +149,10 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
         }
 
         return path;
+    }
+
+    sealed class Subscription(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 }

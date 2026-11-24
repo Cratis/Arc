@@ -11,6 +11,7 @@ public class when_setting_the_status_code_for_a_retryable_result : Specification
 {
     int _retryable;
     int _notAvailable;
+    int _suspended;
 
     void Because()
     {
@@ -21,8 +22,13 @@ public class when_setting_the_status_code_for_a_retryable_result : Specification
         var notAvailable = new DefaultHttpContext();
         notAvailable.Response.SetResponseStatusCode(CommandResult.Unauthorized(CorrelationId.New(), AvailabilityReason.NotAvailable));
         _notAvailable = notAvailable.Response.StatusCode;
+
+        var suspended = new DefaultHttpContext();
+        suspended.Response.SetResponseStatusCode(CommandResult.Unauthorized(CorrelationId.New(), AvailabilityReason.Suspended));
+        _suspended = suspended.Response.StatusCode;
     }
 
     [Fact] void should_report_service_unavailable() => _retryable.ShouldEqual(StatusCodes.Status503ServiceUnavailable);
+    [Fact] void should_report_forbidden_for_a_part_that_is_suspended() => _suspended.ShouldEqual(StatusCodes.Status403Forbidden);
     [Fact] void should_report_forbidden_for_a_part_that_is_not_available() => _notAvailable.ShouldEqual(StatusCodes.Status403Forbidden);
 }

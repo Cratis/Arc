@@ -17,4 +17,13 @@ public static class AvailabilityReason
     /// The part is not available to the current context.
     /// </summary>
     public const string NotAvailable = "NotAvailable";
+
+    /// <summary>
+    /// The part was suspended by an operator for the tenant, the user or the system, and has not been resumed.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NotAvailable"/>, so a client can tell a part that is not offered to the caller apart from one
+    /// that is switched off. A suspension wins over every grant.
+    /// </remarks>
+    public const string Suspended = "Suspended";
 }

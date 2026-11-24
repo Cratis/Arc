@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Availability.Audiences;
 using Cratis.Arc.Availability.Context;
+using Cratis.Arc.Availability.Suspensions;
 using Cratis.Arc.Tenancy;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ namespace Cratis.Arc.Availability.given;
 public class an_availability_host : Specification
 {
     protected InMemoryAudienceSource _audiences;
+    protected InMemorySuspensionSource _suspensions;
     protected ServiceProvider _root;
     protected IServiceScope _scope;
     protected IAvailabilityGate _gate;
@@ -34,6 +36,7 @@ public class an_availability_host : Specification
     void Establish()
     {
         _audiences = new InMemoryAudienceSource();
+        _suspensions = new InMemorySuspensionSource();
         var types = Substitute.For<ITypes>();
         types.All.Returns(Types.ToArray());
         var tenant = Substitute.For<ITenantIdAccessor>();
@@ -46,6 +49,7 @@ public class an_availability_host : Specification
             .AddSingleton(tenant)
             .AddSingleton(principal)
             .AddSingleton(AudienceSource)
+            .AddSingleton<ISuspensionSource>(_suspensions)
             .AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview"))
             .AddSingleton(new AvailabilityCatalog())
             .AddSingleton(ValueCatalog)

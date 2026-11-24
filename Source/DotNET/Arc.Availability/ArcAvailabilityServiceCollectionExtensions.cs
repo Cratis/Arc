@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Availability;
 using Cratis.Arc.Availability.Audiences;
+using Cratis.Arc.Availability.Suspensions;
 using Cratis.Arc.Contexts;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -36,6 +37,7 @@ public static class ArcAvailabilityServiceCollectionExtensions
         // and the configured instance is the one that must be resolved.
         services.Replace(ServiceDescriptor.Singleton(options));
         services.TryAddSingleton<IAudienceSource, InMemoryAudienceSource>();
+        services.TryAddSingleton<ISuspensionSource, InMemorySuspensionSource>();
         services.TryAddSingleton<IDeclaredAudiences>(_ => new DeclaredAudiences(TypedAvailability.Audiences(_.GetService<ITypes>())));
         services.TryAddSingleton(TypedAvailability.CreateCatalog);
         services.TryAddSingleton(TypedAvailability.CreateContextValues);
@@ -68,6 +70,7 @@ public static class ArcAvailabilityServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton(options));
         services.Replace(ServiceDescriptor.Scoped<AvailabilityRequestContext, AvailabilityRequestContext>());
         services.TryAddSingleton<IAvailabilityGate, ArcAvailabilityGate>();
+        services.TryAddSingleton<DiscoveredParts>();
         services.TryAddScoped<IAvailabilitySubjectProvider, AvailabilitySubjectProvider>();
         services.TryAddScoped<IContextValueSource, AvailabilityContextValueSource>();
         services.TryAddScoped<IUnavailableParts, UnavailableParts>();

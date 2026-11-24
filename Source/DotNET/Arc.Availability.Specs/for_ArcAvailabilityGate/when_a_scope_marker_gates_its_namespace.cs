@@ -21,5 +21,5 @@ public class when_a_scope_marker_gates_its_namespace : given.a_typed_availabilit
 
     [Fact] void should_close_a_part_in_the_namespace_for_a_caller_without_the_audience() => _closed.Verdict.ShouldEqual(AvailabilityVerdict.Unavailable);
     [Fact] void should_open_it_once_the_audience_is_held() => _open.Verdict.ShouldEqual(AvailabilityVerdict.Available);
-    [Fact] void should_not_gate_a_part_outside_the_namespace() => _gate.IsGated(typeof(given.TypedDeclarations.Foundation)).ShouldBeFalse();
+    [Fact] void should_not_gate_a_part_outside_the_namespace() => _gate.GatedParts.ShouldNotContain(typeof(given.TypedDeclarations.Foundation));
 }

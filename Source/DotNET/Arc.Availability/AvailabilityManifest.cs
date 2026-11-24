@@ -21,6 +21,12 @@ public record AvailabilityManifest(
     IReadOnlyList<PersonaEntry> Personas)
 {
     /// <summary>
+    /// Gets the modules, features, slices and parts discovered in the application, so an operator can pick one to suspend.
+    /// Nothing has to be declared for a part to be listed.
+    /// </summary>
+    public IReadOnlyList<Suspensions.PartEntry> Parts { get; init; } = [];
+
+    /// <summary>
     /// Gets a manifest that declares nothing.
     /// </summary>
     public static AvailabilityManifest Empty { get; } = new(string.Empty, [], [], [], [], []);

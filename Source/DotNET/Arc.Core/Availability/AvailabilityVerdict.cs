@@ -21,5 +21,10 @@ public enum AvailabilityVerdict
     /// <summary>
     /// The part is available.
     /// </summary>
-    Available = 2
+    Available = 2,
+
+    /// <summary>
+    /// The part, or a module or feature that contains it, is suspended. A suspension is decided before gates and wins over grants.
+    /// </summary>
+    Suspended = 3
 }

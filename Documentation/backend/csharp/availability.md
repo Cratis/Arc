@@ -59,6 +59,7 @@ A command or query in a part that is not available is refused before `authorize`
 | --- | --- |
 | Available | The request continues to authorization and validation. |
 | Unavailable or unknown | `IsAuthorized` is `false`, `AuthorizationFailureReason` is `NotAvailable` (`AvailabilityReason.NotAvailable`), HTTP status `403`. |
+| Suspended | `IsAuthorized` is `false`, `AuthorizationFailureReason` is `Suspended` (`AvailabilityReason.Suspended`), HTTP status `403`. See [suspending parts](availability-engine/suspending-parts.md). |
 | The decision could not be made | A retryable error: `IsRetryable` is `true`, `IsAuthorized` stays `true`, HTTP status `503`. |
 
 An unavailable and an unknown decision are reported identically, so a client is told no more than that the part is not available. Which gate part closed the decision is logged on the server and never sent.
@@ -103,12 +104,12 @@ The `/.cratis/availability` observable query reports what is not available to th
 ```json
 {
   "unavailable": [
-    { "name": "Fleet.DataQuality.QualityScores", "module": "Fleet", "feature": "DataQuality", "slice": "QualityScores" }
+    { "name": "Fleet.DataQuality.QualityScores", "module": "Fleet", "feature": "DataQuality", "slice": "QualityScores", "reason": "NotAvailable" }
   ]
 }
 ```
 
-Everything not listed is available. A part is named by the full name of its command or read model type and carries the slice it belongs to, which is the same slice location the generated proxies carry. A decision that cannot be made is a retryable error for the query, never a list: clients keep what they last knew.
+The `reason` is `NotAvailable`, or `Suspended` for a part an operator suspended. Everything not listed is available. A part is named by the full name of its command or read model type and carries the slice it belongs to, which is the same slice location the generated proxies carry. A decision that cannot be made is a retryable error for the query, never a list: clients keep what they last knew.
 
 Audience changes reach open sessions because the gate subscribes to the `IAudienceSource`. Each change makes the session decide again from current state, not from what was resolved when it started.
 
