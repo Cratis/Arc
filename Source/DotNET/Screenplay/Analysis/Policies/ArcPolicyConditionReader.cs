@@ -41,10 +41,10 @@ internal sealed class ArcPolicyConditionReader(IReadOnlyList<Compilation> compil
             return (null, "its implementation is not in the analyzed source");
         }
 
-        return ReadMethod(syntax, model);
+        return ReadMethod(syntax, model, registration.EvaluatesAnonymous);
     }
 
-    static (PolicyRequirementModel? Requirement, string? Reason) ReadMethod(MethodDeclarationSyntax syntax, SemanticModel model)
+    static (PolicyRequirementModel? Requirement, string? Reason) ReadMethod(MethodDeclarationSyntax syntax, SemanticModel model, bool evaluatesAnonymous)
     {
         if (model.GetDeclaredSymbol(syntax) is not { IsAsync: false, Parameters.Length: 2 } method)
         {
@@ -54,7 +54,17 @@ internal sealed class ArcPolicyConditionReader(IReadOnlyList<Compilation> compil
         var returned = ReturnedValue(syntax, method.Parameters[1], model);
         var expression = BooleanResult(returned, model);
 
-        return expression is null ? (null, SynchronousExpression) : Condition(expression, method.Parameters[0], model);
+        if (expression is null)
+        {
+            return (null, SynchronousExpression);
+        }
+
+        if (evaluatesAnonymous && Unwrap(expression).IsKind(SyntaxKind.TrueLiteralExpression))
+        {
+            return (AnonymousRequirement.Instance, null);
+        }
+
+        return Condition(expression, method.Parameters[0], model);
     }
 
     static ExpressionSyntax? ReturnedValue(MethodDeclarationSyntax syntax, IParameterSymbol cancellation, SemanticModel model)

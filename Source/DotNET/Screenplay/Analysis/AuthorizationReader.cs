@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -33,7 +34,16 @@ public static class AuthorizationReader
     /// <param name="symbol">The artifact to read.</param>
     /// <param name="declaring">The type declaring it, when the artifact is a member.</param>
     /// <returns>The <see cref="AuthorizationModel"/>, or <see langword="null"/> when nothing is required.</returns>
-    public static AuthorizationModel? Read(ISymbol symbol, ISymbol? declaring = null)
+    public static AuthorizationModel? Read(ISymbol symbol, ISymbol? declaring = null) => Read(symbol, declaring, null);
+
+    /// <summary>
+    /// Reads caller requirements with the whole-application proof of anonymous named policies.
+    /// </summary>
+    /// <param name="symbol">The artifact to read.</param>
+    /// <param name="declaring">The type declaring it, when the artifact is a member.</param>
+    /// <param name="anonymous">The anonymous-policy proof, or <see langword="null"/> to retain authentication.</param>
+    /// <returns>The <see cref="AuthorizationModel"/>, or <see langword="null"/> when nothing is required.</returns>
+    internal static AuthorizationModel? Read(ISymbol symbol, ISymbol? declaring, AnonymousPolicyClassification? anonymous)
     {
         if (symbol.HasAttribute(WellKnownTypeNames.AllowAnonymousAttribute))
         {
@@ -62,7 +72,27 @@ public static class AuthorizationReader
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        return new(true, roles) { Policies = policies };
+        var admitsAnonymous = anonymous?.Allows(attributes) == true &&
+            !InheritsAuthorization(symbol) && !InheritsAuthorization(declaring);
+        return new(!admitsAnonymous, roles) { Policies = policies };
+    }
+
+    static bool InheritsAuthorization(ISymbol? symbol)
+    {
+        if (symbol is IMethodSymbol { OverriddenMethod: not null })
+        {
+            return true;
+        }
+
+        for (var type = (symbol as INamedTypeSymbol)?.BaseType; type is not null; type = type.BaseType)
+        {
+            if (Attributes(type).Any())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -76,14 +76,15 @@ public class EmbeddedDocumentGenerator(
         model = new ExecutableValidationRules(diagnostics).Apply(model);
         var scopes = DocumentScopes.Of(model, resolved);
 
-        // Emitting a scope and reading it back touches nothing shared - each emission reports to its own
-        // diagnostics - so the scopes are produced side by side. The order the results are reported in is the
-        // order of the scopes, so a build log reads the same however many cores produced it.
-        var produced = scopes
-            .AsParallel()
-            .AsOrdered()
-            .Select(scope => Produce(model, scope, scopes, resolved, verify))
-            .ToList();
+        // Admit the assembly before starting children so a refused assembly cannot leave arranged or verified
+        // fragments behind. Reuse its result; independent child scopes still run side by side in scope order.
+        var refusals = reported.Where(IsAnonymousRefusal).ToArray();
+        var root = Produce(model, scopes[0], scopes, resolved, verify, refusals);
+        var produced = root.EmissionDiagnostics.Any(IsAnonymousRefusal)
+            ? scopes.Select(scope => new ProducedDocument(scope, string.Empty, root.EmissionDiagnostics, null)).ToList()
+            : scopes.Skip(1).AsParallel().AsOrdered()
+                .Select(scope => Produce(model, scope, scopes, resolved, verify, refusals))
+                .AsSequential().Prepend(root).ToList();
 
         var documents = new List<GeneratedDocument>();
         foreach (var document in produced)
@@ -100,6 +101,11 @@ public class EmbeddedDocumentGenerator(
 
         return new(documents, [.. diagnostics.All.Distinct()]);
     }
+
+    static bool IsAnonymousRefusal(ScreenplayDiagnostic diagnostic) =>
+        diagnostic.Severity == ScreenplayDiagnosticSeverity.Error &&
+        (diagnostic.Code == ScreenplayDiagnosticCodes.AnonymousAuthorizationNotRepresentable ||
+         diagnostic.Code == ScreenplayDiagnosticCodes.AmbiguousAnonymousPolicyRegistration);
 
     /// <summary>
     /// Gets the options one scope of the model is emitted with.
@@ -176,17 +182,28 @@ public class EmbeddedDocumentGenerator(
     /// <param name="scopes">Every scope the application is split into.</param>
     /// <param name="options">The resolved options the documents are generated with.</param>
     /// <param name="verify">Whether the document is read back.</param>
+    /// <param name="refusals">Explicit refusal errors already reported during analysis.</param>
     /// <returns>The <see cref="ProducedDocument"/>.</returns>
     ProducedDocument Produce(
         ApplicationModel model,
         DocumentScope scope,
         IReadOnlyList<DocumentScope> scopes,
         EmbeddedDocumentOptions options,
-        bool verify)
+        bool verify,
+        ScreenplayDiagnostic[] refusals)
     {
         var documentOptions = ScreenplayOptionsFor(scope, options);
         var emission = emitter.Emit(ScopedApplicationModel.For(model, scope, documentOptions), documentOptions);
         var emissionDiagnostics = emission.Diagnostics;
+        if (refusals.Length > 0)
+        {
+            emissionDiagnostics = [.. emissionDiagnostics.Concat(refusals).Distinct()];
+        }
+
+        if (emissionDiagnostics.Any(IsAnonymousRefusal))
+        {
+            return new(scope, string.Empty, emissionDiagnostics, null);
+        }
 
         if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
         {

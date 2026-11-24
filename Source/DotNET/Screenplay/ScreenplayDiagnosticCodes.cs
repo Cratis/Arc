@@ -665,4 +665,21 @@ public static class ScreenplayDiagnosticCodes
     /// which is composed at run time, so the model declares the name and says where the rules are.
     /// </remarks>
     public const string AvailabilityDefinitionNotRecovered = "SP0081";
+
+    /// <summary>
+    /// A recovered anonymous policy is used in an authorization that cannot be represented faithfully.
+    /// </summary>
+    /// <remarks>
+    /// An error. No executable document is emitted, and generation does not verify an empty refusal.
+    /// Ordinary unrecovered policies retain their existing fallback diagnostics.
+    /// </remarks>
+    public const string AnonymousAuthorizationNotRepresentable = "SP0082";
+
+    /// <summary>
+    /// Anonymous policy registration or normalized declaration names are ambiguous.
+    /// </summary>
+    /// <remarks>
+    /// An error. The original recovered requirements are retained for inspection, but no executable document is emitted.
+    /// </remarks>
+    public const string AmbiguousAnonymousPolicyRegistration = "SP0083";
 }

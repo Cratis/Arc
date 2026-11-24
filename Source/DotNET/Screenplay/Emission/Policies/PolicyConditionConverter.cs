@@ -36,6 +36,7 @@ public class PolicyConditionConverter(IScreenplayNaming naming)
     PolicyConditionSyntax? Read(PolicyRequirementModel? requirement) => requirement switch
     {
         AuthenticatedRequirement => new AuthenticatedConditionSyntax(SourceLocation.Start),
+        AnonymousRequirement => new AnonymousConditionSyntax(SourceLocation.Start),
         RoleRequirement role => Role(role.Role),
         ClaimRequirement claim => Claim(claim),
         ClaimTargetRequirement target => ClaimTarget(target),

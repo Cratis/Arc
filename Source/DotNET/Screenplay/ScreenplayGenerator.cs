@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Emission;
+using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Verification;
 using Cratis.Screenplay.Generation.DotNet;
 using Microsoft.CodeAnalysis;
@@ -58,6 +59,12 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var resolved = options.WithDefaults(AnalyzedCompilations.NameOf(ordered));
         var analysis = analyzer.Analyze(ordered, resolved);
         var candidate = emitter.Emit(analysis.Model, resolved);
+        var reported = analysis.Diagnostics.Concat(candidate.Diagnostics);
+        if (reported.Any(AnonymousPolicyAdmission.IsRefusal))
+        {
+            return new(string.Empty, analysis.Model, AnonymousPolicyAdmission.DistinctRefusals(reported));
+        }
+
         var admitted = new ProtectedReadAdmission(emitter, _verifier).Admit(analysis.Model, resolved, candidate);
         var productions = new UnboundProductionAdmission(emitter, _verifier).Admit(admitted.Model ?? analysis.Model, resolved, admitted.Emission);
         var emission = productions.Emission;
