@@ -25,6 +25,9 @@ public record ApplicationModel(
     /// </summary>
     public static readonly ApplicationModel Empty = new(string.Empty, string.Empty, [], [], [], []);
 
+    /// <summary>Gets the recovered Chronicle graph declarations and canonical projections.</summary>
+    public IReadOnlyList<Graphs.GraphModel> Graphs { get; init; } = [];
+
     /// <summary>
     /// Gets the fully qualified name of every event the application refers to that something it references declares.
     /// </summary>
