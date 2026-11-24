@@ -73,9 +73,16 @@ public static class AuthorizationReader
             .ToList();
 
         var admitsAnonymous = anonymous?.Allows(attributes) == true &&
+            !HasAdditionalGate(symbol) && !HasAdditionalGate(declaring) &&
             !InheritsAuthorization(symbol) && !InheritsAuthorization(declaring);
         return new(!admitsAnonymous, roles) { Policies = policies };
     }
+
+    static bool HasAdditionalGate(ISymbol? symbol) =>
+        symbol?.GetAttributes().Any(attribute =>
+            attribute.AttributeClass.Is("Microsoft.AspNetCore.Authorization.AuthorizeAttribute") ||
+            attribute.AttributeClass.FindBase("Microsoft.AspNetCore.Authorization.AuthorizeAttribute") is not null ||
+            attribute.AttributeClass.Is("Cratis.Arc.Authorization.RequiresScopeAttribute")) == true;
 
     static bool InheritsAuthorization(ISymbol? symbol)
     {
@@ -86,7 +93,7 @@ public static class AuthorizationReader
 
         for (var type = (symbol as INamedTypeSymbol)?.BaseType; type is not null; type = type.BaseType)
         {
-            if (Attributes(type).Any())
+            if (Attributes(type).Any() || HasAdditionalGate(type))
             {
                 return true;
             }

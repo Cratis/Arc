@@ -77,19 +77,131 @@ public class from_refused_anonymous_policy_use : Specification
         generation.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotCompile).ShouldBeEmpty();
     }
 
-    static CSharpCompilation Compile(bool protectedQuery, bool ambiguous)
+    [Theory]
+    [InlineData("Authenticated")]
+    [InlineData("authenticated")]
+    [InlineData(" Authenticated ")]
+    public void should_refuse_a_real_anonymous_declaration_reserved_for_implicit_authentication(string name)
+    {
+        var compilation = Compile(ReservedAuthenticationSource(name, anonymous: true));
+        var analysis = new ApplicationModelAnalyzer().Analyze(compilation, new());
+        var declaration = analysis.Model.Policies.Single(policy => policy.Name == name.Trim());
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+        var command = analysis.Model.Slices.SelectMany(slice => slice.Commands).Single(operation => operation.Name == "ExecuteProtected");
+        var query = analysis.Model.Slices.SelectMany(slice => slice.Queries).Single(operation => operation.Name == "ListProtected");
+        command.Authorization!.RequiresAuthentication.ShouldBeTrue();
+        command.Authorization!.Policies.ShouldBeEmpty();
+        query.Authorization!.RequiresAuthentication.ShouldBeTrue();
+        query.Authorization!.Policies.ShouldBeEmpty();
+        var verifier = new recording_verifier();
+        var generation = new EmbeddedDocumentGenerator(new ApplicationModelAnalyzer(), new ScreenplayEmitter(), verifier)
+            .Generate(analysis.Model, new("Library", "Library"), analysis.Diagnostics);
+        AssertRefused(generation, verifier, Ambiguous);
+        declaration.Name.ShouldEqual(name.Trim());
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+    }
+
+    [Theory]
+    [InlineData("Authenticated")]
+    [InlineData("authenticated")]
+    [InlineData(" Authenticated ")]
+    public void should_keep_non_anonymous_implicit_authentication_documents_supported(string name)
+    {
+        var verifier = new recording_verifier();
+        var generation = new EmbeddedDocumentGenerator(new ApplicationModelAnalyzer(), new ScreenplayEmitter(), verifier)
+            .Generate(Compile(ReservedAuthenticationSource(name, anonymous: false)), new("Library", "Library"));
+        Assert.True(generation.IsSuccess, string.Join(Environment.NewLine, generation.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message} ({diagnostic.Location})")));
+        verifier.BoundSources.Count.ShouldEqual(1);
+        verifier.SyntaxSources.ShouldNotBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("[Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\")]", "command")]
+    [InlineData("[Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\")]", "query")]
+    [InlineData("[Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\")]", "query-type")]
+    [InlineData("[Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\")]", "command-base")]
+    [InlineData("[Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\")]", "query-base")]
+    [InlineData("[Cratis.Arc.Authorization.RequiresScope(\"catalog:read\")]", "command")]
+    [InlineData("[Cratis.Arc.Authorization.RequiresScope(\"catalog:read\")]", "query")]
+    [InlineData("[Cratis.Arc.Authorization.RequiresScope(\"catalog:read\")]", "query-type")]
+    [InlineData("[Cratis.Arc.Authorization.RequiresScope(\"catalog:read\")]", "command-base")]
+    [InlineData("[Cratis.Arc.Authorization.RequiresScope(\"catalog:read\")]", "query-base")]
+    public void should_conservatively_refuse_additional_authorization_declarations_without_verifying_anonymous_fragments(string gate, string placement)
+    {
+        var compilation = Compile(AdditionalGateSource(gate, placement));
+        compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Authorization.AuthorizeAttribute")!.ContainingAssembly.Name.ShouldEqual("Microsoft.AspNetCore.Authorization");
+        var analysis = new ApplicationModelAnalyzer().Analyze(compilation, new());
+        var declaration = analysis.Model.Policies.Single(policy => policy.Name == "Anyone");
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+        analysis.Model.Slices.SelectMany(slice => slice.Commands).Single().Authorization!.Policies.ShouldContainOnly(["Anyone"]);
+        analysis.Model.Slices.SelectMany(slice => slice.Queries).Single().Authorization!.Policies.ShouldContainOnly(["Anyone"]);
+        var verifier = new recording_verifier();
+        var generation = new EmbeddedDocumentGenerator(new ApplicationModelAnalyzer(), new ScreenplayEmitter(), verifier)
+            .Generate(analysis.Model, new("Library", "Library"), analysis.Diagnostics);
+        AssertRefused(generation, verifier, Unrepresentable);
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+    }
+
+    static CSharpCompilation Compile(bool protectedQuery, bool ambiguous) => Compile(Source(protectedQuery, ambiguous));
+
+    static CSharpCompilation Compile(string source)
     {
         var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Select(path => MetadataReference.CreateFromFile(path));
         var compilation = CSharpCompilation.Create(
             "Library",
-            [CSharpSyntaxTree.ParseText(Source(protectedQuery, ambiguous), path: "Library/Operations.cs"), CSharpSyntaxTree.ParseText("namespace Library;", path: "Library/Program.cs")],
+            [CSharpSyntaxTree.ParseText(source, path: "Library/Operations.cs"), CSharpSyntaxTree.ParseText("namespace Library;", path: "Library/Program.cs")],
             references,
             new(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         var errors = compilation.GetDiagnostics().Where(diagnostic => diagnostic.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error).ToArray();
         Assert.True(errors.Length == 0, string.Join(Environment.NewLine, errors.Select(error => error.ToString())));
         return compilation;
+    }
+
+    static string AdditionalGateSource(string gate, string placement)
+    {
+        var source = Source(protectedQuery: false, ambiguous: false);
+        return placement switch
+        {
+            "command" => source.Replace("[Command, Authorize(Policy = \"Anyone\")]", $"[Command, Authorize(Policy = \"Anyone\")]\n    {gate}", StringComparison.Ordinal),
+            "query" => source.Replace("[Authorize(Policy = \"Anyone\")]", $"[Authorize(Policy = \"Anyone\")]\n        {gate}", StringComparison.Ordinal),
+            "query-type" => source.Replace("[ReadModel]", $"[ReadModel]\n    {gate}", StringComparison.Ordinal),
+            "command-base" => source.Replace("[Command, Authorize(Policy = \"Anyone\")]", $"{gate}\n    public record CommandGateBase;\n    [Command, Authorize(Policy = \"Anyone\")]", StringComparison.Ordinal)
+                .Replace("public record RegisterInterest(string InterestId)", "public record RegisterInterest(string InterestId) : CommandGateBase", StringComparison.Ordinal),
+            "query-base" => source.Replace("[ReadModel]", $"{gate}\n    public record ReadGateBase;\n    [ReadModel]", StringComparison.Ordinal)
+                .Replace("public record Interest(string InterestId)", "public record Interest(string InterestId) : ReadGateBase", StringComparison.Ordinal),
+            _ => throw new ArgumentOutOfRangeException(nameof(placement), placement, "Unknown spec gate placement")
+        };
+    }
+
+    static string ReservedAuthenticationSource(string name, bool anonymous)
+    {
+        var source = Source(protectedQuery: false, ambiguous: false).Replace("\"Anyone\"", $"\"{name}\"", StringComparison.Ordinal);
+        if (!anonymous)
+        {
+            source = source.Replace("AddArcAuthorizationPolicy<AnyonePolicy>", "AddArcAuthorizationPolicy<ProtectedPolicy>", StringComparison.Ordinal);
+        }
+
+        return source + string.Join(
+            '\n',
+            [
+                "",
+                "namespace Library.Catalog.ProtectedOperations",
+                "{",
+                "    [Command, Authorize]",
+                "    public record ExecuteProtected(string Id)",
+                "    {",
+                "        public void Handle() { }",
+                "    }",
+                "    [ReadModel]",
+                "    public record ProtectedInterest(string ProtectedInterestId)",
+                "    {",
+                "        [Authorize]",
+                "        public static IEnumerable<ProtectedInterest> ListProtected() => [];",
+                "    }",
+                "}"
+            ]);
     }
 
     static string Source(bool protectedQuery, bool ambiguous) => string.Join(

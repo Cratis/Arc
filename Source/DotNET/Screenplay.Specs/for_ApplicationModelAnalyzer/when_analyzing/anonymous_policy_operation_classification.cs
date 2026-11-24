@@ -2,8 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
+using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 using Cratis.Arc.Screenplay.Model;
+using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
@@ -177,6 +179,64 @@ public class anonymous_policy_operation_classification : Specification
         var compilation = Analyzed.Compile(AnonymousPolicySources.All());
         var command = compilation.GetTypeByMetadataName("Library.Catalog.Browsing.RegisterInterest")!;
         AuthorizationReader.Read(command)!.RequiresAuthentication.ShouldBeTrue();
+    }
+
+    public static TheoryData<string, string> AdditionalRuntimeGates() => AnonymousPolicySources.AdditionalGateCases();
+
+    [Theory]
+    [MemberData(nameof(AdditionalRuntimeGates))]
+    public void should_conservatively_veto_anonymous_proof_for_additional_member_type_or_inherited_gates(string gate, string placement)
+    {
+        // Microsoft method declarations may replace type declarations at runtime; type/base rows test conservative recovery, not runtime parity.
+        var compilation = AnonymousPolicySources.SecurityCompilation(gate, placement);
+        var analysis = new ApplicationModelAnalyzer().Analyze(compilation, new ScreenplayOptions().WithDefaults(Analyzed.AssemblyName));
+        var command = analysis.Model.Slices.SelectMany(slice => slice.Commands).Single();
+        var query = analysis.Model.Slices.SelectMany(slice => slice.Queries).Single();
+        command.Name.ShouldEqual("RegisterInterest");
+        query.Name.ShouldEqual("AllInterests");
+        var commandAuthorization = command.Authorization!;
+        var queryAuthorization = query.Authorization!;
+        commandAuthorization.Policies.ShouldContainOnly(["Anyone"]);
+        queryAuthorization.Policies.ShouldContainOnly(["Anyone"]);
+        commandAuthorization.Roles.ShouldBeEmpty();
+        queryAuthorization.Roles.ShouldBeEmpty();
+        analysis.Model.Policies.Single(policy => policy.Name == "Anyone").Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+        var affectsCommand = placement.StartsWith("command", StringComparison.Ordinal);
+        var affected = affectsCommand ? commandAuthorization : queryAuthorization;
+        var publicControl = affectsCommand ? queryAuthorization : commandAuthorization;
+        publicControl.RequiresAuthentication.ShouldBeFalse();
+        affected.RequiresAuthentication.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(AnonymousPolicySources.MicrosoftAdmin, false)]
+    [InlineData(AnonymousPolicySources.MicrosoftAdmin, true)]
+    [InlineData(AnonymousPolicySources.MicrosoftBare, false)]
+    [InlineData(AnonymousPolicySources.MicrosoftBare, true)]
+    [InlineData(AnonymousPolicySources.MicrosoftPolicy, false)]
+    [InlineData(AnonymousPolicySources.MicrosoftPolicy, true)]
+    [InlineData(AnonymousPolicySources.MicrosoftNamedPolicy, false)]
+    [InlineData(AnonymousPolicySources.MicrosoftNamedPolicy, true)]
+    [InlineData(AnonymousPolicySources.MicrosoftSchemes, false)]
+    [InlineData(AnonymousPolicySources.MicrosoftSchemes, true)]
+    [InlineData(AnonymousPolicySources.DerivedAdmin, false)]
+    [InlineData(AnonymousPolicySources.DerivedAdmin, true)]
+    [InlineData(AnonymousPolicySources.IndirectAdmin, false)]
+    [InlineData(AnonymousPolicySources.IndirectAdmin, true)]
+    [InlineData(AnonymousPolicySources.RequiredScope, false)]
+    [InlineData(AnonymousPolicySources.RequiredScope, true)]
+    public void should_retain_the_existing_conservative_veto_for_a_legal_overridden_query_symbol(string gate, bool declaringType)
+    {
+        var compilation = AnonymousPolicySources.OverrideCompilation(gate, declaringType);
+        var declaring = compilation.GetTypeByMetadataName("Library.Catalog.Browsing.OverrideQueries")!;
+        var method = declaring.GetMembers("AllInterests").OfType<IMethodSymbol>().Single();
+        method.IsStatic.ShouldBeFalse();
+        method.OverriddenMethod.ShouldNotBeNull();
+        var authorization = AuthorizationReader.Read(method, declaring, new AnonymousPolicyClassification([compilation]));
+        authorization.ShouldNotBeNull();
+        authorization!.Policies.ShouldContainOnly(["Anyone"]);
+        authorization.Roles.ShouldBeEmpty();
+        authorization.RequiresAuthentication.ShouldBeTrue();
     }
 
     static ApplicationModelAnalysis AnalyzeBody(string body, string methodModifier = "")

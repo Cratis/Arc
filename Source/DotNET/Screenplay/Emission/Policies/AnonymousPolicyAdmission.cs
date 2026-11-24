@@ -94,16 +94,20 @@ internal static class AnonymousPolicyAdmission
 
     static void CheckNames(IGrouping<string, PolicyModel> declarations, string location, List<ScreenplayDiagnostic> diagnostics)
     {
-        if (declarations.Key.Length > 0 && declarations.Count() == 1)
+        var reserved = string.Equals(declarations.Key, AuthorizeSyntaxBuilder.AuthenticatedPolicy, StringComparison.OrdinalIgnoreCase);
+        if (!reserved && declarations.Key.Length > 0 && declarations.Count() == 1)
         {
             return;
         }
 
         var names = string.Join(", ", declarations.Select(policy => $"'{policy.Name}'"));
+        var reason = reserved
+            ? $"normalize to the reserved implicit authentication policy '{AuthorizeSyntaxBuilder.AuthenticatedPolicy}'"
+            : "do not have distinct, representable policy names";
         diagnostics.Add(new(
             ScreenplayDiagnosticSeverity.Error,
             ScreenplayDiagnosticCodes.AmbiguousAnonymousPolicyRegistration,
-            $"The anonymous policy declarations {names} do not have distinct, representable policy names. No executable document was emitted",
+            $"The anonymous policy declarations {names} {reason}. No executable document was emitted",
             location));
     }
 

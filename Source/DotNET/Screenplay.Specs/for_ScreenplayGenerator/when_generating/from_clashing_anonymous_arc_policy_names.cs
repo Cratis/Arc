@@ -2,11 +2,46 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
+using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_clashing_anonymous_arc_policy_names : Specification
 {
+    [Theory]
+    [InlineData("Authenticated")]
+    [InlineData("authenticated")]
+    [InlineData(" Authenticated ")]
+    public void should_refuse_an_anonymous_declaration_that_would_capture_implicit_authentication(string name)
+    {
+        var result = AnonymousPolicySources.Generate(AnonymousPolicySources.ReservedAuthentication(name));
+        var declaration = result.Model.Policies.Single(policy => policy.Name == name.Trim());
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+        result.Model.Slices.SelectMany(slice => slice.Commands).Single(command => command.Name == "RegisterInterest").Authorization!.Policies.ShouldContainOnly([name.Trim()]);
+        var command = result.Model.Slices.SelectMany(slice => slice.Commands).Single(operation => operation.Name == "ExecuteProtected");
+        var query = result.Model.Slices.SelectMany(slice => slice.Queries).Single(operation => operation.Name == "ListProtected");
+        command.Authorization!.RequiresAuthentication.ShouldBeTrue();
+        command.Authorization!.Policies.ShouldBeEmpty();
+        query.Authorization!.RequiresAuthentication.ShouldBeTrue();
+        query.Authorization!.Policies.ShouldBeEmpty();
+        AnonymousPolicySources.AssertRefused(result, AnonymousPolicySources.Ambiguous);
+        declaration.Name.ShouldEqual(name.Trim());
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+    }
+
+    [Theory]
+    [InlineData("Authenticated")]
+    [InlineData("authenticated")]
+    [InlineData(" Authenticated ")]
+    public void should_keep_a_non_anonymous_authenticated_declaration_and_implicit_protected_controls(string name)
+    {
+        var result = AnonymousPolicySources.Generate(AnonymousPolicySources.ReservedAuthentication(name, anonymous: false));
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message} ({diagnostic.Location})")));
+        result.Verification!.Compiles.ShouldBeTrue();
+        result.Source.ShouldContain("require authenticated");
+        result.Model.Policies.Single(policy => policy.Name == name.Trim()).Requirement.ShouldBeOfExactType<AuthenticatedRequirement>();
+    }
+
     [Theory]
     [InlineData("Anyone", true)]
     [InlineData("anyone", true)]

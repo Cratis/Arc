@@ -13,6 +13,54 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayEmitter.when_emitting;
 public class anonymous_policy_use : Specification
 {
     [Theory]
+    [InlineData("Authenticated", false)]
+    [InlineData("authenticated", false)]
+    [InlineData(" Authenticated ", false)]
+    [InlineData("Authenticated", true)]
+    [InlineData("authenticated", true)]
+    [InlineData(" Authenticated ", true)]
+    public void should_refuse_an_anonymous_declaration_that_captures_an_unrelated_implicit_authentication_gate(string name, bool query)
+    {
+        var declaration = new PolicyModel(name, AnonymousRequirement.Instance);
+        var model = Model(query, new(true, [])) with { Policies = [declaration] };
+        var emission = new ScreenplayEmitter().Emit(model, new());
+        AnonymousPolicySources.AssertRefused(emission, AnonymousPolicySources.Ambiguous);
+        Assert.Same(declaration, model.Policies.Single());
+        declaration.Name.ShouldEqual(name);
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+    }
+
+    [Theory]
+    [InlineData("Authenticated")]
+    [InlineData("authenticated")]
+    [InlineData(" Authenticated ")]
+    public void should_reserve_the_implicit_authentication_name_even_for_an_unused_anonymous_declaration(string name)
+    {
+        var declaration = new PolicyModel(name, AnonymousRequirement.Instance);
+        var model = Model(false, new(false, [])) with { Slices = [], Policies = [declaration] };
+        AnonymousPolicySources.AssertRefused(new ScreenplayEmitter().Emit(model, new()), AnonymousPolicySources.Ambiguous);
+        Assert.Same(declaration, model.Policies.Single());
+        declaration.Name.ShouldEqual(name);
+        declaration.Requirement.ShouldBeOfExactType<AnonymousRequirement>();
+    }
+
+    [Theory]
+    [InlineData("Authenticated", false)]
+    [InlineData("authenticated", false)]
+    [InlineData(" Authenticated ", false)]
+    [InlineData("Authenticated", true)]
+    [InlineData("authenticated", true)]
+    [InlineData(" Authenticated ", true)]
+    public void should_allow_non_anonymous_declarations_to_supply_the_implicit_authentication_requirement(string name, bool query)
+    {
+        var model = Model(query, new(true, [])) with { Policies = [new(name, AuthenticatedRequirement.Instance)] };
+        var emission = new ScreenplayEmitter().Emit(model, new());
+        emission.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Error).ShouldBeEmpty();
+        emission.Source.ShouldContain("require authenticated");
+        new ScreenplayVerifier().Verify(emission.Source).Compiles.ShouldBeTrue();
+    }
+
+    [Theory]
     [InlineData(false, true, "", "Anyone")]
     [InlineData(true, true, "", "Anyone")]
     [InlineData(false, false, "Staff", "Anyone")]

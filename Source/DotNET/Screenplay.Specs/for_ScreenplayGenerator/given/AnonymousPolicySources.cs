@@ -11,6 +11,7 @@ using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Semantics.Execution;
 using Cratis.Screenplay.Syntax;
 using Cratis.Screenplay.Syntax.Specifications;
+using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 
@@ -21,6 +22,33 @@ internal static class AnonymousPolicySources
     internal const string Authorization = "[Authorize(Policy = \"Anyone\")]";
     internal const string Registration = "services.AddArcAuthorizationPolicy<AnyonePolicy>(\"Anyone\", evaluatesAnonymous: true);";
     internal const string Body = "=> ValueTask.FromResult(true);";
+    internal const string MicrosoftAdmin = "[Microsoft.AspNetCore.Authorization.Authorize(Roles = \"Admin\")]";
+    internal const string MicrosoftBare = "[Microsoft.AspNetCore.Authorization.Authorize]";
+    internal const string MicrosoftPolicy = "[Microsoft.AspNetCore.Authorization.Authorize(\"AdminPolicy\")]";
+    internal const string MicrosoftNamedPolicy = "[Microsoft.AspNetCore.Authorization.Authorize(Policy = \"AdminPolicy\")]";
+    internal const string MicrosoftSchemes = "[Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = \"Bearer\")]";
+    internal const string DerivedAdmin = "[Library.AdminGate]";
+    internal const string IndirectAdmin = "[Library.IndirectAdminGate]";
+
+    /// <summary>
+    /// Scope ceilings narrow verified callers; their recovery refusal does not imply universal caller denial.
+    /// </summary>
+    internal const string RequiredScope = "[Cratis.Arc.Authorization.RequiresScope(\"catalog:read\")]";
+    internal const string BareProtectedOperations = """
+
+        [Command, Authorize]
+        public record ExecuteProtected(string Id)
+        {
+            public void Handle() { }
+        }
+
+        [ReadModel]
+        public record ProtectedInterest(string ProtectedInterestId)
+        {
+            [Authorize]
+            public static IEnumerable<ProtectedInterest> ListProtected() => [];
+        }
+        """;
     internal const string Controllers = """
         namespace Microsoft.AspNetCore.Mvc
         {
@@ -47,6 +75,116 @@ internal static class AnonymousPolicySources
 
                 [Microsoft.AspNetCore.Mvc.HttpGet]
                 public System.Collections.Generic.IEnumerable<Interest> AllInterests() => [];
+            }
+        }
+        """;
+
+    internal static TheoryData<string, string> AdditionalGateCases()
+    {
+        var cases = new TheoryData<string, string>();
+        foreach (var gate in new[] { MicrosoftAdmin, MicrosoftBare, MicrosoftPolicy, MicrosoftNamedPolicy, MicrosoftSchemes, DerivedAdmin, IndirectAdmin, RequiredScope })
+        {
+            foreach (var placement in new[] { "command", "query", "query-type", "command-base", "query-base" })
+            {
+                cases.Add(gate, placement);
+            }
+        }
+
+        return cases;
+    }
+
+    internal static Compilation SecurityCompilation(string gate, string placement)
+    {
+        var sources = Sources(Policies(), Composition(), SecurityOperations(gate, placement));
+        var compilation = Analyzed.Compile(sources);
+        if (compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Authorization.AuthorizeAttribute") is null)
+        {
+            var runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+            var shared = Directory.GetParent(runtime)!.Parent!.FullName;
+            var assembly = Path.Combine(shared, "Microsoft.AspNetCore.App", Path.GetFileName(runtime), "Microsoft.AspNetCore.Authorization.dll");
+            Assert.True(File.Exists(assembly), $"Real Microsoft authorization metadata is required: {assembly}");
+            compilation = Analyzed.Compile([MetadataReference.CreateFromFile(assembly)], sources);
+        }
+
+        Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
+        compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Authorization.AuthorizeAttribute")!.ContainingAssembly.Name.ShouldEqual("Microsoft.AspNetCore.Authorization");
+        return compilation;
+    }
+
+    internal static (string Path, string Text)[] ReservedAuthentication(string name, bool anonymous = true)
+    {
+        var type = anonymous ? "AnyonePolicy" : "ProtectedPolicy";
+        var registration = $"services.AddArcAuthorizationPolicy<{type}>(\"{name}\", evaluatesAnonymous: true);";
+        return Sources(Policies(), Composition(registration), Operations($"[Authorize(Policy = \"{name}\")]") + Environment.NewLine + BareProtectedOperations);
+    }
+
+    internal static Compilation OverrideCompilation(string gate, bool declaringType)
+    {
+        var compilation = SecurityCompilation(gate, "query").AddSyntaxTrees(
+            Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(
+                $$"""
+                namespace Library.Catalog.Browsing;
+
+                {{(declaringType ? gate : string.Empty)}}
+                public class BaseQueryAncestor
+                {
+                    {{(declaringType ? string.Empty : gate)}}
+                    public virtual System.Collections.Generic.IEnumerable<Interest> AllInterests() => [];
+                }
+
+                public class BaseQueries : BaseQueryAncestor;
+
+                public class OverrideQueries : BaseQueries
+                {
+                    [Cratis.Arc.Authorization.Authorize(Policy = "Anyone")]
+                    public override System.Collections.Generic.IEnumerable<Interest> AllInterests() => [];
+                }
+                """,
+                path: "Library/Catalog/Browsing/Overrides.cs"));
+        Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
+        return compilation;
+    }
+
+    static string SecurityOperations(string gate, string placement) => $$"""
+        using System.Collections.Generic;
+        using Cratis.Arc.Authorization;
+        using Cratis.Arc.Commands.ModelBound;
+        using Cratis.Arc.Queries.ModelBound;
+
+        namespace Library
+        {
+            public class AdminGateAttribute : Microsoft.AspNetCore.Authorization.AuthorizeAttribute
+            {
+                public AdminGateAttribute() { Roles = "Admin"; }
+            }
+
+            public sealed class IndirectAdminGateAttribute : AdminGateAttribute;
+        }
+
+        namespace Library.Catalog.Browsing
+        {
+            {{(placement == "command-base" ? gate : string.Empty)}}
+            public record CommandGateAncestor;
+            public record CommandGateBase : CommandGateAncestor;
+
+            {{(placement == "query-base" ? gate : string.Empty)}}
+            public record ReadGateAncestor;
+            public record ReadGateBase : ReadGateAncestor;
+
+            [Command, Authorize(Policy = "Anyone")]
+            {{(placement == "command" ? gate : string.Empty)}}
+            public record RegisterInterest(string Id) : CommandGateBase
+            {
+                public void Handle() { }
+            }
+
+            [ReadModel]
+            {{(placement == "query-type" ? gate : string.Empty)}}
+            public record Interest(string InterestId) : ReadGateBase
+            {
+                [Authorize(Policy = "Anyone")]
+                {{(placement == "query" ? gate : string.Empty)}}
+                public static IEnumerable<Interest> AllInterests() => [];
             }
         }
         """;
