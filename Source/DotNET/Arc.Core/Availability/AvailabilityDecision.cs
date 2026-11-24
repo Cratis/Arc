@@ -19,4 +19,9 @@ public record AvailabilityDecision(AvailabilityVerdict Verdict, IReadOnlyList<st
     /// Gets a value indicating whether the part is available. Only an available verdict opens a gate.
     /// </summary>
     public bool IsAvailable => Verdict == AvailabilityVerdict.Available;
+
+    /// <summary>
+    /// Gets the <see cref="AvailabilityReason"/> reported to the client for a decision that is not available.
+    /// </summary>
+    public string Reason => Verdict == AvailabilityVerdict.Suspended ? AvailabilityReason.Suspended : AvailabilityReason.NotAvailable;
 }

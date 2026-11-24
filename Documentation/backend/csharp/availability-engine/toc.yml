@@ -6,6 +6,8 @@
   href: typed-declarations.md
 - name: Audiences
   href: audiences.md
+- name: Suspending parts
+  href: suspending-parts.md
 - name: Request-scoped context values
   href: context-values.md
 - name: The availability manifest

@@ -43,7 +43,7 @@ public class AvailabilityFilter(IQueryPerformerProviders queryPerformerProviders
                 : await gate.Decide(performer.Type, services, context.CancellationToken);
             return decision.IsAvailable
                 ? QueryResult.Success(context.CorrelationId)
-                : QueryResult.Unauthorized(context.CorrelationId, AvailabilityReason.NotAvailable);
+                : QueryResult.Unauthorized(context.CorrelationId, decision.Reason);
         }
         catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
         {

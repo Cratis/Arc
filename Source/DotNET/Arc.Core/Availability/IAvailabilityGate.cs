@@ -19,7 +19,7 @@ public interface IAvailabilityGate
     IReadOnlyCollection<Type> GatedParts { get; }
 
     /// <summary>
-    /// Determines whether a part carries an availability gate.
+    /// Determines whether the part has to be decided: it carries an availability gate, or the gate can suspend any part.
     /// </summary>
     /// <param name="part">The command type, or the type declaring the query.</param>
     /// <returns>True when the part is gated.</returns>

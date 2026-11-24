@@ -4,6 +4,7 @@
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Availability.Audiences;
 using Cratis.Arc.Availability.Context;
+using Cratis.Arc.Availability.Suspensions;
 using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
@@ -23,9 +24,33 @@ public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceRe
     readonly ConditionalWeakTable<AvailabilityInvocation, AvailabilityRequestContext> _invocations = new();
     Task<EffectiveAudiences>? _audiences;
     AvailabilityInvocation? _invocation;
+    Task<SuspendedParts>? _suspended;
     AudienceSubject? _subject;
 
-    AudienceSubject Subject => _subject ??= subjectProvider.GetSubject();
+    /// <summary>
+    /// Gets the subject of the request.
+    /// </summary>
+    public AudienceSubject Subject => _subject ??= subjectProvider.GetSubject();
+
+    /// <summary>
+    /// Gets what is suspended for the subject of the request, resolved once per request.
+    /// </summary>
+    /// <param name="source">The <see cref="ISuspensionSource"/> to ask.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> for the operation.</param>
+    /// <returns>The <see cref="SuspendedParts"/>.</returns>
+    public Task<SuspendedParts> Suspended(ISuspensionSource source, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            // A cancelled first caller must not poison the resolution for the rest of the request.
+            if (_suspended is not { IsCanceled: false, IsFaulted: false })
+            {
+                _suspended = ResolveSuspended(source, Subject, cancellationToken);
+            }
+
+            return _suspended;
+        }
+    }
 
     /// <summary>
     /// Gets the resolver of context values for a scope. Values are resolved once per request.
@@ -60,6 +85,7 @@ public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceRe
         {
             _resolvers.Clear();
             _audiences = null;
+            _suspended = null;
         }
     }
 
@@ -68,6 +94,9 @@ public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceRe
     /// <returns>An execution context that does not share metadata or another invocation's resolved values.</returns>
     internal AvailabilityRequestContext ForInvocation(AvailabilityInvocation invocation) =>
         _invocations.GetValue(invocation, key => new(catalog, audienceResolver, subjectProvider) { _invocation = key });
+
+    static async Task<SuspendedParts> ResolveSuspended(ISuspensionSource source, AudienceSubject subject, CancellationToken cancellationToken) =>
+        SuspendedParts.From(await source.GetDecisions(subject, cancellationToken));
 
     Dictionary<string, object?> CreateAmbientValues()
     {
