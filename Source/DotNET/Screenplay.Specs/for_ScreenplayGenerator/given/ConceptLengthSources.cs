@@ -16,6 +16,7 @@ internal static class ConceptLengthSources
         public record {{concept.Name}}(string Value) : ConceptAs<string>(Value);
         public class {{concept.Name}}Validator : ConceptValidator<{{concept.Name}}>
         {
+            const int Minimum = 3;
             static readonly string other = "other";
             public {{concept.Name}}Validator() => RuleFor(_ => _.Value).Must(value => {{concept.Predicate}}).WithMessage("{{concept.Message}}");
         }
