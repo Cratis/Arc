@@ -39,7 +39,6 @@ static class MediaTypeUtilities
         mediaType switch
         {
             OpenApiMediaType concrete => concrete,
-            OpenApiMediaTypeReference reference when reference.CopyReferenceAsTargetElementWithOverrides(reference) is OpenApiMediaType copy => copy,
             _ => new OpenApiMediaType
             {
                 Schema = mediaType.Schema,
@@ -48,7 +47,8 @@ static class MediaTypeUtilities
                 Examples = mediaType.Examples,
                 Encoding = mediaType.Encoding,
                 ItemEncoding = mediaType.ItemEncoding,
-                PrefixEncoding = mediaType.PrefixEncoding
+                PrefixEncoding = mediaType.PrefixEncoding,
+                Extensions = mediaType.Extensions is null ? null : new Dictionary<string, IOpenApiExtension>(mediaType.Extensions)
             }
         };
 }
