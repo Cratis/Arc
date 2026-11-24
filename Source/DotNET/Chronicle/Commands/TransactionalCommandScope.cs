@@ -212,7 +212,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>The result, with conflicting reads reported as read changes.</returns>
     internal static AggregateRootCommitResult ReportReadChanges(IUnitOfWork unit, AggregateRootCommitResult result) =>
         !result.IsSuccess && ActiveFrame() is { Protection: not null, Owned: not null } frame && ReferenceEquals(frame.UnitOfWork, unit)
-            ? WithReadChanges(result, unit, new ReadChangeScope(frame.CommandType, Enforcing: true, frame.Services))
+            ? WithReadChanges(result, unit, new ReadChangeScope(frame.CommandType, Enforcing: true))
             : result;
 
     /// <summary>
@@ -453,7 +453,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
         if (!commitResult.IsSuccess)
         {
-            result.MergeWith(WithReadChanges(commitResult, unitOfWork, new ReadChangeScope(context.Type, frame.Protection is not null, context.ServiceProvider)).ToCommandResult(result.CorrelationId));
+            result.MergeWith(WithReadChanges(commitResult, unitOfWork, new ReadChangeScope(context.Type, frame.Protection is not null)).ToCommandResult(result.CorrelationId));
         }
 
         return commitResult.IsSuccess;
@@ -507,7 +507,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             ConstraintViolations = commitResult.ConstraintViolations,
             ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
             Errors = commitResult.Errors,
-            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ReadChanges.For(_, scope.CommandType, scope.Enforcing, scope.Services))).ToArray()
+            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ReadChanges.For(_, scope.CommandType, scope.Enforcing))).ToArray()
         };
     }
 
@@ -637,7 +637,6 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         var previous = controller is null ? active : null;
         return new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type, readProtected)
         {
-            Services = context.ServiceProvider,
             IsControllerAction = context.IsControllerAction,
             Controller = controller,
             OwnFlowOnly = InheritsOwnFlowOnly(context, controller, previous)
@@ -716,7 +715,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>The controller frame, or <see langword="null"/>.</returns>
     static TransactionFrame? ControllerFrameOf(TransactionFrame? active) => active?.IsControllerAction == true ? active : null;
 
-    readonly record struct ReadChangeScope(Type CommandType, bool Enforcing, IServiceProvider? Services);
+    readonly record struct ReadChangeScope(Type CommandType, bool Enforcing);
 
     sealed class FailedAppendObserver(TransactionFrame frame, CorrelationId commandCorrelation, List<AppendedEventWithResult> failedAppends, CommitObservation observation)
     {
@@ -757,7 +756,6 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         public TransactionFrame? Controller { get; init; }
         public IUnitOfWork? SuspendedUnit { get; set; }
         public IUnitOfWorkManager? UnitOfWorkManager { get; set; }
-        public IServiceProvider? Services { get; init; }
         public bool ReadProtected { get; } = readProtected;
         public ReadProtectionFrame? Protection { get; set; }
         public ImmediateAppendRefusal? ImmediateAppendRefusal { get; set; }
