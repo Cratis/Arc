@@ -30,7 +30,12 @@ internal class GenerationRuleReader(UuidGenerationForms forms)
         }
         var body = (SyntaxNode?)method.Body ?? method.ExpressionBody?.Expression;
 
-        return CanRead(body, model) ? ReadBody(type, method, model) : null;
+        if (!CanRead(body, model))
+        {
+            return null;
+        }
+
+        return ReadBody(type, method, model) ?? ReadHelperBody(type, method, model);
     }
 
     static bool IsUnrecoveredStrategy(ExpressionSyntax primitive, SemanticModel model) =>
@@ -61,6 +66,32 @@ internal class GenerationRuleReader(UuidGenerationForms forms)
 
     static bool CanCopy(SyntaxNode body, INamedTypeSymbol type, SemanticModel model, ExpressionSyntax[] primitives) =>
         !primitives.Any(primitive => IsUnrecoveredStrategy(primitive, model)) && new GenerationRuleDependencies(type, model).Allows(body, primitives);
+
+    MethodDeclarationSyntax? HelperOf(INamedTypeSymbol type, MethodDeclarationSyntax factory, SemanticModel model)
+    {
+        var returned = UuidGenerationForms.ReturnedBy(factory);
+        var primitive = returned is null ? null : forms.PrimitiveOf(returned, type, model);
+        var call = primitive is null ? null : GenerationCallReader.UnwrapParentheses(primitive) as InvocationExpressionSyntax;
+
+        return call is null ? null : GenerationHelperLookup.Find(call, type, factory, model);
+    }
+
+    GenerationModel? ReadHelperBody(INamedTypeSymbol type, MethodDeclarationSyntax factory, SemanticModel model)
+    {
+        if (HelperOf(type, factory, model) is not { } helper)
+        {
+            return null;
+        }
+        var body = (SyntaxNode?)helper.Body ?? helper.ExpressionBody?.Expression;
+        var returns = ReturnsOf(helper);
+        if (!CanRead(body, model) || !HasPrimitiveReturns(returns))
+        {
+            return null;
+        }
+        var expressions = returns.Cast<ExpressionSyntax>().ToArray();
+
+        return CanCopy(body!, type, model, expressions) ? new("rule") { Rule = $"{type.Name}New", Body = BodyText(body!) } : null;
+    }
 
     GenerationModel? ReadBody(INamedTypeSymbol type, MethodDeclarationSyntax method, SemanticModel model)
     {
