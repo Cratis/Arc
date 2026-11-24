@@ -4,6 +4,7 @@
 using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
@@ -238,7 +239,7 @@ public class ClientObservableSSE<T>(
                 }
 
                 isTerminated = true;
-                var json = JsonSerializer.Serialize(QueryResult.Error(queryContext.CorrelationId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails)), arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
+                var json = JsonSerializer.Serialize(ExceptionResponseMapping.StreamError(queryContext.CorrelationId, error, context.RequestServices, logger, arcOptions.Value.ExposeExceptionDetails), arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
                 await context.Write($"data: {json}\n\n", cts.Token);
             }
             catch (Exception sendError)

@@ -3,6 +3,8 @@
 
 using System.Collections;
 using System.Reflection;
+using Cratis.Arc.Exceptions;
+using Cratis.Arc.Identity.Callers;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -188,20 +190,54 @@ public partial class ObservableQueryDemultiplexer
     /// <summary>
     /// Reports a live failure to the subscriber without letting a failing callback escape.
     /// </summary>
-    /// <param name="queryId">The id of the query the subscription is for.</param>
+    /// <param name="subscription">The subscribing connection, identity and callbacks.</param>
     /// <param name="error">The failure to report.</param>
-    /// <param name="onError">Callback invoked with the query id, message and token.</param>
     /// <param name="token">The <see cref="CancellationToken"/> ending the subscription.</param>
     /// <returns>True when the subscription had already ended while reporting; otherwise false.</returns>
-    async Task<bool> ReportErrorQuietly(
-        string queryId,
-        Exception error,
-        Func<string, string, CancellationToken, Task> onError,
-        CancellationToken token)
+    Task<bool> ReportErrorQuietly(ObservableQuerySubscriptionContext subscription, Exception error, CancellationToken token) =>
+        ReportFailureQuietly(
+            async () =>
+            {
+                var result = await MapSubscriptionError(subscription, error);
+                if (result?.ErrorCode is not null)
+                {
+                    await subscription.OnNext(result, token);
+                }
+                else
+                {
+                    await subscription.OnError(subscription.QueryId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails), token);
+                }
+            },
+            subscription.QueryId,
+            token);
+
+    async Task<QueryResult?> MapSubscriptionError(ObservableQuerySubscriptionContext subscription, Exception error)
     {
         try
         {
-            await onError(queryId, ExceptionDetailRedactor.MessageFor(error, arcOptions.Value.ExposeExceptionDetails), token);
+            await using var scope = serviceProvider.CreateAsyncScope();
+            using var identity = ObservableEmissionIdentity.Begin(
+                subscription.Context,
+                scope.ServiceProvider,
+                subscription.Identity.Principal ?? VerifiedCallerPrincipal.PrincipalFor(subscription.Context),
+                subscription.Identity.AuthorizedTenant,
+                accessor: httpRequestContextAccessor);
+            var result = QueryResult.Error(subscription.CorrelationId, error);
+            ExceptionResponseMapping.Apply(result, scope.ServiceProvider, logger);
+            return result;
+        }
+        catch (Exception mappingError) when (!IsFatal(mappingError))
+        {
+            logger.SubscriptionError(subscription.QueryId, mappingError);
+            return null;
+        }
+    }
+
+    async Task<bool> ReportFailureQuietly(Func<Task> report, string queryId, CancellationToken token)
+    {
+        try
+        {
+            await report();
         }
         catch (Exception callbackError) when (IsDisconnect(callbackError, token))
         {

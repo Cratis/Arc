@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Availability;
+using Cratis.Arc.Contexts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -21,15 +22,27 @@ public class AvailabilityFilter : IAvailabilityCommandFilter
     public async Task<CommandResult> OnExecution(CommandContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
+        if (OperationSnapshot.Current is { } snapshot)
+        {
+            InvocationContextValues.Attach(snapshot, context.ProvidedValues);
+        }
+
         var gate = context.ServiceProvider?.GetService<IAvailabilityGate>();
         if (gate is null || context.ServiceProvider is null || !gate.IsGated(context.Type))
         {
             return CommandResult.Success(context.CorrelationId);
         }
 
+        return await Decide(context, gate, context.ServiceProvider);
+    }
+
+    static async Task<CommandResult> Decide(CommandContext context, IAvailabilityGate gate, IServiceProvider services)
+    {
         try
         {
-            var decision = await gate.Decide(context.Type, context.ServiceProvider, context.CancellationToken);
+            var decision = gate is IAvailabilityExecutionGate executionGate
+                ? await executionGate.Decide(context.AvailabilityInvocation, services, context.CancellationToken)
+                : await gate.Decide(context.Type, services, context.CancellationToken);
             return decision.IsAvailable
                 ? CommandResult.Success(context.CorrelationId)
                 : CommandResult.Unauthorized(context.CorrelationId, AvailabilityReason.NotAvailable);
@@ -40,7 +53,7 @@ public class AvailabilityFilter : IAvailabilityCommandFilter
         }
         catch (Exception ex)
         {
-            context.ServiceProvider.GetService<ILogger<AvailabilityFilter>>()?.AvailabilityNotDecided(context.Type.FullName ?? context.Type.Name, ex);
+            services.GetService<ILogger<AvailabilityFilter>>()?.AvailabilityNotDecided(context.Type.FullName ?? context.Type.Name, ex);
             return CommandResult.FromException(context.CorrelationId, new AvailabilityNotDecidedException(ex));
         }
     }

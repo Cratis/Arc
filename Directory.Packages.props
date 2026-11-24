@@ -18,11 +18,11 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="2.13.1" />
     <!-- Cratis -->
     <PackageVersion Include="Cratis.Choreography" Version="2.10.0" />
-    <PackageVersion Include="Cratis.Chronicle" Version="19.182.2" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.182.2" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.182.2" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.3" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.34.3" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.184.3" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.184.3" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.184.3" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.4" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.34.4" />
     <!-- Held at 6.30.0: from 6.31.0 the specification printer writes an empty tag list on a structured event payload as
          `tag none`, which the parser then reads as a tag assertion on a given/when occurrence (PLAY1148), so the Chronicle
          sample's generated documents no longer compile. Raise once Cratis.Screenplay prints such payloads correctly (https://github.com/Cratis/Screenplay/issues/1370). -->
@@ -55,7 +55,7 @@
     <!-- Held at 18.9.6 (with Microsoft.Build.Utilities.Core and Microsoft.NET.StringTools): 18.12.x fails the net10.0 MSBuild task projects with a "does not support net10.0" build error. -->
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.9.6" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.9.6" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.404" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
     <!-- System -->
     <PackageVersion Include="System.Collections.Immutable" Version="10.0.15" />
     <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.15" />

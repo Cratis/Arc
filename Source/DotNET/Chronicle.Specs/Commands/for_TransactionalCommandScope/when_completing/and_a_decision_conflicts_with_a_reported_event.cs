@@ -48,19 +48,16 @@ public class and_a_decision_conflicts_with_a_reported_event : given.a_transactio
     }
 
     [Fact]
-    void should_name_the_conflicting_event_and_its_position() =>
+    void should_only_name_the_changed_read() =>
         _result.ValidationResults.Single(_ => _.Message.Contains("SampleModel changed after it was read")).Message
-            .ShouldEqual("SampleModel changed after it was read (BookBorrowed at 1042). Read it again and resubmit.");
+            .ShouldEqual("SampleModel changed after it was read. Read it again and resubmit.");
 
     [Fact]
-    void should_carry_the_conflicting_event_in_the_state()
+    void should_only_carry_the_read_model_in_the_state()
     {
         var state = JsonSerializer.SerializeToElement(_result.ValidationResults.Single(_ => _.Message.Contains("SampleModel changed after it was read")).State);
+        state.EnumerateObject().Select(_ => _.Name).ShouldContainOnly("readModel");
         state.GetProperty("readModel").GetString().ShouldEqual(nameof(SampleModel));
-        state.GetProperty("key").GetString().ShouldEqual("source");
-        state.GetProperty("conflictingEventTypeId").GetString().ShouldEqual(_eventTypeId.Value);
-        state.GetProperty("conflictingEventType").GetString().ShouldEqual(nameof(BookBorrowed));
-        state.GetProperty("conflictingEventSequenceNumber").GetUInt64().ShouldEqual(1042ul);
     }
 
     public class SampleModel;

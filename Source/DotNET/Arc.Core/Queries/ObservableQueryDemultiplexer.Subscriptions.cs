@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.EndpointGroups;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Http;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
@@ -362,6 +363,7 @@ public partial class ObservableQueryDemultiplexer
         var ownedScope = queryResult.OwnedScope;
         try
         {
+            MapSubscriptionResult(queryResult, queryServiceProvider);
             if (!await AdmitQueryResult(queryResult, target, callbacks, token))
             {
                 return null;
@@ -409,6 +411,9 @@ public partial class ObservableQueryDemultiplexer
         }
     }
 
+    void MapSubscriptionResult(QueryResult result, IServiceProvider fallbackServices) =>
+        ExceptionResponseMapping.Apply(result, result.OwnedScope?.ServiceProvider ?? fallbackServices, logger);
+
     async Task<bool> AdmitQueryResult(
         QueryResult queryResult,
         SubscriptionTarget target,
@@ -430,6 +435,11 @@ public partial class ObservableQueryDemultiplexer
 
         if (!queryResult.IsSuccess)
         {
+            if (queryResult.ErrorCode is not null)
+            {
+                await callbacks.OnNext(queryResult, token);
+                return false;
+            }
             ExceptionDetailRedactor.Redact(queryResult, arcOptions.Value.ExposeExceptionDetails, logger);
             var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
             await callbacks.OnError(target.QueryId, errorMsg, token);

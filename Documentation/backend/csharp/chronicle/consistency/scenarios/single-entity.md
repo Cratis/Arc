@@ -68,7 +68,7 @@ Check the outcomes separately:
 
 - With one copy available and no competing stock change, borrowing succeeds and appends one `BookBorrowed` event.
 - With zero copies or no book history, validation returns `No copies left.` and appends nothing.
-- If two commands read the last copy before either commits, only one can append. The loser gets a `400` with the reason `concurrencyViolation`. For a book key `isbn` and a conflicting event at position `1042`, the message is `BookStock changed after BorrowBook read it (BookBorrowed at 1042). Nothing from this command was written; submit it again.`
+- If two commands read the last copy before either commits, only one can append. The loser gets a `400` with the reason `concurrencyViolation`. The message is `BookStock changed after BorrowBook read it. Nothing from this command was written; submit it again.`
 - Only the model's event types conflict. A `BookRenamed` for the same book does not.
 
 ## What does not hold
