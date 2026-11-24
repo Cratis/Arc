@@ -34,7 +34,7 @@ public class GraphSliceSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
         var placed = graphs.Where(graph => graph.Namespace == location).ToArray();
         if (options.MaximumExecutableModelVersion is { } maximum && !maximum.IsAtLeast(SemanticVersion.V38))
         {
-            foreach (var graph in graphs.Where(graph => graph.Namespace == location || graph.Projections.Any(projection => projection.Namespace == location)))
+            foreach (var graph in placed)
             {
                 diagnostics.Warning(ScreenplayDiagnosticCodes.GraphRequiresV38, $"The graph '{graph.Name}' requires executable model V38 and is omitted by the version cap", graph.Namespace);
             }

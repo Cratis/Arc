@@ -8,10 +8,12 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator;
 public class when_capping_declared_graph_projections_below_v38 : given.a_generated_document
 {
     void Because() => Generate(new ScreenplayOptions { MaximumExecutableModelVersion = SemanticVersion.V37 },
-        given.GraphProjectionDeclarationSources.Files(given.GraphProjectionDeclarationSources.Marker()));
+        given.GraphProjectionDeclarationSources.Files(
+            given.GraphProjectionDeclarationSources.Marker("PeopleDirectory", "typeof(global::Library.ReadModels.Graphs.Person)"),
+            given.GraphProjectionDeclarationSources.Marker("EmploymentGraph", "typeof(global::Library.ReadModels.Graphs.WORKS_AT)", "Library.Employment.Tracking")));
 
     [Fact] void should_keep_a_compilable_document() => AssertDocument();
     [Fact] void should_omit_the_graph() => Bound.Value.Model.Application.Graphs.ShouldBeEmpty();
     [Fact] void should_omit_explicit_projections() => Bound.Value.Model.Application.GraphProjections.ShouldBeEmpty();
-    [Fact] void should_report_the_version_loss() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GraphRequiresV38).ShouldBeTrue();
+    [Fact] void should_report_the_version_loss() => Result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GraphRequiresV38).ShouldEqual(1);
 }

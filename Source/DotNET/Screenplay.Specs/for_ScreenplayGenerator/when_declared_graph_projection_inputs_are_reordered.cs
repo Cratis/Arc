@@ -9,12 +9,12 @@ public class when_declared_graph_projection_inputs_are_reordered : given.a_gener
 
     void Because()
     {
-        var first = given.GraphProjectionDeclarationSources.Marker();
-        var second = given.GraphProjectionDeclarationSources.Marker("CompanyView", "typeof(global::Library.ReadModels.Graphs.Company)", "Library.People.Company");
+        var first = given.GraphProjectionDeclarationSources.Marker(members: "typeof(global::Library.ReadModels.Graphs.Person), typeof(global::Library.ReadModels.Graphs.Company)");
+        var second = given.GraphProjectionDeclarationSources.Marker("EmploymentView", "typeof(global::Library.ReadModels.Graphs.WORKS_AT)", "Library.People.Employment");
         Generate(given.GraphProjectionDeclarationSources.Files(first, second));
         _original = Result;
         Generate(given.GraphProjectionDeclarationSources.Files(second,
-            given.GraphProjectionDeclarationSources.Marker(members: "typeof(global::Library.ReadModels.Graphs.WORKS_AT), typeof(global::Library.ReadModels.Graphs.Person)")).Reverse().ToArray());
+            given.GraphProjectionDeclarationSources.Marker(members: "typeof(global::Library.ReadModels.Graphs.Company), typeof(global::Library.ReadModels.Graphs.Person)")).Reverse().ToArray());
     }
 
     [Fact] void should_remain_compilable() => AssertDocument();
