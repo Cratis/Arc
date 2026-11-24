@@ -3,10 +3,9 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability.Audiences;
+using Cratis.Arc.Availability.Context;
 using Cratis.Arc.Tenancy;
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Audiences;
-using Cratis.Choreography.Availability.Context;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -13,11 +13,11 @@ public class from_a_context_value_the_host_provides : a_generated_document
     const string Registration = """
         public static class Composition
         {
-            public static void Configure(Cratis.Choreography.Availability.Context.ContextValueCatalog catalog) => catalog.Declare(
-                new Cratis.Choreography.Availability.Context.ContextValueDeclaration(
+            public static void Configure(Cratis.Arc.Availability.Context.ContextValueCatalog catalog) => catalog.Declare(
+                new Cratis.Arc.Availability.Context.ContextValueDeclaration(
                     "region",
-                    new Cratis.Choreography.Availability.Context.Providers.HostContextValueProvider(null!, "region"),
-                    Cratis.Choreography.Availability.Context.ContextScope.Application));
+                    new Cratis.Arc.Availability.Context.Providers.HostContextValueProvider(null!, "region"),
+                    Cratis.Arc.Availability.Context.ContextScope.Application));
         }
         """;
 

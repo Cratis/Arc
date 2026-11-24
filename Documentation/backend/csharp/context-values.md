@@ -5,11 +5,11 @@ description: Read model-provided values like the vessel being viewed in Arc comm
 
 A model can add values to `$context` with `provide`: the vessel being viewed, the project the user works in. Arc resolves each value lazily, once, for the request that reads it, and every reader in the request sees the same value: gates, command handlers, query performers, policies and validation rules.
 
-The resolution is the [Choreography engine's](https://github.com/Cratis/Choreography). Arc supplies the per-request scope and the places you read from. Hosts that do not call `AddArcAvailability` register no source, and every value reads as absent without any work being done.
+The resolution is the [availability engine's](availability-engine/context-values.md). Arc supplies the per-request scope and the places you read from. Hosts that do not call `WithAvailability` register no source, and every value reads as absent without any work being done.
 
 ## Provide values
 
-Declare the values in the `ContextValueCatalog` you register for [availability](availability.md). `AddArcAvailability` also registers the `IContextValueSource` that resolves them for each request:
+Declare the values in the `ContextValueCatalog` that [availability](availability.md) registers. `WithAvailability` also registers the `IContextValueSource` that resolves them for each request:
 
 ```csharp
 var catalog = new ContextValueCatalog()
@@ -63,6 +63,6 @@ invocation, including after dependency binding. A provider failure or cancellati
 so a later resolution can retry. Metadata-only reads have a separate cache and never seed execution values.
 Nested, parallel and later invocations resolve independently, even if their arguments and receipt times are equal.
 
-A custom `IContextValueSource` registered as a scoped service replaces the Choreography one for hosts that
+A custom `IContextValueSource` registered as a scoped service replaces the engine's one for hosts that
 resolve values another way. Its existing `Read` method remains supported. It can optionally implement
 `IExecutionContextValueSource.ReadForExecution` to receive the same `AvailabilityInvocation` identity as the gate.

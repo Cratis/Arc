@@ -5,21 +5,20 @@ description: Refuse commands and queries for parts of your Cratis Arc applicatio
 
 Authorization says who may do something. Availability says whether a part of the application is there at all for a caller: a commercial package, a preview, a capability switched off for an incident. Arc enforces availability in the command and query pipelines, before authorization, and tells clients with a reason that is different from an authorization denial.
 
-Arc hosts the hook only. The decision comes from the [Choreography availability engine](https://github.com/Cratis/Choreography), which resolves audiences and context values and evaluates gate expressions. Hosts that do not add `Cratis.Arc.Availability` do not load the engine and pay nothing: no gate is consulted and every part is available.
+The decision comes from the [availability engine](availability-engine/index.md), which resolves audiences and context values and evaluates gate expressions. It ships in the same `Cratis.Arc.Availability` package and does not depend on ASP.NET. Hosts that do not call `WithAvailability` pay nothing: no gate is consulted and every part is available.
 
 ## Add availability to a host
 
-Add the `Cratis.Arc.Availability` package, register the Choreography pieces you own, and call `AddArcAvailability`:
+Add the `Cratis.Arc.Availability` package and call `WithAvailability`:
 
 ```csharp
-services.AddSingleton<IAudienceSource>(new InMemoryAudienceSource());
-services.AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview"));
-services.AddSingleton(new AvailabilityCatalog());
-services.AddSingleton(new ContextValueCatalog());
-services.AddArcAvailability(options => options.GateNamespace("Fleet.DataQuality", AvailabilityExpression.For("Plus")));
+builder.AddCratisArc(configureBuilder: arc => arc
+    .WithAvailability(options => options.GateNamespace("Fleet.DataQuality", AvailabilityExpression.For("Plus"))));
 ```
 
-Replace `InMemoryAudienceSource` with an `IAudienceSource` over your own storage in a real product. `AddArcAvailability` also registers the engine through Choreography's `AddAvailability`, and accepts a second callback to configure its options.
+That one call registers the gates, the engine, an in-memory audience source and the startup validation. It accepts a second callback to configure the engine's `AvailabilityOptions`, such as the environment name. Register an `IAudienceSource` over your own storage in a real product, and `IDeclaredAudiences` for the audiences your model declares. At startup, one pass discovers the gated parts and verifies that every `[AvailableWith]` block and every block built on another is defined.
+
+A host that has no Arc builder can call `services.AddArcAvailability(...)`, which does the same. The options you configure are the ones that are resolved, whether `AddCratis()` ran before or after.
 
 ## Gate a part
 
@@ -42,9 +41,9 @@ public record QualityScores(VesselId Vessel, int Score)
 }
 ```
 
-`[AvailableFor]` lists audiences, any one of which opens the gate. `[AvailableWith]` names a reusable `AvailabilityDefinition` in the host's `AvailabilityCatalog`. Several attributes on one type must all hold. For anything else, register a gate with `options.Gate<TPart>(expression)` or `options.GateNamespace(namespace, expression)` using Choreography's `AvailabilityExpression`.
+`[AvailableFor]` lists audiences, any one of which opens the gate. `[AvailableWith]` names a reusable `AvailabilityDefinition` in the host's `AvailabilityCatalog`. Several attributes on one type must all hold. For anything else, register a gate with `options.Gate<TPart>(expression)` or `options.GateNamespace(namespace, expression)` using `AvailabilityExpression`.
 
-An audience, a context value and the rules of the three-valued result are described in the Choreography documentation. In short: an unknown decision, such as a missing audience or an absent value, never opens a gate.
+[Gate evaluation](availability-engine/evaluating-gates.md), [audiences](availability-engine/audiences.md) and [context values](availability-engine/context-values.md) are described with the engine. In short: an unknown decision, such as a missing audience or an absent value, never opens a gate.
 
 ## System callers
 
@@ -74,7 +73,7 @@ A failure, such as a store that is down or a context value provider that throws,
 server's pinned `ReceivedAt` receipt. Gates implementing only `IAvailabilityGate` continue to work unchanged.
 The query operation identity remains the performer's `Type`, not its `ReadModelType`.
 
-Choreography providers can resolve `arguments.<property>` and `receivedAt` through their resolver. Command
+Providers can resolve `arguments.<property>` and `receivedAt` through their resolver. Command
 properties and query argument names are case-insensitive. The receipt is a `DateTimeOffset`, fixed at the Arc
 entry boundary rather than read from the clock during evaluation. Manually constructed contexts keep their
 existing default receipt; the gate does not invent one. An explicit invocation with null arguments has no

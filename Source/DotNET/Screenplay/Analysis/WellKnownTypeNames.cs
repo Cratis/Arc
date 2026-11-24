@@ -34,13 +34,13 @@ public static class WellKnownTypeNames
     public const string AvailableWithAttribute = "Cratis.Arc.Availability.AvailableWithAttribute";
 
     /// <summary>The catalog request-scoped values are declared in.</summary>
-    public const string ContextValueCatalog = "Cratis.Choreography.Availability.Context.ContextValueCatalog";
+    public const string ContextValueCatalog = "Cratis.Arc.Availability.Context.ContextValueCatalog";
 
     /// <summary>The provider resolving a value from a read model query.</summary>
-    public const string ReadModelContextValueProvider = "Cratis.Choreography.Availability.Context.Providers.ReadModelContextValueProvider";
+    public const string ReadModelContextValueProvider = "Cratis.Arc.Availability.Context.Providers.ReadModelContextValueProvider";
 
     /// <summary>The scope a value is declared at.</summary>
-    public const string ContextScope = "Cratis.Choreography.Availability.Context.ContextScope";
+    public const string ContextScope = "Cratis.Arc.Availability.Context.ContextScope";
 
     /// <summary>The options gates are registered with.</summary>
     public const string ArcAvailabilityOptions = "Cratis.Arc.Availability.ArcAvailabilityOptions";

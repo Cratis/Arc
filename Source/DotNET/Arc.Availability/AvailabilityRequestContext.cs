@@ -2,8 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
-using Cratis.Choreography.Availability.Audiences;
-using Cratis.Choreography.Availability.Context;
+using Cratis.Arc.Availability.Audiences;
+using Cratis.Arc.Availability.Context;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
 
@@ -14,6 +15,7 @@ namespace Cratis.Arc.Availability;
 /// <param name="catalog">The <see cref="ContextValueCatalog"/> of the application.</param>
 /// <param name="audienceResolver">The <see cref="IAudienceResolver"/>.</param>
 /// <param name="subjectProvider">The <see cref="IAvailabilitySubjectProvider"/>.</param>
+[IgnoreConvention]
 public class AvailabilityRequestContext(ContextValueCatalog catalog, IAudienceResolver audienceResolver, IAvailabilitySubjectProvider subjectProvider)
 {
     readonly Dictionary<string, ContextValueResolver> _resolvers = [];
