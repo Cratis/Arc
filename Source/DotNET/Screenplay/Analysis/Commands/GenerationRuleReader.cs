@@ -67,10 +67,18 @@ internal class GenerationRuleReader(UuidGenerationForms forms)
     static bool CanCopy(SyntaxNode body, INamedTypeSymbol type, SemanticModel model, ExpressionSyntax[] primitives) =>
         !primitives.Any(primitive => IsUnrecoveredStrategy(primitive, model)) && new GenerationRuleDependencies(type, model).Allows(body, primitives);
 
+    MethodDeclarationSyntax? HelperOf(INamedTypeSymbol type, MethodDeclarationSyntax factory, SemanticModel model)
+    {
+        var returned = UuidGenerationForms.ReturnedBy(factory);
+        var primitive = returned is null ? null : forms.PrimitiveOf(returned, type, model);
+        var call = primitive is null ? null : GenerationCallReader.UnwrapParentheses(primitive) as InvocationExpressionSyntax;
+
+        return call is null ? null : GenerationHelperLookup.Find(call, type, factory, model);
+    }
+
     GenerationModel? ReadHelperBody(INamedTypeSymbol type, MethodDeclarationSyntax factory, SemanticModel model)
     {
-        if (UuidGenerationForms.ReturnedBy(factory) is not { } returned || forms.PrimitiveOf(returned, type, model) is not { } primitive ||
-            GenerationCallReader.UnwrapParentheses(primitive) is not InvocationExpressionSyntax call || GenerationHelperLookup.Find(call, type, factory, model) is not { } helper)
+        if (HelperOf(type, factory, model) is not { } helper)
         {
             return null;
         }
