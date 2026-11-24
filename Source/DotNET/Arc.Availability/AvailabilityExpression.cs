@@ -18,6 +18,7 @@ public abstract record AvailabilityExpression
     /// </summary>
     /// <param name="audiences">The audiences.</param>
     /// <returns>The expression.</returns>
+    [Obsolete("Authoring availability with AvailabilityExpression is replaced by typed declarations: derive an audience from Audience, a block from AvailabilityBlock (For<T>(), With<T>(), Not<T>(), When) and gate parts with [AvailableFor<T>], [Available<T>] and [AvailableWhen<T>]. See the availability documentation for the migration.")]
     public static AvailabilityExpression For(params AudienceName[] audiences) =>
         audiences.Length == 1 ? new AvailableForAudience(audiences[0]) : new AvailabilityOr([.. audiences.Select(_ => new AvailableForAudience(_))]);
 
@@ -26,6 +27,7 @@ public abstract record AvailabilityExpression
     /// </summary>
     /// <param name="condition">The condition.</param>
     /// <returns>The expression.</returns>
+    [Obsolete("Authoring availability with AvailabilityExpression is replaced by typed declarations: derive an audience from Audience, a block from AvailabilityBlock (For<T>(), With<T>(), Not<T>(), When) and gate parts with [AvailableFor<T>], [Available<T>] and [AvailableWhen<T>]. See the availability documentation for the migration.")]
     public static AvailabilityExpression When(IAvailabilityCondition condition) => new AvailableWhen(condition);
 
     /// <summary>
@@ -33,6 +35,7 @@ public abstract record AvailabilityExpression
     /// </summary>
     /// <param name="name">The name of the block.</param>
     /// <returns>The expression.</returns>
+    [Obsolete("Authoring availability with AvailabilityExpression is replaced by typed declarations: derive an audience from Audience, a block from AvailabilityBlock (For<T>(), With<T>(), Not<T>(), When) and gate parts with [AvailableFor<T>], [Available<T>] and [AvailableWhen<T>]. See the availability documentation for the migration.")]
     public static AvailabilityExpression With(string name) => new AvailableWith(name);
 
     /// <summary>
@@ -40,6 +43,7 @@ public abstract record AvailabilityExpression
     /// </summary>
     /// <param name="parts">The parts.</param>
     /// <returns>The expression.</returns>
+    [Obsolete("Authoring availability with AvailabilityExpression is replaced by typed declarations: derive an audience from Audience, a block from AvailabilityBlock (For<T>(), With<T>(), Not<T>(), When) and gate parts with [AvailableFor<T>], [Available<T>] and [AvailableWhen<T>]. See the availability documentation for the migration.")]
     public static AvailabilityExpression AllOf(params AvailabilityExpression[] parts) => new AvailabilityAnd(parts);
 
     /// <summary>
@@ -47,6 +51,7 @@ public abstract record AvailabilityExpression
     /// </summary>
     /// <param name="parts">The parts.</param>
     /// <returns>The expression.</returns>
+    [Obsolete("Authoring availability with AvailabilityExpression is replaced by typed declarations: derive an audience from Audience, a block from AvailabilityBlock (For<T>(), With<T>(), Not<T>(), When) and gate parts with [AvailableFor<T>], [Available<T>] and [AvailableWhen<T>]. See the availability documentation for the migration.")]
     public static AvailabilityExpression AnyOf(params AvailabilityExpression[] parts) => new AvailabilityOr(parts);
 
     /// <summary>
@@ -71,6 +76,8 @@ public abstract record AvailabilityExpression
         {
             case AvailableForAudience audience:
                 return [new([audience.Audience], [])];
+            case AvailableNotAudience notAudience:
+                return [new([], [], [notAudience.Audience])];
             case AvailableWhen whenExpression:
                 return [new([], [whenExpression.Condition.Description])];
             case AvailableWith with:

@@ -32,7 +32,7 @@ Three rules hold everywhere:
 using Cratis.Arc.Availability;
 using Cratis.Arc.Availability.Audiences;
 
-services.AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview"));
+services.AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview")); // Without this, the audience types of the application are found with ITypes.
 services.AddAvailability(options => options.EnvironmentName = environment.EnvironmentName);
 ```
 

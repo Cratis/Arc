@@ -26,7 +26,7 @@ public class ArcAvailabilityOptions
     /// <remarks>
     /// Context values declared for a narrower scope are visible only to the parts decided in it.
     /// </remarks>
-    public Func<Type, ContextScope> ScopeFor { get; set; } = _ => ContextScope.Application;
+    public Func<Type, ContextScope> ScopeFor { get; set; } = TypedAvailability.ScopeOf;
 
     /// <summary>
     /// Gets the gates of namespaces.
@@ -64,6 +64,7 @@ public class ArcAvailabilityOptions
     /// <param name="namespace">The namespace.</param>
     /// <param name="gate">The <see cref="AvailabilityExpression"/>.</param>
     /// <returns>The options for continuation.</returns>
+    [Obsolete("Put a scope marker in the namespace instead: [AvailableFor<Plus>] public class Feature : AvailabilityScope;. The string namespace is not checked by the compiler and is not read back into the model.")]
     public ArcAvailabilityOptions GateNamespace(string @namespace, AvailabilityExpression gate)
     {
         _namespaces.Add((@namespace, gate));

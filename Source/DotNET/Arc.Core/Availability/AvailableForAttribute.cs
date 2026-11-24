@@ -12,6 +12,7 @@ namespace Cratis.Arc.Availability;
 /// <see cref="IAvailabilityGate"/>.
 /// </remarks>
 /// <param name="audiences">The audiences, any one of which opens the gate.</param>
+[Obsolete("Name the audience as a type instead: derive it from Audience (public class Plus : Audience;) and write [AvailableFor<Plus>]. A string names no type, so a typo is not a compile error.")]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
 public sealed class AvailableForAttribute(params string[] audiences) : Attribute
 {

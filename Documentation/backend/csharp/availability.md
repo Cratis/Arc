@@ -13,10 +13,10 @@ Add the `Cratis.Arc.Availability` package and call `WithAvailability`:
 
 ```csharp
 builder.AddCratisArc(configureBuilder: arc => arc
-    .WithAvailability(options => options.GateNamespace("Fleet.DataQuality", AvailabilityExpression.For("Plus"))));
+    .WithAvailability());
 ```
 
-That one call registers the gates, the engine, an in-memory audience source and the startup validation. It accepts a second callback to configure the engine's `AvailabilityOptions`, such as the environment name. Register an `IAudienceSource` over your own storage in a real product, and `IDeclaredAudiences` for the audiences your model declares. At startup, one pass discovers the gated parts and verifies that every `[AvailableWith]` block and every block built on another is defined.
+That one call registers the gates, the engine, an in-memory audience source and the startup validation. It accepts a second callback to configure the engine's `AvailabilityOptions`, such as the environment name. Register an `IAudienceSource` over your own storage in a real product. The audiences, availability blocks, scope markers and provided read models are types that are discovered from the application, so there is nothing else to register. At startup, one pass discovers the gated parts and verifies that every block built on another is defined and that no blocks build on each other in a cycle.
 
 A host that has no Arc builder can call `services.AddArcAvailability(...)`, which does the same. The options you configure are the ones that are resolved, whether `AddCratis()` ran before or after.
 
@@ -26,14 +26,14 @@ A part is a command, or the read model that declares queries. Gate it with attri
 
 ```csharp
 [Command]
-[AvailableFor("Plus", "Preview")]
+[AvailableFor<Plus, Preview>]
 public record ResetScore(VesselId Vessel)
 {
     public ScoreReset Handle() => new(Vessel);
 }
 
 [ReadModel]
-[AvailableWith("DataQuality")]
+[Available<DataQuality>]
 public record QualityScores(VesselId Vessel, int Score)
 {
     public static IEnumerable<QualityScores> All(IMongoCollection<QualityScores> scores) =>
@@ -41,7 +41,9 @@ public record QualityScores(VesselId Vessel, int Score)
 }
 ```
 
-`[AvailableFor]` lists audiences, any one of which opens the gate. `[AvailableWith]` names a reusable `AvailabilityDefinition` in the host's `AvailabilityCatalog`. Several attributes on one type must all hold. For anything else, register a gate with `options.Gate<TPart>(expression)` or `options.GateNamespace(namespace, expression)` using `AvailabilityExpression`.
+The attributes refer to types; they do not describe rules. `[AvailableFor<Plus, Preview>]` names audiences, any one of which opens the gate. `[Available<DataQuality>]` names an availability block, and `[AvailableWhen<HasPaidInvoice>]` names a condition class. Several attributes on one type are several lines, and all of them must hold. Everything else, the rules themselves, is in the types they refer to: see [declaring availability with types](availability-engine/typed-declarations.md).
+
+A scope marker gates a whole module, feature or slice: put `[AvailableFor<Plus>] public class Feature : AvailabilityScope;` in its namespace. For a single part, `options.Gate<TPart>(expression)` still registers a gate in code, but the model cannot read it back, so prefer the attributes.
 
 [Gate evaluation](availability-engine/evaluating-gates.md), [audiences](availability-engine/audiences.md) and [context values](availability-engine/context-values.md) are described with the engine. In short: an unknown decision, such as a missing audience or an absent value, never opens a gate.
 

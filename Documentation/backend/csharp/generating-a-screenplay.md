@@ -1155,18 +1155,27 @@ Duplicate literal paths, wildcard or optional paths, computed paths or elements,
 
 | In code | In the document |
 | --- | --- |
-| `[AvailableFor("Plus", "Preview")]` on a command or a read model | `audience Plus`, `audience Preview` at the top, and `available for Plus or Preview` on the command, or on every query of the read model |
+| `public class Plus : Audience;` | `audience Plus`, described by the summary of the type |
+| `public class DataQuality : AvailabilityBlock` with its `Lines` | `availability DataQuality` with its `for`, `when`, `with` and `not` lines |
+| `[AvailableFor<Plus, Preview>]` on a command or a read model | `available for Plus or Preview` on the command, or on every query of the read model |
+| `[Available<DataQuality>]`, `[AvailableWhen<HasPaidInvoice>]` | `available with DataQuality`, and an opaque `available when $context.hasPaidInvoice == true` with a `provide hasPaidInvoice Bool from host` |
+| A type that derives from `AvailabilityScope` in a namespace, carrying the attributes above | the same `available` lines on the module, feature or slice the namespace names |
+| `[ProvideContext<Vessel>(nameof(Vessel.VesselByKey), "arguments.vesselId")]` | `provide vessel Vessel from query VesselByKey by $context.arguments.vesselId` at the module, feature or slice the namespace of the type names |
 | Several gate attributes on one type | One `available` line for each, so every one of them has to hold |
-| `[AvailableWith("DataQuality")]` | `available with DataQuality` and an `availability DataQuality` declaration without rules (`SP0081`) |
+| `[AvailableFor("Plus", "Preview")]` and `[AvailableWith("DataQuality")]`, which are obsolete | The same lines, and for `AvailableWith` an `availability DataQuality` declaration without rules (`SP0081`) |
+| `catalog.Declare(new ContextValueDeclaration(...))` | `provide vessel Vessel optional from query VesselByKey by $context.arguments.vesselId` in the module, feature or slice the scope names, or at the application for `ContextScope.Application` |
 | `catalog.Declare(new ContextValueDeclaration("vessel", new ReadModelContextValueProvider(query, "VesselByKey", "arguments.vesselId"), ContextScope.Of("Fleet")))` | `provide vessel Vessel optional from query VesselByKey by $context.arguments.vesselId` in the module, feature or slice the scope names, or at the application for `ContextScope.Application` |
 
-An availability is defined at run time in the host's `AvailabilityCatalog`, so the document declares the name and says where the rules are. Complete the `for`, `when` and `with` lines by hand; a regeneration leaves them out again. Until you do, the declared availability has no rules, so read the warning as a gap in the model and not as an open gate to rely on.
+An availability declared as a type is read back with its rules. One that is defined in the host's `AvailabilityCatalog` is not, so the document declares the name and says where the rules are; define it as a type that derives from `AvailabilityBlock`, or complete the `for`, `when` and `with` lines by hand. Until then the declared availability has no rules, so read the warning as a gap in the model and not as an open gate to rely on.
+
+A line holds one form. A block line that mixes forms with `&` is written as a line for each form, and one that mixes them with `|` or beneath a `not` cannot be stated and is reported.
 
 A scope names a part of the application and not a Screenplay level, so the generator looks for the name among the modules, then among the features beneath them. A scope that names none of them is reported (`SP0080`) and the value is left out.
 
 The generator reports `SP0080` and states nothing for what it cannot say faithfully:
 
 - an audience or availability name that is not an identifier;
+- a block whose `Lines` is not one expression of `For<T>()`, `Not<T>()`, `With<T>()` and `When` terms, and a line that mixes forms beneath a `|`;
 - a gate registered in code with `Gate` or `GateNamespace`, which is composed with an expression at run time;
 - a value that the host, an expression or code provides, because the language needs a type for it and the code does not state one;
 - a value resolved by a query that is not exactly one keyed snapshot query of the application, or that returns a collection;

@@ -70,7 +70,7 @@ static class DeclarationNames
     static IEnumerable<string> AvailabilityNames(SliceModel slice) =>
         slice.Commands.Select(command => command.Availability).Concat(slice.Queries.Select(query => query.Availability))
             .OfType<AvailabilityModel>().SelectMany(availability => availability.Gates)
-            .SelectMany(gate => gate.Audiences.Append(gate.Availability).OfType<string>());
+            .SelectMany(gate => gate.Names);
 
     static IEnumerable<string> AuthorizationNames(SliceModel slice) =>
         slice.Commands.Select(command => command.Authorization).Concat(slice.Queries.Select(query => query.Authorization))

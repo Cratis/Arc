@@ -25,4 +25,19 @@ public record AudienceName(string Value) : ConceptAs<string>(Value)
     /// </summary>
     /// <param name="value"><see cref="AudienceName"/> to convert from.</param>
     public static implicit operator string(AudienceName value) => value.Value;
+
+    /// <summary>
+    /// Gets the name of an audience declared as a type: the name of the type.
+    /// </summary>
+    /// <param name="audience">The type of the audience, which derives from <see cref="Audience"/>.</param>
+    /// <returns>The name.</returns>
+    public static AudienceName Of(Type audience) => new(audience.Name);
+
+    /// <summary>
+    /// Gets the name of an audience declared as a type: the name of the type.
+    /// </summary>
+    /// <typeparam name="TAudience">The type of the audience.</typeparam>
+    /// <returns>The name.</returns>
+    public static AudienceName Of<TAudience>()
+        where TAudience : Audience => Of(typeof(TAudience));
 }

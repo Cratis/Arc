@@ -45,6 +45,16 @@ public class AvailabilityEvaluator(AvailabilityCatalog catalog) : IAvailabilityE
 
                 return audiences.Holds(audience.Audience) ? (AvailabilityOutcome.Available, []) : (AvailabilityOutcome.Unavailable, [cause]);
 
+            case AvailableNotAudience notAudience:
+                var held = await context.GetAudiences(cancellationToken);
+                var notCause = $"not {notAudience.Audience.Value}";
+                if (held is null)
+                {
+                    return (AvailabilityOutcome.Unknown, [notCause]);
+                }
+
+                return held.Holds(notAudience.Audience) ? (AvailabilityOutcome.Unavailable, [notCause]) : (AvailabilityOutcome.Available, []);
+
             case AvailableWhen when_:
                 var outcome = await when_.Condition.Evaluate(context, cancellationToken);
                 return (outcome, outcome == AvailabilityOutcome.Available ? [] : [$"when {when_.Condition.Description}"]);
