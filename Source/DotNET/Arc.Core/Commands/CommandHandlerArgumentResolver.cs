@@ -26,21 +26,9 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         IServiceProvider serviceProvider,
         ValidationResultSeverity? allowedSeverity)
     {
+        using var batch = ParameterDependencyBatch.Begin(serviceProvider, handler.Parameters.ToArray());
         var provided = await provideInvoker.Invoke(context, serviceProvider);
-
-        // Unmarked (legacy) commands keep their existing Provide semantics; only declared decision profiles are checked.
-        if (provided.Count > 0 && CommandDecisionPolicy.Mode != CommandDecisionMode.Legacy &&
-            serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) is IEnumerable<ICommandDependencySafety> safetyChecks)
-        {
-            var checks = safetyChecks.ToArray();
-            foreach (var value in provided)
-            {
-                foreach (var safety in checks)
-                {
-                    safety.ValidateProvided(value);
-                }
-            }
-        }
+        ValidateProvided(provided, serviceProvider);
 
         var controlResult = CommandResult.Success(context.CorrelationId);
         var candidates = new List<object>();
@@ -64,52 +52,56 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
 
         // Non-blocking control values (for example warnings) are dropped here, just as the pipeline drops
         // them when filtering by severity, so the resolution reports a clean success.
-        var arguments = await BuildArguments(handler, candidates, context, serviceProvider);
+        var arguments = await BuildArguments(new(handler, context, serviceProvider, batch), candidates);
         return new CommandHandlerArgumentResolution(arguments, CommandResult.Success(context.CorrelationId));
     }
 
-    static async Task<object?[]> BuildArguments(
-        ICommandHandler handler,
-        List<object> candidates,
-        CommandContext context,
-        IServiceProvider serviceProvider)
+    static async Task<object?[]> BuildArguments(ArgumentBinding binding, List<object> candidates)
     {
-        var parameters = handler.Parameters.ToArray();
-        var arguments = new object?[parameters.Length];
-        for (var i = 0; i < parameters.Length; i++)
+        foreach (var parameter in binding.Batch.Parameters)
         {
-            var parameter = parameters[i];
-            var parameterType = parameter.ParameterType;
-
-            if (parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false))
-            {
-                arguments[i] = await GeneratedValueResolution.Resolve(handler.CommandType, parameter, context, serviceProvider);
-            }
-            else if (parameterType == typeof(CancellationToken))
-            {
-                arguments[i] = context.CancellationToken;
-            }
-            else if (candidates.Find(parameterType.IsInstanceOfType) is { } match)
-            {
-                RefuseProvideForCallerKeyedParameter(handler, parameter);
-                if (CommandDecisionPolicy.IsProtected)
-                {
-                    serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
-                        .ValidateCommandDependency(parameterType, match);
-                }
-                arguments[i] = match;
-                candidates.Remove(match);
-            }
-            else
-            {
-                arguments[i] = await ParameterDependencyResolver.ResolveAsync(
-                    serviceProvider,
-                    parameter,
-                    _ => new CannotResolveCommandDependency(parameter));
-            }
+            binding.Batch.Set(parameter, await BindArgument(binding, candidates, parameter));
         }
+        return binding.Batch.Arguments;
+    }
 
-        return arguments;
+    static async ValueTask<object?> BindArgument(ArgumentBinding binding, List<object> candidates, ParameterInfo parameter)
+    {
+        var (handler, context, services, batch) = binding;
+        if (parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false))
+        {
+            return await GeneratedValueResolution.Resolve(handler.CommandType, parameter, context, services);
+        }
+        if (parameter.ParameterType == typeof(CancellationToken)) return context.CancellationToken;
+        var match = candidates.Find(parameter.ParameterType.IsInstanceOfType);
+        if (match is not null) RefuseProvideForCallerKeyedParameter(handler, parameter);
+        if (match is not null && !batch.RequiresAcquisition(parameter))
+        {
+            ValidateDependency(services, parameter, match);
+            candidates.Remove(match);
+            return match;
+        }
+        return await ParameterDependencyResolver.ResolveAsync(services, parameter, _ => new CannotResolveCommandDependency(parameter));
+    }
+
+    static void ValidateDependency(IServiceProvider services, ParameterInfo parameter, object value)
+    {
+        if (CommandDecisionPolicy.IsProtected)
+        {
+            services.GetRequiredService<ICommandProtectedDecisionSupport>().ValidateCommandDependency(parameter.ParameterType, value);
+        }
+    }
+
+    static void ValidateProvided(IReadOnlyList<object> provided, IServiceProvider services)
+    {
+        // Legacy commands keep their existing Provide semantics.
+        if (provided.Count == 0 || CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy) return;
+        if (services.GetService(typeof(IEnumerable<ICommandDependencySafety>)) is not IEnumerable<ICommandDependencySafety> safetyChecks) return;
+        var checks = safetyChecks.ToArray();
+        foreach (var value in provided)
+        {
+            foreach (var safety in checks) safety.ValidateProvided(value);
+        }
     }
 
     static void RefuseProvideForCallerKeyedParameter(ICommandHandler handler, ParameterInfo parameter)
@@ -134,4 +126,6 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         AuthorizationResult { IsAuthorized: false } authorizationResult => CommandResult.Unauthorized(correlationId, authorizationResult.FailureReason),
         _ => CommandResult.Success(correlationId)
     };
+
+    sealed record ArgumentBinding(ICommandHandler Handler, CommandContext Context, IServiceProvider Services, ParameterDependencyBatch Batch);
 }

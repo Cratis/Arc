@@ -87,6 +87,7 @@ internal static class CommandReadModelKeyGeneration
             emitted |= RenderModel(source, model, compilation);
         }
 
+        emitted |= ChainedReadModelKeyGeneration.Render(source, commandTypes, validatorTypes, compilation);
         if (emitted)
         {
             source.AppendLine("    }\n}");

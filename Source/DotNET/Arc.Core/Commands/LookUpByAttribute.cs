@@ -11,6 +11,18 @@ namespace Cratis.Arc.Commands;
 public sealed class LookUpByAttribute(string property) : Attribute
 {
     /// <summary>
+    /// Initializes a lookup through a sibling read-model parameter's public property.
+    /// </summary>
+    /// <param name="parameter">The sibling parameter name in the same member.</param>
+    /// <param name="property">The public readable instance property on that read model.</param>
+    public LookUpByAttribute(string parameter, string property) : this(property) => Parameter = parameter;
+
+    /// <summary>
+    /// Gets the sibling parameter name, or null for a command-property lookup.
+    /// </summary>
+    public string? Parameter { get; }
+
+    /// <summary>
     /// Gets the declared property.
     /// </summary>
     public string Property { get; } = property;

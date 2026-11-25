@@ -48,11 +48,12 @@ internal static class CommandAttributePolicy
     /// <returns>The shared lookup resolution.</returns>
     internal static (string? Property, string? Conflict) ResolveLookup([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type commandType, ParameterInfo parameter, bool isReadModel)
     {
-        var property = Attribute.GetCustomAttributes(parameter, typeof(LookUpByAttribute), true).OfType<LookUpByAttribute>().FirstOrDefault()?.Property;
+        var lookup = Attribute.GetCustomAttributes(parameter, typeof(LookUpByAttribute), true).OfType<LookUpByAttribute>().FirstOrDefault();
+        var property = lookup?.Property;
         var lookups = LookUpByKeyProviderDeclarations.For(parameter).ToArray();
         var providers = lookups.Count(LookUpByKeyProviderDeclarations.IsProvider);
         var mixed = providers > 0 && lookups.Any(attribute => attribute is LookUpByAttribute);
-        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), (providers > 0, providers > 1 || mixed));
+        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => lookup?.Parameter is not null || commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), (providers > 0, providers > 1 || mixed));
     }
 
     /// <summary>

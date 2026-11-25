@@ -45,9 +45,10 @@ internal static class CommandAttributeSymbols
     internal static (string? Property, string? Conflict) ResolveLookup(INamedTypeSymbol commandType, IParameterSymbol parameter, bool isReadModel)
     {
         var attribute = Find(parameter, AttributePrecedencePolicy.LookUpByName);
-        var property = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
+        var property = attribute?.ConstructorArguments.LastOrDefault().Value as string;
+        var chained = attribute?.ConstructorArguments.Length == 2;
         var provider = ResolveKeyProvider(parameter);
-        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => PublicProperties(commandType).Any(_ => _.Name == name), (provider.Provider is not null, provider.Conflict is not null));
+        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => chained || PublicProperties(commandType).Any(_ => _.Name == name), (provider.Provider is not null, provider.Conflict is not null));
     }
 
     /// <summary>
