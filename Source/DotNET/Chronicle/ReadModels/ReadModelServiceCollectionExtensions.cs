@@ -72,8 +72,7 @@ public static class ReadModelServiceCollectionExtensions
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
         var frameworkIssuedTokens = new FrameworkTokenRegistrations(services);
         services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes, frameworkIssuedTokens.IsFramework));
-        services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
-            new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
+        services.TryAddTransient<IInstancesOf<ICanResolveParameterDependency>, ChronicleParameterDependencyResolvers>();
 
         // This public entry point also registers DecisionRead<T>. Never leave it bound to Chronicle's raw reader.
         services.AddCommandAwareDecisionReads();
@@ -385,7 +384,7 @@ public static class ReadModelServiceCollectionExtensions
 
     sealed class ReadModelDiscovery
     {
-        readonly object _gate = new();
+        readonly Lock _gate = new();
         Type[] _projections = [];
         Type[] _modelBoundProjections = [];
         Type[] _reducers = [];

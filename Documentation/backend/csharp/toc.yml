@@ -20,6 +20,10 @@
   href: authorizing-commands-and-queries.md
 - name: Availability
   href: availability.md
+- name: Availability engine
+  href: availability-engine/toc.yml
+- name: Exception response mapping
+  href: exception-response-mapping.md
 - name: Request-scoped context values
   href: context-values.md
 - name: Endpoint groups

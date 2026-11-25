@@ -3,8 +3,9 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability.Audiences;
 using Cratis.Arc.Tenancy;
-using Cratis.Choreography.Availability.Audiences;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
 
@@ -14,6 +15,7 @@ namespace Cratis.Arc.Availability;
 /// </summary>
 /// <param name="tenantIdAccessor">The <see cref="ITenantIdAccessor"/>.</param>
 /// <param name="principalAccessor">The <see cref="ICurrentPrincipalAccessor"/>.</param>
+[IgnoreConvention]
 public class AvailabilitySubjectProvider(ITenantIdAccessor tenantIdAccessor, ICurrentPrincipalAccessor principalAccessor) : IAvailabilitySubjectProvider
 {
     /// <summary>

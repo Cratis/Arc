@@ -166,6 +166,23 @@ This distinguishes a registered provider returning missing required state or an 
 
 ## Supply a principal for authorization
 
+Configure the caller before the first `Execute` or `Validate` call. All three helpers return the scenario for fluent setup:
+
+- `WithPrincipal(ClaimsPrincipal)` uses that principal through `ICurrentPrincipalAccessor` for authorization and caller-derived dependencies.
+- `WithClaims(params Claim[])` creates an authenticated identity carrying the supplied claims.
+- `Unauthenticated()` replaces the caller with an anonymous principal. Caller-claim key providers such as `CallerSubject` then return `Missing`.
+
+With `System.Security.Claims` imported and an application command named `RunAdministration`, setup can look like:
+
+```csharp
+using var scenario = new CommandScenario<RunAdministration>()
+    .WithClaims(new Claim(ClaimTypes.Role, "Administrator"), new Claim("sub", "caller-123"));
+
+var result = await scenario.Execute(new RunAdministration());
+```
+
+Use `.WithPrincipal(principal)` for an existing principal, or `.Unauthenticated()` to exercise anonymous behavior. These helpers do not perform login or token validation, and cannot change the caller after initialization.
+
 Pipeline authorization reads `ICurrentPrincipalAccessor`. Test its behavior by supplying a principal; this does not test login or token validation. The following complete standalone test file additionally requires `NSubstitute`:
 
 ```csharp

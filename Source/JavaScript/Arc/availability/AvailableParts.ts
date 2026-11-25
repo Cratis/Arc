@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { field } from '@cratis/fundamentals';
+import { NotAvailable } from './AvailabilityReason.js';
 import { UnavailablePart } from './UnavailablePart.js';
 
 /**
@@ -19,6 +20,9 @@ export class UnavailablePartModel implements UnavailablePart {
 
     @field(String)
     slice = '';
+
+    @field(String)
+    reason = NotAvailable;
 }
 
 /**

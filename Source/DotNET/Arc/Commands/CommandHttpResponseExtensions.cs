@@ -1,7 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net;
+using Cratis.Arc.Exceptions;
+using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Commands;
 
@@ -17,21 +18,17 @@ public static class CommandHttpResponseExtensions
     /// <param name="commandResult"><see cref="CommandResult"/> to evaluate.</param>
     public static void SetResponseStatusCode(this HttpResponse response, CommandResult commandResult)
     {
-        if (!commandResult.IsAuthorized)
+        var mapping = ExceptionResponseMapping.ResponseFor(commandResult);
+        if (mapping is not null && response.HasStarted) return;
+        if (HasHttpFailure(commandResult))
         {
-            response.StatusCode = (int)HttpStatusCode.Forbidden;            // Forbidden: https://www.rfc-editor.org/rfc/rfc9110.html#name-403-forbidden
+            response.StatusCode = (int)EndpointRouteHelper.GetStatusCode(commandResult);
         }
-        else if (!commandResult.IsValid)
+        if (mapping is not null)
         {
-            response.StatusCode = (int)HttpStatusCode.BadRequest;           // Bad request: https://www.rfc-editor.org/rfc/rfc9110.html#name-400-bad-request
-        }
-        else if (commandResult.IsRetryable)
-        {
-            response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;    // Service Unavailable: https://www.rfc-editor.org/rfc/rfc9110.html#name-503-service-unavailable
-        }
-        else if (commandResult.HasExceptions)
-        {
-            response.StatusCode = (int)HttpStatusCode.InternalServerError;  // Internal Server error: https://www.rfc-editor.org/rfc/rfc9110.html#name-500-internal-server-error
+            foreach (var header in mapping.Headers) response.Headers[header.Key] = header.Value;
         }
     }
+
+    static bool HasHttpFailure(CommandResult result) => !result.IsAuthorized || !result.IsValid || result.IsRetryable || result.HasExceptions;
 }

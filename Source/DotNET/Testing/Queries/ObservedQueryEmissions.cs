@@ -18,7 +18,7 @@ namespace Cratis.Arc.Testing.Queries;
 /// <param name="ownsScope">Whether this observation owns the admitted execution scope.</param>
 internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?, object?> materialize, bool ownsScope = true) : IDisposable, IAsyncDisposable
 {
-    readonly object _lifecycleGate = new();
+    readonly Lock _lifecycleGate = new();
     readonly Channel<Emission> _emissions = Channel.CreateUnbounded<Emission>();
     readonly CancellationTokenSource _lifetime = new();
     readonly CancellationTokenSource _enumeration = new();

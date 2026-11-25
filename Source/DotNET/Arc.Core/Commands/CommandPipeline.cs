@@ -144,6 +144,8 @@ public class CommandPipeline(
                 ValidationResults = result.ValidationResults,
                 ExceptionMessages = result.ExceptionMessages,
                 ExceptionStackTrace = result.ExceptionStackTrace,
+                ExceptionResponseCandidate = result.ExceptionResponseCandidate,
+                ErrorCode = result.ErrorCode,
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
                 AuthorizationConfigurationFailed = result.AuthorizationConfigurationFailed,
                 Recovery = result.Recovery,
@@ -560,7 +562,7 @@ public class CommandPipeline(
         {
             frame = CommandOperationBoundary.Enter(command.GetType(), scopeFactory);
         }
-        catch (InvalidCommandOperation exception)
+        catch (Exception exception) when (exception is InvalidCommandOperation or MissingCommandUnionMetadata)
         {
             OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(correlationId, exception);
@@ -709,6 +711,8 @@ public class CommandPipeline(
             }
 
             var response = await Handle(commandHandler, commandContext);
+
+            // Validate the entire graph before handlers run, including unions in later tuple elements.
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
             {
@@ -1038,6 +1042,9 @@ public class CommandPipeline(
     {
         return value switch
         {
+#if NET11_0_OR_GREATER
+            IUnion union => UnwrapValue(CommandUnionValue.Active(union)),
+#endif
             IOneOf oneOf => UnwrapValue(oneOf.Value),
             _ => value
         };
@@ -1047,6 +1054,9 @@ public class CommandPipeline(
     {
         return value switch
         {
+#if NET11_0_OR_GREATER
+            IUnion union => CanHandleValue(CommandUnionValue.Active(union), commandContext),
+#endif
             IOneOf oneOf => CanHandleOneOfValue(oneOf, commandContext),
             ITuple tuple => CanHandleTuple(tuple, commandContext),
             _ => valueHandlers.CanHandle(commandContext, value)
@@ -1091,6 +1101,9 @@ public class CommandPipeline(
         return response switch
         {
             ITuple tuple => await ProcessTupleResponse(tuple, commandContext, correlationId, result),
+#if NET11_0_OR_GREATER
+            IUnion union => await ProcessResponseValue(CommandUnionValue.Active(union), commandContext, correlationId, result),
+#endif
             IOneOf oneOf => await ProcessOneOfResponse(oneOf, commandContext, correlationId, result),
             _ => await ProcessSimpleResponse(response, commandContext, correlationId, result)
         };
@@ -1205,6 +1218,9 @@ public class CommandPipeline(
         return value switch
         {
             ITuple tuple => await HandleTuple(tuple, commandContext),
+#if NET11_0_OR_GREATER
+            IUnion union => await HandleValue(CommandUnionValue.Active(union), commandContext),
+#endif
             IOneOf oneOf => await HandleValue(oneOf.Value, commandContext),
             _ => await valueHandlers.Handle(commandContext, value)
         };

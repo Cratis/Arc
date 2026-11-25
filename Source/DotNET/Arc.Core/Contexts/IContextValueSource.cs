@@ -8,8 +8,7 @@ namespace Cratis.Arc.Contexts;
 /// </summary>
 /// <remarks>
 /// Register it as a scoped service, so every value resolves lazily, once, for the request that owns the scope. A host that
-/// registers none pays nothing: <see cref="ContextValues"/> then reads every value as absent. <c>AddArcAvailability</c> registers one
-/// built on the Choreography engine.
+/// registers none pays nothing: <see cref="ContextValues"/> then reads every value as absent. <c>WithAvailability</c> registers one.
 /// </remarks>
 public interface IContextValueSource
 {

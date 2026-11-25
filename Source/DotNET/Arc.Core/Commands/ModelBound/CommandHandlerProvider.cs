@@ -58,7 +58,7 @@ public class CommandHandlerProvider : ICommandHandlerProvider
 
     sealed class CommandDiscovery
     {
-        readonly object _gate = new();
+        readonly Lock _gate = new();
         Type[] _types = [];
         Dictionary<Type, MethodInfo> _commands = [];
         bool _initialized;

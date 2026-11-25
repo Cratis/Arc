@@ -17,7 +17,7 @@ namespace Cratis.Arc.MongoDB;
 /// </summary>
 public static class MongoDBDefaults
 {
-    static readonly object _lock = new();
+    static readonly Lock _lock = new();
 
     static bool _initialized;
 

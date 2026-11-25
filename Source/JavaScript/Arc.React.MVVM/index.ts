@@ -11,6 +11,7 @@ export * from './withViewModel.js';
 export * from './IViewModelDetached.js';
 export * from './WellKnownBindings.js';
 export * from './IHandleProps.js';
+export * from './IPropsChanged.js';
 export * from './IHandleParams.js';
 export * from './IHandleQueryParams.js';
 export * from './params.js';

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -53,7 +54,7 @@ public class TypeRegistry
     public IEnumerable<string> Ambiguous => _concepts.Ambiguous;
 
     /// <summary>
-    /// Gets every concept referenced by the application, ordered by name.
+    /// Gets every concept declared or referenced by the application, ordered by name.
     /// </summary>
     public IEnumerable<ConceptModel> Concepts => _concepts.Concepts.Select(concept => concept with
     {
@@ -181,6 +182,41 @@ public class TypeRegistry
         !CarriedTypes.IsRecord(type);
 
     /// <summary>
+    /// Registers unused declarations against the completed document's namespace.
+    /// </summary>
+    /// <param name="types">The locally declared types eligible for recovery.</param>
+    /// <param name="model">The completed application before unused declaration recovery.</param>
+    /// <param name="options">The namespace layout used by the emitter.</param>
+    internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types, ApplicationModel model, ScreenplayOptions options) =>
+        RegisterDeclarations(types, DeclarationNames.In(model, options.SegmentsToSkip ?? 0));
+
+    /// <summary>
+    /// Registers unused public top-level concepts without taking a normalized name owned by the document.
+    /// </summary>
+    /// <param name="types">The types declared by the analyzed compilations.</param>
+    /// <param name="declaredNames">Every declaration the completed application already owns.</param>
+    internal void RegisterDeclarations(IEnumerable<INamedTypeSymbol> types, IEnumerable<string> declaredNames)
+    {
+        var naming = new ScreenplayNaming();
+        var occupied = declaredNames.Concat(Names).Select(naming.ToDeclarationName).ToHashSet(StringComparer.Ordinal);
+        foreach (var type in types.Where(type => type.ContainingType is null && type.DeclaredAccessibility == Accessibility.Public))
+        {
+            var name = naming.ToDeclarationName(type.Name);
+            if (!occupied.Contains(name) && _concepts.TryRegister(type))
+            {
+                occupied.Add(name);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Determines whether this declaration contributed a concept.
+    /// </summary>
+    /// <param name="type">The concept declaration, from source or metadata.</param>
+    /// <returns>True when its declared-type identity was registered.</returns>
+    internal bool IsRegisteredConcept(INamedTypeSymbol type) => _concepts.IsRegistered(type);
+
+    /// <summary>
     /// Resolves a command-generated type while preserving its generation use through admission failure.
     /// </summary>
     /// <param name="type">The generated type.</param>
@@ -220,10 +256,14 @@ public class TypeRegistry
     }
 
     /// <summary>
-    /// Reports member classification lost by concept-level annotations.
+    /// Reports personal-data and secret classification findings.
     /// </summary>
     /// <param name="diagnostics">Where the findings are reported.</param>
-    internal void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics) => _personalData.Report(diagnostics);
+    internal void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics)
+    {
+        _personalData.Report(diagnostics);
+        _concepts.ReportCompliance(diagnostics);
+    }
 
     /// <summary>
     /// Reports enumeration aliases and unnamed flags combinations.

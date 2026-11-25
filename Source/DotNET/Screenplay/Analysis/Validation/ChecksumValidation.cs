@@ -34,9 +34,24 @@ internal static class ChecksumValidation
         return ReadPredicate(lambda, model);
     }
 
+    /// <summary>
+    /// Checks that a call is written in the validator of a concept over a String.
+    /// </summary>
+    /// <param name="call">The call to place.</param>
+    /// <param name="model">The model resolving its enclosing validator.</param>
+    /// <returns>Whether the validated concept wraps a String.</returns>
+    internal static bool IsStringConcept(SyntaxNode call, SemanticModel model)
+    {
+        var validator = model.GetEnclosingSymbol(call.SpanStart)?.ContainingType;
+        var concept = ValidationReader.ValidatedTypeOf(validator!)?.FindBase(WellKnownTypeNames.ConceptAs);
+
+        return concept?.TypeArguments is [{ SpecialType: SpecialType.System_String }];
+    }
+
     static string? ReadPredicate(SimpleLambdaExpressionSyntax lambda, SemanticModel model)
     {
-        if (lambda.ExpressionBody is not InvocationExpressionSyntax body || model.GetOperation(body) is not IInvocationOperation invocation)
+        var expression = ConceptLengthValidation.Unguarded(lambda, model) ?? lambda.ExpressionBody;
+        if (expression is not InvocationExpressionSyntax body || model.GetOperation(body) is not IInvocationOperation invocation)
         {
             return null;
         }
@@ -46,14 +61,6 @@ internal static class ChecksumValidation
         }
 
         return AlgorithmOf(invocation.Arguments[1].Value);
-    }
-
-    static bool IsStringConcept(SyntaxNode call, SemanticModel model)
-    {
-        var validator = model.GetEnclosingSymbol(call.SpanStart)?.ContainingType;
-        var concept = ValidationReader.ValidatedTypeOf(validator!)?.FindBase(WellKnownTypeNames.ConceptAs);
-
-        return concept?.TypeArguments is [{ SpecialType: SpecialType.System_String }];
     }
 
     static bool IsChecksumCall(IInvocationOperation call) => call.Arguments.Length == 2 && IsChecksumMethod(call.TargetMethod);

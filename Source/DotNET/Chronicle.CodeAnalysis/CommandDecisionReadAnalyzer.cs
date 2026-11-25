@@ -242,27 +242,38 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    static bool ProducesEvents(ITypeSymbol type)
+    static bool ProducesEvents(ITypeSymbol type) => ProducesEvents(type, new ResponseTypeTraversal());
+
+    static bool ProducesEvents(ITypeSymbol type, ResponseTypeTraversal traversal) =>
+        traversal.Visit(type, () => BranchProducesEvents(type, traversal), false);
+
+    static bool BranchProducesEvents(ITypeSymbol type, ResponseTypeTraversal traversal)
     {
+        var cases = NativeUnionSymbols.Cases(type);
+        if (!cases.IsDefault)
+        {
+            return cases.Any(@case => ProducesEvents(@case, traversal));
+        }
+
         // The command pipeline awaits Task/ValueTask, then unwraps IOneOf branches (Result, OneOf) and tuple elements, so mirror
         // that nesting: Task<Result<EventsWithConcurrencyScopes, ValidationResult>> still produces events.
         if (type is INamedTypeSymbol { IsGenericType: true } named)
         {
             if (IsAwaitableOrNullable(named))
             {
-                return ProducesEvents(named.TypeArguments[0]);
+                return ProducesEvents(named.TypeArguments[0], traversal);
             }
 
             if (IsEventUnion(named))
             {
-                return named.TypeArguments.Any(ProducesEvents);
+                return named.TypeArguments.Any(argument => ProducesEvents(argument, traversal));
             }
         }
         if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.Any(_ => ProducesEvents(_.Type));
+            return tuple.TupleElements.Any(element => ProducesEvents(element.Type, traversal));
         }
-        return IsEventValue(type);
+        return IsEventValue(type, traversal);
     }
 
     static bool IsAwaitableOrNullable(INamedTypeSymbol type) =>
@@ -274,12 +285,12 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     static bool IsOneOfInterface(INamedTypeSymbol type) =>
         type.Name == "IOneOf" && type.ContainingNamespace.ToDisplayString() == "OneOf";
 
-    static bool IsEventValue(ITypeSymbol type)
+    static bool IsEventValue(ITypeSymbol type, ResponseTypeTraversal traversal)
     {
         if (type is IArrayTypeSymbol array)
         {
             // An object[] is an IEnumerable<object>, which the pipeline accepts as a set of events.
-            return IsObjectOrEventValue(array.ElementType);
+            return IsObjectOrEventValue(array.ElementType, traversal);
         }
 
         if (IsDeclaredEventValue(type))
@@ -288,12 +299,13 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         }
         if (type is INamedTypeSymbol { IsGenericType: true } named && IsEnumerableShape(named))
         {
-            return named.TypeArguments.Any(IsObjectOrEventValue);
+            return named.TypeArguments.Any(argument => IsObjectOrEventValue(argument, traversal));
         }
         return false;
     }
 
-    static bool IsObjectOrEventValue(ITypeSymbol type) => type.SpecialType == SpecialType.System_Object || IsEventValue(type);
+    static bool IsObjectOrEventValue(ITypeSymbol type, ResponseTypeTraversal traversal) =>
+        type.SpecialType == SpecialType.System_Object || traversal.Visit(type, () => IsEventValue(type, traversal), false);
 
     static bool IsDeclaredEventValue(ITypeSymbol type) =>
         type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" || type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventForEventSourceId" ||

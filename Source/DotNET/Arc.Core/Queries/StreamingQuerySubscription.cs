@@ -14,7 +14,7 @@ namespace Cratis.Arc.Queries;
 /// </remarks>
 internal sealed class StreamingQuerySubscription : IDisposable
 {
-    readonly object _sync = new();
+    readonly Lock _sync = new();
     readonly List<IDisposable> _resources = [];
     readonly Action _cancel;
     readonly Action<Exception>? _onCleanupFailure;

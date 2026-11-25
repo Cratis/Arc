@@ -8,7 +8,10 @@ using System.Text.Json;
 using Cratis.Arc.Capabilities;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Commands.ResponseValueHandlers;
 using Cratis.Arc.Identity.Callers;
+using Cratis.Arc.Queries;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
@@ -60,6 +63,8 @@ public class an_mcp_host : Specification
 
     protected virtual void MapMcpEndpoint(WebApplication app) => app.MapArcMcp();
 
+    protected virtual Task StartHost() => _app.StartAsync(CancellationToken);
+
     protected virtual void ConfigureCallers(IServiceCollection services)
     {
         services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
@@ -78,7 +83,7 @@ public class an_mcp_host : Specification
         {
             try
             {
-                await StartHost();
+                await CreateAndStartHost();
                 break;
             }
             catch (IOException ex) when (ex.InnerException is AddressInUseException && attempt < MaxStartAttempts)
@@ -91,7 +96,7 @@ public class an_mcp_host : Specification
         _client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
     }
 
-    async Task StartHost()
+    async Task CreateAndStartHost()
     {
         _capabilityPort = FreePort();
         do
@@ -120,14 +125,21 @@ public class an_mcp_host : Specification
                     ConfigureMcp(mcp);
                 }));
         ConfigureCallers(builder.Services);
+
         builder.Services.AddSingleton(_probe);
         RegisterCommands(builder.Services);
+        RegisterQueries(builder.Services);
+
+        // Plain Arc hosts do not install Chronicle; adapter specs explicitly register their real execution scope.
+        builder.Services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(new KnownInstancesOf<ICommandExecutionScope>());
+        builder.Services.AddSingleton<IInstancesOf<ICommandResponseValueHandler>>(new KnownInstancesOf<ICommandResponseValueHandler>(
+            new AuthorizationResultResponseValueHandler(), new ValidationResultResponseValueHandler()));
         ConfigureServices(builder.Services);
         _app = builder.Build();
         _app.UseCratisArc();
         MapMcpEndpoint(_app);
         ConfigureEndpoints(_app);
-        await _app.StartAsync(CancellationToken);
+        await StartHost();
     }
 
     async Task Destroy()
@@ -231,6 +243,15 @@ public class an_mcp_host : Specification
         services.AddSingleton(commands);
         services.AddSingleton(Substitute.For<ICommandKeys>());
     }
+
+    static void RegisterQueries(IServiceCollection services) => services.AddSingleton<IInstancesOf<IQueryPerformerProvider>>(provider =>
+    {
+        // Optional Chronicle adapter dependencies must not add unrelated queries and policies to this host.
+        var queries = Substitute.For<IQueryPerformerProvider>();
+        queries.Performers.Returns(provider.GetRequiredService<QueryPerformerProvider>().Performers
+            .Where(performer => performer.ReadModelType.Assembly == typeof(an_mcp_host).Assembly).ToArray());
+        return new KnownInstancesOf<IQueryPerformerProvider>(queries);
+    });
 
     void Configure(McpOptions options)
     {

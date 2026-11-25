@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Contexts;
 using Cratis.Arc.Observability;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Tenancy;
@@ -211,7 +212,7 @@ public partial class QueryPipeline
             return null;
         }
 
-        var pagingValidation = await ValidatePaging(state.Paging, state.CorrelationId);
+        var pagingValidation = await ValidatePaging(state.Paging, state.CorrelationId, state.ServiceProvider);
         return pagingValidation.IsSuccess ? null : pagingValidation;
     }
 
@@ -233,6 +234,7 @@ public partial class QueryPipeline
         state.Context = state.Context with { Dependencies = dependencies };
         queryContextManager.Set(state.Context);
         state.Snapshot = OperationSnapshot.Begin(state.ServiceProvider, () => state.Context.AuthorizedPrincipalSnapshot);
+        InvocationContextValues.Attach(state.Snapshot, state.Context.ProvidedValues);
         state.SnapshotLease.Attach(state.Snapshot);
     }
 

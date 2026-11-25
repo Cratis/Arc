@@ -9,7 +9,7 @@ A command filter applies a shared check before a Cratis Arc model-bound command 
 
 Arc discovers `ICommandFilter` implementations and resolves them from the command's service scope. `OnExecution(CommandContext)` runs before `Provide()` and `Handle()`.
 
-Filters run in three ordered groups: filters implementing `IAvailabilityCommandFilter` first, then filters implementing `IAuthorizationCommandFilter`, then ordinary `ICommandFilter` implementations. `IAvailabilityCommandFilter` extends `IAuthorizationCommandFilter`, so availability is part of authorization and runs before it. Each group retains discovery order, but that order is not a configurable priority mechanism.
+Filters run in three ordered groups: filters implementing `IAvailabilityCommandFilter` first, then filters implementing `IAuthorizationCommandFilter`, then ordinary `ICommandFilter` implementations. `IAvailabilityCommandFilter` extends `IAuthorizationCommandFilter`, so availability is part of authorization and runs before it. Within a group, filters run ordered by the filter type's full name (ordinal comparison), so the order is deterministic but not a configurable priority mechanism. Execution stops at the first blocking result, so a refusal may not include the errors of every filter.
 
 Arc merges each filter's result into the command result. Authorization denials, exceptions, and validation failures that block under the effective severity policy stop the chain. Permitted validation failures do not prevent later filters from running. If a filter throws, its failure is merged without discarding earlier verdicts.
 

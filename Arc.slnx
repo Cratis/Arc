@@ -79,10 +79,15 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\FakeCommandResponseHandlerDependency\FakeCommandResponseHandlerDependency.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\RuntimeDependencyLibrary\RuntimeDependencyLibrary.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\RuntimeDependencyApplication\RuntimeDependencyApplication.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\AvailabilityManifestFixture\AvailabilityManifestFixture.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptCommand\ReferencedConceptCommand.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptValidator\ReferencedConceptValidator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\TransitiveConceptValidator\TransitiveConceptValidator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ValidationProjectionFixture\ValidationProjectionFixture.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ValidatorRuntimeApplication\ValidatorRuntimeApplication.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ValidatorRuntimeApplication\Harness\ValidatorRuntimeHarness.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ValidatorRuntimeDependency\ValidatorRuntimeDependency.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ValidatorRuntimeScanTarget\ValidatorRuntimeScanTarget.csproj" />
     </Folder>
     <Folder Name="/Samples/">
         <Project Path="Samples\AspNetCore\AspNetCore.csproj" />

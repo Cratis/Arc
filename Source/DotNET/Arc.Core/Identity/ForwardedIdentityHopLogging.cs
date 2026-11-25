@@ -15,7 +15,7 @@ internal sealed class ForwardedIdentityHopLogging(TimeProvider clock)
 {
     /// <summary>The process-wide warning limiter.</summary>
     internal static readonly ForwardedIdentityHopLogging Shared = new(TimeProvider.System);
-    readonly object _gate = new();
+    readonly Lock _gate = new();
     readonly Dictionary<ForwardedIdentityHopAdmission, (DateTimeOffset Last, long Suppressed)> _warnings = [];
 
     /// <summary>Reports at most one warning per reason per minute.</summary>

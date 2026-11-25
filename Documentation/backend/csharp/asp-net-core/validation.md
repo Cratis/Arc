@@ -155,7 +155,7 @@ public class AccountNameValidator : ConceptValidator<AccountName>
 
 ### Conditional validation
 
-A concept can appear in both a command and a query without needing identical rules for each. Alongside FluentValidation's [conditions](https://docs.fluentvalidation.net/en/latest/conditions.html), Arc provides `WhenCommand()` and `WhenQuery()` on its validator base classes and rule builders. In MVC validation, Arc marks POST requests as command validation and other HTTP methods as query validation.
+A concept can appear in both a command and a query without needing identical rules for each. Alongside FluentValidation's [conditions](https://docs.fluentvalidation.net/en/latest/conditions.html), Arc provides `WhenCommand()` and `WhenQuery()` on its validator base classes and rule builders. In MVC validation, Arc marks POST, PUT, PATCH and DELETE requests as command validation and other HTTP methods as query validation. HTTP method matching is case-insensitive.
 
 For example, a role-based access control system may allow looking up a system user but reject commands that modify one. These fragments assume a `UserId` concept and application-defined rules for looking up users; they do not replace endpoint authorization.
 

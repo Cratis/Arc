@@ -42,6 +42,7 @@ public static partial class Generator
             if (!TryPrepareOutput(artifacts)) return false;
 
             await WriteArtifacts(artifacts);
+            await WriteAvailabilityManifest(artifacts);
             await WriteTypesAndEnums(artifacts.IdentityDetailsTypes);
 
             await FlushPendingContent();
@@ -178,6 +179,20 @@ public static partial class Generator
             await Write(artifacts.Queries.Where(_ => _.IsObservable).ToList(), TemplateTypes.ObservableQuery, "observable queries");
         }
 
+        async Task WriteAvailabilityManifest(DiscoveredArtifacts artifacts)
+        {
+            if (string.IsNullOrEmpty(settings.AvailabilityManifestPath) || settings.Output.ComparesBytes)
+            {
+                return;
+            }
+
+            var manifestPath = Path.GetFullPath(settings.AvailabilityManifestPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+            var document = AvailabilityManifestWriter.Build(artifacts.Commands, artifacts.Queries, Path.GetFileName(settings.AvailabilityManifestPath));
+            await File.WriteAllTextAsync(manifestPath, document.ToJson() + Environment.NewLine);
+            settings.Message($"  Availability manifest: {manifestPath}");
+        }
+
         bool ShouldDeleteOutput(string path) => !settings.Output.ComparesBytes && Directory.Exists(path) && !settings.SkipOutputDeletion;
 
         async Task WriteTypesAndEnums(IEnumerable<Type> identityDetailsTypes)
@@ -241,8 +256,11 @@ public static partial class Generator
         IEnumerable<string> RemoveOrphanedFiles()
         {
             var stopwatch = Stopwatch.StartNew();
-            var orphanedFiles = FileMetadataScanner.FindOrphanedFiles(settings.OutputPath, _generatedFiles);
-            var removedCount = FileMetadataScanner.RemoveOrphanedFiles(settings.OutputPath, orphanedFiles, settings.Message, settings.Output);
+            var scope = new GeneratedOutputScope(settings.OutputPath, settings.Message, settings.Output, settings.PreviousFiles);
+            var orphanedFiles = settings.Output.ComparesBytes
+                ? FileMetadataScanner.FindOrphanedFiles(settings.OutputPath, _generatedFiles)
+                : FileMetadataScanner.FindOrphanedFiles(settings.OutputPath, _generatedFiles, scope);
+            var removedCount = FileMetadataScanner.RemoveOrphanedFiles(orphanedFiles, scope);
             if (removedCount > 0)
             {
                 settings.Message($"  Removed {removedCount} orphaned file(s) in {stopwatch.Elapsed}");
@@ -262,7 +280,9 @@ public static partial class Generator
 
             var stopwatch = Stopwatch.StartNew();
             var distinctDirectories = _directories.Distinct().ToList();
-            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFilesWithFileHeader(settings.FileHeaderTemplate, distinctDirectories, _generatedFiles, orphanedFiles, settings.Message, settings.OutputPath, settings.Output);
+            var generation = new IndexFileManager.IndexGeneration(settings.FileHeaderTemplate, distinctDirectories, _generatedFiles, orphanedFiles);
+            var scope = new GeneratedOutputScope(settings.OutputPath, settings.Message, settings.Output, settings.Output.ComparesBytes ? null : settings.PreviousFiles);
+            var (writtenCount, skippedCount) = IndexFileManager.UpdateScopedIndexFiles(generation, scope);
             var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
             settings.Message($"  {writtenCount} index files written{skippedInfo} in {stopwatch.Elapsed}");
         }

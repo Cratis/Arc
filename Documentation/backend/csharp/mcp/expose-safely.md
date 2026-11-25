@@ -36,7 +36,7 @@ Arc checks every tool when the application starts. Each failure below throws an 
 - Expose queries before commands. A query tool is annotated read-only and idempotent; a command tool is annotated as destructive and not idempotent, so clients know to ask before calling it.
 - Expose a command only if an agent acting for a user should be able to do what the command does. The command's own authorization still applies, but exposing it is a product decision.
 - Do not expose commands that need approval. Arc refuses them.
-- Streaming (observable) queries are not available as tools; a call returns the tool error "The tool is not available on this host."
+- Streaming (observable) queries are not available as tools; a call returns the tool error "The tool is not available on this host." Queries whose declared return type is a stream are refused before the query runs, including streams wrapped in `Task<T>` or `ValueTask<T>`.
 
 ## Layer extra requirements
 

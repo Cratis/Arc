@@ -16,6 +16,6 @@ public class when_a_slice_is_switched_off : given.a_development_host
     }
 
     [Fact] void should_not_make_the_part_available() => _switchedOff.IsAvailable.ShouldBeFalse();
-    [Fact] void should_say_why() => _switchedOff.Causes.ShouldContainOnly(DevelopmentAvailabilityGate.SwitchedOff);
-    [Fact] void should_leave_another_slice_to_its_own_gates() => _other.Causes.ShouldNotContain(DevelopmentAvailabilityGate.SwitchedOff);
+    [Fact] void should_say_why() => _switchedOff.Causes.ShouldContainOnly(ArcAvailabilityGate.SwitchedOff);
+    [Fact] void should_leave_another_slice_to_its_own_gates() => _other.Causes.ShouldNotContain(ArcAvailabilityGate.SwitchedOff);
 }

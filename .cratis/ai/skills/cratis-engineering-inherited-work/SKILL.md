@@ -11,7 +11,7 @@ Work someone else started carries their assumptions, a base that has moved and c
 
 This skill decides and verifies. It reuses the neighbors instead of restating them:
 
-- Ownership, claiming and the status block: **cratis-engineering-issue-hygiene**.
+- Ownership, claiming and append-only issue events: **cratis-engineering-issue-hygiene**.
 - Proving a combined or restored branch lost nothing: **cratis-engineering-consolidation-guard**.
 - Writing or reading a handoff note: **cratis-session-handoff**.
 - Reconciling earlier review findings: **cratis-engineering-review-rounds**.
@@ -70,7 +70,7 @@ Take responsibility for finishing the goal, not for defending the existing imple
 3. **Re-check claimed results.** Do not carry a "tests pass", "fixed" or "verified" claim forward. Reproduce the original failure, run the checks yourself through the repository's gates, and exercise the realistic workflow. Mocked green specs do not prove the user experience; state what stays unverified.
 4. **Reconcile earlier review findings.** For every open or resolved review thread, decide: fixed in the current head, still open, or no longer applicable, with the commit or reason. Plan the next review pass with **cratis-engineering-review-rounds**; do not restart whole-change review for a delta.
 5. **Recheck the source.** The original pull request may have gained commits while you worked. Fetch it again before reporting and merge or reconcile what arrived.
-6. **Keep the issue truthful.** Claim, update and close following **cratis-engineering-issue-hygiene**. Record the handoff state with **cratis-session-handoff** when the work will continue elsewhere.
+6. **Keep the issue truthful.** Claim, post meaningful events as new comments and close only as authorized following **cratis-engineering-issue-hygiene**; never edit existing issue text. Record the handoff state with **cratis-session-handoff** when the work will continue elsewhere.
 
 ## 6. Preserve contributor credit
 

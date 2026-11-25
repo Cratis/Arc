@@ -47,7 +47,8 @@ public class a_keyed_protected_read : protected_plain_models
         result.IsValid.ShouldBeFalse();
         result.ValidationResults.Single().Reason.ShouldEqual(ValidationResultReason.Rule);
         result.ValidationResults.Single().Severity.ShouldEqual(ValidationResultSeverity.Error);
-        result.ValidationResults.Single().Message.ShouldEqual($"Balance '{key}' does not exist.");
+        result.ValidationResults.Single().Message.ShouldEqual("Balance does not exist.");
+        failure.Message.ShouldNotContain($"'{key}'");
         EndpointRouteHelper.GetStatusCode(result.IsSuccess, result.IsAuthorized, result.IsValid).ShouldEqual(System.Net.HttpStatusCode.BadRequest);
     }
 

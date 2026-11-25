@@ -60,6 +60,7 @@ public class a_proxy_suffix_fixture : Specification, IDisposable
         startInfo.ArgumentList.Add("0");
         startInfo.ArgumentList.Add("--library-mode");
         startInfo.ArgumentList.Add("--skip-output-deletion");
+        startInfo.ArgumentList.Add($"--state-file={Path.Combine(_temporaryPath, "state.json")}");
         startInfo.ArgumentList.Add($"--type-to-ts=System.Decimal=Money={HandWrittenModule}");
         if (useProxyFileSuffix)
         {

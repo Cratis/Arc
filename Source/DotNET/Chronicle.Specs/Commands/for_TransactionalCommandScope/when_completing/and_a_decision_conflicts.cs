@@ -40,7 +40,7 @@ public class and_a_decision_conflicts : given.a_transactional_command_scope
 
     [Fact]
     void should_report_one_decision_conflict_without_sequence_numbers() =>
-        _result.ValidationResults.Count(_ => _.Message.Contains("'source' changed")).ShouldEqual(1);
+        _result.ValidationResults.Count(_ => _.Message.Contains("SampleModel changed after it was read")).ShouldEqual(1);
 
     [Fact]
     void should_retain_unrelated_concurrency_violations() =>

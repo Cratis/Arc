@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Cratis.Arc.Availability;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Contexts;
@@ -25,12 +26,14 @@ public sealed class ContextValues
     readonly IContextValueSource? _source;
     readonly Func<Type?> _part;
     readonly CancellationToken _cancellationToken;
+    readonly Func<AvailabilityInvocation?>? _invocation;
 
-    ContextValues(IContextValueSource? source, Func<Type?> part, CancellationToken cancellationToken)
+    ContextValues(IContextValueSource? source, Func<Type?> part, CancellationToken cancellationToken, Func<AvailabilityInvocation?>? invocation = null)
     {
         _source = source;
         _part = part;
         _cancellationToken = cancellationToken;
+        _invocation = invocation;
     }
 
     /// <summary>
@@ -63,8 +66,15 @@ public sealed class ContextValues
     /// <returns>The <see cref="ContextValueRead"/>.</returns>
     /// <exception cref="RequiredContextValueAbsentException">The value is declared as required and is absent.</exception>
     /// <exception cref="ContextValueUnavailableException">The value could not be resolved.</exception>
-    public ValueTask<ContextValueRead> ReadAsync(string name) =>
-        _source is null ? ValueTask.FromResult(ContextValueRead.Absent) : _source.Read(_part(), name, _cancellationToken);
+    public ValueTask<ContextValueRead> ReadAsync(string name)
+    {
+        if (_source is IExecutionContextValueSource executionSource && _invocation?.Invoke() is { } invocation)
+        {
+            return executionSource.ReadForExecution(invocation, name, _cancellationToken);
+        }
+
+        return _source is null ? ValueTask.FromResult(ContextValueRead.Absent) : _source.Read(_part(), name, _cancellationToken);
+    }
 
     /// <summary>
     /// Gets a value.
@@ -132,6 +142,24 @@ public sealed class ContextValues
     /// <returns>The dynamic view of the values.</returns>
     [RequiresDynamicCode("Reading a value by name uses dynamic dispatch. Use Get, GetAsync or ValuesAs where dynamic code is unavailable.")]
     public dynamic AsDynamic() => new DynamicContextValues(this);
+
+    /// <summary>Creates readers from an explicitly bound invocation, retaining legacy source support.</summary>
+    /// <param name="services">The invocation's scoped services.</param>
+    /// <param name="part">The operation type for legacy sources.</param>
+    /// <param name="invocation">The lazy identity of the bound invocation, or null when no instance is known.</param>
+    /// <param name="cancellationToken">The reader's cancellation token.</param>
+    /// <returns>The invocation's values, or empty values when no source is registered.</returns>
+    internal static ContextValues ForExecution(IServiceProvider? services, Func<Type?> part, Func<AvailabilityInvocation?> invocation, CancellationToken cancellationToken)
+    {
+        var source = services?.GetService<IContextValueSource>();
+        return source is null ? Empty : new(source, part, cancellationToken, invocation);
+    }
+
+    /// <summary>Creates a reader with another cancellation token without changing its invocation identity.</summary>
+    /// <param name="cancellationToken">The cancellation token of the consuming reader.</param>
+    /// <returns>A reader sharing the same source and invocation.</returns>
+    internal ContextValues WithCancellation(CancellationToken cancellationToken) =>
+        new(_source, _part, cancellationToken, _invocation);
 
     /// <summary>
     /// Gets a value by name, trying the name with its first letter in lower case first.

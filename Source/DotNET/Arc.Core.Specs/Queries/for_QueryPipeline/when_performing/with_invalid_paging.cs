@@ -15,9 +15,9 @@ public class with_invalid_paging : given.a_query_pipeline
         _paging = new Paging(0, -1, true);
 
         var validator = new PageSizeValidator();
-        _discoverableValidators.TryGet(typeof(PageSize), out Arg.Any<IValidator>()).Returns(callInfo =>
+        _discoverableValidators.TryGet(typeof(PageSize), _serviceProvider, out Arg.Any<IValidator>()).Returns(callInfo =>
         {
-            callInfo[1] = validator;
+            callInfo[2] = validator;
             return true;
         });
     }

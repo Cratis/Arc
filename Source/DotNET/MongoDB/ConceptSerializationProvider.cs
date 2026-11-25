@@ -60,9 +60,9 @@ public class ConceptSerializationProvider : IBsonSerializationProvider
         where T : class => new();
 
     [RequiresDynamicCode("Closes the concept serializer over a concept type only known at runtime.")]
-    IBsonSerializer GetSerializerThroughReflection(Type type)
+    static IBsonSerializer GetSerializerThroughReflection(Type type)
     {
-        var createConceptSerializerGenericMethod = GetType().GetMethod(nameof(CreateConceptSerializer))!.MakeGenericMethod(type);
+        var createConceptSerializerGenericMethod = typeof(ConceptSerializationProvider).GetMethod(nameof(CreateConceptSerializer))!.MakeGenericMethod(type);
         return (createConceptSerializerGenericMethod.Invoke(null, []) as IBsonSerializer)!;
     }
 }

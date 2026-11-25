@@ -10,6 +10,7 @@ namespace Cratis.Arc.Availability;
 /// The attribute does nothing unless the host registers an <see cref="IAvailabilityGate"/>.
 /// </remarks>
 /// <param name="name">The name of the availability.</param>
+[Obsolete("Define the block as a type that derives from AvailabilityBlock and write [Available<DataQuality>]. A string names no type, so a typo is not a compile error.")]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
 public sealed class AvailableWithAttribute(string name) : Attribute
 {

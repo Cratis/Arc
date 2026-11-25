@@ -22,7 +22,7 @@ internal static class GenerationFixtureShape
     {
         ["uuid"] = fixture => Guid.TryParseExact(fixture.Text, "D", out _),
         ["uuidv7"] = UuidV7,
-        ["ulid"] = fixture => CrockfordValue(fixture, _crockford),
+        ["ulid"] = fixture => CrockfordValue(fixture, WithCase(_crockford, fixture.Generation.Case)),
         ["typeid"] = TypeId,
         ["nanoid"] = NanoId,
         ["bytes"] = Bytes
@@ -32,7 +32,7 @@ internal static class GenerationFixtureShape
     {
         ["hex"] = Hex,
         ["base64url"] = fixture => EncodedBytes(fixture, _base64Url),
-        ["base32"] = fixture => EncodedBytes(fixture, _base32)
+        ["base32"] = fixture => EncodedBytes(fixture, WithCase(_base32, fixture.Generation.Case))
     };
 
     /// <summary>
@@ -42,14 +42,33 @@ internal static class GenerationFixtureShape
     /// <param name="value">The literal fixture text.</param>
     /// <returns>Whether the fixture has the required shape.</returns>
     public static bool Matches(GenerationModel generation, string value) =>
-        _strategies.GetValueOrDefault(generation.Kind, Unsupported)(new(generation, value));
+        FixtureOf(generation, value) is { } fixture && MatchesCase(fixture) && _strategies.GetValueOrDefault(generation.Kind, Unsupported)(fixture);
 
     /// <summary>
     /// Checks the implicit UUID fixture shape enforced from ESM v15.
     /// </summary>
     /// <param name="value">The normalized literal fixture.</param>
+    /// <param name="generation">The explicit strategy, or null for implicit UUID generation.</param>
     /// <returns>Whether it is a version 4 UUID with the RFC variant.</returns>
-    public static bool MatchesUuidV4(LiteralSource value) => value.Value is string text && UuidV4(new(new("uuid"), text));
+    public static bool MatchesUuidV4(LiteralSource value, GenerationModel? generation = null) =>
+        value.Value is string text && FixtureOf(generation ?? new("uuid"), text) is { } fixture && UuidV4(fixture);
+
+    static Fixture? FixtureOf(GenerationModel generation, string text)
+    {
+        var prefix = generation.Kind == "typeid" ? string.Empty : generation.Prefix ?? string.Empty;
+
+        return text.StartsWith(prefix, StringComparison.Ordinal) ? new(generation, text[prefix.Length..]) : null;
+    }
+
+    static Alphabet WithCase(Alphabet alphabet, string? casing) =>
+        casing == "lower" ? alphabet with { Symbols = alphabet.Symbols.ToLowerInvariant() } : alphabet;
+
+    static bool MatchesCase(Fixture fixture) => fixture.Generation.Case switch
+    {
+        "lower" => !fixture.Text.Any(char.IsUpper),
+        "upper" => !fixture.Text.Any(char.IsLower),
+        _ => true
+    };
 
     static bool Unsupported(Fixture fixture) => false;
 
@@ -59,7 +78,11 @@ internal static class GenerationFixtureShape
 
     static bool UuidV7(Fixture fixture) => HasUuidShape(fixture) && fixture.Text[14] == '7';
 
-    static bool HasUuidShape(Fixture fixture) => Guid.TryParseExact(fixture.Text, "D", out _) && !fixture.Text.Any(character => character is >= 'A' and <= 'F') && "89ab".Contains(fixture.Text[19], StringComparison.Ordinal);
+    static bool HasUuidShape(Fixture fixture) => Guid.TryParseExact(fixture.Text, "D", out _) && HasUuidCase(fixture) && "89abAB".Contains(fixture.Text[19], StringComparison.Ordinal);
+
+    static bool HasUuidCase(Fixture fixture) => fixture.Generation.Case == "upper"
+        ? !fixture.Text.Any(char.IsLower)
+        : !fixture.Text.Any(char.IsUpper);
 
     static bool CrockfordValue(Fixture fixture, Alphabet alphabet) => fixture.Text.Length == 26 && fixture.Text[0] is >= '0' and <= '7' && fixture.Text.All(alphabet.Symbols.Contains);
 

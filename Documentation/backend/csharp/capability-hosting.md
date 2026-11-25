@@ -112,6 +112,14 @@ With Arc's Chronicle integration, a command executed while a capability caller i
 
 Absent values are omitted, including an unset tenant. Tokens, secrets, scopes, and the internal credential kind are not recorded by this entry. Commands outside a capability call add no capability causation.
 
+## Opt-in delegation policy
+
+For a host that already resolves verified delegated callers, `Cratis.Arc.Core` exposes `DelegationRequest`, `IDelegationAuthority`, and `DelegationBoundary` in `Cratis.Arc.Identity.Delegation`. Explicitly register the boundary and exactly one product-owned authority in the consumer's scope, resolve the verified caller, and require delegation allow **and** separate product membership/operation authorization. See [the delegation check setup](asp-net-core/verified-callers.md#opt-in-to-a-delegation-check) for registration and usage.
+
+The boundary refuses missing or ambiguous authorities, invalid delegated caller/destination shapes, and failed or refused checks; requested cancellation propagates. It forwards the original credential provenance without accepting a request-supplied grant or actor override. It uses the existing scope without creating another one. A non-HTTP host owns its scope and verified caller context explicitly.
+
+This is a policy seam, not a grant store, token exchange, lineage engine, atomic budget ledger, revocation protocol, or approval implementation. Capability hosting does not install or invoke it automatically. The existing REST, MCP, PAT, browser, workload, and command/query paths are unchanged.
+
 ## Limits today
 
 - The public installers support signed v2 browser-session callers and resource-local PATs, including browser-only PAT issuance on the same resource. OAuth-grant, service-account, and on-behalf installation remain separate work.

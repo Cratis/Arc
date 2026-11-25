@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>ValidatorRuntimeApplication</AssemblyName>
+        <RootNamespace>ValidatorRuntimeApplication</RootNamespace>
+        <OutputType>Exe</OutputType>
+        <GenerateDependencyFile>true</GenerateDependencyFile>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Remove="Harness/**/*.cs" />
+        <ProjectReference Include="../ValidatorRuntimeScanTarget/ValidatorRuntimeScanTarget.csproj" />
+        <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>

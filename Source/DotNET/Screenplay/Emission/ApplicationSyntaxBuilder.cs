@@ -64,6 +64,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var domain = ToName(model.Domain, options.Domain);
         var conceptDiagnostics = new ScreenplayDiagnostics();
         var concepts = new ConceptSyntaxBuilder(naming, _validations, conceptDiagnostics, _names) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, MaximumExecutableModelVersion = options.MaximumExecutableModelVersion }.Build(model.Concepts).ToList();
+        _availability.Declare(model.Audiences, model.Availabilities);
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
         var declaredReadModels = new ReadModelDeclarations(naming, _types, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], diagnostics).Of(model.Slices);
         var originalModel = model;
@@ -71,9 +72,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var routedOccurrences = new List<SpecificationStateModel>();
         var modules = BuildModules(new(model, options, domain, declaredReadModels, OmittedReferenceSlices(originalModel, model), routedOccurrences)).ToList();
         var provided = new ContextValueSyntaxBuilder(naming, _types, diagnostics).Place(model with { ContextValues = originalModel.ContextValues }, modules);
-        modules = [.. provided.Modules];
+        modules = [.. _availability.Place(provided.Modules, model.ScopeGates)];
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
+        var availabilities = _availability.Availabilities(domain).ToList();
         var application = new ApplicationSyntax(
             [.. BuildImports(model)],
             [.. concepts],
@@ -85,9 +87,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         {
             CommandReadMode = Analysis.ProtectedReads.Mode(model),
             ReactionProductionMode = AtLeast(options, SemanticVersion.V22) && AtomicReactionBatches.Required(modules) ? ReactionProductionMode.Atomic : null,
-            Provides = provided.Application,
+            Provides = [.. provided.Application, .. _availability.OpaqueConditions()],
             Audiences = [.. _availability.Audiences()],
-            Availabilities = [.. _availability.Availabilities()],
+            Availabilities = availabilities,
             Systems = options.AuthoringOnlyConstructs ? SystemsOf(model, _types, naming) : [],
             EventSources = admitted.EventRoutes ? new EventSourceSyntaxBuilder(naming).Build(model, routedOccurrences, AtLeast(options, SemanticVersion.V10)) : []
         };
@@ -216,13 +218,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? [])
             .Where(read => options.AuthoringOnlyConstructs || read.Protected).ToList();
         var placed = new List<PlacedSlice>();
+        var graphBuilder = new Graphs.GraphSliceSyntaxBuilder(naming, diagnostics, model.Slices);
 
         foreach (var slice in model.Slices
             .OrderBy(_ => _.Namespace, StringComparer.Ordinal)
             .ThenBy(_ => _.Name, StringComparer.Ordinal))
         {
-            var built = sliceBuilder.Build(slice);
-            if (SliceContent.IsEmpty(built))
+            var built = graphBuilder.Build(sliceBuilder.Build(slice), slice.Namespace, model.Graphs, options);
+            if (Graphs.GraphSliceSyntaxBuilder.IsEmpty(built))
             {
                 ReportEmptySlice(slice, context);
                 continue;

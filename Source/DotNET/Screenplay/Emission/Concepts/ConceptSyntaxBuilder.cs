@@ -115,7 +115,11 @@ public class ConceptSyntaxBuilder(
         if (concept.IsPii)
         {
             ReportPiiPromotion(concept);
-            yield return new(PersonallyIdentifiableInformation, SourceLocation.Start);
+            yield return new(PersonallyIdentifiableInformation, SourceLocation.Start)
+            {
+                SpecialCategory = concept.SpecialCategory,
+                Criminal = concept.IsCriminal
+            };
         }
 
         if (concept.IsSensitive)

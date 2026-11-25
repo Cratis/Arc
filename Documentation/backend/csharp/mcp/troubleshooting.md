@@ -74,6 +74,8 @@ A tool failure returns a result with `isError` set, not an HTTP error. The resul
 | `The tool is not available on this host.` | A streaming query, or a replaced command or query pipeline. | Expose a non-streaming query. Use Arc's own pipelines. |
 | Result with `isValid: false` | Command validation failed. | Read `validationResults` and fix the input. |
 
+Streaming query return types (`ISubject<T>` and `IAsyncEnumerable<T>`) are refused before the performer runs, including when wrapped in `Task<T>`, `ValueTask<T>` or MVC `ActionResult<T>`. Non-streaming `ActionResult<T>` queries still work. Opaque declared return types such as `object` cannot be checked before execution; if the result is a stream, the existing post-execution check refuses it.
+
 ## The tool list is empty or missing a tool
 
 `tools/list` shows only tools the caller's scopes and the authorizers allow, and that are [available](../availability.md) to the caller. An empty list has four likely causes: the token holds none of the tools' scopes, the registered authorizers hide every tool, the availability gate decides that the tools' parts are not available, or no tools are exposed. A gate that cannot decide does not hide a tool; calling it returns a retryable tool error. A missing write tool means the token lacks the write scope or an authorizer denies it. A request without an accepted caller gets 401, not an empty list.

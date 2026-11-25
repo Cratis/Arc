@@ -70,6 +70,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
      * @param {ChangeSet<unknown> | undefined} changeSet Optional change set from the server describing the delta since the last update.
      * @param {boolean} isReady Whether the query has produced a result. Defaults to true so existing constructor calls
      * represent settled synthetic states; {@link initial} explicitly uses false because no server result exists yet.
+     * @param {string | undefined} errorCode Optional stable public failure code.
      */
     constructor(
         readonly data: TDataType,
@@ -86,6 +87,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
         readonly isReady: boolean = true,
         readonly authorizationFailureReason: string = '',
         readonly isRetryable: boolean = false,
+        readonly errorCode?: string,
     ) {}
 
     /** @inheritdoc */
@@ -121,6 +123,7 @@ export class QueryResultWithState<TDataType> implements IQueryResult<TDataType> 
             queryResult.isReady ?? true,
             queryResult.authorizationFailureReason ?? '',
             queryResult.isRetryable ?? false,
+            queryResult.errorCode,
         );
     }
 }

@@ -163,7 +163,7 @@ The pipeline resolves `Handle()` and `Provide()` parameters in order, awaiting e
 
 If you write a parameter-resolution plugin, an existing synchronous `ICanResolveParameterDependency` implementation still works. Add `IAsyncParameterDependencyResolver` when acquiring the dependency requires asynchronous work. Its `Resolve` method returns a `ParameterDependencyResolution`: `NotResolved` when the plugin does not own the parameter, or `Resolved(dependency)` when it does, even if the dependency is null.
 
-Resolvers are consulted in discovery order. The first one that owns the parameter wins; if none does, the container resolves the type.
+Resolvers are consulted in discovery order. The first one that owns the parameter wins; if none does, the container resolves the type. With Chronicle, its built-in resolver is always consulted first, preserving framework-token and read-model resolution. Application resolvers are discovered and resolved from the invocation's service scope; explicit DI registrations are also included, without duplicating discovered implementation types.
 
 This covers parameter binding only. It does not make general dependency injection, constructor injection or custom synchronous factories nonblocking. Chronicle read-model parameters use this contract, see [injecting read models](../chronicle/read-models/injecting-into-commands.md#reads-are-awaited).
 

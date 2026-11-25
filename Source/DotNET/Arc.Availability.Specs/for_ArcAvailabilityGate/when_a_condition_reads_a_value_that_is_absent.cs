@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Choreography.Availability;
-
 namespace Cratis.Arc.Availability.for_ArcAvailabilityGate;
 
 public class when_a_condition_reads_a_value_that_is_absent : given.an_availability_host

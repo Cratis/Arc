@@ -33,9 +33,15 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
     {
         dependency = null;
         var binding = Plan(serviceProvider, parameter);
-        if (binding is null || binding.Kind == BindingKind.Token)
+        if (binding is null)
         {
             return false;
+        }
+        if (binding.Kind == BindingKind.Token)
+        {
+            // Keep synchronous callers on the framework's blocking factory, without consulting application resolvers.
+            dependency = serviceProvider.GetRequiredService(parameter.ParameterType);
+            return true;
         }
 
         using var allowance = binding.AllowReads();
@@ -116,11 +122,14 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
          CommandAttributePolicy.HasExplicitLookup(parameter) ||
          Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any());
 
-    static object? ResolveProtected(IServiceProvider services, ParameterBinding binding)
+    static object? ResolveProtected(IServiceProvider services, ParameterBinding binding) =>
+        RefusingReads(binding, () => ReadModelDispatch.For(binding.Model).ResolveProtected(services, binding.Context, binding.Key));
+
+    static object? RefusingReads(ParameterBinding binding, Func<object?> resolve)
     {
         try
         {
-            return ReadModelDispatch.For(binding.Model).ResolveProtected(services, binding.Context, binding.Key);
+            return resolve();
         }
         catch (Exception failure) when (IsRefusal(failure))
         {
@@ -153,11 +162,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
     static ParameterBinding LookupPlan(IServiceProvider services, ParameterInfo parameter, CommandContext context)
     {
         var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, ProtectedReadModelKeys.Traversal(services), out var keyText);
-        var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
-        if (advisory is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
-        {
-            ReadProtectionTelemetry.Record(context.Type, "advisory_read", parameter.ParameterType, advisory.Reason ?? "Declared advisory");
-        }
+        var advisory = AdvisoryFor(context, parameter, parameter.ParameterType);
         return new(parameter, context, parameter.ParameterType)
         {
             Kind = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null ? BindingKind.Protected : BindingKind.Stored,
@@ -165,6 +170,16 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             KeyText = keyText,
             Advisory = advisory
         };
+    }
+
+    static UnprotectedAttribute? AdvisoryFor(CommandContext context, ParameterInfo parameter, Type model)
+    {
+        var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? model.GetCustomAttribute<UnprotectedAttribute>();
+        if (advisory is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
+        {
+            ReadProtectionTelemetry.Record(context.Type, "advisory_read", model, advisory.Reason ?? "Declared advisory");
+        }
+        return advisory;
     }
 
     ParameterBinding? Plan(IServiceProvider services, ParameterInfo parameter)
@@ -191,7 +206,11 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && IsChronicleCollection(parameter.ParameterType))
         {
             var model = parameter.ParameterType.GetGenericArguments()[0];
-            throw new ReadCannotBeProtected(serviceProvider.GetRequiredService<ICommandContextAccessor>().Current.Type, parameter.Name!, model, "through IMongoCollection", $"inject {model.Name}");
+            var context = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
+            if (AdvisoryFor(context, parameter, model) is null)
+            {
+                throw new ReadCannotBeProtected(context.Type, parameter.Name!, model, "through IMongoCollection", $"inject {model.Name}");
+            }
         }
 
         return isReadModel;

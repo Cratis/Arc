@@ -57,7 +57,7 @@ namespace Cratis.Arc.Testing.Commands;
 /// </para>
 /// </remarks>
 /// <typeparam name="TCommand">The type of command under test.</typeparam>
-public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
+public partial class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
 {
     IServiceProvider? _serviceProvider;
     ICommandPipeline? _pipeline;

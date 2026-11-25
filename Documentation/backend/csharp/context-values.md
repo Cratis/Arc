@@ -5,11 +5,11 @@ description: Read model-provided values like the vessel being viewed in Arc comm
 
 A model can add values to `$context` with `provide`: the vessel being viewed, the project the user works in. Arc resolves each value lazily, once, for the request that reads it, and every reader in the request sees the same value: gates, command handlers, query performers, policies and validation rules.
 
-The resolution is the [Choreography engine's](https://github.com/Cratis/Choreography). Arc supplies the per-request scope and the places you read from. Hosts that do not call `AddArcAvailability` register no source, and every value reads as absent without any work being done.
+The resolution is the [availability engine's](availability-engine/context-values.md). Arc supplies the per-request scope and the places you read from. Hosts that do not call `WithAvailability` register no source, and every value reads as absent without any work being done.
 
 ## Provide values
 
-Declare the values in the `ContextValueCatalog` you register for [availability](availability.md). `AddArcAvailability` also registers the `IContextValueSource` that resolves them for each request:
+Declare the values in the `ContextValueCatalog` that [availability](availability.md) registers. `WithAvailability` also registers the `IContextValueSource` that resolves them for each request:
 
 ```csharp
 var catalog = new ContextValueCatalog()
@@ -24,6 +24,12 @@ services.AddArcAvailability(options =>
 ```
 
 `ScopeFor` tells which level a command or query is read in. The nearest declaration wins: a feature-level `vessel` overrides the module's for the parts beneath it.
+
+During a bound command or query invocation, providers can resolve `arguments.<property>` and `receivedAt`.
+The arguments are the command instance or bound query dictionary; the receipt is the server's pinned
+`DateTimeOffset`, not caller input. In a type-only availability/listing call, both values are absent. No
+invocation is guessed from an active request, so metadata cannot widen execution or acquire its arguments.
+Caller keys stay nested under `arguments` and do not override trusted tenant, identity, audience or context data.
 
 ## Read values
 
@@ -52,4 +58,11 @@ var vessel = context.ValuesAs<VesselContext>().Vessel;
 
 ## Once per request
 
-The first read runs the provider. The result, including a failure, is reused for the rest of the request. Nothing is cached across requests: a second request resolves again. A custom `IContextValueSource` registered as a scoped service replaces the Choreography one for hosts that resolve values another way.
+The first read runs the provider. Successful and absent values are reused by the gate and readers of that
+invocation, including after dependency binding. A provider failure or cancellation clears the affected resolver
+so a later resolution can retry. Metadata-only reads have a separate cache and never seed execution values.
+Nested, parallel and later invocations resolve independently, even if their arguments and receipt times are equal.
+
+A custom `IContextValueSource` registered as a scoped service replaces the engine's one for hosts that
+resolve values another way. Its existing `Read` method remains supported. It can optionally implement
+`IExecutionContextValueSource.ReadForExecution` to receive the same `AvailabilityInvocation` identity as the gate.

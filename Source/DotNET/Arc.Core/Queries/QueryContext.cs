@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability;
 using Cratis.Arc.Contexts;
 using Cratis.Arc.Slices;
 using Cratis.Arc.Tenancy;
@@ -30,6 +31,7 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// </summary>
     public static readonly QueryContext NotSet = new("[NotSet]", CorrelationId.NotSet, Paging.NotPaged, Sorting.None);
 
+    readonly AvailabilityInvocationIdentity _invocations = new();
     ClaimsPrincipal? _authorizedPrincipal;
 
     /// <summary>
@@ -54,7 +56,7 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <summary>
     /// Gets the provided values with the asynchronous and typed reads of <see cref="ContextValues"/>.
     /// </summary>
-    public ContextValues ProvidedValues => ContextValues.For(ServiceProvider, FindPart, CancellationToken);
+    public ContextValues ProvidedValues => ContextValues.ForExecution(ServiceProvider, FindPart, FindInvocation, CancellationToken);
 
     /// <summary>
     /// Gets the <see cref="Slices.SliceLocation"/> of the query, resolved from the same namespace mapping as its generated proxy.
@@ -123,6 +125,15 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <returns>The provided values as <typeparamref name="T"/>.</returns>
     /// <exception cref="ContextValuesTypeMismatch">The provided values do not fit <typeparamref name="T"/>.</exception>
     public T ValuesAs<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>() => ProvidedValues.ValuesAs<T>();
+
+    /// <summary>Gets the bound query's invocation identity for the pipeline-selected operation type.</summary>
+    /// <param name="part">The operation type already selected by the query performer.</param>
+    /// <returns>The identity shared by this query's gate and value readers.</returns>
+    internal AvailabilityInvocation InvocationFor(Type part) => _invocations.For(part, Arguments, ReceivedAt);
+
+    /// <summary>Gets the bound invocation when a performer or controller has identified its operation type.</summary>
+    /// <returns>The invocation, or null when the operation type cannot be established.</returns>
+    internal AvailabilityInvocation? FindInvocation() => (_invocations.Current?.Part ?? FindPart()) is { } part ? InvocationFor(part) : null;
 
     /// <summary>Gets an independent copy of the admitted subscription scope for an emission.</summary>
     /// <returns>A fresh scope copy, or null when none was supplied.</returns>

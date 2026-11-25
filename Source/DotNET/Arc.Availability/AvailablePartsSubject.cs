@@ -12,6 +12,7 @@ namespace Cratis.Arc.Availability;
 sealed class AvailablePartsSubject : ISubject<AvailableParts>, IDisposable
 {
     readonly IUnavailableParts _parts;
+    readonly PartQuestion? _question;
     readonly ReplaySubject<AvailableParts> _subject = new(1);
     readonly CancellationTokenSource _disposed = new();
     readonly IDisposable _subscription;
@@ -22,9 +23,11 @@ sealed class AvailablePartsSubject : ISubject<AvailableParts>, IDisposable
     /// Initializes a new instance of the <see cref="AvailablePartsSubject"/> class.
     /// </summary>
     /// <param name="parts">The <see cref="IUnavailableParts"/> to observe.</param>
-    internal AvailablePartsSubject(IUnavailableParts parts)
+    /// <param name="question">The <see cref="PartQuestion"/> to decide for one part and its arguments, or null to decide every part.</param>
+    internal AvailablePartsSubject(IUnavailableParts parts, PartQuestion? question = null)
     {
         _parts = parts;
+        _question = question;
         _subscription = parts.OnChanged(() => new ValueTask(Recompute()));
         _ = Recompute();
     }
@@ -64,7 +67,7 @@ sealed class AvailablePartsSubject : ISubject<AvailableParts>, IDisposable
 
         try
         {
-            var unavailable = (await _parts.Get(_disposed.Token)).ToArray();
+            var unavailable = (_question is null ? await _parts.Get(_disposed.Token) : await _parts.Get(_question, _disposed.Token)).ToArray();
             if (_last?.AsSpan().SequenceEqual(unavailable) != true)
             {
                 _last = unavailable;

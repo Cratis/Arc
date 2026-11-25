@@ -5,9 +5,8 @@ run-name: ${{ github.event.pull_request.title }} ${{ contains(fromJSON('["edited
 # One caller for every pull-request check so a single always-running `gate` job can require them all.
 # A path-filtered workflow that never starts never reports; here each callee is skipped by `changes`
 # instead, and a skipped job counts as passed in `gate`. Label and edit events (`[meta]` runs) skip
-# the heavy jobs and run only `changes` and `policy`; their `gate` waits for the head commit's latest
-# `[code]` run and passes only if that run succeeded, so a cancelled code run still cannot let a
-# later run pass without having built anything.
+# the heavy jobs. Their gate checks the latest code run once, failing fast until it succeeds.
+# reconcile-pr-gate.yml re-runs that gate after completion; no runner waits for code.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
@@ -99,6 +98,8 @@ jobs:
               - "scripts/fixtures/workspace-runner.cjs"
               - "scripts/check-declaration-imports.cjs"
               - "scripts/check-declaration-consumers.cjs"
+              - "scripts/declaration-guard-roots.test.cjs"
+              - "scripts/guard-job-layout.test.mjs"
               - "scripts/fixtures/declaration-consumer/**"
               - ".github/workflows/javascript-build.yml"
               - ".github/workflows/pull-requests.yml"
@@ -141,6 +142,7 @@ jobs:
               - "scripts/chronicle-published-inputs.test.mjs"
               - "scripts/raise-central-cratis-pins.mjs"
               - "scripts/raise-central-cratis-pins.test.mjs"
+              - "scripts/pr-gate-*.mjs"
 
   aot-ratchet:
     needs: changes
@@ -208,8 +210,9 @@ jobs:
     if: ${{ always() }}
     needs: [changes, aot-ratchet, dotnet-build, javascript-build, markdown-verification, package-graph, prerelease, policy, workflow-lint]
     runs-on: ${{ vars.RUNNER_GATE || 'ubuntu-latest' }}
-    timeout-minutes: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) && 95 || 5 }}
+    timeout-minutes: 5
     permissions:
+      contents: read
       actions: read
     steps:
       - name: Every needed job passed or was skipped
@@ -226,9 +229,22 @@ jobs:
             echo "::error title=gate::Failed, cancelled or unknown: $bad"
             exit 1
           fi
-      # Label and edit runs build nothing, so they pass only when the head commit's latest code run did.
+      - name: Checkout metadata gate helper
+        if: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+      - name: Setup node
+        if: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          package-manager-cache: false
+          node-version: 23.x
+      # Label and edit runs build nothing; check the whole code run once, never poll.
       - name: Head commit's code run passed
         if: ${{ contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action) }}
-        uses: Cratis/Workflows/.github/actions/pr-code-run-gate@main
-        with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/pr-gate-context.mjs

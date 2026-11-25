@@ -9,13 +9,11 @@ using Microsoft.CodeAnalysis;
 namespace Cratis.Arc.Screenplay.Analysis.Types;
 
 /// <summary>
-/// Collects the concepts an application refers to, keeping one declaration per name.
+/// Collects the concepts an application declares or refers to, keeping one declaration per name.
 /// </summary>
 /// <remarks>
-/// A concept is declared once at the top of the document and referenced by its simple name from there on, so which
-/// concepts a document declares has nothing to do with which ones the application defines and everything to do with
-/// which ones were reached while a type was being resolved. They are gathered as they are encountered rather than
-/// found up front, which keeps the document to what the application actually uses.
+/// A concept is declared once at the top of the document and referenced by its simple name from there on. Type
+/// resolution owns the names it refers to; unused local declarations are added afterward only where a name is free.
 /// <para>
 /// What a concept says about itself arrives from more than one place and at different moments - the values of an
 /// enumeration come from the type, the mark saying it carries personal data comes from the property referring to it,
@@ -27,18 +25,19 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 public class ConceptRegistry
 {
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
+    readonly HashSet<ITypeSymbol> _registeredTypes = new(SymbolEqualityComparer.Default);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
     readonly HashSet<string> _incompleteValidation = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validatorSources = new(StringComparer.Ordinal);
-    readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
+    readonly PiiClassificationReader _classification = new();
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
     readonly Dictionary<string, ITypeSymbol> _enumerations = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the types with encryption or audit suppression alone.
     /// </summary>
-    public IEnumerable<string> PartialSecrets => _partialSecrets
+    public IEnumerable<string> PartialSecrets => _classification.PartialSecrets
         .Where(name => !_concepts.TryGetValue(name, out var concept) || !concept.IsSensitive)
         .Order(StringComparer.Ordinal);
 
@@ -48,7 +47,7 @@ public class ConceptRegistry
     public IEnumerable<string> Ambiguous => _ambiguous.Order(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets every concept referenced by the application, ordered by name.
+    /// Gets every concept declared or referenced by the application, ordered by name.
     /// </summary>
     public IEnumerable<ConceptModel> Concepts =>
     [
@@ -95,6 +94,7 @@ public class ConceptRegistry
         }
 
         Register(type, concept);
+        _registeredTypes.Add(type);
 
         return true;
     }
@@ -130,15 +130,7 @@ public class ConceptRegistry
     /// <param name="type">The type of the value.</param>
     /// <param name="encrypted">Whether the value is encrypted.</param>
     /// <param name="notAudited">Whether the value is withheld from auditing.</param>
-    public void MarkSecret(ITypeSymbol type, bool encrypted, bool notAudited)
-    {
-        var carried = UnderlyingTypes.Of(type);
-        if ((encrypted || notAudited) &&
-            (carried.TypeKind == TypeKind.Enum || carried.FindBase(WellKnownTypeNames.ConceptAs) is not null))
-        {
-            _partialSecrets.Add(carried.Name);
-        }
-    }
+    public void MarkSecret(ITypeSymbol type, bool encrypted, bool notAudited) => _classification.MarkSecret(type, encrypted, notAudited);
 
     /// <summary>
     /// Records the validation rules a concept declares for itself.
@@ -167,6 +159,14 @@ public class ConceptRegistry
 
         return backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive) ? primitive : null;
     }
+
+    /// <summary>
+    /// Determines whether a declaration contributed a concept rather than merely sharing its simple name.
+    /// </summary>
+    /// <param name="type">The declaration to check.</param>
+    /// <returns>True when the same declared type was registered from source or metadata.</returns>
+    internal bool IsRegistered(INamedTypeSymbol type) =>
+        _registeredTypes.OfType<INamedTypeSymbol>().Any(registered => DeclaredTypeIdentity.IsSame(registered, type));
 
     /// <summary>
     /// Records that generation cannot rely on the concept's recovered validation.
@@ -211,6 +211,12 @@ public class ConceptRegistry
     }
 
     /// <summary>
+    /// Reports unsupported personal-data classification and legacy encryption attributes.
+    /// </summary>
+    /// <param name="diagnostics">Where the findings are reported.</param>
+    internal void ReportCompliance(ScreenplayDiagnostics diagnostics) => _classification.Report(diagnostics);
+
+    /// <summary>
     /// Determines whether two concepts sharing a name are declared the same way.
     /// </summary>
     /// <param name="existing">The concept already declared.</param>
@@ -221,20 +227,7 @@ public class ConceptRegistry
         existing.Generation == concept.Generation &&
         existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal) &&
         existing.EnumNumbers.SequenceEqual(concept.EnumNumbers) &&
-        existing.IsPii == concept.IsPii &&
-        existing.IsSensitive == concept.IsSensitive &&
-        StatedScopeOf(existing) == StatedScopeOf(concept);
-
-    /// <summary>
-    /// Gets the encryption scope a concept's declaration can state.
-    /// </summary>
-    /// <param name="concept">The concept.</param>
-    /// <returns>The scope of a secret that is not personal data, otherwise <see langword="null"/>.</returns>
-    /// <remarks>
-    /// Only a secret states a scope, and a personal-data concept is always Subject scoped, so a scope recorded on any
-    /// other concept says nothing the declaration could disagree about.
-    /// </remarks>
-    static string? StatedScopeOf(ConceptModel concept) => concept.IsSensitive && !concept.IsPii ? concept.EncryptionScope : null;
+        PiiClassificationReader.HaveSameClassification(existing, concept);
 
     /// <summary>
     /// Gets the values of an enumeration, in declaration order.
@@ -243,18 +236,6 @@ public class ConceptRegistry
     /// <returns>The members with distinct integer identities.</returns>
     static IReadOnlyList<IFieldSymbol> ValuesOf(ITypeSymbol type) =>
         [.. type.GetMembers().OfType<IFieldSymbol>().Where(member => member.HasConstantValue && member.Name == EnumConstants.MemberOf(type, member.ConstantValue))];
-
-    /// <summary>
-    /// Reads the non-default encryption scope from a concept's attribute.
-    /// </summary>
-    /// <param name="type">The concept type.</param>
-    /// <returns>The scope, or null for Subject scope.</returns>
-    static string? ScopeOf(ITypeSymbol type) => type.GetAttribute(WellKnownTypeNames.EncryptedAttribute)?.GetArgument(0) switch
-    {
-        1 => "namespace",
-        2 => "global",
-        _ => null
-    };
 
     /// <summary>
     /// Builds an enumeration, preserving the compiler's resolved integer constants.
@@ -282,23 +263,25 @@ public class ConceptRegistry
     /// <returns>The <see cref="ConceptModel"/>.</returns>
     ConceptModel ToConcept(ITypeSymbol type, ITypeSymbol backing)
     {
-        var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
-        var encrypted = type.HasAttribute(WellKnownTypeNames.EncryptedAttribute);
-        var notAudited = type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute);
-        var scope = ScopeOf(type);
-        MarkSecret(type, encrypted, notAudited);
+        var concept = backing.TypeKind == TypeKind.Enum
+            ? Enumeration(type.Name, backing, false)
+            : ValueConcept(type, backing);
 
-        if (backing.TypeKind == TypeKind.Enum)
-        {
-            return Enumeration(type.Name, backing, pii) with { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
-        }
+        return _classification.Read(type, concept);
+    }
 
+    /// <summary>
+    /// Builds a value-backed concept before reading its compliance attributes.
+    /// </summary>
+    /// <param name="type">The concept type.</param>
+    /// <param name="backing">The type the concept is backed by.</param>
+    /// <returns>The concept model with its generation strategy.</returns>
+    ConceptModel ValueConcept(ITypeSymbol type, ITypeSymbol backing)
+    {
         var resolved = PrimitiveOf(backing) ?? ScreenplayPrimitive.String;
 
-        return new(type.Name, resolved, pii, [], [])
+        return new(type.Name, resolved, false, [], [])
         {
-            IsSensitive = encrypted && notAudited,
-            EncryptionScope = scope,
             Generation = type is INamedTypeSymbol conceptType ? new GenerationStrategyReader(Models).Read(conceptType) : null,
             GenerationLocation = type.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation().GetLineSpan() is { } anchor
                 ? $"{anchor.Path}:{anchor.StartLinePosition.Line + 1}" : null
@@ -312,6 +295,7 @@ public class ConceptRegistry
     /// <returns>The <see cref="ConceptModel"/>, or <see langword="null"/> when the type is not a concept.</returns>
     ConceptModel? ModelOf(ITypeSymbol type)
     {
+        type = type is INamedTypeSymbol named ? Models.SourceOf(named) : type;
         if (type.TypeKind == TypeKind.Enum)
         {
             return Enumeration(type.Name, type, false);

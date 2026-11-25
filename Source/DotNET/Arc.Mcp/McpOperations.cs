@@ -1,11 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Exceptions;
 using Cratis.Arc.Queries;
-using Cratis.Arc.Validation;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Mcp;
@@ -44,15 +48,29 @@ internal sealed class McpOperations(
         _ => ((IMcpToolSource)call.Tool.Operation!).Invoke(new McpToolInvocation(call.Tool, call.Caller, call.Arguments, call.Services, call.CancellationToken) { Request = call.Request })
     };
 
-    static object Outcome(bool isSuccess, bool isAuthorized, bool isValid, IEnumerable<ValidationResult> validationResults, string? reason = null, bool isRetryable = false) => new
+    static object Outcome(CommandResult result) => Outcome(
+        result.IsSuccess, result.IsAuthorized, result.AuthorizationFailureReason, result.IsRetryable, result.IsValid, result.ValidationResults, result.ErrorCode);
+
+    static object Outcome(QueryResult result) => Outcome(
+        result.IsSuccess, result.IsAuthorized, result.AuthorizationFailureReason, result.IsRetryable, result.IsValid, result.ValidationResults, result.ErrorCode);
+
+    static object Outcome(bool isSuccess, bool isAuthorized, string authorizationFailureReason, bool isRetryable, bool isValid, IEnumerable<Cratis.Arc.Validation.ValidationResult> results, string? errorCode)
     {
-        isSuccess,
-        isAuthorized,
-        reason = string.IsNullOrEmpty(reason) ? null : reason,
-        isRetryable,
-        isValid,
-        validationResults = validationResults.Select(_ => new { severity = _.Severity.ToString(), message = _.Message, members = _.Members })
+        var reason = string.IsNullOrEmpty(authorizationFailureReason) ? null : authorizationFailureReason;
+        var validationResults = results.Select(_ => new { severity = _.Severity.ToString(), message = _.Message, members = _.Members });
+        return errorCode is null
+            ? new { isSuccess, isAuthorized, reason, isRetryable, isValid, validationResults }
+            : new { isSuccess, isAuthorized, reason, isRetryable, isValid, validationResults, errorCode };
+    }
+
+    static object QueryEnvelope(QueryResult result) => new
+    {
+        outcome = Outcome(result),
+        data = result.IsSuccess ? result.Data : null,
+        paging = result.IsSuccess ? result.Paging : null
     };
+
+    static ILogger ResponseLogger(IServiceProvider services) => services.GetService<ILoggerFactory>()?.CreateLogger<McpOperations>() ?? NullLogger<McpOperations>.Instance;
 
     static void RejectUndeclared(McpOperationCall call)
     {
@@ -76,6 +94,28 @@ internal sealed class McpOperations(
         }
     }
 
+    static bool DeclaresStreamingResult(IQueryPerformer performer) =>
+        performer is IAuthorizationQueryTarget target && IsStreamingType(target.AuthorizationMethod.ReturnType);
+
+    static bool IsStreamingType(Type type)
+    {
+        if (IsResultWrapper(type))
+        {
+            return IsStreamingType(type.GetGenericArguments()[0]);
+        }
+
+        // Match ObservableQueryHandler's stream shapes, including an interface declared as the return type.
+        return type.GetInterfaces().Append(type).Any(candidate =>
+            HasGenericDefinition(candidate, typeof(ISubject<>)) || HasGenericDefinition(candidate, typeof(IAsyncEnumerable<>)));
+    }
+
+    static bool IsResultWrapper(Type type) =>
+        HasGenericDefinition(type, typeof(Task<>)) ||
+        HasGenericDefinition(type, typeof(ValueTask<>)) ||
+        HasGenericDefinition(type, typeof(ActionResult<>));
+
+    static bool HasGenericDefinition(Type type, Type definition) => type.IsGenericType && type.GetGenericTypeDefinition() == definition;
+
     async ValueTask<McpToolResult> RunCommand(McpOperationCall call)
     {
         var commandType = (Type)call.Tool.Operation!;
@@ -86,7 +126,8 @@ internal sealed class McpOperations(
         }
 
         var result = await hosted.ExecuteHosted(command, call.Services, null, call.CancellationToken);
-        var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults, result.AuthorizationFailureReason, result.IsRetryable);
+        ExceptionResponseMapping.Apply(result, call.Services, ResponseLogger(call.Services));
+        var outcome = Outcome(result);
         return McpOperationResult.From(new { outcome, response = result.IsSuccess ? result.ResponsePayload : null }, !result.IsSuccess, arcOptions.Value.JsonSerializerOptions);
     }
 
@@ -100,7 +141,7 @@ internal sealed class McpOperations(
 
         RejectUndeclared(call);
         var (arguments, paging) = McpQueryArguments.From(call, performer, arcOptions.Value.JsonSerializerOptions);
-        if (queries is not QueryPipeline hosted)
+        if (DeclaresStreamingResult(performer) || queries is not QueryPipeline hosted)
         {
             return McpToolResult.Error(Unsupported);
         }
@@ -110,15 +151,14 @@ internal sealed class McpOperations(
         {
             if (result.IsSuccess && call.Services.GetService<IObservableQueryHandler>()?.IsStreamingResult(result.Data) == true)
             {
+                // Opaque declared returns (such as object) cannot be checked before execution; keep this fallback.
                 // A tool call is one request and one response: a stream would outlive the caller's admission and emission identity.
                 return McpToolResult.Error(Unsupported);
             }
 
-            var outcome = Outcome(result.IsSuccess, result.IsAuthorized, result.IsValid, result.ValidationResults, result.AuthorizationFailureReason, result.IsRetryable);
-            return McpOperationResult.From(
-                new { outcome, data = result.IsSuccess ? result.Data : null, paging = result.IsSuccess ? result.Paging : null },
-                !result.IsSuccess,
-                arcOptions.Value.JsonSerializerOptions);
+            var services = result.OwnedScope?.ServiceProvider ?? call.Services;
+            ExceptionResponseMapping.Apply(result, services, ResponseLogger(services));
+            return McpOperationResult.From(QueryEnvelope(result), !result.IsSuccess, arcOptions.Value.JsonSerializerOptions);
         }
         finally
         {

@@ -22,6 +22,8 @@ Choose the boundary around the failure you need to catch. A wrong calculation be
 | Projection/reducer state from history                                      | Chronicle read-model scenario                                    | Production sink configuration and transport                       |
 | Actual host, provider, or asynchronous application flow                    | Hosted/provider-backed integration spec                          | Every business edge case unless you explicitly cover it           |
 
+Use an [assembly-wide command wiring spec](./command-wiring.md) to catch missing `Handle()` services and discoverable-validator constructor dependencies without executing commands.
+
 Cover decision branches with direct specs, then add scenario specs for the Arc contracts those calls bypass. Keep a smaller set of integration tests for real composition. That way, a calculation change does not need a running host to tell you it is wrong. Keep the action in `Because()`, give every `should_...` assertion a concrete outcome, and wait for facts rather than sleeping.
 
 Start with [the decision-and-pipeline lesson](./command-decisions.md). It tests the same strongly typed command both ways. For inline side effects, [test command operations](./command-operations.md): inspect declarations directly, then let `CommandScenario` run actual execution and compensation with substitutes. For event-sourced applications, [the Chronicle lesson](./event-sourced-commands.md) shows why a correct returned event is not enough: the appended identity must be correct too.
@@ -101,7 +103,7 @@ The scenario builds its service provider lazily on the first `Execute` or `Valid
 
 Use `Validate` to run the pipeline filters without calling `Provide()` or `Handle()`. It does not generate values.
 
-Continue with [command scenarios](./command-scenario.md) for validation, authorization, assertion contracts, and disposal.
+Continue with [command scenarios](./command-scenario.md) for validation, authorization, assertion contracts, and disposal. To evaluate an explicit principal without executing a command, use the [standalone authorization helper](./command-authorization.md).
 
 <a id="3-add-chronicle-assertions-when-the-command-appends-events"></a>
 

@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Context;
+using Cratis.Arc.Availability.Context;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Availability;
 
@@ -14,6 +14,7 @@ namespace Cratis.Arc.Availability;
 /// registered for the part itself, then the <see cref="AvailableForAttribute"/> and <see cref="AvailableWithAttribute"/>
 /// declared on it.
 /// </remarks>
+[IgnoreConvention]
 public class ArcAvailabilityOptions
 {
     readonly List<(string Namespace, AvailabilityExpression Gate)> _namespaces = [];
@@ -25,7 +26,7 @@ public class ArcAvailabilityOptions
     /// <remarks>
     /// Context values declared for a narrower scope are visible only to the parts decided in it.
     /// </remarks>
-    public Func<Type, ContextScope> ScopeFor { get; set; } = _ => ContextScope.Application;
+    public Func<Type, ContextScope> ScopeFor { get; set; } = TypedAvailability.ScopeOf;
 
     /// <summary>
     /// Gets the gates of namespaces.
@@ -63,6 +64,7 @@ public class ArcAvailabilityOptions
     /// <param name="namespace">The namespace.</param>
     /// <param name="gate">The <see cref="AvailabilityExpression"/>.</param>
     /// <returns>The options for continuation.</returns>
+    [Obsolete("Put a scope marker in the namespace instead: [AvailableFor<Plus>] public class Feature : AvailabilityScope;. The string namespace is not checked by the compiler and is not read back into the model.")]
     public ArcAvailabilityOptions GateNamespace(string @namespace, AvailabilityExpression gate)
     {
         _namespaces.Add((@namespace, gate));

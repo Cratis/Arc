@@ -124,6 +124,36 @@ dotnet test Samples/VerifiedCallerAcceptance.Specs/VerifiedCallerAcceptance.Spec
 
 The specs use only public Arc APIs, a real HTTPS capability listener, synthetic signing material from the shared v2 fixture, and freshly generated test CA, server, and forwarding-peer certificates. Clients pin the test server certificate; no machine trust-store changes are needed. They compare the test signer's framing to the shared vector bytes, then exercise command/query dispatch, scopes, roles, membership, replay, key/audience mismatch, missing people, unsigned forwarding, and listener isolation. The command returns `ICurrentPrincipalAccessor`'s subject, the same identity source used for causation; this sample does not append Chronicle events.
 
+## Opt in to a delegation check
+
+A host that already resolves verified delegated callers can explicitly register `DelegationBoundary` and exactly one product-owned `IDelegationAuthority` in its current scope. These APIs are in `Cratis.Arc.Identity.Delegation` in `Cratis.Arc.Core`; they do not install an OAuth verifier or enable delegation on existing routes.
+
+```csharp
+services.AddScoped<DelegationBoundary>();
+services.AddScoped<IDelegationAuthority, ProductDelegationAuthority>();
+```
+
+`ProductDelegationAuthority` is your implementation, not a shipped Arc grant store. For a command, query, or tool that injects `IVerifiedCallerAccessor callers` and `DelegationBoundary delegation`, the check inside its async operation is:
+
+```csharp
+var resolution = await callers.GetCurrent();
+if (resolution.Caller is not { } caller) return false;
+
+var request = new DelegationRequest(
+    caller, "orders:read", "https://orders.example.test/mcp", "production");
+if (!await delegation.IsAllowed(request, cancellationToken)) return false;
+
+// Continue to separate product membership and operation authorization.
+```
+
+The capability, resource, and environment above come from trusted application policy, not request arguments. Resource and environment must exactly match the verified caller. Only a delegated-actor caller with its represented person/account, current actor, and verified grant reference can reach the authority. The request has no separate grant, actor, budget, tenant override, or nested actor-history input. Its original caller, credential kind, credential id, and grant reference reach the authority unchanged.
+
+The boundary refuses without exactly one authority, on malformed inputs, or when the authority refuses or fails. It checks on every call and never caches an allow. Requested cancellation propagates; unrelated cancellation from an authority is a refusal. The boundary resolves the authority from the scope it was given and does not create or dispose another scope. Non-HTTP hosts must explicitly own that scope and supply their verified caller context; an HTTP accessor outside a request still refuses.
+
+Your authority must use the verified credential's grant reference or a server-side mapping keyed by its verified credential id, never headers, body, query, or tool arguments. It must compare the represented account and current actor, resource/catalog audience, tenant, environment, and trusted installation binding against server-owned bounds, and refuse unavailable required lineage, attenuation, lifecycle, recovery/revocation fence, or atomic budget checks. Client labels, nested `act` history, scopes, and possession of a grant id do not establish authority.
+
+This seam follows the Cratis Identity delegation v1 contract for grant provenance and current-actor binding. It does **not** ship a grant store, token exchange, lineage engine, budget ledger, revocation protocol, or full delegation-vector conformance. Approval remains a separate opt-in gate. Even a positive delegation decision must still pass product membership and operation authorization. No REST, MCP, PAT, browser, workload, or command/query path is automatically wired to this boundary.
+
 ## Boundaries
 
 `WithVerifiedCallers` supports the signed v2 browser-session flow. To compose browser-session PAT issuance with raw PAT verification on the same resource, use one `WithPersonalAccessTokens` call with signed forwarding and `AllowPersonalAccessTokenCallers()` as shown in [personal access token adapters](personal-access-token-adapters.md#compose-browser-issuance-and-pat-callers). In that mode, selected capability endpoints accept only raw PAT bearers; unselected browser routes retain their behavior. Do not install both helpers separately.

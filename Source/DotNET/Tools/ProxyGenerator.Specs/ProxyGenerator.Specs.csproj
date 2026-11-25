@@ -20,10 +20,13 @@
         <ProjectReference Include="TestArtifacts/AssemblyNameMismatchDependency/AssemblyNameMismatchDependency.csproj" />
         <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
         <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj" Aliases="FakeContracts" />
+        <ProjectReference Include="TestArtifacts/AvailabilityManifestFixture/AvailabilityManifestFixture.csproj" />
         <ProjectReference Include="TestArtifacts/ReferencedConceptCommand/ReferencedConceptCommand.csproj" />
         <ProjectReference Include="TestArtifacts/ReferencedConceptValidator/ReferencedConceptValidator.csproj" />
         <ProjectReference Include="TestArtifacts/TransitiveConceptValidator/TransitiveConceptValidator.csproj" />
         <ProjectReference Include="TestArtifacts/SourceFileResolverFixture/SourceFileResolverFixture.csproj" />
+        <ProjectReference Include="TestArtifacts/ValidatorRuntimeApplication/ValidatorRuntimeApplication.csproj" ReferenceOutputAssembly="false" Private="false" />
+        <ProjectReference Include="TestArtifacts/ValidatorRuntimeApplication/Harness/ValidatorRuntimeHarness.csproj" ReferenceOutputAssembly="false" Private="false" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />

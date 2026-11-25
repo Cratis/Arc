@@ -41,7 +41,30 @@ export const DataQualityScreen = () => (
 );
 ```
 
-`Spinner` and `NotAvailable` stand for your application's UI. Both slots are optional and default to nothing.
+`Spinner` and `NotAvailable` stand for your application's UI. Both slots are optional and default to nothing. Add `suspended` to show something else while an operator has suspended the part, for example "Back soon"; it defaults to the `unavailable` content.
+
+## Ask for the data a part is about
+
+A gate can depend on the data, for example one vessel. Give `RequireAvailable` the arguments and the server answers for exactly that, with the same gate it uses when the command or query runs:
+
+```tsx
+export const DockVessel = ({ vesselId }: { vesselId: string }) => (
+    <RequireAvailable part={DockVesselCommand} args={{ vesselId }} unavailable={<NotAvailable />} suspended={<BackSoon />}>
+        <DockForm vesselId={vesselId} />
+    </RequireAvailable>
+);
+```
+
+`part` is a generated proxy: every generated command and query proxy declares the part it is as `static part`, so there are no strings to keep in step. Arguments are named like the properties of the command or query, and they only decide availability; they grant nothing. Until the server has answered, nothing is shown.
+
+In code, `useIsAvailable(part, args?)` returns a `PartAvailability` with `isAvailable`, `isNotAvailable`, `isSuspended`, `reason` and `isKnown`. Outside React, `await askAvailability(part, args)` asks once. Both ask again when the availability of the context changes.
+
+```tsx
+const availability = useIsAvailable(DockVesselCommand, { vesselId });
+if (availability.isSuspended) {
+    // The part comes back when the suspension is lifted.
+}
+```
 
 ## Filter navigation
 
@@ -95,4 +118,4 @@ if (isNotAvailable(queryResult)) {
 }
 ```
 
-`CommandResult` has `isNotAvailable`, `onNotAvailable(callback)` and `isRetryable`. Query results carry `authorizationFailureReason` and `isRetryable`; use `isNotAvailable(result)` to read them. A not available result is also unauthorized, so `onUnauthorized` still runs.
+`CommandResult` has `isNotAvailable`, `onNotAvailable(callback)`, `isSuspended`, `onSuspended(callback)` and `isRetryable`. A part an operator suspended is `Suspended`, never `NotAvailable`; use `isSuspended(result)` from `@cratis/arc/availability` for a query result. Query results carry `authorizationFailureReason` and `isRetryable`; use `isNotAvailable(result)` to read them. A not available result is also unauthorized, so `onUnauthorized` still runs.

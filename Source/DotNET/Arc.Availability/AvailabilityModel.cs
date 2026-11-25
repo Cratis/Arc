@@ -1,8 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Audiences;
+using Cratis.Arc.Availability.Audiences;
 
 namespace Cratis.Arc.Availability;
 
@@ -17,11 +16,11 @@ namespace Cratis.Arc.Availability;
 /// <param name="Personas">The named sets of audiences.</param>
 public record AvailabilityModel(
     AvailabilityOverrides Overrides,
-    IReadOnlyList<AvailabilityAudience> Audiences,
-    IReadOnlyList<AvailabilityBlock> Blocks,
-    IReadOnlyList<AvailabilityGate> Gates,
-    IReadOnlyList<AvailabilityContextValue> ContextValues,
-    IReadOnlyList<AvailabilityPersona> Personas)
+    IReadOnlyList<AvailabilityAudienceModel> Audiences,
+    IReadOnlyList<AvailabilityBlockModel> Blocks,
+    IReadOnlyList<AvailabilityGateModel> Gates,
+    IReadOnlyList<AvailabilityContextValueModel> ContextValues,
+    IReadOnlyList<AvailabilityPersonaModel> Personas)
 {
     /// <summary>
     /// Creates the model from the declared audiences and the manifest of the application.
@@ -34,8 +33,8 @@ public record AvailabilityModel(
     {
         var current = manifest?.Current ?? AvailabilityManifest.Empty;
         var audiences = (declared?.Declarations ?? [])
-            .Select(_ => new AvailabilityAudience(_.Name.Value, _.Description, _.Source))
-            .Concat(current.Audiences.Select(_ => new AvailabilityAudience(_.Name.Value, _.Description, _.Source)))
+            .Select(_ => new AvailabilityAudienceModel(_.Name.Value, _.Description, _.Source))
+            .Concat(current.Audiences.Select(_ => new AvailabilityAudienceModel(_.Name.Value, _.Description, _.Source)))
             .GroupBy(_ => _.Name, StringComparer.Ordinal)
             .Select(_ => _.OrderByDescending(audience => audience.Description.Length).First())
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
@@ -44,10 +43,10 @@ public record AvailabilityModel(
         return new(
             overrides,
             audiences,
-            [.. current.Blocks.Select(_ => new AvailabilityBlock(_.Name, _.Description, _.Source, Alternatives(_.Alternatives)))],
-            [.. current.Gates.Select(_ => new AvailabilityGate(_.Target, Alternatives(_.Alternatives)))],
-            [.. current.ContextValues.Select(_ => new AvailabilityContextValue(_.Name, _.Type, _.Origin, _.Required))],
-            [.. current.Personas.Select(_ => new AvailabilityPersona(_.Name, [.. _.Audiences.Select(audience => audience.Value)]))]);
+            [.. current.Blocks.Select(_ => new AvailabilityBlockModel(_.Name, _.Description, _.Source, Alternatives(_.Alternatives)))],
+            [.. current.Gates.Select(_ => new AvailabilityGateModel(_.Target, Alternatives(_.Alternatives)))],
+            [.. current.ContextValues.Select(_ => new AvailabilityContextValueModel(_.Name, _.Type, _.Origin, _.Required))],
+            [.. current.Personas.Select(_ => new AvailabilityPersonaModel(_.Name, [.. _.Audiences.Select(audience => audience.Value)]))]);
     }
 
     static AvailabilityAlternativeModel[] Alternatives(IReadOnlyList<AvailabilityAlternative> alternatives) =>

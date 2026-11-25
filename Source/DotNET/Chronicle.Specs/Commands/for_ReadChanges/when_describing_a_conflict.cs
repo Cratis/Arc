@@ -9,38 +9,31 @@ namespace Cratis.Arc.Chronicle.Commands.for_ReadChanges;
 
 public class when_describing_a_conflict : Specification
 {
-    readonly DecisionConflict _conflict = new(typeof(BookStock), (ReadModelKey)"isbn-1");
-
-    [Fact]
-    void should_keep_the_message_and_state_when_chronicle_does_not_report_the_event()
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    public void should_only_describe_the_changed_read(bool enforcing, bool hasEventType, bool hasSequenceNumber)
     {
-        var result = ReadChanges.For(_conflict, typeof(BorrowBook), enforcing: true, services: null);
-        result.Message.ShouldEqual("BookStock 'isbn-1' changed after BorrowBook read it. Nothing from this command was written; submit it again.");
+        var conflict = new DecisionConflict(typeof(BookStock), (ReadModelKey)"server-selected-key")
+        {
+            ConflictingEventTypeId = hasEventType ? new("book-borrowed") : null,
+            ConflictingEventSequenceNumber = hasSequenceNumber ? 1042ul : null
+        };
+        var result = ReadChanges.For(conflict, typeof(BorrowBook), enforcing);
+        result.Message.ShouldEqual(enforcing
+            ? "BookStock changed after BorrowBook read it. Nothing from this command was written; submit it again."
+            : "BookStock changed after it was read. Read it again and resubmit.");
         result.Reason.ShouldEqual(ValidationResultReason.ConcurrencyViolation);
-        result.ReasonDetail.ShouldEqual("ReadChanged");
+        result.ReasonDetail.ShouldEqual(enforcing ? "ReadChanged" : null);
         var state = JsonSerializer.SerializeToElement(result.State);
-        state.EnumerateObject().Select(_ => _.Name).ShouldContainOnly("readModel", "key");
-    }
-
-    [Fact]
-    void should_name_an_unregistered_event_type_by_its_identifier()
-    {
-        var result = ReadChanges.For(
-            _conflict with { ConflictingEventTypeId = new("book-borrowed"), ConflictingEventSequenceNumber = 1042ul },
-            typeof(BorrowBook),
-            enforcing: true,
-            services: null);
-        result.Message.ShouldEqual("BookStock 'isbn-1' changed after BorrowBook read it (book-borrowed at 1042). Nothing from this command was written; submit it again.");
-    }
-
-    [Fact]
-    void should_name_the_position_when_only_the_position_is_reported()
-    {
-        var result = ReadChanges.For(_conflict with { ConflictingEventSequenceNumber = 7ul }, typeof(BorrowBook), enforcing: true, services: null);
-        result.Message.ShouldEqual("BookStock 'isbn-1' changed after BorrowBook read it (an event at 7). Nothing from this command was written; submit it again.");
-        var state = JsonSerializer.SerializeToElement(result.State);
-        state.GetProperty("conflictingEventSequenceNumber").GetUInt64().ShouldEqual(7ul);
-        state.GetProperty("conflictingEventType").ValueKind.ShouldEqual(JsonValueKind.Null);
+        state.EnumerateObject().Select(_ => _.Name).ShouldContainOnly("readModel");
+        state.GetProperty("readModel").GetString().ShouldEqual("BookStock");
     }
 
     public record BookStock;

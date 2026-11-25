@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Introspection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,18 +11,11 @@ public class a_development_host : an_availability_host
 {
     protected DevelopmentAvailability _development;
 
+    protected override IEnumerable<Type> Types => [.. base.Types, typeof(SwitchableCommand)];
+
     protected static string PathOf(Type type) => string.Join(ApplicationStructureBuilder.PathSeparator, ApplicationStructureBuilder.SegmentsOf(type));
 
     protected static string FeatureOf(Type type) => string.Join(ApplicationStructureBuilder.PathSeparator, ApplicationStructureBuilder.SegmentsOf(type).SkipLast(1));
-
-    protected override void ConfigureServices(IServiceCollection services)
-    {
-        var handler = Substitute.For<ICommandHandler>();
-        handler.CommandType.Returns(typeof(UngatedCommand));
-        var providers = Substitute.For<ICommandHandlerProviders>();
-        providers.Handlers.Returns([handler]);
-        services.AddSingleton(providers);
-    }
 
     /// <summary>
     /// Decides a part as its own request: what a request resolved is kept for the rest of that request.
@@ -36,4 +29,7 @@ public class a_development_host : an_availability_host
     }
 
     void Establish() => _development = _root.GetRequiredService<DevelopmentAvailability>();
+
+    [Command]
+    public record SwitchableCommand;
 }

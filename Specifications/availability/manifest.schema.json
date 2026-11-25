@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Cratis/Arc/Specifications/availability/manifest.schema.json",
+  "title": "Cratis availability manifest, version 1",
+  "type": "object",
+  "required": ["format", "version", "origin", "audiences", "blocks", "conditions", "contextValues", "scopes", "parts", "suspendable"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "cratis-availability-manifest" },
+    "version": { "const": 1 },
+    "origin": { "type": "string", "description": "What wrote the file. Empty when unknown." },
+    "audiences": { "type": "array", "items": { "$ref": "#/$defs/audience" } },
+    "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+    "conditions": { "type": "array", "items": { "$ref": "#/$defs/namedConditionEntry" } },
+    "contextValues": { "type": "array", "items": { "$ref": "#/$defs/contextValue" } },
+    "scopes": { "type": "array", "items": { "$ref": "#/$defs/scope" } },
+    "parts": { "type": "array", "items": { "$ref": "#/$defs/part" } },
+    "suspendable": { "type": "array", "items": { "$ref": "#/$defs/suspendable" } }
+  },
+  "$defs": {
+    "audience": {
+      "type": "object",
+      "required": ["name", "description"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string", "minLength": 1 }, "description": { "type": "string" } }
+    },
+    "block": {
+      "type": "object",
+      "required": ["name", "description", "gate"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string", "minLength": 1 }, "description": { "type": "string" }, "gate": { "$ref": "#/$defs/expression" } }
+    },
+    "namedConditionEntry": {
+      "type": "object",
+      "required": ["name", "description"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "description": { "type": "string" } }
+    },
+    "contextValue": {
+      "type": "object",
+      "required": ["name", "scope", "required", "origin"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "scope": { "type": "string", "description": "Module, feature and slice joined with '/'. Empty for the application." },
+        "required": { "type": "boolean" },
+        "origin": { "type": "string" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["namespace", "gate"],
+      "additionalProperties": false,
+      "properties": { "namespace": { "type": "string" }, "gate": { "$ref": "#/$defs/expression" } }
+    },
+    "part": {
+      "type": "object",
+      "required": ["name", "kind", "module", "feature", "slice", "gates"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["command", "readModel"] },
+        "module": { "type": "string" },
+        "feature": { "type": "string" },
+        "slice": { "type": "string" },
+        "gates": { "type": "array", "items": { "$ref": "#/$defs/expression" }, "description": "The gates down the path of the part, outermost first. Every one must hold." }
+      }
+    },
+    "suspendable": {
+      "type": "object",
+      "required": ["kind", "path", "name"],
+      "additionalProperties": false,
+      "properties": { "kind": { "enum": ["module", "feature", "slice", "part"] }, "path": { "type": "string" }, "name": { "type": "string" } }
+    },
+    "expression": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "audience"], "additionalProperties": false, "properties": { "kind": { "const": "for" }, "audience": { "type": "string" } } },
+        { "type": "object", "required": ["kind", "audience"], "additionalProperties": false, "properties": { "kind": { "const": "not" }, "audience": { "type": "string" } } },
+        { "type": "object", "required": ["kind", "condition"], "additionalProperties": false, "properties": { "kind": { "const": "when" }, "condition": { "$ref": "#/$defs/condition" } } },
+        { "type": "object", "required": ["kind", "block"], "additionalProperties": false, "properties": { "kind": { "const": "with" }, "block": { "type": "string" } } },
+        { "type": "object", "required": ["kind", "items"], "additionalProperties": false, "properties": { "kind": { "const": "all" }, "items": { "type": "array", "items": { "$ref": "#/$defs/expression" } } } },
+        { "type": "object", "required": ["kind", "items"], "additionalProperties": false, "properties": { "kind": { "const": "any" }, "items": { "type": "array", "items": { "$ref": "#/$defs/expression" } } } }
+      ]
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "path", "operator", "operands"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "compare" },
+            "path": { "type": "string" },
+            "operator": { "enum": ["isTrue", "equal", "notEqual", "in", "notIn", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"] },
+            "operands": { "type": "array", "items": { "type": ["string", "number", "boolean"] } }
+          }
+        },
+        { "type": "object", "required": ["kind", "items"], "additionalProperties": false, "properties": { "kind": { "const": "all" }, "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/condition" } } } },
+        { "type": "object", "required": ["kind", "items"], "additionalProperties": false, "properties": { "kind": { "const": "any" }, "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/condition" } } } },
+        { "type": "object", "required": ["kind", "name", "description"], "additionalProperties": false, "properties": { "kind": { "const": "named" }, "name": { "type": "string" }, "description": { "type": "string" } } }
+      ]
+    }
+  }
+}

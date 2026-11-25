@@ -158,7 +158,7 @@ public static class MethodInfoExtensions
             return GetResponseFromCandidate(type.GetBestTupleType(appliesResponseValueHandlers));
         }
 
-        if (type.IsOneOf())
+        if (type.IsOneOf() || type.IsNativeUnion())
         {
             return GetResponseFromCandidate(type.GetBestOneOfResponseType(appliesResponseValueHandlers));
         }

@@ -113,7 +113,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
 
     sealed class QueryDiscovery
     {
-        readonly object _gate = new();
+        readonly Lock _gate = new();
         Type[] _types = [];
         Type[] _validationTypes = [];
         DiscoveredQuery[] _queries = [];
@@ -157,7 +157,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
 
     sealed class GeneratedQueryDiscovery
     {
-        readonly object _gate = new();
+        readonly Lock _gate = new();
         KeyValuePair<string, Type>[] _snapshot = [];
         DiscoveredQuery[] _queries = [];
 

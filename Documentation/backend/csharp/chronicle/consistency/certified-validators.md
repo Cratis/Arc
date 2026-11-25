@@ -31,6 +31,8 @@ For an independently owned service collection, call `services.BuildProtectedDeci
 
 ASP.NET request scopes, explicitly supplied native scopes and scopes created through an injected native `IServiceScopeFactory` use the same proof. A forwarding provider, a custom container, a disposed scope or a collection populated by copying descriptors does not acquire the original root's evidence. `CommandScenario` continues to build its ordinary provider by default.
 
+The same registration snapshot, under the same child-scope condition, also governs which owner issues a `DecisionRead<T>` token; see [the earlier form](./scenarios/less-idiomatic.md#the-earlier-form-protecteddecision-and-decisionread).
+
 ## Configure rules without an arbitrary factory
 
 Let convention discovery register the validator. Its only public constructor may take recognized decision reads and recursively constructor-bound transient collaborators. Using the domain types from [Validators and read protection](./validators.md), mark `BorrowBook` with `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`) and replace its plain-read validator with:

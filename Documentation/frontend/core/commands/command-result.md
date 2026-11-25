@@ -20,12 +20,24 @@ interface ICommandResult<TResponse = object> {
     readonly exceptionMessages: string[];
     readonly authorizationFailureReason: string;
     readonly isRetryable?: boolean;
+    readonly errorCode?: string;
     readonly exceptionStackTrace: string;
     readonly response?: TResponse;
 }
 ```
 
 `authorizationFailureReason` carries the reason a command was not authorized when the server supplies one; it is empty otherwise.
+
+`errorCode` is an optional stable public code supplied by C# [exception response mapping](../../../backend/csharp/exception-response-mapping.md). Older servers and unmapped failures omit it. For example:
+
+```typescript
+const result = await command.execute();
+if (!result.isSuccess && result.errorCode === 'namespace_recovery_required') {
+    // Show operator-recovery guidance rather than retrying the command.
+}
+```
+
+A mapped failure remains a failure and does not automatically set `isRetryable` or retry a command. Mapped exception details remain redacted; use the code for client feedback, not `exceptionMessages`. Query results expose the same optional code, including observable query state, and a later result without a code clears it.
 
 The `CommandResult` class also exposes `isNotAvailable`, derived from `isAuthorized` and `authorizationFailureReason`. See [isNotAvailable](#isnotavailable).
 
@@ -267,7 +279,7 @@ if (conflict) {
 }
 ```
 
-`ReadChanged` is retryable: a matching event arrived after the decision read. `ReadIncomplete` is also retryable: the read could not finish after the fold's retries. Keep the draft, re-read, and let the user review fresh state before resubmitting; do not clear the form or label the input invalid. Arc and Chronicle do not re-run the command. A `ReadChanged` result's `state` includes `{ readModel, key }`. When Chronicle reports the event that changed the read, the `state` also has `conflictingEventTypeId`, `conflictingEventType` and `conflictingEventSequenceNumber`. There is no TypeScript constant for these detail strings.
+`ReadChanged` is retryable: a matching event arrived after the decision read. `ReadIncomplete` is also retryable: the read could not finish after the fold's retries. Keep the draft, re-read, and let the user review fresh state before resubmitting; do not clear the form or label the input invalid. Arc and Chronicle do not re-run the command. A `ReadChanged` result's `state` includes only `{ readModel }`. Neither its message nor its state exposes resolved keys, conflicting event type identifiers, event type names or sequence numbers: authorization to execute the command does not grant access to those reads or events. There is no TypeScript constant for these detail strings.
 
 ### Telling one constraint from another
 

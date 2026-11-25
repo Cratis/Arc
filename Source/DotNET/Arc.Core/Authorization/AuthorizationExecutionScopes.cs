@@ -54,7 +54,7 @@ internal static class AuthorizationExecutionScopes
 
     sealed class OwnedFrame(IServiceProvider services, OwnedFrame? previous) : IDisposable
     {
-        readonly object _sync = new();
+        readonly Lock _sync = new();
         PrincipalSnapshot? _identity;
         bool _workStarted;
 

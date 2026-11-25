@@ -2,6 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+#if NET11_0_OR_GREATER
+using System.Runtime.CompilerServices;
+#endif
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -40,8 +43,10 @@ public static class CommandOperationBoundary
     internal static CommandOperationFrame Enter(Type commandType, object host)
     {
         var parent = _current.Value;
-        var mayParticipate = commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Any(method => method.Name == "Handle" && MayContainOperations(method.ReturnType));
+        var mayParticipate = MayContainOperations(
+            commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(method => method.Name == "Handle").Select(method => method.ReturnType),
+            []);
 
         // In-process transports can invoke another Arc host (for example Chronicle's kernel). That host owns an
         // independent command boundary, just as it would across HTTP; it must not join this host's operation journal.
@@ -72,22 +77,62 @@ public static class CommandOperationBoundary
     /// <param name="type">The runtime response type.</param>
     /// <returns>Whether an explicit batch is required.</returns>
     internal static bool IsBareCollection(Type type) => type != typeof(CommandOperations) &&
-        type.GetInterfaces().Append(type).Any(contract => contract.IsGenericType &&
-            contract.GetGenericTypeDefinition() == typeof(IEnumerable<>) && MayContainOperations(contract.GetGenericArguments()[0]));
+        MayContainOperations(CollectionElementTypes(type), []);
 
-    static bool MayContainOperations(Type type)
+    static bool MayContainOperations(IEnumerable<Type> types, HashSet<Type> visited)
     {
+        var mayContainOperations = false;
+        foreach (var type in types)
+        {
+            // Do not short-circuit: every declared union must have metadata before Handle can run.
+            mayContainOperations |= MayContainOperations(type, visited);
+        }
+        return mayContainOperations;
+    }
+
+    static bool MayContainOperations(Type type, HashSet<Type> visited)
+    {
+        if (!visited.Add(type))
+        {
+            return false;
+        }
+
         if (type == typeof(CommandOperations) || typeof(ICommandOperation).IsAssignableFrom(type))
         {
             return true;
         }
 
-        if (type.IsGenericType && (type.Namespace == "System.Threading.Tasks" || type.FullName!.StartsWith("System.ValueTuple", StringComparison.Ordinal) ||
-            typeof(IOneOf).IsAssignableFrom(type) || type.GetGenericTypeDefinition() == typeof(Nullable<>)))
+#if NET11_0_OR_GREATER
+        if (typeof(IUnion).IsAssignableFrom(type))
         {
-            return type.GetGenericArguments().Any(MayContainOperations);
+            return MayContainOperations(CommandUnionMetadata.CaseTypes(type), visited);
+        }
+#endif
+        var mayContainOperations = MayContainOperations(CollectionElementTypes(type), visited);
+        if (IsOperationContainer(type))
+        {
+            mayContainOperations |= MayContainOperations(type.GetGenericArguments(), visited);
         }
 
-        return false;
+        return mayContainOperations;
+    }
+
+    static IEnumerable<Type> CollectionElementTypes(Type type) => type.GetInterfaces().Append(type)
+        .Where(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+        .Select(contract => contract.GetGenericArguments()[0]);
+
+    static bool IsOperationContainer(Type type)
+    {
+        if (!type.IsGenericType)
+        {
+            return false;
+        }
+
+        if (type.Namespace == "System.Threading.Tasks" || type.FullName!.StartsWith("System.ValueTuple", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return typeof(IOneOf).IsAssignableFrom(type) || type.GetGenericTypeDefinition() == typeof(Nullable<>);
     }
 }

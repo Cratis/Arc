@@ -1,10 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Availability.Audiences;
 using Cratis.Arc.Http;
 using Cratis.Arc.Introspection;
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Audiences;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Availability;

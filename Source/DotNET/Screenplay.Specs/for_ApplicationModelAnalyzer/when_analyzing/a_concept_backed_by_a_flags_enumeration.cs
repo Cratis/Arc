@@ -22,6 +22,7 @@ public class a_concept_backed_by_a_flags_enumeration : Specification
     void Because() => _result = Analyzed.Source(Source);
 
     [Fact] void should_compile_the_source() => Analyzed.ErrorsIn((Analyzed.SlicePath, Source)).ShouldBeEmpty();
-    [Fact] void should_declare_the_wrapper_with_its_backing_numbers() => _result.Model.Concepts.Single().EnumNumbers.Select(number => (int)number).ShouldEqual([1, 2, 4]);
+    [Fact] void should_declare_the_wrapper_with_its_backing_numbers() => _result.Model.Concepts.Single(concept => concept.Name == "PreferredChannels").EnumNumbers.Select(number => (int)number).ShouldEqual([1, 2, 4]);
+    [Fact] void should_declare_the_backing_enumeration_with_its_numbers() => _result.Model.Concepts.Single(concept => concept.Name == "Channels").EnumNumbers.Select(number => (int)number).ShouldEqual([1, 2, 4]);
     [Fact] void should_name_the_backing_enum_and_property_in_the_warning() => _result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.FlagsCombinationsNotStatable).Message.ShouldContain("Enum 'Channels' is [Flags]; 'Library.Notifications.Sending.NotificationSent.Channels'");
 }

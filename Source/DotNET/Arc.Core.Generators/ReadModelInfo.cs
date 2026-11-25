@@ -6,7 +6,7 @@ namespace Cratis.Arc.Generators;
 /// <summary>
 /// Holds information about a read model type for use during source generation.
 /// </summary>
-internal sealed class ReadModelInfo
+internal sealed record ReadModelInfo
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="ReadModelInfo"/> class.
@@ -19,10 +19,10 @@ internal sealed class ReadModelInfo
     internal ReadModelInfo(string fullyQualifiedTypeName, List<string> queryMethodNames, List<string> observableElementTypeNames, bool hasCollectionQuery, List<string> sortKeyTypeNames)
     {
         HasCollectionQuery = hasCollectionQuery;
-        SortKeyTypeNames = sortKeyTypeNames;
-        ObservableElementTypeNames = observableElementTypeNames;
+        SortKeyTypeNames = new(sortKeyTypeNames);
+        ObservableElementTypeNames = new(observableElementTypeNames);
         FullyQualifiedTypeName = fullyQualifiedTypeName;
-        QueryMethodNames = queryMethodNames;
+        QueryMethodNames = new(queryMethodNames);
     }
 
     /// <summary>
@@ -33,12 +33,12 @@ internal sealed class ReadModelInfo
     /// <summary>
     /// Gets the names of the valid query methods on the read model.
     /// </summary>
-    internal List<string> QueryMethodNames { get; }
+    internal EquatableArray<string> QueryMethodNames { get; }
 
     /// <summary>
     /// Gets the fully qualified element type names of the observable query results.
     /// </summary>
-    internal List<string> ObservableElementTypeNames { get; }
+    internal EquatableArray<string> ObservableElementTypeNames { get; }
 
     /// <summary>
     /// Gets a value indicating whether the read model has a query returning a collection of it.
@@ -48,5 +48,5 @@ internal sealed class ReadModelInfo
     /// <summary>
     /// Gets the fully qualified names of the types of the properties a collection result can be sorted on.
     /// </summary>
-    internal List<string> SortKeyTypeNames { get; }
+    internal EquatableArray<string> SortKeyTypeNames { get; }
 }

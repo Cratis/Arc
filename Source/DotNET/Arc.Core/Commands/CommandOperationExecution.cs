@@ -54,32 +54,16 @@ internal sealed class CommandOperationExecution
     /// </summary>
     /// <param name="value">The returned graph.</param>
     /// <returns>Ordered leaf values.</returns>
-    public static IEnumerable<object> Flatten(object? value)
+    public static IEnumerable<object> Flatten(object? value) => value switch
     {
-        switch (value)
-        {
-            case null:
-                yield break;
-            case IOneOf oneOf:
-                foreach (var element in Flatten(oneOf.Value))
-                {
-                    yield return element;
-                }
-                break;
-            case ITuple tuple:
-                for (var index = 0; index < tuple.Length; index++)
-                {
-                    foreach (var element in Flatten(tuple[index]))
-                    {
-                        yield return element;
-                    }
-                }
-                break;
-            default:
-                yield return value;
-                break;
-        }
-    }
+        null => [],
+#if NET11_0_OR_GREATER
+        IUnion union => Flatten(CommandUnionValue.Active(union)),
+#endif
+        IOneOf oneOf => Flatten(oneOf.Value),
+        ITuple tuple => Enumerable.Range(0, tuple.Length).SelectMany(index => Flatten(tuple[index])),
+        _ => [value]
+    };
 
     /// <summary>
     /// Reads explicit integration commit facts, never command success.

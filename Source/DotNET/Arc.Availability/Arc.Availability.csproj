@@ -3,14 +3,13 @@
     <PropertyGroup>
         <AssemblyName>Cratis.Arc.Availability</AssemblyName>
         <RootNamespace>Cratis.Arc.Availability</RootNamespace>
-        <Description>Availability gates for Cratis Arc: commands and queries of a part of the application that is not available are refused before authorization, built on the Cratis Choreography availability engine.</Description>
-        <PackageTags>cratis;arc;cqrs;availability;audiences;choreography</PackageTags>
+        <Description>Availability for Cratis Arc: commands and queries of a part of the application that is not available are refused before authorization. Includes the availability engine (expressions, audiences, context values), which does not depend on ASP.NET.</Description>
+        <PackageTags>cratis;arc;cqrs;availability;audiences;engine</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Availability.Specs" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
-        <PackageReference Include="Cratis.Choreography" />
     </ItemGroup>
 </Project>
