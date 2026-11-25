@@ -30,7 +30,7 @@ public class a_racing_chain : Specification
     {
         if (source) _scenario.AppendConcurrently(_source, new Linked(Guid.Parse(_target.Value)));
         else _scenario.AppendConcurrently(_target, new StateChanged("competing"));
-        _result = await _scenario.Execute(new(_source), Xunit.TestContext.Current.CancellationToken);
+        _result = await _scenario.Execute(new(_source), TestContext.Current.CancellationToken);
     }
 
     async Task Destroy() => await _scenario.DisposeAsync();
