@@ -23,6 +23,11 @@ public static class IntrospectionEndpointMapper
     internal const string QueriesEndpointName = "IntrospectQueries";
 
     /// <summary>
+    /// The application structure endpoint name.
+    /// </summary>
+    internal const string StructureEndpointName = "IntrospectStructure";
+
+    /// <summary>
     /// Maps introspection endpoints for commands and queries.
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
@@ -89,6 +94,25 @@ public static class IntrospectionEndpointMapper
                     await context.WriteResponseAsJson(introspectionService.Queries, typeof(List<QueryIntrospectionMetadata>), context.RequestAborted);
                 },
                 DiscoveryExposure.MetadataFor(access, options, QueriesEndpointName, "Introspect available query endpoints", "Cratis Introspection", typeof(List<QueryIntrospectionMetadata>)));
+        }
+
+        if (!mapper.EndpointExists(StructureEndpointName))
+        {
+            mapper.MapGet(
+                "/.cratis/structure",
+                async context =>
+                {
+                    var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
+                    await context.WriteResponseAsJson(introspectionService.Structure, typeof(ApplicationStructure), context.RequestAborted);
+                },
+                DiscoveryExposure.MetadataFor(access, options, StructureEndpointName, "Introspect the modules, features and slices of the application", "Cratis Introspection", typeof(ApplicationStructure)));
+        }
+
+        var contributors = (mapper as IIntrospectionExposureGuard)?.Services?.GetServices<IDiscoveryEndpointContributor>() ?? [];
+        var metadata = new DiscoveryEndpointMetadata((name, summary, tag, responseType) => DiscoveryExposure.MetadataFor(access, options, name, summary, tag, responseType));
+        foreach (var contributor in contributors)
+        {
+            contributor.Map(mapper, metadata);
         }
     }
 }

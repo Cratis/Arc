@@ -84,6 +84,48 @@ Audience changes reach open sessions because the gate subscribes to the `IAudien
 
 [React clients](../../frontend/react/availability.md) hide navigation, screens and parts from this query.
 
+## Explore availability while developing
+
+In a local or test environment (`Development`, `Local`, `Test` or `Testing`, the same environments that allow `GrantAllDeclaredAudiences`) Arc maps two developer endpoints, so a tool such as Lens can switch availability live and the open sessions of your application re-render. Anywhere else they are not mapped, and the overrides are never applied. They follow the [discovery access rules](introspection/index.md#production-access) and apply to the whole host, not to one caller.
+
+`GET /.cratis/structure` reports the shape of the application. Each module, feature, sub-feature and slice has a `path` of its names joined by `/`.
+
+```json
+{
+  "modules": [
+    {
+      "name": "Fleet", "path": "Fleet", "slices": [],
+      "features": [
+        {
+          "name": "DataQuality", "path": "Fleet/DataQuality", "features": [],
+          "slices": [
+            { "name": "QualityScores", "path": "Fleet/DataQuality/QualityScores", "parts": [
+              { "name": "QualityScores", "fullName": "Fleet.DataQuality.QualityScores", "kind": "ReadModel" } ] }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`GET /.cratis/availability/model` reports what the application declares: audiences, and, when the host registers an `IAvailabilityManifest`, the reusable definitions, the gates, the context values and the personas. It carries the overrides in force.
+
+`POST /.cratis/availability/overrides` replaces the overrides. Every list is a set of names or paths, and the lists are all optional.
+
+```json
+{
+  "enabledAudiences": ["Preview"],
+  "disabledAudiences": ["Plus"],
+  "enabledPaths": ["Fleet/Billing"],
+  "disabledPaths": ["Fleet/DataQuality/QualityScores"]
+}
+```
+
+- An enabled audience is held by every caller; a disabled one by none. Disabled wins.
+- An enabled path is available whatever its gates say; a disabled path is not available. A path covers everything beneath it. Disabled wins.
+- Every open `/.cratis/availability` session decides again when the overrides change, so [React clients](../../frontend/react/availability.md) update without a reload.
+
 ## MCP tools
 
 An MCP tool whose command or query is not available to the caller is omitted from the tool listing. A call to it is refused with the same `NotAvailable` reason in the tool outcome (`reason`), and a failure to decide is reported with `isRetryable`. If deciding fails while listing, the tool stays listed, because omitting it would report the failure as "not available"; the call itself is refused as a retryable error.
