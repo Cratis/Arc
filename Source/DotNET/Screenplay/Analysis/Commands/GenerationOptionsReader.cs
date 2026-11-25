@@ -25,17 +25,44 @@ internal static class GenerationOptionsReader
     {
         var (core, prefix) = PrefixOf(GenerationCallReader.UnwrapParentheses(expression));
         var casing = CaseOf(core, model);
-        if (casing is not null)
-        {
-            core = GenerationCallReader.UnwrapParentheses(((MemberAccessExpressionSyntax)((InvocationExpressionSyntax)core).Expression).Expression);
-        }
-        var generation = DirectStrategy(UuidTextOf(core, model), model);
+        var generation = StrategyOf(core, model);
         if (generation is null || !AllowsOptions(generation, prefix, casing))
         {
             return null;
         }
 
         return generation with { Prefix = prefix ?? generation.Prefix, Case = casing == DefaultCase(generation) ? null : casing };
+    }
+
+    /// <summary>
+    /// Refuses invalid literal modifiers so they cannot fall back to an inline rule.
+    /// </summary>
+    /// <param name="expression">The returned primitive expression.</param>
+    /// <param name="model">The model proving the strategy.</param>
+    /// <returns>The primitive, or null when its literal prefix is invalid.</returns>
+    internal static ExpressionSyntax? WithValidPrefix(ExpressionSyntax? expression, SemanticModel model) =>
+        expression is not null && !HasInvalidPrefix(expression, model) ? expression : null;
+
+    static bool HasInvalidPrefix(ExpressionSyntax expression, SemanticModel model)
+    {
+        var (core, prefix) = PrefixOf(GenerationCallReader.UnwrapParentheses(expression));
+
+        if (prefix is null || ValidPrefix(prefix))
+        {
+            return false;
+        }
+
+        return StrategyOf(core, model) is { } generation && _prefixKinds.Contains(generation.Kind, StringComparer.Ordinal);
+    }
+
+    static GenerationModel? StrategyOf(ExpressionSyntax core, SemanticModel model)
+    {
+        if (CaseOf(core, model) is not null)
+        {
+            core = GenerationCallReader.UnwrapParentheses(((MemberAccessExpressionSyntax)((InvocationExpressionSyntax)core).Expression).Expression);
+        }
+
+        return DirectStrategy(UuidTextOf(core, model), model);
     }
 
     static (ExpressionSyntax Core, string? Prefix) PrefixOf(ExpressionSyntax expression)
@@ -62,7 +89,9 @@ internal static class GenerationOptionsReader
         AllowsPrefix(generation, prefix) && AllowsCase(generation, casing);
 
     static bool AllowsPrefix(GenerationModel generation, string? prefix) =>
-        prefix is null || _prefixKinds.Contains(generation.Kind, StringComparer.Ordinal);
+        prefix is null || (ValidPrefix(prefix) && _prefixKinds.Contains(generation.Kind, StringComparer.Ordinal));
+
+    static bool ValidPrefix(string prefix) => prefix.Length <= 32 && prefix.All(character => character is >= ' ' and <= '~');
 
     static bool AllowsCase(GenerationModel generation, string? casing) =>
         casing is null || DefaultCase(generation) is not null;

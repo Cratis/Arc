@@ -9,6 +9,9 @@ public class from_prefixed_generation : a_generation_strategy
 {
     [Theory]
     [InlineData("\"cus_\" + GenerateValue.Ulid()", "generate ulid prefix \"cus_\"")]
+    [InlineData("\"12345678901234567890123456789012\" + GenerateValue.Ulid()", "generate ulid prefix \"12345678901234567890123456789012\"")]
+    [InlineData("\"\" + GenerateValue.Ulid()", "generate ulid prefix \"\"")]
+    [InlineData("\" !~\" + GenerateValue.Ulid()", "generate ulid prefix \" !~\"")]
     [InlineData("\"CUS_\" + GenerateValue.Ulid().ToLowerInvariant()", "generate ulid prefix \"CUS_\" case lower")]
     [InlineData("\"ref_\" + GenerateValue.Uuid().ToString(\"D\").ToUpperInvariant()", "generate uuid prefix \"ref_\" case upper")]
     [InlineData("\"key_\" + GenerateValue.Bytes(16)", "generate bytes 16 base64url prefix \"key_\"")]

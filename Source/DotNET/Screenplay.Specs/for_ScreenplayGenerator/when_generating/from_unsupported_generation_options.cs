@@ -33,6 +33,19 @@ public class from_unsupported_generation_options : a_generation_strategy
         AssertPartialDocument();
     }
 
+    [Theory]
+    [InlineData("123456789012345678901234567890123")]
+    [InlineData("cüs_")]
+    [InlineData("cus_\\n")]
+    public void should_withhold_an_invalid_literal_prefix(string prefix)
+    {
+        Generate((Analyzed.SlicePath, Source($"\"{prefix}\" + GenerateValue.Ulid()")));
+        Result.Source.ShouldNotContain("generate ulid");
+        Result.Source.ShouldNotContain("generate rule");
+        Result.Diagnostics.ShouldContain(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable);
+        AssertPartialDocument();
+    }
+
     [Fact]
     public void should_not_apply_a_prefix_to_a_non_string_backing()
     {
