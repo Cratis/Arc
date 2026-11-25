@@ -6,6 +6,9 @@
         <PackageTags>cratis;arc;cqrs;swagger;swashbuckle;openapi;aspnetcore;commands;queries</PackageTags>
     </PropertyGroup>
     <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.Swagger.Specs" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="Cratis.Fundamentals"/>
         <PackageReference Include="Swashbuckle.AspNetCore" />
     </ItemGroup>

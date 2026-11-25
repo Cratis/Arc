@@ -96,7 +96,7 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
             operation.Responses?.Add("200", new OpenApiResponse
             {
                 Description = "Query executed successfully",
-                Content = new Dictionary<string, OpenApiMediaType>
+                Content = new Dictionary<string, IOpenApiMediaType>
                 {
                     { "application/json", new OpenApiMediaType { Schema = schema } }
                 }
@@ -107,7 +107,7 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
         operation.Responses?.Add(((int)HttpStatusCode.BadRequest).ToString(), new OpenApiResponse
         {
             Description = "Bad Request - validation error or invalid parameters",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
@@ -116,7 +116,7 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
         operation.Responses?.Add(((int)HttpStatusCode.Forbidden).ToString(), new OpenApiResponse
         {
             Description = "Forbidden - insufficient permissions",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
@@ -125,7 +125,7 @@ public class QueryOperationFilter(IQueryPerformerProviders queryPerformerProvide
         operation.Responses?.Add(((int)HttpStatusCode.InternalServerError).ToString(), new OpenApiResponse
         {
             Description = "Internal server error",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
