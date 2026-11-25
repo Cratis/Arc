@@ -1,9 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Context;
-using Cratis.Choreography.Availability.Context.Providers;
+using Cratis.Arc.Availability.Context;
+using Cratis.Arc.Availability.Context.Providers;
 
 namespace Cratis.Arc.Availability.given;
 

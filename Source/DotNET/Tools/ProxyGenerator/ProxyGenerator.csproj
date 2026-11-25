@@ -31,5 +31,9 @@
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/MetadataQueryAttributes.cs" Link="Queries/ModelBound/MetadataQueryAttributes.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/SliceNamespace.cs" Link="Slices/SliceNamespace.cs" />
+        <!-- The data model of the availability manifest file, shared so the build writes the very format the engine reads. -->
+        <Compile Include="$(MSBuildThisFileDirectory)../../Arc.Availability/ManifestFile/*.cs"
+                 Exclude="$(MSBuildThisFileDirectory)../../Arc.Availability/ManifestFile/ManifestExpressions.cs;$(MSBuildThisFileDirectory)../../Arc.Availability/ManifestFile/ManifestFileBuilder.cs;$(MSBuildThisFileDirectory)../../Arc.Availability/ManifestFile/ManifestFileEvaluator.cs;$(MSBuildThisFileDirectory)../../Arc.Availability/ManifestFile/ManifestContext.cs"
+                 Link="Availability/%(Filename)%(Extension)" />
     </ItemGroup>
 </Project>

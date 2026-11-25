@@ -42,7 +42,8 @@ internal class UuidGenerationForms(SemanticModels models)
         {
             return null;
         }
-        var generation = GenerationCallReader.Read(primitive, model);
+        var generation = GenerationCallReader.Read(primitive, model) ??
+            (backing == SpecialType.System_String ? GenerationOptionsReader.Read(primitive, model) : null);
 
         return HasMatchingBacking(generation, primitive, backing) ? generation : null;
     }
@@ -58,12 +59,14 @@ internal class UuidGenerationForms(SemanticModels models)
     {
         expression = GenerationCallReader.UnwrapParentheses(expression);
 
-        return expression switch
+        var primitive = expression switch
         {
             BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation when ConstructsConcept(creation, type, model) => argument.Expression,
             _ when ThroughConversion(expression, type, model) => expression,
             _ => null
         };
+
+        return GenerationOptionsReader.WithValidPrefix(primitive, model);
     }
 
     static bool AllowsCasts(ExpressionSyntax primitive, SpecialType? backing)

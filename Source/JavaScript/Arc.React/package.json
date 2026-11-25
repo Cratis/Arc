@@ -152,11 +152,11 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
-        "@cratis/fundamentals": "^7.34.3",
+        "@cratis/fundamentals": "^7.34.4",
         "tsyringe": "^4.10.0"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "7.34.3",
+        "@cratis/fundamentals": "7.34.4",
         "@storybook/addon-links": "^10.6.8",
         "@storybook/react": "^10.6.8",
         "@storybook/react-vite": "^10.6.8",

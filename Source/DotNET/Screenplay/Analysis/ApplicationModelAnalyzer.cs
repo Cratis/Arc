@@ -69,13 +69,16 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var retained = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
         whole.Elsewhere.ReadRoutes(userInterfaceFiles, ordered.Select((compilation, index) => SourcePaths.RootOf(compilation, catalogs[index])), retained, diagnostics);
         var joined = whole.Elsewhere.Apply(retained);
-        var slices = ReadModelPlacement.Place(
+        var placedSlices = ReadModelPlacement.Place(
             Specified(projects, joined, diagnostics, (new HeldValues(whole.Models), SpecificationQueryCatalog.From(catalogs))),
             whole.ReadModels,
             whole.Types,
             new ScreenplayNaming(),
             diagnostics);
-        var imports = ExternalEvents.Resolve(ordered, slices, diagnostics);
+        var slices = placedSlices.ToList();
+        var graphCatalog = new Graphs.GraphCatalog(whole.Types, new EventReader(new PropertyReader(whole.Types), diagnostics), diagnostics);
+        var graphs = graphCatalog.Read(catalogs.SelectMany(catalog => catalog.Types), slices);
+        var imports = ExternalEvents.Resolve(ordered, slices, diagnostics).Concat(graphCatalog.Imports).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         NamespacesWithoutStructure.Report(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
         // How serious source that did not compile is depends on how much survived it, so it is reported once the
@@ -98,6 +101,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 domain);
         }
 
+        var availability = AvailabilityDeclarations.In(ordered, catalogs, diagnostics);
         var model = new ApplicationModel(
             domain,
             options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
@@ -106,8 +110,12 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             slices,
             whole.Types.Types)
         {
+            Graphs = graphs,
             Imports = imports,
-            ContextValues = ContextValueRegistrations.In(ordered, diagnostics),
+            ContextValues = [.. ContextValueRegistrations.In(ordered, diagnostics), .. availability.Provided],
+            Audiences = availability.Audiences,
+            Availabilities = availability.Blocks,
+            ScopeGates = availability.ScopeGates,
             EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
         };
 

@@ -3,8 +3,8 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability.Audiences;
 using Cratis.Arc.Tenancy;
-using Cratis.Choreography.Availability.Audiences;
 
 namespace Cratis.Arc.Availability.for_AvailabilitySubjectProvider;
 

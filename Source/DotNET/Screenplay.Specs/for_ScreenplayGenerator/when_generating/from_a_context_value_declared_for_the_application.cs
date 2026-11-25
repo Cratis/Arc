@@ -14,11 +14,11 @@ public class from_a_context_value_declared_for_the_application : a_generated_doc
 
         public static class Composition
         {
-            public static void Configure(Cratis.Choreography.Availability.Context.ContextValueCatalog catalog) => catalog.Declare(
-                new Cratis.Choreography.Availability.Context.ContextValueDeclaration(
+            public static void Configure(Cratis.Arc.Availability.Context.ContextValueCatalog catalog) => catalog.Declare(
+                new Cratis.Arc.Availability.Context.ContextValueDeclaration(
                     "vessel",
-                    new Cratis.Choreography.Availability.Context.Providers.ReadModelContextValueProvider(null!, "VesselByKey", "arguments.vesselId"),
-                    Cratis.Choreography.Availability.Context.ContextScope.Application,
+                    new Cratis.Arc.Availability.Context.Providers.ReadModelContextValueProvider(null!, "VesselByKey", "arguments.vesselId"),
+                    Cratis.Arc.Availability.Context.ContextScope.Application,
                     false));
         }
         """;

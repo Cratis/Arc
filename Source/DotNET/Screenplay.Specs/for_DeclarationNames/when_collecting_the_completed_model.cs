@@ -90,7 +90,7 @@ public class when_collecting_the_completed_model : Specification
 
     static CommandModel Command() => new("CommandName", null, [], new(true, ["role-name"]) { Policies = ["named-policy"] }, [], [], null, null)
     {
-        Availability = new([new(["AudienceName"], "AvailabilityName")]),
+        Availability = new([AvailabilityGateModel.ForAudiences(["AudienceName"]), AvailabilityGateModel.WithAvailability("AvailabilityName")]),
         Authoring = new()
         {
             Reads = [new("AuthoringReadModel", "alias", "key")],

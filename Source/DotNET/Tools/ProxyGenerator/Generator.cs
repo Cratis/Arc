@@ -78,7 +78,8 @@ public static partial class Generator
         string? endpointGroup = null,
         ProxyFramework framework = ProxyFramework.React,
         IGeneratedOutput? output = null,
-        IReadOnlyCollection<string>? previousFiles = null) =>
+        IReadOnlyCollection<string>? previousFiles = null,
+        string? availabilityManifestPath = null) =>
         new GenerationRun(new GenerationSettings(
             fileHeaderTemplate,
             outputPath,
@@ -103,5 +104,6 @@ public static partial class Generator
             endpointGroup,
             framework,
             output ?? new FileSystemGeneratedOutput(),
-            previousFiles ?? [])).Execute(assemblyFile);
+            previousFiles ?? [],
+            availabilityManifestPath)).Execute(assemblyFile);
 }

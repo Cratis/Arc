@@ -1,0 +1,16 @@
+- name: Overview
+  href: index.md
+- name: Evaluating gates
+  href: evaluating-gates.md
+- name: Declaring availability with types
+  href: typed-declarations.md
+- name: Audiences
+  href: audiences.md
+- name: Suspending parts
+  href: suspending-parts.md
+- name: Request-scoped context values
+  href: context-values.md
+- name: The availability manifest
+  href: manifest.md
+- name: The availability manifest file
+  href: manifest-file.md

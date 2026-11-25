@@ -25,6 +25,9 @@ public record ApplicationModel(
     /// </summary>
     public static readonly ApplicationModel Empty = new(string.Empty, string.Empty, [], [], [], []);
 
+    /// <summary>Gets the recovered Chronicle graph declarations and canonical projections.</summary>
+    public IReadOnlyList<Graphs.GraphModel> Graphs { get; init; } = [];
+
     /// <summary>
     /// Gets the fully qualified name of every event the application refers to that something it references declares.
     /// </summary>
@@ -38,6 +41,21 @@ public record ApplicationModel(
     /// Gets the request-scoped values the code provides from read model queries.
     /// </summary>
     public IEnumerable<ContextValueModel> ContextValues { get; init; } = [];
+
+    /// <summary>
+    /// Gets the audiences the code declares as types.
+    /// </summary>
+    public IEnumerable<AudienceModel> Audiences { get; init; } = [];
+
+    /// <summary>
+    /// Gets the availability blocks the code declares as types.
+    /// </summary>
+    public IEnumerable<AvailabilityBlockModel> Availabilities { get; init; } = [];
+
+    /// <summary>
+    /// Gets the gates that scope markers state for modules, features and slices.
+    /// </summary>
+    public IEnumerable<ScopeGateModel> ScopeGates { get; init; } = [];
 
     /// <summary>
     /// Gets the application-wide producer census, retained when the model is scoped to one document.

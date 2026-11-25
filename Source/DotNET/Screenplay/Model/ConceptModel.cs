@@ -35,6 +35,16 @@ public record ConceptModel(
     public bool IsSensitive { get; init; }
 
     /// <summary>
+    /// Gets the special-category token recovered from the personal-data attribute.
+    /// </summary>
+    internal string? SpecialCategory { get; init; }
+
+    /// <summary>
+    /// Gets whether the personal data relates to criminal convictions or offenses.
+    /// </summary>
+    internal bool IsCriminal { get; init; }
+
+    /// <summary>
     /// Gets the proven generation strategy owned by this concept.
     /// </summary>
     internal GenerationModel? Generation { get; init; }

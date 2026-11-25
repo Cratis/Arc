@@ -665,4 +665,22 @@ public static class ScreenplayDiagnosticCodes
     /// which is composed at run time, so the model declares the name and says where the rules are.
     /// </remarks>
     public const string AvailabilityDefinitionNotRecovered = "SP0081";
+
+    /// <summary>A graph has behavior or shape that cannot be recovered faithfully.</summary>
+    public const string UnrecoverableGraph = "SP0082";
+
+    /// <summary>Graph events span slices and require Arc's canonical placement fallback.</summary>
+    public const string CanonicalGraphPlacement = "SP0083";
+
+    /// <summary>A graph was omitted because its executable model version was capped below V38.</summary>
+    public const string GraphRequiresV38 = "SP0084";
+
+    /// <summary>Chronicle rejects personal data combined with the legacy encryption attribute.</summary>
+    public const string LegacyPiiEncryption = "SP0087";
+
+    /// <summary>A personal-data special category cannot be recovered as a known Screenplay token.</summary>
+    public const string UnknownSpecialCategory = "SP0088";
+
+    /// <summary>Graph projection declaration metadata is invalid or has ambiguous ownership.</summary>
+    public const string InvalidGraphProjectionDeclaration = "SP0089";
 }

@@ -48,6 +48,26 @@ transported rather than what it is, so the query was left out (Library.Messaging
 
 Diagnostics come in three severities. **Information** describes a limitation without failing generation. **Warning** means something was left out. Standalone generation reports `SP0056` when it withholds a command's binding-invalid productions and leaves them in the C# handler; the returned document is verified again. Unexpected binding errors that cannot be withheld are `SP0056` Errors. Embedded generation reports `SP0056` as Information so a generator limitation cannot break your application's build. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
 
+## Preserve graph projection declarations
+
+Chronicle's node and edge annotations describe graph shape and handlers, but do not retain a projection's name, grouping, or declaring slice. Add a declaration marker when those identities matter to the recovered model. For existing annotated records in `Library.ReadModels.Graphs`, a marker can look like this:
+
+```csharp
+namespace Library.People.Directory;
+
+[global::Cratis.Arc.Slices.GraphProjectionDeclarationAttribute(
+    "PeopleDirectory", "People",
+    typeof(global::Library.ReadModels.Graphs.Person),
+    typeof(global::Library.ReadModels.Graphs.WORKS_AT))]
+public sealed class PeopleDirectoryDeclaration { }
+```
+
+`PeopleDirectory` is the exact projection name, independent of the marker's CLR name. `People` matches the records' Chronicle `[Graph("People")]` annotation. The marker's namespace places the projection in `Library.People.Directory`, even if that slice has no other artifacts and its events live elsewhere. Graph recovery requires Screenplay executable model V38 or later; a lower version cap omits both shape and projections with `SP0084`.
+
+Each listed type owns all handlers on that node or edge record. Each declaration must own at least one handler-bearing node or edge. Markers may reside in a different project from their graph records. Use multiple markers with disjoint member lists to preserve multiple projections of the same graph, either in one slice or in different slices. Every handler-bearing record must have exactly one owner once a graph has declarations. Shape-only endpoint nodes may remain unowned: the generator still emits one complete shared graph shape. List the record type, not its edge label, when those names differ. This attribute is generation metadata only; it does not register services or change runtime graph execution.
+
+Fallback applies separately to each graph. Without markers, Arc keeps its existing reconstruction: a single projection named for the ordinal-first source-declared handler event slice, with `SP0083` explaining canonical placement when events span slices. Explicit metadata suppresses that fallback. Invalid names, unresolved or foreign members, duplicate ownership, and uncovered handler-bearing records produce `SP0089` and withhold the affected graph's entire projection set while retaining its recoverable shape and events. Unknown graph names also produce `SP0089`. Projection names must be unique across the application, including fallback projections; collisions produce `SP0082` and withhold the colliding projections rather than inventing names.
+
 ## What the generator expects of its host
 
 If you are using the CLI, it supplies the compilation. If you are building your own host, pass either a Roslyn `Compilation` or a Generation `DotNetProjectCompilation` to the compatibility generator. The generator does not open project files or load a workspace; the host must assemble the compilation with the inputs a real build would use.
@@ -299,7 +319,9 @@ The concept owns the strategy. Its declaration gets the `generate` line; each co
 | `GenerateValue.Integer(-9, 9)` on `ConceptAs<long>` | `generate random -9..9`, inclusive (ESM v21). |
 | `(int)GenerateValue.Integer(-9, 9)` on `ConceptAs<int>` | The same random range; exactly one cast and both bounds within Int32 are required. |
 
-`GenerateValue.UuidV7(context)`, `Ulid(context)` and `TypeId("user", context)` map to the same strategies when `context` is the factory's `GenerationContext` parameter. NanoID sizes must be 1–256 and alphabets 2–256 distinct printable ASCII characters. Byte counts must be 1–512. TypeID prefixes must be empty or 1–63 lowercase letters and underscores, starting and ending with a letter. Invalid literal arguments are withheld with `SP0073`, not emitted as invalid Screenplay.
+`GenerateValue.UuidV7(context)`, `Ulid(context)` and `TypeId("user", context)` map to the same strategies when `context` is the factory's `GenerationContext` parameter. NanoID sizes must be 1–256 and alphabets 2–256 distinct printable ASCII characters. Byte counts must be 1–512. Literal strategy prefixes must be 0–32 printable ASCII characters. TypeID prefixes must be empty or 1–63 lowercase letters and underscores, starting and ending with a letter. Invalid literal arguments are withheld with `SP0073`, not emitted as invalid Screenplay.
+
+For String-backed concepts, a direct `GenerateValue` call can also carry a literal prefix or invariant case conversion. `GenerateValue.Ulid().ToLowerInvariant()` becomes `generate ulid case lower`; `"cus_" + GenerateValue.Ulid().ToLowerInvariant()` adds `prefix "cus_"` before `case lower`. UUID calls support `ToString()` or `ToString("D")` followed by invariant casing, and bytes support casing for hex and base32. Redundant default casing adds no `case` option. The prefix remains unchanged: casing must apply to the core call, not the concatenation. Suffixes, nonliteral prefixes, interpolation, culture-dependent casing, nested case conversions and modifiers unsupported by the strategy retain the existing rule-body or unrecoverable-generation fallback.
 
 `SP0073` (`GenerationNotRecoverable`) points to `[GeneratedValue]` and names the parameter, concept and unrecovered body or arguments. The parameter stays server-owned: the generator never substitutes a caller parameter, an implicit UUID strategy, a null or a default value. Each generated parameter is read independently, so an opaque factory does not prevent recovery of another parameter's supported strategy.
 
@@ -313,7 +335,7 @@ Date-bearing patterns require the `GenerateValue.Pattern(pattern, context, check
 
 A self-contained String factory becomes `generate rule <Concept>New` with a `csharp` fence. Arc copies the body and removes only constructors or conversions proven to forward the primitive unchanged. For example, a factory returning `new($"{context.Tenant}:{GenerateValue.Ulid(context)}")` yields a rule body containing `return $"{context.Tenant}:{GenerateValue.Ulid(context)}";`.
 
-The accepted dependencies are literals, primitive locals, `context.Now`, `context.Tenant`, and the allowlisted types `string`, `Math`, `Convert`, `Guid`, `RandomNumberGenerator` and `GenerateValue`. Instance formatting of the captured time and tenant is supported. Compound bodies must pass their factory context to time-based `GenerateValue.Ulid`, `UuidV7` and `TypeId` calls; the context-free overloads read an ambient clock. Fields, private helpers, DI, other types, aliases, static imports, ambient clock reads, a raw `"Default"` tenant comparison and non-self-contained bodies remain in code with `SP0073`. No generation-rule `file` fallback is invented. Opaque rule entropy is unknown, so rules never supply generated identifiers.
+The accepted dependencies are literals, primitive locals, `context.Now`, `context.Tenant`, and the allowlisted types `string`, `Math`, `Convert`, `Guid`, `RandomNumberGenerator` and `GenerateValue`. Instance formatting of the captured time and tenant is supported. Compound bodies must pass their factory context to time-based `GenerateValue.Ulid`, `UuidV7` and `TypeId` calls; the context-free overloads read an ambient clock. Fields, DI, other types, aliases, static imports, ambient clock reads, a raw `"Default"` tenant comparison and non-self-contained bodies remain in code with `SP0073`. One helper shape is recovered: a `static` method in the same file that returns `string`, takes the factory's own `context` and is called directly by the factory, as in `New(context) => new(Helper(context))`. The rule is still `generate rule <Concept>New`, with the helper's body, and the same dependency allowlist applies to that body. Any other helper remains in code with `SP0073`. No generation-rule `file` fallback is invented. Opaque rule entropy is unknown, so rules never supply generated identifiers.
 
 The version-1 ValueGeneration context is a language-neutral descriptor. **The Cratis C# target binds it to Fundamentals' `Cratis.Concepts.GenerationContext`**, not to `Cratis.Screenplay.Contexts.GenerationContext`. Passing `context` to `GenerateValue.*` is therefore valid in these recovered bodies and makes them target-bound. A `csharp` fence alone does not select that binding; another provider must admit the body against its own native context. Recovery preserves the body, but does not execute it or promise that another target can compile it. See [Screenplay's context binding](/screenplay/context/).
 
@@ -344,7 +366,7 @@ Rule-free output retains its prior version and bytes. A serialized generation st
 
 ## Pattern, random, rule and checksum recovery in ESM v21
 
-An unconditional String concept rule `RuleFor(value => value.Value).Must(v => GenerateValue.HasValidChecksum(v, Checksum.Luhn))` becomes `validate checksum luhn`. `Mod11` and `Mod97` map likewise; `None`, conditional predicates and arbitrary helper predicates are not declared as checksum rules. Screenplay checks the complete generation-and-validation contract, including pattern checksums, without redrawing invalid generated values.
+An unconditional String concept rule `RuleFor(value => value.Value).Must(v => GenerateValue.HasValidChecksum(v, Checksum.Luhn))` becomes `validate checksum luhn`. `Mod11` and `Mod97` map likewise. The null-guarded form `value is null || GenerateValue.HasValidChecksum(value, Checksum.Luhn)` is recovered the same way, as `checksum luhn`. `None`, other conditional predicates and arbitrary helper predicates are not declared as checksum rules. Screenplay checks the complete generation-and-validation contract, including pattern checksums, without redrawing invalid generated values. A null-tolerant minimum length is recovered too: `value is null || value.Length >= N`, with a whole-number bound that is a literal or a constant, becomes a minimum-length rule with its message. Other shapes (`>`, `<=`, `is not null`, `&&`, a fractional or negative bound, `Trim()`, or another property) stay in code with `SP0016`.
 
 Pattern, random and inline rule generation, and checksum validation, select ESM v21. Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V20` or earlier for a consumer that has not admitted v21. In both default and authoring output, Arc withholds generation and its dependent values, mappings, responses, destinations and scenarios. It preserves other declarative rules and retains the original checksum validator as a source attachment, reporting `SP0073` with the required version and cap; it never silently drops a checksum to downgrade generation. A V21 cap or no cap admits supported contracts. Existing v15/v20 contracts retain their previous version and output.
 
@@ -581,7 +603,11 @@ A message genuinely put together in code — `string.Format`, an interpolation �
 
 ## Operational secrets
 
-A concept carrying both `[Encrypted]` and `[NotAudited]` becomes `secret`: encrypted at rest and withheld from the command's causation chain. With `[PII]` as well, it becomes `pii secret`; Screenplay's C# providers render only `[PII]` for that combination, and Chronicle rejects `[PII]` combined with `[Encrypted]`. Encryption or audit suppression alone is not the secret contract; `SP0058` (Information) reports partial or member-specific markings without adding `secret`. An existing `[PII]` marking is retained.
+A concept carrying both `[Encrypted]` and `[NotAudited]` becomes `secret`: encrypted at rest and withheld from the command's causation chain. For personal data that is also an operational secret, use `[PII(OperationalSecret = true)]` with `[NotAudited]`; the generator recovers `pii secret`. Encryption or audit suppression alone is not the secret contract; `SP0058` (Information) reports partial or member-specific markings without adding `secret`, including `OperationalSecret = true` without `[NotAudited]`. An existing `[PII]` marking is retained.
+
+Legacy `[PII]` combined with `[Encrypted]` is still recovered, including `pii secret` when `[NotAudited]` is present. `SP0087` (Warning) explains that Chronicle rejects the attribute combination and recommends `PIIAttribute.OperationalSecret` instead.
+
+The generator reads structured personal-data qualifiers from `PIIAttribute` named arguments. `[PII(SpecialCategory = SpecialCategory.Health)]` adds `pii special health` inside the concept body; `[PII(Criminal = true)]` adds `pii criminal`. Both qualifiers can be combined. Special categories map to `racialOrEthnicOrigin`, `politicalOpinions`, `religiousOrPhilosophicalBeliefs`, `tradeUnionMembership`, `genetic`, `biometric`, `health`, and `sexLifeOrSexualOrientation`. `None` adds no qualifier. An unknown category reports `SP0088` (Warning) and is not guessed. Free-text `Details` never supplies a classification.
 
 Subject encryption scope, whether omitted or explicit, stays implicit as bare `secret`. For Namespace or Global scope, default output retains `secret` and reports `SP0061` (Information): the requested scope is not stated, so the document implies Subject scope. Set `ScreenplayOptions.AuthoringOnlyConstructs` to emit `secret scope namespace` or `secret scope global` in the concept body. These details are syntax-only and do not raise the ESM version. No scope is emitted for `pii secret`, because providers ignore it. Changing encryption scope for persisted events requires a new event generation.
 
@@ -1131,18 +1157,27 @@ Duplicate literal paths, wildcard or optional paths, computed paths or elements,
 
 | In code | In the document |
 | --- | --- |
-| `[AvailableFor("Plus", "Preview")]` on a command or a read model | `audience Plus`, `audience Preview` at the top, and `available for Plus or Preview` on the command, or on every query of the read model |
+| `public class Plus : Audience;` | `audience Plus`, described by the summary of the type |
+| `public class DataQuality : AvailabilityBlock` with its `Lines` | `availability DataQuality` with its `for`, `when`, `with` and `not` lines |
+| `[AvailableFor<Plus, Preview>]` on a command or a read model | `available for Plus or Preview` on the command, or on every query of the read model |
+| `[Available<DataQuality>]`, `[AvailableWhen<HasPaidInvoice>]` | `available with DataQuality`, and an opaque `available when $context.hasPaidInvoice == true` with a `provide hasPaidInvoice Bool from host` |
+| A type that derives from `AvailabilityScope` in a namespace, carrying the attributes above | the same `available` lines on the module, feature or slice the namespace names |
+| `[ProvideContext<Vessel>(nameof(Vessel.VesselByKey), "arguments.vesselId")]` | `provide vessel Vessel from query VesselByKey by $context.arguments.vesselId` at the module, feature or slice the namespace of the type names |
 | Several gate attributes on one type | One `available` line for each, so every one of them has to hold |
-| `[AvailableWith("DataQuality")]` | `available with DataQuality` and an `availability DataQuality` declaration without rules (`SP0081`) |
+| `[AvailableFor("Plus", "Preview")]` and `[AvailableWith("DataQuality")]`, which are obsolete | The same lines, and for `AvailableWith` an `availability DataQuality` declaration without rules (`SP0081`) |
+| `catalog.Declare(new ContextValueDeclaration(...))` | `provide vessel Vessel optional from query VesselByKey by $context.arguments.vesselId` in the module, feature or slice the scope names, or at the application for `ContextScope.Application` |
 | `catalog.Declare(new ContextValueDeclaration("vessel", new ReadModelContextValueProvider(query, "VesselByKey", "arguments.vesselId"), ContextScope.Of("Fleet")))` | `provide vessel Vessel optional from query VesselByKey by $context.arguments.vesselId` in the module, feature or slice the scope names, or at the application for `ContextScope.Application` |
 
-An availability is defined at run time in the host's `AvailabilityCatalog`, so the document declares the name and says where the rules are. Complete the `for`, `when` and `with` lines by hand; a regeneration leaves them out again. Until you do, the declared availability has no rules, so read the warning as a gap in the model and not as an open gate to rely on.
+An availability declared as a type is read back with its rules. One that is defined in the host's `AvailabilityCatalog` is not, so the document declares the name and says where the rules are; define it as a type that derives from `AvailabilityBlock`, or complete the `for`, `when` and `with` lines by hand. Until then the declared availability has no rules, so read the warning as a gap in the model and not as an open gate to rely on.
+
+A line holds one form. A block line that mixes forms with `&` is written as a line for each form, and one that mixes them with `|` or beneath a `not` cannot be stated and is reported.
 
 A scope names a part of the application and not a Screenplay level, so the generator looks for the name among the modules, then among the features beneath them. A scope that names none of them is reported (`SP0080`) and the value is left out.
 
 The generator reports `SP0080` and states nothing for what it cannot say faithfully:
 
 - an audience or availability name that is not an identifier;
+- a block whose `Lines` is not one expression of `For<T>()`, `Not<T>()`, `With<T>()` and `When` terms, and a line that mixes forms beneath a `|`;
 - a gate registered in code with `Gate` or `GateNamespace`, which is composed with an expression at run time;
 - a value that the host, an expression or code provides, because the language needs a type for it and the code does not state one;
 - a value resolved by a query that is not exactly one keyed snapshot query of the application, or that returns a collection;

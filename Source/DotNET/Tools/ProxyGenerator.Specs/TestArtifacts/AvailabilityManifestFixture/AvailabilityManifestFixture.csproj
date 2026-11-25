@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.AvailabilityManifestFixture</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.AvailabilityManifestFixture</RootNamespace>
+        <!-- The string attributes are obsolete for authoring and are still what a build can read. -->
+        <NoWarn>$(NoWarn);CS0618</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>

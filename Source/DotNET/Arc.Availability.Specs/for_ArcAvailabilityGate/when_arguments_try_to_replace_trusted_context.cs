@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Choreography.Availability;
-
 namespace Cratis.Arc.Availability.for_ArcAvailabilityGate;
 
 public class when_arguments_try_to_replace_trusted_context : given.an_invocation_host

@@ -3,18 +3,20 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Availability.Audiences;
+using Cratis.Arc.Availability.Context;
+using Cratis.Arc.Availability.Suspensions;
 using Cratis.Arc.Tenancy;
-using Cratis.Choreography.Availability;
-using Cratis.Choreography.Availability.Audiences;
-using Cratis.Choreography.Availability.Context;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc.Availability.given;
 
 public class an_availability_host : Specification
 {
     protected InMemoryAudienceSource _audiences;
+    protected InMemorySuspensionSource _suspensions;
     protected ServiceProvider _root;
     protected IServiceScope _scope;
     protected IAvailabilityGate _gate;
@@ -24,6 +26,12 @@ public class an_availability_host : Specification
     protected virtual IAudienceSource AudienceSource => _audiences;
 
     protected virtual ContextValueCatalog ValueCatalog => new();
+
+    protected virtual string Environment => "Development";
+
+    protected virtual void ConfigureServices(IServiceCollection services)
+    {
+    }
 
     protected virtual void Configure(ArcAvailabilityOptions options)
     {
@@ -35,6 +43,7 @@ public class an_availability_host : Specification
     void Establish()
     {
         _audiences = new InMemoryAudienceSource();
+        _suspensions = new InMemorySuspensionSource();
         var types = Substitute.For<ITypes>();
         types.All.Returns(Types.ToArray());
         var tenant = Substitute.For<ITenantIdAccessor>();
@@ -42,11 +51,17 @@ public class an_availability_host : Specification
         var principal = Substitute.For<ICurrentPrincipalAccessor>();
         principal.Current.Returns(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "alice")], "test")));
 
-        _root = new ServiceCollection()
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns(Environment);
+        var collection = new ServiceCollection();
+        ConfigureServices(collection);
+        _root = collection
+            .AddSingleton(environment)
             .AddSingleton(types)
             .AddSingleton(tenant)
             .AddSingleton(principal)
             .AddSingleton(AudienceSource)
+            .AddSingleton<ISuspensionSource>(_suspensions)
             .AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview"))
             .AddSingleton(new AvailabilityCatalog())
             .AddSingleton(ValueCatalog)

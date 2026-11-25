@@ -88,7 +88,7 @@ internal static class ExecutableGenerationFixtures
             return false;
         }
 
-        return pin.Source is LiteralSource literal && !GenerationFixtureShape.MatchesUuidV4(literal);
+        return pin.Source is LiteralSource literal && !GenerationFixtureShape.MatchesUuidV4(literal, concept.Generation);
     }
 
     static bool UsesUuid(ConceptModel concept)

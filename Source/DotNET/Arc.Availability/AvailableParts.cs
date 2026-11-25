@@ -23,7 +23,13 @@ public sealed record AvailableParts(IEnumerable<UnavailablePart> Unavailable)
     /// Observes the parts that are not available to the current context.
     /// </summary>
     /// <param name="parts">The <see cref="IUnavailableParts"/> for the current request.</param>
+    /// <param name="part">The full name of one part to ask about; every part is decided when it is not given.</param>
+    /// <param name="arguments">The arguments of that part as a JSON object, for a gate that reads <c>arguments.name</c>.</param>
     /// <returns>A subject that emits the parts that are not available, each time the decision changes.</returns>
-    public static ISubject<AvailableParts> ObserveUnavailable(IUnavailableParts parts) =>
-        new AvailablePartsSubject(parts);
+    /// <remarks>
+    /// With a <paramref name="part"/> the answer lists that part when it is not available for those arguments, and is empty
+    /// when it is available. The same gate decides as for an execution, so there is no second rule to keep in step.
+    /// </remarks>
+    public static ISubject<AvailableParts> ObserveUnavailable(IUnavailableParts parts, string? part = null, string? arguments = null) =>
+        new AvailablePartsSubject(parts, string.IsNullOrEmpty(part) ? null : PartQuestion.From(part, arguments));
 }

@@ -44,6 +44,7 @@ var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
 var emitInterfaces = args.Any(_ => _ == "--emit-interfaces");
 var useProxyFileSuffix = args.Any(_ => _ == "--use-proxy-file-suffix");
+var availabilityManifestPath = args.FirstOrDefault(_ => _.StartsWith("--availability-manifest=", StringComparison.Ordinal))?["--availability-manifest=".Length..];
 var projectDirectory = args.FirstOrDefault(arg => arg.StartsWith("--project-directory=", StringComparison.Ordinal))?["--project-directory=".Length..];
 var encodedHeader = args.FirstOrDefault(arg => arg.StartsWith("--file-header-base64=", StringComparison.Ordinal))?["--file-header-base64=".Length..];
 var configuredHeader = encodedHeader is null ? null : Encoding.UTF8.GetString(Convert.FromBase64String(encodedHeader));
@@ -214,7 +215,8 @@ try
         endpointGroup,
         framework,
         checkingOutput,
-        previousFiles);
+        previousFiles,
+        availabilityManifestPath);
     if (mode.Check || mode.ReportsValidation)
     {
         return result && !hadErrors ? await mode.Complete(checkingOutput, projectionReport) : ProxyGeneratorExitCodes.Error;
