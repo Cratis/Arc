@@ -165,7 +165,7 @@ internal static class CommandReadModelLookup
         var value = source.Property.Read(source.Context.Command);
 
         // An event-source target must remain protectable even when the model parameter is nullable.
-        var allowAbsence = lookup.Protect && source.Context.Command.GetType().GetProperty(source.Property.Name)?.IsEventSourceKeyProperty() == false;
+        var allowAbsence = lookup.Protect && !CommandReadModelKeys.IsEventSourceKey(source.Context.Type, source.Property);
         if (allowAbsence && ProtectedReadModelKeys.IsAbsent(value, parameter))
         {
             keyText = ProtectedReadModelKeys.Display(value);
