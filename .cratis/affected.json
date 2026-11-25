@@ -12,7 +12,8 @@
   "nonTestProjects": [
     "**/Fixtures/**",
     "**/TestArtifacts/**",
-    "Source/DotNET/Tools/ProxyGenerator.Specs/**"
+    "Source/DotNET/Tools/ProxyGenerator.Specs/**",
+    "Source/DotNET/Arc.Core.Generators.Integration/**"
   ],
   "buildArguments": [
     "-p:CratisSpecsTargetFramework=net11.0",
