@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Validation;
 using Microsoft.Extensions.Configuration;
@@ -114,10 +115,23 @@ public static class CommandReadModelKeys
         if (!TryGetProperties(command, out _)) RequireMetadata(command, configuration, logger);
     }
 
+    /// <summary>
+    /// Classifies a property from its descriptor, using the shared compatibility descriptors for legacy registrations.
+    /// </summary>
+    /// <param name="command">The registered command type.</param>
+    /// <param name="property">The selected property descriptor.</param>
+    /// <returns>Whether it is an event-source target; unknown properties fail closed.</returns>
+    internal static bool IsEventSourceKey(Type command, CommandReadModelKeyProperty property) =>
+        property.IsEventSourceKey ?? (ReflectionProperties(command, publicGettersOnly: true)
+            .FirstOrDefault(candidate => candidate.Name == property.Name)?.IsEventSourceKey != false);
+
     static CommandReadModelKeyProperty[] ReflectionProperties(Type type, bool publicGettersOnly) =>
         _reflectionProperties.GetOrAdd((type, publicGettersOnly), static key =>
             [.. ModelGraphValidator.ReadablePropertiesThroughReflection(key.Type, key.PublicGettersOnly)
-                .Select(property => new CommandReadModelKeyProperty(property.Name, property.PropertyType, property.GetValue))]);
+                .Select(property => new CommandReadModelKeyProperty(property.Name, property.PropertyType, property.GetValue)
+                {
+                    IsEventSourceKey = property.IsEventSourceKeyProperty()
+                })]);
 
     static void RequireMetadata(Type type, IConfiguration? configuration, ILogger? logger)
     {
