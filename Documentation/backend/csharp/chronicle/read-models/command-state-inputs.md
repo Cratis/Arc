@@ -66,7 +66,7 @@ Do not replace a protected `DecisionRead<T>` with a plain model and assume ident
 
 ## Unresolved acquisition shapes
 
-Use [caller-key lookup](injecting-into-commands.md#key-a-read-by-the-caller) when a selected caller claim supplies the key; that binding is supported. Optional or conditional keys, dynamic keyed collections, keys derived from other state, and cross-route reads still need a separate acquisition design. A nullable model parameter handles absence after a valid lookup, not an optional key.
+Use [caller-key lookup](injecting-into-commands.md#key-a-read-by-the-caller) when a selected caller claim supplies the key; that binding is supported. Under `On`, a nullable model parameter also accepts an absent scalar command key (null, empty or whitespace-only), with no read or guard; see [nullable parameters](injecting-into-commands.md#nullable-means-you-handle-absence). Dynamic keyed collections, keys derived from other state, and cross-route reads still need a separate acquisition design.
 
 When no binding fits, identify what must be acquired before the decision can run. Keep that limitation visible rather than moving a reader into `Provide()` merely to hide it.
 

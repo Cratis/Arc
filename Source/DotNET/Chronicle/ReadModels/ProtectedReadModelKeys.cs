@@ -72,6 +72,23 @@ internal static class ProtectedReadModelKeys
     }
 
     /// <summary>
+    /// Recognizes an absent scalar command key only for an explicitly nullable protected parameter.
+    /// </summary>
+    /// <param name="value">The original command key.</param>
+    /// <param name="parameter">The dependency parameter.</param>
+    /// <returns>Whether the parameter requires neither a read nor a guard.</returns>
+    internal static bool IsAbsent(object? value, ParameterInfo parameter)
+    {
+        while (value?.IsConcept() == true)
+        {
+            value = value.GetConceptValue();
+        }
+
+        return (value is null || (value is string text && string.IsNullOrWhiteSpace(text))) &&
+            new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
+    }
+
+    /// <summary>
     /// Preserves nullable absence while rejecting a missing required protected parameter.
     /// </summary>
     /// <param name="instance">The resolved instance.</param>
