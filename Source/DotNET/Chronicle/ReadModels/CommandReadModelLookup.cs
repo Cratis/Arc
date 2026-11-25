@@ -61,7 +61,7 @@ internal static class CommandReadModelLookup
 
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
         var configuration = context.ServiceProvider?.GetService<IConfiguration>();
-        var properties = lookup is null && mode != ReadProtectionMode.On
+        var properties = lookup is null
             ? []
             : CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
         if (lookup is not null)
@@ -69,7 +69,7 @@ internal static class CommandReadModelLookup
             var property = properties.FirstOrDefault(_ => _.Name == lookup.Property)
                 ?? throw new InvalidLookUpBy(context.Type, lookup.Property);
 
-            return ParameterKey(property.Read(context.Command), parameter, keyLookup, out keyText);
+            return ParameterKey((context, property), parameter, keyLookup, out keyText);
         }
 
         return mode == ReadProtectionMode.On
@@ -137,7 +137,7 @@ internal static class CommandReadModelLookup
 
         if (candidates is [{ } selected])
         {
-            return ParameterKey(selected.Read(context.Command), parameter, lookup, out keyText);
+            return ParameterKey((context, selected), parameter, lookup, out keyText);
         }
 
         var source = context.GetEventSourceId();
@@ -147,7 +147,6 @@ internal static class CommandReadModelLookup
             // The raw key is checked only while it still denotes the resolved target; provider and response overrides win.
             var raw = context.GetRawEventSourceKey();
             keyText = ProtectedReadModelKeys.Display(raw);
-            if (ProtectedReadModelKeys.IsAbsent(raw, parameter)) return null;
             ProtectedReadModelKeys.ValidateRawKey(lookup.Traversal, parameter.ParameterType, raw, keyText);
             ProtectedReadModelKeys.ValidateWireText(parameter.ParameterType, source.Value, keyText);
         }
@@ -161,9 +160,13 @@ internal static class CommandReadModelLookup
         return GeneratedIdentifierCanonicalizer.Canonicalize(value) is { } key && key != commandKey.Value;
     }
 
-    static ReadModelKey? ParameterKey(object? value, ParameterInfo parameter, KeyLookup lookup, out string keyText)
+    static ReadModelKey? ParameterKey((CommandContext Context, CommandReadModelKeyProperty Property) source, ParameterInfo parameter, KeyLookup lookup, out string keyText)
     {
-        if (lookup.Protect && ProtectedReadModelKeys.IsAbsent(value, parameter))
+        var value = source.Property.Read(source.Context.Command);
+
+        // An event-source target must remain protectable even when the model parameter is nullable.
+        var allowAbsence = lookup.Protect && source.Context.Command.GetType().GetProperty(source.Property.Name)?.IsEventSourceKeyProperty() == false;
+        if (allowAbsence && ProtectedReadModelKeys.IsAbsent(value, parameter))
         {
             keyText = ProtectedReadModelKeys.Display(value);
             return null;
