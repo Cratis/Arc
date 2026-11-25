@@ -8,6 +8,6 @@ public class when_a_public_development_listener_overrides_production : given.a_p
     void Establish() => Configure("Development", "Production", hasHandlers: false);
     void Because() => _mapper.Start(_services);
 
-    [Fact] void should_map_all_discovery_routes() => _mapper.Routes.Count().ShouldEqual(5);
+    [Fact] void should_map_all_discovery_routes() => _mapper.Routes.Count().ShouldEqual(6);
     [Fact] void should_allow_anonymous_discovery() => _mapper.Routes.All(route => route.Metadata?.AllowAnonymous == true && !route.Metadata.RequireAuthentication).ShouldBeTrue();
 }

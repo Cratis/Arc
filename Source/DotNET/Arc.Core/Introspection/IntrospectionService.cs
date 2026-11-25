@@ -23,6 +23,7 @@ public class IntrospectionService : IIntrospectionService
 {
     readonly Lazy<IReadOnlyList<CommandIntrospectionMetadata>> _commands;
     readonly Lazy<IReadOnlyList<QueryIntrospectionMetadata>> _queries;
+    readonly Lazy<ApplicationStructure> _structure;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IntrospectionService"/> class.
@@ -40,6 +41,7 @@ public class IntrospectionService : IIntrospectionService
         var schemaGenerationOptions = CreateSchemaGenerationOptions(arcOptions.Value.JsonSerializerOptions);
         _commands = new(() => BuildCommands(commandHandlerProviders, options.Value, schemaGenerationOptions));
         _queries = new(() => BuildQueries(queryPerformerProviders, options.Value, schemaGenerationOptions));
+        _structure = new(() => BuildStructure(commandHandlerProviders, queryPerformerProviders));
     }
 
     /// <inheritdoc/>
@@ -47,6 +49,18 @@ public class IntrospectionService : IIntrospectionService
 
     /// <inheritdoc/>
     public IReadOnlyList<QueryIntrospectionMetadata> Queries => _queries.Value;
+
+    /// <inheritdoc/>
+    public ApplicationStructure Structure => _structure.Value;
+
+    static ApplicationStructure BuildStructure(ICommandHandlerProviders commandHandlerProviders, IQueryPerformerProviders queryPerformerProviders) =>
+        ApplicationStructureBuilder.Build(
+            commandHandlerProviders.Handlers
+                .Where(handler => !handler.CommandType.IsProtocolOnly() && !handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true) && EndpointGroup.For(handler.CommandType) is null)
+                .Select(handler => handler.CommandType),
+            queryPerformerProviders.Performers
+                .Where(performer => !performer.IsExcludedFromDiscovery() && performer.GetEndpointGroup() is null)
+                .Select(performer => (performer.Type, performer.ReadModelType.Name)));
 
     static List<CommandIntrospectionMetadata> BuildCommands(ICommandHandlerProviders providers, ApiEndpointOptions options, JsonSerializerOptions schemaGenerationOptions)
     {
