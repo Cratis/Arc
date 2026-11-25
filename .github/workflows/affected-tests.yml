@@ -15,11 +15,9 @@ on:
       - ".editorconfig"
       - ".cratis/affected.json"
       - ".github/workflows/affected-tests.yml"
-  # Trial only: a push to this branch runs everything with coverage and commits the maps back to the same branch.
+  # Trial only: a push to an affected-trial branch measures the change against the pilot branch, as a pull request would.
   push:
-    branches: [feature/affected-tests-pilot]
-    paths-ignore:
-      - ".cratis/affected/maps/**"
+    branches: ["affected-trial/**"]
   workflow_dispatch:
     inputs:
       mode:
@@ -38,8 +36,9 @@ jobs:
     uses: Cratis/Workflows/.github/workflows/affected-tests.yml@feature/268-affected-tests-cli
     with:
       workflows-ref: feature/268-affected-tests-cli
-      cli-version: 3.150.1
-      mode: ${{ github.event_name == 'push' && 'merge' || inputs.mode || 'auto' }}
+      cli-version: 3.150.2
+      mode: ${{ github.event_name == 'push' && 'pr' || inputs.mode || 'auto' }}
+      base-ref: ${{ github.event_name == 'push' && 'feature/affected-tests-pilot' || '' }}
       map-branch: ${{ github.event_name != 'pull_request' && github.ref_name || '' }}
       level: test
       framework: net11.0
