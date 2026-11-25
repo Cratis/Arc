@@ -14,7 +14,7 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_CommandReadModelLookup.given;
 public class a_caller_lookup : a_lookup
 {
     protected IDisposable _frame;
-    protected ReadModelKey[] _keys;
+    protected ReadModelKey?[] _keys;
     protected ClaimsPrincipal _principal;
     protected ICurrentPrincipalAccessor _principalAccessor;
     private protected ProtectedReadModelKeyTraversal _traversal;

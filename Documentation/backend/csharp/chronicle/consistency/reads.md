@@ -31,7 +31,8 @@ A read is protected only when Chronicle can guard the facts it supplies to the c
 | A declared per-stream model | **Protected** on the command route. A projection keyed by a stream without that declaration needs an explicit stream read in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature |
 | A key that is not a string or a `Guid`; an ambiguous projection; a model of another event sequence; a definition that does not match the registered one | **Refused** |
 | A projection with Pinned generation delivery | **Refused** |
-| A model with no instance yet | **Protected.** A nullable parameter receives `null` and the guard watches for the first event. A required parameter rejects with a validation result |
+| A nullable model parameter with a null, empty or whitespace-only non-event-source scalar command key | **Absent.** Receives `null`; no read is acquired and no guard is enrolled |
+| A model with a valid key but no instance yet | **Protected.** A nullable parameter receives `null` and the guard watches for the first event. A required parameter rejects with a validation result |
 | `IDecisionReads.Get<T>` in `Handle()` for a key no parameter can express, with a reasoned ARCCHR0040 suppression linked to the tracking feature | **Protected** |
 | Existing advanced `DecisionRead<T>` with `[ProtectedDecision]` | Still supported. Prefer a plain parameter under `On` |
 | `IDecisionReads.GetDetached<T>` | **Refused** unless inside an advisory method |
@@ -48,9 +49,13 @@ If a read is refused, find its message and fix in [Refusals](./refusals.md). For
 
 ## Missing models and invalid keys
 
-Under `On`, a missing required (non-nullable) protected read-model parameter rejects the command with HTTP `400` and the message `{ReadModel} does not exist.`. `ReadModel` is the model's simple CLR type name, matching its Screenplay view name. The validation result uses `ValidationResultReason.Rule` (`rule`), Arc's ordinary validation reason. A nullable parameter still receives `null` for a valid key with no instance.
+Under `On`, a missing required (non-nullable) protected read-model parameter rejects the command with HTTP `400` and the message `{ReadModel} does not exist.`. `ReadModel` is the model's simple CLR type name, matching its Screenplay view name. The validation result uses `ValidationResultReason.Rule` (`rule`), Arc's ordinary validation reason.
 
-A protected key is treated as missing if it is empty, whitespace-only, exactly `*`, contains `#`, or has leading or trailing whitespace. Arc checks the raw key and each composite key part before acquiring a read, even if an instance exists at that key. This rejection also applies to nullable protected parameters. The exception and validation messages never include the supplied key, whether it is scalar or composite. Concepts are unwrapped before checking their values.
+An explicitly nullable protected parameter receives `null` when its non-event-source scalar command key is null, empty or whitespace-only, including when wrapped in a concept. Arc acquires no read and enrolls no guard: there is no key to protect. This applies to `[LookUpBy]` and convention keys in validator constructors, `Provide()` and `Handle()`. A validator can then report its own `NotEmpty()` message on the command's key field. A valid key with no instance also produces `null`, but keeps its absence guard so a concurrent creation is detected.
+
+Event-source targets are never optional. A key property marked `[Key]` or typed as `EventSourceId` remains the command's event-source target: null or blank target keys still reject, including through `[LookUpBy]`, convention lookup and event-source fallback.
+
+Required parameters still reject absent keys. Non-blank malformed keys (exactly `*`, containing `#`, or with leading or trailing whitespace) still reject even for nullable parameters. Arc checks the raw key and each composite key part before acquiring a read, even if an instance exists at that key. An invalid composite part is not an absent scalar key. The exception and validation messages never include the supplied key, whether it is scalar or composite. Concepts are unwrapped before checking their values. Caller/provider key refusals, `Guid.Empty`, unsupported read shapes and protection failures retain their existing behavior; they are not converted to optional absence.
 
 These rules apply to protected reads, not advisory reads. `Off` and `Measure` retain their existing lookup, nullability, messages and validation reasons. Other read-protection refusals retain their existing outcomes.
 
