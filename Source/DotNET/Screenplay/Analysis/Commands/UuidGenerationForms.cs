@@ -42,7 +42,8 @@ internal class UuidGenerationForms(SemanticModels models)
         {
             return null;
         }
-        var generation = GenerationCallReader.Read(primitive, model);
+        var generation = GenerationCallReader.Read(primitive, model) ??
+            (backing == SpecialType.System_String ? GenerationOptionsReader.Read(primitive, model) : null);
 
         return HasMatchingBacking(generation, primitive, backing) ? generation : null;
     }
