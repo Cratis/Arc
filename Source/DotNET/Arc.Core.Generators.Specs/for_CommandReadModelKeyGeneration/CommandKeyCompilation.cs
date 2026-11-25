@@ -14,7 +14,10 @@ internal static class CommandKeyCompilation
     internal const string Registry = """
         namespace Cratis.Arc.Chronicle.ReadModels
         {
-            public sealed record CommandReadModelKeyProperty(string Name, System.Type PropertyType, System.Func<object, object?> Read);
+            public sealed record CommandReadModelKeyProperty(string Name, System.Type PropertyType, System.Func<object, object?> Read)
+            {
+                public bool? IsEventSourceKey { get; init; }
+            }
             public static class CommandReadModelKeys
             {
                 public static readonly System.Collections.Generic.Dictionary<System.Type, CommandReadModelKeyProperty[]> Commands = new();
@@ -25,10 +28,11 @@ internal static class CommandKeyCompilation
         }
         """;
 
-    internal static (string Source, Diagnostic[] Diagnostics, Compilation Output) Compile(string name, string models)
+    internal static (string Source, Diagnostic[] Diagnostics, Compilation Output) Compile(string name, string models, bool classifyEventSourceKeys = true)
     {
         var (_, _, compilation) = ModelGraphWalkerCompilation.Compile(name, models, false);
-        compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(Registry));
+        var registry = classifyEventSourceKeys ? Registry : Registry.Replace("public bool? IsEventSourceKey { get; init; }", string.Empty, StringComparison.Ordinal);
+        compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(registry));
         CSharpGeneratorDriver.Create(new ModelGraphWalkerGenerator().AsSourceGenerator())
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
         var compilationDiagnostics = output.GetDiagnostics();
