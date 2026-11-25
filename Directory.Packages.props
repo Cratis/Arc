@@ -20,7 +20,7 @@
     <PackageVersion Include="Cratis.Chronicle" Version="19.184.3" />
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.184.3" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.184.3" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.4" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.5" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.34.4" />
     <PackageVersion Include="Cratis.Screenplay" Version="6.43.0" />
     <!-- Held at 0.21.2: Cratis.Screenplay.Generation.DotNet 0.22.0 and later require Microsoft.CodeAnalysis.CSharp 5.12.0,
