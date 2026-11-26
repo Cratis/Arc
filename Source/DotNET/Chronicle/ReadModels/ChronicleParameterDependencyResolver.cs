@@ -25,7 +25,8 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         Stored = 0,
         Protected = 1,
         Stream = 2,
-        Token = 3
+        Token = 3,
+        Absent = 4
     }
 
     /// <inheritdoc/>
@@ -47,6 +48,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         using var allowance = binding.AllowReads();
         dependency = binding.Kind switch
         {
+            BindingKind.Absent => null,
             BindingKind.Stream => PerStreamReadModelBinding.Resolve(binding.Model, binding.Context, serviceProvider, parameter),
             BindingKind.Protected => ProtectedReadModelKeys.RequireInstance(ResolveProtected(serviceProvider, binding), parameter, binding.KeyText),
             _ => ReadModelServiceCollectionExtensions.ResolveReadModel(binding.Model, binding.Context, serviceProvider.GetRequiredService<IReadModels>(), binding.Key)
@@ -67,6 +69,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         using var allowance = binding.AllowReads();
         var dependency = binding.Kind switch
         {
+            BindingKind.Absent => null,
             BindingKind.Token => await ReadModelDispatch.For(binding.Model).ResolveTokenAsync(serviceProvider),
             BindingKind.Stream => await PerStreamReadModelBinding.ResolveAsync(binding.Model, binding.Context, serviceProvider, parameter),
             BindingKind.Protected => ProtectedReadModelKeys.RequireInstance(await ResolveProtectedAsync(serviceProvider, binding), parameter, binding.KeyText),
@@ -165,8 +168,8 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         var advisory = AdvisoryFor(context, parameter, parameter.ParameterType);
         return new(parameter, context, parameter.ParameterType)
         {
-            Kind = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null ? BindingKind.Protected : BindingKind.Stored,
-            Key = key,
+            Kind = key is null ? BindingKind.Absent : CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null ? BindingKind.Protected : BindingKind.Stored,
+            Key = key!,
             KeyText = keyText,
             Advisory = advisory
         };

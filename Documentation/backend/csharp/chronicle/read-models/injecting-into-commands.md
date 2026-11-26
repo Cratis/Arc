@@ -133,7 +133,7 @@ Use this shape when the projected state has to be combined with something fetche
 
 ## Nullable means you handle absence
 
-A valid key identifies which instance to load; it does not prove the instance exists. Use nullability to declare whether your code handles missing state. A nullable parameter does not allow a missing or invalid key, and passive projections can return a default-valued instance rather than null when no events match.
+A valid key identifies which instance to load; it does not prove the instance exists. Use nullability to declare whether your code handles missing state. Under protection `On`, an explicitly nullable parameter also accepts a null, empty or whitespace-only non-event-source scalar command key from `[LookUpBy]` or convention lookup: Arc injects `null` without acquiring a read or enrolling a guard. A valid key with no instance still keeps its absence guard. Malformed non-blank keys, invalid composite parts and caller/provider key refusals still reject; `Off` and `Measure` are unchanged. See [Missing models and invalid keys](../consistency/reads.md#missing-models-and-invalid-keys). Passive projections can return a default-valued instance rather than null when no events match.
 
 ### Nullable — absence is a business condition
 

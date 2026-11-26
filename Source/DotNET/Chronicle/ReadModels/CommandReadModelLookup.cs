@@ -29,7 +29,7 @@ internal static class CommandReadModelLookup
     /// <exception cref="InvalidLookUpBy">The named command property does not exist.</exception>
     /// <exception cref="AmbiguousReadModelLookup">Several command properties match the model's key type.</exception>
     /// <exception cref="ProtectedCommandRequiresCommandAwareReader">A protected key needs checking, but no key traversal is available.</exception>
-    internal static ReadModelKey Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode)
+    internal static ReadModelKey? Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode)
         => Resolve(context, parameter, mode, null, out _);
 
     /// <summary>
@@ -46,22 +46,22 @@ internal static class CommandReadModelLookup
     /// <exception cref="ProtectedReadModelDoesNotExist">The protected key has a refused shape.</exception>
     /// <exception cref="ProtectedCommandRequiresCommandAwareReader">A protected key needs checking, but no key traversal is available.</exception>
     /// <exception cref="ProtectedReadModelKeyAccessorMissing">Strict coverage has no accessors for a composite key part.</exception>
-    internal static ReadModelKey Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode, ProtectedReadModelKeyTraversal? traversal, out string keyText)
+    internal static ReadModelKey? Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode, ProtectedReadModelKeyTraversal? traversal, out string keyText)
     {
-        var protect = mode == ReadProtectionMode.On &&
-            !Attribute.IsDefined(parameter, typeof(UnprotectedAttribute)) && !Attribute.IsDefined(parameter.ParameterType, typeof(UnprotectedAttribute));
+        var protect = mode == ReadProtectionMode.On && !IsAdvisory(parameter);
+        var keyLookup = new KeyLookup(parameter.ParameterType, traversal, protect);
         var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
         var provider = CommandAttributePolicy.ResolveKeyProvider(parameter, context.Type);
         if (provider is not null)
         {
             var value = ReadModelKeyProviders.Resolve(provider, new(parameter.ParameterType, context.Type, context.ServiceProvider?.GetService<ICurrentPrincipalAccessor>()?.Current, logger));
             keyText = string.Empty;
-            return CallerReadModelKeyLookup.Resolve((value, parameter.ParameterType), traversal, protect, key => KeyFor(key, parameter.ParameterType, traversal, false, out _));
+            return CallerReadModelKeyLookup.Resolve((value, parameter.ParameterType), traversal, protect, key => KeyFor(key, keyLookup with { Protect = false }, out _));
         }
 
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
         var configuration = context.ServiceProvider?.GetService<IConfiguration>();
-        var properties = lookup is null && mode != ReadProtectionMode.On
+        var properties = lookup is null
             ? []
             : CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
         if (lookup is not null)
@@ -69,46 +69,12 @@ internal static class CommandReadModelLookup
             var property = properties.FirstOrDefault(_ => _.Name == lookup.Property)
                 ?? throw new InvalidLookUpBy(context.Type, lookup.Property);
 
-            return KeyFor(property.Read(context.Command), parameter.ParameterType, traversal, protect, out keyText);
+            return ParameterKey((context, property), parameter, keyLookup, out keyText);
         }
 
-        if (mode != ReadProtectionMode.On)
-        {
-            // Keep the legacy missing/unspecified-key behavior, including its exception type.
-            var commandKey = RequiredKey(context.GetEventSourceId(), parameter.ParameterType);
-            if (mode == ReadProtectionMode.Measure)
-            {
-                ObserveRedirect(context, parameter.ParameterType, commandKey);
-            }
-
-            keyText = commandKey.Value;
-            return commandKey;
-        }
-
-        var keyType = CommandReadModelKeys.KeyTypeFor(parameter.ParameterType, configuration, logger);
-        var candidates = properties.Where(_ => _.PropertyType == keyType).ToArray();
-        if (candidates.Length > 1)
-        {
-            throw new AmbiguousReadModelLookup(context.Type, parameter.ParameterType, candidates.Select(_ => _.Name));
-        }
-
-        if (candidates is [{ } selected])
-        {
-            return KeyFor(selected.Read(context.Command), parameter.ParameterType, traversal, protect, out keyText);
-        }
-
-        var source = context.GetEventSourceId();
-        keyText = source.Value;
-        if (protect)
-        {
-            // The raw key is checked only while it still denotes the resolved target; provider and response overrides win.
-            var raw = context.GetRawEventSourceKey();
-            keyText = ProtectedReadModelKeys.Display(raw);
-            ProtectedReadModelKeys.ValidateRawKey(traversal, parameter.ParameterType, raw, keyText);
-            ProtectedReadModelKeys.ValidateWireText(parameter.ParameterType, source.Value, keyText);
-        }
-
-        return RequiredKey(source, parameter.ParameterType);
+        return mode == ReadProtectionMode.On
+            ? ConventionKey(context, parameter, keyLookup, out keyText)
+            : LegacyKey(context, parameter.ParameterType, mode, out keyText);
     }
 
     /// <summary>
@@ -126,8 +92,7 @@ internal static class CommandReadModelLookup
             var keyType = CommandReadModelKeys.KeyTypeFor(model, configuration, logger);
             var candidates = CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger)
                 .Where(_ => _.PropertyType == keyType).ToArray();
-            if (candidates is [{ } candidate] && candidate.Read(context.Command) is { } value &&
-                GeneratedIdentifierCanonicalizer.Canonicalize(value) is { } key && key != commandKey.Value)
+            if (IsRedirect(candidates, context.Command, commandKey))
             {
                 ReadProtectionTelemetry.Record(context.Type, "redirect", model);
             }
@@ -142,23 +107,93 @@ internal static class CommandReadModelLookup
         }
     }
 
-    static ReadModelKey KeyFor(object? value, Type readModelType, ProtectedReadModelKeyTraversal? traversal, bool protect, out string keyText)
+    static bool IsAdvisory(ParameterInfo parameter) =>
+        Attribute.IsDefined(parameter, typeof(UnprotectedAttribute)) || Attribute.IsDefined(parameter.ParameterType, typeof(UnprotectedAttribute));
+
+    static ReadModelKey LegacyKey(CommandContext context, Type model, ReadProtectionMode mode, out string keyText)
     {
-        var display = protect ? ProtectedReadModelKeys.Display(value) : string.Empty;
-        if (protect)
+        // Keep the legacy missing/unspecified-key behavior, including its exception type.
+        var commandKey = RequiredKey(context.GetEventSourceId(), model);
+        if (mode == ReadProtectionMode.Measure)
         {
-            ProtectedReadModelKeys.ValidateRawKey(traversal, readModelType, value, display);
-        }
-        var key = value is null ? EventSourceId.Unspecified.Value : GeneratedIdentifierCanonicalizer.Canonicalize(value) ?? EventSourceExtensions.ToEventSourceId(value).Value;
-        keyText = protect ? display : key;
-        if (protect)
-        {
-            ProtectedReadModelKeys.ValidateWireText(readModelType, key, keyText);
+            ObserveRedirect(context, model, commandKey);
         }
 
-        return RequiredKey(key, readModelType);
+        keyText = commandKey.Value;
+        return commandKey;
+    }
+
+    static ReadModelKey? ConventionKey(CommandContext context, ParameterInfo parameter, KeyLookup lookup, out string keyText)
+    {
+        var configuration = context.ServiceProvider?.GetService<IConfiguration>();
+        var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
+        var properties = CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
+        var keyType = CommandReadModelKeys.KeyTypeFor(parameter.ParameterType, configuration, logger);
+        var candidates = properties.Where(_ => _.PropertyType == keyType).ToArray();
+        if (candidates.Length > 1)
+        {
+            throw new AmbiguousReadModelLookup(context.Type, parameter.ParameterType, candidates.Select(_ => _.Name));
+        }
+
+        if (candidates is [{ } selected])
+        {
+            return ParameterKey((context, selected), parameter, lookup, out keyText);
+        }
+
+        var source = context.GetEventSourceId();
+        keyText = source.Value;
+        if (lookup.Protect)
+        {
+            // The raw key is checked only while it still denotes the resolved target; provider and response overrides win.
+            var raw = context.GetRawEventSourceKey();
+            keyText = ProtectedReadModelKeys.Display(raw);
+            ProtectedReadModelKeys.ValidateRawKey(lookup.Traversal, parameter.ParameterType, raw, keyText);
+            ProtectedReadModelKeys.ValidateWireText(parameter.ParameterType, source.Value, keyText);
+        }
+
+        return RequiredKey(source, parameter.ParameterType);
+    }
+
+    static bool IsRedirect(CommandReadModelKeyProperty[] candidates, object command, ReadModelKey commandKey)
+    {
+        if (candidates is not [{ } candidate] || candidate.Read(command) is not { } value) return false;
+        return GeneratedIdentifierCanonicalizer.Canonicalize(value) is { } key && key != commandKey.Value;
+    }
+
+    static ReadModelKey? ParameterKey((CommandContext Context, CommandReadModelKeyProperty Property) source, ParameterInfo parameter, KeyLookup lookup, out string keyText)
+    {
+        var value = source.Property.Read(source.Context.Command);
+
+        // An event-source target must remain protectable even when the model parameter is nullable.
+        var allowAbsence = lookup.Protect && !CommandReadModelKeys.IsEventSourceKey(source.Context.Type, source.Property);
+        if (allowAbsence && ProtectedReadModelKeys.IsAbsent(value, parameter))
+        {
+            keyText = ProtectedReadModelKeys.Display(value);
+            return null;
+        }
+
+        return KeyFor(value, lookup, out keyText);
+    }
+
+    static ReadModelKey KeyFor(object? value, KeyLookup lookup, out string keyText)
+    {
+        var display = lookup.Protect ? ProtectedReadModelKeys.Display(value) : string.Empty;
+        if (lookup.Protect)
+        {
+            ProtectedReadModelKeys.ValidateRawKey(lookup.Traversal, lookup.Model, value, display);
+        }
+        var key = value is null ? EventSourceId.Unspecified.Value : GeneratedIdentifierCanonicalizer.Canonicalize(value) ?? EventSourceExtensions.ToEventSourceId(value).Value;
+        keyText = lookup.Protect ? display : key;
+        if (lookup.Protect)
+        {
+            ProtectedReadModelKeys.ValidateWireText(lookup.Model, key, keyText);
+        }
+
+        return RequiredKey(key, lookup.Model);
     }
 
     static ReadModelKey RequiredKey(EventSourceId key, Type readModelType) =>
         key.IsSpecified ? (ReadModelKey)key : throw new UnableToResolveReadModelFromCommandContext(readModelType);
+
+    sealed record KeyLookup(Type Model, ProtectedReadModelKeyTraversal? Traversal, bool Protect);
 }

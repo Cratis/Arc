@@ -12,4 +12,10 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// <param name="PropertyType">The declared property type.</param>
 /// <param name="Read">The statically typed property getter.</param>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed record CommandReadModelKeyProperty(string Name, Type PropertyType, Func<object, object?> Read);
+public sealed record CommandReadModelKeyProperty(string Name, Type PropertyType, Func<object, object?> Read)
+{
+    /// <summary>
+    /// Gets whether this property is the command's event-source target, or null for a legacy descriptor without classification.
+    /// </summary>
+    public bool? IsEventSourceKey { get; init; }
+}
