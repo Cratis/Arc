@@ -124,6 +124,17 @@ public class CompilationAnalysis
         CompilationErrors.Report(Compilation, _recovered, diagnostics);
 
     /// <summary>
+    /// Reads the whole-file reactions for this project's captures when a joined slice cannot stay inbound.
+    /// </summary>
+    /// <param name="slice">The joined slice whose captures must stay in code.</param>
+    /// <returns>The original reactions declared by this project.</returns>
+    internal IEnumerable<ReactorModel> CapturedReactors(SliceModel slice)
+    {
+        var names = Slices.Where(part => part.Namespace == slice.Namespace).SelectMany(part => part.Captures).Select(capture => capture.Name).ToHashSet(StringComparer.Ordinal);
+        return _catalog.In(slice.Namespace).Where(type => names.Contains(type.Name)).Select(_readers.Reactors.Read);
+    }
+
+    /// <summary>
     /// Reads every scenario this project specifies a slice of the application by, matching query scenarios against the
     /// queries the application declares.
     /// </summary>

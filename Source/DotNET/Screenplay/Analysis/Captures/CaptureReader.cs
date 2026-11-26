@@ -86,15 +86,17 @@ public class CaptureReader(SemanticModels models)
         return new(reactor.Name, shape.Key, shape.KeyIsEventSource, [sourceName], appendedName, [.. shape.Mappings.Select(mapping => new CaptureMappingModel(mapping.Property, mapping.Field))]);
     }
 
-    static string? FieldOf(ExpressionSyntax expression) =>
-        expression is InvocationExpressionSyntax { ArgumentList.Arguments.Count: 3 } invocation && invocation.ArgumentList.Arguments[1].Expression is LiteralExpressionSyntax literal
-            ? literal.Token.ValueText
-            : null;
+    static bool FromOrigin(INamedTypeSymbol source, INamedTypeSymbol reactor)
+    {
+        if (source.Namespace() != reactor.Namespace())
+        {
+            return false;
+        }
 
-    static bool FromOrigin(INamedTypeSymbol source, INamedTypeSymbol reactor) =>
-        source.GetAttribute(WellKnownTypeNames.EventStoreAttribute)?.GetArgument(0) is string origin &&
-        reactor.GetAttribute(WellKnownTypeNames.EventStoreAttribute)?.GetArgument(0) is string declared &&
-        origin == declared;
+        return source.GetAttribute(WellKnownTypeNames.EventStoreAttribute)?.GetArgument(0) is string origin &&
+            reactor.GetAttribute(WellKnownTypeNames.EventStoreAttribute)?.GetArgument(0) is string declared &&
+            origin == declared;
+    }
 
     static bool KeyedByIdentity(INamedTypeSymbol source, string key) =>
         source.GetMembers().OfType<IPropertySymbol>().FirstOrDefault(property => property.Name.Equals(key, StringComparison.OrdinalIgnoreCase))?.Type.FindBase(WellKnownTypeNames.EventSourceIdOfT) is not null;
@@ -133,17 +135,6 @@ public class CaptureReader(SemanticModels models)
         return append?.ArgumentList?.Arguments.Count == 2 ? append.ArgumentList.Arguments[1].Expression as ObjectCreationExpressionSyntax : null;
     }
 
-    static List<CaptureArgument>? ArgumentsOf(ObjectCreationExpressionSyntax appended, INamedTypeSymbol appendedType)
-    {
-        var fields = appended.ArgumentList?.Arguments.Select(argument => FieldOf(argument.Expression)).ToList() ?? [];
-        var parameters = appendedType.Constructors
-            .FirstOrDefault(constructor => constructor.DeclaredAccessibility == Accessibility.Public && constructor.Parameters.Length == fields.Count)?.Parameters.ToList();
-
-        return parameters is null || fields.Exists(field => field is null)
-            ? null
-            : [.. parameters.Select((parameter, index) => new CaptureArgument(parameter.Name, parameter.Type.ToDisplayString(_qualified), fields[index]!))];
-    }
-
     static IMethodSymbol? HandlerOf(INamedTypeSymbol type)
     {
         var handlers = type.GetMembers().OfType<IMethodSymbol>().Where(method => method.MethodKind == MethodKind.Ordinary && method.DeclaredAccessibility == Accessibility.Public).ToList();
@@ -163,9 +154,8 @@ public class CaptureReader(SemanticModels models)
         var source = (INamedTypeSymbol)handler.Parameters[0].Type;
         var key = KeyOf(declaration);
         var appended = AppendedBy(declaration, handler.Name);
-        var appendedType = TypeOf(declaration, appended);
         var properties = PropertiesOf(source);
-        var arguments = appendedType is null || appended is null ? null : ArgumentsOf(appended, appendedType);
+        var constructed = appended is null ? null : CaptureArguments.Read(models.For(declaration.SyntaxTree), appended);
 
         if (key is null)
         {
@@ -177,11 +167,8 @@ public class CaptureReader(SemanticModels models)
             return null;
         }
 
-        return appendedType is null || arguments is null
-            ? null
-            : ShapeOf(type, (handler.Name, source), (properties, key), (appendedType, arguments));
+        return constructed is { } value
+            ? ShapeOf(type, (handler.Name, source), (properties, key), value)
+            : null;
     }
-
-    INamedTypeSymbol? TypeOf(ClassDeclarationSyntax declaration, ObjectCreationExpressionSyntax? appended) =>
-        appended is null ? null : models.For(declaration.SyntaxTree)?.GetSymbolInfo(appended).Symbol?.ContainingType;
 }

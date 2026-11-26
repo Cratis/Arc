@@ -40,12 +40,40 @@ public static class SliceDependencyOrder
         while (remaining.Count > 0)
         {
             var ready = remaining.FirstOrDefault(index => before[index].All(placed.Contains), -1);
-            var next = ready >= 0 ? ready : remaining[0];
+            var next = ready >= 0 ? ready : CycleMember(remaining, before);
             placed.Add(next);
             remaining.Remove(next);
         }
 
         return [.. placed.Select(index => ordinal[index])];
+    }
+
+    static int CycleMember(IReadOnlyList<int> remaining, List<HashSet<int>> before)
+    {
+        return remaining.First(IsCyclic);
+
+        bool IsCyclic(int start)
+        {
+            var pending = new Stack<int>(before[start].Where(remaining.Contains));
+            var visited = new HashSet<int>();
+            while (pending.TryPop(out var dependency))
+            {
+                if (dependency == start)
+                {
+                    return true;
+                }
+
+                if (visited.Add(dependency))
+                {
+                    foreach (var next in before[dependency].Where(remaining.Contains))
+                    {
+                        pending.Push(next);
+                    }
+                }
+            }
+
+            return false;
+        }
     }
 
     static IEnumerable<string> ConsumedEvents(SliceSyntax slice) =>

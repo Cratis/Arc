@@ -25,6 +25,10 @@ public class when_ordering_slices : Specification
         Names(SliceDependencyOrder.Apply([Both("Beta", "B", "A"), Both("Alpha", "A", "B")])).ShouldEqual("Alpha,Beta");
 
     [Fact]
+    void should_keep_a_downstream_consumer_after_the_cycle_it_depends_on() =>
+        Names(SliceDependencyOrder.Apply([Slice("Alpha", [], ["C", "D"]), Both("Charlie", "C", "D"), Both("Delta", "D", "C")])).ShouldEqual("Charlie,Delta,Alpha");
+
+    [Fact]
     void should_add_no_edge_when_two_siblings_declare_the_event() =>
         Names(SliceDependencyOrder.Apply([Consumer("Alpha", "Placed"), Declarer("Yankee", "Placed"), Declarer("Zulu", "Placed")])).ShouldEqual("Alpha,Yankee,Zulu");
 
