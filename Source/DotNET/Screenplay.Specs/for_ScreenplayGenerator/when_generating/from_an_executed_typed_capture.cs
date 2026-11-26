@@ -34,6 +34,22 @@ public class from_an_executed_typed_capture : a_generated_document
         AssertLocalEffect(execution, received, placed.Properties.Single().Type, key);
         Deliver(execution, fact);
         AssertLocalEffect(execution, received, placed.Properties.Single().Type, key);
+        execution.World.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(1);
+
+        var otherKey = SemanticValue.Text("41a4d32c-fbd3-49b8-af13-8cbf30c40278");
+        var other = fact with
+        {
+            Destination = otherKey,
+            Values = [new(placed.Properties.Single().Id, otherKey)],
+            Context = new(new(SemanticTypeReference.ForPrimitive(SemanticPrimitiveType.Text), otherKey))
+        };
+        Deliver(execution, other);
+        Deliver(execution, fact);
+        Deliver(execution, other);
+        execution.World.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(2);
+        execution.World.Instances.Length.ShouldEqual(2);
+        AssertLocalEffect(execution, received, placed.Properties.Single().Type, key);
+        AssertLocalEffect(execution, received, placed.Properties.Single().Type, otherKey);
     }
 
     [Theory]
@@ -62,12 +78,12 @@ public class from_an_executed_typed_capture : a_generated_document
 
     static void AssertLocalEffect(SemanticReactionLoop execution, SemanticEventContract received, SemanticTypeReference identity, SemanticValue key)
     {
-        var local = execution.World.Facts.Single(fact => fact.EventContract == received.Id);
+        var local = execution.World.Facts.Single(fact => fact.EventContract == received.Id && fact.Destination == key);
         local.Destination.ShouldEqual(key);
         local.Context!.EventSource.Type.ShouldEqual(identity);
         local.Context.EventSource.Value.ShouldEqual(key);
         local.Values.Single(value => value.TargetProperty == received.Properties.Single().Id).Value.ShouldEqual(key);
-        var instance = execution.World.Instances.Single();
+        var instance = execution.World.Instances.Single(instance => instance.Key == key);
         instance.Key.ShouldEqual(key);
         instance.Values.Single().Value.ShouldEqual(key);
     }

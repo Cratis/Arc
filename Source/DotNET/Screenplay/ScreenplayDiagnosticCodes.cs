@@ -571,7 +571,7 @@ public static class ScreenplayDiagnosticCodes
     public const string UnrepresentableReactionAppendRoute = "SP0065";
 
     /// <summary>
-    /// A version cap withholds executable reaction metadata or a typed capture requiring ESM v41.
+    /// A version cap withholds executable reaction metadata or a typed capture requiring ESM v32/v33.
     /// </summary>
     public const string ReactionMetadataVersionCap = "SP0066";
 

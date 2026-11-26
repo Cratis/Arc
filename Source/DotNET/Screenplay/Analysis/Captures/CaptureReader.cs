@@ -59,11 +59,12 @@ public class CaptureReader(SemanticModels models)
             return null;
         }
 
-        if (MaximumExecutableModelVersion is { } cap && cap.CompareTo(SemanticVersion.V41) < 0)
+        var required = shape.KeyIsEventSource ? SemanticVersion.V33 : SemanticVersion.V32;
+        if (MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(required))
         {
             Diagnostics.Warning(
                 ScreenplayDiagnosticCodes.ReactionMetadataVersionCap,
-                $"The typed capture '{type.Name}' requires ESM v41 and exceeds ScreenplayOptions.MaximumExecutableModelVersion (ESM v{cap}); the whole reactor keeps its file reference",
+                $"The typed capture '{type.Name}' requires ESM v{required}, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}; left as a reaction with its whole file reference",
                 type.ToDisplayString());
 
             return null;
