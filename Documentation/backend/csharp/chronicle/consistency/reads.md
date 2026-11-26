@@ -116,6 +116,8 @@ A command cannot declare both `[ProtectedDecision]` and `[Unprotected]`, and can
 
 A read-model parameter reads the instance whose `Id` equals a key from the command. `[LookUpBy(nameof(Property))]` on the parameter names the command property that supplies it. It works in every mode.
 
+Under effective `On`, `[LookUpBy(nameof(source), nameof(SourceModel.RelationshipId))]` instead uses a sibling protected read model in the same member. Arc acquires the source first and guards both reads in the same unit; see the [chained lookup example](../read-models/injecting-into-commands.md#key-a-read-from-a-sibling-read-model).
+
 | Mode | Without `[LookUpBy]` |
 | --- | --- |
 | `Off`, `Measure` | The command's event source id |

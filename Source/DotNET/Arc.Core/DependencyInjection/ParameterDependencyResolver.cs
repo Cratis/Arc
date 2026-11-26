@@ -69,8 +69,15 @@ static class ParameterDependencyResolver
     /// <param name="parameters">The parameters to resolve.</param>
     /// <param name="createException">Callback for creating an exception when a non-nullable parameter cannot be resolved or resolves to null.</param>
     /// <returns>The resolved dependencies in parameter order.</returns>
-    public static object?[] Resolve(IServiceProvider serviceProvider, ParameterInfo[] parameters, Func<ParameterInfo, Exception> createException) =>
-        parameters.Select(parameter => Resolve(serviceProvider, parameter, createException)).ToArray();
+    public static object?[] Resolve(IServiceProvider serviceProvider, ParameterInfo[] parameters, Func<ParameterInfo, Exception> createException)
+    {
+        using var batch = ParameterDependencyBatch.Begin(serviceProvider, parameters);
+        foreach (var parameter in batch.Parameters)
+        {
+            batch.Set(parameter, Resolve(serviceProvider, parameter, createException));
+        }
+        return batch.Arguments;
+    }
 
     static object? Complete(IServiceProvider serviceProvider, ParameterInfo parameter, object? dependency, Func<ParameterInfo, Exception> createException)
     {

@@ -75,6 +75,28 @@ Use the same parameter shape for classic reducers, [self-reducing models](./inde
 
 Under `Off`, Arc loads existing instances through `IReadModels` and releases them before injection; absent self-model state resolves to null. These snapshots do not protect a later append against concurrent changes. Under `On`, Arc reads supported models fresh and guards the append, refusing reducers it cannot protect. See [materialized and passive paths](./index.md#materialized-and-passive-paths) for freshness and release differences.
 
+## Key a read from a sibling read model
+
+With `ReadProtectionMode.On`, the two-string lookup takes a key from another protected read-model parameter in the **same** `Handle()`, `Provide()` or validator constructor. The following handler declaration is an excerpt. It assumes existing read models `OrderSummary` (`Id`, `CustomerId`) and `CustomerSummary` (`Id`), with all these properties typed as `EventSourceId`:
+
+```csharp
+[Command]
+[ReadProtection(ReadProtectionMode.On)]
+public record CheckOrder(EventSourceId OrderId)
+{
+    public void Handle(
+        [LookUpBy(nameof(order), nameof(OrderSummary.CustomerId))] CustomerSummary? customer,
+        [LookUpBy(nameof(OrderId))] OrderSummary? order)
+    {
+        // Use the order and its related customer.
+    }
+}
+```
+
+Arc acquires `order` first regardless of parameter order, then reads `customer` using `order.CustomerId`; both reads guard the same command's append. The relationship property's type must exactly match the target model's `Id` type (nullable wrappers are allowed). Only referenced public readable instance properties get generated accessors. Cycles, invalid sibling names, advisory models and effective `Off`/`Measure` modes are refused before acquisition. In a member containing chained lookups, a same-type `Provide()` result cannot replace a chained source or an explicitly keyed argument; ordinary members retain their existing precedence.
+
+A nullable absent source makes a nullable target absent without a target read. Null or blank relationship keys follow the normal optional-key rules; a valid key with no target retains an absence guard. Required missing state and admission/read errors still refuse execution.
+
 ## Key a read by the caller
 
 Use a caller-derived key when the model belongs to the authenticated caller rather than an identity the client can choose. The generic lookup attribute reads the selected caller snapshot, so the command needs no client-supplied key property. This fragment uses the same `LedgerBalance` and `LedgerSettled` application types as above:

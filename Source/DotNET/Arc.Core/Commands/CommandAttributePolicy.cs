@@ -48,11 +48,12 @@ internal static class CommandAttributePolicy
     /// <returns>The shared lookup resolution.</returns>
     internal static (string? Property, string? Conflict) ResolveLookup([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type commandType, ParameterInfo parameter, bool isReadModel)
     {
-        var property = Attribute.GetCustomAttributes(parameter, typeof(LookUpByAttribute), true).OfType<LookUpByAttribute>().FirstOrDefault()?.Property;
+        var lookup = Attribute.GetCustomAttributes(parameter, typeof(LookUpByAttribute), true).OfType<LookUpByAttribute>().FirstOrDefault();
+        var property = lookup?.Property;
         var lookups = LookUpByKeyProviderDeclarations.For(parameter).ToArray();
         var providers = lookups.Count(LookUpByKeyProviderDeclarations.IsProvider);
         var mixed = providers > 0 && lookups.Any(attribute => attribute is LookUpByAttribute);
-        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), (providers > 0, providers > 1 || mixed));
+        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => lookup?.Parameter is not null || commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name), (providers > 0, providers > 1 || mixed));
     }
 
     /// <summary>
@@ -90,13 +91,17 @@ internal static class CommandAttributePolicy
         }
     }
 
-    /// <summary>Checks either lookup form without activating a provider.</summary>
+    /// <summary>
+    /// Checks either lookup form without activating a provider.
+    /// </summary>
     /// <param name="parameter">The read-model parameter.</param>
     /// <returns>Whether a lookup is explicitly declared.</returns>
     internal static bool HasExplicitLookup(ParameterInfo parameter) => parameter.GetCustomAttributesData().Any(attribute => attribute.AttributeType == typeof(LookUpByAttribute)) ||
         LookUpByKeyProviderDeclarations.For(parameter).Any(LookUpByKeyProviderDeclarations.IsProvider);
 
-    /// <summary>Validates and reads the provider-backed lookup declaration.</summary>
+    /// <summary>
+    /// Validates and reads the provider-backed lookup declaration.
+    /// </summary>
     /// <param name="parameter">The read-model parameter.</param>
     /// <param name="commandType">The command type.</param>
     /// <returns>The provider declaration, or null for a legacy lookup.</returns>

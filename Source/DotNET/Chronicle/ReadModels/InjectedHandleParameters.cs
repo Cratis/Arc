@@ -27,21 +27,43 @@ internal static class InjectedHandleParameters
         var parameters = handle.GetParameters();
         if (provide is null) return parameters;
 
+        var required = RequiredForLookup(parameters);
         var supplied = new HashSet<ParameterInfo>();
         foreach (var shape in CandidateSets(AwaitedType(provide.ReturnType), flattenTuple: true))
         {
             var candidates = shape.Where(type => !IsControlSignal(type)).ToList();
-            foreach (var parameter in parameters)
-            {
-                if (parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false) || parameter.ParameterType == typeof(CancellationToken)) continue;
-                var index = candidates.FindIndex(parameter.ParameterType.IsAssignableFrom);
-                if (index < 0) continue;
-                supplied.Add(parameter);
-                candidates.RemoveAt(index);
-            }
+            MatchProvided(parameters, candidates, supplied, required);
         }
 
         return parameters.Where(parameter => !supplied.Contains(parameter));
+    }
+
+    static HashSet<ParameterInfo> RequiredForLookup(ParameterInfo[] parameters)
+    {
+        var sources = parameters.Select(parameter => Attribute.GetCustomAttribute(parameter, typeof(LookUpByAttribute), inherit: true))
+            .OfType<LookUpByAttribute>().Select(lookup => lookup.Parameter).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        if (sources.Count == 0) return [];
+        return parameters.Where(parameter => sources.Contains(parameter.Name ?? string.Empty) || CommandAttributePolicy.HasExplicitLookup(parameter)).ToHashSet();
+    }
+
+    static void MatchProvided(ParameterInfo[] parameters, List<Type> candidates, HashSet<ParameterInfo> supplied, HashSet<ParameterInfo> required)
+    {
+        foreach (var parameter in parameters.Where(parameter => CanBeSupplied(parameter, required)))
+        {
+            MatchCandidate(parameter, candidates, supplied);
+        }
+    }
+
+    static bool CanBeSupplied(ParameterInfo parameter, HashSet<ParameterInfo> required) =>
+        !parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false) &&
+        parameter.ParameterType != typeof(CancellationToken) && !required.Contains(parameter);
+
+    static void MatchCandidate(ParameterInfo parameter, List<Type> candidates, HashSet<ParameterInfo> supplied)
+    {
+        var index = candidates.FindIndex(parameter.ParameterType.IsAssignableFrom);
+        if (index < 0) return;
+        supplied.Add(parameter);
+        candidates.RemoveAt(index);
     }
 
     /// <summary>
