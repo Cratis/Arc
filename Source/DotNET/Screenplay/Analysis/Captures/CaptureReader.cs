@@ -144,6 +144,14 @@ public class CaptureReader(SemanticModels models)
             : [.. parameters.Select((parameter, index) => new CaptureArgument(parameter.Name, parameter.Type.ToDisplayString(_qualified), fields[index]!))];
     }
 
+    static IMethodSymbol? HandlerOf(INamedTypeSymbol type)
+    {
+        var handlers = type.GetMembers().OfType<IMethodSymbol>().Where(method => method.MethodKind == MethodKind.Ordinary && method.DeclaredAccessibility == Accessibility.Public).ToList();
+
+        return handlers is [{ Parameters: [{ Type: INamedTypeSymbol source }, _, _] } handler] && FromOrigin(source, type)
+            ? handler : null;
+    }
+
     CaptureShape? ShapeOf(INamedTypeSymbol type, ClassDeclarationSyntax declaration)
     {
         var handler = HandlerOf(type);
@@ -176,12 +184,4 @@ public class CaptureReader(SemanticModels models)
 
     INamedTypeSymbol? TypeOf(ClassDeclarationSyntax declaration, ObjectCreationExpressionSyntax? appended) =>
         appended is null ? null : models.For(declaration.SyntaxTree)?.GetSymbolInfo(appended).Symbol?.ContainingType;
-
-    static IMethodSymbol? HandlerOf(INamedTypeSymbol type)
-    {
-        var handlers = type.GetMembers().OfType<IMethodSymbol>().Where(method => method.MethodKind == MethodKind.Ordinary && method.DeclaredAccessibility == Accessibility.Public).ToList();
-
-        return handlers is [{ Parameters: [{ Type: INamedTypeSymbol source }, _, _] } handler] && FromOrigin(source, type)
-            ? handler : null;
-    }
 }
