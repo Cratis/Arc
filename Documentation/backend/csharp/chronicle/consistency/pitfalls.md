@@ -361,7 +361,7 @@ The option rejects appends that succeed today, and its default is planned to cha
 
 The guard covers the events in the read set. It does not cover:
 
-- `Revise` and `Redact` between the read and the append, except after a protected read-model read, which records the mutation epoch and is refused when one happened;
+- `Revise` and `Redact` between the read and the append, except after a protected read-model read, which records the mutation epoch and causes the append to be refused if the epoch changed;
 - a projection definition changed by another process, until this client registers again;
 - other event sequences and external or non-Chronicle state;
 - a unique-constraint index update that fails after the append is durable: Chronicle logs it, a later duplicate can pass, and a reindex repairs it;

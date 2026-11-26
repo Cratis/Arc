@@ -102,7 +102,7 @@ Use `ForMonth` to show the total for one account and month outside the command. 
 - Another definition, stream, `All`, or a missing stream id is refused in every mode with `ReadModelStreamNotOnCommandRoute`. [ARCCHR0037](../../code-analysis/ARCCHR0037.md) catches source-visible mismatches.
 - Do not put `[LookUpBy]` on a per-stream parameter. The source always comes from the command's route. Read another account or month explicitly through `IDecisionReads` directly in `Handle()` with a reasoned ARCCHR0040 suppression linked to the tracking feature; see [stream reads](../../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
 - A whole-source read on the same account chooses a whole-source guard. Another stream read can widen it too. Declared `Concurrency` that omits stream dimensions can also widen it; [ARCCHR0038](../../code-analysis/ARCCHR0038.md) reports source-visible cases. Use no declared policy for the model's exact event types, or stream-level `EventSourceId | EventStreamType | EventStreamId` for an any-event stream boundary.
-- The declaration's source type filters both fold and guard. Events written without that source type are not included. Every writer must use the same definition route. A revision or redaction between the read and the append is detected through the read's mutation epoch, not through the guard.
+- The declaration's source type filters both fold and guard. Events written without that source type are not included. Every writer must use the same definition route. A revision or redaction between the read and the append is detected through the read's mutation epoch rather than through a tail change.
 
 ## A period approval
 
