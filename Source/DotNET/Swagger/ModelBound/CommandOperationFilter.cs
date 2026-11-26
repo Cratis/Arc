@@ -50,7 +50,7 @@ public class CommandOperationFilter(ICommandHandlerProviders commandHandlerProvi
         {
             Description = $"The {commandType.Name} command payload",
             Required = true,
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
@@ -109,7 +109,7 @@ public class CommandOperationFilter(ICommandHandlerProviders commandHandlerProvi
             operation.Responses?.Add("200", new OpenApiResponse
             {
                 Description = "Command executed successfully",
-                Content = new Dictionary<string, OpenApiMediaType>
+                Content = new Dictionary<string, IOpenApiMediaType>
                 {
                     { "application/json", new OpenApiMediaType { Schema = schema } }
                 }
@@ -119,7 +119,7 @@ public class CommandOperationFilter(ICommandHandlerProviders commandHandlerProvi
         operation.Responses?.Add(((int)HttpStatusCode.BadRequest).ToString(), new OpenApiResponse
         {
             Description = "Bad Request - validation error or malformed payload",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
@@ -128,7 +128,7 @@ public class CommandOperationFilter(ICommandHandlerProviders commandHandlerProvi
         operation.Responses?.Add(((int)HttpStatusCode.Forbidden).ToString(), new OpenApiResponse
         {
             Description = "Forbidden - insufficient permissions",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }
@@ -137,7 +137,7 @@ public class CommandOperationFilter(ICommandHandlerProviders commandHandlerProvi
         operation.Responses?.Add(((int)HttpStatusCode.InternalServerError).ToString(), new OpenApiResponse
         {
             Description = "Internal server error",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType { Schema = schema } }
             }

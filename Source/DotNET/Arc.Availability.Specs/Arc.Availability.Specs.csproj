@@ -5,7 +5,13 @@
         <RootNamespace>Cratis.Arc.Availability</RootNamespace>
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
+        <!-- The engine's expression tree and the string attributes are obsolete for authoring, and are still the engine's API: these specifications hold them to account until they are removed. -->
+        <NoWarn>$(NoWarn);CS0618</NoWarn>
     </PropertyGroup>
+    <ItemGroup>
+        <!-- The shared availability test vectors every Arc engine runs; see Specifications/availability. -->
+        <Content Include="../../../Specifications/availability/vectors/*.json" Link="vectors/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Availability/Arc.Availability.csproj" />
     </ItemGroup>

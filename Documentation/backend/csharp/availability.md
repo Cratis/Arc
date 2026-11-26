@@ -5,21 +5,20 @@ description: Refuse commands and queries for parts of your Cratis Arc applicatio
 
 Authorization says who may do something. Availability says whether a part of the application is there at all for a caller: a commercial package, a preview, a capability switched off for an incident. Arc enforces availability in the command and query pipelines, before authorization, and tells clients with a reason that is different from an authorization denial.
 
-Arc hosts the hook only. The decision comes from the [Choreography availability engine](https://github.com/Cratis/Choreography), which resolves audiences and context values and evaluates gate expressions. Hosts that do not add `Cratis.Arc.Availability` do not load the engine and pay nothing: no gate is consulted and every part is available.
+The decision comes from the [availability engine](availability-engine/index.md), which resolves audiences and context values and evaluates gate expressions. It ships in the same `Cratis.Arc.Availability` package and does not depend on ASP.NET. Hosts that do not call `WithAvailability` pay nothing: no gate is consulted and every part is available.
 
 ## Add availability to a host
 
-Add the `Cratis.Arc.Availability` package, register the Choreography pieces you own, and call `AddArcAvailability`:
+Add the `Cratis.Arc.Availability` package and call `WithAvailability`:
 
 ```csharp
-services.AddSingleton<IAudienceSource>(new InMemoryAudienceSource());
-services.AddSingleton<IDeclaredAudiences>(new DeclaredAudiences("Plus", "Preview"));
-services.AddSingleton(new AvailabilityCatalog());
-services.AddSingleton(new ContextValueCatalog());
-services.AddArcAvailability(options => options.GateNamespace("Fleet.DataQuality", AvailabilityExpression.For("Plus")));
+builder.AddCratisArc(configureBuilder: arc => arc
+    .WithAvailability());
 ```
 
-Replace `InMemoryAudienceSource` with an `IAudienceSource` over your own storage in a real product. `AddArcAvailability` also registers the engine through Choreography's `AddAvailability`, and accepts a second callback to configure its options.
+That one call registers the gates, the engine, an in-memory audience source and the startup validation. It accepts a second callback to configure the engine's `AvailabilityOptions`, such as the environment name. Register an `IAudienceSource` over your own storage in a real product. The audiences, availability blocks, scope markers and provided read models are types that are discovered from the application, so there is nothing else to register. At startup, one pass discovers the gated parts and verifies that every block built on another is defined and that no blocks build on each other in a cycle.
+
+A host that has no Arc builder can call `services.AddArcAvailability(...)`, which does the same. The options you configure are the ones that are resolved, whether `AddCratis()` ran before or after.
 
 ## Gate a part
 
@@ -27,14 +26,14 @@ A part is a command, or the read model that declares queries. Gate it with attri
 
 ```csharp
 [Command]
-[AvailableFor("Plus", "Preview")]
+[AvailableFor<Plus, Preview>]
 public record ResetScore(VesselId Vessel)
 {
     public ScoreReset Handle() => new(Vessel);
 }
 
 [ReadModel]
-[AvailableWith("DataQuality")]
+[Available<DataQuality>]
 public record QualityScores(VesselId Vessel, int Score)
 {
     public static IEnumerable<QualityScores> All(IMongoCollection<QualityScores> scores) =>
@@ -42,9 +41,11 @@ public record QualityScores(VesselId Vessel, int Score)
 }
 ```
 
-`[AvailableFor]` lists audiences, any one of which opens the gate. `[AvailableWith]` names a reusable `AvailabilityDefinition` in the host's `AvailabilityCatalog`. Several attributes on one type must all hold. For anything else, register a gate with `options.Gate<TPart>(expression)` or `options.GateNamespace(namespace, expression)` using Choreography's `AvailabilityExpression`.
+The attributes refer to types; they do not describe rules. `[AvailableFor<Plus, Preview>]` names audiences, any one of which opens the gate. `[Available<DataQuality>]` names an availability block, and `[AvailableWhen<HasPaidInvoice>]` names a condition class. Several attributes on one type are several lines, and all of them must hold. Everything else, the rules themselves, is in the types they refer to: see [declaring availability with types](availability-engine/typed-declarations.md).
 
-An audience, a context value and the rules of the three-valued result are described in the Choreography documentation. In short: an unknown decision, such as a missing audience or an absent value, never opens a gate.
+A scope marker gates a whole module, feature or slice: put `[AvailableFor<Plus>] public class Feature : AvailabilityScope;` in its namespace. For a single part, `options.Gate<TPart>(expression)` still registers a gate in code, but the model cannot read it back, so prefer the attributes.
+
+[Gate evaluation](availability-engine/evaluating-gates.md), [audiences](availability-engine/audiences.md) and [context values](availability-engine/context-values.md) are described with the engine. In short: an unknown decision, such as a missing audience or an absent value, never opens a gate.
 
 ## System callers
 
@@ -58,6 +59,7 @@ A command or query in a part that is not available is refused before `authorize`
 | --- | --- |
 | Available | The request continues to authorization and validation. |
 | Unavailable or unknown | `IsAuthorized` is `false`, `AuthorizationFailureReason` is `NotAvailable` (`AvailabilityReason.NotAvailable`), HTTP status `403`. |
+| Suspended | `IsAuthorized` is `false`, `AuthorizationFailureReason` is `Suspended` (`AvailabilityReason.Suspended`), HTTP status `403`. See [suspending parts](availability-engine/suspending-parts.md). |
 | The decision could not be made | A retryable error: `IsRetryable` is `true`, `IsAuthorized` stays `true`, HTTP status `503`. |
 
 An unavailable and an unknown decision are reported identically, so a client is told no more than that the part is not available. Which gate part closed the decision is logged on the server and never sent.
@@ -74,7 +76,7 @@ A failure, such as a store that is down or a context value provider that throws,
 server's pinned `ReceivedAt` receipt. Gates implementing only `IAvailabilityGate` continue to work unchanged.
 The query operation identity remains the performer's `Type`, not its `ReadModelType`.
 
-Choreography providers can resolve `arguments.<property>` and `receivedAt` through their resolver. Command
+Providers can resolve `arguments.<property>` and `receivedAt` through their resolver. Command
 properties and query argument names are case-insensitive. The receipt is a `DateTimeOffset`, fixed at the Arc
 entry boundary rather than read from the clock during evaluation. Manually constructed contexts keep their
 existing default receipt; the gate does not invent one. An explicit invocation with null arguments has no
@@ -102,16 +104,89 @@ The `/.cratis/availability` observable query reports what is not available to th
 ```json
 {
   "unavailable": [
-    { "name": "Fleet.DataQuality.QualityScores", "module": "Fleet", "feature": "DataQuality", "slice": "QualityScores" }
+    { "name": "Fleet.DataQuality.QualityScores", "module": "Fleet", "feature": "DataQuality", "slice": "QualityScores", "reason": "NotAvailable" }
   ]
 }
 ```
 
-Everything not listed is available. A part is named by the full name of its command or read model type and carries the slice it belongs to, which is the same slice location the generated proxies carry. A decision that cannot be made is a retryable error for the query, never a list: clients keep what they last knew.
+The `reason` is `NotAvailable`, or `Suspended` for a part an operator suspended. Everything not listed is available. A part is named by the full name of its command or read model type and carries the slice it belongs to, which is the same slice location the generated proxies carry. A decision that cannot be made is a retryable error for the query, never a list: clients keep what they last knew.
 
 Audience changes reach open sessions because the gate subscribes to the `IAudienceSource`. Each change makes the session decide again from current state, not from what was resolved when it started.
 
-[React clients](../../frontend/react/availability.md) hide navigation, screens and parts from this query.
+### Ask about one part and the data it is about
+
+A gate can read the data a command or query is about, for example `arguments.vesselId`. Ask the same query for one part and give it those arguments, and the same gate that decides an execution answers:
+
+```http
+GET /.cratis/availability?part=Fleet.Vessels.Dock.DockVessel&arguments=%7B%22vesselId%22%3A%22v-17%22%7D
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `part` | The full name of the command type, or of the type that declares the query. Every part is decided when it is not given. |
+| `arguments` | The arguments as a JSON object, by property name. Names match without regard to case. |
+
+The answer lists the part when it is not available for those arguments, with the same `reason`, and is empty when it is available, or when the name is not a part of the application. The arguments feed the gate as `arguments`, the same way the bound command or query does; they never replace the tenant or the identity and never grant anything. There is no second rule to keep in step: the client sends data and the server decides.
+
+When the arguments are not a JSON object the query is refused. Read the answer from code with `IUnavailableParts.Get(PartQuestion)`.
+
+[React clients](../../frontend/react/availability.md) hide navigation, screens and parts from this query, and ask about one part for its data with `RequireAvailable` and `useIsAvailable`.
+
+## Generated proxies carry the part
+
+Every generated command and query proxy (a model-bound read model query is a query proxy) declares which part it is, next to the slice location it already declared:
+
+```typescript
+static readonly part: PartIdentity = new PartIdentity('Fleet.Vessels.Dock.DockVessel', 'Fleet', 'Vessels', 'Dock');
+```
+
+The name is the full name the availability engine knows the part by. The proxy never carries the gate: gates stay on the server, and a client asks. Generate the proxies again after updating, since a proxy generated before this carries no `part` and cannot be asked about.
+
+## The manifest file
+
+The manifest file describes the audiences, blocks, conditions, gates, context values, parts and suspendable parts in one format that every Arc implementation reads and writes, with test vectors any engine can run. See [The availability manifest file](availability-engine/manifest-file.md).
+
+## Explore availability while developing
+
+In a local or test environment (`Development`, `Local`, `Test` or `Testing`, the same environments that allow `GrantAllDeclaredAudiences`) Arc maps two developer endpoints, so a tool such as Lens can switch availability live and the open sessions of your application re-render. Anywhere else they are not mapped, and the overrides are never applied. They follow the [discovery access rules](introspection/index.md#production-access) and apply to the whole host, not to one caller.
+
+`GET /.cratis/structure` reports the shape of the application. Each module, feature, sub-feature and slice has a `path` of its names joined by `/`.
+
+```json
+{
+  "modules": [
+    {
+      "name": "Fleet", "path": "Fleet", "slices": [],
+      "features": [
+        {
+          "name": "DataQuality", "path": "Fleet/DataQuality", "features": [],
+          "slices": [
+            { "name": "QualityScores", "path": "Fleet/DataQuality/QualityScores", "parts": [
+              { "name": "QualityScores", "fullName": "Fleet.DataQuality.QualityScores", "kind": "ReadModel" } ] }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`GET /.cratis/availability/model` reports what the application declares: audiences, and, when the host registers an `IAvailabilityManifest`, the reusable definitions, the gates, the context values and the personas. It carries the overrides in force.
+
+`POST /.cratis/availability/overrides` replaces the overrides. Every list is a set of names or paths, and the lists are all optional.
+
+```json
+{
+  "enabledAudiences": ["Preview"],
+  "disabledAudiences": ["Plus"],
+  "enabledPaths": ["Fleet/Billing"],
+  "disabledPaths": ["Fleet/DataQuality/QualityScores"]
+}
+```
+
+- An enabled audience is held by every caller; a disabled one by none. Disabled wins.
+- An enabled path is available whatever its gates say; a disabled path is not available. A path covers everything beneath it. Disabled wins.
+- Every open `/.cratis/availability` session decides again when the overrides change, so [React clients](../../frontend/react/availability.md) update without a reload.
 
 ## MCP tools
 

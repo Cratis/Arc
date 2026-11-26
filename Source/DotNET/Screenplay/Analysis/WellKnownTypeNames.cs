@@ -33,14 +33,38 @@ public static class WellKnownTypeNames
     /// <summary>The attribute gating a part with a named availability.</summary>
     public const string AvailableWithAttribute = "Cratis.Arc.Availability.AvailableWithAttribute";
 
+    /// <summary>The generic attribute gating a part to an audience type.</summary>
+    public const string AvailableForAudienceAttribute = "Cratis.Arc.Availability.AvailableForAttribute`1";
+
+    /// <summary>The generic attribute gating a part with an availability block type.</summary>
+    public const string AvailableBlockAttribute = "Cratis.Arc.Availability.AvailableAttribute`1";
+
+    /// <summary>The generic attribute gating a part with a condition class.</summary>
+    public const string AvailableWhenAttribute = "Cratis.Arc.Availability.AvailableWhenAttribute`1";
+
+    /// <summary>The generic attribute providing a read model as a context value.</summary>
+    public const string ProvideContextAttribute = "Cratis.Arc.Availability.ProvideContextAttribute`1";
+
+    /// <summary>The base type of an audience.</summary>
+    public const string Audience = "Cratis.Arc.Availability.Audience";
+
+    /// <summary>The base type of an availability block.</summary>
+    public const string AvailabilityBlock = "Cratis.Arc.Availability.AvailabilityBlock";
+
+    /// <summary>The base type of a scope marker.</summary>
+    public const string AvailabilityScope = "Cratis.Arc.Availability.AvailabilityScope";
+
+    /// <summary>The type a block's lines are combined with.</summary>
+    public const string AvailabilityTerm = "Cratis.Arc.Availability.AvailabilityTerm";
+
     /// <summary>The catalog request-scoped values are declared in.</summary>
-    public const string ContextValueCatalog = "Cratis.Choreography.Availability.Context.ContextValueCatalog";
+    public const string ContextValueCatalog = "Cratis.Arc.Availability.Context.ContextValueCatalog";
 
     /// <summary>The provider resolving a value from a read model query.</summary>
-    public const string ReadModelContextValueProvider = "Cratis.Choreography.Availability.Context.Providers.ReadModelContextValueProvider";
+    public const string ReadModelContextValueProvider = "Cratis.Arc.Availability.Context.Providers.ReadModelContextValueProvider";
 
     /// <summary>The scope a value is declared at.</summary>
-    public const string ContextScope = "Cratis.Choreography.Availability.Context.ContextScope";
+    public const string ContextScope = "Cratis.Arc.Availability.Context.ContextScope";
 
     /// <summary>The options gates are registered with.</summary>
     public const string ArcAvailabilityOptions = "Cratis.Arc.Availability.ArcAvailabilityOptions";
@@ -95,6 +119,9 @@ public static class WellKnownTypeNames
 
     /// <summary>The attribute marking a value as personally identifiable information.</summary>
     public const string PiiAttribute = "Cratis.Chronicle.Compliance.GDPR.PIIAttribute";
+
+    /// <summary>The enum classifying special categories of personal data.</summary>
+    public const string SpecialCategory = "Cratis.Chronicle.Compliance.GDPR.SpecialCategory";
 
     /// <summary>The attribute encrypting an operational secret.</summary>
     public const string EncryptedAttribute = "Cratis.Chronicle.ProtectedValues.EncryptedAttribute";

@@ -35,6 +35,14 @@ await app.RunAsync();
 
 `AddConcepts()` registers the schema and operation filters; it does not serve anything by itself. `UseSwagger()` serves `/swagger/v1/swagger.json`, which lists the Arc command, validate, and query routes alongside Arc's `/.cratis/*` endpoints, and `UseSwaggerUI()` serves the browser UI at `/swagger`. The example serves both only in Development; decide deliberately whether a production host should publish its API description.
 
+### Requirements and upgrading
+
+`Cratis.Arc.Swagger` requires `Swashbuckle.AspNetCore` 11.0.1 or later and `Microsoft.OpenApi` 3.x, on `net10.0` and `net11.0`. The Arc filters keep their existing behavior; the generated command and query documents are unchanged.
+
+If you wrote your own Swashbuckle filters, upgrade them to the new media-type interfaces: `OpenApiRequestBody.Content` and `OpenApiResponse.Content` are now `IDictionary<string, IOpenApiMediaType>`, and `IOpenApiMediaType.Schema` is read-only. Replace the media type with a new or concrete `OpenApiMediaType` to change its schema.
+
+`Cratis.Arc.Swagger` cannot be combined with `Cratis.Arc.OpenApi` in one application: `Cratis.Arc.OpenApi` is built on `Microsoft.OpenApi` 2.x and restore rejects the conflicting version ranges. The `Cratis` umbrella package includes `Cratis.Arc.Swagger`, so it brings `Microsoft.OpenApi` 3.x and cannot be used in the same host as `Cratis.Arc.OpenApi` either.
+
 ## Features
 
 ### Concept Schema Filter

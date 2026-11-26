@@ -10,7 +10,7 @@ using Cratis.Screenplay.Syntax.Projections;
 
 namespace Cratis.Arc.Screenplay.Emission.Graphs;
 
-/// <summary>Builds a single canonical graph projection without claiming to recover Stage metadata.</summary>
+/// <summary>Builds an explicitly declared or canonical fallback graph projection.</summary>
 /// <param name="naming">The naming policy.</param>
 /// <param name="diagnostics">Where incomplete behavior is reported.</param>
 public class GraphProjectionSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
@@ -18,10 +18,17 @@ public class GraphProjectionSyntaxBuilder(IScreenplayNaming naming, ScreenplayDi
     /// <summary>Builds the Arc fallback projection, named for its placement slice.</summary>
     /// <param name="graph">The recovered graph.</param>
     /// <param name="sliceName">The placement slice's emitted name.</param>
+    /// <returns>The fallback projection, or null when behavior cannot be represented completely.</returns>
+    public GraphProjectionSyntax? Build(GraphModel graph, string sliceName) =>
+        Build(graph, new GraphProjectionModel(sliceName, graph.Namespace, graph.Elements));
+
+    /// <summary>Builds a projection from only its owned records' handlers.</summary>
+    /// <param name="graph">The recovered graph.</param>
+    /// <param name="projection">The projection name, placement and owned elements.</param>
     /// <returns>The projection, or null when behavior cannot be represented completely.</returns>
-    public GraphProjectionSyntax? Build(GraphModel graph, string sliceName)
+    public GraphProjectionSyntax? Build(GraphModel graph, GraphProjectionModel projection)
     {
-        var elements = graph.Elements.Where(element => element.Handlers.Count > 0).Select(element => BuildElement(graph, element)).ToArray();
+        var elements = projection.Elements.Where(element => element.Handlers.Count > 0).Select(element => BuildElement(graph, element)).ToArray();
         if (elements.Length == 0)
         {
             return null;
@@ -33,7 +40,7 @@ public class GraphProjectionSyntaxBuilder(IScreenplayNaming naming, ScreenplayDi
             return null;
         }
 
-        return new(sliceName, graph.Name, elements.OfType<ProjectionBlockSyntax>(), SourceLocation.Start);
+        return new(projection.Name, graph.Name, elements.OfType<ProjectionBlockSyntax>(), SourceLocation.Start);
     }
 
     static bool TryValue(string? expression, out ExpressionSyntax? value)

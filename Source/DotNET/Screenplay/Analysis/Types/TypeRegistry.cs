@@ -256,10 +256,14 @@ public class TypeRegistry
     }
 
     /// <summary>
-    /// Reports member classification lost by concept-level annotations.
+    /// Reports personal-data and secret classification findings.
     /// </summary>
     /// <param name="diagnostics">Where the findings are reported.</param>
-    internal void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics) => _personalData.Report(diagnostics);
+    internal void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics)
+    {
+        _personalData.Report(diagnostics);
+        _concepts.ReportCompliance(diagnostics);
+    }
 
     /// <summary>
     /// Reports enumeration aliases and unnamed flags combinations.

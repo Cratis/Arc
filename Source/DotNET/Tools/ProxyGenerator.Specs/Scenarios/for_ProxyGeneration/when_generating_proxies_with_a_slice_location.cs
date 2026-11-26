@@ -44,10 +44,13 @@ public class when_generating_proxies_with_a_slice_location : Specification, IDis
     [Fact] void should_resolve_the_command_slice_location_from_its_namespace() =>
         _command.SliceLocation.ShouldEqual(new SliceLocationDescriptor(string.Empty, "Scenarios", "for_ProxyGeneration"));
     [Fact] void should_emit_the_slice_location_on_the_command() => _commandCode.ShouldContain(ExpectedSliceLocation);
-    [Fact] void should_import_the_slice_location_type_for_the_command() => _commandCode.ShouldContain("import { SliceLocation as ArcSliceLocation, PropertyDescriptor } from '@cratis/arc/reflection';");
+    [Fact] void should_import_the_slice_location_type_for_the_command() => _commandCode.ShouldContain("import { SliceLocation as ArcSliceLocation, PartIdentity, PropertyDescriptor } from '@cratis/arc/reflection';");
+    [Fact] void should_emit_the_part_identity_on_the_command() => _commandCode.ShouldContain($"static readonly part: PartIdentity = /*#__PURE__*/ new PartIdentity('{_command.PartName}', '");
     [Fact] void should_generate_valid_typescript_for_the_command() => _commandIsValid.ShouldBeTrue();
     [Fact] void should_emit_the_slice_location_on_the_query() => _queryCode.ShouldContain(ExpectedSliceLocation);
-    [Fact] void should_import_the_slice_location_type_for_the_query() => _queryCode.ShouldContain("import { SliceLocation as ArcSliceLocation, ParameterDescriptor } from '@cratis/arc/reflection';");
+    [Fact] void should_import_the_slice_location_type_for_the_query() => _queryCode.ShouldContain("import { SliceLocation as ArcSliceLocation, ParameterDescriptor, PartIdentity } from '@cratis/arc/reflection';");
+    [Fact] void should_emit_the_part_identity_on_the_query() => _queryCode.ShouldContain("static readonly part: PartIdentity = /*#__PURE__*/ new PartIdentity(");
+    [Fact] void should_emit_the_part_identity_on_the_observable_query() => _observableQueryCode.ShouldContain("static readonly part: PartIdentity = /*#__PURE__*/ new PartIdentity(");
     [Fact] void should_emit_the_slice_location_on_the_observable_query() => _observableQueryCode.ShouldContain(ExpectedSliceLocation);
 
     [Fact] void should_annotate_the_query_sorting_initializer() => _queryCode.ShouldContain("private static readonly _sortBy: GetAllSortByWithoutQuery = /*#__PURE__*/ new GetAllSortByWithoutQuery();");

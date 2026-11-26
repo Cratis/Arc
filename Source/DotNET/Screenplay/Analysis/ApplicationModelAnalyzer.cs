@@ -101,6 +101,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 domain);
         }
 
+        var availability = AvailabilityDeclarations.In(ordered, catalogs, diagnostics);
         var model = new ApplicationModel(
             domain,
             options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
@@ -111,7 +112,10 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         {
             Graphs = graphs,
             Imports = imports,
-            ContextValues = ContextValueRegistrations.In(ordered, diagnostics),
+            ContextValues = [.. ContextValueRegistrations.In(ordered, diagnostics), .. availability.Provided],
+            Audiences = availability.Audiences,
+            Availabilities = availability.Blocks,
+            ScopeGates = availability.ScopeGates,
             EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
         };
 

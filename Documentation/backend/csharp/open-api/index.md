@@ -61,7 +61,7 @@ Serialization explicitly through the declared interface with Fundamentals' conve
 
 ## Requirements
 
-`Cratis.Arc.OpenApi` targets `net10.0` and uses `Microsoft.AspNetCore.OpenApi` 10.x with the `Microsoft.OpenApi` 2.x schema types.
+`Cratis.Arc.OpenApi` targets `net10.0` and uses `Microsoft.AspNetCore.OpenApi` 10.x with the `Microsoft.OpenApi` 2.x schema types. It cannot be combined with `Cratis.Arc.Swagger` in the same application, because that package requires `Swashbuckle.AspNetCore` 11 and `Microsoft.OpenApi` 3.x. The `Cratis` umbrella package includes `Cratis.Arc.Swagger`, so it cannot be used in the same host either.
 
 ## Relationship to Swagger
 
@@ -73,4 +73,4 @@ If your host already uses Swashbuckle, follow the [Cratis.Arc.Swagger setup](../
 | Host | ASP.NET Core | ASP.NET Core |
 | Registration | `services.AddSwaggerGen(o => o.AddConcepts())` | `services.AddOpenApi(o => o.AddConcepts())` |
 
-Choose the integration that matches your document generator. Registering `Cratis.Arc.OpenApi` does not configure Swagger UI.
+Choose one integration that matches your document generator; they are alternatives and cannot be installed in the same host. Registering `Cratis.Arc.OpenApi` does not configure Swagger UI.

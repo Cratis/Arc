@@ -16,4 +16,7 @@ export interface UnavailablePart {
 
     /** The slice the part belongs to; empty when it has none. */
     readonly slice: string;
+
+    /** Why it is refused: `NotAvailable` or `Suspended`. A server that does not tell means `NotAvailable`. */
+    readonly reason?: string;
 }

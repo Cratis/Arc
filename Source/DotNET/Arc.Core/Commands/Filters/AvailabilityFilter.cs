@@ -45,7 +45,7 @@ public class AvailabilityFilter : IAvailabilityCommandFilter
                 : await gate.Decide(context.Type, services, context.CancellationToken);
             return decision.IsAvailable
                 ? CommandResult.Success(context.CorrelationId)
-                : CommandResult.Unauthorized(context.CorrelationId, AvailabilityReason.NotAvailable);
+                : CommandResult.Unauthorized(context.CorrelationId, decision.Reason);
         }
         catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
         {

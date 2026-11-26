@@ -14,7 +14,7 @@ import { ObservableQueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}{{#unless I
 import { ObservableQueryWhen, useObservableQuery, useSuspenseObservableQuery } from '@cratis/arc.react/queries';
 {{/unless}}
 {{/if}}
-import { SliceLocation as ArcSliceLocation, ParameterDescriptor } from '@cratis/arc/reflection';
+import { SliceLocation as ArcSliceLocation, ParameterDescriptor, PartIdentity } from '@cratis/arc/reflection';
 {{#Imports}}
 import { {{{Type}}} } from '{{Module}}';
 {{/Imports}}
@@ -122,6 +122,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
 {{/if}}
 {{/if}}
     static readonly sliceLocation: ArcSliceLocation = /*#__PURE__*/ new ArcSliceLocation('{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
+    static readonly part: PartIdentity = /*#__PURE__*/ new PartIdentity('{{{PartName}}}', '{{{SliceLocation.Module}}}', '{{{SliceLocation.Feature}}}', '{{{SliceLocation.Slice}}}');
     readonly route: string = '{{{Route}}}';
     readonly queryName: string = '{{Type.FullName}}.{{Method.Name}}';
 {{#if HasValidationRules}}

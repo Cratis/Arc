@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Tenancy;
-using Cratis.Choreography.Availability;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Availability.for_ArcAvailabilityGate;

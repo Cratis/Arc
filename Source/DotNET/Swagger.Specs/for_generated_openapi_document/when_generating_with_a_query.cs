@@ -84,6 +84,12 @@ public class when_generating_with_a_query : Specification
     [Fact] void should_generate_the_document_without_error() => _exception.ShouldBeNull();
     [Fact] void should_populate_a_path_for_the_query() => _document.Paths.Keys.Any(key => key.Contains("all-orders", StringComparison.OrdinalIgnoreCase)).ShouldBeTrue();
 
+    [Fact] void should_describe_the_query_as_a_get_operation() => QueryPath.Operations.Keys.ShouldContain(HttpMethod.Get);
+    [Fact] void should_not_describe_a_query_http_method_operation() => QueryPath.Operations.Count.ShouldEqual(1);
+    [Fact] void should_describe_json_ok_response() => QueryPath.Operations[HttpMethod.Get].Responses["200"].Content.ContainsKey("application/json").ShouldBeTrue();
+
+    IOpenApiPathItem QueryPath => _document.Paths.First(_ => _.Key.Contains("all-orders", StringComparison.OrdinalIgnoreCase)).Value;
+
     void Destroy()
     {
         _app?.StopAsync().GetAwaiter().GetResult();

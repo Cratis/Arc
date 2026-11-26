@@ -691,4 +691,13 @@ public static class ScreenplayDiagnosticCodes
     /// An error. The original recovered requirements are retained for inspection, but no executable document is emitted.
     /// </remarks>
     public const string AmbiguousAnonymousPolicyRegistration = "SP0086";
+
+    /// <summary>Chronicle rejects personal data combined with the legacy encryption attribute.</summary>
+    public const string LegacyPiiEncryption = "SP0087";
+
+    /// <summary>A personal-data special category cannot be recovered as a known Screenplay token.</summary>
+    public const string UnknownSpecialCategory = "SP0088";
+
+    /// <summary>Graph projection declaration metadata is invalid or has ambiguous ownership.</summary>
+    public const string InvalidGraphProjectionDeclaration = "SP0089";
 }

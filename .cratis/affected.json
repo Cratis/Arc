@@ -1,0 +1,31 @@
+{
+  "mappedPaths": [
+    "Documentation/**",
+    "**/*.md",
+    "decisions/**",
+    "Source/JavaScript/**",
+    "package.json",
+    "yarn.lock",
+    "LICENSE",
+    "logo.png",
+    ".github/workflows/affected-tests.yml"
+  ],
+  "nonTestProjects": [
+    "**/Fixtures/**",
+    "**/TestArtifacts/**",
+    "Source/DotNET/Tools/ProxyGenerator.Specs/**",
+    "Source/DotNET/Arc.Core.Generators.Integration/**"
+  ],
+  "buildArguments": [
+    "-p:CratisSpecsTargetFramework=net11.0",
+    "-p:CratisProxiesOutputPath=",
+    "-p:RunAnalyzers=false",
+    "-p:RunAnalyzersDuringBuild=false",
+    "-p:EnforceCodeStyleInBuild=false"
+  ],
+  "granularity": "class",
+  "attributionGroup": "namespace",
+  "addedFilePolicy": "directory",
+  "unmappedFilePolicy": "directory",
+  "sampleRate": 0
+}

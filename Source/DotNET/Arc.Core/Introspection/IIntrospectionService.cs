@@ -17,4 +17,9 @@ public interface IIntrospectionService
     /// Gets all discovered query endpoint metadata.
     /// </summary>
     IReadOnlyList<QueryIntrospectionMetadata> Queries { get; }
+
+    /// <summary>
+    /// Gets the structure of the application: its modules, features, sub-features and slices.
+    /// </summary>
+    ApplicationStructure Structure => new([]);
 }

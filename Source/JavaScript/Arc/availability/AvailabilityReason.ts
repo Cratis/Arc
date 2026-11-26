@@ -7,3 +7,10 @@
  * all, authorization decides what the caller may do in it.
  */
 export const NotAvailable = 'NotAvailable';
+
+/**
+ * The authorization failure reason of a command or query result, and the reason of a part the server lists, when an
+ * operator has suspended the part. It is distinct from {@link NotAvailable}: a suspended part comes back when the
+ * suspension is lifted, so a client can say so instead of treating the part as gone.
+ */
+export const Suspended = 'Suspended';
