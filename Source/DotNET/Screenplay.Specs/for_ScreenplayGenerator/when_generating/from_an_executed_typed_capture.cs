@@ -28,13 +28,11 @@ public class from_an_executed_typed_capture : a_generated_document
         {
             Context = new(new(SemanticTypeReference.ForPrimitive(SemanticPrimitiveType.Text), key))
         };
-        var execution = new SemanticReactionLoop(new SemanticEvaluator(), plan, SemanticWorld.Empty);
-
-        Deliver(execution, fact);
-        AssertLocalEffect(execution, received, placed.Properties.Single().Type, key);
-        Deliver(execution, fact);
-        AssertLocalEffect(execution, received, placed.Properties.Single().Type, key);
-        execution.World.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(1);
+        var world = Deliver(plan, SemanticWorld.Empty, fact);
+        AssertLocalEffect(world, received, placed.Properties.Single().Type, key);
+        world = Deliver(plan, world, fact);
+        AssertLocalEffect(world, received, placed.Properties.Single().Type, key);
+        world.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(1);
 
         var otherKey = SemanticValue.Text("41a4d32c-fbd3-49b8-af13-8cbf30c40278");
         var other = fact with
@@ -43,13 +41,13 @@ public class from_an_executed_typed_capture : a_generated_document
             Values = [new(placed.Properties.Single().Id, otherKey)],
             Context = new(new(SemanticTypeReference.ForPrimitive(SemanticPrimitiveType.Text), otherKey))
         };
-        Deliver(execution, other);
-        Deliver(execution, fact);
-        Deliver(execution, other);
-        execution.World.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(2);
-        execution.World.Instances.Length.ShouldEqual(2);
-        AssertLocalEffect(execution, received, placed.Properties.Single().Type, key);
-        AssertLocalEffect(execution, received, placed.Properties.Single().Type, otherKey);
+        world = Deliver(plan, world, other);
+        world = Deliver(plan, world, fact);
+        world = Deliver(plan, world, other);
+        world.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(2);
+        world.Instances.Length.ShouldEqual(2);
+        AssertLocalEffect(world, received, placed.Properties.Single().Type, key);
+        AssertLocalEffect(world, received, placed.Properties.Single().Type, otherKey);
     }
 
     [Theory]
@@ -61,29 +59,35 @@ public class from_an_executed_typed_capture : a_generated_document
         AssertDocument();
         var plan = SemanticExecutionPlan.Compile(Bound.Value!.Model).Plan!;
         var placed = plan.Events.Values.Single(@event => @event.Name == "OrderPlaced");
-        var fact = new SemanticFact(placed.Id, SemanticValue.Text("41a4d32c-fbd3-49b8-af13-8cbf30c40278"),
-            [new(placed.Properties.Single().Id, SemanticValue.Text("19a06b87-1402-401c-bf54-141305648ee8"))]);
-        var execution = new SemanticReactionLoop(new SemanticEvaluator(), plan, SemanticWorld.Empty);
+        var source = SemanticValue.Text("41a4d32c-fbd3-49b8-af13-8cbf30c40278");
+        var fact = new SemanticFact(placed.Id, source,
+            [new(placed.Properties.Single().Id, SemanticValue.Text("19a06b87-1402-401c-bf54-141305648ee8"))])
+        {
+            Context = new(new(SemanticTypeReference.ForPrimitive(SemanticPrimitiveType.Text), source))
+        };
+        var evaluator = new SemanticEvaluator();
+        var appended = Assert.IsType<SemanticAccepted>(evaluator.ExtendWorld(plan, SemanticWorld.Empty, [fact]));
 
-        Should.Throw<InvalidSemanticContract>(() => execution.Append(fact, null));
-        execution.World.Facts.ShouldBeEmpty();
-        execution.World.Instances.ShouldBeEmpty();
+        Should.Throw<InvalidSemanticContract>(() => new SemanticReactionSettlement(evaluator).Settle(plan, appended.World, appended.Facts, null));
+        appended.World.Facts.ShouldHaveSingleItem();
+        appended.World.Instances.ShouldBeEmpty();
     }
 
-    static void Deliver(SemanticReactionLoop execution, SemanticFact fact)
+    static SemanticWorld Deliver(SemanticExecutionPlan plan, SemanticWorld world, SemanticFact fact)
     {
-        execution.Append(fact, null).ShouldBeNull();
-        execution.Settle().ShouldBeNull();
+        var evaluator = new SemanticEvaluator();
+        var appended = Assert.IsType<SemanticAccepted>(evaluator.ExtendWorld(plan, world, [fact]));
+        return Assert.IsType<SemanticAccepted>(new SemanticReactionSettlement(evaluator).Settle(plan, appended.World, appended.Facts, null)).World;
     }
 
-    static void AssertLocalEffect(SemanticReactionLoop execution, SemanticEventContract received, SemanticTypeReference identity, SemanticValue key)
+    static void AssertLocalEffect(SemanticWorld world, SemanticEventContract received, SemanticTypeReference identity, SemanticValue key)
     {
-        var local = execution.World.Facts.Single(fact => fact.EventContract == received.Id && fact.Destination == key);
+        var local = world.Facts.Single(fact => fact.EventContract == received.Id && fact.Destination == key);
         local.Destination.ShouldEqual(key);
         local.Context!.EventSource.Type.ShouldEqual(identity);
         local.Context.EventSource.Value.ShouldEqual(key);
         local.Values.Single(value => value.TargetProperty == received.Properties.Single().Id).Value.ShouldEqual(key);
-        var instance = execution.World.Instances.Single(instance => instance.Key == key);
+        var instance = world.Instances.Single(instance => instance.Key == key);
         instance.Key.ShouldEqual(key);
         instance.Values.Single().Value.ShouldEqual(key);
     }
