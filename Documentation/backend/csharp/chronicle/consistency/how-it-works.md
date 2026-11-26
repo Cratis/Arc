@@ -105,7 +105,7 @@ Declare `Concurrency` only for ledgers, numbering and approval streams, where ev
 | Situation | What happens |
 | --- | --- |
 | A writer that decides without a guard | It can still break the rule. A guarded writer detects its event |
-| `Revise` or `Redact` between the read and the append | Not detected. They do not move the tail. Chronicle refuses them inside a protected invocation |
+| `Revise` or `Redact` between the read and the append | Detected through the mutation epoch, not the tail. A protected read-model read (keyed parameters, `IDecisionReads`, per-stream models) records the event sequence's mutation epoch, and the append is refused if any revision or redaction happened in that event sequence since. Aggregate reads, stream decisions (`IStreamReads`) and hand-built scopes capture no epoch themselves; a covering exact scope inherits the epochs of the protected reads enrolled with it. Chronicle refuses `Revise` and `Redact` inside a protected invocation |
 | A projection definition changed in another process | Not detected until this client registers again. Quiesce commands during a projection deploy |
 | Other event sequences, external state, other databases | Not guarded |
 | A command that appends nothing | A guard that exists only because of a read sends nothing. No write means nothing to protect |
