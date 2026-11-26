@@ -2,12 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
-using System.Net.Sockets;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Capabilities;
+using Cratis.Arc.Hosting;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
@@ -27,38 +27,46 @@ public class when_hosting_workload_capabilities : Specification
     public async Task should_enforce_the_tenantless_workload_lane_without_changing_the_default_port(TenantResolverType resolver)
     {
         using var certificates = new for_ForwardedIdentityHop.given.certificates();
-        var port = FreePort();
-        var otherPort = FreePort();
+        var port = 0;
+        var otherPort = 0;
         var kubernetes = new given.kubernetes_client();
         var membership = new given.workload_membership();
         var invoked = 0;
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.ConfigureKestrel(server =>
+        await using var app = await KestrelPorts.Start(
+            2,
+            ports =>
         {
-            server.Listen(IPAddress.Loopback, port);
-            server.Listen(IPAddress.Loopback, otherPort);
-        });
-        builder.Services.AddSingleton<IStartupFilter, given.workload_principal_filter>();
-        builder.AddCratisArc(
-            options =>
+            port = ports[0];
+            otherPort = ports[1];
+            var builder = WebApplication.CreateBuilder();
+            builder.WebHost.ConfigureKestrel(server =>
             {
-                options.EndpointGroups.Assign("capabilities", port);
-                options.Tenancy.HttpHeader = "x-tenant";
-                options.Tenancy.ResolverType = resolver;
-                options.Tenancy.FixedTenantId = "configured-tenant";
-            },
-            configureBuilder: arc => Configure(arc, certificates.Bundle));
-        builder.Services.Replace(ServiceDescriptor.Singleton<IWorkloadTokenReviewClient>(kubernetes));
-        builder.Services.AddSingleton<ITenantMembership>(membership);
-        await using var app = builder.Build();
-        app.UseCratisArc();
-        app.MapPost("/probe", async (HttpContext context, IVerifiedCallerAccessor callers) =>
-        {
-            invoked++;
-            return await Probe(context, callers);
-        });
-        app.MapGet("/outside", (HttpContext context) => Results.Text(context.User.FindFirst(ClaimTypes.Role)?.Value ?? "missing"));
-        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
+                server.Listen(IPAddress.Loopback, port);
+                server.Listen(IPAddress.Loopback, otherPort);
+            });
+            builder.Services.AddSingleton<IStartupFilter, given.workload_principal_filter>();
+            builder.AddCratisArc(
+                options =>
+                {
+                    options.EndpointGroups.Assign("capabilities", port);
+                    options.Tenancy.HttpHeader = "x-tenant";
+                    options.Tenancy.ResolverType = resolver;
+                    options.Tenancy.FixedTenantId = "configured-tenant";
+                },
+                configureBuilder: arc => Configure(arc, certificates.Bundle));
+            builder.Services.Replace(ServiceDescriptor.Singleton<IWorkloadTokenReviewClient>(kubernetes));
+            builder.Services.AddSingleton<ITenantMembership>(membership);
+            var host = builder.Build();
+            host.UseCratisArc();
+            host.MapPost("/probe", async (HttpContext context, IVerifiedCallerAccessor callers) =>
+            {
+                invoked++;
+                return await Probe(context, callers);
+            });
+            host.MapGet("/outside", (HttpContext context) => Results.Text(context.User.FindFirst(ClaimTypes.Role)?.Value ?? "missing"));
+            return host;
+        },
+            global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             using var client = new HttpClient { BaseAddress = new($"http://127.0.0.1:{port}"), Timeout = TimeSpan.FromSeconds(10) };
@@ -192,12 +200,5 @@ public class when_hosting_workload_capabilities : Specification
     {
         var body = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { exp = DateTimeOffset.UtcNow.AddSeconds(lifetime).ToUnixTimeSeconds() }))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         return $"eyJhbGciOiJSUzI1NiJ9.{body}.fixture-signature";
-    }
-
-    static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 }
