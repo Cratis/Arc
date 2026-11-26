@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies refusal of a missing relationship property.
+/// </summary>
 public class when_a_chain_names_a_missing_property : given.a_chained_lookup
 {
     Exception? _failure;

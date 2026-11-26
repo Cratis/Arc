@@ -3,6 +3,9 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies fail-closed acquisition for a required target with no source.
+/// </summary>
 public class when_a_required_chain_has_an_absent_source : given.a_chained_lookup
 {
     Exception _failure;

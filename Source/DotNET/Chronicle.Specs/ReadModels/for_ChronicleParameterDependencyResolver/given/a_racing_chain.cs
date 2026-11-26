@@ -12,6 +12,9 @@ using static Cratis.Arc.Chronicle.Commands.for_CommandScenario.when_giving_state
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver.given;
 
+/// <summary>
+/// Provides a real command scenario with separately mutable relationship endpoints.
+/// </summary>
 public class a_racing_chain : Specification
 {
     protected CommandScenario<DecideChain> _scenario;
@@ -35,15 +38,34 @@ public class a_racing_chain : Specification
 
     async Task Destroy() => await _scenario.DisposeAsync();
 
+    /// <summary>
+    /// Decides using a related state snapshot.
+    /// </summary>
+    /// <param name="Source">The source stream.</param>
     [Command, ReadProtection(ReadProtectionMode.On)]
     public record DecideChain(EventSourceId Source)
     {
+        /// <summary>
+        /// Produces a decision from the acquired target.
+        /// </summary>
+        /// <param name="target">The protected target.</param>
+        /// <param name="link">The protected source relationship.</param>
+        /// <returns>The decision event.</returns>
         public Decided Handle([LookUpBy(nameof(link), nameof(LinkState.Target))] State target, [LookUpBy(nameof(Source))] LinkState link) => new(target.Status);
     }
 
+    /// <summary>
+    /// Projects the source relationship.
+    /// </summary>
+    /// <param name="Id">The source identity.</param>
+    /// <param name="Target">The target identity.</param>
     [FromEvent<Linked>]
     public record LinkState([property: Key] Guid Id, Guid Target);
 
+    /// <summary>
+    /// Establishes or changes the relationship.
+    /// </summary>
+    /// <param name="Target">The target identity.</param>
     [EventType]
     public record Linked(Guid Target);
 }

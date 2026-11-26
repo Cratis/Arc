@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies refusal of a self-referential relationship.
+/// </summary>
 public class when_a_chain_names_itself : given.a_chained_lookup
 {
     Exception? _failure;

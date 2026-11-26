@@ -3,6 +3,9 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that blank relationship keys do not trigger target reads.
+/// </summary>
 public class when_a_relationship_key_is_blank : given.a_chained_lookup
 {
     object?[] _arguments;

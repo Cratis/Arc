@@ -8,7 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.DependencyInjection;
 
-/// <summary>Tracks one member's arguments in original slots while acquiring dependencies first.</summary>
+/// <summary>
+/// Tracks one member's arguments in original slots while acquiring dependencies first.
+/// </summary>
 internal sealed class ParameterDependencyBatch : IDisposable
 {
     static readonly AsyncLocal<ParameterDependencyBatch?> _current = new();
@@ -32,25 +34,35 @@ internal sealed class ParameterDependencyBatch : IDisposable
         _current.Value = this;
     }
 
-    /// <summary>Gets the batch active in this binding flow.</summary>
+    /// <summary>
+    /// Gets the batch active in this binding flow.
+    /// </summary>
     internal static ParameterDependencyBatch? Current => _current.Value;
 
-    /// <summary>Gets the validated dependency-first acquisition order.</summary>
+    /// <summary>
+    /// Gets the validated dependency-first acquisition order.
+    /// </summary>
     internal ParameterInfo[] Parameters { get; }
 
-    /// <summary>Gets argument values in their original declaration slots.</summary>
+    /// <summary>
+    /// Gets argument values in their original declaration slots.
+    /// </summary>
     internal object?[] Arguments { get; }
 
     /// <inheritdoc/>
     public void Dispose() => _current.Value = _previous;
 
-    /// <summary>Preflights a member and begins its argument binding frame.</summary>
+    /// <summary>
+    /// Preflights a member and begins its argument binding frame.
+    /// </summary>
     /// <param name="services">The invocation services.</param>
     /// <param name="parameters">The original member parameters.</param>
     /// <returns>A lease restoring the enclosing frame on disposal.</returns>
     internal static ParameterDependencyBatch Begin(IServiceProvider services, ParameterInfo[] parameters) => new(services, parameters);
 
-    /// <summary>Records one acquired argument in its original slot.</summary>
+    /// <summary>
+    /// Records one acquired argument in its original slot.
+    /// </summary>
     /// <param name="parameter">The acquired parameter.</param>
     /// <param name="value">The acquired value, including absence.</param>
     internal void Set(ParameterInfo parameter, object? value)
@@ -59,7 +71,9 @@ internal sealed class ParameterDependencyBatch : IDisposable
         _resolved.Add(parameter);
     }
 
-    /// <summary>Looks up an earlier acquisition without resolving it again.</summary>
+    /// <summary>
+    /// Looks up an earlier acquisition without resolving it again.
+    /// </summary>
     /// <param name="parameter">The source parameter.</param>
     /// <param name="value">The acquired value, including absence.</param>
     /// <returns>Whether the source has been acquired in this frame.</returns>
@@ -71,7 +85,9 @@ internal sealed class ParameterDependencyBatch : IDisposable
         return true;
     }
 
-    /// <summary>Determines whether a provided candidate must not replace this argument.</summary>
+    /// <summary>
+    /// Determines whether a provided candidate must not replace this argument.
+    /// </summary>
     /// <param name="parameter">The argument being bound.</param>
     /// <returns>Whether a chained member requires this explicit lookup or relationship source to be acquired.</returns>
     internal bool RequiresAcquisition(ParameterInfo parameter)

@@ -94,7 +94,9 @@ internal static class CommandAttributeSymbols
         }
     }
 
-    /// <summary>Recognizes a caller-key provider and conflicting lookup forms.</summary>
+    /// <summary>
+    /// Recognizes a caller-key provider and conflicting lookup forms.
+    /// </summary>
     /// <param name="parameter">The injected parameter.</param>
     /// <returns>The provider type and lookup conflict.</returns>
     internal static (ITypeSymbol? Provider, string? Conflict) ResolveKeyProvider(IParameterSymbol parameter)

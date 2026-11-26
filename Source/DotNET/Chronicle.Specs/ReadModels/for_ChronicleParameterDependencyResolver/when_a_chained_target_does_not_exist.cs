@@ -3,6 +3,9 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that absent targets remain absent without losing their acquisition.
+/// </summary>
 public class when_a_chained_target_does_not_exist : given.a_chained_lookup
 {
     object?[] _arguments;

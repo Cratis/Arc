@@ -7,6 +7,9 @@ using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that a target-model race prevents the append.
+/// </summary>
 public class when_a_chained_target_changes_before_commit : given.a_racing_chain
 {
     Task Because() => Race(source: false);

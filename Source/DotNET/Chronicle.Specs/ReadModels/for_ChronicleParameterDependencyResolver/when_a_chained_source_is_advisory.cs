@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies refusal of an advisory source for a protected relationship.
+/// </summary>
 public class when_a_chained_source_is_advisory : given.a_chained_lookup
 {
     Exception? _failure;

@@ -7,29 +7,51 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Cratis.Arc.Generators;
 
-/// <summary>Emits only relationship properties named by chained lookup declarations.</summary>
+/// <summary>
+/// Emits only relationship properties named by chained lookup declarations.
+/// </summary>
 internal static class ChainedReadModelKeyGeneration
 {
     const string Registry = "Cratis.Arc.Chronicle.ReadModels.ChainedReadModelKeys";
     static readonly SymbolDisplayFormat _format = SymbolDisplayFormat.FullyQualifiedFormat
         .RemoveMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
-    /// <summary>Renders registrations for the relationship properties referenced by discovered commands and validators.</summary>
+    /// <summary>
+    /// Renders registrations for the relationship properties referenced by discovered commands and validators.
+    /// </summary>
     /// <param name="source">The module initializer being rendered.</param>
+    /// <param name="relationships">The relationships discovered for this compilation.</param>
+    /// <returns>Whether any relationship registrations were found.</returns>
+    internal static bool Render(StringBuilder source, ChainedReadModelKey[] relationships)
+    {
+        foreach (var model in relationships.GroupBy(key => key.Model, (IEqualityComparer<INamedTypeSymbol>)SymbolEqualityComparer.Default)
+            .OrderBy(group => group.Key.ToDisplayString(_format), StringComparer.Ordinal))
+        {
+            RenderModel(source, model.Key, model.Select(key => key.Property));
+        }
+        return relationships.Length > 0;
+    }
+
+    /// <summary>
+    /// Discovers relationship evidence shared by getter and composite generation.
+    /// </summary>
     /// <param name="commands">The discovered command types.</param>
     /// <param name="validators">The discovered validator types.</param>
     /// <param name="compilation">The consuming compilation.</param>
-    /// <returns>Whether any relationship registrations were found.</returns>
-    internal static bool Render(StringBuilder source, INamedTypeSymbol[] commands, INamedTypeSymbol[] validators, Compilation compilation)
+    /// <returns>The referenced relationship properties and their owning commands.</returns>
+    internal static ChainedReadModelKey[] Discover(INamedTypeSymbol[] commands, INamedTypeSymbol[] validators, Compilation compilation)
     {
-        if (compilation.GetTypeByMetadataName(Registry) is null) return false;
+        if (compilation.GetTypeByMetadataName(Registry) is null) return [];
+        var byCommand = validators.ToLookup(CommandReadModelKeyGeneration.ValidatedType, SymbolEqualityComparer.Default);
+        return commands.SelectMany(command => DiscoverFor(command, byCommand[command], compilation)).ToArray();
+    }
+
+    static IEnumerable<ChainedReadModelKey> DiscoverFor(INamedTypeSymbol command, IEnumerable<INamedTypeSymbol> validators, Compilation compilation)
+    {
         var references = new Dictionary<INamedTypeSymbol, HashSet<string>>(SymbolEqualityComparer.Default);
-        foreach (var member in commands.SelectMany(Members).Concat(validators.SelectMany(validator => validator.InstanceConstructors))) CollectReferences(member, references);
-        foreach (var reference in references.OrderBy(pair => pair.Key.ToDisplayString(_format), StringComparer.Ordinal))
-        {
-            RenderModel(source, reference.Key, reference.Value, compilation);
-        }
-        return references.Count > 0;
+        foreach (var member in Members(command).Concat(validators.SelectMany(validator => validator.InstanceConstructors))) CollectReferences(member, references);
+        return references.SelectMany(reference => ReadableProperties(reference.Key, reference.Value, compilation)
+            .Select(property => new ChainedReadModelKey(command, reference.Key, property)));
     }
 
     static void CollectReferences(IMethodSymbol member, Dictionary<INamedTypeSymbol, HashSet<string>> references)
@@ -78,12 +100,19 @@ internal static class ChainedReadModelKeyGeneration
         }
     }
 
-    static void RenderModel(StringBuilder source, INamedTypeSymbol model, HashSet<string> names, Compilation compilation)
+    static IEnumerable<IPropertySymbol> ReadableProperties(INamedTypeSymbol model, HashSet<string> names, Compilation compilation) =>
+        TypeNaming.CanBeNamed(model, compilation)
+            ? Properties(model).GroupBy(property => property.Name, StringComparer.Ordinal).Select(group => group.First())
+                .Where(property => names.Contains(property.Name) && IsPublicGetter(property) && TypeNaming.CanBeNamed(property.Type, compilation))
+            : [];
+
+    static bool IsPublicGetter(IPropertySymbol property) =>
+        !property.IsStatic && !property.IsIndexer && property.GetMethod?.DeclaredAccessibility == Accessibility.Public;
+
+    static void RenderModel(StringBuilder source, INamedTypeSymbol model, IEnumerable<IPropertySymbol> referenced)
     {
-        if (!TypeNaming.CanBeNamed(model, compilation)) return;
         var type = model.ToDisplayString(_format);
-        var properties = Properties(model).GroupBy(property => property.Name, StringComparer.Ordinal).Select(group => group.First())
-            .Where(property => names.Contains(property.Name) && !property.IsStatic && !property.IsIndexer && property.GetMethod?.DeclaredAccessibility == Accessibility.Public && TypeNaming.CanBeNamed(property.Type, compilation)).ToArray();
+        var properties = referenced.GroupBy(property => property.Name, StringComparer.Ordinal).Select(group => group.First()).ToArray();
         if (properties.Length == 0) return;
         source.Append("        global::").Append(Registry).Append(".RegisterModel(typeof(").Append(type).Append(')');
         foreach (var property in properties)

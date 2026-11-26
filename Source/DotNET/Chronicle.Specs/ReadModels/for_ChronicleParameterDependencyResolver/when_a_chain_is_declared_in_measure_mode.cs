@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that measure mode does not admit chained protected reads.
+/// </summary>
 public class when_a_chain_is_declared_in_measure_mode : given.a_chained_lookup
 {
     Exception? _failure;

@@ -5,6 +5,9 @@ using Cratis.Chronicle.ReadModels;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies original argument slots across a reversed three-hop acquisition.
+/// </summary>
 public class when_binding_a_reversed_chain : given.a_chained_lookup
 {
     object?[] _arguments;

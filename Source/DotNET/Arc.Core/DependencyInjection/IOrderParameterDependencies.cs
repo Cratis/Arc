@@ -5,10 +5,14 @@ using System.Reflection;
 
 namespace Cratis.Arc.DependencyInjection;
 
-/// <summary>Provides metadata-only ordering before any member arguments are acquired.</summary>
+/// <summary>
+/// Provides metadata-only ordering before any member arguments are acquired.
+/// </summary>
 internal interface IOrderParameterDependencies
 {
-    /// <summary>Validates and orders the complete member before any arguments are acquired.</summary>
+    /// <summary>
+    /// Validates and orders the complete member before any arguments are acquired.
+    /// </summary>
     /// <param name="services">The invocation services.</param>
     /// <param name="parameters">The member's parameters.</param>
     /// <returns>The dependency-first acquisition order.</returns>

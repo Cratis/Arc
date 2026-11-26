@@ -3,6 +3,9 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies dependency-first acquisition for validator constructors.
+/// </summary>
 public class when_a_validator_constructor_has_a_reversed_chain : given.a_chained_lookup
 {
     ChainValidator _validator;

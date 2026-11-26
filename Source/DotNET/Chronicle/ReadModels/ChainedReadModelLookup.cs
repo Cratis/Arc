@@ -7,10 +7,14 @@ using Cratis.Arc.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
-/// <summary>Validates one member's relationship graph without reading application values.</summary>
+/// <summary>
+/// Validates one member's relationship graph without reading application values.
+/// </summary>
 internal static class ChainedReadModelLookup
 {
-    /// <summary>Validates the whole graph before returning a stable acquisition order.</summary>
+    /// <summary>
+    /// Validates the whole graph before returning a stable acquisition order.
+    /// </summary>
     /// <param name="command">The command whose member is being bound.</param>
     /// <param name="parameters">The complete injected member parameters.</param>
     /// <param name="models">The registered read-model types.</param>
@@ -30,7 +34,9 @@ internal static class ChainedReadModelLookup
         return Sort(command, parameters, dependencies);
     }
 
-    /// <summary>Reads a relationship from an already acquired sibling in this frame.</summary>
+    /// <summary>
+    /// Reads a relationship from an already acquired sibling in this frame.
+    /// </summary>
     /// <param name="command">The command being bound.</param>
     /// <param name="target">The dependent parameter.</param>
     /// <param name="lookup">The validated chained declaration.</param>

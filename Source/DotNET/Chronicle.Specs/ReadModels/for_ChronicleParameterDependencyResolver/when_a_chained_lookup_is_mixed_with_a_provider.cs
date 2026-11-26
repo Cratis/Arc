@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies refusal of conflicting relationship and provider declarations.
+/// </summary>
 public class when_a_chained_lookup_is_mixed_with_a_provider : given.a_chained_lookup
 {
     Exception? _failure;

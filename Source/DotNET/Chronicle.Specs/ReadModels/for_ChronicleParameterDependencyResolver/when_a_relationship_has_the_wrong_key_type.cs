@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies refusal of incompatible relationship and model key types.
+/// </summary>
 public class when_a_relationship_has_the_wrong_key_type : given.a_chained_lookup
 {
     Exception? _failure;

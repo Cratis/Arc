@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that arbitrary dependencies cannot supply protected relationship keys.
+/// </summary>
 public class when_a_chain_source_is_not_a_read_model : given.a_chained_lookup
 {
     Exception? _failure;

@@ -5,6 +5,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Generators.Specs.for_CommandReadModelKeyGeneration;
 
+/// <summary>
+/// Verifies relationship getters across handlers, providers, validators and overrides.
+/// </summary>
 public class when_generating_a_chained_lookup : Specification
 {
     const string Models = """

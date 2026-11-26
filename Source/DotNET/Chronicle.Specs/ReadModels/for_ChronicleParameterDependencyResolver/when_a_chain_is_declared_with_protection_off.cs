@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that chained reads cannot opt out of protection.
+/// </summary>
 public class when_a_chain_is_declared_with_protection_off : given.a_chained_lookup
 {
     Exception? _failure;

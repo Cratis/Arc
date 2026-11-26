@@ -25,7 +25,9 @@ public static class ChainedReadModelKeys
         foreach (var property in properties) _properties.TryAdd((model, property.Name), property);
     }
 
-    /// <summary>Finds a generated relationship property without reflection fallback.</summary>
+    /// <summary>
+    /// Finds a generated relationship property without reflection fallback.
+    /// </summary>
     /// <param name="model">The exact source model type.</param>
     /// <param name="property">The referenced property name.</param>
     /// <returns>The registered descriptor, or null when unsupported.</returns>

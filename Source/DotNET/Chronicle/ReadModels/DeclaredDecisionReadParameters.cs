@@ -43,7 +43,9 @@ internal static class DeclaredDecisionReadParameters
             .ToArray();
     }
 
-    /// <summary>Preflights each member independently, including when an operational cap disables protection.</summary>
+    /// <summary>
+    /// Preflights each member independently, including when an operational cap disables protection.
+    /// </summary>
     /// <param name="command">The discovered command.</param>
     /// <param name="readModels">The registered read-model types.</param>
     /// <param name="types">The discovered application types.</param>

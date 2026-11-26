@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies refusal of cyclic sibling dependencies.
+/// </summary>
 public class when_a_chain_has_a_cycle : given.a_chained_lookup
 {
     Exception? _failure;

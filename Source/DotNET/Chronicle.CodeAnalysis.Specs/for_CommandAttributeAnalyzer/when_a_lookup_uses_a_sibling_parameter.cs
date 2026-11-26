@@ -5,6 +5,9 @@ using Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandAttributeAnalyzer;
 
+/// <summary>
+/// Verifies that sibling lookup names are not mistaken for command properties.
+/// </summary>
 public class when_a_lookup_uses_a_sibling_parameter : Specification
 {
     Exception? _failure;

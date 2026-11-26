@@ -77,7 +77,7 @@ Under `Off`, Arc loads existing instances through `IReadModels` and releases the
 
 ## Key a read from a sibling read model
 
-With `ReadProtectionMode.On`, the two-string lookup takes a key from another protected read-model parameter in the **same** `Handle()`, `Provide()` or validator constructor. For example, given read models `OrderSummary` (`Id`, `CustomerId`) and `CustomerSummary` (`Id`), with all these properties typed as `EventSourceId`:
+With `ReadProtectionMode.On`, the two-string lookup takes a key from another protected read-model parameter in the **same** `Handle()`, `Provide()` or validator constructor. The following handler declaration is an excerpt. It assumes existing read models `OrderSummary` (`Id`, `CustomerId`) and `CustomerSummary` (`Id`), with all these properties typed as `EventSourceId`:
 
 ```csharp
 [Command]

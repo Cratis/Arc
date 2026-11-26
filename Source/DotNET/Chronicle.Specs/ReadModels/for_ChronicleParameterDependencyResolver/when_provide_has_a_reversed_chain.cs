@@ -3,6 +3,9 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies dependency-first acquisition in Provide.
+/// </summary>
 public class when_provide_has_a_reversed_chain : given.a_chained_lookup
 {
     object?[] _arguments;

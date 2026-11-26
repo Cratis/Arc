@@ -3,6 +3,9 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies absence propagation from a missing relationship source.
+/// </summary>
 public class when_a_chained_source_is_absent : given.a_chained_lookup
 {
     object?[] _arguments;

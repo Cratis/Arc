@@ -8,6 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies fail-closed behavior when an operational cap disables read protection.
+/// </summary>
 public class when_a_runtime_cap_disables_a_declared_chain : given.a_chained_lookup
 {
     Exception? _failure;

@@ -5,6 +5,9 @@ using System.Reflection;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies discovery of chained parameters despite provided-value alternatives.
+/// </summary>
 public class when_discovering_injected_chained_parameters : given.a_chained_lookup
 {
     ParameterInfo[] _parameters;

@@ -11,7 +11,7 @@ namespace Cratis.Arc.Commands;
 public sealed class LookUpByAttribute(string property) : Attribute
 {
     /// <summary>
-    /// Initializes a lookup through a sibling read-model parameter's public property.
+    /// Initializes a new instance of the <see cref="LookUpByAttribute"/> class for a sibling read-model property.
     /// </summary>
     /// <param name="parameter">The sibling parameter name in the same member.</param>
     /// <param name="property">The public readable instance property on that read model.</param>
@@ -30,7 +30,9 @@ public sealed class LookUpByAttribute(string property) : Attribute
 
 #pragma warning disable SA1402 // The generic and non-generic lookup attributes share the same API name.
 
-/// <summary>Looks up a read-model Handle parameter using the selected caller.</summary>
+/// <summary>
+/// Looks up a read-model Handle parameter using the selected caller.
+/// </summary>
 /// <typeparam name="TKeyProvider">A stateless provider with a public parameterless constructor.</typeparam>
 [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = true)]
 public sealed class LookUpByAttribute<TKeyProvider> : Attribute, ILookUpByKeyProvider

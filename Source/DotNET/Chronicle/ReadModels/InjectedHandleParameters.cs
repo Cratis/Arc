@@ -48,15 +48,22 @@ internal static class InjectedHandleParameters
 
     static void MatchProvided(ParameterInfo[] parameters, List<Type> candidates, HashSet<ParameterInfo> supplied, HashSet<ParameterInfo> required)
     {
-        foreach (var parameter in parameters)
+        foreach (var parameter in parameters.Where(parameter => CanBeSupplied(parameter, required)))
         {
-            if (parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false) || parameter.ParameterType == typeof(CancellationToken)) continue;
-            if (required.Contains(parameter)) continue;
-            var index = candidates.FindIndex(parameter.ParameterType.IsAssignableFrom);
-            if (index < 0) continue;
-            supplied.Add(parameter);
-            candidates.RemoveAt(index);
+            MatchCandidate(parameter, candidates, supplied);
         }
+    }
+
+    static bool CanBeSupplied(ParameterInfo parameter, HashSet<ParameterInfo> required) =>
+        !parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false) &&
+        parameter.ParameterType != typeof(CancellationToken) && !required.Contains(parameter);
+
+    static void MatchCandidate(ParameterInfo parameter, List<Type> candidates, HashSet<ParameterInfo> supplied)
+    {
+        var index = candidates.FindIndex(parameter.ParameterType.IsAssignableFrom);
+        if (index < 0) return;
+        supplied.Add(parameter);
+        candidates.RemoveAt(index);
     }
 
     /// <summary>

@@ -5,6 +5,9 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolver;
 
+/// <summary>
+/// Verifies that an unknown sibling parameter is refused.
+/// </summary>
 public class when_a_chain_names_an_unknown_source : given.a_chained_lookup
 {
     Exception? _failure;
