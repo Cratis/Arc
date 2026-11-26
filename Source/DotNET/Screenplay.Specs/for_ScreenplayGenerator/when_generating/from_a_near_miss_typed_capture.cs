@@ -17,7 +17,11 @@ public class from_a_near_miss_typed_capture : a_generated_document
         foreach (var (before, after) in _mutations)
         {
             Generate(new ScreenplayOptions { AuthoringOnlyConstructs = authoring },
-                typed_capture_source.Files(keyIsEventSource, source => source.Replace(before, after, StringComparison.Ordinal)));
+                typed_capture_source.Files(keyIsEventSource, source =>
+                {
+                    source.ShouldContain(before);
+                    return source.Replace(before, after, StringComparison.Ordinal);
+                }));
 
             Result.Source.ShouldNotContain("capture OrderIntake");
             Result.Source.ShouldContain("reaction");
@@ -29,10 +33,10 @@ public class from_a_near_miss_typed_capture : a_generated_document
     static readonly (string Before, string After)[] _mutations =
     [
         ("if (previous is not null && SameState(previous, current))", "if (previous is not null && !SameState(previous, current))"),
-        (": global::Cratis.Chronicle.Reactors.IReactor", ""),
+        (", global::Cratis.Chronicle.Events.EventContext context, global::Cratis.Chronicle.Reactors.ReactorDelivery delivery)\n    {", ")\n    {\n        global::Cratis.Chronicle.Events.EventContext context = default!; global::Cratis.Chronicle.Reactors.ReactorDelivery delivery = default!;"),
         ("EventStoreAttribute(\"storefront\")", "EventStoreAttribute(\"another-store\")"),
         ("var effects = new global::System.Collections.Generic.List<object>();", "var effects = new global::System.Collections.Generic.List<object>(); global::System.GC.KeepAlive(@event);"),
         ("\"orderId\", required: true)", "\"orderId\", required: false)"),
-        ("global::Cratis.Chronicle.Reactors.ReactorDelivery delivery)", "global::Cratis.Chronicle.Reactors.ReactorDelivery delivery, int extra)")
+        ("    async global::System.Threading.Tasks.Task<global::System.Collections.Generic.Dictionary<string, object?>?> Previous", "    public void AdditionalHandler() { }\n\n    async global::System.Threading.Tasks.Task<global::System.Collections.Generic.Dictionary<string, object?>?> Previous")
     ];
 }
