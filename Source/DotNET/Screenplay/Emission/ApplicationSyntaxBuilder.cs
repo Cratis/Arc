@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Emission.Availability;
+using Cratis.Arc.Screenplay.Emission.Captures;
 using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Emission.Constraints;
@@ -275,6 +276,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new QuerySyntaxBuilder(naming, _types, _authorize) { Availability = _availability, AuthoringOnlyConstructs = context.Options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = context.Options.MaximumExecutableModelVersion },
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = context.Model, MetadataEnabled = AtLeast(context.Options, SemanticVersion.V10), RefusalsEnabled = AtLeast(context.Options, SemanticVersion.V19), AtomicBatchesEnabled = AtLeast(context.Options, SemanticVersion.V22) },
+            new CaptureSyntaxBuilder(naming),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
             CreateSpecificationBuilder(context))

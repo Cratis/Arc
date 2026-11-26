@@ -102,7 +102,12 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
             Assign(content, readers.Reducers.Read(type, reduced, @namespace));
         }
 
-        if (ReactorReader.IsReactor(type))
+        var capture = readers.Captures.Read(type);
+        if (capture is not null)
+        {
+            content.Captures.Add(capture);
+        }
+        else if (ReactorReader.IsReactor(type))
         {
             content.Reactors.Add(readers.Reactors.Read(type));
         }

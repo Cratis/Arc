@@ -54,7 +54,7 @@ public class SliceReader(
         return new(
             @namespace,
             NameOf(@namespace),
-            SliceKindInference.Infer(commands, reactors, content.HasAggregateRoot),
+            SliceKindInference.Infer(commands, reactors, content.HasAggregateRoot, content.Captures.Count > 0),
             null,
             commands,
             [.. content.Events.OrderBy(_ => _.Name, StringComparer.Ordinal)],
@@ -63,6 +63,7 @@ public class SliceReader(
             reactors,
             [.. content.Constraints.OrderBy(_ => _.Name, StringComparer.Ordinal)])
         {
+            Captures = [.. content.Captures.OrderBy(_ => _.Name, StringComparer.Ordinal)],
             Screens = [.. screens.Read(@namespace, types, queries, commands)]
         };
     }
