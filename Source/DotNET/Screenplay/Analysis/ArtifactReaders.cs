@@ -165,6 +165,6 @@ public class ArtifactReaders
             },
             new ConstraintReader(models, paths, diagnostics),
             new ReadModelReader(paths, whole.ReadModels),
-            new CaptureReader(models));
+            new CaptureReader(models) { Diagnostics = diagnostics, MaximumExecutableModelVersion = whole.MaximumExecutableModelVersion });
     }
 }

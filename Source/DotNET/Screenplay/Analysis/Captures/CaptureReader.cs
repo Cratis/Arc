@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Semantics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,6 +25,16 @@ public class CaptureReader(SemanticModels models)
     static readonly SymbolDisplayFormat _qualified = SymbolDisplayFormat.FullyQualifiedFormat;
 
     /// <summary>
+    /// Gets the diagnostics explaining why a recovered capture stays in code.
+    /// </summary>
+    internal ScreenplayDiagnostics Diagnostics { get; init; } = new();
+
+    /// <summary>
+    /// Gets the maximum executable model version the generated document may require.
+    /// </summary>
+    internal SemanticVersion? MaximumExecutableModelVersion { get; init; }
+
+    /// <summary>
     /// Determines whether a type is declared as the reactor of a capture, which is a claim that it is one.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -43,7 +54,22 @@ public class CaptureReader(SemanticModels models)
         var declaration = Claims(type) && type.DeclaringSyntaxReferences.Length == 1 ? type.DeclaringSyntaxReferences[0].GetSyntax() as ClassDeclarationSyntax : null;
         var shape = declaration is null ? null : ShapeOf(type, declaration);
 
-        return shape is not null && Tokens(declaration!).SequenceEqual(Tokens(Rendered(shape))) ? ModelOf(shape, type) : null;
+        if (shape is null || !Tokens(declaration!).SequenceEqual(Tokens(Rendered(shape))))
+        {
+            return null;
+        }
+
+        if (MaximumExecutableModelVersion is { } cap && cap.CompareTo(SemanticVersion.V41) < 0)
+        {
+            Diagnostics.Warning(
+                ScreenplayDiagnosticCodes.ReactionMetadataVersionCap,
+                $"The typed capture '{type.Name}' requires ESM v41 and exceeds ScreenplayOptions.MaximumExecutableModelVersion (ESM v{cap}); the whole reactor keeps its file reference",
+                type.ToDisplayString());
+
+            return null;
+        }
+
+        return ModelOf(shape, type);
     }
 
     static List<string> Tokens(SyntaxNode node) => [.. node.DescendantTokens().Select(token => token.Text)];
@@ -81,13 +107,13 @@ public class CaptureReader(SemanticModels models)
             : [.. properties.Select(property => property.Name)];
     }
 
-    static CaptureShape ShapeOf(INamedTypeSymbol type, string handler, INamedTypeSymbol source, (List<string> Properties, string Key) captured, (INamedTypeSymbol Type, List<CaptureArgument> Arguments) appended) =>
+    static CaptureShape ShapeOf(INamedTypeSymbol type, (string Name, INamedTypeSymbol Source) handler, (List<string> Properties, string Key) captured, (INamedTypeSymbol Type, List<CaptureArgument> Arguments) appended) =>
         new(
             type.Name,
             (string)type.GetAttribute(WellKnownTypeNames.EventStoreAttribute)!.GetArgument(0)!,
             type.GetAttribute(WellKnownTypeNames.ReactorAttribute)!.GetArgument(0) as string ?? string.Empty,
-            handler,
-            source.ToDisplayString(_qualified),
+            handler.Name,
+            handler.Source.ToDisplayString(_qualified),
             captured.Properties,
             captured.Key,
             type.GetMembers("CaptureKeyIsNotTheEventSource").Length > 0,
@@ -119,20 +145,42 @@ public class CaptureReader(SemanticModels models)
 
     CaptureShape? ShapeOf(INamedTypeSymbol type, ClassDeclarationSyntax declaration)
     {
-        var handlers = type.GetMembers().OfType<IMethodSymbol>().Where(method => method.MethodKind == MethodKind.Ordinary && method.DeclaredAccessibility == Accessibility.Public).ToList();
-        if (handlers.Count != 1 || handlers[0].Parameters.Length != 3 || handlers[0].Parameters[0].Type is not INamedTypeSymbol source || !FromOrigin(source, type))
+        var handler = HandlerOf(type);
+        if (handler is null)
         {
             return null;
         }
 
+        var source = (INamedTypeSymbol)handler.Parameters[0].Type;
         var key = KeyOf(declaration);
-        var appended = AppendedBy(declaration, handlers[0].Name);
-        var appendedType = appended is null ? null : models.For(declaration.SyntaxTree)?.GetSymbolInfo(appended).Symbol?.ContainingType;
+        var appended = AppendedBy(declaration, handler.Name);
+        var appendedType = TypeOf(declaration, appended);
         var properties = PropertiesOf(source);
         var arguments = appendedType is null || appended is null ? null : ArgumentsOf(appended, appendedType);
 
-        return properties is null || key is null || appendedType is null || arguments is null || !KeyedByIdentity(source, key)
+        if (key is null)
+        {
+            return null;
+        }
+
+        if (properties is null || !KeyedByIdentity(source, key))
+        {
+            return null;
+        }
+
+        return appendedType is null || arguments is null
             ? null
-            : ShapeOf(type, handlers[0].Name, source, (properties, key), (appendedType, arguments));
+            : ShapeOf(type, (handler.Name, source), (properties, key), (appendedType, arguments));
+    }
+
+    INamedTypeSymbol? TypeOf(ClassDeclarationSyntax declaration, ObjectCreationExpressionSyntax? appended) =>
+        appended is null ? null : models.For(declaration.SyntaxTree)?.GetSymbolInfo(appended).Symbol?.ContainingType;
+
+    static IMethodSymbol? HandlerOf(INamedTypeSymbol type)
+    {
+        var handlers = type.GetMembers().OfType<IMethodSymbol>().Where(method => method.MethodKind == MethodKind.Ordinary && method.DeclaredAccessibility == Accessibility.Public).ToList();
+
+        return handlers is [{ Parameters: [{ Type: INamedTypeSymbol source }, _, _] } handler] && FromOrigin(source, type)
+            ? handler : null;
     }
 }
