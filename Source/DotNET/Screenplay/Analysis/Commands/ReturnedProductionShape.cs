@@ -71,11 +71,18 @@ internal static class ReturnedProductionShape
     internal static bool IsEffect(ITypeSymbol? type) => type is not null &&
         (EventReader.IsEvent(type) || IsEnvelope(type) || IsSequenceEffect(type));
 
+    /// <summary>Identifies a OneOf envelope after its return shape has been proved.</summary>
+    /// <param name="expression">The returned event wrapper.</param>
+    /// <param name="model">The semantic model of the handler.</param>
+    /// <returns>Whether a surrounding expression carries the OneOf result.</returns>
+    internal static bool WithinOneOf(ExpressionSyntax expression, SemanticModel model) =>
+        expression.AncestorsAndSelf().OfType<ExpressionSyntax>().Any(value => model.GetTypeInfo(value).ConvertedType?.Is("OneOf.OneOf`2") == true);
+
     static bool ReachesInline(ExpressionSyntax expression, SyntaxNode body, SemanticModel model)
     {
         for (SyntaxNode? node = expression; node is not null; node = node.Parent)
         {
-            if (node is ExpressionSyntax value && !ValueConversions.Preserves(value, model, method => method.ContainingType.Is("Cratis.Monads.Result`2")))
+            if (node is ExpressionSyntax value && !ValueConversions.Preserves(value, model, IsReturnConversion))
             {
                 return false;
             }
@@ -112,12 +119,27 @@ internal static class ReturnedProductionShape
         CollectionExpressionSyntax collection => collection.Elements.All(element => element is ExpressionElementSyntax item && DirectEffect(item.Expression, model)),
         InitializerExpressionSyntax initializer => initializer.Expressions.All(item => DirectEffect(item, model)),
         ArrayCreationExpressionSyntax { Initializer: not null } or ImplicitArrayCreationExpressionSyntax => true,
-        InvocationExpressionSyntax invocation => model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "FromResult" &&
-            (method.ContainingType.Is("System.Threading.Tasks.Task") || method.ContainingType.Is("System.Threading.Tasks.ValueTask")),
-        AwaitExpressionSyntax awaited => model.GetTypeInfo(awaited.Expression).Type is { } type &&
-            (type.Is("System.Threading.Tasks.Task`1") || type.Is("System.Threading.Tasks.ValueTask`1")),
+        InvocationExpressionSyntax invocation => IsReturnEnvelope(invocation, model),
+        AwaitExpressionSyntax awaited => IsAwaitedTask(awaited, model),
         _ => false
     };
+
+    static bool IsAwaitedTask(AwaitExpressionSyntax awaited, SemanticModel model) =>
+        model.GetTypeInfo(awaited.Expression).Type is { } type &&
+            (type.Is("System.Threading.Tasks.Task`1") || type.Is("System.Threading.Tasks.ValueTask`1"));
+
+    static bool IsReturnEnvelope(InvocationExpressionSyntax invocation, SemanticModel model) =>
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
+        (IsOneOfEventEnvelope(method) || (method.Name == "FromResult" &&
+            (method.ContainingType.Is("System.Threading.Tasks.Task") || method.ContainingType.Is("System.Threading.Tasks.ValueTask"))));
+
+    static bool IsReturnConversion(IMethodSymbol method) =>
+        method.ContainingType.Is("Cratis.Monads.Result`2") || IsOneOfEventEnvelope(method);
+
+    static bool IsOneOfEventEnvelope(IMethodSymbol method) =>
+        method.ContainingType.Is("OneOf.OneOf`2") &&
+        (method.Name == "FromT0" || method.Name == "FromT1" || method.Name == "op_Implicit") &&
+        method.Parameters is [{ Type: var type }] && type.Is(EventWrapperType.MetadataName);
 
     static bool ReturnContainer(BaseObjectCreationExpressionSyntax creation, SemanticModel model) =>
         model.GetTypeInfo(creation).Type is { } type &&
@@ -159,19 +181,21 @@ internal static class ReturnedProductionShape
         }
         for (var conversion = model.GetOperation(tuple)?.Parent as IConversionOperation; conversion is not null; conversion = conversion.Parent as IConversionOperation)
         {
-            if (conversion.Type is INamedTypeSymbol { IsTupleType: true } converted)
+            if (ConvertedTuple(conversion) is { } converted)
             {
                 return converted;
-            }
-            if (conversion.OperatorMethod is { Parameters: [var parameter] } method && method.ContainingType.Is("Cratis.Monads.Result`2") &&
-                parameter.Type is INamedTypeSymbol { IsTupleType: true } payload)
-            {
-                return payload;
             }
         }
 
         return type.ConvertedType is null && type.Type is INamedTypeSymbol { IsTupleType: true } inferred ? inferred : null;
     }
+
+    static INamedTypeSymbol? ConvertedTuple(IConversionOperation conversion) => conversion switch
+    {
+        { Type: INamedTypeSymbol { IsTupleType: true } converted } => converted,
+        { OperatorMethod: { Parameters: [{ Type: INamedTypeSymbol { IsTupleType: true } payload }] } method } when method.ContainingType.Is("Cratis.Monads.Result`2") => payload,
+        _ => null
+    };
 
     static bool DirectEffect(ExpressionSyntax expression, SemanticModel model, bool allowCollection = false)
     {
@@ -183,21 +207,9 @@ internal static class ReturnedProductionShape
         {
             expression = parentheses.Expression;
         }
-        if (allowCollection)
+        if (allowCollection && CollectionElements(expression, model) is { } elements)
         {
-            var elements = expression switch
-            {
-                CollectionExpressionSyntax collection when collection.Elements.All(element => element is ExpressionElementSyntax) =>
-                    collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression),
-                ArrayCreationExpressionSyntax { Initializer: { } array } => array.Expressions,
-                ImplicitArrayCreationExpressionSyntax array => array.Initializer.Expressions,
-                BaseObjectCreationExpressionSyntax { Initializer: { } list } listCreation when model.GetTypeInfo(listCreation).Type.Is("System.Collections.Generic.List`1") && listCreation.ArgumentList?.Arguments.Count is not > 0 => list.Expressions,
-                _ => null
-            };
-            if (elements is not null)
-            {
-                return elements.All(item => DirectEffect(item, model));
-            }
+            return elements.All(item => DirectEffect(item, model));
         }
         if (expression is not BaseObjectCreationExpressionSyntax creation || model.GetTypeInfo(creation).Type is not { } type)
         {
@@ -206,6 +218,19 @@ internal static class ReturnedProductionShape
 
         return IsConstructedEffect(creation, type, model);
     }
+
+    static IEnumerable<ExpressionSyntax>? CollectionElements(ExpressionSyntax expression, SemanticModel model) => expression switch
+    {
+        CollectionExpressionSyntax collection when collection.Elements.All(element => element is ExpressionElementSyntax) =>
+            collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression),
+        ArrayCreationExpressionSyntax { Initializer: { } array } => array.Expressions,
+        ImplicitArrayCreationExpressionSyntax array => array.Initializer.Expressions,
+        BaseObjectCreationExpressionSyntax { Initializer: { } list } listCreation when IsPlainList(listCreation, model) => list.Expressions,
+        _ => null
+    };
+
+    static bool IsPlainList(BaseObjectCreationExpressionSyntax creation, SemanticModel model) =>
+        model.GetTypeInfo(creation).Type.Is("System.Collections.Generic.List`1") && creation.ArgumentList?.Arguments.Count is not > 0;
 
     static bool IsConstructedEffect(BaseObjectCreationExpressionSyntax creation, ITypeSymbol type, SemanticModel model)
     {
