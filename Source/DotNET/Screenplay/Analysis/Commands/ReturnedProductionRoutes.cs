@@ -104,7 +104,7 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
             {
                 return candidate with { UsesCommandContext = false };
             }
-            if (route is null && !generatedIdentity)
+            if (route is null && !generatedIdentity && (path != identifier || !ReturnedProductionShape.WithinOneOf(destinationWrapper, model)))
             {
                 return candidate;
             }

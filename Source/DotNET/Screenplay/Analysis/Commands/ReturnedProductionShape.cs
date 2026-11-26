@@ -71,11 +71,18 @@ internal static class ReturnedProductionShape
     internal static bool IsEffect(ITypeSymbol? type) => type is not null &&
         (EventReader.IsEvent(type) || IsEnvelope(type) || IsSequenceEffect(type));
 
+    /// <summary>Identifies a OneOf envelope after its return shape has been proved.</summary>
+    /// <param name="expression">The returned event wrapper.</param>
+    /// <param name="model">The semantic model of the handler.</param>
+    /// <returns>Whether a surrounding expression carries the OneOf result.</returns>
+    internal static bool WithinOneOf(ExpressionSyntax expression, SemanticModel model) =>
+        expression.AncestorsAndSelf().OfType<ExpressionSyntax>().Any(value => model.GetTypeInfo(value).ConvertedType?.Is("OneOf.OneOf`2") == true);
+
     static bool ReachesInline(ExpressionSyntax expression, SyntaxNode body, SemanticModel model)
     {
         for (SyntaxNode? node = expression; node is not null; node = node.Parent)
         {
-            if (node is ExpressionSyntax value && !ValueConversions.Preserves(value, model, method => method.ContainingType.Is("Cratis.Monads.Result`2")))
+            if (node is ExpressionSyntax value && !ValueConversions.Preserves(value, model, IsReturnConversion))
             {
                 return false;
             }
@@ -112,12 +119,24 @@ internal static class ReturnedProductionShape
         CollectionExpressionSyntax collection => collection.Elements.All(element => element is ExpressionElementSyntax item && DirectEffect(item.Expression, model)),
         InitializerExpressionSyntax initializer => initializer.Expressions.All(item => DirectEffect(item, model)),
         ArrayCreationExpressionSyntax { Initializer: not null } or ImplicitArrayCreationExpressionSyntax => true,
-        InvocationExpressionSyntax invocation => model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "FromResult" &&
-            (method.ContainingType.Is("System.Threading.Tasks.Task") || method.ContainingType.Is("System.Threading.Tasks.ValueTask")),
+        InvocationExpressionSyntax invocation => IsReturnEnvelope(invocation, model),
         AwaitExpressionSyntax awaited => model.GetTypeInfo(awaited.Expression).Type is { } type &&
             (type.Is("System.Threading.Tasks.Task`1") || type.Is("System.Threading.Tasks.ValueTask`1")),
         _ => false
     };
+
+    static bool IsReturnEnvelope(InvocationExpressionSyntax invocation, SemanticModel model) =>
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
+        (IsOneOfEventEnvelope(method) || (method.Name == "FromResult" &&
+            (method.ContainingType.Is("System.Threading.Tasks.Task") || method.ContainingType.Is("System.Threading.Tasks.ValueTask"))));
+
+    static bool IsReturnConversion(IMethodSymbol method) =>
+        method.ContainingType.Is("Cratis.Monads.Result`2") || IsOneOfEventEnvelope(method);
+
+    static bool IsOneOfEventEnvelope(IMethodSymbol method) =>
+        method.ContainingType.Is("OneOf.OneOf`2") &&
+        (method.Name == "FromT0" || method.Name == "FromT1" || method.Name == "op_Implicit") &&
+        method.Parameters is [{ Type: var type }] && type.Is(EventWrapperType.MetadataName);
 
     static bool ReturnContainer(BaseObjectCreationExpressionSyntax creation, SemanticModel model) =>
         model.GetTypeInfo(creation).Type is { } type &&
