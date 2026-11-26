@@ -3,11 +3,11 @@
 
 using System.Net;
 using System.Net.Http.Json;
-using System.Net.Sockets;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.EndpointGroups;
+using Cratis.Arc.Hosting;
 using Cratis.Arc.Identity.Callers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -22,22 +22,28 @@ public class when_an_operation_requires_a_scope
     [Fact]
     public async Task should_refuse_a_caller_whose_ceiling_lacks_the_scope_and_allow_one_that_holds_it()
     {
-        var capabilityPort = FreePort();
-        var builder = WebApplication.CreateBuilder();
-        var defaultPort = FreePort();
-        builder.WebHost.UseUrls($"http://127.0.0.1:{capabilityPort}", $"http://127.0.0.1:{defaultPort}");
-        builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities());
-        builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
-        builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
-        builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
+        var capabilityPort = 0;
         var verified = Substitute.For<IVerifiedCallerAccessor>();
-        builder.Services.AddScoped(_ => verified);
         var probe = new Probe();
-        builder.Services.AddSingleton(probe);
-        RegisterCommands(builder.Services);
-        await using var app = builder.Build();
-        app.UseCratisArc();
-        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
+        await using var app = await KestrelPorts.Start(
+            2,
+            ports =>
+        {
+            capabilityPort = ports[0];
+            var builder = WebApplication.CreateBuilder();
+            builder.WebHost.UseUrls($"http://127.0.0.1:{capabilityPort}", $"http://127.0.0.1:{ports[1]}");
+            builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities());
+            builder.Services.AddSingleton(new VerifiedCallerInstallation("https://resource.example", "test"));
+            builder.Services.AddSingleton(new CallerResourceCatalog(new Dictionary<string, string> { ["https://resource.example"] = "audience" }));
+            builder.Services.AddScoped<IVerifiedCredentialSource>(_ => Substitute.For<VerifiedCredentialSourceForSpecs>());
+            builder.Services.AddScoped(_ => verified);
+            builder.Services.AddSingleton(probe);
+            RegisterCommands(builder.Services);
+            var host = builder.Build();
+            host.UseCratisArc();
+            return host;
+        },
+            global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
@@ -59,13 +65,6 @@ public class when_an_operation_requires_a_scope
 
     static VerifiedCaller Caller(params string[] scopes) =>
         new("1", CallerPrincipalKind.Person, CallerCredentialKind.PersonalAccessToken, new("credential"), null, new("person"), null, null, null, null, null, "resource", null, null, null, "test", new HashSet<string>(scopes), new HashSet<string>(), null);
-
-    static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
-    }
 
     static void RegisterCommands(IServiceCollection services)
     {

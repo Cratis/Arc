@@ -3,6 +3,7 @@
 
 using System.Net;
 using System.Net.Sockets;
+using Cratis.Arc.Hosting;
 using Cratis.Arc.Identity.Callers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -30,8 +31,22 @@ public class a_selective_capability_host : Specification
 
     async Task Establish()
     {
-        _capabilityPort = FreePort();
-        _defaultPort = FreePort();
+        if (CaptureStartupError)
+        {
+            _startupError = await Catch.Exception(Start);
+        }
+        else
+        {
+            await Start();
+        }
+    }
+
+    async Task Start() => _app = await KestrelPorts.Start(2, CreateHost, global::Xunit.TestContext.Current.CancellationToken);
+
+    WebApplication CreateHost(int[] ports)
+    {
+        _capabilityPort = ports[0];
+        _defaultPort = ports[1];
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls($"http://127.0.0.1:{_capabilityPort}", $"http://127.0.0.1:{_defaultPort}");
         builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", _capabilityPort), configureBuilder: arc => arc.WithoutControllers().WithCapabilities(options =>
@@ -49,30 +64,23 @@ public class a_selective_capability_host : Specification
         {
             builder.Services.Insert(0, ServiceDescriptor.Singleton<IStartupFilter>(new PathBaseBeforeArc()));
         }
-        _app = builder.Build();
+        var app = builder.Build();
         if (LatePathBase)
         {
-            _app.UsePathBase("/base");
+            app.UsePathBase("/base");
         }
-        ConfigurePipeline(_app);
+        ConfigurePipeline(app);
         if (ExplicitRouting)
         {
-            _app.UseRouting();
+            app.UseRouting();
         }
-        _app.UseCratisArc();
-        _app.MapGet("/mcp-spec", Selected).WithMetadata(new GatedMarker());
-        _app.MapGet("/alias/mcp", Selected).WithMetadata(new GatedMarker());
-        _app.MapGet("/legacy/ping", Outside);
-        _app.MapGet("/legacy/{id}", (HttpContext context, ICapabilityCallers callers, string id) => Outside(context, callers));
-        ConfigureEndpoints(_app);
-        if (CaptureStartupError)
-        {
-            _startupError = await Catch.Exception(() => _app.StartAsync(global::Xunit.TestContext.Current.CancellationToken));
-        }
-        else
-        {
-            await _app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
-        }
+        app.UseCratisArc();
+        app.MapGet("/mcp-spec", Selected).WithMetadata(new GatedMarker());
+        app.MapGet("/alias/mcp", Selected).WithMetadata(new GatedMarker());
+        app.MapGet("/legacy/ping", Outside);
+        app.MapGet("/legacy/{id}", (HttpContext context, ICapabilityCallers callers, string id) => Outside(context, callers));
+        ConfigureEndpoints(app);
+        return app;
     }
 
     protected virtual void ConfigurePipeline(WebApplication app)
@@ -95,7 +103,13 @@ public class a_selective_capability_host : Specification
         return int.Parse(status!.Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    async Task Destroy() => await _app.DisposeAsync();
+    async Task Destroy()
+    {
+        if (_app is not null)
+        {
+            await _app.DisposeAsync();
+        }
+    }
 
     string Selected()
     {
@@ -107,13 +121,6 @@ public class a_selective_capability_host : Specification
     {
         _outsideMintedCaller |= callers.Current is not null || context.Items.ContainsKey(CapabilityCallers.ItemKey) || context.Items.ContainsKey(VerifiedCallerPrincipal.ItemKey);
         return "legacy";
-    }
-
-    static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
     protected sealed class GatedMarker;

@@ -1,8 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Net;
-using System.Net.Sockets;
+using Cratis.Arc.Hosting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 
@@ -15,16 +14,21 @@ public class when_starting_capability_hosting_without_an_installation : Specific
 
     async Task Because()
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
-        builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", port), configureBuilder: arc => arc.WithoutControllers().WithCapabilities());
-        await using var app = builder.Build();
-        app.UseCratisArc();
-        _error = await Catch.Exception(() => app.StartAsync(global::Xunit.TestContext.Current.CancellationToken));
+        _error = await Catch.Exception(async () =>
+        {
+            await using var app = await KestrelPorts.Start(
+                1,
+                ports =>
+            {
+                var builder = WebApplication.CreateBuilder();
+                builder.WebHost.UseUrls($"http://127.0.0.1:{ports[0]}");
+                builder.AddCratisArc(options => options.EndpointGroups.Assign("capabilities", ports[0]), configureBuilder: arc => arc.WithoutControllers().WithCapabilities());
+                var host = builder.Build();
+                host.UseCratisArc();
+                return host;
+            },
+                global::Xunit.TestContext.Current.CancellationToken);
+        });
     }
 
     [Fact] void should_refuse_startup() => _error.ShouldBeOfExactType<CapabilityHostingHasNoCredentialInstallation>();
