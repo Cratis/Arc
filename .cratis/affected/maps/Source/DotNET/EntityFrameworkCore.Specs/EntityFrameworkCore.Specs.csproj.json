@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "builtAt": "97eb86081f6e380b4ef3f0c4a16e0d76fae82580",
+  "builtAt": "624081d0564cacc4ddcc81599199d605d15a2d7a",
   "project": "Source/DotNET/EntityFrameworkCore.Specs/EntityFrameworkCore.Specs.csproj",
   "granularity": "class",
   "files": [
