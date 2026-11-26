@@ -12,7 +12,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// </summary>
 /// <remarks>
 /// A guard is an <see langword="if"/> without an <see langword="else"/> that returns <c>ValidationResult.Error</c>, directly or
-/// wrapped in a rejection factory (<c>OneOf.FromT1</c> carrying the validation result, or <c>Result.Failed</c>), in the one or the
+/// wrapped in a rejection factory (<c>OneOf.FromT0</c> or <c>OneOf.FromT1</c> carrying the validation result, or <c>Result.Failed</c>), in the one or the
 /// two-argument form (<c>ValidationResult.Error(message, members)</c>), with any message. The message is kept
 /// only when it is a constant: an absence guard does not carry it, and a requirement needs it.
 /// Only the guards before the first other statement count: they run before anything is produced, which is the order
@@ -104,7 +104,7 @@ internal static class ProtectedReadGuards
 
     static bool IsResultFactory(IMethodSymbol method) => method.IsStatic && method.Parameters.Length == 1 && method.ContainingType.OriginalDefinition.Name switch
     {
-        "OneOf" => method.Name == "FromT1" && method.Parameters[0].Type.Is("Cratis.Arc.Validation.ValidationResult"),
+        "OneOf" => (method.Name == "FromT0" || method.Name == "FromT1") && method.Parameters[0].Type.Is("Cratis.Arc.Validation.ValidationResult"),
         "Result" => method.Name == "Failed",
         _ => false
     };

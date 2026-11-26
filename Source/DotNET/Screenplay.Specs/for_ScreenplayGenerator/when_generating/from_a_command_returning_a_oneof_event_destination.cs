@@ -10,14 +10,22 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 public class from_a_command_returning_a_oneof_event_destination : a_generated_document
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void should_preserve_the_identifier_and_protected_read_destination(bool implicitReturn)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void should_preserve_the_identifier_and_protected_read_destination(bool reversed, bool implicitReturn)
     {
         var source = from_a_stage_shaped_command_keyed_by_its_identifier.Source(true);
         if (implicitReturn)
         {
             source = source.Replace("OneOf<EventForEventSourceId, ValidationResult>.FromT0(new EventForEventSourceId(Id, new Recorded(view.Value)))", "new EventForEventSourceId(Id, new Recorded(view.Value))", StringComparison.Ordinal);
+        }
+        if (reversed)
+        {
+            source = source.Replace("OneOf<EventForEventSourceId, ValidationResult>", "OneOf<ValidationResult, EventForEventSourceId>", StringComparison.Ordinal)
+                .Replace(".FromT1(ValidationResult", ".FromT0(ValidationResult", StringComparison.Ordinal)
+                .Replace(".FromT0(new EventForEventSourceId", ".FromT1(new EventForEventSourceId", StringComparison.Ordinal);
         }
         foreach (var authoring in new[] { false, true })
         {
