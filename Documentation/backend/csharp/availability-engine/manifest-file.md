@@ -1,6 +1,6 @@
 ---
 title: The availability manifest file
-description: The one file format that describes audiences, blocks, gates, context values, parts and suspendable parts for every Arc implementation, the shared test vectors any engine runs, and how to write, read and evaluate it from .NET.
+description: Explore the shared Arc availability manifest JSON format and test vectors, and learn how to write, read and evaluate a manifest from .NET.
 ---
 
 The availability manifest file describes what an application declares about availability, as data. Where the
