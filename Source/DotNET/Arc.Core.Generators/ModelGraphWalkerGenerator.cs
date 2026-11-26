@@ -47,10 +47,6 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
             .Select(static (input, cancellationToken) => WalkersFor(input.Left.Left, input.Left.Right, input.Right, cancellationToken));
 
         context.RegisterSourceOutput(
-            commands.Combine(readModels).Combine(context.CompilationProvider),
-            static (output, input) => ProtectedReadModelKeyGeneration.Emit(output, input.Left.Left, input.Left.Right, input.Right));
-
-        context.RegisterSourceOutput(
             commands.Combine(validators).Combine(readModels).Combine(context.CompilationProvider),
             static (output, input) => CommandReadModelKeyGeneration.Emit(output, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
 

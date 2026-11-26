@@ -41,8 +41,12 @@ internal sealed class DecisionReadAdmissionStartup(
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (IsConfigured("Off")) return Task.CompletedTask;
         var readModels = artifacts is null ? [] : ReadModelServiceCollectionExtensions.DiscoverReadModelTypes(artifacts).ToHashSet();
+        foreach (var command in handlers.Handlers.Select(handler => handler.CommandType).Distinct())
+        {
+            DeclaredDecisionReadParameters.ValidateChains(command, readModels, types, services);
+        }
+        if (IsConfigured("Off")) return Task.CompletedTask;
         var reads = handlers.Handlers.Select(handler => handler.CommandType).Distinct()
             .SelectMany(command => ReadsOf(command, readModels)).ToArray();
         if (reads.Length > 0)

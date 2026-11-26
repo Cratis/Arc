@@ -77,13 +77,12 @@ public class CommandProvideInvoker : ICommandProvideInvoker
             return null;
         }
 
-        var arguments = new object?[parameters.Length];
-        for (var i = 0; i < parameters.Length; i++)
+        using var batch = ParameterDependencyBatch.Begin(serviceProvider, parameters);
+        foreach (var parameter in batch.Parameters)
         {
-            arguments[i] = await ResolveArgument(context, serviceProvider, parameters[i]);
+            batch.Set(parameter, await ResolveArgument(context, serviceProvider, parameter));
         }
-
-        return arguments;
+        return batch.Arguments;
     }
 
     static async ValueTask<object?> ResolveArgument(CommandContext context, IServiceProvider serviceProvider, ParameterInfo parameter) =>

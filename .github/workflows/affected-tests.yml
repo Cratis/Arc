@@ -1,0 +1,56 @@
+name: Affected tests (pilot)
+
+# Pilot of Cratis/Workflows#268, beside the existing .NET Build and not required by it.
+#   pull_request       builds and tests only what the change can reach
+#   push to main       runs everything with coverage and commits the coverage maps
+#   schedule           runs everything, as the nightly safety net
+on:
+  pull_request:
+    paths:
+      - "Source/DotNET/**"
+      - "Samples/**"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - ".editorconfig"
+      - ".cratis/affected.json"
+      - ".github/workflows/affected-tests.yml"
+  # A merge runs every test with coverage and commits the maps. The commit of the maps does not start another run.
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".cratis/affected/maps/**"
+  schedule:
+    - cron: "37 3 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: auto, pr, merge or nightly.
+        type: choice
+        default: auto
+        options: [auto, pr, merge, nightly]
+
+permissions:
+  contents: read
+
+jobs:
+  affected-tests:
+    permissions:
+      contents: write
+    uses: Cratis/Workflows/.github/workflows/affected-tests.yml@main
+    with:
+      cli-version: 3.150.2
+      mode: ${{ inputs.mode || 'auto' }}
+      level: test
+      framework: net11.0
+      dotnet-version: |
+        10.0.x
+        11.0.x
+      node-version: 23.x
+      prepare-command: |
+        corepack enable
+        yarn install --immutable
+        cd Source/DotNET/Screenplay.Embedded
+        npm ci --workspaces=false
+        npm run build

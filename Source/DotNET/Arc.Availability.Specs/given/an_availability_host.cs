@@ -9,6 +9,7 @@ using Cratis.Arc.Availability.Suspensions;
 using Cratis.Arc.Tenancy;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc.Availability.given;
 
@@ -25,6 +26,12 @@ public class an_availability_host : Specification
     protected virtual IAudienceSource AudienceSource => _audiences;
 
     protected virtual ContextValueCatalog ValueCatalog => new();
+
+    protected virtual string Environment => "Development";
+
+    protected virtual void ConfigureServices(IServiceCollection services)
+    {
+    }
 
     protected virtual void Configure(ArcAvailabilityOptions options)
     {
@@ -44,7 +51,12 @@ public class an_availability_host : Specification
         var principal = Substitute.For<ICurrentPrincipalAccessor>();
         principal.Current.Returns(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "alice")], "test")));
 
-        _root = new ServiceCollection()
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns(Environment);
+        var collection = new ServiceCollection();
+        ConfigureServices(collection);
+        _root = collection
+            .AddSingleton(environment)
             .AddSingleton(types)
             .AddSingleton(tenant)
             .AddSingleton(principal)

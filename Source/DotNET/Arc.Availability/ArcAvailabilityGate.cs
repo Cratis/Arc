@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using Cratis.Arc.Availability.Audiences;
 using Cratis.Arc.Availability.Suspensions;
+using Cratis.Arc.Introspection;
 using Cratis.DependencyInjection;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,16 +22,32 @@ namespace Cratis.Arc.Availability;
 /// <param name="types">The <see cref="ITypes"/> used to find the parts that declare a gate with attributes.</param>
 /// <param name="services">The services that create the conditions that are classes and inject what they need.</param>
 /// <param name="suspensions">The <see cref="ISuspensionSource"/> whose decisions are checked first. When there is none, nothing can be suspended.</param>
+/// <param name="development">The <see cref="DevelopmentAvailability"/> that lets a developer switch parts on or off while the application runs. When there is none, nothing is switched.</param>
 [IgnoreConvention]
-public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types, IServiceProvider? services = null, ISuspensionSource? suspensions = null) : IAvailabilityExecutionGate
+public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEvaluator evaluator, IAudienceSource audienceSource, ITypes types, IServiceProvider? services = null, ISuspensionSource? suspensions = null, DevelopmentAvailability? development = null) : IAvailabilityExecutionGate
 {
+    /// <summary>
+    /// The cause reported for a part that a developer switched off.
+    /// </summary>
+    public const string SwitchedOff = "Switched off by development tools";
+
     readonly Func<Type, IAvailabilityCondition> _conditions = TypedAvailability.ConditionFactory(services);
     readonly Lazy<IReadOnlyList<(string Namespace, AvailabilityExpression Gate)>> _markers = new(() => TypedAvailability.Markers(types, TypedAvailability.ConditionFactory(services)));
     readonly ConcurrentDictionary<Type, IReadOnlyList<AvailabilityExpression>> _paths = new();
     readonly Lazy<IReadOnlyCollection<Type>> _gatedParts = new(() => FindGatedParts(options, types));
+    readonly Lazy<IReadOnlyList<Type>> _discovered = new(() => new DiscoveredParts(types).All);
 
     /// <inheritdoc/>
-    public IReadOnlyCollection<Type> GatedParts => _gatedParts.Value;
+    public IReadOnlyCollection<Type> GatedParts
+    {
+        get
+        {
+            var disabled = development?.Current.DisabledPaths ?? [];
+            return disabled.Count == 0
+                ? _gatedParts.Value
+                : [.. _gatedParts.Value.Concat(_discovered.Value.Where(part => IsWithinAny(part, disabled))).Distinct()];
+        }
+    }
 
     /// <summary>
     /// Gets the gates of the namespaces, which are the modules, features and slices that carry one.
@@ -46,7 +63,7 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     public IReadOnlyList<AvailabilityExpression> GatesOf(Type part) => PathOf(part);
 
     /// <inheritdoc/>
-    public bool IsGated(Type part) => suspensions is not null || PathOf(part).Count > 0;
+    public bool IsGated(Type part) => suspensions is not null || PathOf(part).Count > 0 || Switch(part) != DevelopmentSwitch.None;
 
     /// <inheritdoc/>
     public ValueTask<AvailabilityDecision> Decide(Type part, IServiceProvider services, CancellationToken cancellationToken) =>
@@ -65,10 +82,12 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
     {
         var audiences = audienceSource.OnChanged(_ => handler());
         var suspended = suspensions?.OnChanged(_ => handler());
+        var switched = development?.OnChanged(handler);
         return new Subscription(() =>
         {
             audiences.Dispose();
             suspended?.Dispose();
+            switched?.Dispose();
         });
     }
 
@@ -83,16 +102,52 @@ public class ArcAvailabilityGate(ArcAvailabilityOptions options, IAvailabilityEv
         return [.. declared.Concat(registered).Concat(inNamespaces).Distinct()];
     }
 
+    static bool IsWithinAny(Type part, IReadOnlyList<string> paths)
+    {
+        if (paths.Count == 0)
+        {
+            return false;
+        }
+
+        var segments = ApplicationStructureBuilder.SegmentsOf(part);
+        return paths.Any(path => ApplicationStructureBuilder.IsWithin(segments, path));
+    }
+
     static bool HasTypedGate(Type type) => type.GetCustomAttributes(false).OfType<IAvailabilityAttribute>().Any();
 
     static bool InNamespace(Type type, string @namespace) =>
         type.Namespace is { } typeNamespace && (typeNamespace == @namespace || typeNamespace.StartsWith(@namespace + ".", StringComparison.Ordinal));
+
+    DevelopmentSwitch Switch(Type part)
+    {
+        var overrides = development?.Current;
+        if (overrides?.IsEmpty != false)
+        {
+            return DevelopmentSwitch.None;
+        }
+
+        if (IsWithinAny(part, overrides.DisabledPaths))
+        {
+            return DevelopmentSwitch.Off;
+        }
+
+        return IsWithinAny(part, overrides.EnabledPaths) ? DevelopmentSwitch.On : DevelopmentSwitch.None;
+    }
 
     async ValueTask<AvailabilityDecision> Decide(Type part, AvailabilityRequestContext request, AvailabilityInvocation? invocation, CancellationToken cancellationToken)
     {
         var context = request;
         try
         {
+            // What a developer switched is decided before anything else, whatever the gates and suspensions say.
+            switch (Switch(part))
+            {
+                case DevelopmentSwitch.Off:
+                    return new AvailabilityDecision(AvailabilityVerdict.Unavailable, [SwitchedOff]);
+                case DevelopmentSwitch.On:
+                    return AvailabilityDecision.Available;
+            }
+
             // A suspension is decided first: before any gate, so before the audiences and the context values are resolved.
             if (suspensions is not null && (await request.Suspended(suspensions, cancellationToken)).Covers(part))
             {

@@ -35,19 +35,12 @@ public class QueryResultOperationFilter : IOperationFilter
 
         var schema = context.SchemaGenerator.GenerateSchema(queryResultType, context.SchemaRepository);
         var response = operation.Responses?.First((kvp) => kvp.Key == ((int)HttpStatusCode.OK).ToString()).Value;
-        if (response?.Content?.TryGetValue("application/json", out var value) == true)
-        {
-            value.Schema = schema;
-        }
-        else
-        {
-            response?.Content?.Add(new("application/json", new() { Schema = schema }));
-        }
+        MediaTypeUtilities.SetJsonSchema(response, schema);
 
         operation.Responses?.Add(((int)HttpStatusCode.Forbidden).ToString(), new OpenApiResponse()
         {
             Description = "Forbidden",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType() { Schema = schema } }
             }
@@ -56,7 +49,7 @@ public class QueryResultOperationFilter : IOperationFilter
         operation.Responses?.Add(((int)HttpStatusCode.BadRequest).ToString(), new OpenApiResponse()
         {
             Description = "Bad Request - typically a validation error",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType() { Schema = schema } }
             }
@@ -65,7 +58,7 @@ public class QueryResultOperationFilter : IOperationFilter
         operation.Responses?.Add(((int)HttpStatusCode.InternalServerError).ToString(), new OpenApiResponse()
         {
             Description = "Internal server error - something went wrong. See the exception details.",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
                 { "application/json", new OpenApiMediaType() { Schema = schema } }
             }

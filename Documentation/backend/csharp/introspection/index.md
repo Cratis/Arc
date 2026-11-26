@@ -13,9 +13,10 @@ Normal `UseCratisArc()` activation maps these endpoints, subject to the [product
 
 - `/.cratis/commands`
 - `/.cratis/queries`
+- `/.cratis/structure`, the modules, features, sub-features and slices of the application with the commands and read models of each
 - `/.cratis/identity-details/schema` (also mapped without a details provider; then returns `{}`)
 
-Together with [user and tenant discovery](../identity/development-and-topologies.md) (`/.cratis/users` and `/.cratis/tenants`), these make up Arc's five discovery endpoints.
+Together with [user and tenant discovery](../identity/development-and-topologies.md) (`/.cratis/users` and `/.cratis/tenants`), these make up Arc's six discovery endpoints. A host that adds [availability](../availability.md#explore-availability-while-developing) maps two more, only in a local or test environment.
 
 Both Arc.Core and ASP.NET Core hosts map the command and query catalogs through `MapIntrospectionEndpoints()`, which normal Arc activation calls automatically. The identity endpoint mapper handles the identity-details schema, users and tenants. `Enabled` controls only the catalogs; `IdentityDiscovery` controls the other three discovery routes. Both default to `true`, and the access settings below apply to all mapped discovery endpoints.
 

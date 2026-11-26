@@ -12,7 +12,7 @@ public class when_rejecting_invalid_protected_keys : given.a_keyed_protected_rea
             var cases = new TheoryData<string, bool, bool>();
             foreach (var key in new[] { "", "   ", "\t", "*", "a#b", " padded", "padded ", " padded " })
             {
-                foreach (var nullable in new[] { false, true })
+                foreach (var nullable in string.IsNullOrWhiteSpace(key) ? new[] { false } : new[] { false, true })
                 {
                     foreach (var stored in new[] { false, true })
                     {
@@ -23,6 +23,19 @@ public class when_rejecting_invalid_protected_keys : given.a_keyed_protected_rea
 
             return cases;
         }
+    }
+
+    [Fact]
+    public void should_reject_a_null_key_for_a_required_model()
+    {
+        SelectKey(null);
+
+        var failure = Catch.Exception(() => Read(false));
+
+        AssertMissing(failure, string.Empty);
+        _inner.ReceivedCalls().ShouldBeEmpty();
+        _stored.ReceivedCalls().ShouldBeEmpty();
+        _unit.HasEnrolledDecisionReads.ShouldBeFalse();
     }
 
     [Theory]
