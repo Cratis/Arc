@@ -16,7 +16,7 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// </summary>
 /// <param name="readModelTypes">The models backed by Chronicle artifacts.</param>
 /// <param name="isFrameworkToken">Identifies the effective framework token factory for the executing root provider. Application-owned registrations retain ordinary DI resolution.</param>
-internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> readModelTypes, Func<IServiceProvider, Type, bool>? isFrameworkToken = null) : IAsyncParameterDependencyResolver
+internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> readModelTypes, Func<IServiceProvider, Type, bool>? isFrameworkToken = null) : IAsyncParameterDependencyResolver, IOrderParameterDependencies
 {
     readonly HashSet<Type> _readModelTypes = readModelTypes.ToHashSet();
 
@@ -55,6 +55,9 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         };
         return true;
     }
+
+    /// <inheritdoc/>
+    ParameterInfo[] IOrderParameterDependencies.Order(IServiceProvider services, ParameterInfo[] parameters) => Order(services, parameters);
 
     /// <inheritdoc/>
     public async ValueTask<ParameterDependencyResolution> Resolve(IServiceProvider serviceProvider, ParameterInfo parameter)
@@ -185,8 +188,16 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         return advisory;
     }
 
+    ParameterInfo[] Order(IServiceProvider services, ParameterInfo[] parameters)
+    {
+        if (!parameters.Any(parameter => Attribute.GetCustomAttribute(parameter, typeof(LookUpByAttribute), inherit: true) is LookUpByAttribute { Parameter: not null })) return parameters;
+        var context = services.GetRequiredService<ICommandContextAccessor>().Current;
+        return ChainedReadModelLookup.Order(context.Type, parameters, _readModelTypes, CommandDecisionPolicy.ReadProtection);
+    }
+
     ParameterBinding? Plan(IServiceProvider services, ParameterInfo parameter)
     {
+        Order(services, ((MethodBase)parameter.Member).GetParameters());
         var isReadModel = Measure(services, parameter);
         if (isFrameworkToken?.Invoke(services, parameter.ParameterType) == true)
         {

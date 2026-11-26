@@ -49,7 +49,7 @@ internal static class CommandReadModelLookup
     internal static ReadModelKey? Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode, ProtectedReadModelKeyTraversal? traversal, out string keyText)
     {
         var protect = mode == ReadProtectionMode.On && !IsAdvisory(parameter);
-        var keyLookup = new KeyLookup(parameter.ParameterType, traversal, protect);
+        var keyLookup = new KeyLookup(parameter.ParameterType, traversal, protect, context.Type);
         var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
         var provider = CommandAttributePolicy.ResolveKeyProvider(parameter, context.Type);
         if (provider is not null)
@@ -60,6 +60,7 @@ internal static class CommandReadModelLookup
         }
 
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
+        if (lookup?.Parameter is not null) return ChainedKeyFor(parameter, lookup, keyLookup, out keyText);
         var configuration = context.ServiceProvider?.GetService<IConfiguration>();
         var properties = lookup is null
             ? []
@@ -105,6 +106,17 @@ internal static class CommandReadModelLookup
         {
             ReadProtectionTelemetry.Record(context.Type, "measurement_unavailable", model, failure.GetType().Name);
         }
+    }
+
+    static ReadModelKey? ChainedKeyFor(ParameterInfo parameter, LookUpByAttribute lookup, KeyLookup keyLookup, out string keyText)
+    {
+        var value = ChainedReadModelLookup.ValueFor(keyLookup.Command, parameter, lookup);
+        if (!ProtectedReadModelKeys.IsAbsent(value, parameter))
+        {
+            return KeyFor(value, keyLookup, out keyText);
+        }
+        keyText = ProtectedReadModelKeys.Display(value);
+        return null;
     }
 
     static bool IsAdvisory(ParameterInfo parameter) =>
@@ -195,5 +207,5 @@ internal static class CommandReadModelLookup
     static ReadModelKey RequiredKey(EventSourceId key, Type readModelType) =>
         key.IsSpecified ? (ReadModelKey)key : throw new UnableToResolveReadModelFromCommandContext(readModelType);
 
-    sealed record KeyLookup(Type Model, ProtectedReadModelKeyTraversal? Traversal, bool Protect);
+    sealed record KeyLookup(Type Model, ProtectedReadModelKeyTraversal? Traversal, bool Protect, Type Command);
 }

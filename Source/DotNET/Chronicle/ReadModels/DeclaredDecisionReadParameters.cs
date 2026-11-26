@@ -28,37 +28,53 @@ internal static class DeclaredDecisionReadParameters
     internal static IEnumerable<(Type Model, bool StreamScoped)> ReadsOf(Type command, IReadOnlySet<Type> readModels, ITypes types, (bool Declared, IServiceProvider? Services) protection = default)
     {
         using var policy = CommandDecisionPolicy.Begin(command, protection.Services);
+        ValidateChains(command, readModels, types, protection.Services);
         if (!CommandDecisionPolicy.IsProtected)
         {
             return [];
         }
 
         var on = (protection.Declared ? CommandDecisionPolicy.DeclaredReadProtection : CommandDecisionPolicy.ReadProtection) == ReadProtectionMode.On;
-        var provide = command.GetProvideMethod();
-        var parameters = command.GetMethods(Methods)
-            .Where(_ => _.Name == "Handle")
-            .SelectMany(handle => InjectedHandleParameters.Of(handle, provide))
-            .Concat(provide?.GetParameters() ?? []);
-        if (on)
-        {
-            parameters = parameters.Concat(ValidatorParameters(command, types));
-        }
-
-        return parameters.Select(parameter => ReadOf(parameter, on, readModels))
+        return BatchesOf(command, types, on).SelectMany(parameters => parameters)
+            .Select(parameter => ReadOf(parameter, on, readModels))
             .OfType<(Type Model, bool StreamScoped)>()
             .Where(_ => !_.Model.ContainsGenericParameters)
             .Distinct()
             .ToArray();
     }
 
-    static IEnumerable<ParameterInfo> ValidatorParameters(Type command, ITypes types) =>
+    /// <summary>
+    /// Preflights each member independently, including when an operational cap disables protection.
+    /// </summary>
+    /// <param name="command">The discovered command.</param>
+    /// <param name="readModels">The registered read-model types.</param>
+    /// <param name="types">The discovered application types.</param>
+    /// <param name="services">The services supplying the operational cap.</param>
+    internal static void ValidateChains(Type command, IReadOnlySet<Type> readModels, ITypes types, IServiceProvider? services)
+    {
+        using var policy = CommandDecisionPolicy.Begin(command, services);
+        foreach (var parameters in BatchesOf(command, types, includeValidators: true))
+        {
+            ChainedReadModelLookup.Order(command, parameters, readModels, CommandDecisionPolicy.ReadProtection);
+        }
+    }
+
+    static IEnumerable<ParameterInfo[]> BatchesOf(Type command, ITypes types, bool includeValidators)
+    {
+        var provide = command.GetProvideMethod();
+        var batches = command.GetMethods(Methods).Where(method => method.Name == "Handle")
+            .Select(method => InjectedHandleParameters.Of(method, provide).ToArray())
+            .Concat(provide is null ? [] : new[] { provide.GetParameters() });
+        return includeValidators ? batches.Concat(ValidatorConstructors(command, types).Select(constructor => constructor.GetParameters())) : batches;
+    }
+
+    static IEnumerable<ConstructorInfo> ValidatorConstructors(Type command, ITypes types) =>
         types.FindMultiple(typeof(IDiscoverableValidator<>))
             .Where(_ => _.GetInterfaces().Any(contract =>
                 contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>) &&
                 contract.GetGenericArguments()[0] == command))
             .Select(_ => _.GetConstructors().OrderByDescending(constructor => constructor.GetParameters().Length).FirstOrDefault())
-            .OfType<ConstructorInfo>()
-            .SelectMany(_ => _.GetParameters());
+            .OfType<ConstructorInfo>();
 
     static (Type Model, bool StreamScoped)? ReadOf(ParameterInfo parameter, bool on, IReadOnlySet<Type> readModels)
     {
