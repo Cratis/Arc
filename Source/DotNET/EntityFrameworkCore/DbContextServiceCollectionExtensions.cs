@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.EntityFrameworkCore.Concepts;
 using Cratis.Arc.EntityFrameworkCore.Connections;
@@ -29,7 +30,7 @@ public static class DbContextServiceCollectionExtensions
     /// <param name="connectionString">The connection string to use for the DbContext.</param>
     /// <param name="optionsAction">An optional action to configure the DbContext options.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddDbContextWithConnectionString<TDbContext>(this IServiceCollection services, string connectionString, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
+    public static IServiceCollection AddDbContextWithConnectionString<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TDbContext>(this IServiceCollection services, string connectionString, Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : DbContext
     {
         // Register required application services for BaseDbContext
