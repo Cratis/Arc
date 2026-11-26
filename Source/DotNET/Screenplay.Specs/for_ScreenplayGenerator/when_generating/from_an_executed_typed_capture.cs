@@ -19,7 +19,7 @@ public class from_an_executed_typed_capture : a_generated_document
         Generate(new ScreenplayOptions { AuthoringOnlyConstructs = authoring }, typed_capture_source.Files(keyIsEventSource));
         AssertDocument();
         var compiled = SemanticExecutionPlan.Compile(Bound.Value!.Model);
-        compiled.Diagnostics.ShouldBeEmpty();
+        compiled.Issues.ShouldBeEmpty();
         var plan = compiled.Plan!;
         var placed = plan.Events.Values.Single(@event => @event.Name == "OrderPlaced");
         var received = plan.Events.Values.Single(@event => @event.Name == "OrderReceived");
@@ -45,7 +45,7 @@ public class from_an_executed_typed_capture : a_generated_document
         world = Deliver(plan, world, fact);
         world = Deliver(plan, world, other);
         world.Facts.Count(@event => @event.EventContract == received.Id).ShouldEqual(2);
-        world.Instances.Length.ShouldEqual(2);
+        world.ReadModels.Length.ShouldEqual(2);
         AssertLocalEffect(world, received, placed.Properties.Single().Type, key);
         AssertLocalEffect(world, received, placed.Properties.Single().Type, otherKey);
     }
@@ -60,17 +60,16 @@ public class from_an_executed_typed_capture : a_generated_document
         var plan = SemanticExecutionPlan.Compile(Bound.Value!.Model).Plan!;
         var placed = plan.Events.Values.Single(@event => @event.Name == "OrderPlaced");
         var source = SemanticValue.Text("41a4d32c-fbd3-49b8-af13-8cbf30c40278");
-        var fact = new SemanticFact(placed.Id, source,
-            [new(placed.Properties.Single().Id, SemanticValue.Text("19a06b87-1402-401c-bf54-141305648ee8"))])
+        var fact = new SemanticFact(placed.Id, source, [new(placed.Properties.Single().Id, SemanticValue.Text("19a06b87-1402-401c-bf54-141305648ee8"))])
         {
             Context = new(new(SemanticTypeReference.ForPrimitive(SemanticPrimitiveType.Text), source))
         };
         var evaluator = new SemanticEvaluator();
         var appended = Assert.IsType<SemanticAccepted>(evaluator.ExtendWorld(plan, SemanticWorld.Empty, [fact]));
 
-        Should.Throw<InvalidSemanticContract>(() => new SemanticReactionSettlement(evaluator).Settle(plan, appended.World, appended.Facts, null));
-        appended.World.Facts.ShouldHaveSingleItem();
-        appended.World.Instances.ShouldBeEmpty();
+        Assert.Throws<InvalidSemanticContract>(() => new SemanticReactionSettlement(evaluator).Settle(plan, appended.World, appended.Facts, null));
+        Assert.Single(appended.World.Facts);
+        appended.World.ReadModels.ShouldBeEmpty();
     }
 
     static SemanticWorld Deliver(SemanticExecutionPlan plan, SemanticWorld world, SemanticFact fact)
@@ -87,7 +86,7 @@ public class from_an_executed_typed_capture : a_generated_document
         local.Context!.EventSource.Type.ShouldEqual(identity);
         local.Context.EventSource.Value.ShouldEqual(key);
         local.Values.Single(value => value.TargetProperty == received.Properties.Single().Id).Value.ShouldEqual(key);
-        var instance = world.Instances.Single(instance => instance.Key == key);
+        var instance = world.ReadModels.Single(instance => instance.Key == key);
         instance.Key.ShouldEqual(key);
         instance.Values.Single().Value.ShouldEqual(key);
     }

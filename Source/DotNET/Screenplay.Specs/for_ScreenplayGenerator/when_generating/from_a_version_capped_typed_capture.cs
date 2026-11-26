@@ -17,11 +17,13 @@ public class from_a_version_capped_typed_capture : a_generated_document
     [InlineData(true, true, 32)]
     public void should_keep_the_whole_reactor_when_its_execution_exceeds_the_cap(bool keyIsEventSource, bool authoring, int cap)
     {
-        Generate(new ScreenplayOptions
-        {
-            AuthoringOnlyConstructs = authoring,
-            MaximumExecutableModelVersion = cap == 31 ? SemanticVersion.V31 : SemanticVersion.V32
-        }, typed_capture_source.Files(keyIsEventSource));
+        Generate(
+            new ScreenplayOptions
+            {
+                AuthoringOnlyConstructs = authoring,
+                MaximumExecutableModelVersion = cap == 31 ? SemanticVersion.V31 : SemanticVersion.V32
+            },
+            typed_capture_source.Files(keyIsEventSource));
 
         Result.Source.ShouldNotContain("capture OrderIntake");
         Result.Source.ShouldContain("reaction");
@@ -39,11 +41,13 @@ public class from_a_version_capped_typed_capture : a_generated_document
     [InlineData(true, true, 33)]
     public void should_keep_the_capture_when_its_execution_fits_the_cap(bool keyIsEventSource, bool authoring, int cap)
     {
-        Generate(new ScreenplayOptions
-        {
-            AuthoringOnlyConstructs = authoring,
-            MaximumExecutableModelVersion = cap == 32 ? SemanticVersion.V32 : SemanticVersion.V33
-        }, typed_capture_source.Files(keyIsEventSource));
+        Generate(
+            new ScreenplayOptions
+            {
+                AuthoringOnlyConstructs = authoring,
+                MaximumExecutableModelVersion = cap == 32 ? SemanticVersion.V32 : SemanticVersion.V33
+            },
+            typed_capture_source.Files(keyIsEventSource));
 
         Result.Source.ShouldContain("capture OrderIntake");
         Result.Source.ShouldNotContain("reaction");
