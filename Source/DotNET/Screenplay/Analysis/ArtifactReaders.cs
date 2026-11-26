@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
+using Cratis.Arc.Screenplay.Analysis.Captures;
 using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Constraints;
 using Cratis.Arc.Screenplay.Analysis.Controllers;
@@ -34,7 +35,8 @@ public class ArtifactReaders
         ReducerReader reducers,
         ReactorReader reactors,
         ConstraintReader constraints,
-        ReadModelReader readModels)
+        ReadModelReader readModels,
+        CaptureReader captures)
     {
         Types = types;
         AggregateRoots = aggregates;
@@ -49,6 +51,7 @@ public class ArtifactReaders
         Reactors = reactors;
         Constraints = constraints;
         ReadModels = readModels;
+        Captures = captures;
     }
 
     /// <summary>Gets the registry collecting the concepts every artifact refers to.</summary>
@@ -86,6 +89,9 @@ public class ArtifactReaders
 
     /// <summary>Gets the reader for constraints declared in code.</summary>
     public ConstraintReader Constraints { get; }
+
+    /// <summary>Gets the reader recovering stateful captures of foreign events from their reactors.</summary>
+    public CaptureReader Captures { get; }
 
     /// <summary>Gets the reader declaring the shape of each read model.</summary>
     public ReadModelReader ReadModels { get; }
@@ -158,6 +164,7 @@ public class ArtifactReaders
                 Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList()
             },
             new ConstraintReader(models, paths, diagnostics),
-            new ReadModelReader(paths, whole.ReadModels));
+            new ReadModelReader(paths, whole.ReadModels),
+            new CaptureReader(models) { Diagnostics = diagnostics, MaximumExecutableModelVersion = whole.MaximumExecutableModelVersion });
     }
 }

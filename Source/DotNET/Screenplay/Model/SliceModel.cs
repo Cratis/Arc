@@ -34,6 +34,11 @@ public record SliceModel(
     IEnumerable<ConstraintModel> Constraints)
 {
     /// <summary>
+    /// Gets the stateful captures of foreign events the slice declares.
+    /// </summary>
+    public IEnumerable<CaptureModel> Captures { get; init; } = [];
+
+    /// <summary>
     /// Gets the screens the slice ends in.
     /// </summary>
     /// <remarks>

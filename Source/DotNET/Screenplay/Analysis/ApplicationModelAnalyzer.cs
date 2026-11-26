@@ -66,7 +66,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             .ToList();
 
         whole.AggregateRoots.Report(diagnostics);
-        var retained = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
+        var retained = SliceUnion.OneBuilderPerReadModel(CaptureSliceAdmission.Apply(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), projects), diagnostics);
         whole.Elsewhere.ReadRoutes(userInterfaceFiles, ordered.Select((compilation, index) => SourcePaths.RootOf(compilation, catalogs[index])), retained, diagnostics);
         var joined = whole.Elsewhere.Apply(retained);
         var placedSlices = ReadModelPlacement.Place(

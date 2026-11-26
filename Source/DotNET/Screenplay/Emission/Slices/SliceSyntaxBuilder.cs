@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Captures;
 using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Constraints;
 using Cratis.Arc.Screenplay.Emission.Events;
@@ -28,6 +29,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// <param name="queries">The <see cref="QuerySyntaxBuilder"/> for the queries of the slice.</param>
 /// <param name="constraints">The <see cref="ConstraintSyntaxBuilder"/> for the constraints of the slice.</param>
 /// <param name="reactors">The <see cref="ReactorSyntaxBuilder"/> for the reactors of the slice.</param>
+/// <param name="captures">The <see cref="CaptureSyntaxBuilder"/> for the captures of the slice.</param>
 /// <param name="projections">The <see cref="ProjectionSyntaxBuilder"/> for the projection of the slice.</param>
 /// <param name="screens">The <see cref="ScreenSyntaxBuilder"/> for the screens of the slice.</param>
 /// <param name="specifications">The <see cref="SpecificationSyntaxBuilder"/> for the scenarios the slice is specified by.</param>
@@ -39,6 +41,7 @@ public class SliceSyntaxBuilder(
     QuerySyntaxBuilder queries,
     ConstraintSyntaxBuilder constraints,
     ReactorSyntaxBuilder reactors,
+    CaptureSyntaxBuilder captures,
     ProjectionSyntaxBuilder projections,
     ScreenSyntaxBuilder screens,
     SpecificationSyntaxBuilder specifications)
@@ -80,11 +83,11 @@ public class SliceSyntaxBuilder(
         return new(
             SliceTypes.Convert(slice.Kind),
             GetName(slice),
-            [.. slice.Events.Where(_ => InlineEvents?.Contains(_) != true || !inlineNames.Contains(naming.ToDeclarationName(_.Name))).Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            [.. slice.Events.Where(_ => InlineEvents?.Contains(_) != true || !inlineNames.Contains(naming.ToDeclarationName(_.Name))).Select(_ => ForeignOrigin(events.Build(_, slice.Namespace), _, slice)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             commandDeclarations,
             [.. slice.Queries.Select(queries.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             BuildProjections(slice),
-            [],
+            [.. slice.Captures.Select(captures.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             [
                 .. slice.Reactors
                     .Select(_ => reactors.Build(_, slice.Namespace))
@@ -105,8 +108,22 @@ public class SliceSyntaxBuilder(
             [.. specifications.Build(slice.Specifications)],
             SourceLocation.Start,
             naming.ToStringLiteral(slice.Description),
-            ReadModels: [.. BuildReadModels(slice)]);
+            ReadModels: [.. BuildReadModels(slice)])
+        {
+            Direction = slice.Captures.Any() ? TranslationDirection.Inbound : null
+        };
     }
+
+    /// <summary>
+    /// Marks an event read from another event store as public, but only in a slice that captures events - a slice
+    /// that does not is no inbound translation and may not consume a foreign public event.
+    /// </summary>
+    /// <param name="declaration">The built declaration of the event.</param>
+    /// <param name="event">The event the declaration was built for.</param>
+    /// <param name="slice">The slice declaring the event.</param>
+    /// <returns>The declaration, public with its origin when the slice captures it.</returns>
+    internal static EventSyntax ForeignOrigin(EventSyntax declaration, EventModel @event, SliceModel slice) =>
+        @event.Origin is { } origin && slice.Captures.Any() ? declaration with { Visibility = EventVisibility.Public, Origin = origin } : declaration;
 
     /// <summary>
     /// Gets the name a slice is declared under, falling back to the last segment of its namespace.
@@ -166,7 +183,7 @@ public class SliceSyntaxBuilder(
     /// <param name="property">The property to convert.</param>
     /// <returns>The <see cref="PropertySyntax"/>.</returns>
     PropertySyntax ToProperty(PropertyModel property) =>
-        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start);
+        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start) { IsKey = property.IsKey };
 
     /// <summary>
     /// Builds the projections a slice declares.

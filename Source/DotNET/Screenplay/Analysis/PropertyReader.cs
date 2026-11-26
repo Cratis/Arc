@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Projections;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -42,7 +43,7 @@ public class PropertyReader(TypeRegistry types)
                 MemberAttributes.Has(property, WellKnownTypeNames.EncryptedAttribute) || carried.HasAttribute(WellKnownTypeNames.EncryptedAttribute),
                 MemberAttributes.Has(property, WellKnownTypeNames.NotAuditedAttribute) || carried.HasAttribute(WellKnownTypeNames.NotAuditedAttribute) || type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute));
 
-            properties.Add(new(property.Name, types.ResolveCarried(property.Type)));
+            properties.Add(new(property.Name, types.ResolveCarried(property.Type)) { IsKey = MemberAttributes.Has(property, ModelBoundNames.Key) });
         }
 
         return properties;

@@ -59,6 +59,7 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
             Documentation = documentation,
             Id = !string.IsNullOrWhiteSpace(id) && !string.Equals(id, type.Name, StringComparison.Ordinal) ? id : null,
             TypeIdentity = EventProducers.IdentityOf(type),
+            Origin = type.GetAttribute(WellKnownTypeNames.EventStoreAttribute)?.GetArgument(0) as string,
             CanInline = type.DeclaringSyntaxReferences.Length > 0 &&
                 type.Namespace() == location &&
                 IsGenerationOne(type) &&
