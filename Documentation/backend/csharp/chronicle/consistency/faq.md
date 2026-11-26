@@ -110,7 +110,7 @@ No. A guarded read that changed returns a `400` with the reason `concurrencyViol
 
 ### What does a guard not cover?
 
-`Revise` and `Redact`, projection definitions changed in another process, other event sequences, external state, and a writer that decides without a guard. See [How it works](./how-it-works.md#what-is-outside-the-guard).
+`Revise` and `Redact` after an aggregate, stream read or hand-built scope (protected read-model reads detect them through the mutation epoch), projection definitions changed in another process, other event sequences, external state, and a writer that decides without a guard. See [How it works](./how-it-works.md#what-is-outside-the-guard).
 
 ### Why is the command's key important?
 
