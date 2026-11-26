@@ -1,6 +1,6 @@
 ---
 title: Declaring availability with types
-description: Declare audiences, availability blocks, conditions, scope markers and provided context values as C# types that map one to one onto Screenplay, and read the rules back into the model.
+description: Declare audiences, blocks, conditions, scope gates and provided context values with C# types that Arc can translate back into a Screenplay model.
 ---
 
 Availability is declared with types. What you write in C# is exactly what a Screenplay model can say, so the code-to-model generator
