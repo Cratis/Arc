@@ -29,7 +29,7 @@ public class DatabaseChangeNotifierFactory(ILoggerFactory loggerFactory, IServic
             DatabaseType.Sqlite => new SqliteChangeNotifier(
                 loggerFactory.CreateLogger<SqliteChangeNotifier>()),
 
-            _ => throw new UnsupportedDatabaseType(databaseType.ToString())
+            _ => throw new UnsupportedDatabaseType()
         };
     }
 }

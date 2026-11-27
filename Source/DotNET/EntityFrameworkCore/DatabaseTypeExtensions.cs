@@ -31,7 +31,7 @@ public static class DatabaseTypeExtensions
         _ when connectionString.Contains("data source=", StringComparison.InvariantCultureIgnoreCase) ||
                connectionString.Contains("filename=", StringComparison.InvariantCultureIgnoreCase) => DatabaseType.Sqlite,
 
-        _ => throw new UnsupportedDatabaseType(connectionString)
+        _ => throw new UnsupportedDatabaseType()
     };
 
     /// <summary>
@@ -60,7 +60,7 @@ public static class DatabaseTypeExtensions
                 .UseNpgsql(connectionString, options => options.EnableRetryOnFailure())
                 .ReplaceService<IMigrationsSqlGenerator, MigrationsSqlGeneratorForPostgreSQL>(),
 
-            _ => throw new UnsupportedDatabaseType(connectionString)
+            _ => throw new UnsupportedDatabaseType()
         };
     }
 
@@ -91,7 +91,7 @@ public static class DatabaseTypeExtensions
         "Microsoft.EntityFrameworkCore.Sqlite" => DatabaseType.Sqlite,
         "Microsoft.EntityFrameworkCore.SqlServer" => DatabaseType.SqlServer,
         "Npgsql.EntityFrameworkCore.PostgreSQL" => DatabaseType.PostgreSql,
-        _ => throw new UnsupportedDatabaseType(providerName!)
+        _ => throw new UnsupportedDatabaseType()
     };
 
     /// <summary>
