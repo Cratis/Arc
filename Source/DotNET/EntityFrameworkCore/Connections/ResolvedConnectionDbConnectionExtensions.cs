@@ -25,7 +25,7 @@ public static class ResolvedConnectionDbConnectionExtensions
         SqlConnection => WellKnownConnectionStorage.SqlServer,
         NpgsqlConnection => WellKnownConnectionStorage.PostgreSql,
         SqliteConnection => WellKnownConnectionStorage.Sqlite,
-        _ => throw new UnsupportedDatabaseType(connection.GetType().FullName ?? connection.GetType().Name)
+        _ => throw new UnsupportedDatabaseType()
     };
 
     /// <summary>

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "builtAt": "e8fa1ecda8608c48dfefad5692bd04ebf8f3750a",
+  "builtAt": "0a0d6239e09ae597f014166a1dd15a1c661b34e2",
   "project": "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs/EntityFrameworkCore.PostgreSql.Specs.csproj",
   "granularity": "class",
   "files": [

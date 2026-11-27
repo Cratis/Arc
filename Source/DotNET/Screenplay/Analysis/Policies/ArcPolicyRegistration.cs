@@ -12,5 +12,6 @@ namespace Cratis.Arc.Screenplay.Analysis.Policies;
 /// <param name="PolicyType">The implementation type supplied by the registration.</param>
 /// <param name="SemanticModel">The semantic model containing the registration.</param>
 /// <param name="Location">The registration's source path.</param>
-internal sealed record ArcPolicyRegistration(string Name, ITypeSymbol PolicyType, SemanticModel SemanticModel, string Location)
+/// <param name="EvaluatesAnonymous">Whether the registration explicitly opts into evaluating anonymous callers.</param>
+internal sealed record ArcPolicyRegistration(string Name, ITypeSymbol PolicyType, SemanticModel SemanticModel, string Location, bool EvaluatesAnonymous)
     : PolicyRegistration(Name, null, SemanticModel, Location);
