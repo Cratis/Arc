@@ -52,24 +52,24 @@ public static class PolicyRegistrations
     {
         var registrations = new Dictionary<string, PolicyRegistration>(StringComparer.Ordinal);
 
-        foreach (var compilation in compilations)
+        foreach (var registration in All(compilations).Where(registration => registration.Name.Length > 0))
         {
-            foreach (var tree in compilation.SyntaxTrees.OrderBy(_ => _.FilePath, StringComparer.Ordinal))
-            {
-                Collect(compilation.GetSemanticModel(tree), tree, registrations);
-            }
+            registrations.TryAdd(registration.Name, registration);
         }
 
         return registrations;
     }
 
     /// <summary>
-    /// Collects the registrations one syntax tree holds.
+    /// Reads every registration, including duplicates and unnamed registrations that prevent anonymous proof.
     /// </summary>
-    /// <param name="semanticModel">The semantic model of the tree.</param>
-    /// <param name="tree">The tree to read.</param>
-    /// <param name="registrations">The registrations collected so far.</param>
-    static void Collect(SemanticModel semanticModel, SyntaxTree tree, Dictionary<string, PolicyRegistration> registrations)
+    /// <param name="compilations">The application projects, ordered.</param>
+    /// <returns>All registrations in source order.</returns>
+    internal static IEnumerable<PolicyRegistration> All(IReadOnlyList<Compilation> compilations) =>
+        compilations.SelectMany(compilation => compilation.SyntaxTrees.OrderBy(tree => tree.FilePath, StringComparer.Ordinal)
+            .SelectMany(tree => Collect(compilation.GetSemanticModel(tree), tree)));
+
+    static IEnumerable<PolicyRegistration> Collect(SemanticModel semanticModel, SyntaxTree tree)
     {
         foreach (var invocation in tree.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
@@ -78,15 +78,10 @@ public static class PolicyRegistrations
                 continue;
             }
 
-            var name = NameOf(invocation, semanticModel);
-            if (name is null || registrations.ContainsKey(name))
-            {
-                continue;
-            }
-
+            var name = NameOf(invocation, semanticModel) ?? string.Empty;
             var method = (IMethodSymbol)semanticModel.GetSymbolInfo(invocation).Symbol!;
-            registrations[name] = IsArcRegistration(method)
-                ? new ArcPolicyRegistration(name, method.TypeArguments[0], semanticModel, tree.FilePath)
+            yield return IsArcRegistration(method)
+                ? new ArcPolicyRegistration(name, method.TypeArguments[0], semanticModel, tree.FilePath, EvaluatesAnonymous(invocation, semanticModel))
                 : new PolicyRegistration(name, InvocationChain.ArgumentOf(invocation, 1), semanticModel, tree.FilePath);
         }
     }
@@ -100,6 +95,10 @@ public static class PolicyRegistrations
     static bool IsRegistration(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
         semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
         (IsArcRegistration(method) || IsAspNetRegistration(method));
+
+    static bool EvaluatesAnonymous(InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        (semanticModel.GetOperation(invocation) as IInvocationOperation)?.Arguments
+            .FirstOrDefault(argument => argument.Parameter?.Name == "evaluatesAnonymous")?.Value.ConstantValue is { HasValue: true, Value: true };
 
     static bool IsArcRegistration(IMethodSymbol method) =>
         method.Name == ArcRegistration && method.ContainingType.Is(ArcRegistrations);

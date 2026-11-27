@@ -45,6 +45,7 @@ public class PolicyCatalog(IReadOnlyList<Compilation> compilations, string? loca
     {
         var declared = authorizations as IReadOnlyCollection<AuthorizationModel> ?? [.. authorizations];
         var registrations = PolicyRegistrations.In(compilations);
+        var anonymous = new AnonymousPolicyClassification(compilations);
         var policies = new Dictionary<string, PolicyModel>(StringComparer.Ordinal);
 
         foreach (var name in Names(declared, _ => _.Policies))
@@ -53,6 +54,12 @@ public class PolicyCatalog(IReadOnlyList<Compilation> compilations, string? loca
             var policy = new PolicyModel(name, Requirement(name, registrations));
             var incomplete = diagnostics.All.Skip(before).Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PolicyRequirementsUnrecoverable);
             PolicyRecovery.Register(policy, incomplete);
+            var refusal = anonymous.RefusalFor(name);
+            if (refusal is not null)
+            {
+                diagnostics.AddRange([PolicyRecovery.Refuse(policy, refusal, location)]);
+            }
+
             policies[name] = policy;
         }
 

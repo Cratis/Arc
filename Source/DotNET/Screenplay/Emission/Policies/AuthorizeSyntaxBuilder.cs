@@ -40,7 +40,7 @@ public class AuthorizeSyntaxBuilder
     /// <returns>The <see cref="AuthorizeSyntax"/>, or <see langword="null"/> when nothing is required.</returns>
     public AuthorizeSyntax? Build(AuthorizationModel? authorization)
     {
-        if (authorization?.RequiresAuthentication != true)
+        if (authorization is null)
         {
             return null;
         }
@@ -50,6 +50,11 @@ public class AuthorizeSyntaxBuilder
 
         if (roles.Count == 0 && named.Count == 0)
         {
+            if (!authorization.RequiresAuthentication)
+            {
+                return null;
+            }
+
             named.Add(AuthenticatedPolicy);
         }
 

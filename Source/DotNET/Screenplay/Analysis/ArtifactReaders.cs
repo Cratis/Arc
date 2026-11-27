@@ -145,6 +145,7 @@ public class ArtifactReaders
             {
                 Diagnostics = diagnostics,
                 Models = models,
+                AnonymousPolicies = whole.AnonymousPolicies,
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
                 {
                     ExecutableRoutes = whole.ExecutableRoutes,
@@ -154,7 +155,7 @@ public class ArtifactReaders
                 }
             },
             new ControllerCommandReader(types, properties, produces, validators, paths),
-            new QueryReader(types, diagnostics) { Paths = paths, Models = models },
+            new QueryReader(types, diagnostics) { Paths = paths, Models = models, AnonymousPolicies = whole.AnonymousPolicies },
             new ModelBoundProjectionReader(diagnostics),
             new FluentProjectionReader(models, diagnostics),
             new ReducerReader(diagnostics) { Models = models },
