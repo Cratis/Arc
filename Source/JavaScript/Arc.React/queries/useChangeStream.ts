@@ -8,6 +8,11 @@ import { useState, useEffect, useRef, useContext } from 'react';
 import { ArcContext } from '../ArcContext.js';
 import { useObservableQuery, useObservableQueryWithPaging } from './useObservableQuery.js';
 
+// Waiting and disabled streams share this fallback, including its empty arrays.
+const emptyChangeSet: ChangeSet<never> = { added: [], replaced: [], removed: [] };
+Object.values(emptyChangeSet).forEach(items => Object.freeze(items));
+Object.freeze(emptyChangeSet);
+
 /**
  * Computes the delta between two snapshots of a collection.
  *
@@ -70,7 +75,7 @@ function readVersion<T>(state: Versioned<T> | undefined, version: number | undef
 function useChangeSetForVersion<T>(version: number | undefined) {
     const [state, setState] = useState<Versioned<ChangeSet<T>>>();
     const baseline = useRef<Versioned<T[]>>();
-    const changes = readVersion(state, version) ?? { added: [], replaced: [], removed: [] };
+    const changes = readVersion(state, version) ?? emptyChangeSet;
 
     function update(result: QueryResultWithState<T[]>, getKey?: (item: T) => unknown) {
         const current = Array.isArray(result.data) ? result.data : [];

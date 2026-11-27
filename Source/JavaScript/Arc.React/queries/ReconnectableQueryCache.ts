@@ -14,7 +14,8 @@ export function getQueryGeneration(): number {
     return generation;
 }
 
-function resetTransport(): void {
+function resetQueryResources(): void {
+    invalidateSuspenseQueries();
     invalidateSuspenseObservableQueries();
     resetSharedMultiplexer();
 }
@@ -27,7 +28,7 @@ export function retainQueryTransport(cache: QueryInstanceCache): () => void {
         if (liveCaches.size !== 0) return;
         const releasedGeneration = generation;
         queueMicrotask(() => {
-            if (liveCaches.size === 0 && releasedGeneration === generation) resetTransport();
+            if (liveCaches.size === 0 && releasedGeneration === generation) resetQueryResources();
         });
     };
 }
@@ -42,8 +43,7 @@ export function subscribeToQueryGeneration(listener: () => void): () => void {
 export function reconnectQueries(): void {
     generation++;
     liveCaches.forEach(cache => cache.dispose());
-    invalidateSuspenseQueries();
-    resetTransport();
+    resetQueryResources();
     listeners.forEach(listener => listener());
 }
 

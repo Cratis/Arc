@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React, { startTransition, useContext } from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
 import { it, vi } from 'vitest';
 import { ObservableQuerySubscription, QueryResult, type OnNextResult } from '@cratis/arc/queries';
 import { Arc } from '../Arc.js';
@@ -68,8 +68,11 @@ function useChanges({ DeferredObservableQuery }: DeferredQueries) {
     ];
 }
 
-function renderRows(useRows: (queries: DeferredQueries) => FakeQueryResult[], outerBoundary = false) {
-    const queries = createDeferredQueries();
+function renderRows(useRows: (queries: DeferredQueries) => FakeQueryResult[], options: {
+    boundary?: 'inner' | 'outer' | 'outer-with-reconnect'; queries?: DeferredQueries;
+} = {}) {
+    const { boundary = 'inner', queries = createDeferredQueries() } = options;
+    const outerBoundary = boundary !== 'inner';
     let reconnect: (() => void) | undefined;
     function Controls() {
         reconnect = useContext(ArcContext).reconnectQueries;
@@ -80,13 +83,17 @@ function renderRows(useRows: (queries: DeferredQueries) => FakeQueryResult[], ou
         return React.createElement('section', { 'aria-label': name }, rows.map(row => row.name).join(', '));
     }
     const view = (showSecond: boolean) => React.createElement(Arc, null,
-        React.createElement(Controls),
+        !outerBoundary && React.createElement(Controls),
         outerBoundary ? React.createElement(Rows, { name: 'first' }) :
             React.createElement(React.Suspense, { fallback: React.createElement('span', { role: 'status' }) }, React.createElement(Rows, { name: 'first' })),
         showSecond && React.createElement(React.Suspense, { fallback: React.createElement('span', { role: 'status' }) }, React.createElement(Rows, { name: 'second' })));
-    const rendered = render(outerBoundary
+    const initialView = outerBoundary
         ? React.createElement(React.Suspense, { fallback: React.createElement('span', { role: 'status' }) }, view(false))
-        : view(false));
+        : view(false);
+    // A sibling Arc can reconnect while the Arc under the boundary has yet to commit.
+    const rendered = render(boundary === 'outer-with-reconnect'
+        ? React.createElement(React.Fragment, null, React.createElement(Arc, null, React.createElement(Controls)), initialView)
+        : initialView);
     return {
         reconnect: () => reconnect!(),
         replies: queries.replies,
@@ -166,11 +173,71 @@ describe('when reconnecting queries', () => {
     });
 
     it.each(cases.slice(2))('retries the first request with Suspense above Arc and $hook', async ({ useRows }) => {
-        const view = renderRows(useRows, true);
+        const view = renderRows(useRows, { boundary: 'outer' });
         await act(async () => { view.replies[0](response('first result')); });
         rowsShown('first').should.equal('first result');
         view.replies.length.should.equal(1);
     });
+
+    it.each(cases.slice(2))('restarts a pending first request with Suspense above Arc and $hook after reconnect', async ({ useRows }) => {
+        const view = renderRows(useRows, { boundary: 'outer-with-reconnect' });
+        view.replies.length.should.equal(1);
+        rowsShown('first').should.equal('');
+
+        await act(async () => { view.reconnect(); });
+        view.replies.length.should.equal(2);
+        await act(async () => { view.replies[0](response('earlier result')); });
+        rowsShown('first').should.equal('');
+
+        await act(async () => { view.replies[1](response('fresh result')); });
+        rowsShown('first').should.equal('fresh result');
+    });
+
+    it.each(cases.slice(2))('discards a pending $hook result when the last Arc unmounts', async ({ useRows }) => {
+        const queries = createDeferredQueries();
+        const first = renderRows(useRows, { queries });
+        first.replies.length.should.equal(1);
+        rowsShown('first').should.equal('');
+        await act(async () => { first.unmount(); });
+        await act(async () => { first.replies[0](response('earlier result')); });
+
+        const second = renderRows(useRows, { queries });
+        rowsShown('first').should.equal('');
+        second.replies.length.should.equal(2);
+        await act(async () => { second.replies[1](response('fresh result')); });
+        rowsShown('first').should.equal('fresh result');
+    });
+
+    it.each([{ state: 'waiting', isEnabled: true }, { state: 'disabled', isEnabled: false }])(
+        'keeps the same empty change set across renders while $state, including after reconnect',
+        async ({ isEnabled }) => {
+            const { DeferredObservableQuery, replies } = createDeferredQueries();
+            let reconnect: (() => void) | undefined;
+            function Controls() {
+                reconnect = useContext(ArcContext).reconnectQueries;
+                return null;
+            }
+            function Wrapper({ children }: React.PropsWithChildren) {
+                return React.createElement(Arc, null, React.createElement(Controls), children);
+            }
+            const { result, rerender } = renderHook(() => useChangeStream<FakeQueryResult, FakeSuspenseObservableQuery>(
+                DeferredObservableQuery, undefined, undefined, undefined, isEnabled), { wrapper: Wrapper });
+            await act(async () => { });
+            const initial = result.current;
+            initial.should.deep.equal({ added: [], replaced: [], removed: [] });
+            rerender();
+            result.current.should.equal(initial);
+
+            if (isEnabled) {
+                await act(async () => { replies[0](response('first result')); });
+                result.current.added.map(row => row.name).should.deep.equal(['first result']);
+            }
+            await act(async () => { reconnect!(); });
+            const afterReconnect = result.current;
+            afterReconnect.should.deep.equal({ added: [], replaced: [], removed: [] });
+            rerender();
+            result.current.should.equal(afterReconnect);
+        });
 
     it('does not expose or diff against change-stream rows from before reconnect', async () => {
         const view = renderRows(useChanges);
