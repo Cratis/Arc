@@ -17,6 +17,7 @@ import { ArcContext } from '../ArcContext.js';
 import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
+import { inQueryVersion, queryVersionGuard } from './ReconnectableQueryCache.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
 import { buildQueryKey } from './buildQueryKey.js';
@@ -59,6 +60,8 @@ function useObservableQueryInstance<TDataType, TQuery extends IObservableQueryFo
         arc.apiBasePath,
         arc.origin,
         argsDependency,
+        arc.queryVersion,
+        queryCache,
     ]);
 }
 
@@ -98,7 +101,7 @@ function useObservableSubscription<TDataType, TQuery extends IObservableQueryFor
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
-    const [result, setResult] = useResultForKey<TDataType>(cacheKey, cachedResult, queryInstance.defaultValue, cached => cached);
+    const [result, setResult] = useResultForKey<TDataType>(`${arc.queryVersion}:${cacheKey}`, cachedResult, queryInstance.defaultValue, cached => cached);
 
     // Stable listener ref so we can add/remove the same function reference.
     const listenerRef = useRef<(r: QueryResultWithState<TDataType>) => void>();
@@ -129,16 +132,15 @@ function useObservableSubscription<TDataType, TQuery extends IObservableQueryFor
         arc.queryVersion,
     ];
 
-    useEffect(() => {
+    const isCurrentVersion = queryVersionGuard(queryCache, arc.queryVersion);
+    useEffect(inQueryVersion(isCurrentVersion, () => {
         const key = cacheKey;
         const listener = listenerRef.current!;
 
         queryCache.acquire(key);
 
         if (isEnabled === false || !hasAllRequiredArgumentsSet) {
-            return () => {
-                queryCache.release(key);
-            };
+            return inQueryVersion(isCurrentVersion, () => queryCache.release(key));
         }
 
         // Register this component's listener so it receives broadcasts from setLastResult.
@@ -147,16 +149,19 @@ function useObservableSubscription<TDataType, TQuery extends IObservableQueryFor
 
         // Only start a subscription if one does not already exist for this cache key.
         if (!queryCache.isSubscribed(key)) {
-            startObservableSubscription<TDataType>(queryInstance, key, queryCache, queryScope, args);
+            startObservableSubscription<TDataType>(queryInstance, key, queryCache, queryScope, args, isCurrentVersion);
         }
 
+        const release = inQueryVersion(isCurrentVersion, () => {
+            queryCache.removeListener(key, listener);
+            queryCache.release(key);
+        });
         arc.observableQueryDiagnostics?.beginTracking(key, ownerRef.current ?? '');
         return () => {
             arc.observableQueryDiagnostics?.endTracking(key);
-            queryCache.removeListener(key, listener);
-            queryCache.release(key);
+            release();
         };
-    }, effectDeps);
+    }), effectDeps);
 
     return isEnabled === false
         ? QueryResultWithState.empty(queryInstance.defaultValue)

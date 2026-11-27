@@ -8,6 +8,7 @@ import { QueryUnauthorized } from './QueryUnauthorized.js';
 interface SuspenseQueryResource<T> {
     status: 'pending' | 'fulfilled' | 'rejected';
     promise: Promise<void>;
+    wake: () => void;
     value?: QueryResultWithState<T>;
     error?: Error;
 }
@@ -18,6 +19,15 @@ const queryCache = new Map<string, SuspenseQueryResource<unknown>>();
 /** Clears the Suspense query cache. Call this in test teardown to ensure test isolation. */
 export function clearSuspenseQueryCache(): void {
     queryCache.clear();
+}
+
+/** Evicts provider resources and retries any consumers still waiting on an old request. */
+export function clearSuspenseQueriesForScope(scope: string): void {
+    for (const [key, resource] of queryCache) {
+        if (!key.startsWith(scope)) continue;
+        queryCache.delete(key);
+        resource.wake();
+    }
 }
 
 export function removeSuspenseQueryResource(cacheKey: string): void {
@@ -43,9 +53,13 @@ export function readSuspenseQueryResource<T>(cacheKey: string): QueryResultWithS
 }
 
 function createResource<T>(pendingResult: Promise<QueryResult<T>>): SuspenseQueryResource<T> {
+    let wake!: () => void;
+    const invalidated = new Promise<void>(resolve => { wake = resolve; });
     const resource: SuspenseQueryResource<T> = {
         status: 'pending',
-        promise: pendingResult.then(queryResult => {
+        wake,
+        promise: Promise.race([pendingResult, invalidated]).then(queryResult => {
+            if (!queryResult) return;
             if (queryResult.hasExceptions) {
                 resource.status = 'rejected';
                 resource.error = new QueryFailed(queryResult.exceptionMessages, queryResult.exceptionStackTrace);

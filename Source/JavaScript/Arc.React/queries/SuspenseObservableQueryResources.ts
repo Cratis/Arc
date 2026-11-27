@@ -58,6 +58,13 @@ export function clearSuspenseObservableQueryCache(): void {
     nextAccessOrder = 0;
 }
 
+/** Disposes the observable Suspense resources belonging to a provider. */
+export function clearSuspenseObservableQueriesForScope(scope: string): void {
+    for (const resource of observableCache.values()) {
+        if (resource.cacheKey.startsWith(scope)) disposeResource(resource, true);
+    }
+}
+
 function removePendingConsumer<T>(consumerId: string, resource: ObservableSuspenseResource<T>): void {
     if (pendingResourceByConsumerId.get(consumerId) === (resource as ObservableSuspenseResource<unknown>)) {
         pendingResourceByConsumerId.delete(consumerId);

@@ -13,6 +13,7 @@ import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js'
 import { useCommandScope } from '../commands/useCommandScope.js';
 import { PerformQuery } from './useQuery.js';
 import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
+import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { makeSuspenseQueryCacheKey } from './makeSuspenseQueryCacheKey.js';
 import { ensureSuspenseQueryResource, readSuspenseQueryResource, removeSuspenseQueryResource } from './SuspenseQueryResources.js';
 
@@ -26,6 +27,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     isEnabled: boolean = true
 ): [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize] {
     const arc = useContext(ArcContext);
+    const queryCache = useContext(QueryInstanceCacheContext);
     useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const commandScope = useCommandScope();
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
@@ -33,7 +35,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
     const cacheKey = isEnabled
-        ? makeSuspenseQueryCacheKey(resolveSuspenseQueryIdentity(query), arc, {
+        ? makeSuspenseQueryCacheKey(resolveSuspenseQueryIdentity(query), arc, queryCache, {
             sorting: currentSorting,
             paging: currentPaging,
             args,

@@ -18,6 +18,7 @@ import {
  * @param {QueryInstanceCache} queryCache The shared query cache.
  * @param {IQueryScope} queryScope The current query scope, notified about performing start/completion.
  * @param {object} args Arguments for the query, if any.
+ * @param isCurrentVersion Returns whether the subscription still belongs to the current query version.
  */
 export function startObservableSubscription<TDataType>(
     queryInstance: IObservableQueryFor<TDataType>,
@@ -25,7 +26,9 @@ export function startObservableSubscription<TDataType>(
     queryCache: QueryInstanceCache,
     queryScope: IQueryScope,
     args: object | undefined,
+    isCurrentVersion: () => boolean,
 ): void {
+    let active = true;
     let receivedFirstResult = false;
     const completeFirstResult = () => {
         if (!receivedFirstResult) {
@@ -37,6 +40,7 @@ export function startObservableSubscription<TDataType>(
     queryScope.notifyPerformingStarted();
 
     const subscription = queryInstance.subscribe((response) => {
+        if (!active || !isCurrentVersion()) return;
         // SAFETY: Observable query implementations expose this runtime metadata even though the interface omits it.
         const queryMetadata = queryInstance as unknown as ObservableQueryMetadata;
         const withState = toObservableQueryResult<TDataType>(
@@ -51,6 +55,7 @@ export function startObservableSubscription<TDataType>(
     }, args as object);
 
     queryCache.setTeardown(key, () => {
+        active = false;
         subscription.unsubscribe();
         completeFirstResult();
     });

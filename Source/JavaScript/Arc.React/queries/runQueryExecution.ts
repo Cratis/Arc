@@ -34,6 +34,7 @@ export interface QueryExecutionEnvironment<TQuery extends IQueryFor<TDataType>, 
     executionRef: MutableRefObject<QueryExecution | undefined>;
     deadlineRef: MutableRefObject<QueryDeadline | undefined>;
     setResult: (next: SettleValue<TDataType>) => void;
+    isCurrentVersion: () => boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ async function settleOnOutcome<TQuery extends IQueryFor<TDataType>, TDataType, T
     settle: (next: SettleValue<TDataType>) => void): Promise<void> {
     try {
         const queryResult = await inFlight.request as QueryResult<TDataType>;
+        if (!env.isCurrentVersion()) return;
         const withState = QueryResultWithState.fromQueryResult(queryResult, false);
         // Only a successful result is cached, and only under the key it answers - a request
         // performed with explicitly different arguments does not belong to this key. The cache
@@ -57,12 +59,23 @@ async function settleOnOutcome<TQuery extends IQueryFor<TDataType>, TDataType, T
         }
         settle(withState);
     } catch (error) {
+        if (!env.isCurrentVersion()) return;
         if (isAbortError(error)) {
             settle(await settleAfterAbort<TDataType>(env.queryInstance, inFlight, deadline, env.queryInstance.defaultValue));
             return;
         }
         settle(failedResult(env.queryInstance.defaultValue, error));
     }
+}
+
+function createExecutionSettler<T>(
+    setResult: (next: SettleValue<T>) => void,
+    isCurrentVersion: () => boolean,
+    isLatestExecution: () => boolean,
+): (next: SettleValue<T>) => void {
+    return next => {
+        if (isCurrentVersion() && isLatestExecution()) setResult(next);
+    };
 }
 
 /**
@@ -91,11 +104,9 @@ export async function runQueryExecution<TQuery extends IQueryFor<TDataType>, TDa
     // aborting anything, or ran on another instance after the arguments changed - and it must not
     // overwrite that newer state. A retired execution - its hook unmounted - may not settle it at all.
     const version = ++env.requestVersionRef.current;
-    const settle = (next: SettleValue<TDataType>) => {
-        if (!execution.isRetired && version === env.requestVersionRef.current) {
-            env.setResult(next);
-        }
-    };
+    const settle = createExecutionSettler(env.setResult, env.isCurrentVersion,
+        () => !execution.isRetired && version === env.requestVersionRef.current);
+
     const argumentsKey = serializeArgsForDependency((requestArgs ?? env.args) as object | undefined);
     const request = env.performer(queryInstance, requestArgs);
     // Capture this request's controller: a later request may replace the shared instance's controller.

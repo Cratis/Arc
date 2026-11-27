@@ -49,13 +49,12 @@ export interface ArcConfiguration {
     queryCacheRetentionMs?: number;
     /**
      * Monotonically increasing version counter that is bumped by {@link reconnectQueries}
-     * so that query hook effects re-run and re-establish subscriptions through fresh
-     * transport connections. Do not set this directly.
+     * so that query hooks refetch and re-establish subscriptions. Do not set this directly.
      */
     queryVersion?: number;
     /**
-     * Tears down all active query subscriptions, disposes the shared multiplexer, and
-     * forces every observable query hook to re-subscribe through a fresh connection.
+     * Clears cached query results, resets subscriptions and the shared multiplexer,
+     * and causes active queries to fetch fresh results.
      *
      * Call this after an authentication state change (e.g. login or logout) so that
      * new WebSocket or SSE connections are established with the updated credentials
