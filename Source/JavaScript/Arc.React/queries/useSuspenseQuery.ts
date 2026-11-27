@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import type { GetHttpHeaders } from '@cratis/arc';
 import { IQueryFor, QueryResultWithState, Paging, Sorting } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
 import { useContext, useEffect, useReducer, useState } from 'react';
@@ -20,6 +21,18 @@ import {
 
 export { clearSuspenseQueryCache } from './SuspenseQueryResources.js';
 
+function snapshotQueryHeaders(callback: GetHttpHeaders | undefined, isEnabled: boolean): Headers | undefined {
+    return isEnabled && callback ? new Headers(callback()) : undefined;
+}
+
+function toQueryHeaders(headers?: Headers): Record<string, string> {
+    return Object.fromEntries(Array.from(headers ?? [], ([name, value]) => {
+        // QueryFor spreads a plain record and supplies these two headers itself.
+        const queryHeaderName = name === 'accept' ? 'Accept' : name === 'content-type' ? 'Content-Type' : name;
+        return [queryHeaderName, value];
+    }));
+}
+
 function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
     sorting?: Sorting,
@@ -34,12 +47,14 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
+    // Snapshot once per render so a new request uses the same headers as its cache key.
+    const headers = snapshotQueryHeaders(arc.httpHeadersCallback, isEnabled);
     const cacheKey = isEnabled
         ? makeSuspenseQueryCacheKey(resolveSuspenseQueryIdentity(query), arc, {
             sorting: currentSorting,
             paging: currentPaging,
             args,
-        }, arc.httpHeadersCallback)
+        }, headers)
         : undefined;
 
     const resource = cacheKey === undefined ? undefined : getOrCreateSuspenseQueryResource<TDataType>(cacheKey, () => {
@@ -49,7 +64,8 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         queryInstance.setMicroservice(arc.microservice);
         queryInstance.setApiBasePath(arc.apiBasePath ?? '');
         queryInstance.setOrigin(arc.origin ?? '');
-        queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+        const queryHeaders = toQueryHeaders(headers);
+        queryInstance.setHttpHeadersCallback(() => queryHeaders);
         commandScope.addQuery(queryInstance);
         return queryInstance.perform(args!);
     });
