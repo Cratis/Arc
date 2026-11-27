@@ -14,7 +14,9 @@ import { useCommandScope } from '../commands/useCommandScope.js';
 import { PerformQuery } from './useQuery.js';
 import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
 import { makeSuspenseQueryCacheKey } from './makeSuspenseQueryCacheKey.js';
-import { ensureSuspenseQueryResource, readSuspenseQueryResource, removeSuspenseQueryResource } from './SuspenseQueryResources.js';
+import {
+    acquireSuspenseQueryResource, getOrCreateSuspenseQueryResource, readSuspenseQueryResource, removeSuspenseQueryResource,
+} from './SuspenseQueryResources.js';
 
 export { clearSuspenseQueryCache } from './SuspenseQueryResources.js';
 
@@ -37,32 +39,26 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
             sorting: currentSorting,
             paging: currentPaging,
             args,
-        })
-        : `__noop__${(query as unknown as { name: string }).name}`;
+        }, arc.httpHeadersCallback)
+        : undefined;
 
-    if (isEnabled) {
-        ensureSuspenseQueryResource<TDataType>(cacheKey, () => {
-            const queryInstance = new query() as TQuery;
-            queryInstance.sorting = currentSorting;
-            queryInstance.paging = currentPaging;
-            queryInstance.setMicroservice(arc.microservice);
-            queryInstance.setApiBasePath(arc.apiBasePath ?? '');
-            queryInstance.setOrigin(arc.origin ?? '');
-            queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-            commandScope.addQuery(queryInstance);
-            return queryInstance.perform(args!);
-        });
-    }
+    const resource = cacheKey === undefined ? undefined : getOrCreateSuspenseQueryResource<TDataType>(cacheKey, () => {
+        const queryInstance = new query() as TQuery;
+        queryInstance.sorting = currentSorting;
+        queryInstance.paging = currentPaging;
+        queryInstance.setMicroservice(arc.microservice);
+        queryInstance.setApiBasePath(arc.apiBasePath ?? '');
+        queryInstance.setOrigin(arc.origin ?? '');
+        queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+        commandScope.addQuery(queryInstance);
+        return queryInstance.perform(args!);
+    });
 
     useEffect(() => {
-        return () => {
-            if (isEnabled) {
-                removeSuspenseQueryResource(cacheKey);
-            }
-        };
-    }, [cacheKey, isEnabled]);
+        return resource && cacheKey !== undefined ? acquireSuspenseQueryResource(cacheKey, resource) : undefined;
+    }, [cacheKey, resource]);
 
-    if (!isEnabled) {
+    if (!resource || cacheKey === undefined) {
         const disabledInstance = new query();
         return [
             QueryResultWithState.empty(disabledInstance.defaultValue),
@@ -73,7 +69,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         ];
     }
 
-    const value = readSuspenseQueryResource<TDataType>(cacheKey);
+    const value = readSuspenseQueryResource(resource);
 
     return [
         value,
