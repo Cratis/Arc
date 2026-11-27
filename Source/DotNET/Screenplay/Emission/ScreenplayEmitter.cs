@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Emission.Naming;
+using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Printing;
 
 namespace Cratis.Arc.Screenplay.Emission;
@@ -33,6 +35,12 @@ public class ScreenplayEmitter(IScreenplayPrinter printer, IScreenplayNaming nam
     public ScreenplayEmission Emit(ApplicationModel model, ScreenplayOptions options)
     {
         var diagnostics = new ScreenplayDiagnostics();
+        diagnostics.AddRange(AnonymousPolicyAdmission.Check(model));
+        if (diagnostics.All.Count > 0)
+        {
+            return new(string.Empty, new([], [], [], [], SourceLocation.Start), diagnostics.All);
+        }
+
         var resolved = options.WithDefaults(model.Domain);
         var builder = new ApplicationSyntaxBuilder(naming, diagnostics);
         var application = builder.Build(model, resolved);

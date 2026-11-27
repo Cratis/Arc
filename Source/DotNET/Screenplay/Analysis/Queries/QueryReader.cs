@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -42,6 +43,9 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// Gets the semantic models used to prove equality filters in query bodies.
     /// </summary>
     public SemanticModels? Models { get; init; }
+
+    /// <summary>Gets the whole-application proof used only for model-bound queries.</summary>
+    internal AnonymousPolicyClassification? AnonymousPolicies { get; init; }
 
     /// <summary>
     /// Determines whether a type is a model-bound read model.
@@ -127,7 +131,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             returnType,
             key is null ? null : ToParameter(key, keyType),
             new QueryFilterReader(types, Models, diagnostics).Read(method, key, location).ToList(),
-            AuthorizationReader.Read(method, declaring),
+            AuthorizationReader.Read(method, declaring, IsReadModel(declaring) ? AnonymousPolicies : null),
             QueryReturnTypes.IsObservable(method.ReturnType))
         {
             ReturnTypeFullName = FullNameOfWhatItReturns(method),

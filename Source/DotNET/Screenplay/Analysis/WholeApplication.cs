@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
+using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Analysis.ReadModels;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Types;
@@ -66,6 +67,11 @@ public record WholeApplication(IReadOnlyList<Compilation> Compilations, Screenpl
     /// Gets the queries screens read through that a slice other than their own declares.
     /// </summary>
     public CrossSliceQueries Elsewhere { get; } = new();
+
+    /// <summary>
+    /// Gets the anonymous-policy proof shared by operation readers before scenarios are recovered.
+    /// </summary>
+    internal AnonymousPolicyClassification AnonymousPolicies { get; } = new(Compilations);
 
     /// <summary>
     /// Gets the generation admission boundary used during dependency recovery.

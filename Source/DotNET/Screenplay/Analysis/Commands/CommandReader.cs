@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Analysis.Validation;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -57,6 +58,9 @@ public class CommandReader(
     /// </summary>
     internal SemanticModels? Models { get; init; }
 
+    /// <summary>Gets the whole-application proof of anonymous named policies.</summary>
+    internal AnonymousPolicyClassification? AnonymousPolicies { get; init; }
+
     /// <summary>
     /// Determines whether a type is a model-bound command.
     /// </summary>
@@ -80,7 +84,7 @@ public class CommandReader(
             type.Name,
             Documentation.SummaryOf(type),
             properties.Read(type),
-            AuthorizationReader.Read(type),
+            AuthorizationReader.Read(type, null, AnonymousPolicies),
             validators.For(type),
             produces.Read(type, handlers, location, authoring is null ? null : Authoring?.Sources, authoring?.Identifier is not null),
             ConcurrencyReader.Read(type, Diagnostics, location) ?? EventSourceReader.ReadConcurrency(type, Models),

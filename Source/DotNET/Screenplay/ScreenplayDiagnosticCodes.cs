@@ -675,6 +675,23 @@ public static class ScreenplayDiagnosticCodes
     /// <summary>A graph was omitted because its executable model version was capped below V38.</summary>
     public const string GraphRequiresV38 = "SP0084";
 
+    /// <summary>
+    /// A recovered anonymous policy is used in an authorization that cannot be represented faithfully.
+    /// </summary>
+    /// <remarks>
+    /// An error. No executable document is emitted, and generation does not verify an empty refusal.
+    /// Ordinary unrecovered policies retain their existing fallback diagnostics.
+    /// </remarks>
+    public const string AnonymousAuthorizationNotRepresentable = "SP0085";
+
+    /// <summary>
+    /// Anonymous policy registration or normalized declaration names are ambiguous.
+    /// </summary>
+    /// <remarks>
+    /// An error. The original recovered requirements are retained for inspection, but no executable document is emitted.
+    /// </remarks>
+    public const string AmbiguousAnonymousPolicyRegistration = "SP0086";
+
     /// <summary>Chronicle rejects personal data combined with the legacy encryption attribute.</summary>
     public const string LegacyPiiEncryption = "SP0087";
 
