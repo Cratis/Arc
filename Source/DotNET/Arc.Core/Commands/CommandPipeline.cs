@@ -958,18 +958,22 @@ public class CommandPipeline(
 
     CommandContextValues BuildContextValues(object command, IServiceProvider services, PreparedAuthorization? prepared)
     {
-        if (prepared?.PrincipalChanged != true)
+        var principalChanged = prepared?.PrincipalChanged == true;
+        var builder = principalChanged
+            ? services.GetRequiredService<ICommandContextValuesBuilder>()
+            : services.GetService<ICommandContextValuesBuilder>() ?? contextValuesBuilder;
+
+        if (builder is IScopedCommandContextValuesBuilder scoped)
         {
-            return contextValuesBuilder.Build(command);
+            return scoped.Build(command, services);
         }
 
-        var builder = services.GetRequiredService<ICommandContextValuesBuilder>();
-        if (builder is not IScopedCommandContextValuesBuilder scoped)
+        if (principalChanged)
         {
             throw new InvalidAuthorizationConfiguration("Scheme-selected commands require a scope-aware context values builder.");
         }
 
-        return scoped.Build(command, services);
+        return builder.Build(command);
     }
 
     async Task<(CommandContext CommandContext, CommandResult Result)> ProcessOperationResponse(
