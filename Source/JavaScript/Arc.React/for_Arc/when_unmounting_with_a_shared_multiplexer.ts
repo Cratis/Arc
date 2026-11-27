@@ -3,7 +3,7 @@
 
 import React, { useContext } from 'react';
 import { act, render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { it, vi } from 'vitest';
 import { getOrCreateMultiplexer, getSharedMultiplexer, ObservableQuerySubscription, QueryResult, resetSharedMultiplexer, type OnNextResult } from '@cratis/arc/queries';
 import { Arc } from '../Arc.js';
 import { ArcContext } from '../ArcContext.js';
@@ -52,6 +52,10 @@ function response(name: string) {
     }, Object, true);
 }
 
+const observableHooks = [
+    { hook: 'useObservableQuery', useRows: useObservableQuery<Rows, FakeSuspenseObservableQuery> },
+    { hook: 'useSuspenseObservableQuery', useRows: useSuspenseObservableQuery<Rows, FakeSuspenseObservableQuery> },
+];
 
 describe('when unmounting Arc with a shared multiplexer', () => {
     beforeEach(() => {
@@ -80,18 +84,21 @@ describe('when unmounting Arc with a shared multiplexer', () => {
         dispose.mock.calls.length.should.equal(1);
     });
 
-    it('keeps a surviving Arc subscribed when another Arc unmounts', async () => {
+    it.each(observableHooks)('keeps a surviving Arc subscribed with $hook when another Arc unmounts', async ({ useRows }) => {
         const { MultiplexedQuery, hubs } = createQueries();
         function Rows() {
-            const [result] = useObservableQuery<Rows, FakeSuspenseObservableQuery>(MultiplexedQuery);
+            const [result] = useRows(MultiplexedQuery);
             return React.createElement('output', null, result.data[0]?.name);
         }
         const view = (includeNested: boolean) => React.createElement(Arc, null,
-            React.createElement(Rows), includeNested && React.createElement(Arc));
+            React.createElement(React.Suspense, { fallback: null }, React.createElement(Rows)),
+            includeNested && React.createElement(Arc));
         const rendered = render(view(true));
+        await act(async () => { hubs[0].subscriptions.forEach(reply => reply(response('first result'))); });
+        screen.getByRole('status').textContent!.should.equal('first result');
         await act(async () => { rendered.rerender(view(false)); });
         await act(async () => { hubs[0].subscriptions.forEach(reply => reply(response('still subscribed'))); });
-        (screen.queryByText('still subscribed') !== null).should.be.true;
+        screen.getByRole('status').textContent!.should.equal('still subscribed');
     });
 
     it('keeps a render-time subscription alive when Arc is replaced in the same commit', async () => {
@@ -108,7 +115,7 @@ describe('when unmounting Arc with a shared multiplexer', () => {
         (screen.queryByText('replacement ready') !== null).should.be.true;
     });
 
-    it('reconnects surviving providers on the new transport and ignores the old delivery', async () => {
+    it.each(observableHooks)('reconnects surviving providers using $hook and ignores the old delivery', async ({ useRows }) => {
         const { MultiplexedQuery, hubs } = createQueries();
         let reconnect: (() => void) | undefined;
         function Controls() {
@@ -116,14 +123,17 @@ describe('when unmounting Arc with a shared multiplexer', () => {
             return null;
         }
         function Rows() {
-            const [result] = useObservableQuery<Rows, FakeSuspenseObservableQuery>(MultiplexedQuery);
+            const [result] = useRows(MultiplexedQuery);
             return React.createElement('output', null, result.data[0]?.name);
         }
-        render(React.createElement(Arc, null, React.createElement(Arc, null, React.createElement(Controls)), React.createElement(Rows)));
+        render(React.createElement(Arc, null,
+            React.createElement(Arc, null, React.createElement(Controls)),
+            React.createElement(React.Suspense, { fallback: null }, React.createElement(Rows))));
         const oldReply = [...hubs[0].subscriptions.values()][0];
         await act(async () => { oldReply(response('first result')); });
+        screen.getByRole('status').textContent!.should.equal('first result');
         await act(async () => { reconnect!(); oldReply(response('late result')); });
-        screen.getByRole('status').textContent!.should.equal('');
+        (screen.queryByRole('status')?.textContent ?? '').should.equal('');
         await act(async () => { hubs.at(-1)!.subscriptions.forEach(reply => reply(response('fresh result'))); });
         screen.getByRole('status').textContent!.should.equal('fresh result');
     });
