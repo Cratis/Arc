@@ -21,13 +21,11 @@ export function clearSuspenseQueryCache(): void {
     queryCache.clear();
 }
 
-/** Evicts provider resources and retries any consumers still waiting on an old request. */
-export function clearSuspenseQueriesForScope(scope: string): void {
-    for (const [key, resource] of queryCache) {
-        if (!key.startsWith(scope)) continue;
-        queryCache.delete(key);
-        resource.wake();
-    }
+/** Evicts the previous generation and retries consumers still waiting on an old request. */
+export function invalidateSuspenseQueries(): void {
+    const previous = [...queryCache.values()];
+    queryCache.clear();
+    previous.forEach(resource => resource.wake());
 }
 
 export function removeSuspenseQueryResource(cacheKey: string): void {

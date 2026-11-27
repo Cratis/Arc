@@ -58,7 +58,8 @@ export interface ArcConfiguration {
      *
      * Call this after an authentication state change (e.g. login or logout) so that
      * new WebSocket or SSE connections are established with the updated credentials
-     * (cookies, headers).
+     * (cookies, headers). This is the operation that clears cached results and connections
+     * when, for example, the signed-in identity changes.
      */
     reconnectQueries?: () => void;
     /**

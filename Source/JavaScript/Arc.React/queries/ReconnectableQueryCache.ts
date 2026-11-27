@@ -2,41 +2,57 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { QueryInstanceCache, resetSharedMultiplexer } from '@cratis/arc/queries';
-import { clearSuspenseQueriesForScope } from './SuspenseQueryResources.js';
-import { clearSuspenseObservableQueriesForScope } from './SuspenseObservableQueryResources.js';
+import { invalidateSuspenseQueries } from './SuspenseQueryResources.js';
+import { invalidateSuspenseObservableQueries } from './SuspenseObservableQueryResources.js';
 
-let nextScope = 0;
+let generation = 0;
+const liveCaches = new Set<QueryInstanceCache>();
+const listeners = new Set<() => void>();
 
-/** Owns the cache and reconnect version for an Arc provider. */
-export class ReconnectableQueryCache extends QueryInstanceCache {
-    readonly suspenseScope = `arc:${nextScope++}:`;
-    private _version = 0;
-    private readonly _listeners = new Set<() => void>();
+/** Returns the generation shared by every Arc using the shared transport. */
+export function getQueryGeneration(): number {
+    return generation;
+}
 
-    readonly getVersion = () => this._version;
+function resetTransport(): void {
+    invalidateSuspenseObservableQueries();
+    resetSharedMultiplexer();
+}
 
-    readonly subscribe = (listener: () => void) => {
-        this._listeners.add(listener);
-        return () => this._listeners.delete(listener);
-    };
-
-    readonly reconnect = () => {
-        this._version++;
-        this.dispose();
-        this.resetTransport();
-        this._listeners.forEach(listener => listener());
-    };
-
-    readonly resetTransport = () => {
-        clearSuspenseQueriesForScope(this.suspenseScope);
-        clearSuspenseObservableQueriesForScope(this.suspenseScope);
-        resetSharedMultiplexer();
+/** Registers a committed Arc. Cleanup waits for any replacement committing in the same turn. */
+export function retainQueryTransport(cache: QueryInstanceCache): () => void {
+    liveCaches.add(cache);
+    return () => {
+        liveCaches.delete(cache);
+        if (liveCaches.size !== 0) return;
+        const releasedGeneration = generation;
+        queueMicrotask(() => {
+            if (liveCaches.size === 0 && releasedGeneration === generation) resetTransport();
+        });
     };
 }
 
+/** Subscribes Arc providers to shared reconnects. */
+export function subscribeToQueryGeneration(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+}
+
+/** Invalidates results and connections before notifying any Arc to render the new generation. */
+export function reconnectQueries(): void {
+    generation++;
+    liveCaches.forEach(cache => cache.dispose());
+    invalidateSuspenseQueries();
+    resetTransport();
+    listeners.forEach(listener => listener());
+}
+
+/** Marks the Arc-owned cache as participating in shared reconnects. */
+export class ReconnectableQueryCache extends QueryInstanceCache {}
+
 /** Captures a guard for work associated with the current render's query version. */
 export function queryVersionGuard(cache: QueryInstanceCache, version: number | undefined): () => boolean {
-    return () => !(cache instanceof ReconnectableQueryCache) || cache.getVersion() === version;
+    return () => !(cache instanceof ReconnectableQueryCache) || getQueryGeneration() === version;
 }
 
 /** Runs cache work only while its version is current. */

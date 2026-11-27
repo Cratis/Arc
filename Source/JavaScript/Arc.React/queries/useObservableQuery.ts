@@ -103,12 +103,6 @@ function useObservableSubscription<TDataType, TQuery extends IObservableQueryFor
 
     const [result, setResult] = useResultForKey<TDataType>(`${arc.queryVersion}:${cacheKey}`, cachedResult, queryInstance.defaultValue, cached => cached);
 
-    // Stable listener ref so we can add/remove the same function reference.
-    const listenerRef = useRef<(r: QueryResultWithState<TDataType>) => void>();
-    if (!listenerRef.current) {
-        listenerRef.current = (r: QueryResultWithState<TDataType>) => setResult(r);
-    }
-
     const hasAllRequiredArgumentsSet = hasAllRequiredArguments(
         queryInstance.requiredRequestParameters,
         args as Record<string, unknown> | undefined,
@@ -135,7 +129,7 @@ function useObservableSubscription<TDataType, TQuery extends IObservableQueryFor
     const isCurrentVersion = queryVersionGuard(queryCache, arc.queryVersion);
     useEffect(inQueryVersion(isCurrentVersion, () => {
         const key = cacheKey;
-        const listener = listenerRef.current!;
+        const listener = setResult;
 
         queryCache.acquire(key);
 

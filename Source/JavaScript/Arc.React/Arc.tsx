@@ -10,7 +10,7 @@ import { GetHttpHeaders, EventSourceFactory, Globals, ObservableQueryTransferMod
 import { QueryTransportMethod, ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
 import { Messenger } from '@cratis/arc/messaging';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext.js';
-import { ReconnectableQueryCache } from './queries/ReconnectableQueryCache.js';
+import { getQueryGeneration, reconnectQueries, ReconnectableQueryCache, retainQueryTransport, subscribeToQueryGeneration } from './queries/ReconnectableQueryCache.js';
 import { MessengerScopeContext } from './messaging/MessengerScopeContext.js';
 import { SliceScope } from './slices/SliceScope.js';
 import { SliceScopeContext } from './slices/SliceScopeContext.js';
@@ -115,7 +115,7 @@ export const Arc = (props: ArcProps) => {
     // can cancel it — preventing the synthetic unmount from destroying entries that child
     // effects are about to re-acquire.
     const [queryCache] = useState(() => new ReconnectableQueryCache(props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs));
-    const queryVersion = useSyncExternalStore(queryCache.subscribe, queryCache.getVersion, queryCache.getVersion);
+    const queryVersion = useSyncExternalStore(subscribeToQueryGeneration, getQueryGeneration, getQueryGeneration);
 
     const observableQueryDiagnostics = useRef(new ObservableQueryDiagnostics(
         queryCache,
@@ -141,7 +141,7 @@ export const Arc = (props: ArcProps) => {
         observableQueryTransferMode: props.observableQueryTransferMode ?? ObservableQueryTransferMode.Delta,
         queryCacheRetentionMs: props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs,
         queryVersion,
-        reconnectQueries: queryCache.reconnect,
+        reconnectQueries,
         observableQueryDiagnostics: observableQueryDiagnostics.current,
         applicationContext,
         sliceMarkers: props.sliceMarkers ?? false,
@@ -160,8 +160,8 @@ export const Arc = (props: ArcProps) => {
 
     useEffect(() => applicationContext.registerScope(sliceScope), [applicationContext, sliceScope]);
 
-    // Reset transport on real unmount, but not during StrictMode effect replay.
-    useInsertionEffect(() => queryCache.resetTransport, [queryCache]);
+    // Insertion effects are not replayed by StrictMode.
+    useInsertionEffect(() => retainQueryTransport(queryCache), [queryCache]);
 
     useEffect(() => {
         queryCache.cancelPendingDispose();

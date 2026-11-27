@@ -3,6 +3,7 @@
 
 import { QueryResultWithState } from '@cratis/arc/queries';
 import { useState } from 'react';
+import type { SettleValue } from './queryRequestSettlement.js';
 
 /**
  * Holds the result a hook exposes and resets it during render when the cache key changes, so a result belonging to
@@ -20,13 +21,22 @@ export function useResultForKey<TDataType>(
     defaultValue: TDataType,
     adaptCached: (cached: QueryResultWithState<TDataType>) => QueryResultWithState<TDataType>
 ) {
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
-        cachedResult ?? QueryResultWithState.initial(defaultValue)
-    );
-    const [resultKey, setResultKey] = useState(cacheKey);
-    if (resultKey !== cacheKey) {
-        setResultKey(cacheKey);
-        setResult(cachedResult ? adaptCached(cachedResult) : QueryResultWithState.initial(defaultValue));
+    const [state, setState] = useState(() => ({ key: cacheKey, result: cachedResult ?? QueryResultWithState.initial(defaultValue) }));
+    const result = state.key === cacheKey ? state.result : initialResult();
+    if (state.key !== cacheKey) {
+        setState({ key: cacheKey, result });
     }
+
+    function initialResult() {
+        return cachedResult ? adaptCached(cachedResult) : QueryResultWithState.initial(defaultValue);
+    }
+
+    function setResult(next: SettleValue<TDataType>) {
+        setState(current => {
+            const previous = current.key === cacheKey ? current.result : initialResult();
+            return { key: cacheKey, result: typeof next === 'function' ? next(previous) : next };
+        });
+    }
+
     return [result, setResult] as const;
 }

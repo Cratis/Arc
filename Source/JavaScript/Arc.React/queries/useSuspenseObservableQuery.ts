@@ -4,7 +4,6 @@
 import {
     QueryResultWithState,
     type IObservableQueryFor,
-    type QueryInstanceCache,
     Sorting,
     Paging,
 } from '@cratis/arc/queries';
@@ -17,8 +16,6 @@ import { ArcContext } from '../ArcContext.js';
 import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
-import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
-import { ReconnectableQueryCache } from './ReconnectableQueryCache.js';
 import { makeSuspenseQueryCacheKey } from './makeSuspenseQueryCacheKey.js';
 import { createSuspenseQueryControls } from './createSuspenseQueryControls.js';
 import { useSuspenseObservableResource } from './useSuspenseObservableResource.js';
@@ -32,13 +29,12 @@ import {
 
 export { clearSuspenseObservableQueryCache } from './SuspenseObservableQueryResources.js';
 
-function useVersionedResult<T>(cache: QueryInstanceCache, queryVersion: number | undefined) {
-    const version = cache instanceof ReconnectableQueryCache ? queryVersion : undefined;
-    const [latest, setLatest] = useState<{ version: number | undefined; result: QueryResultWithState<T> | null }>();
+function useVersionedResult<T>(key: string) {
+    const [latest, setLatest] = useState<{ key: string; result: QueryResultWithState<T> | null }>();
     const setResult = useCallback((result: QueryResultWithState<T> | null) => {
-        setLatest({ version, result });
-    }, [version]);
-    return [latest?.version === version ? latest?.result : undefined, setResult] as const;
+        setLatest({ key, result });
+    }, [key]);
+    return [latest?.key === key ? latest.result : undefined, setResult] as const;
 }
 
 function useSuspenseObservableQueryInternal<
@@ -51,16 +47,15 @@ function useSuspenseObservableQueryInternal<
 ): [QueryResultWithState<TDataType>, SetSorting, SetPage, SetPageSize] {
     const { sorting, paging, args, isEnabled } = options;
     const arc = useContext(ArcContext);
-    const queryCache = useContext(QueryInstanceCacheContext);
     useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
-    const [result, setResult] = useVersionedResult<TDataType>(queryCache, arc.queryVersion);
     const consumerId = useId();
     const queryName = resolveSuspenseQueryIdentity(query, isEnabled);
     const cacheKey = isEnabled
-        ? makeSuspenseQueryCacheKey(queryName, arc, queryCache, { sorting: currentSorting, paging: currentPaging, args })
+        ? makeSuspenseQueryCacheKey(queryName, arc, { sorting: currentSorting, paging: currentPaging, args })
         : `__noop__${queryName}`;
+    const [result, setResult] = useVersionedResult<TDataType>(cacheKey);
 
     if (!isEnabled) {
         unregisterPendingConsumer(consumerId);
