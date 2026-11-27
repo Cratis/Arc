@@ -4,11 +4,11 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Security;
-using System.Net.Sockets;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Cratis.Arc.Hosting;
 using Cratis.Arc.Identity.Callers;
 using Cratis.Arc.Tenancy;
 using Microsoft.AspNetCore.Builder;
@@ -49,10 +49,8 @@ public class when_a_signed_browser_caller_requires_membership
         control.Status.ShouldEqual(HttpStatusCode.OK);
         control.Invoked.ShouldBeTrue();
         var membership = new ProductMembership { Deny = true };
-        var result = await Send(key, membership);
+        await AssertRefused(key, membership, HttpStatusCode.Forbidden);
         membership.Calls.ShouldBeGreaterThan(0);
-        result.Status.ShouldEqual(HttpStatusCode.Forbidden);
-        result.Invoked.ShouldBeFalse();
     }
 
     [Fact]
@@ -91,9 +89,7 @@ public class when_a_signed_browser_caller_requires_membership
         control.Status.ShouldEqual(HttpStatusCode.OK);
         control.Invoked.ShouldBeTrue();
         var membership = new ProductMembership();
-        var result = await Send(key, membership, clientCertificate: false);
-        result.Status.ShouldEqual(HttpStatusCode.Unauthorized);
-        result.Invoked.ShouldBeFalse();
+        await AssertRefused(key, membership, HttpStatusCode.Unauthorized, clientCertificate: false);
         membership.Calls.ShouldEqual(0);
     }
 
@@ -116,44 +112,59 @@ public class when_a_signed_browser_caller_requires_membership
         Outside = 1
     }
 
+    static async Task AssertRefused(ECDsa key, ProductMembership membership, HttpStatusCode expected, bool clientCertificate = true)
+    {
+        var result = await Send(key, membership, clientCertificate: clientCertificate);
+        result.Status.ShouldEqual(expected);
+        result.Invoked.ShouldBeFalse();
+    }
+
     static async Task<Outcome> Send(ECDsa key, ProductMembership? membership, string? resolvedTenant = null, bool defaultPort = false, bool clientCertificate = true, PatEndpoint? patEndpoint = null)
     {
-        var capabilityPort = FreePort();
-        var otherPort = FreePort();
+        var capabilityPort = 0;
+        var otherPort = 0;
         var invoked = false;
         using var certificates = new Identity.for_ForwardedIdentityHop.given.certificates();
         var server = certificates.Leaf("localhost", clientAuth: false);
         var peer = certificates.Leaf();
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.ConfigureKestrel(kestrel =>
+        await using var app = await KestrelPorts.Start(
+            2,
+            ports =>
         {
-            kestrel.Listen(IPAddress.Loopback, capabilityPort, listen => listen.UseHttps(server, https =>
+            capabilityPort = ports[0];
+            otherPort = ports[1];
+            var builder = WebApplication.CreateBuilder();
+            builder.WebHost.ConfigureKestrel(kestrel =>
             {
-                https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
-                https.AllowAnyClientCertificate();
-            }));
-            kestrel.Listen(IPAddress.Loopback, otherPort);
-        });
-        builder.AddCratisArc(
-            options =>
+                kestrel.Listen(IPAddress.Loopback, capabilityPort, listen => listen.UseHttps(server, https =>
+                {
+                    https.ClientCertificateMode = ClientCertificateMode.AllowCertificate;
+                    https.AllowAnyClientCertificate();
+                }));
+                kestrel.Listen(IPAddress.Loopback, otherPort);
+            });
+            builder.AddCratisArc(
+                options =>
+                {
+                    options.EndpointGroups.Assign("capabilities", capabilityPort);
+                    options.ForwardedIdentity.ClientCertificate.Required = true;
+                    options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = certificates.Bundle;
+                    options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("authproxy.internal");
+                    if (resolvedTenant is not null) options.Tenancy.HttpHeader = "x-product-tenant";
+                },
+                configureBuilder: arc => ConfigureCallers(arc, key, patEndpoint));
+            if (membership is not null) builder.Services.AddSingleton<ITenantMembership>(membership);
+            var host = builder.Build();
+            host.UseCratisArc();
+            host.MapPost("/mcp", () => Results.Ok());
+            host.MapPost(Route, (ITenantIdAccessor tenants) =>
             {
-                options.EndpointGroups.Assign("capabilities", capabilityPort);
-                options.ForwardedIdentity.ClientCertificate.Required = true;
-                options.ForwardedIdentity.ClientCertificate.TrustedCertificateAuthoritiesPath = certificates.Bundle;
-                options.ForwardedIdentity.ClientCertificate.AllowedDnsNames.Add("authproxy.internal");
-                if (resolvedTenant is not null) options.Tenancy.HttpHeader = "x-product-tenant";
-            },
-            configureBuilder: arc => ConfigureCallers(arc, key, patEndpoint));
-        if (membership is not null) builder.Services.AddSingleton<ITenantMembership>(membership);
-        await using var app = builder.Build();
-        app.UseCratisArc();
-        app.MapPost("/mcp", () => Results.Ok());
-        app.MapPost(Route, (ITenantIdAccessor tenants) =>
-        {
-            invoked = true;
-            return Results.Text(tenants.Current.Value);
-        });
-        await app.StartAsync(global::Xunit.TestContext.Current.CancellationToken);
+                invoked = true;
+                return Results.Text(tenants.Current.Value);
+            });
+            return host;
+        },
+            global::Xunit.TestContext.Current.CancellationToken);
         try
         {
             using var client = new HttpClient(new SocketsHttpHandler
@@ -239,12 +250,6 @@ public class when_a_signed_browser_caller_requires_membership
 
     static void Frame(StringBuilder input, string value) => input.Append(Encoding.UTF8.GetByteCount(value).ToString(CultureInfo.InvariantCulture)).Append(':').Append(value).Append('\n');
     static string Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-    static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
-    }
 
     sealed record Outcome(HttpStatusCode Status, bool Invoked, string Body);
 

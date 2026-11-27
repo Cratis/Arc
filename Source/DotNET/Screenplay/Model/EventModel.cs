@@ -32,6 +32,11 @@ public record EventModel(string Name, IEnumerable<PropertyModel> Properties, IEn
     public string? TypeIdentity { get; init; }
 
     /// <summary>
+    /// Gets the event store a foreign public event originates from, when it is not owned locally.
+    /// </summary>
+    public string? Origin { get; init; }
+
+    /// <summary>
     /// Gets whether the analyzed declaration is local, generation one, and neither tombstone nor compensation.
     /// </summary>
     public bool CanInline { get; init; }

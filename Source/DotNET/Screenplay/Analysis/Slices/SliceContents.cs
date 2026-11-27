@@ -31,6 +31,11 @@ public class SliceContents
     public IList<ReactorModel> Reactors { get; } = [];
 
     /// <summary>
+    /// Gets the captures of foreign events the slice declares.
+    /// </summary>
+    public IList<CaptureModel> Captures { get; } = [];
+
+    /// <summary>
     /// Gets the constraints the slice declares.
     /// </summary>
     public IList<ConstraintModel> Constraints { get; } = [];
@@ -61,6 +66,7 @@ public class SliceContents
         Events.Count +
         Queries.Count +
         Reactors.Count +
+        Captures.Count +
         Constraints.Count +
         Projections.Count;
 

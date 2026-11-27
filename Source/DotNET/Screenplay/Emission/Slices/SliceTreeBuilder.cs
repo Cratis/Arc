@@ -152,7 +152,7 @@ public class SliceTreeBuilder(IScreenplayNaming naming)
             [.. Children.Select(_ => new FeatureSyntax(
                 _.Key,
                 _.Value.BuildChildren(),
-                [.. _.Value.Slices.OrderBy(slice => slice.Name, StringComparer.Ordinal)],
+                [.. SliceDependencyOrder.Apply(_.Value.Slices)],
                 SourceLocation.Start))];
     }
 }

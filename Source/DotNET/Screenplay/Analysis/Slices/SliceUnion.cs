@@ -113,6 +113,7 @@ public static class SliceUnion
             Once(parts.SelectMany(_ => _.Reactors), _ => _.Name, "reactor", @namespace, diagnostics),
             Once(parts.SelectMany(_ => _.Constraints), _ => _.Name, "constraint", @namespace, diagnostics))
         {
+            Captures = Once(parts.SelectMany(_ => _.Captures), _ => _.Name, "capture", @namespace, diagnostics),
             Screens = Once(parts.SelectMany(_ => _.Screens), _ => _.Name, "screen", @namespace, diagnostics)
         };
     }

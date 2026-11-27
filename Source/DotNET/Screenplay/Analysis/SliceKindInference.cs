@@ -21,6 +21,7 @@ public static class SliceKindInference
     /// <param name="commands">The commands the slice declares.</param>
     /// <param name="reactors">The reactors the slice declares.</param>
     /// <param name="hasAggregateRoot">Whether the slice declares an aggregate root.</param>
+    /// <param name="hasCapture">Whether the slice declares a capture of foreign events, which makes it an inbound translation.</param>
     /// <returns>The inferred <see cref="SliceKind"/>.</returns>
     /// <remarks>
     /// An aggregate root governs a change to the system just as a command does, so a slice holding one is a state
@@ -30,8 +31,14 @@ public static class SliceKindInference
     public static SliceKind Infer(
         IEnumerable<CommandModel> commands,
         IEnumerable<ReactorModel> reactors,
-        bool hasAggregateRoot = false)
+        bool hasAggregateRoot = false,
+        bool hasCapture = false)
     {
+        if (hasCapture)
+        {
+            return SliceKind.Translate;
+        }
+
         var declaredReactors = reactors as IReadOnlyCollection<ReactorModel> ?? [.. reactors];
 
         if (declaredReactors.Count > 0)

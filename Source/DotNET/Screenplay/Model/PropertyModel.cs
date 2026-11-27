@@ -8,4 +8,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// </summary>
 /// <param name="Name">The name of the property, in its original casing - emission camel cases it.</param>
 /// <param name="Type">The type of the property.</param>
-public record PropertyModel(string Name, TypeReferenceModel Type);
+public record PropertyModel(string Name, TypeReferenceModel Type)
+{
+    /// <summary>
+    /// Gets whether the source declares the property to identify a read model instance.
+    /// </summary>
+    public bool IsKey { get; init; }
+}
