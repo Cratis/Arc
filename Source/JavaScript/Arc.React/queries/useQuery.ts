@@ -12,6 +12,7 @@ import { SliceLocation } from '@cratis/arc/reflection';
 import { useRegisterSliceLocation } from '../slices/useRegisterSliceLocation.js';
 import { useCommandScope } from '../commands/useCommandScope.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
+import { inQueryVersion, queryVersionGuard } from './ReconnectableQueryCache.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
 import type { QueryExecution } from './QueryExecution.js';
@@ -71,7 +72,7 @@ function useQueryInstance<TQuery extends IQueryFor<unknown>>(query: Constructor<
         commandScope.addQuery(instance as TQuery);
 
         return [instance as TQuery, key] as [TQuery, string];
-    }, [query, argumentsDependency, paging, sorting, arc.microservice, arc.apiBasePath, arc.origin, commandScope]);
+    }, [query, argumentsDependency, paging, sorting, arc.microservice, arc.apiBasePath, arc.origin, arc.queryVersion, commandScope, queryCache]);
 }
 
 /**
@@ -140,16 +141,17 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     const [queryInstance, cacheKey] = useQueryInstance<TQuery>(query, currentPaging, currentSorting, args as object | undefined);
 
+    const isCurrentVersion = queryVersionGuard(queryCache, arc.queryVersion);
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
     const [result, setResult] = useResultForKey<TDataType>(
-        cacheKey,
+        `${arc.queryVersion}:${cacheKey}`,
         cachedResult,
         queryInstance.defaultValue,
         cached => QueryResultWithState.fromQueryResult(cached, isEnabled !== false));
 
     const queryExecutor = async (requestArgs?: TArguments, executionOptions?: QueryOptions) => {
-        if (queryInstance) {
+        if (isCurrentVersion()) {
             await runQueryExecution<TQuery, TDataType, TArguments>({
                 queryInstance,
                 performer,
@@ -162,29 +164,27 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 requestVersionRef,
                 executionRef,
                 deadlineRef,
-                setResult
+                setResult,
+                isCurrentVersion,
             }, requestArgs, executionOptions);
         }
     };
 
-    useEffect(() => {
+    useEffect(inQueryVersion(isCurrentVersion, () => {
         const key = cacheKey;
-
+        const release = inQueryVersion(isCurrentVersion, () => queryCache.release(key));
         queryCache.acquire(key);
 
-        if (isEnabled === false) {
-            return () => {
-                queryCache.release(key);
-            };
-        }
+        if (isEnabled === false) return release;
         queryExecutor(args);
 
-        return trackQuery(arc, key, ownerRef.current, () => queryCache.release(key));
-    }, [argumentsDependency, currentPaging, currentSorting, isEnabled]);
+        return trackQuery(arc, key, ownerRef.current, release);
+    }), [argumentsDependency, currentPaging, currentSorting, isEnabled, arc.queryVersion]);
 
     return [
         isEnabled === false ? QueryResultWithState.empty(queryInstance.defaultValue) : result!,
         async (args?: TArguments, executionOptions?: QueryOptions) => {
+            if (!isCurrentVersion()) return;
             setResult(QueryResultWithState.fromQueryResult(result!, true));
             await queryExecutor(args, executionOptions);
         },

@@ -58,6 +58,11 @@ export function clearSuspenseObservableQueryCache(): void {
     nextAccessOrder = 0;
 }
 
+/** Disposes the old subscriptions and retries consumers waiting for their first result. */
+export function invalidateSuspenseObservableQueries(): void {
+    Array.from(observableCache.values()).forEach(resource => disposeResource(resource, true));
+}
+
 function removePendingConsumer<T>(consumerId: string, resource: ObservableSuspenseResource<T>): void {
     if (pendingResourceByConsumerId.get(consumerId) === (resource as ObservableSuspenseResource<unknown>)) {
         pendingResourceByConsumerId.delete(consumerId);

@@ -8,7 +8,7 @@ import {
     Paging,
 } from '@cratis/arc/queries';
 import type { Constructor } from '@cratis/fundamentals';
-import { useState, useContext, useId } from 'react';
+import { useState, useContext, useId, useCallback } from 'react';
 import type { SetSorting } from './SetSorting.js';
 import type { SetPage } from './SetPage.js';
 import type { SetPageSize } from './SetPageSize.js';
@@ -29,6 +29,14 @@ import {
 
 export { clearSuspenseObservableQueryCache } from './SuspenseObservableQueryResources.js';
 
+function useVersionedResult<T>(key: string) {
+    const [latest, setLatest] = useState<{ key: string; result: QueryResultWithState<T> | null }>();
+    const setResult = useCallback((result: QueryResultWithState<T> | null) => {
+        setLatest({ key, result });
+    }, [key]);
+    return [latest?.key === key ? latest.result : undefined, setResult] as const;
+}
+
 function useSuspenseObservableQueryInternal<
     TDataType,
     TQuery extends IObservableQueryFor<TDataType>,
@@ -42,12 +50,12 @@ function useSuspenseObservableQueryInternal<
     useRegisterSliceLocation(isEnabled === false ? SliceLocation.empty : SliceLocation.ofType(query));
     const [currentSorting, setCurrentSorting] = useState<Sorting>(sorting ?? Sorting.none);
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
-    const [result, setResult] = useState<QueryResultWithState<TDataType> | null>(null);
     const consumerId = useId();
     const queryName = resolveSuspenseQueryIdentity(query, isEnabled);
     const cacheKey = isEnabled
         ? makeSuspenseQueryCacheKey(queryName, arc, { sorting: currentSorting, paging: currentPaging, args })
         : `__noop__${queryName}`;
+    const [result, setResult] = useVersionedResult<TDataType>(cacheKey);
 
     if (!isEnabled) {
         unregisterPendingConsumer(consumerId);

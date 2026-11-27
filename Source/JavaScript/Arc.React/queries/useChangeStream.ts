@@ -4,8 +4,14 @@
 import { IChangeStreamFor, ChangeSet, Sorting, Paging, QueryResultWithState } from '@cratis/arc/queries';
 import { Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { Constructor } from '@cratis/fundamentals';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
+import { ArcContext } from '../ArcContext.js';
 import { useObservableQuery, useObservableQueryWithPaging } from './useObservableQuery.js';
+
+// Waiting and disabled streams share this fallback, including its empty arrays.
+const emptyChangeSet: ChangeSet<never> = { added: [], replaced: [], removed: [] };
+Object.values(emptyChangeSet).forEach(items => Object.freeze(items));
+Object.freeze(emptyChangeSet);
 
 /**
  * Computes the delta between two snapshots of a collection.
@@ -57,6 +63,41 @@ function computeChangeSet<T>(previous: T[], current: T[], getKey?: (item: T) => 
     return { added, replaced: [], removed };
 }
 
+interface Versioned<T> {
+    version: number | undefined;
+    value: T;
+}
+
+function readVersion<T>(state: Versioned<T> | undefined, version: number | undefined): T | undefined {
+    return state && state.version === version ? state.value : undefined;
+}
+
+function useChangeSetForVersion<T>(version: number | undefined) {
+    const [state, setState] = useState<Versioned<ChangeSet<T>>>();
+    const baseline = useRef<Versioned<T[]>>();
+    const changes = readVersion(state, version) ?? emptyChangeSet;
+
+    function update(result: QueryResultWithState<T[]>, getKey?: (item: T) => unknown) {
+        const current = Array.isArray(result.data) ? result.data : [];
+        const previous = readVersion(baseline.current, version);
+        baseline.current = { version, value: current };
+        const next = changeSetForSnapshot(result.changeSet as ChangeSet<T> | undefined, current, previous, getKey);
+        if (next) setState({ version, value: next });
+    }
+
+    return [changes, update] as const;
+}
+
+function changeSetForSnapshot<T>(provided: ChangeSet<T> | undefined, current: T[], previous: T[] | undefined, getKey?: (item: T) => unknown): ChangeSet<T> | undefined {
+    if (provided) return provided;
+    if (!previous || Globals.observableQueryTransferMode === ObservableQueryTransferMode.Full) {
+        return { added: current, replaced: [], removed: [] };
+    }
+    const changes = computeChangeSet(previous, current, getKey);
+    if (changes.added.length + changes.replaced.length + changes.removed.length > 0) return changes;
+    return undefined;
+}
+
 function useChangeStreamInternal<TDataType, TQuery extends IChangeStreamFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
     getKey: ((item: TDataType) => unknown) | undefined,
@@ -65,10 +106,8 @@ function useChangeStreamInternal<TDataType, TQuery extends IChangeStreamFor<TDat
     args: TArguments | undefined,
     isEnabled: boolean
 ): ChangeSet<TDataType> {
-    const emptyChangeSet: ChangeSet<TDataType> = { added: [], replaced: [], removed: [] };
-    const [changeSet, setChangeSet] = useState<ChangeSet<TDataType>>(emptyChangeSet);
-    const previousDataRef = useRef<TDataType[]>([]);
-    const isFirstUpdateRef = useRef(true);
+    const { queryVersion } = useContext(ArcContext);
+    const [changeSet, setChangeSet] = useChangeSetForVersion<TDataType>(queryVersion);
 
     // Keep a stable ref to `getKey` so the effect closure always sees the latest version
     // without triggering unnecessary re-subscriptions.
@@ -89,39 +128,8 @@ function useChangeStreamInternal<TDataType, TQuery extends IChangeStreamFor<TDat
     }
 
     useEffect(() => {
-        if (!isEnabled || result.isPerforming) {
-            return;
-        }
-
-        const current: TDataType[] = Array.isArray(result.data) ? result.data : [];
-        const previous = previousDataRef.current;
-
-        // Use server-provided ChangeSet when available (delta transfer mode active on backend).
-        // This avoids the client-side recomputation and is more accurate since the server
-        // tracks individual operations (insert, replace, delete) in the data source.
-        if (result.changeSet) {
-            setChangeSet(result.changeSet as ChangeSet<TDataType>);
-            isFirstUpdateRef.current = false;
-            previousDataRef.current = current;
-            return;
-        }
-
-        if (Globals.observableQueryTransferMode === ObservableQueryTransferMode.Full || isFirstUpdateRef.current) {
-            // Full mode or first update: treat the whole collection as "added".
-            setChangeSet({ added: current, replaced: [], removed: [] });
-            isFirstUpdateRef.current = false;
-            previousDataRef.current = current;
-            return;
-        }
-
-        // Delta mode: compute what actually changed using the current key function.
-        const computed = computeChangeSet(previous, current, getKeyRef.current);
-        if (computed.added.length > 0 || computed.replaced.length > 0 || computed.removed.length > 0) {
-            setChangeSet(computed);
-        }
-
-        previousDataRef.current = current;
-    }, [result, isEnabled]);
+        if (isEnabled && !result.isPerforming) setChangeSet(result, getKeyRef.current);
+    }, [result, isEnabled, queryVersion]);
 
     return changeSet;
 }

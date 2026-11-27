@@ -7,17 +7,16 @@ import { Bindings } from './Bindings.js';
 import { ArcConfiguration, ArcContext } from './ArcContext.js';
 import { Constructor } from '@cratis/fundamentals';
 import { GetHttpHeaders, EventSourceFactory, Globals, ObservableQueryTransferMode } from '@cratis/arc';
-import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
-import { resetSharedMultiplexer } from '@cratis/arc/queries';
-import { ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
+import { QueryTransportMethod, ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
 import { Messenger } from '@cratis/arc/messaging';
 import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext.js';
+import { getQueryGeneration, reconnectQueries, ReconnectableQueryCache, retainQueryTransport, subscribeToQueryGeneration } from './queries/ReconnectableQueryCache.js';
 import { MessengerScopeContext } from './messaging/MessengerScopeContext.js';
 import { SliceScope } from './slices/SliceScope.js';
 import { SliceScopeContext } from './slices/SliceScopeContext.js';
 import { ApplicationContext } from './applicationContext/ApplicationContext.js';
 import type React from 'react';
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useInsertionEffect, useState, useSyncExternalStore } from 'react';
 
 /**
  * Properties for the Arc context component.
@@ -106,7 +105,6 @@ export interface ArcProps {
  * @param props Props for configuring Arc
  */
 export const Arc = (props: ArcProps) => {
-    const [queryVersion, setQueryVersion] = useState(0);
     const messenger = useRef(new Messenger());
     const [sliceScope] = useState(() => new SliceScope());
     const [ownApplicationContext] = useState(() => new ApplicationContext());
@@ -116,22 +114,17 @@ export const Arc = (props: ArcProps) => {
     // Dispose is always deferred so React StrictMode re-mounts in any build environment
     // can cancel it — preventing the synthetic unmount from destroying entries that child
     // effects are about to re-acquire.
-    const queryInstanceCache = useRef(new QueryInstanceCache(props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs));
+    const [queryCache] = useState(() => new ReconnectableQueryCache(props.queryCacheRetentionMs ?? Globals.queryCacheRetentionMs));
+    const queryVersion = useSyncExternalStore(subscribeToQueryGeneration, getQueryGeneration, getQueryGeneration);
 
     const observableQueryDiagnostics = useRef(new ObservableQueryDiagnostics(
-        queryInstanceCache.current,
+        queryCache,
         () => getSharedMultiplexer(),
         () => ({
             queryTransportMethod: props.queryTransportMethod ?? QueryTransportMethod.ServerSentEvents,
             queryDirectMode: props.queryDirectMode ?? false,
         }),
     ));
-
-    const reconnectQueries = useCallback(() => {
-        queryInstanceCache.current.teardownAllSubscriptions();
-        resetSharedMultiplexer();
-        setQueryVersion(v => v + 1);
-    }, []);
 
     const configuration: ArcConfiguration = {
         microservice: props.microservice ?? '',
@@ -167,20 +160,22 @@ export const Arc = (props: ArcProps) => {
 
     useEffect(() => applicationContext.registerScope(sliceScope), [applicationContext, sliceScope]);
 
+    // Insertion effects are not replayed by StrictMode.
+    useInsertionEffect(() => retainQueryTransport(queryCache), [queryCache]);
+
     useEffect(() => {
-        const cache = queryInstanceCache.current;
-        cache.cancelPendingDispose();
+        queryCache.cancelPendingDispose();
         return () => {
             // Always defer so React StrictMode re-mounts in any build environment can
             // cancel the dispose before the timeout fires.
-            cache.deferDispose();
+            queryCache.deferDispose();
         };
-    }, []);
+    }, [queryCache]);
 
     return (
         <ArcContext.Provider value={configuration}>
             <MessengerScopeContext.Provider value={configuration.messenger}>
-                <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
+                <QueryInstanceCacheContext.Provider value={queryCache}>
                     <IdentityProvider httpHeadersCallback={props.httpHeadersCallback} detailsType={props.detailsType}>
                         <CommandScope>
                             <SliceScopeContext.Provider value={sliceScope}>
