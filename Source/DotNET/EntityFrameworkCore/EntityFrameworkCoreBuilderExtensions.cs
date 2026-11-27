@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Reflection;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +30,7 @@ public static class EntityFrameworkCoreBuilderExtensions
     /// <param name="builder">The <see cref="IEntityFrameworkCoreBuilder"/>.</param>
     /// <param name="optionsAction">An optional action to configure the DbContext options.</param>
     /// <returns>The builder for chaining.</returns>
-    public static IEntityFrameworkCoreBuilder AddDbContext<TDbContext>(
+    public static IEntityFrameworkCoreBuilder AddDbContext<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TDbContext>(
         this IEntityFrameworkCoreBuilder builder,
         Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
         where TDbContext : DbContext
@@ -46,7 +47,7 @@ public static class EntityFrameworkCoreBuilderExtensions
     /// <param name="connectionString">The connection string to use.</param>
     /// <param name="optionsAction">An optional action to configure the DbContext options.</param>
     /// <returns>The builder for chaining.</returns>
-    public static IEntityFrameworkCoreBuilder AddDbContext<TDbContext>(
+    public static IEntityFrameworkCoreBuilder AddDbContext<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TDbContext>(
         this IEntityFrameworkCoreBuilder builder,
         string connectionString,
         Action<IServiceProvider, DbContextOptionsBuilder>? optionsAction = default)
