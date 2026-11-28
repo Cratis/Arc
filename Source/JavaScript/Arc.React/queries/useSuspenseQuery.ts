@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import type { GetHttpHeaders } from '@cratis/arc';
 import { IQueryFor, QueryResultWithState, Paging, Sorting } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
 import { useContext, useEffect, useReducer, useState } from 'react';
@@ -14,9 +15,19 @@ import { useCommandScope } from '../commands/useCommandScope.js';
 import { PerformQuery } from './useQuery.js';
 import { resolveSuspenseQueryIdentity } from './resolveSuspenseQueryIdentity.js';
 import { makeSuspenseQueryCacheKey } from './makeSuspenseQueryCacheKey.js';
-import { ensureSuspenseQueryResource, readSuspenseQueryResource, removeSuspenseQueryResource } from './SuspenseQueryResources.js';
+import {
+    acquireSuspenseQueryResource, getOrCreateSuspenseQueryResource, readSuspenseQueryResource, removeSuspenseQueryResource,
+} from './SuspenseQueryResources.js';
 
 export { clearSuspenseQueryCache } from './SuspenseQueryResources.js';
+
+function adaptQueryHeaders(callback?: GetHttpHeaders): GetHttpHeaders {
+    return () => Object.fromEntries(Array.from(new Headers(callback?.()), ([name, value]) => {
+        // QueryFor spreads a plain record and supplies these two headers itself.
+        const queryHeaderName = name === 'accept' ? 'Accept' : name === 'content-type' ? 'Content-Type' : name;
+        return [queryHeaderName, value];
+    }));
+}
 
 function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(
     query: Constructor<TQuery>,
@@ -32,37 +43,32 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     const [currentPaging, setCurrentPaging] = useState<Paging>(paging ?? Paging.noPaging);
     const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
+    const { httpHeadersCallback } = arc;
     const cacheKey = isEnabled
         ? makeSuspenseQueryCacheKey(resolveSuspenseQueryIdentity(query), arc, {
             sorting: currentSorting,
             paging: currentPaging,
             args,
         })
-        : `__noop__${(query as unknown as { name: string }).name}`;
+        : undefined;
 
-    if (isEnabled) {
-        ensureSuspenseQueryResource<TDataType>(cacheKey, () => {
-            const queryInstance = new query() as TQuery;
-            queryInstance.sorting = currentSorting;
-            queryInstance.paging = currentPaging;
-            queryInstance.setMicroservice(arc.microservice);
-            queryInstance.setApiBasePath(arc.apiBasePath ?? '');
-            queryInstance.setOrigin(arc.origin ?? '');
-            queryInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-            commandScope.addQuery(queryInstance);
-            return queryInstance.perform(args!);
-        });
-    }
+    const resource = cacheKey === undefined ? undefined : getOrCreateSuspenseQueryResource<TDataType>(cacheKey, httpHeadersCallback, () => {
+        const queryInstance = new query() as TQuery;
+        queryInstance.sorting = currentSorting;
+        queryInstance.paging = currentPaging;
+        queryInstance.setMicroservice(arc.microservice);
+        queryInstance.setApiBasePath(arc.apiBasePath ?? '');
+        queryInstance.setOrigin(arc.origin ?? '');
+        queryInstance.setHttpHeadersCallback(adaptQueryHeaders(httpHeadersCallback));
+        commandScope.addQuery(queryInstance);
+        return queryInstance.perform(args!);
+    });
 
     useEffect(() => {
-        return () => {
-            if (isEnabled) {
-                removeSuspenseQueryResource(cacheKey);
-            }
-        };
-    }, [cacheKey, isEnabled]);
+        return resource ? acquireSuspenseQueryResource(resource) : undefined;
+    }, [resource]);
 
-    if (!isEnabled) {
+    if (!resource || cacheKey === undefined) {
         const disabledInstance = new query();
         return [
             QueryResultWithState.empty(disabledInstance.defaultValue),
@@ -73,12 +79,12 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         ];
     }
 
-    const value = readSuspenseQueryResource<TDataType>(cacheKey);
+    const value = readSuspenseQueryResource(resource);
 
     return [
         value,
         async () => {
-            removeSuspenseQueryResource(cacheKey);
+            removeSuspenseQueryResource(cacheKey, httpHeadersCallback);
             forceUpdate();
         },
         async (newSorting: Sorting) => {
