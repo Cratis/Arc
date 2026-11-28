@@ -1,74 +1,95 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+import type { GetHttpHeaders } from '@cratis/arc';
 import { type QueryResult, QueryResultWithState } from '@cratis/arc/queries';
+import { fingerprintSuspenseQueryHeaders } from './fingerprintSuspenseQueryHeaders.js';
 import { QueryFailed } from './QueryFailed.js';
 import { QueryUnauthorized } from './QueryUnauthorized.js';
 
+interface ResourceKeys {
+    source: string;
+    fingerprint: string;
+}
+
 interface SuspenseQueryResource<T> {
+    keys: ResourceKeys;
     status: 'pending' | 'fulfilled' | 'rejected';
     promise: Promise<void>;
     wake: () => void;
     consumers: number;
-    evictionTimer?: ReturnType<typeof setTimeout>;
     value?: QueryResultWithState<T>;
     error?: Error;
 }
 
-// Module-level cache so resources survive Suspense retries on uncommitted components.
-const queryCache = new Map<string, SuspenseQueryResource<unknown>>();
-const uncommittedRetentionMs = 1000;
+// A settled result can still be needed by a boundary with other pending children.
+const resourcesBySource = new Map<string, SuspenseQueryResource<unknown>>();
+const resourcesByFingerprint = new Map<string, SuspenseQueryResource<unknown>>();
+const headerSourceIds = new WeakMap<GetHttpHeaders, number>();
+let nextHeaderSourceId = 1;
+
+function getHeaderSourceId(callback?: GetHttpHeaders): number {
+    if (!callback) return 0;
+    let id = headerSourceIds.get(callback);
+    if (id === undefined) {
+        id = nextHeaderSourceId++;
+        headerSourceIds.set(callback, id);
+    }
+    return id;
+}
+
+function lookupResource(cacheKey: string, callback?: GetHttpHeaders) {
+    const source = `${getHeaderSourceId(callback)}:${cacheKey}`;
+    const bySource = resourcesBySource.get(source);
+    if (bySource) return { keys: bySource.keys, cached: bySource };
+
+    // Pass a stable httpHeadersCallback (module-level or useCallback) when headers carry per-request values.
+    // If retries recreate the callback and its values also change, neither index can match.
+    const fingerprint = `${fingerprintSuspenseQueryHeaders(callback ? new Headers(callback()) : undefined)}:${cacheKey}`;
+    return { keys: { source, fingerprint }, cached: resourcesByFingerprint.get(fingerprint) };
+}
 
 /** Clears the Suspense query cache. Call this in test teardown to ensure test isolation. */
 export function clearSuspenseQueryCache(): void {
-    queryCache.forEach(resource => clearTimeout(resource.evictionTimer));
-    queryCache.clear();
+    resourcesBySource.clear();
+    resourcesByFingerprint.clear();
 }
 
 /** Evicts the previous generation and retries consumers still waiting on an old request. */
 export function invalidateSuspenseQueries(): void {
-    const previous = [...queryCache.values()];
+    const previous = [...resourcesBySource.values()];
     clearSuspenseQueryCache();
     previous.forEach(resource => resource.wake());
 }
 
-export function removeSuspenseQueryResource(cacheKey: string): void {
-    clearTimeout(queryCache.get(cacheKey)?.evictionTimer);
-    queryCache.delete(cacheKey);
+export function removeSuspenseQueryResource(resource: SuspenseQueryResource<unknown>): void {
+    const { source, fingerprint } = resource.keys;
+    if (resourcesBySource.get(source) === resource) resourcesBySource.delete(source);
+    if (resourcesByFingerprint.get(fingerprint) === resource) resourcesByFingerprint.delete(fingerprint);
 }
 
-function isUnused(cacheKey: string, resource: SuspenseQueryResource<unknown>): boolean {
-    return resource.consumers === 0 && queryCache.get(cacheKey) === resource;
-}
-
-function evictIfUnused(cacheKey: string, resource: SuspenseQueryResource<unknown>): void {
-    if (isUnused(cacheKey, resource)) removeSuspenseQueryResource(cacheKey);
-}
-
-export function getOrCreateSuspenseQueryResource<T>(cacheKey: string, perform: () => Promise<QueryResult<T>>): SuspenseQueryResource<T> {
-    const cached = queryCache.get(cacheKey);
+export function getOrCreateSuspenseQueryResource<T>(
+    cacheKey: string,
+    callback: GetHttpHeaders | undefined,
+    perform: () => Promise<QueryResult<T>>,
+): SuspenseQueryResource<T> {
+    const { keys, cached } = lookupResource(cacheKey, callback);
     if (cached) return cached as SuspenseQueryResource<T>;
 
-    const resource = createResource(perform());
-    queryCache.set(cacheKey, resource);
-    const scheduleEviction = () => {
-        // Let Suspense retry and commit after the request settles before evicting an unowned result.
-        if (isUnused(cacheKey, resource)) {
-            resource.evictionTimer = setTimeout(() => evictIfUnused(cacheKey, resource), uncommittedRetentionMs);
-        }
-    };
-    void resource.promise.then(scheduleEviction, scheduleEviction);
+    const resource = createResource(keys, perform());
+    resourcesBySource.set(keys.source, resource);
+    resourcesByFingerprint.set(keys.fingerprint, resource);
     return resource;
 }
 
-export function acquireSuspenseQueryResource(cacheKey: string, resource: SuspenseQueryResource<unknown>): () => void {
-    clearTimeout(resource.evictionTimer);
-    resource.evictionTimer = undefined;
+export function acquireSuspenseQueryResource(resource: SuspenseQueryResource<unknown>): () => void {
     resource.consumers++;
     return () => {
         if (--resource.consumers === 0) {
             // StrictMode replays the effect in the same turn, with the same resource.
-            queueMicrotask(() => evictIfUnused(cacheKey, resource));
+            queueMicrotask(() => {
+                if (resource.consumers === 0) removeSuspenseQueryResource(resource);
+            });
         }
     };
 }
@@ -83,10 +104,11 @@ export function readSuspenseQueryResource<T>(resource: SuspenseQueryResource<T>)
     return resource.value!;
 }
 
-function createResource<T>(pendingResult: Promise<QueryResult<T>>): SuspenseQueryResource<T> {
+function createResource<T>(keys: ResourceKeys, pendingResult: Promise<QueryResult<T>>): SuspenseQueryResource<T> {
     let wake!: () => void;
     const invalidated = new Promise<void>(resolve => { wake = resolve; });
     const resource: SuspenseQueryResource<T> = {
+        keys,
         status: 'pending',
         wake,
         consumers: 0,

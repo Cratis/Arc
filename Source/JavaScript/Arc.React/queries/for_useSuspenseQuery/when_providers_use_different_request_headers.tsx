@@ -39,6 +39,14 @@ describe('when providers configure request headers', () => {
         vi.unstubAllGlobals();
     });
 
+    function deferFirstRequest() {
+        let resolveFirstRequest!: () => void;
+        const firstRequest = new Promise<void>(resolve => { resolveFirstRequest = resolve; });
+        const extraRequest = new Promise<void>(() => { /* Keep unexpected requests pending. */ });
+        waitForQueryResponse = () => requestedTenants.length === 1 ? firstRequest : extraRequest;
+        return resolveFirstRequest;
+    }
+
     function provider(name: string, headers: () => HeadersInit) {
         return <Arc httpHeadersCallback={headers}>
             <React.Suspense fallback="Loading"><Rows name={name} /></React.Suspense>
@@ -70,10 +78,7 @@ describe('when providers configure request headers', () => {
     });
 
     it('should reuse the first request when an outer Suspense boundary retries an inline callback', async () => {
-        let resolveFirstRequest!: () => void;
-        const firstRequest = new Promise<void>(resolve => { resolveFirstRequest = resolve; });
-        const extraRequest = new Promise<void>(() => { /* Keep unexpected requests pending. */ });
-        waitForQueryResponse = () => requestedTenants.length === 1 ? firstRequest : extraRequest;
+        const resolveFirstRequest = deferFirstRequest();
 
         function App() {
             return <Arc httpHeadersCallback={() => ({ 'X-Tenant': 'first tenant' })}>
@@ -89,15 +94,27 @@ describe('when providers configure request headers', () => {
         screen.getByRole('region', { name: 'first' }).textContent!.should.equal('first tenant');
     });
 
-    it('should fetch fresh data when the same callback returns changed headers', async () => {
-        let tenant = 'first tenant';
-        const headers = () => ({ 'X-Tenant': tenant });
+    it('should reuse the request from a stable callback that generates a new request ID each time', async () => {
+        let requestId = 0;
+        const headers = () => ({ 'X-Tenant': 'first tenant', 'X-Request-Id': String(++requestId) });
+        const resolveFirstRequest = deferFirstRequest();
+
         const rendered = render(provider('first', headers));
+        await act(async () => { resolveFirstRequest(); });
+        await act(async () => { rendered.rerender(provider('first', headers)); });
+
+        requestedTenants.should.deep.equal(['first tenant']);
+        screen.getByRole('region', { name: 'first' }).textContent!.should.equal('first tenant');
+    });
+
+    it('should fetch fresh data when a new inline callback returns changed headers', async () => {
+        const rendered = render(provider('first', () => ({ 'X-Tenant': 'first tenant' })));
         const first = await screen.findByRole('region', { name: 'first' });
         first.textContent!.should.equal('first tenant');
 
-        tenant = 'second tenant';
-        await act(async () => { rendered.rerender(provider('first', headers)); });
+        await act(async () => {
+            rendered.rerender(provider('first', () => ({ 'X-Tenant': 'second tenant' })));
+        });
 
         requestedTenants.should.deep.equal(['first tenant', 'second tenant']);
         screen.getByRole('region', { name: 'first' }).textContent!.should.equal('second tenant');

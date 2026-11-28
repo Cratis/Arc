@@ -4,11 +4,16 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { QueryResult } from '@cratis/arc/queries';
-import { ArcContext } from '../../ArcContext.js';
+import { it } from 'vitest';
+import { ArcContext, type ArcConfiguration } from '../../ArcContext.js';
 import { clearSuspenseQueryCache, useSuspenseQuery } from '../useSuspenseQuery.js';
 import { FakeSuspenseQuery, type FakeSuspenseQueryResult } from './FakeSuspenseQuery.js';
 
-const configuration = { microservice: 'test-microservice' };
+const configuration = {
+    microservice: 'test-microservice',
+    httpHeadersCallback: () => ({ 'X-Tenant': 'example' })
+};
+const equivalentConfiguration = { ...configuration, httpHeadersCallback: () => ({ 'x-tenant': 'example' }) };
 type RowsResult = QueryResult<FakeSuspenseQueryResult[]>;
 const replies: ((result: RowsResult) => void)[] = [];
 
@@ -36,9 +41,9 @@ function Rows({ name }: { name: string }) {
     </>;
 }
 
-function view(...names: string[]) {
+function view(names: string[], context: ArcConfiguration = configuration) {
     return <React.StrictMode>
-        <ArcContext.Provider value={configuration}>
+        <ArcContext.Provider value={context}>
             {names.map(name => <React.Suspense key={name} fallback={<span role="status" />}>
                 <Rows name={name} />
             </React.Suspense>)}
@@ -55,39 +60,27 @@ describe('when consumers share a query', () => {
 
     afterEach(() => {
         clearSuspenseQueryCache();
-        vi.useRealTimers();
     });
 
     it('should reuse the result after one of its consumers unmounts', async () => {
-        const rendered = render(view('first', 'second'));
+        const rendered = render(view(['first', 'second']));
         await respond(0, 'shared result');
-        await act(async () => { rendered.rerender(view('second')); });
-        await act(async () => { rendered.rerender(view('second', 'third')); });
+        await act(async () => { rendered.rerender(view(['second'])); });
+        await act(async () => { rendered.rerender(view(['second', 'third'], equivalentConfiguration)); });
 
         replies.should.have.lengthOf(1);
         rowsShown('second').should.equal('shared result');
         rowsShown('third').should.equal('shared result');
     });
 
-    it('should fetch again after the last consumer unmounts', async () => {
-        const rendered = render(view('first'));
+    it.each([
+        { lookup: 'the same header source', context: configuration },
+        { lookup: 'equivalent header values from another source', context: equivalentConfiguration },
+    ])('should fetch again after the last consumer unmounts with $lookup', async ({ context }) => {
+        const rendered = render(view(['first']));
         await respond(0, 'earlier result');
-        await act(async () => { rendered.rerender(view()); });
-        rendered.rerender(view('second'));
-
-        replies.should.have.lengthOf(2);
-        await respond(1, 'fresh result');
-        rowsShown('second').should.equal('fresh result');
-    });
-
-    it('should fetch again after an abandoned request settles and has no consumers', async () => {
-        vi.useFakeTimers();
-        const rendered = render(view('first'));
-        screen.getByRole('status');
-        rendered.rerender(view());
-        await respond(0, 'abandoned result');
-        await act(async () => { vi.advanceTimersByTime(5000); });
-        rendered.rerender(view('second'));
+        await act(async () => { rendered.rerender(view([])); });
+        rendered.rerender(view(['second'], context));
 
         replies.should.have.lengthOf(2);
         await respond(1, 'fresh result');
@@ -95,7 +88,7 @@ describe('when consumers share a query', () => {
     });
 
     it('should fetch fresh rows when a consumer refreshes', async () => {
-        render(view('first', 'second'));
+        render(view(['first', 'second']));
         await respond(0, 'earlier result');
         fireEvent.click(screen.getByRole('button', { name: 'Refresh first' }));
 
