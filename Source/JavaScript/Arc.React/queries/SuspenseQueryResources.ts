@@ -65,7 +65,7 @@ function registerSourceAlias(resource: SuspenseQueryResource<unknown>, sourceKey
     const oldestAlias = resource.sourceKeys.values().next().value;
     if (oldestAlias !== undefined) {
         resource.sourceKeys.delete(oldestAlias);
-        resourcesBySource.delete(oldestAlias);
+        if (resourcesBySource.get(oldestAlias) === resource) resourcesBySource.delete(oldestAlias);
     }
 }
 
