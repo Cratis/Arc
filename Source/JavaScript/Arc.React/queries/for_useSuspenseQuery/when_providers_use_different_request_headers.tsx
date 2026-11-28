@@ -67,12 +67,14 @@ describe('when providers configure request headers', () => {
         second.textContent!.should.equal('second tenant');
     });
 
-    it('should reuse the result when a new inline callback returns equivalent headers', async () => {
-        const rendered = render(provider('first', () => ({ 'X-Tenant': 'first tenant', 'X-Mode': 'read' })));
+    it('should reuse the result across many new inline callbacks with equivalent headers', async () => {
+        const initial = provider('first', () => ({ 'X-Tenant': 'first tenant', 'X-Mode': 'read' }));
+        const rendered = render(initial);
         await screen.findByRole('region', { name: 'first' });
-        await act(async () => {
+        for (let index = 0; index < 50; index++) {
             rendered.rerender(provider('first', () => [['x-mode', 'read'], ['x-tenant', 'first tenant']]));
-        });
+        }
+        rendered.rerender(initial);
 
         requestedTenants.should.deep.equal(['first tenant']);
         screen.getByRole('region', { name: 'first' }).textContent!.should.equal('first tenant');

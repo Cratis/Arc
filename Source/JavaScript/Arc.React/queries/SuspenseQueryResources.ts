@@ -22,6 +22,7 @@ interface SuspenseQueryResource<T> {
 const resourcesBySource = new Map<string, SuspenseQueryResource<unknown>>();
 const resourcesByFingerprint = new Map<string, SuspenseQueryResource<unknown>>();
 const headerSourceIds = new WeakMap<GetHttpHeaders, number>();
+const maxSourceAliases = 8;
 let nextHeaderSourceId = 1;
 
 function getHeaderSourceId(callback?: GetHttpHeaders): number {
@@ -55,6 +56,19 @@ export function invalidateSuspenseQueries(): void {
     previous.forEach(resource => resource.wake());
 }
 
+function registerSourceAlias(resource: SuspenseQueryResource<unknown>, sourceKey: string): void {
+    resource.sourceKeys.add(sourceKey);
+    resourcesBySource.set(sourceKey, resource);
+    if (resource.sourceKeys.size <= maxSourceAliases) return;
+
+    // Set iteration is insertion-ordered. Dropping an alias leaves the fingerprint entry available.
+    const oldestAlias = resource.sourceKeys.values().next().value;
+    if (oldestAlias !== undefined) {
+        resource.sourceKeys.delete(oldestAlias);
+        resourcesBySource.delete(oldestAlias);
+    }
+}
+
 function evictResource(resource: SuspenseQueryResource<unknown>): void {
     resource.sourceKeys.forEach(key => resourcesBySource.delete(key));
     resource.sourceKeys.clear();
@@ -84,8 +98,7 @@ export function getOrCreateSuspenseQueryResource<T>(
     const fingerprintKey = getHeaderFingerprintKey(cacheKey, callback);
     const byFingerprint = resourcesByFingerprint.get(fingerprintKey) as SuspenseQueryResource<T> | undefined;
     const resource = byFingerprint ?? createResource(fingerprintKey, perform());
-    resource.sourceKeys.add(sourceKey);
-    resourcesBySource.set(sourceKey, resource);
+    registerSourceAlias(resource, sourceKey);
     resourcesByFingerprint.set(fingerprintKey, resource);
     return resource;
 }
