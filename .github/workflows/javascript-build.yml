@@ -22,6 +22,25 @@ on:
 permissions: {}
 
 jobs:
+  # Lints, builds and tests only the workspace packages the change reaches, in dependency order. A merge, the nightly run and a
+  # shared input (the root package.json, lockfile or configuration, the build scripts) run every package.
+  affected:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    permissions:
+      contents: read
+    uses: Cratis/Workflows/.github/workflows/affected-frontend.yml@main
+    with:
+      node-version: 23.x
+      node-options: --max-old-space-size=4096
+      timeout-minutes: 30
+      legs: |
+        lint:ci@changed
+        build,test
+      global-paths: |
+        scripts/**
+        .github/workflows/javascript-build.yml
+        .github/workflows/pull-requests.yml
+
   build:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
@@ -67,10 +86,15 @@ jobs:
       - name: Verify extracted declaration guard tooling
         run: node --test scripts/guard-tooling.integration.test.mjs
 
-      - name: Build JS/TS
+      # Only what the declaration guards below read. Linting, building and testing every package is the `affected` job's work,
+      # and it covers only the packages the change reaches (Cratis/Workflows affected-frontend.yml).
+      - name: Build the packages the declaration guards check
         run: |
+          set -euo pipefail
           export NODE_OPTIONS="--max-old-space-size=4096"
-          yarn ci
+          for package in Arc Arc.React Arc.React.MVVM Arc.Vite; do
+            (cd "Source/JavaScript/$package" && yarn build)
+          done
           node --test scripts/rollup-node-externals.test.mjs
           yarn node scripts/check-declaration-imports.cjs --self-test
           node --test scripts/declaration-guard-roots.test.cjs scripts/guard-job-layout.test.mjs
