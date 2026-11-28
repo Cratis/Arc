@@ -7,13 +7,9 @@ import { fingerprintSuspenseQueryHeaders } from './fingerprintSuspenseQueryHeade
 import { QueryFailed } from './QueryFailed.js';
 import { QueryUnauthorized } from './QueryUnauthorized.js';
 
-interface ResourceKeys {
-    source: string;
-    fingerprint: string;
-}
-
 interface SuspenseQueryResource<T> {
-    keys: ResourceKeys;
+    sourceKeys: Set<string>;
+    fingerprintKey: string;
     status: 'pending' | 'fulfilled' | 'rejected';
     promise: Promise<void>;
     wake: () => void;
@@ -38,15 +34,12 @@ function getHeaderSourceId(callback?: GetHttpHeaders): number {
     return id;
 }
 
-function lookupResource(cacheKey: string, callback?: GetHttpHeaders) {
-    const source = `${getHeaderSourceId(callback)}:${cacheKey}`;
-    const bySource = resourcesBySource.get(source);
-    if (bySource) return { keys: bySource.keys, cached: bySource };
+function getHeaderSourceKey(cacheKey: string, callback?: GetHttpHeaders): string {
+    return `${getHeaderSourceId(callback)}:${cacheKey}`;
+}
 
-    // Pass a stable httpHeadersCallback (module-level or useCallback) when headers carry per-request values.
-    // If retries recreate the callback and its values also change, neither index can match.
-    const fingerprint = `${fingerprintSuspenseQueryHeaders(callback ? new Headers(callback()) : undefined)}:${cacheKey}`;
-    return { keys: { source, fingerprint }, cached: resourcesByFingerprint.get(fingerprint) };
+function getHeaderFingerprintKey(cacheKey: string, callback?: GetHttpHeaders): string {
+    return `${fingerprintSuspenseQueryHeaders(callback ? new Headers(callback()) : undefined)}:${cacheKey}`;
 }
 
 /** Clears the Suspense query cache. Call this in test teardown to ensure test isolation. */
@@ -57,15 +50,24 @@ export function clearSuspenseQueryCache(): void {
 
 /** Evicts the previous generation and retries consumers still waiting on an old request. */
 export function invalidateSuspenseQueries(): void {
-    const previous = [...resourcesBySource.values()];
+    const previous = [...resourcesByFingerprint.values()];
     clearSuspenseQueryCache();
     previous.forEach(resource => resource.wake());
 }
 
-export function removeSuspenseQueryResource(resource: SuspenseQueryResource<unknown>): void {
-    const { source, fingerprint } = resource.keys;
-    if (resourcesBySource.get(source) === resource) resourcesBySource.delete(source);
-    if (resourcesByFingerprint.get(fingerprint) === resource) resourcesByFingerprint.delete(fingerprint);
+function evictResource(resource: SuspenseQueryResource<unknown>): void {
+    resource.sourceKeys.forEach(key => resourcesBySource.delete(key));
+    resource.sourceKeys.clear();
+    resourcesByFingerprint.delete(resource.fingerprintKey);
+}
+
+export function removeSuspenseQueryResource(cacheKey: string, callback?: GetHttpHeaders): void {
+    const sourceKey = getHeaderSourceKey(cacheKey, callback);
+    const fingerprintKey = getHeaderFingerprintKey(cacheKey, callback);
+    const bySource = resourcesBySource.get(sourceKey);
+    const byFingerprint = resourcesByFingerprint.get(fingerprintKey);
+    if (bySource) evictResource(bySource);
+    if (byFingerprint && byFingerprint !== bySource) evictResource(byFingerprint);
 }
 
 export function getOrCreateSuspenseQueryResource<T>(
@@ -73,12 +75,18 @@ export function getOrCreateSuspenseQueryResource<T>(
     callback: GetHttpHeaders | undefined,
     perform: () => Promise<QueryResult<T>>,
 ): SuspenseQueryResource<T> {
-    const { keys, cached } = lookupResource(cacheKey, callback);
-    if (cached) return cached as SuspenseQueryResource<T>;
+    const sourceKey = getHeaderSourceKey(cacheKey, callback);
+    const bySource = resourcesBySource.get(sourceKey);
+    if (bySource) return bySource as SuspenseQueryResource<T>;
 
-    const resource = createResource(keys, perform());
-    resourcesBySource.set(keys.source, resource);
-    resourcesByFingerprint.set(keys.fingerprint, resource);
+    // Pass a stable httpHeadersCallback (module-level or useCallback) when headers carry per-request values.
+    // If retries recreate the callback and its values also change, neither index can match.
+    const fingerprintKey = getHeaderFingerprintKey(cacheKey, callback);
+    const byFingerprint = resourcesByFingerprint.get(fingerprintKey) as SuspenseQueryResource<T> | undefined;
+    const resource = byFingerprint ?? createResource(fingerprintKey, perform());
+    resource.sourceKeys.add(sourceKey);
+    resourcesBySource.set(sourceKey, resource);
+    resourcesByFingerprint.set(fingerprintKey, resource);
     return resource;
 }
 
@@ -88,7 +96,9 @@ export function acquireSuspenseQueryResource(resource: SuspenseQueryResource<unk
         if (--resource.consumers === 0) {
             // StrictMode replays the effect in the same turn, with the same resource.
             queueMicrotask(() => {
-                if (resource.consumers === 0) removeSuspenseQueryResource(resource);
+                if (resource.consumers === 0 && resourcesByFingerprint.get(resource.fingerprintKey) === resource) {
+                    evictResource(resource);
+                }
             });
         }
     };
@@ -104,11 +114,12 @@ export function readSuspenseQueryResource<T>(resource: SuspenseQueryResource<T>)
     return resource.value!;
 }
 
-function createResource<T>(keys: ResourceKeys, pendingResult: Promise<QueryResult<T>>): SuspenseQueryResource<T> {
+function createResource<T>(fingerprintKey: string, pendingResult: Promise<QueryResult<T>>): SuspenseQueryResource<T> {
     let wake!: () => void;
     const invalidated = new Promise<void>(resolve => { wake = resolve; });
     const resource: SuspenseQueryResource<T> = {
-        keys,
+        sourceKeys: new Set(),
+        fingerprintKey,
         status: 'pending',
         wake,
         consumers: 0,

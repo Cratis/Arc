@@ -4,6 +4,7 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { Arc } from '../../Arc.js';
+import { ArcContext } from '../../ArcContext.js';
 import { clearSuspenseQueryCache, useSuspenseQuery } from '../useSuspenseQuery.js';
 import { FakeSuspenseQuery, type FakeSuspenseQueryResult } from './FakeSuspenseQuery.js';
 
@@ -105,6 +106,32 @@ describe('when providers configure request headers', () => {
 
         requestedTenants.should.deep.equal(['first tenant']);
         screen.getByRole('region', { name: 'first' }).textContent!.should.equal('first tenant');
+    });
+
+    it('should share one request when two stable callbacks match on their first sample and then diverge', async () => {
+        const resolveFirstRequest = deferFirstRequest();
+        const names = ['first', 'second'];
+        const contexts = names.map(name => {
+            let samples = 0;
+            return {
+                microservice: 'test-microservice',
+                httpHeadersCallback: () => ({
+                    'X-Tenant': 'shared tenant',
+                    'X-Request-Id': samples++ === 0 ? 'initial' : `${name}-${samples}`,
+                }),
+            };
+        });
+
+        render(<>{names.map((name, index) =>
+            <ArcContext.Provider key={name} value={contexts[index]}>
+                <React.Suspense fallback="Loading"><Rows name={name} /></React.Suspense>
+            </ArcContext.Provider>
+        )}</>);
+        await act(async () => { resolveFirstRequest(); });
+
+        requestedTenants.should.deep.equal(['shared tenant']);
+        screen.getByRole('region', { name: 'first' }).textContent!.should.equal('shared tenant');
+        screen.getByRole('region', { name: 'second' }).textContent!.should.equal('shared tenant');
     });
 
     it('should fetch fresh data when a new inline callback returns changed headers', async () => {

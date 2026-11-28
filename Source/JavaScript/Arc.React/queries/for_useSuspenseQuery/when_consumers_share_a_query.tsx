@@ -75,10 +75,12 @@ describe('when consumers share a query', () => {
 
     it.each([
         { lookup: 'the same header source', context: configuration },
-        { lookup: 'equivalent header values from another source', context: equivalentConfiguration },
+        { lookup: 'an equivalent header source that already shared the result', context: equivalentConfiguration },
+        { lookup: 'equivalent header values from a new source', context: { ...configuration, httpHeadersCallback: () => ({ 'x-tenant': 'example' }) } },
     ])('should fetch again after the last consumer unmounts with $lookup', async ({ context }) => {
         const rendered = render(view(['first']));
         await respond(0, 'earlier result');
+        await act(async () => { rendered.rerender(view(['first'], equivalentConfiguration)); });
         await act(async () => { rendered.rerender(view([])); });
         rendered.rerender(view(['second'], context));
 
@@ -87,13 +89,19 @@ describe('when consumers share a query', () => {
         rowsShown('second').should.equal('fresh result');
     });
 
-    it('should fetch fresh rows when a consumer refreshes', async () => {
+    it('should fetch fresh rows for each consumer that refreshes', async () => {
         render(view(['first', 'second']));
         await respond(0, 'earlier result');
         fireEvent.click(screen.getByRole('button', { name: 'Refresh first' }));
 
         replies.should.have.lengthOf(2);
-        await respond(1, 'fresh result');
-        rowsShown('first').should.equal('fresh result');
+        await respond(1, 'first refresh');
+        rowsShown('first').should.equal('first refresh');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh second' }));
+
+        replies.should.have.lengthOf(3);
+        await respond(2, 'second refresh');
+        rowsShown('second').should.equal('second refresh');
     });
 });

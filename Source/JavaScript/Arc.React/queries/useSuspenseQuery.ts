@@ -68,7 +68,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
         return resource ? acquireSuspenseQueryResource(resource) : undefined;
     }, [resource]);
 
-    if (!resource) {
+    if (!resource || cacheKey === undefined) {
         const disabledInstance = new query();
         return [
             QueryResultWithState.empty(disabledInstance.defaultValue),
@@ -84,7 +84,7 @@ function useSuspenseQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>
     return [
         value,
         async () => {
-            removeSuspenseQueryResource(resource);
+            removeSuspenseQueryResource(cacheKey, httpHeadersCallback);
             forceUpdate();
         },
         async (newSorting: Sorting) => {
